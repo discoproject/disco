@@ -1,0 +1,104 @@
+<html>
+<head>
+<link rel="stylesheet" href="reset-fonts-grids.css" type="text/css">
+<style>
+<!--
+
+/*
+body {
+        background: #ffffff;
+        color: #000000;
+        font-family: Verdana, "Bitstream Vera Sans", sans-serif;
+	line-height: 1.8em;
+}
+*/
+
+thead{
+        background: #ccc;
+}
+
+table td{
+        border: 1px #6699CC solid;
+        border-spacing: 0px;
+        width: 3em;
+        height: 1em;
+        margin: 0px;
+        padding: 0px;
+        vertical-align: middle;
+}
+
+td input{
+        background: #eeeeee;
+}
+-->
+</style>
+
+        <script type="text/javascript" src="jquery-1.2.1.js"></script>
+        <script type="text/javascript" src="jquery.uitableedit.js"></script>
+        <script type="text/javascript" src="json2.js"></script>
+        <script type="text/javascript">
+        jQuery.fn.log = function (msg) {
+              console.log("%s: %o", msg, this);
+              return this;
+         };
+
+         function check_cell(val, orig, ev){
+                $("tr > td:empty").parent().remove();
+         }
+
+         function send_table(){
+                var table = $("tbody > tr").map(function(){
+                        return JSON.stringify($.makeArray($(this).children().map(
+                                function(){return $(this).text();})));
+                });
+                jsonTable = ("[" + $.makeArray(table).join(",") + "]");
+                $.ajax({data: jsonTable, dataType: "JSON", 
+                        url: "/disco/ctrl/save_config_table",
+                                type: "POST", processData: false});
+         }
+
+         function new_table(data){
+                 $("tbody").replaceWith("<tbody>" + 
+                        $.map(data, function(item, i){
+                                return "<tr>" +
+                                $.map(item, "'<td>' + a + '</td>'").join("") +
+                                "</tr>";
+                        }).join("") + "</tbody>");
+                $.uiTableEdit($("table"), {dataVerify: check_cell});
+         }
+
+         $(document).ready(function(){
+                $.ajaxSetup({
+                        cache: false, 
+                })
+
+                $("#addrow").click(function(){
+                        t = $("table");
+                        t.append("<tr><td> </td><td> </td></tr>");
+                        $.uiTableEdit(t, {dataVerify: check_cell});
+                });
+                
+                $("#send").click(send_table);
+                $.getJSON("/disco/ctrl/load_config_table", new_table);
+         });
+        </script>
+</head>
+
+<body>
+
+koe
+<table>
+<thead>
+        <tr><td>Nodes</td><td>Instances</td></tr>
+</thead>
+<tbody>
+<tr><td></td><td></td></tr>
+</tbody>
+</table>
+
+<a id="addrow" href="#">Add row</a>
+<a id="send" href="#">Send</a>
+
+
+</body>
+</html>
