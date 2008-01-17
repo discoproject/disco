@@ -1,6 +1,6 @@
 
 from netstring import *
-import marshal, traceback, time, re
+import marshal, traceback, time, re, urllib
 
 DISCO_NEW_JOB_URL = "/disco/job/new"
 
@@ -20,7 +20,7 @@ def map_line_reader(fd, sze, fname):
 def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
         nr_maps = None, nr_reduces = None, sort = True,\
-        mem_sort_limit = 256 * 1024**2):
+        mem_sort_limit = 256 * 1024**2, async = False):
 
         if len(input_files) < 1:
                 raise "Must have at least one input file"
@@ -32,8 +32,10 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         req["map"] = marshal.dumps(fun_map.func_code)
         req["partition"] = marshal.dumps(partition.func_code)
 
-        nr_maps = nr_maps or len(input_files)
+        if not nr_maps or nr_maps > len(input_files):
+                nr_maps = len(input_files)
         req["nr_maps"] = str(nr_maps)
+        
         req["sort"] = str(int(sort))
         req["mem_sort_limit"] = str(mem_sort_limit)
 
@@ -52,9 +54,22 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         if master.startswith("stdout:"):
                 print msg,
         elif master.startswith("disco:"):
-                
+                reply = urllib.urlopen(master.replace("disco:", "http:", 1)\
+                        + DISCO_NEW_JOB_URL, msg)
+                r = reply.read()
+                if "job started" not in r:
+                        raise "Failed to start a job. Server replied: " + r
+                reply.close()
         else:
                 raise "Unknown host specifier: %s" % master
+
+        if not async:
+                return wait_job(master, name)
+        else:
+                return name
+
+def wait_job(master, name):
+        pass
                 
 
 

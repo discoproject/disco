@@ -19,8 +19,8 @@ stop() ->
 spawn_cmd(JobName, Node, PartID, Mode) ->
         lists:flatten(io_lib:fwrite(?CMD, [JobName, Node, PartID, Mode])).
 
-init([From, JobName, PartID, Mode, Node, Input] = Args) ->
-        ets:insert(active_workers, {self(), {JobName, From, Node}}),
+init([From, JobName, PartID, Mode, Node, Input]) ->
+        ets:insert(active_workers, {self(), {From, JobName, Node, PartID}}),
         Port = open_port(
                 {spawn, spawn_cmd(JobName, Node, PartID, Mode)}, ?PORT_OPT),
         port_command(Port, Input),

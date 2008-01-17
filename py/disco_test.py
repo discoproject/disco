@@ -1,4 +1,4 @@
-import sys
+import sys, os
 import disco
 
 def fun_map(e):
@@ -14,4 +14,9 @@ def fun_reduce(iter, out, job):
         for k, v in s.iteritems():
                 out.add(k, v)
 
-disco.job("stdout:", "wordcount", sys.argv[1:], fun_map, reduce = fun_reduce)
+if "HTTP" in os.environ:
+        disco.job(sys.argv[1], "wordcount", 
+                sys.argv[2:], fun_map, reduce = fun_reduce)
+else:
+        disco.job("stdout:", "wordcount",\
+                sys.argv[1:], fun_map, reduce = fun_reduce)

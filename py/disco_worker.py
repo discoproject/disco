@@ -31,6 +31,9 @@ def this_host():
 def this_partition():
         return int(sys.argv[2])
         
+def this_inputs()
+        return sys.argv[4:]
+
 def ensure_path(path, check_exists = True):
         if check_exists and os.path.exists(path):
                 err("File exists: %s" % path)
@@ -303,7 +306,7 @@ def op_map(job):
         global job_name
         
         job_name = job['name']
-        job_input = job['input']
+        job_input = this_inputs()
         msg("Received a new map job!")
 
         nr_reduces = int(job['nr_reduces'])
@@ -331,7 +334,7 @@ def op_reduce(job):
         global job_name
 
         job_name = job['name']
-        job_inputs = job['input'].split()
+        job_inputs = this_inputs()
 
         msg("Received a new reduce job!")
         
@@ -357,14 +360,14 @@ except:
         msg("Decoding the job description failed", "ERR")
         raise
 
-if len(sys.argv) != 4:
+if len(sys.argv) < 5:
         err("Invalid command line. "\
-            "Usage: disco_worker.py hostname part_id [op_map|op_reduce]")
+            "Usage: disco_worker.py hostname part_id [op_map|op_reduce] inputs..")
 
 if sys.argv[3] not in globals():
         err("Invalid operation: %s" % sys.argv[3])
 
-globals()[sys.argv[3]](m)
+globals()["op_" + sys.argv[3]](m)
 msg("Worker done", "END")
 
 
