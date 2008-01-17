@@ -2,54 +2,132 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_link/6, stop/0]).
+-export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
--define(CMD, "disco_worker.sh '~s' '~s' '~s' '~s'").
+-record(state, {port, from, jobname, partid, mode, 
+                node, input, data, linecount, errlines, results}).
+
+-define(CMD, "disco_worker.sh '~s' '~s' '~w' '~s' '~s'").
 -define(PORT_OPT, [{line, 100000}, exit_status, use_stdio, stderr_to_stdout]).
 
-start_link(From, JobName, PartID, Mode, Node, Input) ->
-        {ok, Pid} = gen_server:start_link(disco_worker, 
-                [From, JobName, PartID, Mode, Node, Input], []).
+start_link(Args) ->
+        {ok, _} = gen_server:start_link(disco_worker, Args, []).
 
-stop() ->
-        gen_server:call(disco_worker, stop).
-
-spawn_cmd(JobName, Node, PartID, Mode) ->
-        lists:flatten(io_lib:fwrite(?CMD, [JobName, Node, PartID, Mode])).
-
-init([From, JobName, PartID, Mode, Node, Input]) ->
+init([From, JobName, PartID, Mode, Node, Input, Data]) ->
+        error_logger:info_report(["Init worker ", JobName]),
         ets:insert(active_workers, {self(), {From, JobName, Node, PartID}}),
-        Port = open_port(
-                {spawn, spawn_cmd(JobName, Node, PartID, Mode)}, ?PORT_OPT),
-        port_command(Port, Input),
-        {ok, {Port, Args}}.
 
-handle_call(kill_worker, From, {Port, Args} = State) ->
+        {ok, #state{from = From, jobname = JobName, partid = PartID, mode = Mode,
+                    node = Node, input = Input, data = Data, 
+                    linecount = 0, errlines = [], results = []}}.
+
+spawn_cmd(#state{input = [Input|_]} = S) when is_list(Input) ->
+        InputStr = lists:flatten([[X, 32] || X <- S#state.input]),
+        spawn_cmd(S#state{input = InputStr});
+
+spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
+                mode = Mode, input = Input}) ->
+        lists:flatten(io_lib:fwrite(?CMD,
+                [JobName, Node, PartID, Mode, Input])).
+
+handle_call(start_worker, _From, State) ->
+        Cmd = spawn_cmd(State),
+        error_logger:info_report(["Spawn cmd: ", Cmd]),
+        Port = open_port({spawn, spawn_cmd(State)}, ?PORT_OPT),
+        port_command(Port, State#state.data),
+        {reply, ok, State#state{port = Port}, 5000};
+
+handle_call(kill_worker, _From, State) ->
         error_logger:info_report(["Kill worker"]),
-        Port ! {self(), close},
+        State#state.port ! {self(), close},
         {reply, ok, State}.
 
-handle_info({Port, {data, {eol, Line}}}, State) ->
-        error_logger:info_report(["Line", Line]),
-        {noreply, State};
+strip_timestamp(Msg) ->
+        P = string:chr(Msg, $]),
+        if P == 0 ->
+                Msg;
+        true ->
+                string:substr(Msg, P + 2)
+        end.
 
-handle_info({Port, {data, {noeol, Line}}}, State) ->
-        error_logger:info_report(["TruncLine", Line]),
-        {noreply, State};
+event(S, Type, Msg) ->
+        disco_server:event(S#state.node, S#state.jobname,
+                "~s [~s:~B] ~s", [Type, S#state.mode, S#state.partid, Msg], []).
 
-handle_info({Port, {exit_status, Status}}, State) ->
-        error_logger:info_report(["Exit:: ", Status]),
-        {noreply, State};
+parse_result(L) ->
+        [PartID|Url] = string:tokens(L, " "),
+        {ok, {list_to_integer(PartID), Url}}.
 
-handle_info({Port, closed}, State) ->
-        error_logger:info_report(["Closed"]),
-        {noreply, State};
+handle_info({_, {data, {eol, [$*,$*,$<,$M,$S,$G,$>|Line]}}}, S) ->
+        event(S, "", strip_timestamp(Line)),
+        {noreply, S#state{linecount = S#state.linecount + 1}};
 
-handle_info({'EXIT', Port, PosixCode}, State) ->
-        error_logger:info_report(["Exit: ", PosixCode]),
-        {noreply, State}.
+handle_info({_, {data, {eol, [$*,$*,$<,$E,$R,$R,$>|Line]}}}, S) ->
+        M = strip_timestamp(Line),
+        event(S, "ERROR", M),
+        gen_server:call(disco_server, {exit_worker, {job_error, M}}),
+        {stop, normal, S};
+
+handle_info({_, {data, {eol, [$*,$*,$<,$D,$A,$T,$>|Line]}}}, S) ->
+        M = strip_timestamp(Line),
+        event(S, "WARN", M),
+        gen_server:call(disco_server, {exit_worker, {data_error, M}}),
+        {stop, normal, S};
+
+handle_info({_, {data, {eol, [$*,$*,$<,$O,$U,$T,$>|Line]}}}, S) ->
+        M = strip_timestamp(Line),
+        case catch parse_result(M) of
+                {ok, Item} -> {noreply, S#state{results = 
+                                       [Item|S#state.results]}};
+                _Error -> Err = "Could not parse result line: " ++ Line,
+                          event(S, "ERROR", Err),
+                          gen_server:call(disco_server, 
+                                {exit_worker, {job_error, Err}}),
+                          {stop, normal, S}
+        end;
+
+handle_info({_, {data, {eol, [$*,$*,$<,$E,$N,$D,$>|Line]}}}, S) ->
+        event(S, "", strip_timestamp(Line)),
+        gen_server:call(disco_server, 
+                {exit_worker, {job_ok, S#state.results}}),
+        {stop, normal, S};
+
+handle_info({_, {data, {eol, [$*,$*,$<|_] = Line}}}, S) ->
+        event(S, "WARN", "Unknown line ID: " ++ Line),
+        {noreply, S};               
+
+handle_info({_, {data, {eol, Line}}}, S) ->
+        {noreply, S#state{errlines = S#state.errlines ++ Line ++ [10]}};
+
+handle_info({_, {data, {noeol, Line}}}, S) ->
+        event(S, "WARN", "Truncated line: " ++ Line),
+        {noreply, S};
+
+handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
+        M =  "Worker didn't start: " ++ S#state.errlines,
+        event(S, "WARN", M),
+        gen_server:call(disco_server, {exit_worker, {data_error, M}}),
+        {stop, normal, S};
+
+handle_info({_, {exit_status, _Status}}, S) ->
+        M =  "Worker failed. Last words: " ++ S#state.errlines,
+        event(S, "ERROR", M),
+        gen_server:call(disco_server, {exit_worker, {job_error, M}}),
+        {stop, normal, S};
+        
+handle_info({_, closed}, S) ->
+        M = "Worker killed. Last words: " ++ S#state.errlines,
+        event(S, "ERROR", M),
+        gen_server:call(disco_server, {exit_worker, {job_error, M}}),
+        {stop, normal, S};
+
+handle_info(timeout, #state{linecount = 0} = S) ->
+        M = "Worker didn't start in 5 seconds",
+        event(S, "WARN", M),
+        gen_server:call(disco_server, {exit_worker, {data_error, M}}),
+        {stop, normal, S}.
 
 % callback stubs
 

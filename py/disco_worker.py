@@ -11,7 +11,7 @@ REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-%d"
 
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
-        print >> sys.stderr, "**<%s>[%s] [%s] [%s] %s</%s>" %\
+        print >> sys.stderr, "**<%s>[%s %s (%s)] %s" %\
                 (c, t, job_name, job_input, m, c)
 
 def err(m):
