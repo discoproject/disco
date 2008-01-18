@@ -1,104 +1,277 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+ "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<link rel="stylesheet" href="reset-fonts-grids.css" type="text/css">
-<style>
-<!--
+   <title>YUI Base Page</title>
+   <link rel="stylesheet" href="reset-fonts-grids.css" type="text/css">
+   <link rel="stylesheet" href="style.css" type="text/css">
 
-/*
-body {
-        background: #ffffff;
-        color: #000000;
-        font-family: Verdana, "Bitstream Vera Sans", sans-serif;
-	line-height: 1.8em;
-}
-*/
+   <script type="text/javascript" src="jquery-1.2.1.js"></script>
+   <script type="text/javascript" src="jquery-dom.js"></script>
+   <script type="text/javascript" src="typewatch1.1.js"></script> 
 
-thead{
-        background: #ccc;
-}
+   <script type="text/javascript" src="joblist.js"></script>
+   <script type="text/javascript" src="disco.js"></script>
+   <script type="text/javascript" src="status.js"></script>
 
-table td{
-        border: 1px #6699CC solid;
-        border-spacing: 0px;
-        width: 3em;
-        height: 1em;
-        margin: 0px;
-        padding: 0px;
-        vertical-align: middle;
-}
-
-td input{
-        background: #eeeeee;
-}
--->
-</style>
-
-        <script type="text/javascript" src="jquery-1.2.1.js"></script>
-        <script type="text/javascript" src="jquery.uitableedit.js"></script>
-        <script type="text/javascript" src="json2.js"></script>
-        <script type="text/javascript">
-        jQuery.fn.log = function (msg) {
-              console.log("%s: %o", msg, this);
-              return this;
-         };
-
-         function check_cell(val, orig, ev){
-                $("tr > td:empty").parent().remove();
-         }
-
-         function send_table(){
-                var table = $("tbody > tr").map(function(){
-                        return JSON.stringify($.makeArray($(this).children().map(
-                                function(){return $(this).text();})));
-                });
-                jsonTable = ("[" + $.makeArray(table).join(",") + "]");
-                $.ajax({data: jsonTable, dataType: "JSON", 
-                        url: "/disco/ctrl/save_config_table",
-                                type: "POST", processData: false});
-         }
-
-         function new_table(data){
-                 $("tbody").replaceWith("<tbody>" + 
-                        $.map(data, function(item, i){
-                                return "<tr>" +
-                                $.map(item, "'<td>' + a + '</td>'").join("") +
-                                "</tr>";
-                        }).join("") + "</tbody>");
-                $.uiTableEdit($("table"), {dataVerify: check_cell});
-         }
-
-         $(document).ready(function(){
-                $.ajaxSetup({
-                        cache: false, 
-                })
-
-                $("#addrow").click(function(){
-                        t = $("table");
-                        t.append("<tr><td> </td><td> </td></tr>");
-                        $.uiTableEdit(t, {dataVerify: check_cell});
-                });
-                
-                $("#send").click(send_table);
-                $.getJSON("/disco/ctrl/load_config_table", new_table);
-         });
-        </script>
 </head>
-
 <body>
+<div id="doc3" class="yui-t5">
+   
+   <div id="hd">
+   <div alt="koe" id="title">disco status</div>
+   <div id="logo"><img src="balls.png"/></div>
+   </div>
+   
+   <div id="bd">
+	<div id="yui-main">
+	<div class="yui-b"><div class="yui-g">
 
-koe
-<table>
-<thead>
-        <tr><td>Nodes</td><td>Instances</td></tr>
-</thead>
-<tbody>
-<tr><td></td><td></td></tr>
-</tbody>
-</table>
+        <!-- nodebox -->
+        <div class="nodebox">
+        <div class="title">cnode01</div>
+        <div class="status">
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
 
-<a id="addrow" href="#">Add row</a>
-<a id="send" href="#">Send</a>
+        <div style="background: #eee" id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        </div>
+        
+        <div class="val">
+        2.0
+        </div>
+
+        <div class="val midval">
+        80%
+        </div>
+
+        <div class="val">
+        120
+        </div>
+        </div>
+        <!-- nodebox -->
+        
+        <!-- nodebox -->
+        <div class="nodebox">
+        <div id="title">cnode01</div>
+        <div id="status">
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+
+        <div style="background: #eee" id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        </div>
+        
+        <div class="val" id="leftval">
+        2.0
+        </div>
+
+        <div class="val" id="midval">
+        80%
+        </div>
+
+        <div class="val" id="rightval">
+        120
+        </div>
+        </div>
+        <!-- nodebox -->
+        
+        <!-- nodebox -->
+        <div class="nodebox">
+        <div id="title">cnode01</div>
+        <div id="status">
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+
+        <div style="background: #eee" id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        </div>
+        
+        <div class="val" id="leftval">
+        2.0
+        </div>
+
+        <div class="val" id="midval">
+        80%
+        </div>
+
+        <div class="val" id="rightval">
+        120
+        </div>
+        </div>
+        <!-- nodebox -->
+        
+        <!-- nodebox -->
+        <div class="nodebox">
+        <div id="title">cnode01</div>
+        <div id="status">
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+
+        <div style="background: #eee" id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        </div>
+        
+        <div class="val" id="leftval">
+        2.0
+        </div>
+
+        <div class="val" id="midval">
+        80%
+        </div>
+
+        <div class="val" id="rightval">
+        120
+        </div>
+        </div>
+        <!-- nodebox -->
+        
+        <!-- nodebox -->
+        <div class="nodebox">
+        <div id="title">cnode01</div>
+        <div id="status">
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+
+        <div style="background: #eee" id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        </div>
+        
+        <div class="val" id="leftval">
+        2.0
+        </div>
+
+        <div class="val" id="midval">
+        80%
+        </div>
+
+        <div class="val" id="rightval">
+        120
+        </div>
+        </div>
+        <!-- nodebox -->
+        
+        <!-- nodebox -->
+        <div class="nodebox">
+        <div id="title">cnode01</div>
+        <div id="status">
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+
+        <div style="background: #eee" id="jbox"></div>
+        <div id="jbox"></div>
+        <div id="jbox"></div>
+        
+        </div>
+        
+        <div class="val" id="leftval">
+        2.0
+        </div>
+
+        <div class="val" id="midval">
+        80%
+        </div>
+
+        <div class="val" id="rightval">
+        120
+        </div>
+        </div>
+        <!-- nodebox -->
+
+	</div>
+        </div>
+	</div>
+
+	<div class="yui-b">
+        <div class="links">
+        <a href="index.html">status</a> | 
+        <a href="config.html">configure</a>
+        </div>
+
+        <div class="joblist">
+        <input type="text" length="50"></input>
+        <div class="jobs"></div>
+        </div>
+
+        </div>
+   </div>
+   
+   <div id="ft">
+   Footer is here.
+   </div>
 
 
+</div>
 </body>
 </html>

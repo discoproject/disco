@@ -6,12 +6,6 @@
                    "Status: 200 OK\n"
                    "Content-type: text/plain\n\n").
 
-lastn(E, N) when N < length(E) ->
-        [disco_server:format_event(X) || X <- lists:nthtail(length(E) - N, E)];
-
-lastn(E, N) when N >= length(E) ->
-        [disco_server:format_event(X) || X <- E].
-
 ready({_, "master", ["READY"|Results]}) -> json:encode(Results);
 ready(_) -> "Not ready".
 
@@ -33,16 +27,6 @@ op("new", _Query, PostData) ->
                 {ok, []} -> new_coordinator(Name, Msg, PostData);
                 {ok, _Events} -> [?OK_HEADER, 
                                 "ERROR: job ", Name, " already exists"]
-        end;
-
-op("status", Query, none) ->
-        error_logger:info_report([{"Status", Query}]),
-        {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        {value, {_, N}} = lists:keysearch("last", 1, Query),
-        case gen_server:call(disco_server, {get_job_events, Name}) of
-                {ok, []} -> [?OK_HEADER, "ERROR: Unknown job ", Name];
-                {ok, Events} -> [?OK_HEADER, 
-                        json:encode(lastn(Events, list_to_integer(N)))]
         end;
 
 op("get_results", Query, none) ->
@@ -190,7 +174,7 @@ group_results(Res) ->
                  lists:flatten(ets:match(Res, {{result, '_'}, '$1'}))))}.
 
 job_coordinator(Parent, Name, Msg, PostData) ->
-        disco_server:event(Name, "Job coordinator starts", [], [self()]),
+        disco_server:event(Name, "Job coordinator starts", [], [start, self()]),
         Parent ! {self(), ok},
 
         {MapInputs, NMap, NRed, DoReduce} = case catch find_values(Msg) of
@@ -200,7 +184,9 @@ job_coordinator(Parent, Name, Msg, PostData) ->
                         exit(logged_error)
         end,
 
-        disco_server:event(Name, "Starting map phase", [], []),
+        disco_server:event(Name, "Starting map phase", [], 
+                [map_data, self(), NMap, NRed, DoReduce, MapInputs]),
+
         EnumMapInputs = lists:zip(
                 lists:seq(0, length(MapInputs) - 1), MapInputs),
         error_logger:info_report([{"Inputs", EnumMapInputs}]),
@@ -216,10 +202,12 @@ job_coordinator(Parent, Name, Msg, PostData) ->
         disco_server:event(Name, "Map phase done", [], []),
 
         if DoReduce ->
-                disco_server:event(Name, "Starting reduce phase", [], []),
+                disco_server:event(Name, "Starting reduce phase", [],
+                        [red_data, RedInputs]),
                 RedResults = supervise_work(RedInputs, "reduce", Name, PostData, NRed),
                 R = lists:flatten(ets:match(RedResults, {{result, '$1'}, '$2'})),
-                disco_server:event(Name, "Reduce phase done", [], []),
+                disco_server:event(Name, "Reduce phase done", [],
+                        [red_done, R]),
                 disco_server:event(Name, "READY", [], [R]);
         true ->
                 disco_server:event(Name, "READY", [], [MapResults])

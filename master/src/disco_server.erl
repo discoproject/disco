@@ -2,7 +2,8 @@
 -module(disco_server).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0, format_event/1, event/4, event/5]).
+-export([start_link/0, stop/0, format_timestamp/1, 
+        format_event/1, event/4, event/5]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
@@ -26,8 +27,41 @@ init(_Args) ->
         ets:new(job_events, [named_table, duplicate_bag]),
         ets:new(node_load, [named_table]),
         ets:new(blacklist, [named_table]),
+        ets:new(node_stats, [named_table]),
         {ok, []}.
- 
+
+handle_call(get_jobnames, _From, State) ->
+        Lst = ets:match(job_events, 
+                {'$1', {'$2', '_', ['_', start, '$3'|'_']}}),
+        {reply, {ok, Lst}, State};
+
+handle_call({get_jobinfo, JobName}, _From, State) ->
+        MapNfo = ets:match(job_events,
+                {JobName, {'$1', '_', ['_', map_data|'$2']}}),
+        RedNfo = ets:match(job_events,
+                {JobName, {'$1', '_', ['_', red_data|'$2']}}),
+        EndNfo = ets:match(job_events,
+                {JobName, {'$1', '_', ['_', red_done|'$2']}}),
+        {reply, {ok, {MapNfo, RedNfo, EndNfo}}, State};
+
+handle_call({get_nodeinfo, all}, _From, State) ->
+        Active = ets:match(active_workers, {'_', {'_', '$2', '$1', '_'}}),
+        Available = lists:map(fun({Node, Max}) ->
+                [{_, A, B, C}] = ets:lookup(node_stats, Node),
+                {obj, [{node, list_to_binary(Node)},
+                       {job_ok, A}, {data_error, B}, {error, C}, 
+                       {max_workers, Max}]}
+        end, ets:tab2list(config_table)),
+        {reply, {ok, {Available, Active}}, State};
+
+handle_call({get_nodeinfo, Node}, _From, State) ->
+        case ets:lookup(node_stats, Node) of
+                [] -> {reply, {ok, []}, State};
+                [{_, V}] -> Nfo = ets:match(active_workers, 
+                        {'_', {'_', '$1', Node, '_'}}),
+                        {reply, {ok, {V, Nfo}}, State}
+        end;
+
 handle_call({update_config_table, Config}, _From, WaitQueue) ->
         error_logger:info_report([{'Config table update'}]),
         case ets:info(config_table) of
@@ -37,7 +71,8 @@ handle_call({update_config_table, Config}, _From, WaitQueue) ->
         ets:new(config_table, [named_table, ordered_set]),
         ets:insert(config_table, Config),
         lists:foreach(fun({Node, _}) -> 
-                ets:insert_new(node_load, {Node, 0})
+                ets:insert_new(node_load, {Node, 0}),
+                ets:insert_new(node_stats, {Node, 0, 0, 0})
         end, Config),
         {reply, ok, schedule_waiter(WaitQueue, [])};
 
@@ -125,12 +160,19 @@ clean_worker(Pid, ReplyType, Msg, WaitQueue) ->
                    end,
         if V ->
                 [{_, {From, _JobName, Node, PartID}}] = Nfo,
+                update_stats(Node, ReplyType),
                 ets:delete(active_workers, Pid),
                 ets:update_counter(node_load, Node, -1),
                 From ! {ReplyType, Msg, {Node, PartID}},
                 schedule_waiter(WaitQueue, []);
         true -> WaitQueue
         end.
+
+update_stats(Node, job_ok) -> ets:update_counter(node_stats, Node, {2, 1});
+update_stats(Node, data_error) -> ets:update_counter(node_stats, Node, {3, 1});
+update_stats(Node, job_error) -> ets:update_counter(node_stats, Node, {4, 1});
+update_stats(Node, error) -> ets:update_counter(node_stats, Node, {4, 1});
+update_stats(_Node, _) -> ok.
 
 schedule_waiter([], Skipped) -> lists:reverse(Skipped);
 schedule_waiter([Job|WaitQueue] = Q, Skipped) ->
@@ -185,11 +227,16 @@ try_new_worker(Job) ->
                 Node -> start_worker(Job, Node)
         end.
 
-format_event({Tstamp, Host, [Msg|_]}) ->
+format_timestamp(Tstamp) ->
         {Date, Time} = calendar:now_to_local_time(Tstamp),
         DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
         TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
-        [list_to_binary(X) || X <- [DateStr ++ TimeStr, Host, Msg]].
+        DateStr ++ TimeStr.
+
+format_event({Tstamp, Host, [Msg|_]}) ->
+        {obj, [{tstamp, list_to_binary(format_timestamp(Tstamp))},
+               {host, list_to_binary(Host)},
+               {msg, list_to_binary(Msg)}]}.
 
 event(JobName, Format, Args, Params) ->
         event("master", JobName, Format, Args, Params).

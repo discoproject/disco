@@ -1,0 +1,105 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+ "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+   <title>YUI Base Page</title>
+   <link rel="stylesheet" href="reset-fonts-grids.css" type="text/css">
+   <link rel="stylesheet" href="style.css" type="text/css">
+   
+   <script type="text/javascript" src="jquery-1.2.1.js"></script>
+   <script type="text/javascript" src="jquery-dom.js"></script>
+   <script type="text/javascript" src="typewatch1.1.js"></script> 
+
+   <script type="text/javascript" src="joblist.js"></script>
+   <script type="text/javascript" src="disco.js"></script>
+   <script type="text/javascript" src="job.js"></script>
+
+</head>
+<body>
+<div id="doc3" class="yui-t5">
+   
+   <div id="hd">
+   <div id="title"><span style="color: #8f138b">job:</span> </div>
+   <div id="logo"><img src="balls.png"/></div>
+   </div>
+   
+   <div id="bd">
+	<div id="yui-main">
+	<div class="yui-b"><div class="yui-g">
+       
+        <div id="jobctrl">
+        <a href="#">[kill job]</a>&nbsp;&nbsp;&nbsp;<a href="#">[clean job records]</a>
+        </div>
+
+        <div class="jobinfo">
+        <div id="title">Job info</div>
+        <div class="jobbody">
+        <b>Job is</b> <span class="val" id="nfo_active"></span><br/>
+        <b>started:</b> <span class="val" id="nfo_started">12/11/2007 44:44</span><br/>
+        <b># maps:</b> <span class="val" id="nfo_maps">10</span><br/>
+        <b># partitions:</b> <span class="val" id="nfo_part">3</span><br/>
+        <b>reduce:</b> <span class="val" id="nfo_reduce">true</span>
+        </div>
+        </div>
+
+
+        <div class="jobinfo">
+        <div id="title">Current nodes</div>
+        <div id="cur_nodes" class="jobbody"></div>
+        </div>
+
+        <div class="jobinfo">
+        <div id="title">Map Inputs</div>
+        <div id="map_inputs" class="jobbody"></div>
+        </div>
+
+        <div class="jobinfo">
+        <div id="title">Reduce Inputs</div>
+        <div id="red_inputs" class="jobbody"></div>
+        </div>
+
+        <div class="jobevents">
+        
+        <div class="jobevent">
+        <span class="tstamp">11/31/07 12:35:54</span><span class="node">cnode01</span>
+        <div id="ev_warning">
+        diiba daaba<br/>
+        dsds<br/>
+        dssd
+        </div>
+        </div>
+        
+        <div class="jobevent">
+        <span class="tstamp">11/31/07 12:35:54</span><span class="node">cnode01</span>
+        <div class="evtext">
+        diiba daaba
+        </div>
+        </div>
+
+        </div>
+
+	</div>
+        </div>
+	</div>
+
+	<div class="yui-b">
+        <div class="links">
+        <a href="index.html">status</a> | 
+        <a href="config.html">configure</a>
+        </div>
+
+        <div class="joblist">
+        <input type="text" ></input>
+        <div class="jobs"></div>
+        </div>
+        </div>
+   </div>
+   
+   <div id="ft">
+   Footer is here.
+   </div>
+
+
+</div>
+</body>
+</html>

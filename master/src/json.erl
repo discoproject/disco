@@ -76,6 +76,9 @@ encode(Num, Acc) when is_number(Num) ->
     encode_number(Num, Acc);
 encode({obj, Fields}, Acc) ->
     "}" ++ encode_object(Fields, "{" ++ Acc);
+% Tuple case added by Ville
+encode(Str, Acc) when is_tuple(Str) ->
+    encode(tuple_to_list(Str), Acc);
 encode(Arr, Acc) when is_list(Arr) ->
     "]" ++ encode_array(Arr, "[" ++ Acc).
 
