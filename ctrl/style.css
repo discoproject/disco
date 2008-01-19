@@ -12,6 +12,15 @@ a{
         color: #4c8f13;
 }
 
+input{
+        border: 1px solid #aaa;
+}
+
+#ft{
+        color: #999;
+        font-size: 80%;
+}
+
 #hd{
         height: 110px;
 }
@@ -21,6 +30,10 @@ a{
         width: 40%;
         margin-top: 50px;
         float: left;
+}
+
+#hd #title span{
+        color: #8f138b;
 }
 
 #hd #logo{
@@ -39,6 +52,10 @@ a{
         border: 1px solid #666;
         float: left;
         margin: 10px;
+}
+
+.blacklisted{
+        background: #ccc;
 }
 
 .nodebox .title{
@@ -99,7 +116,6 @@ a{
 .joblist input{
         margin-top: 10px;
         margin-bottom: 10px;
-        border: 1px solid #aaa;
         width: 90%;
 }
 
@@ -165,6 +181,7 @@ a{
 }
 
 #jobctrl{
+        color: #8f138b;
         font-size: 120%;
         margin-left: 10px;
         clear: right;
@@ -217,6 +234,8 @@ a{
         margin: 10px;
         border: 1px dotted #666;
         padding: 15px;
+        min-width: 20em;
+        min-height: 10em;
 }
 
 .config_table td{
@@ -241,13 +260,13 @@ h3{
         margin-bottom: 10px;
 }       
 
-#blacklist input{
+
+.confbox #jobname{
         margin-top: 10px;
-        border: 1px solid #aaa;
         width: 98%; 
 }
 
-#blacklist #bnode{
+#blacklist .bnode{
         margin-top: 2px;
         background: #eee;
 }
@@ -255,4 +274,8 @@ h3{
 #max_failures{
         border: 1px solid #aaa;
         width: 4em;
+}
+
+table td input{
+        background: #eee;
 }

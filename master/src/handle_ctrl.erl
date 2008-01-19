@@ -45,7 +45,52 @@ op("nodeinfo", Query, Json) ->
                        {jobname, list_to_binary(JobName)}]}
         end, Active),
         error_logger:info_report([{"KE", Available, ActiveB}]),
-        {ok, {obj, [{available, Available}, {active, ActiveB}]}}.
+        {ok, {obj, [{available, Available}, {active, ActiveB}]}};
+
+op("get_blacklist", Query, Json) ->
+        {ok, lists:map(fun({Node, _}) -> list_to_binary(Node)
+                end, ets:tab2list(blacklist))};
+
+op("blacklist", Query, Json) ->
+        Node = binary_to_list(Json),
+        case ets:lookup(config_table, Node) of
+                [] -> {ok, <<"Unknown node">>};
+                _ -> gen_server:call(disco_server, {blacklist, Node}),
+                     {ok, <<"Node blacklisted">>}
+        end;
+
+op("whitelist", Query, Json) ->
+        Node = binary_to_list(Json),
+        case ets:lookup(blacklist, Node) of
+                [] -> {ok, <<"Node not on the blacklist">>};
+                _ -> gen_server:call(disco_server, {whitelist, Node}),
+                     {ok, <<"Node whitelisted">>}
+        end;
+
+op("get_settings", Query, Json) ->
+        L = [max_failure_rate],
+        {ok, {obj, lists:filter(fun(X) -> is_tuple(X) end, 
+                lists:map(fun(S) ->
+                        case application:get_env(disco, S) of
+                                {ok, V} -> {S, V};
+                                _ -> false
+                        end
+                end, L))}};
+
+op("save_settings", Query, Json) ->
+        {obj, Lst} = Json,
+        {ok, App} = application:get_application(),
+        lists:foreach(fun({Key, Val}) ->
+                update_setting(Key, Val, App)
+        end, Lst),
+        {ok, <<"Settings saved">>}.
+
+update_setting("max_failure_rate", Val, App) ->
+        ok = application:set_env(App, max_failure_rate,
+                list_to_integer(binary_to_list(Val)));
+        
+update_setting(Key, Val, _) ->
+        error_logger:info_report([{"Unknown setting", Key, Val}]).
 
 handle(Socket, Msg) ->
         {value, {_, Script}} = lists:keysearch("SCRIPT_NAME", 1, Msg),

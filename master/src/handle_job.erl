@@ -109,7 +109,7 @@ wait_workers(N, Res, Name, Mode) ->
 check_failure_rate(Name, PartID, Mode, L) ->
         V = case application:get_env(max_failure_rate) of
                 undefined -> L > 3;
-                N -> L > N
+                {ok, N} -> L > N
         end,
         if V ->
                 disco_server:event(Name, 

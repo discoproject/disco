@@ -21,9 +21,10 @@ add_nodes([FirstNode, Max], Instances) ->
 add_nodes([Node], Instances) -> {Node, Instances}.
         
 parse_row([<<>>, <<>>]) -> none;
-parse_row([NodeSpec, Instances]) ->
-        add_nodes(string:tokens(binary_to_list(NodeSpec), ":"),
-                list_to_integer(binary_to_list(Instances))).
+parse_row([NodeSpecB, InstancesB]) ->
+        NodeSpec = string:strip(binary_to_list(NodeSpecB)),
+        Instances = string:strip(binary_to_list(InstancesB)),
+        add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
 update_config_table(Json) ->
         ok = gen_server:call(disco_server, {update_config_table, 
@@ -34,12 +35,12 @@ get_config_table() ->
         {ok, Config} = file:read_file(config_file()),
         {ok, Json, _Rest} = json:decode(Config),
         update_config_table(Json),
-        {ok, Config}.
+        {ok, Json}.
 
 save_config_table(Json) ->
         update_config_table(Json),
         ok = file:write_file(config_file(), json:encode(Json)),
-        {ok, none}.
+        {ok, <<"table saved!">>}.
 
 
                         

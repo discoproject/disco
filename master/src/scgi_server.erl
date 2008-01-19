@@ -92,11 +92,11 @@ handle_request(Socket, Msg) ->
                 {'EXIT', {timeout, Error}} ->
                         error_logger:info_report(["Timeout",
                                 trunc_io:fprint(Error, 500)]),
-                        gen_tcp:send(Socket, ?ERROR_REDIRECT);
+                        gen_tcp:send(Socket, ?ERROR_500);
                 Error ->
                         error_logger:info_report(["Error",
                                 trunc_io:fprint(Error, 500)]),
-                        gen_tcp:send(Socket, ?ERROR_REDIRECT)
+                        gen_tcp:send(Socket, ?ERROR_500)
         end.
 
 dispatch_request(Socket, Msg) ->

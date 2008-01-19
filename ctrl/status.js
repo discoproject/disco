@@ -38,6 +38,11 @@ function make_nodebox(B, i)
         var val_err = $.create("div", {"class": "val rval"},
                 [String(B.error)]);
 
-        return $.create("div", {"class": "nodebox"}, 
+        if (B.blacklisted)
+                bl = "blacklisted";
+        else
+                bl = "";
+
+        return $.create("div", {"class": "nodebox " + bl}, 
                 [tit, sta, val_ok, val_data, val_err]);
 }

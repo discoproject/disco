@@ -48,9 +48,13 @@ handle_call({get_nodeinfo, all}, _From, State) ->
         Active = ets:match(active_workers, {'_', {'_', '$2', '$1', '_'}}),
         Available = lists:map(fun({Node, Max}) ->
                 [{_, A, B, C}] = ets:lookup(node_stats, Node),
+                BL = case ets:lookup(blacklist, Node) of
+                        [] -> false;
+                        _ -> true
+                end,
                 {obj, [{node, list_to_binary(Node)},
                        {job_ok, A}, {data_error, B}, {error, C}, 
-                       {max_workers, Max}]}
+                       {max_workers, Max}, {blacklisted, BL}]}
         end, ets:tab2list(config_table)),
         {reply, {ok, {Available, Active}}, State};
 
