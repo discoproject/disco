@@ -6,9 +6,6 @@
                    "Status: 200 OK\n"
                    "Content-type: text/plain\n\n").
 
-ready({_, "master", ["READY"|Results]}) -> json:encode(Results);
-ready(_) -> "Not ready".
-
 new_coordinator(Name, Msg, PostData) ->
         S = self(),
         P = spawn(fun() -> job_coordinator(S, Name, Msg, PostData) end),
@@ -18,7 +15,7 @@ new_coordinator(Name, Msg, PostData) ->
                 [?OK_HEADER, "couldn't start a new job coordinator"]
         end.     
 
-op("new", _Query, PostData) ->
+init_job(PostData) ->
         Msg = netstring:decode_netstring_fd(PostData),
         {value, {_, Name}} = lists:keysearch("name", 1, Msg),
         error_logger:info_report([{"New job", Name}]),
@@ -27,28 +24,14 @@ op("new", _Query, PostData) ->
                 {ok, []} -> new_coordinator(Name, Msg, PostData);
                 {ok, _Events} -> [?OK_HEADER, 
                                 "ERROR: job ", Name, " already exists"]
-        end;
-
-op("get_results", Query, none) ->
-        {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        case gen_server:call(disco_server, {get_job_events, Name}) of
-                {ok, []} -> [?OK_HEADER, "ERROR: Unknown job ", Name];
-                {ok, Events} -> [?OK_HEADER, ready(lists:last(Events))]
         end.
 
 handle(Socket, Msg) ->
         {value, {_, Script}} = lists:keysearch("PATH_INFO", 1, Msg),
-        {value, {_, Query}} = lists:keysearch("QUERY_STRING", 1, Msg),
         {value, {_, CLenStr}} = lists:keysearch("CONTENT_LENGTH", 1, Msg),
         CLen = list_to_integer(CLenStr),
-        if CLen > 0 ->
-                {ok, PostData} = gen_tcp:recv(Socket, CLen, 0);
-        true ->
-                PostData = none
-        end,
-        Op = lists:last(string:tokens(Script, "/")),
-        Res = op(Op, httpd:parse_query(Query), PostData),
-        gen_tcp:send(Socket, Res).
+        {ok, PostData} = gen_tcp:recv(Socket, CLen, 0),
+        gen_tcp:send(Socket, init_job(PostData)).
 
 pref_node([$h, $t, $t, $p, $:, $/, $/|Uri]) ->
         [Host|_] = string:tokens(Uri, "/"), Host;
@@ -83,8 +66,8 @@ wait_workers(N, Res, Name, Mode) ->
         receive
                 {job_ok, Result, {Node, PartID}} -> 
                         disco_server:event(Name, 
-                                "Received results from ~s:~B @ ~s: ~p",
-                                        [Mode, PartID, Node, Result], []),
+                                "Received results from ~s:~B @ ~s.",
+                                        [Mode, PartID, Node], []),
                         ets:insert(Res, {{result, PartID}, Result}), M;
 
                 {data_error, Error, {Node, PartID}} ->
@@ -97,6 +80,13 @@ wait_workers(N, Res, Name, Mode) ->
                         disco_server:event(Name, 
                                 "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
                                         [Mode, PartID, Node, Error], []),
+
+                        throw(logged_error);
+
+                {master_error, Error} ->
+                        disco_server:event(Name, 
+                                "ERROR: Master terminated the job: ~s",
+                                        [Error], []),
                         throw(logged_error);
                         
                 Error ->
@@ -205,10 +195,9 @@ job_coordinator(Parent, Name, Msg, PostData) ->
                 disco_server:event(Name, "Starting reduce phase", [],
                         [red_data, RedInputs]),
                 RedResults = supervise_work(RedInputs, "reduce", Name, PostData, NRed),
-                R = lists:flatten(ets:match(RedResults, {{result, '$1'}, '$2'})),
-                disco_server:event(Name, "Reduce phase done", [],
-                        [red_done, R]),
-                disco_server:event(Name, "READY", [], [R]);
+                R = lists:flatten(ets:match(RedResults, {{result, '_'}, '$1'})),
+                disco_server:event(Name, "Reduce phase done", [], []),
+                disco_server:event(Name, "READY", [], [ready, R]);
         true ->
-                disco_server:event(Name, "READY", [], [MapResults])
+                disco_server:event(Name, "READY", [], [ready, MapResults])
         end.

@@ -15,8 +15,9 @@ function update_nodeboxes(Data)
 
 function active_worker(i, W)
 {
+        var id = W.node.replace(/\./g, "-");
         var n = "_job_" + W.jobname.replace("@", "_");
-        $(".status#" + W.node + " > .jbox#free:first")
+        $(".status#" + id + " > .jbox#free:first")
                 .addClass("busy").addClass(n).attr("id", "").click(
                         function(){
                                 $(".joblist input").val(W.jobname);
@@ -29,7 +30,8 @@ function make_nodebox(B, i)
                 return $.create("div", {"class": "jbox", "id": "free"}, []);
         });
         
-        var sta = $.create("div", {"class": "status", "id": B.node}, jboxes);
+        var id = B.node.replace(/\./g, "-");
+        var sta = $.create("div", {"class": "status", "id": id}, jboxes);
         var tit = $.create("div", {"class": "title"}, [B.node]);
         var val_ok = $.create("div", {"class": "val lval"},
                 [String(B.job_ok)]);

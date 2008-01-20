@@ -48,19 +48,10 @@ function update_joblist(jobs)
 
 function job_element(job, i){
         var age = job[0];
-        var alive = job[1];
+        var job_status = job[1];
         var name = job[2];
         
-        if (!alive)
-                color = "deadjob";
-        else if (age < 3600)
-                color = "highjob";
-        else if (age < 86400)
-                color = "medjob";
-        else
-                color = "lowjob";
-
-        cbox = $.create("div", {"class": "live", "id": color}, []);
+        cbox = $.create("div", {"class": "live " + job_status}, []);
         jbox = $.create("div", {"class": "job"}, [cbox, name]);
         jbox.onmouseover = job_mouseover;
         jbox.onmouseout = job_mouseout;

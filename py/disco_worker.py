@@ -1,10 +1,10 @@
-import os, subprocess, cStringIO, marshal, time, sys, httplib, re
+import os, subprocess, cStringIO, marshal, time, sys, httplib, re, traceback
 
 from netstring import *
 
 HTTP_PORT = "8989"
 LOCAL_PATH = "/var/disco/"
-MAP_OUTPUT = LOCAL_PATH + "%s/map-%d"
+MAP_OUTPUT = LOCAL_PATH + "%s/map-%d-%d"
 REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
 REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
 REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-%d"
@@ -12,27 +12,28 @@ REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-%d"
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
         print >> sys.stderr, "**<%s>[%s %s (%s)] %s" %\
-                (c, t, job_name, job_input, m, c)
+                (c, t, job_name, job_input, m)
 
 def err(m):
-        msg(m, 'ERR')
+        msg(m, 'MSG')
         raise m 
 
 def data_err(m, job_input):
-        msg(m, 'DAT', job_input)
         if sys.exc_info() == (None, None, None):
                 raise m
         else:
+                print traceback.print_exc()
+                msg(m, 'DAT', job_input)
                 raise
-
+            
 def this_host():
-        return sys.argv[1]
+        return sys.argv[3]
 
 def this_partition():
-        return int(sys.argv[2])
+        return int(sys.argv[4])
         
-def this_inputs()
-        return sys.argv[4:]
+def this_inputs():
+        return sys.argv[5:]
 
 def ensure_path(path, check_exists = True):
         if check_exists and os.path.exists(path):
@@ -60,10 +61,10 @@ def connect_input(input):
                 host, fname = input[8:].split("/", 1)
                 local_file = LOCAL_PATH + fname
                 ext_host = host + ":" + HTTP_PORT
-                ext_file = fname
+                ext_file = "/" + fname
         elif input.startswith("http://"):
-                host, fname = input[7:].split("/", 1)
-                fname = "/" + fname
+                ext_host, fname = input[7:].split("/", 1)
+                ext_file = "/" + fname
                 local_file = None
         else:
                 host = this_host()
@@ -74,18 +75,20 @@ def connect_input(input):
                         sze = os.stat(local_file).st_size
                         return sze, file(local_file)
                 except:
-                        data_err("Can't access a local input file", input)
+                        data_err("Can't access a local input file: %s"\
+                                        % input, input)
         else:
                 try:
-                        http = httplib.HTTPConnection(host)
-                        r = http.request("GET", ext_file, "")
+                        http = httplib.HTTPConnection(ext_host)
+                        http.request("GET", ext_file, "")
                         fd = http.getresponse()
                         if fd.status != 200:
                                 raise "HTTP error %d" % fd.status
-                        sze = int(r.getheader("content-length"))
+                        sze = int(fd.getheader("content-length"))
                         return sze, fd
                 except:
-                        data_err("Can't access an external input file", input)
+                        data_err("Can't access an external input file: %s"\
+                                        % input, input)
 
 def encode_kv_pair(fd, key, value):
         key = str(key)
@@ -130,7 +133,7 @@ class MapOutput:
         def __init__(self, part, combiner = None):
                 self.combiner = combiner
                 self.comb_buffer = {}
-                self.fname = MAP_OUTPUT % (job_name, part)
+                self.fname = MAP_OUTPUT % (job_name, this_partition(), part)
                 ensure_path(self.fname, False)
                 self.fd = file(self.fname + ".partial", "w")
                 
@@ -308,6 +311,10 @@ def op_map(job):
         job_name = job['name']
         job_input = this_inputs()
         msg("Received a new map job!")
+        
+        if len(job_input) != 1:
+                err("Map can only handle one input. Got: %s" % 
+                        " ".join(job_input))
 
         nr_reduces = int(job['nr_reduces'])
         fun_map.func_code = marshal.loads(job['map'])
@@ -321,8 +328,7 @@ def op_map(job):
         else:
                 partitions = [MapOutput(i) for i in range(nr_reduces)]
 
-        print "INP", job_input
-        run_map(job_input, partitions)
+        run_map(job_input[0], partitions)
 
         me = this_host()
         for p, part in enumerate(partitions):
@@ -354,20 +360,20 @@ def op_reduce(job):
         msg("%d %s" % (this_partition(), red_out.disco_address()), "OUT")
 
 job_name = ""
+if len(sys.argv) < 6:
+        err("Invalid command line. "\
+            "Usage: disco_worker.py [op_map|op_reduce] name hostname partid inputs..")
+
+if "op_" + sys.argv[1] not in globals():
+        err("Invalid operation: %s" % sys.argv[1])
+
 try:
         m = decode_netstring_fd(sys.stdin)
 except:
         msg("Decoding the job description failed", "ERR")
         raise
 
-if len(sys.argv) < 5:
-        err("Invalid command line. "\
-            "Usage: disco_worker.py hostname part_id [op_map|op_reduce] inputs..")
-
-if sys.argv[3] not in globals():
-        err("Invalid operation: %s" % sys.argv[3])
-
-globals()["op_" + sys.argv[3]](m)
+globals()["op_" + sys.argv[1]](m)
 msg("Worker done", "END")
 
 

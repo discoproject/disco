@@ -9,6 +9,7 @@
    <script type="text/javascript" src="jquery-1.2.1.js"></script>
    <script type="text/javascript" src="jquery-dom.js"></script>
    <script type="text/javascript" src="typewatch1.1.js"></script> 
+   <script type="text/javascript" src="json2.js"></script>
 
    <script type="text/javascript" src="joblist.js"></script>
    <script type="text/javascript" src="disco.js"></script>
@@ -28,7 +29,7 @@
 	<div class="yui-b"><div class="yui-g">
        
         <div id="jobctrl">
-        <a href="#">[kill job]</a>&nbsp;&nbsp;&nbsp;<a href="#">[clean job records]</a>
+        <a id="kill_job" href="#">[kill job]</a><a id="clean_job" href="#">[clean job records]</a>
         </div>
 
         <div class="jobinfo">
@@ -54,10 +55,16 @@
         </div>
 
         <div class="jobinfo">
-        <div id="title">Reduce Inputs</div>
-        <div id="red_inputs" class="jobbody"></div>
+        <div id="title">Results</div>
+        <div id="results" class="jobbody"></div>
         </div>
 
+        <div class="event_nav">
+        Event range: <input id="pagerange" type="text" size=10"/> <a id="show_page" href="#">show</a>&nbsp;
+        Find: <input id="pagesearch" type="text" size=15"/> <a id="find_page" href="#">show</a><br/>
+        <a id="prev_page" href="#">newer events</a>
+        <a id="next_page" href="#">older events</a>
+        </div>
         <div class="jobevents">
         
         <!--

@@ -9,7 +9,7 @@
 -record(state, {port, from, jobname, partid, mode, 
                 node, input, data, linecount, errlines, results}).
 
--define(CMD, "disco_worker.sh '~s' '~s' '~w' '~s' '~s'").
+-define(CMD, "disco_worker.sh '~s' '~s' '~s' '~w' '~s'").
 -define(PORT_OPT, [{line, 100000}, exit_status, use_stdio, stderr_to_stdout]).
 
 start_link(Args) ->
@@ -30,7 +30,7 @@ spawn_cmd(#state{input = [Input|_]} = S) when is_list(Input) ->
 spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
                 mode = Mode, input = Input}) ->
         lists:flatten(io_lib:fwrite(?CMD,
-                [JobName, Node, PartID, Mode, Input])).
+                [Mode, JobName, Node, PartID, Input])).
 
 handle_call(start_worker, _From, State) ->
         Cmd = spawn_cmd(State),
@@ -72,7 +72,7 @@ handle_info({_, {data, {eol, [$*,$*,$<,$E,$R,$R,$>|Line]}}}, S) ->
 
 handle_info({_, {data, {eol, [$*,$*,$<,$D,$A,$T,$>|Line]}}}, S) ->
         M = strip_timestamp(Line),
-        event(S, "WARN", M),
+        event(S, "WARN", M ++ [10] ++ S#state.errlines),
         gen_server:call(disco_server, {exit_worker, {data_error, M}}),
         {stop, normal, S};
 
@@ -106,19 +106,19 @@ handle_info({_, {data, {noeol, Line}}}, S) ->
         {noreply, S};
 
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
-        M =  "Worker didn't start: " ++ S#state.errlines,
+        M =  "Worker didn't start:\n" ++ S#state.errlines,
         event(S, "WARN", M),
         gen_server:call(disco_server, {exit_worker, {data_error, M}}),
         {stop, normal, S};
 
 handle_info({_, {exit_status, _Status}}, S) ->
-        M =  "Worker failed. Last words: " ++ S#state.errlines,
+        M =  "Worker failed. Last words:\n" ++ S#state.errlines,
         event(S, "ERROR", M),
         gen_server:call(disco_server, {exit_worker, {job_error, M}}),
         {stop, normal, S};
         
 handle_info({_, closed}, S) ->
-        M = "Worker killed. Last words: " ++ S#state.errlines,
+        M = "Worker killed. Last words:\n" ++ S#state.errlines,
         event(S, "ERROR", M),
         gen_server:call(disco_server, {exit_worker, {job_error, M}}),
         {stop, normal, S};

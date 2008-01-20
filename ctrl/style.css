@@ -84,7 +84,7 @@ input{
 }
 
 .nodebox .status .show_jbox{
-        background: #FF2500;
+        background: #BFFFD9;
 }
 
 .nodebox .val{
@@ -140,20 +140,16 @@ input{
         float: left;
 }
 
-.joblist .job #highjob{
-        background: #00BA4B;
-}
-
-.joblist .job #medjob{
+.joblist .job .job_active{
         background: #FFDE00;
 }
 
-.joblist .job #lowjob{
-        background: #3D0099;
+.joblist .job .job_died{
+        background: #FF9280;
 }
 
-.joblist .job #deadjob{
-        background: #666;
+.joblist .job .job_ready{
+        background: #00BA4B;
 }
 
 .jobinfo{
@@ -187,6 +183,10 @@ input{
         clear: right;
 }
 
+#jobctrl a{
+        margin-right: 20px;
+}
+
 .jobevents{
         padding-top: 20px;
         margin: 10px;
@@ -194,6 +194,16 @@ input{
         width: 100%;
 }
 
+.event_nav{
+        clear: left;
+        font-size: 90%;
+        width: 100%;
+        margin-left: 10px;
+}
+
+.event_nav a{
+        margin-right: 10px;
+}
 
 .jobevent{
         width: 90%;
@@ -205,6 +215,10 @@ input{
 
 .jobevent #ev_error{
         background: #FFC9BF;
+}
+
+.jobevent #ev_ready{
+        background: #BFFFD9;
 }
 
 .jobevent .tstamp{
@@ -225,7 +239,17 @@ input{
         background: #BFFFD9;
 }
 
+.smalltext{
+        font-size: 80%;
+}
+
 .jobevent .evtext{
+        padding-top: 5px;
+        padding-bottom: 5px;
+        overflow: auto;
+}
+.jobevent .evtext pre{
+        margin-left: 10px;
 }
 
 

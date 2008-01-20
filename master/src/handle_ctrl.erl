@@ -17,24 +17,23 @@ op("joblist", Query, Json) ->
         Nu = now(),
         TLst = lists:map(fun([J, T, P]) ->
                 {round(timer:now_diff(Nu, T) / 1000000),
-                        is_process_alive(P), list_to_binary(J)}
+                        process_status(J, is_process_alive(P)),
+                        list_to_binary(J)}
         end, Lst),
         {ok, lists:keysort(1, TLst)};
 
 op("jobinfo", Query, Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        {ok, {MapNfo, RedNfo, EndNfo}}
+        {ok, {MapNfo, Res, Nodes}}
                 = gen_server:call(disco_server, {get_jobinfo, Name}),
-
-        error_logger:info_report([{"KE", MapNfo, RedNfo, EndNfo}]),
-        {ok, render_mapnfo(MapNfo)};
+        error_logger:info_report([{"KE", MapNfo, Res, Nodes}]),
+        {ok, render_jobinfo(MapNfo, Nodes, Res)};
 
 op("jobevents", Query, Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        {value, {_, N}} = lists:keysearch("last", 1, Query),
-        case gen_server:call(disco_server, {get_job_events, Name}) of
-                {ok, []} -> {ok, []};
-                {ok, Events} -> {ok, lastn(Events, list_to_integer(N))}
+        case lists:keysearch("find", 1, Query) of
+                false -> range_events(Name, Query);
+                {value, {_, Find}} -> search_events(Name, Find)
         end;
 
 op("nodeinfo", Query, Json) ->
@@ -44,8 +43,24 @@ op("nodeinfo", Query, Json) ->
                 {obj, [{node, list_to_binary(Node)},
                        {jobname, list_to_binary(JobName)}]}
         end, Active),
-        error_logger:info_report([{"KE", Available, ActiveB}]),
         {ok, {obj, [{available, Available}, {active, ActiveB}]}};
+
+op("kill_job", Query, Json) ->
+        JobName = binary_to_list(Json),
+        gen_server:call(disco_server, {kill_job, JobName}),
+        {ok, <<>>};
+
+op("get_results", Query, Json) ->
+        {value, {_, Name}} = lists:keysearch("name", 1, Query),
+        case gen_server:call(disco_server, {get_results, Name}) of
+                {ok, [], []} -> {ok, [<<"unknown job">>, []]};
+                {ok, [Pid], []} -> V = is_process_alive(Pid),
+                                 if V -> {ok, [<<"active">>, []]};
+                                 true -> {ok, [<<"dead">>, []]} end;
+                {ok, _, Events} -> 
+                error_logger:info_report([{'REDSDS', Events}]),
+                {ok, [<<"ready">>, Events]}
+        end;
 
 op("get_blacklist", Query, Json) ->
         {ok, lists:map(fun({Node, _}) -> list_to_binary(Node)
@@ -107,21 +122,58 @@ handle(Socket, Msg) ->
         {ok, Res} = op(Op, httpd:parse_query(Query), Json),
         gen_tcp:send(Socket, [?HTTP_HEADER, json:encode(Res)]).
 
-lastn(E, -1) ->
-        [disco_server:format_event(X) || X <- E];
-lastn(E, N) when N >= length(E) ->
-        lastn(E, -1);
-lastn(E, N) when N < length(E) ->
-        [disco_server:format_event(X) || X <- lists:nthtail(length(E) - N, E)].
+range_events(Name, Query) ->
+        {value, {_, OffsS}} = lists:keysearch("offs", 1, Query),
+        {value, {_, NumS}} = lists:keysearch("num", 1, Query),
+        Offs = list_to_integer(OffsS),
+        Num = list_to_integer(NumS),
+        case gen_server:call(disco_server, {get_job_events, Name}) of
+                {ok, []} -> {ok, [Offs, Num, false, []]};
+                {ok, Events} -> {ok, [Offs, Num, Offs + Num < length(Events),
+                        page(lists:reverse(Events), Offs, Num)]}
+        end.
 
-render_mapnfo([]) -> [];
-render_mapnfo([[Tstamp, [JobPid, NMap, NRed, DoRed, Inputs]]]) ->
-        T = disco_server:format_timestamp(Tstamp),
-        A = is_process_alive(JobPid),
-        {obj, [{timestamp, list_to_binary(T)}, 
-               {active, A},
+search_events(Name, Query) ->
+        Q = string:to_lower(Query),
+        case gen_server:call(disco_server, {get_job_events, Name}) of
+                {ok, []} -> {ok, [-1, 0, false, []]};
+                {ok, Events} -> {ok, [-1, 0, false, render_page(
+                        lists:filter(fun({_, _, [M|_]}) ->
+                                string:str(string:to_lower(
+                                        binary_to_list(M)), Q) > 0
+                        end, lists:reverse(Events)))]}
+        end.
+
+process_status(_Jobname, true) -> <<"job_active">>;
+process_status(JobName, false) ->
+        case gen_server:call(disco_server, {get_results, JobName}) of
+                {ok, _, []} -> <<"job_died">>;
+                {ok, _, _} -> <<"job_ready">>
+        end.
+
+page(E, O, N) when O < 0; N < 0 ->
+        render_page(E);
+page(E, O, N) when O =< length(E) ->
+        render_page(lists:sublist(E, O + 1, N));
+page(E, O, _N) when O > length(E) -> [].
+render_page(E) ->
+        [{obj, [{tstamp, T}, {host, H}, {msg, M}]} || {{_, T}, H, [M|_]} <- E].
+
+render_jobinfo([], _, _) -> [];
+render_jobinfo([[Tstamp, [JobPid, NMap, NRed, DoRed, Inputs]]], Nodes, Res) ->
+        R = case {Res, is_process_alive(JobPid)} of
+                {_, true} -> <<"active">>;
+                {[], false} -> <<"dead">>;
+                {_, false} -> <<"ready">>
+        end,
+        {obj, [{timestamp, Tstamp}, 
+               {active, R},
                {nmap, NMap},
                {nred, NRed},
                {reduce, DoRed},
-               {inputs, lists:map(fun erlang:list_to_binary/1, Inputs)}]}.
+               {results, lists:map(fun({_, X}) -> list_to_binary(X) end, 
+                                lists:flatten(Res))},
+               {inputs, lists:map(fun erlang:list_to_binary/1, Inputs)},
+               {nodes, lists:map(fun erlang:list_to_binary/1, Nodes)}
+        ]}.
 

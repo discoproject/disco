@@ -13,24 +13,6 @@ $(document).ready(function(){
         $.getJSON("/disco/ctrl/get_settings", update_settings);
 });
 
-function show_msg(m){
-        $("#msg").text(m.replace(/\"/g, "")).show().fadeOut(2000);
-}
-
-function post_req(url, data, func){
-        $.ajax({data: data,
-                dataType: "JSON", 
-                url: url,
-                type: "POST",
-                processData: false,
-                error: function(){ show_msg("Request failed"); },
-                success: function(x){ 
-                        show_msg(x);
-                        if (func) func(x);
-                }
-        });
-}
-
 function update_blacklist(data){
         $("#blacklist").html($.map(data, function(item, i){
                 return $.create("div", {"class": "bnode"}, [item]);

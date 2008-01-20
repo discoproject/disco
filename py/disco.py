@@ -3,6 +3,7 @@ from netstring import *
 import marshal, traceback, time, re, urllib
 
 DISCO_NEW_JOB_URL = "/disco/job/new"
+DISCO_RESULTS = "/disco/ctrl/get_results"
 
 def default_partition(key, nr_reduces):
         return hash(str(key)) % nr_reduces
@@ -24,6 +25,9 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
 
         if len(input_files) < 1:
                 raise "Must have at least one input file"
+
+        if re.search("\W", name):
+                raise "Only characters in [a-zA-Z0-9_] are allowed in job name"
 
         req = {}
         req["name"] = "%s@%d" % (name, int(time.time()))
@@ -64,12 +68,27 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
                 raise "Unknown host specifier: %s" % master
 
         if not async:
-                return wait_job(master, name)
+                return wait_job(master, req['name']) 
         else:
                 return name
 
-def wait_job(master, name):
-        pass
+def wait_job(master, name, poll_interval = 5, timeout = None):
+        url = master.replace("disco:", "http:", 1)\
+                + DISCO_RESULTS + "?name=" + name
+        t = time.time()
+        print url
+        while True:
+                time.sleep(poll_interval)
+                R = urllib.urlopen(url).read()
+                R = eval(R)
+                if R[0] == "ready":
+                        return R[1]
+                if R[0] != "active":
+                        raise "Job failed"
+                if timeout and time.time() - t > timeout:
+                        raise "Timeout"
+
+
                 
 
 

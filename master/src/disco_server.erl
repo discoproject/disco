@@ -2,8 +2,7 @@
 -module(disco_server).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0, format_timestamp/1, 
-        format_event/1, event/4, event/5]).
+-export([start_link/0, stop/0, format_timestamp/1, event/4, event/5]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
@@ -32,17 +31,25 @@ init(_Args) ->
 
 handle_call(get_jobnames, _From, State) ->
         Lst = ets:match(job_events, 
-                {'$1', {'$2', '_', ['_', start, '$3'|'_']}}),
+                {'$1', {{'$2', '_'}, '_', ['_', start, '$3'|'_']}}),
         {reply, {ok, Lst}, State};
 
 handle_call({get_jobinfo, JobName}, _From, State) ->
         MapNfo = ets:match(job_events,
-                {JobName, {'$1', '_', ['_', map_data|'$2']}}),
-        RedNfo = ets:match(job_events,
-                {JobName, {'$1', '_', ['_', red_data|'$2']}}),
-        EndNfo = ets:match(job_events,
-                {JobName, {'$1', '_', ['_', red_done|'$2']}}),
-        {reply, {ok, {MapNfo, RedNfo, EndNfo}}, State};
+                {JobName, {{'_', '$1'}, '_', ['_', map_data|'$2']}}),
+        %RedNfo = ets:match(job_events,
+        %        {JobName, {'$1', '_', ['_', red_data|'$2']}}),
+        Res = ets:match(job_events, {JobName, {'_', '_', ['_', ready|'$1']}}),
+        Nodes = ets:match(active_workers, {'_', {'_', JobName, '$1', '_'}}),
+        {reply, {ok, {MapNfo, Res, Nodes}}, State};
+
+handle_call({get_results, JobName}, _From, State) ->
+        Pid = lists:flatten(ets:match(job_events,
+                {JobName, {'_', '_', ['_', map_data, '$1'|'_']}})),
+        Res = lists:map(fun({P, X}) -> [P, list_to_binary(X)] end, 
+                lists:flatten(ets:match(job_events, {JobName, 
+                        {'_', '_', ['_', ready|'$1']}}))),
+        {reply, {ok, Pid, Res}, State};
 
 handle_call({get_nodeinfo, all}, _From, State) ->
         Active = ets:match(active_workers, {'_', {'_', '$2', '$1', '_'}}),
@@ -88,7 +95,7 @@ handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
                     from = Pid},
 
         event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
-        {reply, {ok, wait}, WaitQueue ++ Req};
+        {reply, {ok, wait}, WaitQueue ++ [Req]};
 
 handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
                 {Pid, _}, WaitQueue) when length(WaitQueue) == 0 ->
@@ -100,12 +107,17 @@ handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
         case try_new_worker(Req) of
                 {wait, _} -> event(JobName, "~s:~B added to waitlist",
                                 [Mode, PartID], []),
-                        {reply, {ok, wait}, WaitQueue ++ Req};
+                        {reply, {ok, wait}, WaitQueue ++ [Req]};
+                killed -> {reply, {ok, killed}, WaitQueue};
                 ok -> {reply, {ok, working}, WaitQueue}
         end;
 
-handle_call({kill_job, _JobName}, _From, State) ->
-        {reply, ok, State};
+handle_call({kill_job, JobName}, _From, WaitQueue) ->
+        lists:foreach(fun([Pid]) ->
+                gen_server:call(Pid, kill_worker)
+        end, ets:match(active_workers, {'$1', {'_', JobName, '_', '_'}})),
+        {reply, ok, lists:filter(fun(Job) ->
+                Job#job.jobname =/= JobName end, WaitQueue)};
 
 handle_call({blacklist, Node}, _From, State) ->
         event("[master]", "Node ~s blacklisted", [Node], []),
@@ -117,9 +129,14 @@ handle_call({whitelist, Node}, _From, State) ->
         ets:delete(blacklist, Node),
         {reply, ok, State};
 
-handle_call({add_job_event, Host, JobName, Event}, _From, State) ->
-        error_logger:info_report(["<event> ", Host, " ", JobName, " ", Event]),
-        ets:insert(job_events, {JobName, {now(), Host, Event}}),
+handle_call({add_job_event, Host, JobName, [Msg|Params]}, _From, State) ->
+        error_logger:info_report(["<event> ", Host, " ", JobName, " ", Msg]),
+        Nu = now(),
+        ets:insert(job_events, {JobName, {
+                {Nu, list_to_binary(format_timestamp(Nu))},
+                list_to_binary(Host), 
+                [list_to_binary(Msg)|Params]
+        }}),
         {reply, ok, State};
 
 handle_call({get_job_events, JobName}, _From, State) ->
@@ -184,6 +201,8 @@ schedule_waiter([Job|WaitQueue] = Q, Skipped) ->
                 {wait, busy} -> lists:reverse(Skipped) ++ Q;
                 {wait, all_bad} -> 
                         schedule_waiter(WaitQueue, [Job|Skipped]);
+                killed -> 
+                        schedule_waiter(WaitQueue, Skipped);
                 ok -> lists:reverse(Skipped) ++ WaitQueue
         end.
 
@@ -194,19 +213,21 @@ choose_node({PrefNode, TaskBlackNodes}) ->
         PrefBusy = node_busy(ets:lookup(node_load, PrefNode),
                          ets:lookup(config_table, PrefNode)),
         if PrefBusy ->
+                AllNodes = ets:tab2list(node_load),
                 AvailableNodes = lists:filter(fun({Node, _Load} = X) -> 
                         not node_busy([X], ets:lookup(config_table, Node))
-                end, ets:tab2list(node_load)),
+                end, AllNodes),
 
                 BlackNodes = TaskBlackNodes ++ 
                         lists:flatten(ets:match(blacklist, {'$1', '_'})),
-                
+
                 AllowedNodes = lists:filter(fun({Node, _Load}) ->
                         not lists:member(Node, BlackNodes)
                 end, AvailableNodes),
 
                 if length(AvailableNodes) == 0 -> busy;
-                length(AllowedNodes) == 0 -> all_bad;
+                length(AllowedNodes) == 0 -> 
+                        {all_bad, length(TaskBlackNodes), length(AllNodes)};
                 true -> 
                         [{Node, _}|_] = lists:keysort(2, AllowedNodes),
                         Node
@@ -227,7 +248,11 @@ start_worker(J, Node) ->
 try_new_worker(Job) ->
         case choose_node(Job#job.prefnode) of
                 busy -> {wait, busy};
-                all_bad -> {wait, all_bad};
+                {all_bad, BLen, ALen} when BLen == ALen ->
+                        Job#job.from ! {master_error,
+                                "Job failed on all available nodes"},
+                        killed;
+                {all_bad, _, _} -> {wait, all_bad};
                 Node -> start_worker(Job, Node)
         end.
 
@@ -237,18 +262,18 @@ format_timestamp(Tstamp) ->
         TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
         DateStr ++ TimeStr.
 
-format_event({Tstamp, Host, [Msg|_]}) ->
-        {obj, [{tstamp, list_to_binary(format_timestamp(Tstamp))},
-               {host, list_to_binary(Host)},
-               {msg, list_to_binary(Msg)}]}.
+%format_event({Tstamp, Host, [Msg|_]}) ->
+%        {obj, [{tstamp, list_to_binary(format_timestamp(Tstamp))},
+%               {host, list_to_binary(Host)},
+%               {msg, list_to_binary(Msg)}]}.
 
 event(JobName, Format, Args, Params) ->
         event("master", JobName, Format, Args, Params).
 
 event(Host, JobName, Format, Args, Params) ->
         SArgs = lists:map(fun(X) ->
-                L = lists:flatlength(io_lib:fwrite("~p", [X])) > 300,
-                if L -> trunc_io:fprint(X, 300);
+                L = lists:flatlength(io_lib:fwrite("~p", [X])) > 1000,
+                if L -> trunc_io:fprint(X, 1000);
                 true -> X 
         end end, Args),
 
