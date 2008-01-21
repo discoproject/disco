@@ -37,7 +37,7 @@ handle_call(start_worker, _From, State) ->
         error_logger:info_report(["Spawn cmd: ", Cmd]),
         Port = open_port({spawn, spawn_cmd(State)}, ?PORT_OPT),
         port_command(Port, State#state.data),
-        {reply, ok, State#state{port = Port}, 5000};
+        {reply, ok, State#state{port = Port}, 30000};
 
 handle_call(kill_worker, _From, State) ->
         error_logger:info_report(["Kill worker"]),
@@ -124,7 +124,7 @@ handle_info({_, closed}, S) ->
         {stop, normal, S};
 
 handle_info(timeout, #state{linecount = 0} = S) ->
-        M = "Worker didn't start in 5 seconds",
+        M = "Worker didn't start in 30 seconds",
         event(S, "WARN", M),
         gen_server:call(disco_server, {exit_worker, {data_error, M}}),
         {stop, normal, S}.

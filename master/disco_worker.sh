@@ -28,7 +28,7 @@ fi
 if [ $WATCHDOG_MODE ]
 then
         # give some time for the process to start up
-        sleep 10
+        sleep 40
         while ((1)) 
         do
                 R=`ssh $3 "pgrep -l -f 'disco_worker.py $1 $2 $3 $4' | grep -v ' ssh '"`
