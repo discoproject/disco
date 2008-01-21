@@ -112,13 +112,13 @@ def re_reader(item_re_str, fd, content_len, fname):
                 except:
                         data_err("Receiving data failed", fname)
 
-                m = None
-                for m in item_re.finditer(buf):
+                m = item_re.match(buf)
+                while m:
                         yield m.groups()
-                if m:
                         buf = buf[m.end():]
+                        m = item_re.match(buf)
 
-                if not len(r) or tot >= content_len:
+                if not len(r):
                         if tot < content_len:
                                 data_err("Truncated input (%s). "\
                                          "Expected %d bytes, got %d" %\
