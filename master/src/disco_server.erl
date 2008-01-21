@@ -22,10 +22,25 @@ stop() ->
 
 init(_Args) ->
         process_flag(trap_exit, true),
+
+        % active_workers contains Pids of all running
+        % disco_worker processes.
         ets:new(active_workers, [named_table, public]),
+        
+        % job_events records all events related to a job
         ets:new(job_events, [named_table, duplicate_bag]),
+
+        % node_laod records how many disco_workers there are
+        % running on a node (could be found in active_workers)
+        % as well. This table exists mainly for convenience and
+        % possibly for performance reasons.
         ets:new(node_load, [named_table]),
+
+        % blacklist contains globally blacklisted nodes 
         ets:new(blacklist, [named_table]),
+
+        % node_stats contains triples {ok_jobs, failed_jobs, crashed_jobs}
+        % for each node.
         ets:new(node_stats, [named_table]),
         {ok, []}.
 
@@ -37,8 +52,6 @@ handle_call(get_jobnames, _From, State) ->
 handle_call({get_jobinfo, JobName}, _From, State) ->
         MapNfo = ets:match(job_events,
                 {JobName, {{'_', '$1'}, '_', ['_', map_data|'$2']}}),
-        %RedNfo = ets:match(job_events,
-        %        {JobName, {'$1', '_', ['_', red_data|'$2']}}),
         Res = ets:match(job_events, {JobName, {'_', '_', ['_', ready|'$1']}}),
         Nodes = ets:match(active_workers, {'_', {'_', JobName, '$1', '_'}}),
         {reply, {ok, {MapNfo, Res, Nodes}}, State};
@@ -50,8 +63,6 @@ handle_call({get_results, JobName}, _From, State) ->
                 lists:flatten(ets:match(job_events, {JobName, 
                         {'_', '_', ['_', ready|'$1']}}))),
         {reply, {ok, Pid, Res}, State};
-
-        
 
 
 handle_call({get_nodeinfo, all}, _From, State) ->
@@ -90,16 +101,10 @@ handle_call({update_config_table, Config}, _From, WaitQueue) ->
         end, Config),
         {reply, ok, schedule_waiter(WaitQueue, [])};
 
-handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
-                {Pid, _}, WaitQueue) when length(WaitQueue) > 0 ->
-        
-        Req = #job{jobname = JobName, partid = PartID, mode = Mode,
-                    prefnode = PrefNode, input = Input, data = Data,
-                    from = Pid},
 
-        event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
-        {reply, {ok, wait}, WaitQueue ++ [Req]};
-
+% Two ways to start a new job: If the WaitQueue is empty, we may be able
+% to start the process right away in try_new_worker(). If not, the job
+% is appended to the queue of pending jobs (WaitQueue).
 handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
                 {Pid, _}, WaitQueue) when length(WaitQueue) == 0 ->
         
@@ -114,6 +119,16 @@ handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
                 killed -> {reply, {ok, killed}, WaitQueue};
                 ok -> {reply, {ok, working}, WaitQueue}
         end;
+
+handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
+                {Pid, _}, WaitQueue) when length(WaitQueue) > 0 ->
+        
+        Req = #job{jobname = JobName, partid = PartID, mode = Mode,
+                    prefnode = PrefNode, input = Input, data = Data,
+                    from = Pid},
+
+        event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
+        {reply, {ok, wait}, WaitQueue ++ [Req]};
 
 handle_call({kill_job, JobName}, _From, WaitQueue) ->
         lists:foreach(fun([Pid]) ->
@@ -137,6 +152,11 @@ handle_call({whitelist, Node}, _From, State) ->
         ets:delete(blacklist, Node),
         {reply, ok, State};
 
+% There's a small catch with adding a job event: If a job's records have been
+% cleaned with clean_job already, we do not want a zombie worker to re-open
+% the job's records by adding a new event. Thus only an event with the atom
+% start is allowed to initialize records for a new job. Other events are 
+% silently ignored if there are no previous records for this job.
 handle_call({add_job_event, Host, JobName, [_, start|_] = M}, _From, State) ->
         V = ets:member(job_events, JobName),
         if V -> {reply, job_already_exists, State};
@@ -182,6 +202,10 @@ handle_info(Msg, State) ->
         error_logger:info_report(["Unknown message received: ", Msg]),
         {noreply, State}.
 
+% clean_worker() gets called whenever a disco_worker process dies, either
+% normally or abnormally. Its main job is to remove the exiting worker
+% from the active_workers table and to notify the corresponding job 
+% coordinator about the worker status.
 clean_worker(Pid, ReplyType, Msg, WaitQueue) ->
         {V, Nfo} = case ets:lookup(active_workers, Pid) of
                         [] -> event("[master]",
@@ -206,6 +230,23 @@ update_stats(Node, job_error) -> ets:update_counter(node_stats, Node, {4, 1});
 update_stats(Node, error) -> ets:update_counter(node_stats, Node, {4, 1});
 update_stats(_Node, _) -> ok.
 
+% The following functions, schedule_waiter(), node_busy(), choose_node(),
+% start_worker() and try_new_worker() handle task scheduling. The basic
+% scheme is as follows:
+%
+% 0) A node becomes available, either due to a task finishing in
+%    clean_worker() or a new node being added at update_config_table().
+%
+% 1) schedule_waiter() goes through the WaitQueue that includes all pending,
+%    not yet running tasks, and tries to get a task running, one by one from
+%    the wait queue.
+%
+% 2) try_new_worker() asks a preferred node from choose_node(). It may report
+%    that are the nodes are 100% busy (busy) or that a suitable node could
+%    not be found (all_bad). If all goes well, it returns a node name.
+%
+% 3) If a node name was returned, a new worker is started in start_worker().
+
 schedule_waiter([], Skipped) -> lists:reverse(Skipped);
 schedule_waiter([Job|WaitQueue] = Q, Skipped) ->
         case try_new_worker(Job) of
@@ -221,21 +262,29 @@ node_busy(_, []) -> true;
 node_busy([{_, Load}], [{_, MaxLoad}]) -> Load >= MaxLoad.
 
 choose_node({PrefNode, TaskBlackNodes}) ->
+        % Is our preferred choice available?
         PrefBusy = node_busy(ets:lookup(node_load, PrefNode),
                          ets:lookup(config_table, PrefNode)),
+
         if PrefBusy ->
+                % If not, start with all configured nodes..
                 AllNodes = ets:tab2list(node_load),
+
+                % ..and choose the ones that are not 100% busy.
                 AvailableNodes = lists:filter(fun({Node, _Load} = X) -> 
                         not node_busy([X], ets:lookup(config_table, Node))
                 end, AllNodes),
 
+                % From non-busy nodes, remove the ones that have already
+                % failed this task (TaskBlackNodes) or that are globally
+                % blacklisted (ets-table blacklist).
                 BlackNodes = TaskBlackNodes ++ 
                         lists:flatten(ets:match(blacklist, {'$1', '_'})),
 
                 AllowedNodes = lists:filter(fun({Node, _Load}) ->
                         not lists:member(Node, BlackNodes)
                 end, AvailableNodes),
-
+                
                 if length(AvailableNodes) == 0 -> busy;
                 length(AllowedNodes) == 0 -> 
                         {all_bad, length(TaskBlackNodes), length(AllNodes)};
@@ -267,16 +316,13 @@ try_new_worker(Job) ->
                 Node -> start_worker(Job, Node)
         end.
 
+% Functions related to event reporting
+
 format_timestamp(Tstamp) ->
         {Date, Time} = calendar:now_to_local_time(Tstamp),
         DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
         TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
         DateStr ++ TimeStr.
-
-%format_event({Tstamp, Host, [Msg|_]}) ->
-%        {obj, [{tstamp, list_to_binary(format_timestamp(Tstamp))},
-%               {host, list_to_binary(Host)},
-%               {msg, list_to_binary(Msg)}]}.
 
 add_event(Host, JobName, [Msg|Params]) ->
         Nu = now(),

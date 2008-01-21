@@ -1,7 +1,17 @@
 #!/bin/bash
 
 # INPUT: [Mode, JobName, Node, PartID, Input]
-
+#
+# This script is actually 3-in-1: It contains functions to
+# 1) start a job on an external machine over ssh
+# 2) watchdog that monitors the previous
+# 3) killer that kills the job when its stdin is closed
+#
+# This script spawns functions 1 and 2 as separate processes before
+# continuing with the third.
+#
+# Note about the KILLER_MODE:
+#
 # When Erlang closes the port connected to this script,
 # only EOF is sent to stdin. Since disco_worker.py is unlikely to notice
 # this and close appriopriately, we need a separate mechanism for
