@@ -6,13 +6,13 @@
                      "Status: 200 OK\n"
                      "Content-type: text/plain\n\n").
 
-op("save_config_table", Query, Json) ->
+op("save_config_table", _Query, Json) ->
         disco_config:save_config_table(Json);
 
-op("load_config_table", Query, Json) -> 
+op("load_config_table", _Query, _Json) -> 
         disco_config:get_config_table();
 
-op("joblist", Query, Json) ->
+op("joblist", _Query, _Json) ->
         {ok, Lst} = gen_server:call(disco_server, get_jobnames),
         Nu = now(),
         TLst = lists:map(fun([J, T, P]) ->
@@ -22,21 +22,21 @@ op("joblist", Query, Json) ->
         end, Lst),
         {ok, lists:keysort(1, TLst)};
 
-op("jobinfo", Query, Json) ->
+op("jobinfo", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, {MapNfo, Res, Nodes}}
                 = gen_server:call(disco_server, {get_jobinfo, Name}),
         error_logger:info_report([{"KE", MapNfo, Res, Nodes}]),
         {ok, render_jobinfo(MapNfo, Nodes, Res)};
 
-op("jobevents", Query, Json) ->
+op("jobevents", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         case lists:keysearch("find", 1, Query) of
                 false -> range_events(Name, Query);
                 {value, {_, Find}} -> search_events(Name, Find)
         end;
 
-op("nodeinfo", Query, Json) ->
+op("nodeinfo", _Query, _Json) ->
         {ok, {Available, Active}} = 
                 gen_server:call(disco_server, {get_nodeinfo, all}),
         ActiveB = lists:map(fun([Node, JobName]) ->
@@ -45,28 +45,31 @@ op("nodeinfo", Query, Json) ->
         end, Active),
         {ok, {obj, [{available, Available}, {active, ActiveB}]}};
 
-op("kill_job", Query, Json) ->
+op("kill_job", _Query, Json) ->
         JobName = binary_to_list(Json),
         gen_server:call(disco_server, {kill_job, JobName}),
         {ok, <<>>};
 
-op("get_results", Query, Json) ->
+op("clean_job", _Query, Json) ->
+        JobName = binary_to_list(Json),
+        gen_server:call(disco_server, {clean_job, JobName}),
+        {ok, <<>>};
+
+op("get_results", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         case gen_server:call(disco_server, {get_results, Name}) of
                 {ok, [], []} -> {ok, [<<"unknown job">>, []]};
                 {ok, [Pid], []} -> V = is_process_alive(Pid),
                                  if V -> {ok, [<<"active">>, []]};
                                  true -> {ok, [<<"dead">>, []]} end;
-                {ok, _, Events} -> 
-                error_logger:info_report([{'REDSDS', Events}]),
-                {ok, [<<"ready">>, Events]}
+                {ok, _, Events} -> {ok, [<<"ready">>, Events]}
         end;
 
-op("get_blacklist", Query, Json) ->
+op("get_blacklist", _Query, _Json) ->
         {ok, lists:map(fun({Node, _}) -> list_to_binary(Node)
                 end, ets:tab2list(blacklist))};
 
-op("blacklist", Query, Json) ->
+op("blacklist", _Query, Json) ->
         Node = binary_to_list(Json),
         case ets:lookup(config_table, Node) of
                 [] -> {ok, <<"Unknown node">>};
@@ -74,7 +77,7 @@ op("blacklist", Query, Json) ->
                      {ok, <<"Node blacklisted">>}
         end;
 
-op("whitelist", Query, Json) ->
+op("whitelist", _Query, Json) ->
         Node = binary_to_list(Json),
         case ets:lookup(blacklist, Node) of
                 [] -> {ok, <<"Node not on the blacklist">>};
@@ -82,7 +85,7 @@ op("whitelist", Query, Json) ->
                      {ok, <<"Node whitelisted">>}
         end;
 
-op("get_settings", Query, Json) ->
+op("get_settings", _Query, _Json) ->
         L = [max_failure_rate],
         {ok, {obj, lists:filter(fun(X) -> is_tuple(X) end, 
                 lists:map(fun(S) ->
@@ -92,7 +95,7 @@ op("get_settings", Query, Json) ->
                         end
                 end, L))}};
 
-op("save_settings", Query, Json) ->
+op("save_settings", _Query, Json) ->
         {obj, Lst} = Json,
         {ok, App} = application:get_application(),
         lists:foreach(fun({Key, Val}) ->

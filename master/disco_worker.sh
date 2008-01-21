@@ -18,7 +18,8 @@
 if [ $KILLER_MODE ]
 then
         cat >/dev/null
-        echo "pkill -9 -f 'disco_worker.py $1 $2 $3 $4'"  >/tmp/jids
+        # give some time for the process to exit by itself
+        sleep 5
         ssh $3 "pkill -9 -f 'disco_worker.py $1 $2 $3 $4'" 2>&1 >/dev/null
         kill -9 $DOG_PID
         exit 0
@@ -26,13 +27,13 @@ fi
 
 if [ $WATCHDOG_MODE ]
 then
+        # give some time for the process to start up
         sleep 10
         while ((1)) 
         do
                 R=`ssh $3 "pgrep -l -f 'disco_worker.py $1 $2 $3 $4' | grep -v ' ssh '"`
                 if (( $? )) || [[ -z $R ]]
                 then
-                        echo "Not found" >> /tmp/watchdog.$$
                         echo "**<DAT> Watchdog lost $1:$4."
                         exit 0
                 fi

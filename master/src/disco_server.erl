@@ -51,6 +51,9 @@ handle_call({get_results, JobName}, _From, State) ->
                         {'_', '_', ['_', ready|'$1']}}))),
         {reply, {ok, Pid, Res}, State};
 
+        
+
+
 handle_call({get_nodeinfo, all}, _From, State) ->
         Active = ets:match(active_workers, {'_', {'_', '$2', '$1', '_'}}),
         Available = lists:map(fun({Node, Max}) ->
@@ -119,6 +122,11 @@ handle_call({kill_job, JobName}, _From, WaitQueue) ->
         {reply, ok, lists:filter(fun(Job) ->
                 Job#job.jobname =/= JobName end, WaitQueue)};
 
+handle_call({clean_job, JobName}, From, WaitQueue) ->
+        {_, _, NQueue} = handle_call({kill_job, JobName}, From, WaitQueue),
+        ets:delete(job_events, JobName),
+        {reply, ok, NQueue};
+
 handle_call({blacklist, Node}, _From, State) ->
         event("[master]", "Node ~s blacklisted", [Node], []),
         ets:insert(blacklist, {Node, none}),
@@ -129,14 +137,17 @@ handle_call({whitelist, Node}, _From, State) ->
         ets:delete(blacklist, Node),
         {reply, ok, State};
 
-handle_call({add_job_event, Host, JobName, [Msg|Params]}, _From, State) ->
-        error_logger:info_report(["<event> ", Host, " ", JobName, " ", Msg]),
-        Nu = now(),
-        ets:insert(job_events, {JobName, {
-                {Nu, list_to_binary(format_timestamp(Nu))},
-                list_to_binary(Host), 
-                [list_to_binary(Msg)|Params]
-        }}),
+handle_call({add_job_event, Host, JobName, [_, start|_] = M}, _From, State) ->
+        V = ets:member(job_events, JobName),
+        if V -> {reply, job_already_exists, State};
+        true -> add_event(Host, JobName, M),
+                {reply, ok, State}
+        end;
+
+handle_call({add_job_event, Host, JobName, M}, _From, State) ->
+        V = ets:member(job_events, JobName),
+        if V -> add_event(Host, JobName, M);
+        true -> ok end,
         {reply, ok, State};
 
 handle_call({get_job_events, JobName}, _From, State) ->
@@ -267,6 +278,14 @@ format_timestamp(Tstamp) ->
 %               {host, list_to_binary(Host)},
 %               {msg, list_to_binary(Msg)}]}.
 
+add_event(Host, JobName, [Msg|Params]) ->
+        Nu = now(),
+        ets:insert(job_events, {JobName, {
+                {Nu, list_to_binary(format_timestamp(Nu))},
+                list_to_binary(Host), 
+                [list_to_binary(Msg)|Params]
+        }}).
+
 event(JobName, Format, Args, Params) ->
         event("master", JobName, Format, Args, Params).
 
@@ -283,7 +302,7 @@ event(Host, JobName, Format, Args, Params) ->
         if Pid == self() ->
                 handle_call(Msg, none, none);
         true ->
-                gen_server:call(disco_server, Msg)
+                ok = gen_server:call(disco_server, Msg)
         end.
 
 % callback stubs

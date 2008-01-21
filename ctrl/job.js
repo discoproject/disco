@@ -2,6 +2,7 @@
 $(document).ready(function(){
         $("#hd #title").append(document.location.search.substr(6));
         $("#kill_job").click(kill_job);
+        $("#clean_job").click(clean_job);
 
         $("#show_page").click(function(){
                 r = $("#pagerange").val().split("-");
@@ -34,6 +35,12 @@ function kill_job(){
         Name = document.location.search.substr(6);
         if (confirm("Do you really want to kill " + Name + "?"))
                 post_req("/disco/ctrl/kill_job", JSON.stringify(Name));
+}
+
+function clean_job(){
+        Name = document.location.search.substr(6);
+        if (confirm("Do you really want to clean the job records of " + Name + "?"))
+                post_req("/disco/ctrl/clean_job", JSON.stringify(Name));
 }
 
 function update_jobinfo(data){

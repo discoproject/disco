@@ -27,7 +27,6 @@ init_job(PostData) ->
         end.
 
 handle(Socket, Msg) ->
-        {value, {_, Script}} = lists:keysearch("PATH_INFO", 1, Msg),
         {value, {_, CLenStr}} = lists:keysearch("CONTENT_LENGTH", 1, Msg),
         CLen = list_to_integer(CLenStr),
         {ok, PostData} = gen_tcp:recv(Socket, CLen, 0),
@@ -70,10 +69,10 @@ wait_workers(N, Res, Name, Mode) ->
                                         [Mode, PartID, Node], []),
                         ets:insert(Res, {{result, PartID}, Result}), M;
 
-                {data_error, Error, {Node, PartID}} ->
+                {data_error, _Error, {Node, PartID}} ->
                         handle_data_error(Name, PartID, Mode, Node, Res), N;
                         
-                {job_error, Error, {Node, PartID}} ->
+                {job_error, _Error, {_Node, _PartID}} ->
                         throw(logged_error);
                         
                 {error, Error, {Node, PartID}} ->
