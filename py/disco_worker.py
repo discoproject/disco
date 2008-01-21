@@ -120,13 +120,13 @@ def re_reader(item_re_str, fd, content_len, fname):
 
                 if not len(r):
                         if tot < content_len:
-                                data_err("Truncated input. "\
+                                data_err("Truncated input (%s). "\
                                          "Expected %d bytes, got %d" %\
-                                         (content_len, tot), fname)
+                                         (fname, content_len, tot), fname)
                         if len(buf):
-                                err("Corrupted input. Could not "\
+                                err("Corrupted input (%s). Could not "\
                                         "parse the last %d bytes."\
-                                                % len(buf), fname)
+                                                % (fname, len(buf)))
                         break
 
 class MapOutput:
