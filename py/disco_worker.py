@@ -9,6 +9,8 @@ REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
 REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
 REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-%d"
 
+job_name = ""
+
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
         print >> sys.stderr, "**<%s>[%s %s (%s)] %s" %\
@@ -359,22 +361,24 @@ def op_reduce(job):
 
         msg("%d %s" % (this_partition(), red_out.disco_address()), "OUT")
 
-job_name = ""
-if len(sys.argv) < 6:
-        err("Invalid command line. "\
-            "Usage: disco_worker.py [op_map|op_reduce] name hostname partid inputs..")
 
-if "op_" + sys.argv[1] not in globals():
-        err("Invalid operation: %s" % sys.argv[1])
+if __name__ == "__main__":
+        if len(sys.argv) < 6:
+                err("Invalid command line. "\
+                    "Usage: disco_worker.py [op_map|op_reduce] "\
+                    "name hostname partid inputs..")
 
-try:
-        m = decode_netstring_fd(sys.stdin)
-except:
-        msg("Decoding the job description failed", "ERR")
-        raise
+        if "op_" + sys.argv[1] not in globals():
+                err("Invalid operation: %s" % sys.argv[1])
 
-globals()["op_" + sys.argv[1]](m)
-msg("Worker done", "END")
+        try:
+                m = decode_netstring_fd(sys.stdin)
+        except:
+                msg("Decoding the job description failed", "ERR")
+                raise
+
+        globals()["op_" + sys.argv[1]](m)
+        msg("Worker done", "END")
 
 
 

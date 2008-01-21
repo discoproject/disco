@@ -1,9 +1,11 @@
 
 from netstring import *
 import marshal, traceback, time, re, urllib
+from disco_worker import re_reader
 
 DISCO_NEW_JOB_URL = "/disco/job/new"
 DISCO_RESULTS = "/disco/ctrl/get_results"
+HTTP_PORT = "8989"
 
 def default_partition(key, nr_reduces):
         return hash(str(key)) % nr_reduces
@@ -87,6 +89,33 @@ def wait_job(master, name, poll_interval = 5, timeout = None):
                         raise "Job failed"
                 if timeout and time.time() - t > timeout:
                         raise "Timeout"
+
+def result_iterator(results, notifier = None):
+        results.sort()
+        for part_id, url in results:
+                host, fname = url[8:].split("/", 1)
+                ext_host = host + ":" + HTTP_PORT
+                ext_file = "/" + fname
+
+                http = httplib.HTTPConnection(ext_host)
+                http.request("GET", ext_file, "")
+                fd = http.getresponse()
+                if fd.status != 200:
+                        raise "HTTP error %d" % fd.status
+                
+                sze = int(fd.getheader("content-length"))
+
+                if notifier:
+                        notifier(part_id, url)
+
+                for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
+                        yield x
+                http.close()
+
+
+
+
+
 
 
                 
