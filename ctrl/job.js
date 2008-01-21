@@ -79,8 +79,10 @@ function click_node()
         }
 }
 
-function update_events(events_msg){
-        if ($("#pagesearch").val() && events_msg[0] != -1)
+function update_events(events_msg, is_auto){
+        if ($("#pagesearch").val() && is_auto != undefined)
+                return;
+        if ($("#pagerange").val() && is_auto != undefined)
                 return;
         
         if (events_msg[0] > 0){
@@ -114,7 +116,9 @@ function update_events(events_msg){
                 setTimeout(function(){
                         $.getJSON("/disco/ctrl/jobevents" +
                                 document.location.search + 
-                                        "&offs=0&num=100", update_events);
+                                        "&offs=0&num=100", function(e){
+                                                update_events(e, "auto");
+                                });
                 }, 10000);
 }
 

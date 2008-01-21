@@ -78,7 +78,6 @@ def wait_job(master, name, poll_interval = 5, timeout = None):
         url = master.replace("disco:", "http:", 1)\
                 + DISCO_RESULTS + "?name=" + name
         t = time.time()
-        print url
         while True:
                 time.sleep(poll_interval)
                 R = urllib.urlopen(url).read()
