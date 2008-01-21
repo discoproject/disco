@@ -79,7 +79,7 @@ function click_node()
         }
 }
 
-function update_events(events_msg, is_auto){
+function update_events(events_msg, success, is_auto){
         if ($("#pagesearch").val() && is_auto != undefined)
                 return;
         if ($("#pagerange").val() && is_auto != undefined)
@@ -116,8 +116,8 @@ function update_events(events_msg, is_auto){
                 setTimeout(function(){
                         $.getJSON("/disco/ctrl/jobevents" +
                                 document.location.search + 
-                                        "&offs=0&num=100", function(e){
-                                                update_events(e, "auto");
+                                        "&offs=0&num=100", function(e, x){
+                                                update_events(e, x, "auto");
                                 });
                 }, 10000);
 }
