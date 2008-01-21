@@ -118,7 +118,7 @@ def re_reader(item_re_str, fd, content_len, fname):
                 if m:
                         buf = buf[m.end():]
 
-                if not len(r):
+                if not len(r) or tot >= content_len:
                         if tot < content_len:
                                 data_err("Truncated input (%s). "\
                                          "Expected %d bytes, got %d" %\
@@ -256,7 +256,7 @@ class ReduceReader:
                 for x in lst:
                         yield x
                         i += 1
-                        if not i % 1000:
+                        if not i % 10000:
                                 msg("%d entries reduced" % i)
                 msg("Reduce done: %d entries reduced in total" % i)
 
@@ -266,7 +266,7 @@ class ReduceReader:
                         for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
                                 yield x
                                 i += 1
-                                if progress and not i % 1000:
+                                if progress and not i % 10000:
                                         msg("%d entries reduced" % i)
                 if progress:
                         msg("Reduce done: %d entries reduced in total" % i)
@@ -300,7 +300,7 @@ def run_map(job_input, partitions):
                         p = fun_partition(key, nr_reduces)
                         partitions[p].add(key, value)
                 i += 1
-                if not i % 1000:
+                if not i % 10000:
                         msg("%d entries mapped" % i)
 
         msg("Done: %d entries mapped in total" % i)
