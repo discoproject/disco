@@ -203,7 +203,7 @@ class ReduceReader:
                                 m.sort()
                                 self.iterator = self.list_iterator(m)
                 else:
-                        self.iterator = self.multi_file_iteator(self.inputs)
+                        self.iterator = self.multi_file_iterator(self.inputs)
                         
         def iter(self):
                 return self.iterator
