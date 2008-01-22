@@ -144,6 +144,7 @@ class MapOutput:
                 for key, value in self.comb_buffer.iteritems():
                         self.add(key, value)
                 self.combiner = comb
+                self.comb_buffer = {}
 
 
         def add(self, key, value):
