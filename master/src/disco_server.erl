@@ -31,8 +31,8 @@ init(_Args) ->
         ets:new(job_events, [named_table, duplicate_bag]),
 
         % node_laod records how many disco_workers there are
-        % running on a node (could be found in active_workers)
-        % as well. This table exists mainly for convenience and
+        % running on a node (could be found in active_workers
+        % as well). This table exists mainly for convenience and
         % possibly for performance reasons.
         ets:new(node_load, [named_table]),
 
@@ -205,7 +205,7 @@ handle_info(Msg, State) ->
 % clean_worker() gets called whenever a disco_worker process dies, either
 % normally or abnormally. Its main job is to remove the exiting worker
 % from the active_workers table and to notify the corresponding job 
-% coordinator about the worker status.
+% coordinator about the worker's exit status.
 clean_worker(Pid, ReplyType, Msg, WaitQueue) ->
         {V, Nfo} = case ets:lookup(active_workers, Pid) of
                         [] -> event("[master]",
@@ -235,14 +235,15 @@ update_stats(_Node, _) -> ok.
 % scheme is as follows:
 %
 % 0) A node becomes available, either due to a task finishing in
-%    clean_worker() or a new node being added at update_config_table().
+%    clean_worker() or a new node or slots being added at 
+%    update_config_table().
 %
 % 1) schedule_waiter() goes through the WaitQueue that includes all pending,
 %    not yet running tasks, and tries to get a task running, one by one from
 %    the wait queue.
 %
 % 2) try_new_worker() asks a preferred node from choose_node(). It may report
-%    that are the nodes are 100% busy (busy) or that a suitable node could
+%    that all the nodes are 100% busy (busy) or that a suitable node could
 %    not be found (all_bad). If all goes well, it returns a node name.
 %
 % 3) If a node name was returned, a new worker is started in start_worker().
@@ -289,10 +290,12 @@ choose_node({PrefNode, TaskBlackNodes}) ->
                 length(AllowedNodes) == 0 -> 
                         {all_bad, length(TaskBlackNodes), length(AllNodes)};
                 true -> 
+                        % Pick the node with the lowest load.
                         [{Node, _}|_] = lists:keysort(2, AllowedNodes),
                         Node
                 end;
         true ->
+                % If yes, return the preferred node.
                 PrefNode
         end.
 
