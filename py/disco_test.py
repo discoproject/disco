@@ -2,7 +2,7 @@ import sys, os
 import disco
 
 def fun_map(e):
-        return [(w, 1) for w in e.split()]
+        return [(x, 1) for w in re.sub("\W", " ", e).lower().split()]
 
 def fun_reduce(iter, out, job):
         s = {}
@@ -14,10 +14,12 @@ def fun_reduce(iter, out, job):
         for k, v in s.iteritems():
                 out.add(k, v)
 
-if "HTTP" in os.environ:
-        #print disco.wait_job(sys.argv[1], "wordcount@1200822822")
-        print disco.job(sys.argv[1], "wordcount", 
-                sys.argv[2:], fun_map, reduce = fun_reduce, nr_reduces = 2)
-else:
-        print disco.job("stdout:", "wordcount",\
-                sys.argv[1:], fun_map, reduce = fun_reduce, nr_reduces = 2)
+results = disco.job(sys.argv[1], "wordcount", sys.argv[2:], fun_map, 
+		reduce = fun_reduce, 
+		nr_reduces = 32,
+		sort = False)
+
+for key, value in disco.result_iterator(results):
+	print key, value
+
+
