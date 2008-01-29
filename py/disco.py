@@ -1,6 +1,6 @@
 
 from netstring import *
-import marshal, traceback, time, re, urllib
+import marshal, traceback, time, re, urllib, httplib
 from disco_worker import re_reader
 
 DISCO_NEW_JOB_URL = "/disco/job/new"
