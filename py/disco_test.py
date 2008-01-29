@@ -2,7 +2,7 @@ import sys, os
 import disco
 
 def fun_map(e):
-        return [(x, 1) for w in re.sub("\W", " ", e).lower().split()]
+        return [(w, 1) for w in re.sub("\W", " ", e).lower().split()]
 
 def fun_reduce(iter, out, job):
         s = {}
