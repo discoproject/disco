@@ -19,6 +19,10 @@ def make_range_partition(min_val, max_val):
 def map_line_reader(fd, sze, fname):
         for x in re_reader("(.*?)\n", fd, sze, fname):
                 yield x[0]
+
+def chain_reader(fd, sze, fname):
+        for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
+                yield x[:2]
         
 def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
