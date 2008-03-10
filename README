@@ -152,6 +152,12 @@ The regular expression, given as the first parameter to re_reader(), must
 include at least one group, defined by parentheses, and must match so that
 no extra characters are left between or after any input entry.
 
+You can perform many map/reduce operations in sequence by specifying
+
+map_reader = disco.chain_reader
+
+which reads output of a previous map or reduce operation.
+
 
 * reduce [function] (optional)
 
