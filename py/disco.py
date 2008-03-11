@@ -9,6 +9,16 @@ DISCO_KILL_JOB = "/disco/ctrl/kill_job"
 DISCO_RESULTS = "/disco/ctrl/get_results"
 HTTP_PORT = "8989"
 
+class JobException(Exception):
+        def __init__(self, msg, name, master):
+                self.msg = msg
+                self.name = name
+                self.master = master
+
+        def __str__(self):
+                return "Job %s@%s failed: %s" %\
+                        (self.name, self.master, self.msg)
+
 def default_partition(key, nr_reduces):
         return hash(str(key)) % nr_reduces
 
@@ -94,9 +104,9 @@ def wait_job(master, name, poll_interval = 5, timeout = None):
                 if R[0] == "ready":
                         return R[1]
                 if R[0] != "active":
-                        raise "Job failed"
+                        raise JobException("Job failed", master, name)
                 if timeout and time.time() - t > timeout:
-                        raise "Timeout"
+                        raise JobException("Timeout", master, name)
 
 def clean_job(master, name):
         urllib.urlopen(master.replace("disco:", "http:", 1)\

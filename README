@@ -85,8 +85,11 @@ disco.job(master, name, input_files, fun_map, [map_reader, reduce,
 
 The first four parameters are required, the rest are optional. Returns
 a list like [[1, "disco://reduce-1"], [2, "disco://reduce-2"]] containing
-partition-ID, result-file pairs. 
+partition-ID, result-file pairs.
 
+If the job fails, a JobException is raised. The exception contains instance
+variables name and master which you can use to call disco.clean_job() to 
+remove the failed job entry on the master.
 
 * master [string] (required)
 
