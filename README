@@ -81,7 +81,7 @@ Disco.job()
 
 disco.job(master, name, input_files, fun_map, [map_reader, reduce,
           partition, combiner, nr_maps, nr_reduces, sort,
-          em_sort_limit, async]) -> [result files]
+          em_sort_limit, async, clean]) -> [result files]
 
 The first four parameters are required, the rest are optional. Returns
 a list like [[1, "disco://reduce-1"], [2, "disco://reduce-2"]] containing
@@ -258,8 +258,14 @@ used instead. By default 256MB.
 Do not block the disco.job() call but return immediately after the job
 request has been posted. By default false, meaning that the call will
 block. If set to true, use the disco.wait_job() function to poll the
-results.
+results. In the asyncronous mode the parameter 'clean' is ignored, so
+you must call disco.clean_job() explicitely to remove the job entry
+from the master.
 
+* clean [boolean] (optional)
+
+Calls disco.clean_job() automatically when the job has finished
+succesfully. True by default.
 
 disco.wait_job()
 ''''''''''''''''
@@ -288,6 +294,20 @@ where [part_id] is the partition ID for the next values and URL address
 of the result file.
 
 
+disco.clean_job(master, name)
+'''''''''''''''''''''''''''''
+
+Clean the job entry 'name' at 'master'. Note that after calling this
+function you can't access status information on the master anymore and
+you have 24 hours time to collect the results before they are garbage
+collected automatically.
+
+disco.kill_job(master, name)
+''''''''''''''''''''''''''''
+
+Kill the job 'name' at 'master'. Note that this entry doesn't remove
+the job entry from the master, so you can still access status information
+for this job. Use disco.clean_job() to remove the job entry totally.
 
 
 

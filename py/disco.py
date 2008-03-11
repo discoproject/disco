@@ -3,7 +3,9 @@ from netstring import *
 import marshal, traceback, time, re, urllib, httplib
 from disco_worker import re_reader
 
-DISCO_NEW_JOB_URL = "/disco/job/new"
+DISCO_NEW_JOB = "/disco/job/new"
+DISCO_CLEAN_JOB = "/disco/ctrl/clean_job"
+DISCO_KILL_JOB = "/disco/ctrl/kill_job"
 DISCO_RESULTS = "/disco/ctrl/get_results"
 HTTP_PORT = "8989"
 
@@ -27,7 +29,7 @@ def chain_reader(fd, sze, fname):
 def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
         nr_maps = None, nr_reduces = None, sort = True,\
-        mem_sort_limit = 256 * 1024**2, async = False):
+        mem_sort_limit = 256 * 1024**2, async = False, clean = True):
 
         if len(input_files) < 1:
                 raise "Must have at least one input file"
@@ -65,7 +67,7 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
                 print msg,
         elif master.startswith("disco:"):
                 reply = urllib.urlopen(master.replace("disco:", "http:", 1)\
-                        + DISCO_NEW_JOB_URL, msg)
+                        + DISCO_NEW_JOB, msg)
                 r = reply.read()
                 if "job started" not in r:
                         raise "Failed to start a job. Server replied: " + r
@@ -73,10 +75,13 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         else:
                 raise "Unknown host specifier: %s" % master
 
-        if not async:
-                return wait_job(master, req['name']) 
-        else:
+        if async:
                 return name
+        else:
+                results = wait_job(master, req['name'])
+                if clean:
+                        clean_job(master, req['name'])
+                return results
 
 def wait_job(master, name, poll_interval = 5, timeout = None):
         url = master.replace("disco:", "http:", 1)\
@@ -92,6 +97,14 @@ def wait_job(master, name, poll_interval = 5, timeout = None):
                         raise "Job failed"
                 if timeout and time.time() - t > timeout:
                         raise "Timeout"
+
+def clean_job(master, name):
+        urllib.urlopen(master.replace("disco:", "http:", 1)\
+                        + DISCO_CLEAN_JOB, '"%s"' % name)
+
+def kill_job(master, name):
+        urllib.urlopen(master.replace("disco:", "http:", 1)\
+                        + DISCO_KILL_JOB, '"%s"' % name)
 
 def result_iterator(results, notifier = None):
         results.sort()
