@@ -25,6 +25,8 @@ def job_entry_exists(name):
         R = urllib.urlopen(url).read()
         return eval(R)[0].lower() != "unknown job"
 
+print "-- Cleaner starts at %s --" % time.ctime()
+
 # Collect job names and timestamps from nodes
 dirs = []
 for node in all_nodes():
