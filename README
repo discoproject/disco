@@ -130,6 +130,10 @@ that is an input entry returned by the map_reader function. By default
 it is a single line from the input. It returns an iterable object (list,
 generator or iterator) which produces a sequence of (key, value) tuples.
 
+A magic dictionary called job_state is available for fun_map in case
+that it needs to maintain a state during several function calls.
+However, use this feature sparingly as stateless functions are often
+easier to debug and less problematic than their stateful counterparts.
 
 * map_reader [function] (optional)
 

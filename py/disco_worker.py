@@ -295,6 +295,8 @@ def fun_reduce(red_in, red_out, job):
 # Erlay handlers
 
 def run_map(job_input, partitions):
+        global job_state
+        job_state = {}
         i = 0
         sze, fd = connect_input(job_input)
         nr_reduces = len(partitions)
