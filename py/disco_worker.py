@@ -93,8 +93,9 @@ def connect_input(input):
                                         % input, input)
 
 def encode_kv_pair(fd, key, value):
-        fd.write("%d %s %d %s\n" %
-                (len(str(key)), key, len(str(value)), value))
+        skey = str(key)
+        sval = str(value)
+        fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
         #key = str(key)
         #value = str(value)
         #if " " in key:
@@ -102,32 +103,39 @@ def encode_kv_pair(fd, key, value):
         #if "\000" in value:
         #        err("Zero-bytes not allowed in values: <%s>" % value)
         #fd.write("%s %s\000" % (key, value))
-
 def netstr_reader(fd, content_len, fname):
-        def read_netstr(tot):
+        def read_netstr(idx, data, tot):
                 i = 0
                 lenstr = ""
                 buf = ""
-                for i in range(11):
-                        c = fd.read(1)
-                        buf += c
-                        if not c:
-                                break
-                        elif c == " ":
-                                lenstr = buf
-                                break
-                else:
+                if len(data) - idx < 11:
+                        data = data[idx:] + fd.read(8192)
+                        idx = 0
+                
+                i = data.find(" ", idx, idx + 11)
+                if i == -1:
                         err("Corrupted input (%s). Could not "\
                                 "parse a value length at %d bytes."\
                                         % (fname, tot))
-                        return -1, None
-                
+                        return -1, -1, -1, None
+                else:
+                        lenstr = data[idx:i + 1]
+                        idx = i + 1
 
+                #for i in range(11):
+                #       if idx + i == len(data):
+                #               break
+                #       elif data[idx + i] == " ":
+                #               lenstr = data[idx:idx + i + 1]
+                #               idx += i + 1
+                #               break
+                #else:
+                
                 if not lenstr:
                         data_err("Truncated input (%s). "\
                                 "Expected %d bytes, got %d" %\
                                 (fname, content_len, tot), fname)
-                        return -1, None
+                        return -1, -1, -1, None
                 
                 try:
                         llen = int(lenstr)
@@ -135,24 +143,32 @@ def netstr_reader(fd, content_len, fname):
                         err("Corrupted input (%s). Could not "\
                                 "parse a value length at %d bytes."\
                                         % (fname, tot))
-                        return -1, None
+                        return -1, -1, -1, None
 
                 tot += len(lenstr)
-                msg = fd.read(llen + 1)
+
+                if len(data) - idx < llen + 1:
+                        data = data[idx:] + fd.read(8192)
+                        idx = 0
+
+                msg = data[idx:idx + llen + 1]
+                idx += llen + 1
                 rlen = len(msg)
                 if rlen < llen + 1:
                         data_err("Truncated input (%s). "\
                                 "Expected a value of %d bytes, got %d "\
                                 "(offset %u bytes)" %\
                                 (fname, llen + 1, rlen, tot), fname)
+                        return -1, -1, -1, None
                 tot += rlen
-                return tot, msg[:-1]
+                return idx, data, tot, msg[:-1]
         
-        tot = 0
+        data = fd.read(8192)
+        tot = idx = 0
         while tot < content_len:
-                tot, key = read_netstr(tot)
+                idx, data, tot, key = read_netstr(idx, data, tot)
                 if not key: break
-                tot, val = read_netstr(tot)
+                idx, data, tot, val = read_netstr(idx, data, tot)
                 if not val: break
                 yield key, val
 
