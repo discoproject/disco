@@ -91,7 +91,7 @@ wait_workers(N, Res, Name, Mode) ->
                 {job_ok, Result, {Node, PartID}} -> 
                         disco_server:event(Name, 
                                 "Received results from ~s:~B @ ~s.",
-                                        [Mode, PartID, Node], []),
+                                        [Mode, PartID, Node], [task_ready, Mode]),
                         ets:insert(Res, {{result, PartID}, Result}), M;
 
                 {data_error, _Error, {Node, PartID}} ->

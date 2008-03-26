@@ -176,6 +176,38 @@ input{
         font-weight: normal;
 }
 
+.jobinfo table .ttitle{
+        font-size: 80%;
+}
+
+.jobinfo table{
+        width: 100%;
+        background: #eee;
+}
+
+/*
+.jobinfo .ind_wait{
+}
+
+.jobinfo .ind_run{
+        background: #FFF7BF;
+        padding-left: 2px;
+        padding-right: 2px;
+}
+
+.jobinfo .ind_ok{
+        background: #BFFFD9;
+        padding-left: 2px;
+        padding-right: 2px;
+}
+
+.jobinfo .ind_err{
+        background: #FFC9BF;
+        padding-left: 2px;
+        padding-right: 2px;
+}
+*/
+
 #jobctrl{
         color: #8f138b;
         font-size: 120%;

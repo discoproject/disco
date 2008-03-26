@@ -24,10 +24,9 @@ op("joblist", _Query, _Json) ->
 
 op("jobinfo", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        {ok, {MapNfo, Res, Nodes}}
+        {ok, {MapNfo, Res, Nodes, Tasks, Ready, Failed}}
                 = gen_server:call(disco_server, {get_jobinfo, Name}),
-        error_logger:info_report([{"KE", MapNfo, Res, Nodes}]),
-        {ok, render_jobinfo(MapNfo, Nodes, Res)};
+        {ok, render_jobinfo(MapNfo, Nodes, Res, Tasks, Ready, Failed)};
 
 op("jobevents", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
@@ -162,8 +161,22 @@ page(E, O, _N) when O > length(E) -> [].
 render_page(E) ->
         [{obj, [{tstamp, T}, {host, H}, {msg, M}]} || {{_, T}, H, [M|_]} <- E].
 
-render_jobinfo([], _, _) -> [];
-render_jobinfo([[Tstamp, [JobPid, NMap, NRed, DoRed, Inputs]]], Nodes, Res) ->
+count_maps(L) ->
+        N = length(lists:filter(fun
+                (["map"]) -> true;
+                ([["map"]]) -> true;
+                (_) -> false
+        end, L)),
+        {N, length(L) - N}.
+
+render_jobinfo([], _, _, _, _, _) -> [];
+render_jobinfo([[Tstamp, [JobPid, NMap, NRed, DoRed, Inputs]]],
+        Nodes, Res, Tasks, Ready, Failed) ->
+
+        {NMapRun, NRedRun} = count_maps(Tasks),
+        {NMapDone, NRedDone} = count_maps(Ready),
+        {NMapFail, NRedFail} = count_maps(Failed),
+        
         R = case {Res, is_process_alive(JobPid)} of
                 {_, true} -> <<"active">>;
                 {[], false} -> <<"dead">>;
@@ -171,8 +184,10 @@ render_jobinfo([[Tstamp, [JobPid, NMap, NRed, DoRed, Inputs]]], Nodes, Res) ->
         end,
         {obj, [{timestamp, Tstamp}, 
                {active, R},
-               {nmap, NMap},
-               {nred, NRed},
+               {mapi, [NMap - (NMapDone + NMapRun),
+                        NMapRun, NMapDone, NMapFail]},
+               {redi, [NRed - (NRedDone + NRedRun),
+                        NRedRun, NRedDone, NRedFail]},
                {reduce, DoRed},
                {results, lists:map(fun({_, X}) -> list_to_binary(X) end, 
                                 lists:flatten(Res))},

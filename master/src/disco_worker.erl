@@ -17,7 +17,7 @@ start_link(Args) ->
 
 init([From, JobName, PartID, Mode, Node, Input, Data]) ->
         error_logger:info_report(["Init worker ", JobName]),
-        ets:insert(active_workers, {self(), {From, JobName, Node, PartID}}),
+        ets:insert(active_workers, {self(), {From, JobName, Node, Mode, PartID}}),
 
         {ok, #state{from = From, jobname = JobName, partid = PartID, mode = Mode,
                     node = Node, input = Input, data = Data, 
@@ -51,6 +51,11 @@ strip_timestamp(Msg) ->
         true ->
                 string:substr(Msg, P + 2)
         end.
+
+event(S, "WARN", Msg) ->
+        disco_server:event(S#state.node, S#state.jobname,
+                "~s [~s:~B] ~s", ["WARN", S#state.mode, S#state.partid, Msg],
+                        [task_failed, S#state.mode]);
 
 event(S, Type, Msg) ->
         disco_server:event(S#state.node, S#state.jobname,

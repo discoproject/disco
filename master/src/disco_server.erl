@@ -52,9 +52,16 @@ handle_call(get_jobnames, _From, State) ->
 handle_call({get_jobinfo, JobName}, _From, State) ->
         MapNfo = ets:match(job_events,
                 {JobName, {{'_', '$1'}, '_', ['_', map_data|'$2']}}),
+        
         Res = ets:match(job_events, {JobName, {'_', '_', ['_', ready|'$1']}}),
-        Nodes = ets:match(active_workers, {'_', {'_', JobName, '$1', '_'}}),
-        {reply, {ok, {MapNfo, Res, Nodes}}, State};
+        Ready = ets:match(job_events,
+                {JobName, {'_', '_', ['_', task_ready|'$1']}}),
+        Failed = ets:match(job_events,
+                {JobName, {'_', '_', ['_', task_failed|'$1']}}),
+
+        Tasks = ets:match(active_workers, {'_', {'_', JobName, '_', '$1', '_'}}),
+        Nodes = ets:match(active_workers, {'_', {'_', JobName, '$1', '_', '_'}}),
+        {reply, {ok, {MapNfo, Res, Nodes, Tasks, Ready, Failed}}, State};
 
 handle_call({get_results, JobName}, _From, State) ->
         Pid = lists:flatten(ets:match(job_events,
@@ -66,7 +73,7 @@ handle_call({get_results, JobName}, _From, State) ->
 
 
 handle_call({get_nodeinfo, all}, _From, State) ->
-        Active = ets:match(active_workers, {'_', {'_', '$2', '$1', '_'}}),
+        Active = ets:match(active_workers, {'_', {'_', '$2', '$1', '_', '_'}}),
         Available = lists:map(fun({Node, Max}) ->
                 [{_, A, B, C}] = ets:lookup(node_stats, Node),
                 BL = case ets:lookup(blacklist, Node) of
@@ -83,7 +90,7 @@ handle_call({get_nodeinfo, Node}, _From, State) ->
         case ets:lookup(node_stats, Node) of
                 [] -> {reply, {ok, []}, State};
                 [{_, V}] -> Nfo = ets:match(active_workers, 
-                        {'_', {'_', '$1', Node, '_'}}),
+                        {'_', {'_', '$1', Node, '_', '_'}}),
                         {reply, {ok, {V, Nfo}}, State}
         end;
 
@@ -133,7 +140,7 @@ handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
 handle_call({kill_job, JobName}, _From, WaitQueue) ->
         lists:foreach(fun([Pid]) ->
                 gen_server:call(Pid, kill_worker)
-        end, ets:match(active_workers, {'$1', {'_', JobName, '_', '_'}})),
+        end, ets:match(active_workers, {'$1', {'_', JobName, '_', '_', '_'}})),
         {reply, ok, lists:filter(fun(Job) ->
                 Job#job.jobname =/= JobName end, WaitQueue)};
 
@@ -215,7 +222,7 @@ clean_worker(Pid, ReplyType, Msg, WaitQueue) ->
                         R -> {true, R}
                    end,
         if V ->
-                [{_, {From, _JobName, Node, PartID}}] = Nfo,
+                [{_, {From, _JobName, Node, _Mode, PartID}}] = Nfo,
                 update_stats(Node, ReplyType),
                 ets:delete(active_workers, Pid),
                 ets:update_counter(node_load, Node, -1),

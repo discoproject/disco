@@ -43,6 +43,15 @@ function clean_job(){
                 post_req("/disco/ctrl/clean_job", JSON.stringify(Name));
 }
 
+function make_jobinfo_row(dlist, mode){
+        return $.map([mode].concat(dlist), function(X, i){
+                if (X == mode)
+                        return $.create("td", {"class":"ttitle"}, [X]);
+                else
+                        return $.create("td", {}, [String(X)]);
+        });
+}
+
 function update_jobinfo(data){
         $("#nfo_active").text(data.active);
         if (data.active == "active"){
@@ -53,13 +62,17 @@ function update_jobinfo(data){
                 $("#clean_job").show();
         }
         $("#nfo_started").text(data.timestamp);
-        $("#nfo_maps").text(data.nmap);
-        $("#nfo_part").text(data.nred);
-        $("#nfo_reduce").text(data.reduce);
+        $("#jobinfo_map").html(make_jobinfo_row(data.mapi, "Map"));
+        $("#jobinfo_red").html(make_jobinfo_row(data.redi, "Reduce"));
 
         $("#map_inputs").html(data.inputs.join("<br/>"));
         $("#cur_nodes").html(data.nodes.join("<br/>"));
         $("#results").html(data.results.join("<br/>"));
+        
+        setTimeout(function(){
+                $.getJSON("/disco/ctrl/jobinfo" + document.location.search,
+                        update_jobinfo);
+        }, 10000);
 }
 
 function click_node()
@@ -121,6 +134,7 @@ function update_events(events_msg, success, is_auto){
                                 });
                 }, 10000);
 }
+
 
 function make_event(E, i){
         if (E.msg.match("^WARN"))
