@@ -118,7 +118,6 @@ def netstr_reader(fd, content_len, fname):
                         err("Corrupted input (%s). Could not "\
                                "parse a value length at %d bytes."\
                                         % (fname, tot))
-                        return -1, -1, -1, None
                 else:
                         lenstr = data[idx:i + 1]
                         idx = i + 1
@@ -127,7 +126,6 @@ def netstr_reader(fd, content_len, fname):
                         data_err("Truncated input (%s). "\
                                 "Expected %d bytes, got %d" %\
                                 (fname, content_len, tot), fname)
-                        return -1, -1, -1, None
                 
                 try:
                         llen = int(lenstr)
@@ -135,12 +133,11 @@ def netstr_reader(fd, content_len, fname):
                         err("Nods Corrupted input (%s). Could not "\
                                 "parse a value length at %d bytes."\
                                         % (fname, tot))
-                        return -1, -1, -1, None
 
                 tot += len(lenstr)
 
                 if ldata - idx < llen + 1:
-                        data = data[idx:] + fd.read(8192)
+                        data = data[idx:] + fd.read(llen + 8193)
                         ldata = len(data)
                         idx = 0
 
@@ -151,7 +148,6 @@ def netstr_reader(fd, content_len, fname):
                                 "Expected a value of %d bytes "\
                                 "(offset %u bytes)" %\
                                 (fname, llen + 1, tot), fname)
-                        return -1, -1, -1, None
 
                 tot += llen + 1
                 idx += llen + 1
