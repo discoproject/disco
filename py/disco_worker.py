@@ -93,14 +93,69 @@ def connect_input(input):
                                         % input, input)
 
 def encode_kv_pair(fd, key, value):
-        key = str(key)
-        value = str(value)
-        if " " in key:
-                err("Spaces are not allowed in keys: <%s>" % key)
-        if "\000" in value:
-                err("Zero-bytes not allowed in values: <%s>" % value)
+        fd.write("%d %s %d %s\n" %
+                (len(str(key)), key, len(str(value)), value))
+        #key = str(key)
+        #value = str(value)
+        #if " " in key:
+        #        err("Spaces are not allowed in keys: <%s>" % key)
+        #if "\000" in value:
+        #        err("Zero-bytes not allowed in values: <%s>" % value)
+        #fd.write("%s %s\000" % (key, value))
 
-        fd.write("%s %s\000" % (key, value))
+def netstr_reader(fd, content_len, fname):
+        def read_netstr(tot):
+                i = 0
+                lenstr = ""
+                buf = ""
+                for i in range(11):
+                        c = fd.read(1)
+                        buf += c
+                        if not c:
+                                break
+                        elif c == " ":
+                                lenstr = buf
+                                break
+                else:
+                        err("Corrupted input (%s). Could not "\
+                                "parse a value length at %d bytes."\
+                                        % (fname, tot))
+                        return -1, None
+                
+
+                if not lenstr:
+                        data_err("Truncated input (%s). "\
+                                "Expected %d bytes, got %d" %\
+                                (fname, content_len, tot), fname)
+                        return -1, None
+                
+                try:
+                        llen = int(lenstr)
+                except ValueError:
+                        err("Corrupted input (%s). Could not "\
+                                "parse a value length at %d bytes."\
+                                        % (fname, tot))
+                        return -1, None
+
+                tot += len(lenstr)
+                msg = fd.read(llen + 1)
+                rlen = len(msg)
+                if rlen < llen + 1:
+                        data_err("Truncated input (%s). "\
+                                "Expected a value of %d bytes, got %d "\
+                                "(offset %u bytes)" %\
+                                (fname, llen + 1, rlen, tot), fname)
+                tot += rlen
+                return tot, msg[:-1]
+        
+        tot = 0
+        while tot < content_len:
+                tot, key = read_netstr(tot)
+                if not key: break
+                tot, val = read_netstr(tot)
+                if not val: break
+                yield key, val
+
 
 def re_reader(item_re_str, fd, content_len, fname):
         item_re = re.compile(item_re_str)
@@ -266,7 +321,8 @@ class ReduceReader:
         def multi_file_iterator(self, inputs, progress = True):
                 i = 0
                 for sze, fd, fname in inputs:
-                        for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
+                        for x in netstr_reader(fd, sze, fname):
+                        #for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
                                 yield x
                                 i += 1
                                 if progress and not i % 10000:

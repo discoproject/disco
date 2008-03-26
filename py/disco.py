@@ -33,8 +33,9 @@ def map_line_reader(fd, sze, fname):
                 yield x[0]
 
 def chain_reader(fd, sze, fname):
-        for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
-                yield x[:2]
+        #for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
+        for x in netstr_reader(fd, sze, fname):
+                yield x
         
 def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
@@ -134,7 +135,8 @@ def result_iterator(results, notifier = None):
                 if notifier:
                         notifier(part_id, url)
 
-                for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
+                #for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
+                for x in netstr_reader(fd, sze, fname):
                         yield x
                 http.close()
 
