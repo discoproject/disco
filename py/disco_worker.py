@@ -105,33 +105,25 @@ def encode_kv_pair(fd, key, value):
         #fd.write("%s %s\000" % (key, value))
 def netstr_reader(fd, content_len, fname):
         def read_netstr(idx, data, tot):
+                ldata = len(data)
                 i = 0
                 lenstr = ""
-                buf = ""
-                if len(data) - idx < 11:
+                if ldata - idx < 11:
                         data = data[idx:] + fd.read(8192)
+                        ldata = len(data)
                         idx = 0
-                
+
                 i = data.find(" ", idx, idx + 11)
                 if i == -1:
                         err("Corrupted input (%s). Could not "\
-                                "parse a value length at %d bytes."\
+                               "parse a value length at %d bytes."\
                                         % (fname, tot))
                         return -1, -1, -1, None
                 else:
                         lenstr = data[idx:i + 1]
                         idx = i + 1
 
-                #for i in range(11):
-                #       if idx + i == len(data):
-                #               break
-                #       elif data[idx + i] == " ":
-                #               lenstr = data[idx:idx + i + 1]
-                #               idx += i + 1
-                #               break
-                #else:
-                
-                if not lenstr:
+                if ldata < i + 1:
                         data_err("Truncated input (%s). "\
                                 "Expected %d bytes, got %d" %\
                                 (fname, content_len, tot), fname)
@@ -140,28 +132,30 @@ def netstr_reader(fd, content_len, fname):
                 try:
                         llen = int(lenstr)
                 except ValueError:
-                        err("Corrupted input (%s). Could not "\
+                        err("Nods Corrupted input (%s). Could not "\
                                 "parse a value length at %d bytes."\
                                         % (fname, tot))
                         return -1, -1, -1, None
 
                 tot += len(lenstr)
 
-                if len(data) - idx < llen + 1:
+                if ldata - idx < llen + 1:
                         data = data[idx:] + fd.read(8192)
+                        ldata = len(data)
                         idx = 0
 
-                msg = data[idx:idx + llen + 1]
-                idx += llen + 1
-                rlen = len(msg)
-                if rlen < llen + 1:
+                msg = data[idx:idx + llen]
+                
+                if idx + llen + 1 > ldata:
                         data_err("Truncated input (%s). "\
-                                "Expected a value of %d bytes, got %d "\
+                                "Expected a value of %d bytes "\
                                 "(offset %u bytes)" %\
-                                (fname, llen + 1, rlen, tot), fname)
+                                (fname, llen + 1, tot), fname)
                         return -1, -1, -1, None
-                tot += rlen
-                return idx, data, tot, msg[:-1]
+
+                tot += llen + 1
+                idx += llen + 1
+                return idx, data, tot, msg
         
         data = fd.read(8192)
         tot = idx = 0
