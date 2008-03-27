@@ -1,7 +1,7 @@
 
 from netstring import *
 import marshal, traceback, time, re, urllib, httplib
-from disco_worker import re_reader
+from disco_worker import re_reader, netstr_reader
 
 DISCO_NEW_JOB = "/disco/job/new"
 DISCO_CLEAN_JOB = "/disco/ctrl/clean_job"
@@ -39,7 +39,7 @@ def chain_reader(fd, sze, fname):
         
 def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
-        nr_maps = None, nr_reduces = None, sort = True,\
+        nr_maps = None, nr_reduces = None, sort = True, params = {},\
         mem_sort_limit = 256 * 1024**2, async = False, clean = True):
 
         if len(input_files) < 1:
@@ -54,6 +54,7 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         req["map_reader"] = marshal.dumps(map_reader.func_code)
         req["map"] = marshal.dumps(fun_map.func_code)
         req["partition"] = marshal.dumps(partition.func_code)
+        req["params"] = marshal.dumps(params)
 
         if not nr_maps or nr_maps > len(input_files):
                 nr_maps = len(input_files)

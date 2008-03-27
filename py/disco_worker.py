@@ -96,13 +96,7 @@ def encode_kv_pair(fd, key, value):
         skey = str(key)
         sval = str(value)
         fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
-        #key = str(key)
-        #value = str(value)
-        #if " " in key:
-        #        err("Spaces are not allowed in keys: <%s>" % key)
-        #if "\000" in value:
-        #        err("Zero-bytes not allowed in values: <%s>" % value)
-        #fd.write("%s %s\000" % (key, value))
+
 def netstr_reader(fd, content_len, fname):
         def read_netstr(idx, data, tot):
                 ldata = len(data)
@@ -339,7 +333,7 @@ class ReduceReader:
 
 # Function stubs
 
-def fun_map(e):
+def fun_map(e, params):
         pass
 
 def fun_map_reader(fd, sze, job_input):
@@ -351,19 +345,17 @@ def fun_partition(key, nr_reduces):
 def fun_combiner(key, value, comb_buffer, flush):
         pass
 
-def fun_reduce(red_in, red_out, job):
+def fun_reduce(red_in, red_out, params):
         pass
 
 # Erlay handlers
 
-def run_map(job_input, partitions):
-        global job_state
-        job_state = {}
+def run_map(job_input, partitions, param):
         i = 0
         sze, fd = connect_input(job_input)
         nr_reduces = len(partitions)
         for entry in fun_map_reader(fd, sze, job_input):
-                for key, value in fun_map(entry):
+                for key, value in fun_map(entry, param):
                         p = fun_partition(key, nr_reduces)
                         partitions[p].add(key, value)
                 i += 1
@@ -387,7 +379,8 @@ def op_map(job):
         fun_map.func_code = marshal.loads(job['map'])
         fun_map_reader.func_code = marshal.loads(job['map_reader'])
         fun_partition.func_code = marshal.loads(job['partition'])
-       
+        map_params = marshal.loads(job['params'])
+
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
                 partitions = [MapOutput(i, fun_combiner)\
@@ -395,7 +388,7 @@ def op_map(job):
         else:
                 partitions = [MapOutput(i) for i in range(nr_reduces)]
 
-        run_map(job_input[0], partitions)
+        run_map(job_input[0], partitions, map_params)
 
         me = this_host()
         for p, part in enumerate(partitions):
@@ -415,12 +408,13 @@ def op_reduce(job):
         mem_sort_limit = int(job['mem_sort_limit'])
         
         fun_reduce.func_code = marshal.loads(job['reduce'])
+        red_params = marshal.loads(job['params'])
 
         red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit)
 
         red_out = ReduceOutput()
         msg("Starting reduce")
-        fun_reduce(red_in.iter(), red_out, job)
+        fun_reduce(red_in.iter(), red_out, red_params)
         msg("Reduce done")
         red_out.close()
 

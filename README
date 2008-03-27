@@ -81,7 +81,7 @@ Disco.job()
 
 disco.job(master, name, input_files, fun_map, [map_reader, reduce,
           partition, combiner, nr_maps, nr_reduces, sort,
-          em_sort_limit, async, clean]) -> [result files]
+          em_sort_limit, params, async, clean]) -> [result files]
 
 The first four parameters are required, the rest are optional. Returns
 a list like [[1, "disco://reduce-1"], [2, "disco://reduce-2"]] containing
@@ -127,16 +127,16 @@ one of the following three protocols:
 
 The map function. The map function gets a single parameter [e]
 
- def fun_map(e)
+ def fun_map(e, params)
 
 that is an input entry returned by the map_reader function. By default
 it is a single line from the input. It returns an iterable object (list,
 generator or iterator) which produces a sequence of (key, value) tuples.
 
-A magic dictionary called job_state is available for fun_map in case
-that it needs to maintain a state during several function calls.
-However, use this feature sparingly as stateless functions are often
-easier to debug and less problematic than their stateful counterparts.
+params is a user-defined object that is given to disco.job() and then
+passed to fun_map and fun_reduce. It may be also used to maintain state
+between several calls to the map function. By default, params is an
+empty dictionary.
 
 * map_reader [function] (optional)
 
@@ -170,7 +170,7 @@ which reads output of a previous map or reduce operation.
 
 The reduce function. The reduce function gets three parameters:
 
- def fun_reduce(iter, out, job)
+ def fun_reduce(iter, out, params)
 
 where [iter] is an iterator returning (key, value) pairs from the map
 functions, [out] is an output object which includes one function, add(),
@@ -254,6 +254,11 @@ Sort the map outputs, true by default.
 The maximum amount of RAM reserved for in-memory sorting in bytes. If
 the reduce input exceeds this amount, an external disk-based sort is
 used instead. By default 256MB.
+
+
+* params (optional)
+
+Any python object that is passed as such to map_fun and map_reduce.
 
 
 * async [boolean] (optional)

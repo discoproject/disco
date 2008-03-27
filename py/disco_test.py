@@ -1,10 +1,10 @@
 import sys, os
 import disco
 
-def fun_map(e):
+def fun_map(e, params):
         return [(w, 1) for w in re.sub("\W", " ", e).lower().split()]
 
-def fun_reduce(iter, out, job):
+def fun_reduce(iter, out, params):
         s = {}
         for k, v in iter:
                 if k in s:
