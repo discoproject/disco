@@ -65,9 +65,10 @@ def connect_input(input):
                 ext_host = host + ":" + HTTP_PORT
                 ext_file = "/" + fname
         elif input.startswith("http://"):
-                ext_host, fname = input[7:].split("/", 1)
-                ext_file = "/" + fname
-                local_file = None
+		ext_host, fname = input[7:].split("/", 1)
+		host = ext_host
+		ext_file = "/" + fname
+		local_file = None
         else:
                 host = this_host()
                 local_file = input
