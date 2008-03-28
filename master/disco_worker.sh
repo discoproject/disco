@@ -55,7 +55,7 @@ WATCHDOG_MODE=1 $0 "$1" "$2" "$3" "$4" &
 DOG=$!
 
 tee >(DOG_PID=$DOG KILLER_MODE=1 $0 "$1" "$2" "$3" "$4") |\
-                ssh $3 "python disco_worker.py '$1' '$2' '$3' '$4' $5"
+                ssh $3 "python2.4 disco_worker.py '$1' '$2' '$3' '$4' $5"
 
 
 
