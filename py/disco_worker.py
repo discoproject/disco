@@ -87,7 +87,9 @@ def connect_input(input):
                         fd = http.getresponse()
                         if fd.status != 200:
                                 raise "HTTP error %d" % fd.status
-                        sze = int(fd.getheader("content-length"))
+                        sze = fd.getheader("content-length")
+                        if sze:
+                                sze = int(sze)
                         return sze, fd
                 except:
                         data_err("Can't access an external input file: %s"\
@@ -99,6 +101,8 @@ def encode_kv_pair(fd, key, value):
         fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
 
 def netstr_reader(fd, content_len, fname):
+        if content_len == None:
+                err("Content-length must be defined for netstr_reader")
         def read_netstr(idx, data, tot):
                 ldata = len(data)
                 i = 0
@@ -177,14 +181,16 @@ def re_reader(item_re_str, fd, content_len, fname):
                         m = item_re.match(buf)
 
                 if not len(r):
-                        if tot < content_len:
+                        if content_len != None and tot < content_len:
                                 data_err("Truncated input (%s). "\
                                          "Expected %d bytes, got %d" %\
                                          (fname, content_len, tot), fname)
                         if len(buf):
-                                err("Corrupted input (%s). Could not "\
-                                        "parse the last %d bytes."\
-                                                % (fname, len(buf)))
+                                msg("Couldn't match the last %d bytes in %s" %
+                                        (len(buf), fname))
+                                #err("Corrupted input (%s). Could not "\
+                                #        "parse the last %d bytes."\
+                                #                % (fname, len(buf)))
                         break
 
 class MapOutput:
