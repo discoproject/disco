@@ -29,7 +29,7 @@ def make_range_partition(min_val, max_val):
         return eval(f)
 
 def map_line_reader(fd, sze, fname):
-        for x in re_reader("(.*?)\n", fd, sze, fname):
+        for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
                 yield x[0]
 
 def chain_reader(fd, sze, fname):

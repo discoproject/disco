@@ -162,7 +162,7 @@ def netstr_reader(fd, content_len, fname):
                 yield key, val
 
 
-def re_reader(item_re_str, fd, content_len, fname):
+def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
         item_re = re.compile(item_re_str)
         buf = ""
         tot = 0
@@ -186,8 +186,13 @@ def re_reader(item_re_str, fd, content_len, fname):
                                          "Expected %d bytes, got %d" %\
                                          (fname, content_len, tot), fname)
                         if len(buf):
-                                msg("Couldn't match the last %d bytes in %s" %
-                                        (len(buf), fname))
+                                if output_tail:
+                                        yield [buf]
+                                else:
+                                        msg("Couldn't match the last %d "\
+                                            "bytes in %s. Some bytes may be "\
+                                            "missing from input." %\
+                                                (len(buf), fname))
                                 #err("Corrupted input (%s). Could not "\
                                 #        "parse the last %d bytes."\
                                 #                % (fname, len(buf)))
