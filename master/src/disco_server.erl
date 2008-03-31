@@ -287,8 +287,8 @@ choose_node({PrefNode, TaskBlackNodes}) ->
                 % failed this task (TaskBlackNodes) or that are globally
                 % blacklisted (ets-table blacklist).
                 BlackNodes = TaskBlackNodes ++ 
-                        lists:flatten(ets:match(blacklist, {'$1', '_'})),
-
+                        [X || [X] <- ets:match(blacklist, {'$1', '_'})],
+        
                 AllowedNodes = lists:filter(fun({Node, _Load}) ->
                         not lists:member(Node, BlackNodes)
                 end, AvailableNodes),
