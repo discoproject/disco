@@ -59,7 +59,8 @@ pref_node(Host) -> Host.
 work([{PartID, Input}|Inputs], Mode, Name, Data, N, Max, Res) when N =< Max ->
         PrefNode = pref_node(Input),
         {ok, _} = gen_server:call(disco_server, {new_worker, 
-                        {Name, PartID, Mode, {PrefNode, []}, Input, Data}}),
+                        {Name, PartID, Mode, {PrefNode, []}, Input, Data}},
+                                30000),
         ets:insert(Res, {{input, PartID}, {Input, Data}}),
         work(Inputs, Mode, Name, Data, N + 1, Max, Res);
 
@@ -132,7 +133,8 @@ handle_data_error(Name, PartID, Mode, Node, Res) ->
         [{_, {Input, Data}}] = ets:lookup(Res, {input, PartID}),
 
         {ok, _} = gen_server:call(disco_server, {new_worker, 
-                        {Name, PartID, Mode, {none, ErrNodes}, Input, Data}}).
+                        {Name, PartID, Mode, {none, ErrNodes}, Input, Data}},
+                                30000).
 
 check_failure_rate(Name, PartID, Mode, L) ->
         V = case application:get_env(max_failure_rate) of
