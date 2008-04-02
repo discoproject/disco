@@ -115,7 +115,7 @@ handle(Socket, Msg) ->
         {value, {_, CLenStr}} = lists:keysearch("CONTENT_LENGTH", 1, Msg),
         CLen = list_to_integer(CLenStr),
         if CLen > 0 ->
-                {ok, PostData} = gen_tcp:recv(Socket, CLen, 0),
+                {ok, PostData} = gen_tcp:recv(Socket, CLen, 30000),
                 {ok, Json, _Rest} = json:decode(PostData);
         true ->
                 Json = none

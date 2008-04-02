@@ -37,7 +37,7 @@ init_job(PostData) ->
 handle(Socket, Msg) ->
         {value, {_, CLenStr}} = lists:keysearch("CONTENT_LENGTH", 1, Msg),
         CLen = list_to_integer(CLenStr),
-        {ok, PostData} = gen_tcp:recv(Socket, CLen, 0),
+        {ok, PostData} = gen_tcp:recv(Socket, CLen, 30000),
         gen_tcp:send(Socket, init_job(PostData)).
 
 % pref_node() suggests a preferred node for a task (one preserving locality)
