@@ -28,7 +28,7 @@ init_job(PostData) ->
         error_logger:info_report([{"New job", Name}]),
         
         case gen_server:call(disco_server, {get_job_events, Name}) of
-                {ok, []} -> new_coordinator(Name, Msg, PostData);
+                {ok, []} -> new_coordinator(Name, Msg, list_to_binary(PostData));
                 {ok, _Events} -> [?OK_HEADER, 
                                 "ERROR: job ", Name, " already exists"]
         end.
