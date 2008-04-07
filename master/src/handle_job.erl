@@ -167,7 +167,7 @@ find_values(Msg) ->
 % Its main function is to catch and report any errors that occur during
 % work() calls.
 supervise_work(Inputs, Mode, Name, Msg, MaxN) ->
-        Res = ets:new(result_table, [bag, named_table]),
+        Res = ets:new(result_table, [bag]),
         case catch work(Inputs, Mode, Name, Msg, 0, MaxN, Res) of
                 ok -> ok;
                 logged_error ->
