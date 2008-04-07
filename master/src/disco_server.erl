@@ -66,7 +66,7 @@ handle_call({get_jobinfo, JobName}, _From, State) ->
 handle_call({get_results, JobName}, _From, State) ->
         Pid = lists:flatten(ets:match(job_events,
                 {JobName, {'_', '_', ['_', map_data, '$1'|'_']}})),
-        Res = lists:map(fun({P, X}) -> [P, list_to_binary(X)] end, 
+        Res = lists:map(fun({P, X}) -> [P, X] end, 
                 lists:flatten(ets:match(job_events, {JobName, 
                         {'_', '_', ['_', ready|'$1']}}))),
         {reply, {ok, Pid, Res}, State};
@@ -94,7 +94,7 @@ handle_call({get_nodeinfo, Node}, _From, State) ->
                         {reply, {ok, {V, Nfo}}, State}
         end;
 
-handle_call({update_config_table, Config}, _From, WaitQueue) ->
+handle_call({update_config_table, Config}, _From, State) ->
         error_logger:info_report([{'Config table update'}]),
         case ets:info(config_table) of
                 undefined -> none;
@@ -106,48 +106,67 @@ handle_call({update_config_table, Config}, _From, WaitQueue) ->
                 ets:insert_new(node_load, {Node, 0}),
                 ets:insert_new(node_stats, {Node, 0, 0, 0})
         end, Config),
-        {reply, ok, schedule_waiter(WaitQueue, [])};
+        gen_server:cast(job_queue, schedule_job),
+        {reply, ok, State};
 
-
-% Two ways to start a new job: If the WaitQueue is empty, we may be able
-% to start the process right away in try_new_worker(). If not, the job
-% is appended to the queue of pending jobs (WaitQueue).
+% It is important that new_worker returns quickly. Job coordinator
+% assumes that it can send all tasks to the server at once, which 
+% must not take too long.
 handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
-                {Pid, _}, WaitQueue) when length(WaitQueue) == 0 ->
+                {Pid, _}, State) ->
         
-        Req = #job{jobname = JobName, partid = PartID, mode = Mode,
+        Job = #job{jobname = JobName, partid = PartID, mode = Mode,
                     prefnode = PrefNode, input = Input, data = Data,
                     from = Pid},
+        
+        gen_server:cast(job_queue, {add_job, Job}),
+        event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
+        {reply, ok, State};
 
-        case try_new_worker(Req) of
-                {wait, _} -> event(JobName, "~s:~B added to waitlist",
-                                [Mode, PartID], []),
-                        {reply, {ok, wait}, WaitQueue ++ [Req]};
-                killed -> {reply, {ok, killed}, WaitQueue};
-                ok -> {reply, {ok, working}, WaitQueue}
+% The functions, node_busy(), choose_node(),
+% start_worker() and handle_call(try_new_worker) handle task scheduling
+% together with the job_queue server.
+%
+% The basic scheme is as follows:
+%
+% 0) A node becomes available, either due to a task finishing in
+%    clean_worker() or a new node or slots being added at 
+%    update_config_table().
+%
+% 1) job_queue server goes through its internal wait queue that includes all 
+%    pending, not yet running tasks, and tries to get a task running, one by
+%    one from the wait queue.
+%
+% 2) try_new_worker asks a preferred node from choose_node(). It may report
+%    that all the nodes are 100% busy (busy) or that a suitable node could
+%    not be found (all_bad). If all goes well, it returns a node name.
+%
+% 3) If a node name was returned, a new worker is started in start_worker().
+
+handle_call({try_new_worker, Job}, _From, State) ->
+        case choose_node(Job#job.prefnode) of
+                busy -> {reply, {wait, busy}, State};
+                {all_bad, BLen, ALen} when BLen == ALen ->
+                        Job#job.from ! {master_error,
+                                "Job failed on all available nodes"},
+                        {reply, killed, State};
+                {all_bad, _, _} -> {reply, {wait, all_bad}, State};
+                Node -> {reply, start_worker(Job, Node), State}
         end;
 
-handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
-                {Pid, _}, WaitQueue) when length(WaitQueue) > 0 ->
-        
-        Req = #job{jobname = JobName, partid = PartID, mode = Mode,
-                    prefnode = PrefNode, input = Input, data = Data,
-                    from = Pid},
-
-        event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
-        {reply, {ok, wait}, WaitQueue ++ [Req]};
-
-handle_call({kill_job, JobName}, _From, WaitQueue) ->
+handle_call({kill_job, JobName}, _From, State) ->
         lists:foreach(fun([Pid]) ->
                 gen_server:call(Pid, kill_worker)
         end, ets:match(active_workers, {'$1', {'_', JobName, '_', '_', '_'}})),
-        {reply, ok, lists:filter(fun(Job) ->
-                Job#job.jobname =/= JobName end, WaitQueue)};
+        gen_server:cast(job_queue, {filter_queue, fun(Job) -> 
+                Job#job.jobname =/= JobName
+        end}),
+        {reply, ok, State};
 
-handle_call({clean_job, JobName}, From, WaitQueue) ->
-        {_, _, NQueue} = handle_call({kill_job, JobName}, From, WaitQueue),
+handle_call({clean_job, JobName}, From, State) ->
+        handle_call({kill_job, JobName}, From, State),
         ets:delete(job_events, JobName),
-        {reply, ok, NQueue};
+        {reply, ok, State};
 
 handle_call({blacklist, Node}, _From, State) ->
         event("[master]", "Node ~s blacklisted", [Node], []),
@@ -184,25 +203,26 @@ handle_call({get_job_events, JobName}, _From, State) ->
                           {reply, {ok, EventList}, State}
         end;
 
-handle_call({exit_worker, {job_ok, Result}}, {Pid, _}, WaitQueue) ->
-        {reply, ok, clean_worker(Pid, job_ok, Result, WaitQueue)};
+handle_call({exit_worker, {job_ok, Result}}, {Pid, _}, _State) ->
+        {reply, ok, clean_worker(Pid, job_ok, Result)};
 
-handle_call({exit_worker, {data_error, Error}}, {Pid, _}, WaitQueue) ->
-        {reply, ok, clean_worker(Pid, data_error, Error, WaitQueue)};
+handle_call({exit_worker, {data_error, Error}}, {Pid, _}, _State) ->
+        {reply, ok, clean_worker(Pid, data_error, Error)};
 
-handle_call({exit_worker, {job_error, Error}}, {Pid, _}, WaitQueue) ->
-        {reply, ok, clean_worker(Pid, job_error, Error, WaitQueue)};
+handle_call({exit_worker, {job_error, Error}}, {Pid, _}, _State) ->
+        {reply, ok, clean_worker(Pid, job_error, Error)};
 
 handle_call(Msg, _From, State) ->
         error_logger:info_report(["Invalid call: ", Msg]),
         {reply, error, State}.
 
-handle_info({'EXIT', Pid, Reason}, WaitQueue) ->
+handle_info({'EXIT', Pid, Reason}, State) ->
         if Pid == self() -> 
                 error_logger:info_report(["Disco server dies on error!", Reason]),
-                {stop, stop_requested, WaitQueue};
-        Reason == normal -> {noreply, WaitQueue};
-        true -> {noreply, clean_worker(Pid, error, Reason, WaitQueue)}
+                {stop, stop_requested, State};
+        Reason == normal -> {noreply, State};
+        true -> clean_worker(Pid, error, Reason),
+                {noreply, State}
         end;
 
 handle_info(Msg, State) ->
@@ -213,7 +233,7 @@ handle_info(Msg, State) ->
 % normally or abnormally. Its main job is to remove the exiting worker
 % from the active_workers table and to notify the corresponding job 
 % coordinator about the worker's exit status.
-clean_worker(Pid, ReplyType, Msg, WaitQueue) ->
+clean_worker(Pid, ReplyType, Msg) ->
         {V, Nfo} = case ets:lookup(active_workers, Pid) of
                         [] -> event("[master]",
                                 "WARN: Trying to clean an unknown worker",
@@ -227,8 +247,9 @@ clean_worker(Pid, ReplyType, Msg, WaitQueue) ->
                 ets:delete(active_workers, Pid),
                 ets:update_counter(node_load, Node, -1),
                 From ! {ReplyType, Msg, {Node, PartID}},
-                schedule_waiter(WaitQueue, []);
-        true -> WaitQueue
+                gen_server:cast(job_queue, schedule_job);
+                %schedule_waiter(WaitQueue, []);
+        true -> ok
         end.
 
 update_stats(Node, job_ok) -> ets:update_counter(node_stats, Node, {2, 1});
@@ -237,34 +258,6 @@ update_stats(Node, job_error) -> ets:update_counter(node_stats, Node, {4, 1});
 update_stats(Node, error) -> ets:update_counter(node_stats, Node, {4, 1});
 update_stats(_Node, _) -> ok.
 
-% The following functions, schedule_waiter(), node_busy(), choose_node(),
-% start_worker() and try_new_worker() handle task scheduling. The basic
-% scheme is as follows:
-%
-% 0) A node becomes available, either due to a task finishing in
-%    clean_worker() or a new node or slots being added at 
-%    update_config_table().
-%
-% 1) schedule_waiter() goes through the WaitQueue that includes all pending,
-%    not yet running tasks, and tries to get a task running, one by one from
-%    the wait queue.
-%
-% 2) try_new_worker() asks a preferred node from choose_node(). It may report
-%    that all the nodes are 100% busy (busy) or that a suitable node could
-%    not be found (all_bad). If all goes well, it returns a node name.
-%
-% 3) If a node name was returned, a new worker is started in start_worker().
-
-schedule_waiter([], Skipped) -> lists:reverse(Skipped);
-schedule_waiter([Job|WaitQueue] = Q, Skipped) ->
-        case try_new_worker(Job) of
-                {wait, busy} -> lists:reverse(Skipped) ++ Q;
-                {wait, all_bad} -> 
-                        schedule_waiter(WaitQueue, [Job|Skipped]);
-                killed -> 
-                        schedule_waiter(WaitQueue, Skipped);
-                ok -> lists:reverse(Skipped) ++ WaitQueue
-        end.
 
 node_busy(_, []) -> true;
 node_busy([{_, Load}], [{_, MaxLoad}]) -> Load >= MaxLoad.
@@ -315,16 +308,6 @@ start_worker(J, Node) ->
                         J#job.mode, Node, J#job.input, J#job.data]),
         ok = gen_server:call(Pid, start_worker).
 
-try_new_worker(Job) ->
-        case choose_node(Job#job.prefnode) of
-                busy -> {wait, busy};
-                {all_bad, BLen, ALen} when BLen == ALen ->
-                        Job#job.from ! {master_error,
-                                "Job failed on all available nodes"},
-                        killed;
-                {all_bad, _, _} -> {wait, all_bad};
-                Node -> start_worker(Job, Node)
-        end.
 
 % Functions related to event reporting
 
@@ -362,9 +345,9 @@ event(Host, JobName, Format, Args, Params) ->
         end.
 
 % callback stubs
-
 terminate(_Reason, _State) -> {}.
 
 handle_cast(_Cast, State) -> {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+

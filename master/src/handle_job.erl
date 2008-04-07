@@ -58,9 +58,8 @@ pref_node(Host) -> Host.
 %  not reached.
 work([{PartID, Input}|Inputs], Mode, Name, Data, N, Max, Res) when N =< Max ->
         PrefNode = pref_node(Input),
-        {ok, _} = gen_server:call(disco_server, {new_worker, 
-                        {Name, PartID, Mode, {PrefNode, []}, Input, Data}},
-                                30000),
+        ok = gen_server:call(disco_server, {new_worker, 
+                {Name, PartID, Mode, {PrefNode, []}, Input, Data}}),
         ets:insert(Res, {{input, PartID}, {Input, Data}}),
         work(Inputs, Mode, Name, Data, N + 1, Max, Res);
 
@@ -132,9 +131,8 @@ handle_data_error(Name, PartID, Mode, Node, Res) ->
         ok = check_failure_rate(Name, PartID, Mode, length(ErrNodes)),
         [{_, {Input, Data}}] = ets:lookup(Res, {input, PartID}),
 
-        {ok, _} = gen_server:call(disco_server, {new_worker, 
-                        {Name, PartID, Mode, {none, ErrNodes}, Input, Data}},
-                                30000).
+        ok = gen_server:call(disco_server, {new_worker, 
+                {Name, PartID, Mode, {none, ErrNodes}, Input, Data}}).
 
 check_failure_rate(Name, PartID, Mode, L) ->
         V = case application:get_env(max_failure_rate) of
@@ -169,7 +167,7 @@ find_values(Msg) ->
 % Its main function is to catch and report any errors that occur during
 % work() calls.
 supervise_work(Inputs, Mode, Name, Msg, MaxN) ->
-        Res = ets:new(result_table, [bag]),
+        Res = ets:new(result_table, [bag, named_table]),
         case catch work(Inputs, Mode, Name, Msg, 0, MaxN, Res) of
                 ok -> ok;
                 logged_error ->
@@ -219,7 +217,6 @@ job_coordinator(Parent, Name, Msg, PostData) ->
 
         EnumMapInputs = lists:zip(
                 lists:seq(0, length(MapInputs) - 1), MapInputs),
-        error_logger:info_report([{"Inputs", EnumMapInputs}]),
         MapResults = supervise_work(EnumMapInputs, "map", Name, PostData, NMap),
 
         RedInputs = case catch group_results(MapResults) of
@@ -239,5 +236,5 @@ job_coordinator(Parent, Name, Msg, PostData) ->
                 disco_server:event(Name, "Reduce phase done", [], []),
                 disco_server:event(Name, "READY", [], [ready, R]);
         true ->
-                disco_server:event(Name, "READY", [], [ready, MapResults])
+                disco_server:event(Name, "READY", [], [ready, RedInputs])
         end.

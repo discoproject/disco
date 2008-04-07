@@ -27,6 +27,10 @@ spawn_cmd(#state{input = [Input|_]} = S) when is_list(Input) ->
         InputStr = lists:flatten([[X, 32] || X <- S#state.input]),
         spawn_cmd(S#state{input = InputStr});
 
+spawn_cmd(#state{input = [Input|_]} = S) when is_binary(Input) ->
+        InputStr = lists:flatten([[binary_to_list(X), 32] || X <- S#state.input]),
+        spawn_cmd(S#state{input = InputStr});
+
 spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
                 mode = Mode, input = Input}) ->
         lists:flatten(io_lib:fwrite(?CMD,
@@ -63,7 +67,7 @@ event(S, Type, Msg) ->
 
 parse_result(L) ->
         [PartID|Url] = string:tokens(L, " "),
-        {ok, {list_to_integer(PartID), Url}}.
+        {ok, {list_to_integer(PartID), list_to_binary(Url)}}.
 
 handle_info({_, {data, {eol, [$*,$*,$<,$M,$S,$G,$>|Line]}}}, S) ->
         event(S, "", strip_timestamp(Line)),
