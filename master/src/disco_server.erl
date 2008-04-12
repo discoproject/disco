@@ -178,24 +178,6 @@ handle_call({whitelist, Node}, _From, State) ->
         ets:delete(blacklist, Node),
         {reply, ok, State};
 
-% There's a small catch with adding a job event: If a job's records have been
-% cleaned with clean_job already, we do not want a zombie worker to re-open
-% the job's records by adding a new event. Thus only an event with the atom
-% start is allowed to initialize records for a new job. Other events are 
-% silently ignored if there are no previous records for this job.
-handle_call({add_job_event, Host, JobName, [_, start|_] = M}, _From, State) ->
-        V = ets:member(job_events, JobName),
-        if V -> {reply, job_already_exists, State};
-        true -> add_event(Host, JobName, M),
-                {reply, ok, State}
-        end;
-
-handle_call({add_job_event, Host, JobName, M}, _From, State) ->
-        V = ets:member(job_events, JobName),
-        if V -> add_event(Host, JobName, M);
-        true -> ok end,
-        {reply, ok, State};
-
 handle_call({get_job_events, JobName}, _From, State) ->
         case ets:lookup(job_events, JobName) of
                 [] -> {reply, {ok, []}, State};
@@ -203,18 +185,31 @@ handle_call({get_job_events, JobName}, _From, State) ->
                           {reply, {ok, EventList}, State}
         end;
 
-handle_call({exit_worker, {job_ok, Result}}, {Pid, _}, _State) ->
-        {reply, ok, clean_worker(Pid, job_ok, Result)};
-
-handle_call({exit_worker, {data_error, Error}}, {Pid, _}, _State) ->
-        {reply, ok, clean_worker(Pid, data_error, Error)};
-
-handle_call({exit_worker, {job_error, Error}}, {Pid, _}, _State) ->
-        {reply, ok, clean_worker(Pid, job_error, Error)};
-
 handle_call(Msg, _From, State) ->
         error_logger:info_report(["Invalid call: ", Msg]),
         {reply, error, State}.
+
+% There's a small catch with adding a job event: If a job's records have been
+% cleaned with clean_job already, we do not want a zombie worker to re-open
+% the job's records by adding a new event. Thus only an event with the atom
+% start is allowed to initialize records for a new job. Other events are 
+% silently ignored if there are no previous records for this job.
+handle_cast({add_job_event, Host, JobName, [_, start|_] = M}, State) ->
+        V = ets:member(job_events, JobName),
+        if V -> {noreply, State};
+        true -> add_event(Host, JobName, M),
+                {noreply, State}
+        end;
+
+handle_cast({add_job_event, Host, JobName, M}, State) ->
+        V = ets:member(job_events, JobName),
+        if V -> add_event(Host, JobName, M);
+        true -> ok end,
+        {noreply, State};
+
+handle_cast({exit_worker, Pid, {ReplyType, Msg}}, State) ->
+        clean_worker(Pid, ReplyType, Msg),
+        {noreply, State}.
 
 handle_info({'EXIT', Pid, Reason}, State) ->
         if Pid == self() -> 
@@ -339,15 +334,14 @@ event(Host, JobName, Format, Args, Params) ->
                 [lists:flatten(io_lib:fwrite(Format, SArgs))|Params]},
         Pid = whereis(disco_server),
         if Pid == self() ->
-                handle_call(Msg, none, none);
+                handle_cast(Msg, none);
         true ->
-                ok = gen_server:call(disco_server, Msg)
+                gen_server:cast(disco_server, Msg)
         end.
 
 % callback stubs
 terminate(_Reason, _State) -> {}.
 
-handle_cast(_Cast, State) -> {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 

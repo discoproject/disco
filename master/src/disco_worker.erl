@@ -76,13 +76,13 @@ handle_info({_, {data, {eol, [$*,$*,$<,$M,$S,$G,$>|Line]}}}, S) ->
 handle_info({_, {data, {eol, [$*,$*,$<,$E,$R,$R,$>|Line]}}}, S) ->
         M = strip_timestamp(Line),
         event(S, "ERROR", M),
-        gen_server:call(disco_server, {exit_worker, {job_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(), {job_error, M}}),
         {stop, normal, S};
 
 handle_info({_, {data, {eol, [$*,$*,$<,$D,$A,$T,$>|Line]}}}, S) ->
         M = strip_timestamp(Line),
         event(S, "WARN", M ++ [10] ++ S#state.errlines),
-        gen_server:call(disco_server, {exit_worker, {data_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(), {data_error, M}}),
         {stop, normal, S};
 
 handle_info({_, {data, {eol, [$*,$*,$<,$O,$U,$T,$>|Line]}}}, S) ->
@@ -92,15 +92,15 @@ handle_info({_, {data, {eol, [$*,$*,$<,$O,$U,$T,$>|Line]}}}, S) ->
                                        [Item|S#state.results]}};
                 _Error -> Err = "Could not parse result line: " ++ Line,
                           event(S, "ERROR", Err),
-                          gen_server:call(disco_server, 
-                                {exit_worker, {job_error, Err}}),
+                          gen_server:cast(disco_server, 
+                                {exit_worker, self(), {job_error, Err}}),
                           {stop, normal, S}
         end;
 
 handle_info({_, {data, {eol, [$*,$*,$<,$E,$N,$D,$>|Line]}}}, S) ->
         event(S, "", strip_timestamp(Line)),
-        gen_server:call(disco_server, 
-                {exit_worker, {job_ok, S#state.results}}),
+        gen_server:cast(disco_server, 
+                {exit_worker, self(), {job_ok, S#state.results}}),
         {stop, normal, S};
 
 handle_info({_, {data, {eol, [$*,$*,$<|_] = Line}}}, S) ->
@@ -117,25 +117,25 @@ handle_info({_, {data, {noeol, Line}}}, S) ->
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
         M =  "Worker didn't start:\n" ++ S#state.errlines,
         event(S, "WARN", M),
-        gen_server:call(disco_server, {exit_worker, {data_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(), {data_error, M}}),
         {stop, normal, S};
 
 handle_info({_, {exit_status, _Status}}, S) ->
         M =  "Worker failed. Last words:\n" ++ S#state.errlines,
         event(S, "ERROR", M),
-        gen_server:call(disco_server, {exit_worker, {job_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(), {job_error, M}}),
         {stop, normal, S};
         
 handle_info({_, closed}, S) ->
         M = "Worker killed. Last words:\n" ++ S#state.errlines,
         event(S, "ERROR", M),
-        gen_server:call(disco_server, {exit_worker, {job_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(), {job_error, M}}),
         {stop, normal, S};
 
 handle_info(timeout, #state{linecount = 0} = S) ->
         M = "Worker didn't start in 30 seconds",
         event(S, "WARN", M),
-        gen_server:call(disco_server, {exit_worker, {data_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(), {data_error, M}}),
         {stop, normal, S}.
 
 % callback stubs
