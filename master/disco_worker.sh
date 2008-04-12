@@ -28,8 +28,9 @@
 if [ $KILLER_MODE ]
 then
         cat >/dev/null
-        # give some time for the process to exit by itself
-        sleep 5
+        # give some time for the process to exit by itself (must be more than
+        # the watchdog sleep time and more than the disco_worker end pause)
+        sleep 20
         ssh $3 "pkill -9 -f 'disco_worker.py $1 $2 $3 $4'" 2>&1 >/dev/null
         kill -9 $DOG_PID
         exit 0
