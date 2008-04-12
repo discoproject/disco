@@ -65,7 +65,12 @@ function update_jobinfo(data){
         $("#jobinfo_map").html(make_jobinfo_row(data.mapi, "Map"));
         $("#jobinfo_red").html(make_jobinfo_row(data.redi, "Reduce"));
 
-        $("#map_inputs").html(data.inputs.join("<br/>"));
+        if (data.inputs.length > 100){
+                $("#map_inputs").html("Showing the first 100 inputs<br/>" + 
+                        data.inputs.slice(0, 100).join("<br/>"));
+        }else{
+                $("#map_inputs").html(data.inputs.join("<br/>"));
+        }
         $("#cur_nodes").html(data.nodes.join("<br/>"));
         $("#results").html(data.results.join("<br/>"));
         
