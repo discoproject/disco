@@ -25,13 +25,15 @@
 # name, any child processes spawned by the worker must include the name in
 # their command line, or otherwise they will be missed by pkill.
 
+NICE="nice -n 19"
+
 if [ $KILLER_MODE ]
 then
         cat >/dev/null
         # give some time for the process to exit by itself (must be more than
         # the watchdog sleep time and more than the disco_worker end pause)
         sleep 20
-        ssh $3 "pkill -9 -f 'disco_worker.py $1 $2 $3 $4'" 2>&1 >/dev/null
+        $NICE ssh $3 "nice -n 19 pkill -9 -f 'disco_worker.py $1 $2 $3 $4'" 2>&1 >/dev/null
         kill -9 $DOG_PID
         exit 0
 fi
@@ -42,7 +44,7 @@ then
         sleep 40
         while ((1)) 
         do
-                R=`ssh $3 "pgrep -l -f 'disco_worker.py $1 $2 $3 $4' | grep -v ' ssh '"`
+                R=`$NICE ssh $3 "$NICE pgrep -l -f 'disco_worker.py $1 $2 $3 $4' | grep -v ' ssh '"`
                 if (( $? )) || [[ -z $R ]]
                 then
                         echo "**<DAT> Watchdog lost $1:$4."
@@ -55,8 +57,8 @@ fi
 WATCHDOG_MODE=1 $0 "$1" "$2" "$3" "$4" &
 DOG=$!
 
-tee >(DOG_PID=$DOG KILLER_MODE=1 $0 "$1" "$2" "$3" "$4") |\
-                ssh $3 "python2.4 disco_worker.py '$1' '$2' '$3' '$4' $5"
+$NICE tee >(DOG_PID=$DOG KILLER_MODE=1 $0 "$1" "$2" "$3" "$4") |\
+                $NICE ssh $3 "$NICE python2.4 disco_worker.py '$1' '$2' '$3' '$4' $5"
 
 
 
