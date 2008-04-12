@@ -88,7 +88,7 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
                 raise "Unknown host specifier: %s" % master
 
         if async:
-                return name
+                return req["name"]
         else:
                 results = wait_job(master, req['name'])
                 if clean:

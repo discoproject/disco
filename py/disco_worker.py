@@ -450,6 +450,9 @@ if __name__ == "__main__":
 
         globals()["op_" + sys.argv[1]](m)
         msg("Worker done", "END")
+        # pause here for a while to make sure that the master receives the END
+        # message before the watchdog notices the process' death
+        time.sleep(10)
 
 
 
