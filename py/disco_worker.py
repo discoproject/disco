@@ -11,6 +11,7 @@ REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
 REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-%d"
 
 job_name = ""
+http_pool = {}
 
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
@@ -92,13 +93,26 @@ def open_local(input, fname, is_chunk):
 
 def open_remote(input, ext_host, ext_file, is_chunk):
         try:
-                http = httplib.HTTPConnection(ext_host)
+                # We can't open a new HTTP connection for each intermediate
+                # result -- this would result to M * R TCP connections where
+                # M is the number of maps and R the number of reduces. Instead,
+                # we pool connections and reuse them whenever possible. HTTP 
+                # 1.1 defaults to keep-alive anyway.
+                if ext_host in http_pool:
+                        http = http_pool[ext_host]
+                        if http._HTTPConnection__response:
+                                http._HTTPConnection__response.read()
+                else:
+                        http = httplib.HTTPConnection(ext_host)
+                        http_pool[ext_host] = http
+
                 if is_chunk:
                         pos = this_partition() * 8
                         rge = "bytes=%d-%d" % (pos, pos + 15)
                         #msg("Reading offsets at %s" % rge)
                         http.request("GET", ext_file, None, {"Range": rge})
                         fd = http.getresponse()
+
                         if fd.status != 206:
                                 raise "HTTP error %d" % fd.status
                         start, end = struct.unpack("QQ", fd.read())
@@ -120,16 +134,25 @@ def open_remote(input, ext_host, ext_file, is_chunk):
                 if sze:
                         sze = int(sze)
                 return sze, fd
+
+        except httplib.BadStatusLine:
+                # BadStatusLine is caused by a closed connection. Re-open a new
+                # connection by deleting this connection from the pool and
+                # calling this function again. Note that this might result in
+                # endless recursion if something went seriously wrong.
+                http.close()
+                del http_pool[ext_host]
+                return open_remote(input, ext_host, ext_file, is_chunk)
         except:
-                data_err("Can't access an external input file: %s"\
-                                % input, input)
+                data_err("Can't access an external input file (%s/%s): %s"\
+                                % (ext_host, ext_file, input), input)
 
 def connect_input(input):
         is_chunk = input.startswith("chunk://")
         if input.startswith("disco://") or is_chunk:
                 host, fname = input[8:].split("/", 1)
                 local_file = LOCAL_PATH + fname
-                ext_host = host + ":" + HTTP_PORT
+                ext_host = "%s:%s" % (host, HTTP_PORT)
                 ext_file = "/" + fname
         elif input.startswith("http://"):
 		ext_host, fname = input[7:].split("/", 1)
@@ -304,10 +327,7 @@ class ReduceReader:
                 self.inputs = []
                 for input in input_files:
                         if input.startswith("dir://"):
-                                try:
-                                        self.inputs += parse_dir(input)
-                                except:
-                                        err("Couldn't parse directory listing")
+                                self.inputs += parse_dir(input)
                         else:
                                 self.inputs.append(input)
 
@@ -317,7 +337,6 @@ class ReduceReader:
                         for input in self.inputs:
                                 sze, fd = connect_input(input)
                                 total_size += sze
-                                fd.close()
 
                         msg("Reduce[%d] input is %.2fMB" %\
                                 (this_partition(), total_size / 1024**2))
@@ -350,7 +369,6 @@ class ReduceReader:
                                         buf = fd.read(min(8192, sze - tot))
                                         tot += len(buf)
                                         out_fd.write(buf)
-                                fd.close()
                                 if tot < sze:
                                         data_err("Truncated input. "\
                                                 "Expected %d bytes, got %d" %\
@@ -396,7 +414,6 @@ class ReduceReader:
                                 i += 1
                                 if progress and not i % 10000:
                                         msg("%d entries reduced" % i)
-                        fd.close()
 
                 if progress:
                         msg("Reduce done: %d entries reduced in total" % i)
