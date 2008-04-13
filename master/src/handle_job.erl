@@ -48,6 +48,9 @@ pref_node([$h, $t, $t, $p, $:, $/, $/|Uri]) ->
 pref_node([$d, $i, $s, $c, $o, $:, $/, $/|Uri]) ->
         [Host|_] = string:tokens(Uri, "/"), Host;
 
+pref_node([$d, $i, $r, $:, $/, $/|Uri]) ->
+        [Host|_] = string:tokens(Uri, "/"), Host;
+
 pref_node(Host) -> Host.
 
 % work() is the heart of the map/reduce show. First it distributes tasks
@@ -60,7 +63,6 @@ work([{PartID, Input}|Inputs], Mode, Name, Data, N, Max, Res) when N =< Max ->
         PrefNode = pref_node(Input),
         ok = gen_server:call(disco_server, {new_worker, 
                 {Name, PartID, Mode, {PrefNode, []}, Input, Data}}),
-        ets:insert(Res, {{input, PartID}, {Input, Data}}),
         work(Inputs, Mode, Name, Data, N + 1, Max, Res);
 
 % 2. Tasks to distribute but the maximum number of tasks are already running.
@@ -85,17 +87,21 @@ work([], _Mode, _Name, _Data, 0, _Max, _Res) -> ok.
 wait_workers(0, _Res, _Name, _Mode) ->
         throw("Nothing to wait");
 
-wait_workers(N, Res, Name, Mode) ->
+wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
         M = N - 1,
         receive
-                {job_ok, Result, {Node, PartID}} -> 
+                {job_ok, _Result, {Node, PartID}} -> 
                         disco_server:event(Name, 
                                 "Received results from ~s:~B @ ~s.",
                                         [Mode, PartID, Node], [task_ready, Mode]),
-                        ets:insert(Res, {{result, PartID}, Result}), M;
+                        ets:insert(ResNodes, {lists:flatten(["dir://", Node, "/",
+                                Mode, "/", Name]), ok}),
+                        M;
 
-                {data_error, _Error, {Node, PartID}} ->
-                        handle_data_error(Name, PartID, Mode, Node, Res), N;
+                {data_error, {_Msg, Input, Data}, {Node, PartID}} ->
+                        handle_data_error(Name, Input, Data,
+                                PartID, Mode, Node, ErrLog),
+                        N;
                         
                 {job_error, _Error, {_Node, _PartID}} ->
                         throw(logged_error);
@@ -125,12 +131,10 @@ wait_workers(N, Res, Name, Mode) ->
 % handle_data_error() schedules the failed task for a retry, with the
 % failing node in its blacklist. If a task fails too many times, as 
 % determined by check_failure_rate(), the whole job will be terminated.
-handle_data_error(Name, PartID, Mode, Node, Res) ->
-        ets:insert(Res, {{dataerr, PartID}, Node}),
-        {_, ErrNodes} = lists:unzip(ets:lookup(Res, {dataerr, PartID})),
+handle_data_error(Name, Input, Data, PartID, Mode, Node, ErrLog) ->
+        ets:insert(ErrLog, {PartID, Node}),
+        {_, ErrNodes} = lists:unzip(ets:lookup(ErrLog, PartID)),
         ok = check_failure_rate(Name, PartID, Mode, length(ErrNodes)),
-        [{_, {Input, Data}}] = ets:lookup(Res, {input, PartID}),
-
         ok = gen_server:call(disco_server, {new_worker, 
                 {Name, PartID, Mode, {none, ErrNodes}, Input, Data}}).
 
@@ -167,8 +171,10 @@ find_values(Msg) ->
 % Its main function is to catch and report any errors that occur during
 % work() calls.
 supervise_work(Inputs, Mode, Name, Msg, MaxN) ->
-        Res = ets:new(result_table, [bag]),
-        case catch work(Inputs, Mode, Name, Msg, 0, MaxN, Res) of
+        ErrLog = ets:new(error_log, [bag]),
+        ResNodes = ets:new(node_results, [set]),
+        case catch work(Inputs, Mode, Name, Msg,
+                        0, MaxN, {ResNodes, ErrLog}) of
                 ok -> ok;
                 logged_error ->
                         disco_server:event(Name, 
@@ -182,20 +188,9 @@ supervise_work(Inputs, Mode, Name, Msg, MaxN) ->
                                 [Error], []),
                         gen_server:call(disco_server, {kill_job, Name}),
                         exit(unknown_error)
-        end, Res.
-
-% This function converts lists of form: [{2, A}, {3, B}, {2, C}]
-% to form: [{2, [A, C]}, {3, [B]}].
-group_results(Res) -> 
-        {ok, lists:foldl(fun
-                ({PartID, R}, []) ->
-                        [{PartID, [R]}];
-                ({PartID, R}, [{PrevID, Lst}|Rest]) when PrevID == PartID ->
-                        [{PartID, [R|Lst]}|Rest];
-                ({PartID, R}, [{PrevID, _}|_] = Q) when PrevID =/= PartID ->
-                        [{PartID, [R]}|Q]
-        end, [], lists:keysort(1, 
-                 lists:flatten(ets:match(Res, {{result, '_'}, '$1'}))))}.
+        end,
+        ets:delete(ErrLog),
+        ResNodes.
 
 % job_coordinator() encapsulates the map/reduce steps:
 % 1) Parse the request
@@ -218,23 +213,21 @@ job_coordinator(Parent, Name, Msg, PostData) ->
         EnumMapInputs = lists:zip(
                 lists:seq(0, length(MapInputs) - 1), MapInputs),
         MapResults = supervise_work(EnumMapInputs, "map", Name, PostData, NMap),
-
-        RedInputs = case catch group_results(MapResults) of
-                {ok, RedInp} -> RedInp;
-                RError -> disco_server:event(Name, 
-                        "ERROR: Couldn't parse map results: ~p", [RError]),
-                        exit(logged_error)
-        end,
+        MapList = [X || {X, _} <- ets:tab2list(MapResults)],
+        RedInputs = [{X, MapList} || X <- lists:seq(0, NRed - 1)],
         ets:delete(MapResults),
+
         disco_server:event(Name, "Map phase done", [], []),
 
         if DoReduce ->
                 disco_server:event(Name, "Starting reduce phase", [],
                         [red_data, RedInputs]),
                 RedResults = supervise_work(RedInputs, "reduce", Name, PostData, NRed),
-                R = lists:flatten(ets:match(RedResults, {{result, '_'}, '$1'})),
                 disco_server:event(Name, "Reduce phase done", [], []),
-                disco_server:event(Name, "READY", [], [ready, R]);
+                disco_server:event(Name, "READY", [], [ready, 
+                        [list_to_binary(X) ||
+                                {X, _} <- ets:tab2list(RedResults)]]),
+                ets:delete(RedResults);
         true ->
                 disco_server:event(Name, "READY", [], [ready, RedInputs])
         end.

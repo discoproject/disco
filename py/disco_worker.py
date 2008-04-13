@@ -1,10 +1,11 @@
-import os, subprocess, cStringIO, marshal, time, sys, httplib, re, traceback
+import os, subprocess, cStringIO, marshal, time, sys
+import httplib, re, traceback, tempfile, struct, urllib
 
 from netstring import *
 
 HTTP_PORT = "8989"
 LOCAL_PATH = "/var/disco/"
-MAP_OUTPUT = LOCAL_PATH + "%s/map-%d-%d"
+MAP_OUTPUT = LOCAL_PATH + "%s/map-%d"
 REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
 REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
 REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-%d"
@@ -46,6 +47,9 @@ def ensure_path(path, check_exists = True):
                 if x.errno == 2:
                         # no such file
                         pass
+                elif x.errno == 21:
+                        # directory
+                        pass
                 else:
                         raise
         try:
@@ -58,8 +62,71 @@ def ensure_path(path, check_exists = True):
                 else:
                         raise
 
+def parse_dir(dir_url):
+        x, x, host, mode, name = dir_url.split('/')
+        html = urllib.urlopen("http://%s:%s/%s" %\
+                (host, HTTP_PORT, name)).read()
+        inputs = re.findall(">(%s-\d+)</a>" % mode, html)
+        if mode == "map":
+                prefix = "chunk"
+        else:
+                prefix = "disco"
+        
+        return ["%s://%s/%s/%s" % (prefix, host, name, x) for x in inputs]
+
+
+def open_local(input, fname, is_chunk):
+        try:
+                f = file(fname)
+                if is_chunk:
+                        f.seek(this_partition() * 8)
+                        start, end = struct.unpack("QQ", f.read(16))
+                        sze = end - start
+                        f.seek(start)
+                else:
+                        sze = os.stat(fname).st_size
+                return sze, f
+        except:
+                data_err("Can't access a local input file: %s"\
+                                % input, input)
+
+def open_remote(input, ext_host, ext_file, is_chunk):
+        try:
+                http = httplib.HTTPConnection(ext_host)
+                if is_chunk:
+                        pos = this_partition() * 8
+                        rge = "bytes=%d-%d" % (pos, pos + 15)
+                        #msg("Reading offsets at %s" % rge)
+                        http.request("GET", ext_file, None, {"Range": rge})
+                        fd = http.getresponse()
+                        if fd.status != 206:
+                                raise "HTTP error %d" % fd.status
+                        start, end = struct.unpack("QQ", fd.read())
+                        if start == end:
+                                return 0, cStringIO.StringIO()
+                        else:
+                                rge = "bytes=%d-%d" % (start, end - 1)
+                        #msg("Reading data at %s" % rge)
+                        http.request("GET", ext_file, None, {"Range": rge})
+                        fd = http.getresponse()
+                        if fd.status != 206:
+                                raise "HTTP error %d" % fd.status
+                else:
+                        http.request("GET", ext_file, "")
+                        fd = http.getresponse()
+                        if fd.status != 200:
+                                raise "HTTP error %d" % fd.status
+                sze = fd.getheader("content-length")
+                if sze:
+                        sze = int(sze)
+                return sze, fd
+        except:
+                data_err("Can't access an external input file: %s"\
+                                % input, input)
+
 def connect_input(input):
-        if input.startswith("disco://"):
+        is_chunk = input.startswith("chunk://")
+        if input.startswith("disco://") or is_chunk:
                 host, fname = input[8:].split("/", 1)
                 local_file = LOCAL_PATH + fname
                 ext_host = host + ":" + HTTP_PORT
@@ -74,26 +141,9 @@ def connect_input(input):
                 local_file = input
 
         if host == this_host() and local_file:
-                try:
-                        sze = os.stat(local_file).st_size
-                        return sze, file(local_file)
-                except:
-                        data_err("Can't access a local input file: %s"\
-                                        % input, input)
+                return open_local(input, local_file, is_chunk)
         else:
-                try:
-                        http = httplib.HTTPConnection(ext_host)
-                        http.request("GET", ext_file, "")
-                        fd = http.getresponse()
-                        if fd.status != 200:
-                                raise "HTTP error %d" % fd.status
-                        sze = fd.getheader("content-length")
-                        if sze:
-                                sze = int(sze)
-                        return sze, fd
-                except:
-                        data_err("Can't access an external input file: %s"\
-                                        % input, input)
+                return open_remote(input, ext_host, ext_file, is_chunk)
 
 def encode_kv_pair(fd, key, value):
         skey = str(key)
@@ -161,14 +211,16 @@ def netstr_reader(fd, content_len, fname):
                 if not val: break
                 yield key, val
 
-
 def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
         item_re = re.compile(item_re_str)
         buf = ""
         tot = 0
         while True:
                 try:
-                        r = fd.read(8192)
+                        if content_len:
+                                r = fd.read(min(8192, content_len - tot))
+                        else:
+                                r = fd.read(8192)
                         tot += len(r)
                         buf += r
                 except:
@@ -180,7 +232,7 @@ def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
                         buf = buf[m.end():]
                         m = item_re.match(buf)
 
-                if not len(r):
+                if not len(r) or tot >= content_len:
                         if content_len != None and tot < content_len:
                                 data_err("Truncated input (%s). "\
                                          "Expected %d bytes, got %d" %\
@@ -193,18 +245,18 @@ def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
                                             "bytes in %s. Some bytes may be "\
                                             "missing from input." %\
                                                 (len(buf), fname))
-                                #err("Corrupted input (%s). Could not "\
-                                #        "parse the last %d bytes."\
-                                #                % (fname, len(buf)))
                         break
 
 class MapOutput:
         def __init__(self, part, combiner = None):
                 self.combiner = combiner
                 self.comb_buffer = {}
-                self.fname = MAP_OUTPUT % (job_name, this_partition(), part)
-                ensure_path(self.fname, False)
-                self.fd = file(self.fname + ".partial", "w")
+                ensure_path(LOCAL_PATH + job_name + "/dummy", False)
+                fd, name = tempfile.mkstemp("", "map-%d-%.9d-" %
+                        (this_partition(), part), LOCAL_PATH + job_name)
+                self.part = part
+                self.fname = name
+                self.fd = os.fdopen(fd, "w")
                 
         def flush_comb_buffer(self):
                 self.combiner = None
@@ -212,7 +264,6 @@ class MapOutput:
                         self.add(key, value)
                 self.combiner = comb
                 self.comb_buffer = {}
-
 
         def add(self, key, value):
                 if self.combiner:
@@ -228,11 +279,7 @@ class MapOutput:
                         self.combiner(None, None, self.comb_buffer, 1)
                         self.flush_comb_buffer()
                 self.fd.close()
-                os.rename(self.fname + ".partial", self.fname)
         
-        def disco_address(self):
-                return "disco://%s/%s" %\
-                        (this_host(), self.fname[len(LOCAL_PATH):])
 
 class ReduceOutput:
         def __init__(self):
@@ -254,17 +301,27 @@ class ReduceOutput:
 
 class ReduceReader:
         def __init__(self, input_files, do_sort, mem_sort_limit):
-                self.line_count = 0
                 self.inputs = []
                 for input in input_files:
-                        sze, fd = connect_input(input)
-                        self.inputs.append((sze, fd, input))
-                
-                total_size = sum(sze for sze, fd, fname in self.inputs)
-                msg("Reduce[%d] input is %.2fMB" %\
-                        (this_partition(), total_size / 1024**2))
+                        if input.startswith("dir://"):
+                                try:
+                                        self.inputs += parse_dir(input)
+                                except:
+                                        err("Couldn't parse directory listing")
+                        else:
+                                self.inputs.append(input)
 
+                self.line_count = 0
                 if do_sort:
+                        total_size = 0
+                        for input in self.inputs:
+                                sze, fd = connect_input(input)
+                                total_size += sze
+                                fd.close()
+
+                        msg("Reduce[%d] input is %.2fMB" %\
+                                (this_partition(), total_size / 1024**2))
+
                         if total_size > mem_sort_limit:
                                 self.iterator = self.download_and_sort()
                         else: 
@@ -283,13 +340,14 @@ class ReduceReader:
                 ensure_path(dlname, False)
                 msg("Reduce will be downloaded to %s" % dlname)
                 out_fd = file(dlname + ".partial", "w")
-                for sze, fd, fname in self.inputs:
+                for fname in self.inputs:
+                        sze, fd = connect_input(fname)
                         msg("Reduce downloading %s" % fname)
                         try:
                                 buf = " "
                                 tot = 0
-                                while len(buf):
-                                        buf = fd.read(8192)
+                                while len(buf) and tot < sze:
+                                        buf = fd.read(min(8192, sze - tot))
                                         tot += len(buf)
                                         out_fd.write(buf)
                                 fd.close()
@@ -317,9 +375,8 @@ class ReduceReader:
                                 (dlname, sortname, ret))
                 
                 msg("External sort done: %s" % sortname)
-                tot = sum(sze for sze, fd, fname in self.inputs)
-                return self.multi_file_iterator(
-                        [(sze, file(sortname), sortname)])
+                return self.multi_file_iterator([sortname])
+
        
         def list_iterator(self, lst):
                 i = 0
@@ -332,13 +389,15 @@ class ReduceReader:
 
         def multi_file_iterator(self, inputs, progress = True):
                 i = 0
-                for sze, fd, fname in inputs:
+                for fname in inputs:
+                        sze, fd = connect_input(fname)
                         for x in netstr_reader(fd, sze, fname):
-                        #for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
                                 yield x
                                 i += 1
                                 if progress and not i % 10000:
                                         msg("%d entries reduced" % i)
+                        fd.close()
+
                 if progress:
                         msg("Reduce done: %d entries reduced in total" % i)
 
@@ -360,8 +419,6 @@ def fun_combiner(key, value, comb_buffer, flush):
 def fun_reduce(red_in, red_out, params):
         pass
 
-# Erlay handlers
-
 def run_map(job_input, partitions, param):
         i = 0
         sze, fd = connect_input(job_input)
@@ -375,6 +432,26 @@ def run_map(job_input, partitions, param):
                         msg("%d entries mapped" % i)
 
         msg("Done: %d entries mapped in total" % i)
+
+def merge_chunks(partitions):
+        mapout = MAP_OUTPUT % (job_name, this_partition())
+     
+        f = file(mapout + ".partial", "w")
+        offset = (len(partitions) + 1) * 8
+        for p in partitions:
+                p.fd.close()
+                f.write(struct.pack("Q", offset))
+                offset += os.stat(p.fname).st_size
+        f.write(struct.pack("Q", offset))
+        f.close()
+
+        if subprocess.call("cat %s >> %s.partial" % 
+                        (" ".join([p.fname for p in partitions]),
+                                mapout), shell = True):
+                data_err("Couldn't create a chunk", mapout)
+        os.rename(mapout + ".partial", mapout)
+        for p in partitions:
+                os.remove(p.fname)
 
 def op_map(job):
         global job_name
@@ -399,13 +476,11 @@ def op_map(job):
                         for i in range(nr_reduces)]
         else:
                 partitions = [MapOutput(i) for i in range(nr_reduces)]
-
+        
         run_map(job_input[0], partitions, map_params)
-
-        me = this_host()
-        for p, part in enumerate(partitions):
-                part.close()
-                msg("%d %s" % (p, part.disco_address()), "OUT")
+        merge_chunks(partitions)
+        msg("%d chunk://%s/%s/map-%d" % (this_partition(), this_host(),
+                job_name, this_partition()), "OUT")
 
 
 def op_reduce(job):

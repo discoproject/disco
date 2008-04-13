@@ -82,7 +82,8 @@ handle_info({_, {data, {eol, [$*,$*,$<,$E,$R,$R,$>|Line]}}}, S) ->
 handle_info({_, {data, {eol, [$*,$*,$<,$D,$A,$T,$>|Line]}}}, S) ->
         M = strip_timestamp(Line),
         event(S, "WARN", M ++ [10] ++ S#state.errlines),
-        gen_server:cast(disco_server, {exit_worker, self(), {data_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(),
+                {data_error, {M, S#state.input, S#state.data}}}),
         {stop, normal, S};
 
 handle_info({_, {data, {eol, [$*,$*,$<,$O,$U,$T,$>|Line]}}}, S) ->
@@ -117,7 +118,8 @@ handle_info({_, {data, {noeol, Line}}}, S) ->
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
         M =  "Worker didn't start:\n" ++ S#state.errlines,
         event(S, "WARN", M),
-        gen_server:cast(disco_server, {exit_worker, self(), {data_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(),
+                {data_error, {M, S#state.input, S#state.data}}}),
         {stop, normal, S};
 
 handle_info({_, {exit_status, _Status}}, S) ->
@@ -135,7 +137,8 @@ handle_info({_, closed}, S) ->
 handle_info(timeout, #state{linecount = 0} = S) ->
         M = "Worker didn't start in 30 seconds",
         event(S, "WARN", M),
-        gen_server:cast(disco_server, {exit_worker, self(), {data_error, M}}),
+        gen_server:cast(disco_server, {exit_worker, self(),
+                {data_error, {M, S#state.input, S#state.data}}}),
         {stop, normal, S}.
 
 % callback stubs

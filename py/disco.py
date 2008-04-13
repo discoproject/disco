@@ -1,7 +1,7 @@
 
 from netstring import *
 import marshal, traceback, time, re, urllib, httplib
-from disco_worker import re_reader, netstr_reader
+from disco_worker import re_reader, netstr_reader, parse_dir
 
 DISCO_NEW_JOB = "/disco/job/new"
 DISCO_CLEAN_JOB = "/disco/ctrl/clean_job"
@@ -119,8 +119,10 @@ def kill_job(master, name):
                         + DISCO_KILL_JOB, '"%s"' % name)
 
 def result_iterator(results, notifier = None):
-        results.sort()
-        for part_id, url in results:
+        res = []
+        for dir_url in results:
+                res += parse_dir(dir_url)
+        for url in res:
                 host, fname = url[8:].split("/", 1)
                 ext_host = host + ":" + HTTP_PORT
                 ext_file = "/" + fname
@@ -134,7 +136,7 @@ def result_iterator(results, notifier = None):
                 sze = int(fd.getheader("content-length"))
 
                 if notifier:
-                        notifier(part_id, url)
+                        notifier(url)
 
                 #for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
                 for x in netstr_reader(fd, sze, fname):

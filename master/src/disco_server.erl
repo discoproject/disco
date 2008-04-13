@@ -66,9 +66,8 @@ handle_call({get_jobinfo, JobName}, _From, State) ->
 handle_call({get_results, JobName}, _From, State) ->
         Pid = lists:flatten(ets:match(job_events,
                 {JobName, {'_', '_', ['_', map_data, '$1'|'_']}})),
-        Res = lists:map(fun({P, X}) -> [P, X] end, 
-                lists:flatten(ets:match(job_events, {JobName, 
-                        {'_', '_', ['_', ready|'$1']}}))),
+        Res = lists:flatten(ets:match(job_events,
+                {JobName, {'_', '_', ['_', ready|'$1']}})),
         {reply, {ok, Pid, Res}, State};
 
 
