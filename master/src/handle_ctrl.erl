@@ -13,7 +13,7 @@ op("load_config_table", _Query, _Json) ->
         disco_config:get_config_table();
 
 op("joblist", _Query, _Json) ->
-        {ok, Lst} = gen_server:call(disco_server, get_jobnames),
+        {ok, Lst} = gen_server:call(event_server, get_jobnames),
         Nu = now(),
         TLst = lists:map(fun([J, T, P]) ->
                 {round(timer:now_diff(Nu, T) / 1000000),
@@ -24,8 +24,10 @@ op("joblist", _Query, _Json) ->
 
 op("jobinfo", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        {ok, {MapNfo, Res, Nodes, Tasks, Ready, Failed}}
-                = gen_server:call(disco_server, {get_jobinfo, Name}),
+        {ok, {Nodes, Tasks}} =
+                gen_server:call(disco_server, {get_active, Name}),
+        {ok, {MapNfo, Res, Ready, Failed}} =
+                gen_server:call(event_server, {get_jobinfo, Name}),
         {ok, render_jobinfo(MapNfo, Nodes, Res, Tasks, Ready, Failed)};
 
 op("jobevents", Query, _Json) ->
@@ -56,7 +58,7 @@ op("clean_job", _Query, Json) ->
 
 op("get_results", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        case gen_server:call(disco_server, {get_results, Name}) of
+        case gen_server:call(event_server, {get_results, Name}) of
                 {ok, [], []} -> {ok, [<<"unknown job">>, []]};
                 {ok, [Pid], []} -> V = is_process_alive(Pid),
                                  if V -> {ok, [<<"active">>, []]};
@@ -129,7 +131,7 @@ range_events(Name, Query) ->
         {value, {_, NumS}} = lists:keysearch("num", 1, Query),
         Offs = list_to_integer(OffsS),
         Num = list_to_integer(NumS),
-        case gen_server:call(disco_server, {get_job_events, Name}) of
+        case gen_server:call(event_server, {get_job_events, Name}) of
                 {ok, []} -> {ok, [Offs, Num, false, []]};
                 {ok, Events} -> {ok, [Offs, Num, Offs + Num < length(Events),
                         page(lists:reverse(Events), Offs, Num)]}
@@ -137,7 +139,7 @@ range_events(Name, Query) ->
 
 search_events(Name, Query) ->
         Q = string:to_lower(Query),
-        case gen_server:call(disco_server, {get_job_events, Name}) of
+        case gen_server:call(event_server, {get_job_events, Name}) of
                 {ok, []} -> {ok, [-1, 0, false, []]};
                 {ok, Events} -> {ok, [-1, 0, false, render_page(
                         lists:filter(fun({_, _, [M|_]}) ->
@@ -148,7 +150,7 @@ search_events(Name, Query) ->
 
 process_status(_Jobname, true) -> <<"job_active">>;
 process_status(JobName, false) ->
-        case gen_server:call(disco_server, {get_results, JobName}) of
+        case gen_server:call(event_server, {get_results, JobName}) of
                 {ok, _, []} -> <<"job_died">>;
                 {ok, _, _} -> <<"job_ready">>
         end.

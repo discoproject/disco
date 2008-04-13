@@ -27,7 +27,7 @@ init_job(PostData) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Msg),
         error_logger:info_report([{"New job", Name}]),
         
-        case gen_server:call(disco_server, {get_job_events, Name}) of
+        case gen_server:call(event_server, {get_job_events, Name}) of
                 {ok, []} -> new_coordinator(Name, Msg, list_to_binary(PostData));
                 {ok, _Events} -> [?OK_HEADER, 
                                 "ERROR: job ", Name, " already exists"]
@@ -91,7 +91,7 @@ wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
         M = N - 1,
         receive
                 {job_ok, _Result, {Node, PartID}} -> 
-                        disco_server:event(Name, 
+                        event_server:event(Name, 
                                 "Received results from ~s:~B @ ~s.",
                                         [Mode, PartID, Node], [task_ready, Mode]),
                         ets:insert(ResNodes, {lists:flatten(["dir://", Node, "/",
@@ -107,20 +107,20 @@ wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
                         throw(logged_error);
                         
                 {error, Error, {Node, PartID}} ->
-                        disco_server:event(Name, 
+                        event_server:event(Name, 
                                 "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
                                         [Mode, PartID, Node, Error], []),
 
                         throw(logged_error);
 
                 {master_error, Error} ->
-                        disco_server:event(Name, 
+                        event_server:event(Name, 
                                 "ERROR: Master terminated the job: ~s",
                                         [Error], []),
                         throw(logged_error);
                         
                 Error ->
-                        disco_server:event(Name, 
+                        event_server:event(Name, 
                                 "ERROR: Received an unknown error: ~p",
                                         [Error], []),
                         throw(logged_error)
@@ -144,7 +144,7 @@ check_failure_rate(Name, PartID, Mode, L) ->
                 {ok, N} -> L > N
         end,
         if V ->
-                disco_server:event(Name, 
+                event_server:event(Name, 
                         "ERROR: ~s:~B failed ~B times. Aborting job.",
                                 [Mode, PartID, L], []),
                 throw(logged_error);
@@ -177,13 +177,13 @@ supervise_work(Inputs, Mode, Name, Msg, MaxN) ->
                         0, MaxN, {ResNodes, ErrLog}) of
                 ok -> ok;
                 logged_error ->
-                        disco_server:event(Name, 
+                        event_server:event(Name, 
                         "ERROR: Job terminated due to the previous errors",
                                 [], []),
                         gen_server:call(disco_server, {kill_job, Name}),
                         exit(logged_error);
                 Error ->
-                        disco_server:event(Name, 
+                        event_server:event(Name, 
                         "ERROR: Job coordinator failed unexpectedly: ~p", 
                                 [Error], []),
                         gen_server:call(disco_server, {kill_job, Name}),
@@ -197,17 +197,17 @@ supervise_work(Inputs, Mode, Name, Msg, MaxN) ->
 % 2) Run map
 % 3) Optionally run reduce
 job_coordinator(Parent, Name, Msg, PostData) ->
-        disco_server:event(Name, "Job coordinator starts", [], [start, self()]),
+        event_server:event(Name, "Job coordinator starts", [], [start, self()]),
         Parent ! {self(), ok},
 
         {MapInputs, NMap, NRed, DoReduce} = case catch find_values(Msg) of
                 {A, B, C, D} -> {A, B, C, D}; 
-                MError -> disco_server:event(Name, 
+                MError -> event_server:event(Name, 
                         "ERROR: Couldn't parse the job packet: ~p", [MError]),
                         exit(logged_error)
         end,
 
-        disco_server:event(Name, "Starting map phase", [], 
+        event_server:event(Name, "Starting map phase", [], 
                 [map_data, self(), NMap, NRed, DoReduce, MapInputs]),
 
         EnumMapInputs = lists:zip(
@@ -217,17 +217,17 @@ job_coordinator(Parent, Name, Msg, PostData) ->
         RedInputs = [{X, MapList} || X <- lists:seq(0, NRed - 1)],
         ets:delete(MapResults),
 
-        disco_server:event(Name, "Map phase done", [], []),
+        event_server:event(Name, "Map phase done", [], []),
 
         if DoReduce ->
-                disco_server:event(Name, "Starting reduce phase", [],
+                event_server:event(Name, "Starting reduce phase", [],
                         [red_data, RedInputs]),
                 RedResults = supervise_work(RedInputs, "reduce", Name, PostData, NRed),
-                disco_server:event(Name, "Reduce phase done", [], []),
-                disco_server:event(Name, "READY", [], [ready, 
+                event_server:event(Name, "Reduce phase done", [], []),
+                event_server:event(Name, "READY", [], [ready, 
                         [list_to_binary(X) ||
                                 {X, _} <- ets:tab2list(RedResults)]]),
                 ets:delete(RedResults);
         true ->
-                disco_server:event(Name, "READY", [], [ready, RedInputs])
+                event_server:event(Name, "READY", [], [ready, RedInputs])
         end.

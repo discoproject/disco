@@ -41,12 +41,7 @@ handle_call(start_worker, _From, State) ->
         error_logger:info_report(["Spawn cmd: ", Cmd]),
         Port = open_port({spawn, spawn_cmd(State)}, ?PORT_OPT),
         port_command(Port, State#state.data),
-        {reply, ok, State#state{port = Port}, 30000};
-
-handle_call(kill_worker, _From, State) ->
-        error_logger:info_report(["Kill worker"]),
-        State#state.port ! {self(), close},
-        {reply, ok, State}.
+        {reply, ok, State#state{port = Port}, 30000}.
 
 strip_timestamp(Msg) ->
         P = string:chr(Msg, $]),
@@ -57,12 +52,12 @@ strip_timestamp(Msg) ->
         end.
 
 event(S, "WARN", Msg) ->
-        disco_server:event(S#state.node, S#state.jobname,
+        event_server:event(S#state.node, S#state.jobname,
                 "~s [~s:~B] ~s", ["WARN", S#state.mode, S#state.partid, Msg],
                         [task_failed, S#state.mode]);
 
 event(S, Type, Msg) ->
-        disco_server:event(S#state.node, S#state.jobname,
+        event_server:event(S#state.node, S#state.jobname,
                 "~s [~s:~B] ~s", [Type, S#state.mode, S#state.partid, Msg], []).
 
 parse_result(L) ->
@@ -141,11 +136,14 @@ handle_info(timeout, #state{linecount = 0} = S) ->
                 {data_error, {M, S#state.input, S#state.data}}}),
         {stop, normal, S}.
 
+handle_cast(kill_worker, State) ->
+        error_logger:info_report(["Kill worker"]),
+        State#state.port ! {self(), close},
+        {noreply, State}.
+
 % callback stubs
 
 terminate(_Reason, _State) -> {}.
-
-handle_cast(_Cast, State) -> {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.              
 

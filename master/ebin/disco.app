@@ -3,6 +3,7 @@
         {vsn, "1"},
         {modules, [disco_server,
                    job_queue,
+                   event_server,
                    disco_worker,
                    disco_config,
                    disco_main,
@@ -11,7 +12,7 @@
                    trunc_io,
                    scgi,
                    scgi_server]},
-        {registered, [scgi_server, disco_server, job_queue]},
+        {registered, [scgi_server, event_server, disco_server, job_queue]},
         {applications, [kernel, stdlib]},
         {mod, {disco_main, []}}
 ]}.

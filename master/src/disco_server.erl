@@ -2,14 +2,14 @@
 -module(disco_server).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0, format_timestamp/1, event/4, event/5]).
+-export([start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
 -record(job, {jobname, partid, mode, prefnode, input, data, from}).
 
 start_link() ->
-        error_logger:info_report([{'DISCO SERVER STARTS'}]),
+        error_logger:info_report([{"DISCO SERVER STARTS"}]),
         case gen_server:start_link({local, disco_server}, 
                         disco_server, [], []) of
                 {ok, Server} -> {ok, _} = disco_config:get_config_table(),
@@ -26,9 +26,6 @@ init(_Args) ->
         % active_workers contains Pids of all running
         % disco_worker processes.
         ets:new(active_workers, [named_table, public]),
-        
-        % job_events records all events related to a job
-        ets:new(job_events, [named_table, duplicate_bag]),
 
         % node_laod records how many disco_workers there are
         % running on a node (could be found in active_workers
@@ -44,32 +41,10 @@ init(_Args) ->
         ets:new(node_stats, [named_table]),
         {ok, []}.
 
-handle_call(get_jobnames, _From, State) ->
-        Lst = ets:match(job_events, 
-                {'$1', {{'$2', '_'}, '_', ['_', start, '$3'|'_']}}),
-        {reply, {ok, Lst}, State};
-
-handle_call({get_jobinfo, JobName}, _From, State) ->
-        MapNfo = ets:match(job_events,
-                {JobName, {{'_', '$1'}, '_', ['_', map_data|'$2']}}),
-        
-        Res = ets:match(job_events, {JobName, {'_', '_', ['_', ready|'$1']}}),
-        Ready = ets:match(job_events,
-                {JobName, {'_', '_', ['_', task_ready|'$1']}}),
-        Failed = ets:match(job_events,
-                {JobName, {'_', '_', ['_', task_failed|'$1']}}),
-
+handle_call({get_active, JobName}, _From, State) ->
         Tasks = ets:match(active_workers, {'_', {'_', JobName, '_', '$1', '_'}}),
         Nodes = ets:match(active_workers, {'_', {'_', JobName, '$1', '_', '_'}}),
-        {reply, {ok, {MapNfo, Res, Nodes, Tasks, Ready, Failed}}, State};
-
-handle_call({get_results, JobName}, _From, State) ->
-        Pid = lists:flatten(ets:match(job_events,
-                {JobName, {'_', '_', ['_', map_data, '$1'|'_']}})),
-        Res = lists:flatten(ets:match(job_events,
-                {JobName, {'_', '_', ['_', ready|'$1']}})),
-        {reply, {ok, Pid, Res}, State};
-
+        {reply, {ok, {Nodes, Tasks}}, State};
 
 handle_call({get_nodeinfo, all}, _From, State) ->
         Active = ets:match(active_workers, {'_', {'_', '$2', '$1', '_', '_'}}),
@@ -119,7 +94,7 @@ handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
                     from = Pid},
         
         gen_server:cast(job_queue, {add_job, Job}),
-        event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
+        event_server:event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
         {reply, ok, State};
 
 % The functions, node_busy(), choose_node(),
@@ -155,7 +130,7 @@ handle_call({try_new_worker, Job}, _From, State) ->
 
 handle_call({kill_job, JobName}, _From, State) ->
         lists:foreach(fun([Pid]) ->
-                gen_server:call(Pid, kill_worker)
+                gen_server:cast(Pid, kill_worker)
         end, ets:match(active_workers, {'$1', {'_', JobName, '_', '_', '_'}})),
         gen_server:cast(job_queue, {filter_queue, fun(Job) -> 
                 Job#job.jobname =/= JobName
@@ -164,47 +139,22 @@ handle_call({kill_job, JobName}, _From, State) ->
 
 handle_call({clean_job, JobName}, From, State) ->
         handle_call({kill_job, JobName}, From, State),
-        ets:delete(job_events, JobName),
+        gen_server:cast(event_server, {clean_job, JobName}),
         {reply, ok, State};
 
 handle_call({blacklist, Node}, _From, State) ->
-        event("[master]", "Node ~s blacklisted", [Node], []),
+        event_server:event("[master]", "Node ~s blacklisted", [Node], []),
         ets:insert(blacklist, {Node, none}),
         {reply, ok, State};
 
 handle_call({whitelist, Node}, _From, State) ->
-        event("[master]", "Node ~s whitelisted", [Node], []),
+        event_server:event("[master]", "Node ~s whitelisted", [Node], []),
         ets:delete(blacklist, Node),
         {reply, ok, State};
-
-handle_call({get_job_events, JobName}, _From, State) ->
-        case ets:lookup(job_events, JobName) of
-                [] -> {reply, {ok, []}, State};
-                Events -> {_, EventList} = lists:unzip(Events),
-                          {reply, {ok, EventList}, State}
-        end;
 
 handle_call(Msg, _From, State) ->
         error_logger:info_report(["Invalid call: ", Msg]),
         {reply, error, State}.
-
-% There's a small catch with adding a job event: If a job's records have been
-% cleaned with clean_job already, we do not want a zombie worker to re-open
-% the job's records by adding a new event. Thus only an event with the atom
-% start is allowed to initialize records for a new job. Other events are 
-% silently ignored if there are no previous records for this job.
-handle_cast({add_job_event, Host, JobName, [_, start|_] = M}, State) ->
-        V = ets:member(job_events, JobName),
-        if V -> {noreply, State};
-        true -> add_event(Host, JobName, M),
-                {noreply, State}
-        end;
-
-handle_cast({add_job_event, Host, JobName, M}, State) ->
-        V = ets:member(job_events, JobName),
-        if V -> add_event(Host, JobName, M);
-        true -> ok end,
-        {noreply, State};
 
 handle_cast({exit_worker, Pid, {ReplyType, Msg}}, State) ->
         clean_worker(Pid, ReplyType, Msg),
@@ -229,7 +179,7 @@ handle_info(Msg, State) ->
 % coordinator about the worker's exit status.
 clean_worker(Pid, ReplyType, Msg) ->
         {V, Nfo} = case ets:lookup(active_workers, Pid) of
-                        [] -> event("[master]",
+                        [] -> event_server:event("[master]",
                                 "WARN: Trying to clean an unknown worker",
                                         [], []),
                               {false, none};
@@ -294,7 +244,7 @@ choose_node({PrefNode, TaskBlackNodes}) ->
         end.
 
 start_worker(J, Node) ->
-        event(J#job.jobname, "~s:~B assigned to ~s",
+        event_server:event(J#job.jobname, "~s:~B assigned to ~s",
                 [J#job.mode, J#job.partid, Node], []),
         ets:update_counter(node_load, Node, 1),
         {ok, Pid} = disco_worker:start_link(
@@ -302,45 +252,8 @@ start_worker(J, Node) ->
                         J#job.mode, Node, J#job.input, J#job.data]),
         ok = gen_server:call(Pid, start_worker).
 
-
-% Functions related to event reporting
-
-format_timestamp(Tstamp) ->
-        {Date, Time} = calendar:now_to_local_time(Tstamp),
-        DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
-        TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
-        DateStr ++ TimeStr.
-
-add_event(Host, JobName, [Msg|Params]) ->
-        Nu = now(),
-        ets:insert(job_events, {JobName, {
-                {Nu, list_to_binary(format_timestamp(Nu))},
-                list_to_binary(Host), 
-                [list_to_binary(Msg)|Params]
-        }}).
-
-event(JobName, Format, Args, Params) ->
-        event("master", JobName, Format, Args, Params).
-
-event(Host, JobName, Format, Args, Params) ->
-        SArgs = lists:map(fun(X) ->
-                L = lists:flatlength(io_lib:fwrite("~p", [X])) > 1000,
-                if L -> trunc_io:fprint(X, 1000);
-                true -> X 
-        end end, Args),
-
-        Msg = {add_job_event, Host, JobName,
-                [lists:flatten(io_lib:fwrite(Format, SArgs))|Params]},
-        Pid = whereis(disco_server),
-        if Pid == self() ->
-                handle_cast(Msg, none);
-        true ->
-                gen_server:cast(disco_server, Msg)
-        end.
-
 % callback stubs
 terminate(_Reason, _State) -> {}.
-
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 

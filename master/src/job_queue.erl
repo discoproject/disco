@@ -5,7 +5,7 @@
         handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
-        error_logger:info_report([{'Job queue starts'}]),
+        error_logger:info_report([{"Job queue starts"}]),
         case gen_server:start_link({local, job_queue}, job_queue, [], []) of
                 {ok, Server} -> {ok, Server};
                 {error, {already_started, Server}} -> {ok, Server}

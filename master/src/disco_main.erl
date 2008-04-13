@@ -20,10 +20,12 @@ start(_Type, _Args) ->
         supervisor:start_link(disco_main, [ScgiPort]).
 
 init([ScgiPort]) -> 
-        error_logger:info_report([{'DISCO BOOTS'}]),
+        error_logger:info_report([{"DISCO BOOTS"}]),
 
         {ok, {{one_for_one, ?MAX_R, ?MAX_T},
-                 [{disco_server, {disco_server, start_link, []},
+                 [{event_server, {event_server, start_link, []},
+                        permanent, 10, worker, dynamic},
+                 {disco_server, {disco_server, start_link, []},
                         permanent, 10, worker, dynamic},
                  {job_queue, {job_queue, start_link, []},
                         permanent, 10, worker, dynamic},
