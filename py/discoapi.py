@@ -56,6 +56,7 @@ class Disco(object):
         def wait(self, name, poll_interval = 5, timeout = None):
                 t = time.time()
                 while True:
+                        time.sleep(poll_interval)
                         status = self.results(name)
                         if status == None:
                                 raise JobException("Unknown job", self.host, name)
@@ -65,7 +66,6 @@ class Disco(object):
                                 raise JobException("Job failed", self.host, name)
                         if timeout and time.time() - t > timeout:
                                 raise JobException("Timeout", self.host, name)
-                        time.sleep(poll_interval)
 
 if __name__ == "__main__":
         import sys

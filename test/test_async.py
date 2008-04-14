@@ -23,7 +23,7 @@ random.shuffle(inputs)
 
 jobs = []
 for i in range(5):
-        jobs.append(disco.job(sys.argv[1], "test_queue_%d" % i,
+        jobs.append(disco.job(sys.argv[1], "test_async_%d" % i,
                        inputs[i * (num * 2):(i + 1) * (num * 2)],
                        fun_map, reduce = fun_reduce, nr_reduces = 11,
                        sort = False, async = True))
@@ -35,6 +35,7 @@ for job in jobs:
         print "Job", job, "done"
         for k, v in disco.result_iterator(results):
                 all[k] += 1
+        d.clean(job)
 
 for v in all.values():
         if v != 10:
