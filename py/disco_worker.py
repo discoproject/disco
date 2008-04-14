@@ -202,7 +202,7 @@ def netstr_reader(fd, content_len, fname):
                 try:
                         llen = int(lenstr)
                 except ValueError:
-                        err("Nods Corrupted input (%s). Could not "\
+                        err("Corrupted input (%s). Could not "\
                                 "parse a value length at %d bytes."\
                                         % (fname, tot))
 
@@ -361,22 +361,15 @@ class ReduceReader:
                 out_fd = file(dlname + ".partial", "w")
                 for fname in self.inputs:
                         sze, fd = connect_input(fname)
-                        msg("Reduce downloading %s" % fname)
-                        try:
-                                buf = " "
-                                tot = 0
-                                while len(buf) and tot < sze:
-                                        buf = fd.read(min(8192, sze - tot))
-                                        tot += len(buf)
-                                        out_fd.write(buf)
-                                if tot < sze:
-                                        data_err("Truncated input. "\
-                                                "Expected %d bytes, got %d" %\
-                                                        (content_len, tot),\
-                                                                fname)
-                        except:
-                                data_err("Could not download input file",\
-                                        fname)
+                        for k, v in netstr_reader(fd, sze, fname):
+                                if " " in k:
+                                        err("Spaces are not allowed in keys "\
+                                            "with external sort.")
+                                if "\0" in v:
+                                        err("Zero bytes are not allowed in "\
+                                            "values with external sort. "\
+                                            "Consider using base64 encoding.")
+                                out_fd.write("%s %s\0" % (k, v))
                 out_fd.close()
                 os.rename(dlname + ".partial", dlname)
                 msg("Reduce input downloaded ok")
@@ -384,7 +377,8 @@ class ReduceReader:
                 msg("Starting external sort")
                 sortname = REDUCE_SORTED % (job_name, this_partition())
                 ensure_path(sortname, False)
-                cmd = ["sort", "-n", "-z", "-t", " ", "-o", sortname, dlname]
+                cmd = ["sort", "-s", "-k", "1,1", "-z",\
+                        "-t", " ", "-o", sortname, dlname]
 
                 proc = subprocess.Popen(cmd)
                 ret = proc.wait()
@@ -393,7 +387,9 @@ class ReduceReader:
                                 (dlname, sortname, ret))
                 
                 msg("External sort done: %s" % sortname)
-                return self.multi_file_iterator([sortname])
+                return self.multi_file_iterator([sortname], reader =\
+                        lambda fd, sze, fname:\
+                                re_reader("(.*?) (.*?)\000", fd, sze, fname))
 
        
         def list_iterator(self, lst):
@@ -405,11 +401,12 @@ class ReduceReader:
                                 msg("%d entries reduced" % i)
                 msg("Reduce done: %d entries reduced in total" % i)
 
-        def multi_file_iterator(self, inputs, progress = True):
+        def multi_file_iterator(self, inputs, progress = True,
+                                reader = netstr_reader):
                 i = 0
                 for fname in inputs:
                         sze, fd = connect_input(fname)
-                        for x in netstr_reader(fd, sze, fname):
+                        for x in reader(fd, sze, fname):
                                 yield x
                                 i += 1
                                 if progress and not i % 10000:
