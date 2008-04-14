@@ -20,7 +20,7 @@ def run_disco(limit):
         results = disco.job(sys.argv[1], "test_sort",
                                 tserver.makeurl([""] * int(1e3)),
                                 fun_map, reduce = fun_reduce, nr_reduces = 50,
-                                sort = True, mem_sort_limit = limit, clean = False)
+                                sort = True, mem_sort_limit = limit)
         k = len(list(disco.result_iterator(results)))
         if k != int(1e5): 
                 raise "not enough results: Got %d, expected %d" % (k, 1e5)
