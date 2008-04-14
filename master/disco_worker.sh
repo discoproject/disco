@@ -32,9 +32,11 @@ then
         cat >/dev/null
         # give some time for the process to exit by itself (must be more than
         # the watchdog sleep time and more than the disco_worker end pause)
-        sleep 20
-        $NICE ssh $3 "nice -n 19 pkill -9 -f 'disco_worker.py $1 $2 $3 $4'" 2>&1 >/dev/null
+        sleep 10
         kill -9 $DOG_PID
+        # make sure that the watchdog is dead before we kill the process
+        sleep 10
+        $NICE ssh $3 "nice -n 19 pkill -9 -f 'disco_worker.py $1 $2 $3 $4 '" 2>&1 >/dev/null
         exit 0
 fi
 
@@ -44,7 +46,7 @@ then
         sleep 40
         while ((1)) 
         do
-                R=`$NICE ssh $3 "$NICE pgrep -l -f 'disco_worker.py $1 $2 $3 $4' | grep -v ' ssh '"`
+                R=`$NICE ssh $3 "$NICE pgrep -l -f 'disco_worker.py $1 $2 $3 $4 ' | grep -v ' ssh '"`
                 if (( $? )) || [[ -z $R ]]
                 then
                         echo "**<DAT> Watchdog lost $1:$4."
