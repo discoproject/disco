@@ -191,8 +191,7 @@ render_jobinfo([[Tstamp, [JobPid, NMap, NRed, DoRed, Inputs]]],
                {redi, [NRed - (NRedDone + NRedRun),
                         NRedRun, NRedDone, NRedFail]},
                {reduce, DoRed},
-               {results, lists:map(fun({_, X}) -> list_to_binary(X) end, 
-                                lists:flatten(Res))},
+               {results, lists:flatten(Res)},
                {inputs, lists:map(fun erlang:list_to_binary/1, Inputs)},
                {nodes, lists:map(fun erlang:list_to_binary/1, Nodes)}
         ]}.
