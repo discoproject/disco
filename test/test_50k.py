@@ -2,7 +2,6 @@
 import tserver, sys, discoapi, disco
 
 def data_gen(path):
-        import random
         return "Gutta cavat cavat capidem\n" * 100
 
 def fun_map(e, params):
