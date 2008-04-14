@@ -1,23 +1,11 @@
 
 from netstring import *
-import marshal, traceback, time, re, urllib, httplib
+import marshal, traceback, time, re, urllib, httplib, discoapi
 from disco_worker import re_reader, netstr_reader, parse_dir
 
 DISCO_NEW_JOB = "/disco/job/new"
-DISCO_CLEAN_JOB = "/disco/ctrl/clean_job"
-DISCO_KILL_JOB = "/disco/ctrl/kill_job"
-DISCO_RESULTS = "/disco/ctrl/get_results"
 HTTP_PORT = "8989"
 
-class JobException(Exception):
-        def __init__(self, msg, name, master):
-                self.msg = msg
-                self.name = name
-                self.master = master
-
-        def __str__(self):
-                return "Job %s@%s failed: %s" %\
-                        (self.name, self.master, self.msg)
 
 def default_partition(key, nr_reduces):
         return hash(str(key)) % nr_reduces
@@ -89,33 +77,11 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         if async:
                 return req["name"]
         else:
-                results = wait_job(master, req['name'])
+                d = discoapi.Disco(master)
+                results = d.wait(req['name'])
                 if clean:
-                        clean_job(master, req['name'])
+                        d.clean(req['name'])
                 return results
-
-def wait_job(master, name, poll_interval = 5, timeout = None):
-        url = master.replace("disco:", "http:", 1)\
-                + DISCO_RESULTS + "?name=" + name
-        t = time.time()
-        while True:
-                time.sleep(poll_interval)
-                R = urllib.urlopen(url).read()
-                R = eval(R)
-                if R[0] == "ready":
-                        return R[1]
-                if R[0] != "active":
-                        raise JobException("Job failed", master, name)
-                if timeout and time.time() - t > timeout:
-                        raise JobException("Timeout", master, name)
-
-def clean_job(master, name):
-        urllib.urlopen(master.replace("disco:", "http:", 1)\
-                        + DISCO_CLEAN_JOB, '"%s"' % name)
-
-def kill_job(master, name):
-        urllib.urlopen(master.replace("disco:", "http:", 1)\
-                        + DISCO_KILL_JOB, '"%s"' % name)
 
 def result_iterator(results, notifier = None):
         res = []
@@ -137,7 +103,6 @@ def result_iterator(results, notifier = None):
                 if notifier:
                         notifier(url)
 
-                #for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
                 for x in netstr_reader(fd, sze, fname):
                         yield x
                 http.close()
