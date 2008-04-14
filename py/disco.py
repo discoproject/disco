@@ -33,7 +33,6 @@ def map_line_reader(fd, sze, fname):
                 yield x[0]
 
 def chain_reader(fd, sze, fname):
-        #for x in re_reader("(.*?) (.*?)\000", fd, sze, fname):
         for x in netstr_reader(fd, sze, fname):
                 yield x
         
