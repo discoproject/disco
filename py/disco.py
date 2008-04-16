@@ -35,16 +35,23 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         if re.search("\W", name):
                 raise "Only characters in [a-zA-Z0-9_] are allowed in job name"
 
+        inputs = []
+        for inp in input_files:
+                if inp.startswith("dir://"):
+                        inputs += parse_dir(inp)
+                else:
+                        inputs.append(inp)
+
         req = {}
         req["name"] = "%s@%d" % (name, int(time.time()))
-        req["input"] = " ".join(input_files)
+        req["input"] = " ".join(inputs)
         req["map_reader"] = marshal.dumps(map_reader.func_code)
         req["map"] = marshal.dumps(fun_map.func_code)
         req["partition"] = marshal.dumps(partition.func_code)
         req["params"] = marshal.dumps(params)
 
-        if not nr_maps or nr_maps > len(input_files):
-                nr_maps = len(input_files)
+        if not nr_maps or nr_maps > len(inputs):
+                nr_maps = len(inputs)
         req["nr_maps"] = str(nr_maps)
         
         req["sort"] = str(int(sort))

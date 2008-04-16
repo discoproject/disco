@@ -1,6 +1,9 @@
-import SocketServer, BaseHTTPServer, SimpleHTTPServer, thread, socket
+import SocketServer, BaseHTTPServer, SimpleHTTPServer, thread, socket, os
 
-PORT = 9444
+if "TSERVER_PORT" in os.environ:
+	PORT = int(os.environ['TSERVER_PORT'])
+else:
+	PORT = 9444
 
 class Server(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
         allow_reuse_address = True

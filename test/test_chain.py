@@ -1,5 +1,5 @@
 
-import tserver, sys, disco, disco_worker
+import tserver, sys, disco
 
 ani = ["horse", "sheep", "whale", "tiger"]
 
@@ -24,11 +24,7 @@ results = disco.job(sys.argv[1], "test_chain_0", tserver.makeurl([""] * 100),
 
 i = 1
 while i < 10:
-        inputs = []
-        for r in results:
-                inputs += disco_worker.parse_dir(r)
-
-        results = disco.job(sys.argv[1], "test_chain_%d" % i, inputs,
+        results = disco.job(sys.argv[1], "test_chain_%d" % i, results,
                 fun_map, reduce = fun_reduce, nr_reduces = 4,
                 map_reader = disco.chain_reader,  
                 sort = False, clean = True, params = {'suffix': str(i)})
