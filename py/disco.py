@@ -16,6 +16,10 @@ def make_range_partition(min_val, max_val):
                 (min_val, r)
         return eval(f)
 
+def nop_reduce(iter, out, params):
+        for k, v in iter:
+                out.add(k, v)
+
 def map_line_reader(fd, sze, fname):
         for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
                 yield x[0]
@@ -24,10 +28,11 @@ def chain_reader(fd, sze, fname):
         for x in netstr_reader(fd, sze, fname):
                 yield x
         
-def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
+def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
         nr_maps = None, nr_reduces = None, sort = True, params = {},\
-        mem_sort_limit = 256 * 1024**2, async = False, clean = True):
+        mem_sort_limit = 256 * 1024**2, async = False, clean = True,\
+        chunked = None):
 
         if len(input_files) < 1:
                 raise "Must have at least one input file"
@@ -47,8 +52,8 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         req["input"] = " ".join(inputs)
         req["map_reader"] = marshal.dumps(map_reader.func_code)
         req["map"] = marshal.dumps(fun_map.func_code)
-        req["partition"] = marshal.dumps(partition.func_code)
         req["params"] = marshal.dumps(params)
+        req["partition"] = marshal.dumps(partition.func_code)
 
         if not nr_maps or nr_maps > len(inputs):
                 nr_maps = len(inputs)
@@ -60,8 +65,15 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
         if reduce:
                 req["reduce"] = marshal.dumps(reduce.func_code)
                 nr_reduces = nr_reduces or max(nr_maps / 2, 1)
+                req["chunked"] = "True"
         else:
                 nr_reduces = nr_reduces or 1
+
+        if chunked != None:
+                if chunked:
+                        req["chunked"] = "True"
+                elif "chunked" in req:
+                        del req["chunked"]
 
         req["nr_reduces"] = str(nr_reduces)
 
@@ -69,6 +81,7 @@ def job(master, name, input_files, fun_map, map_reader = map_line_reader,\
                 req["combiner"] = marshal.dumps(combiner.func_code)
 
         msg = encode_netstring_fd(req)
+        print "LEDSN", len(msg)
         if master.startswith("stdout:"):
                 print msg,
         elif master.startswith("disco:"):

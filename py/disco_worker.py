@@ -5,10 +5,11 @@ from netstring import *
 
 HTTP_PORT = "8989"
 LOCAL_PATH = "/var/disco/"
-MAP_OUTPUT = LOCAL_PATH + "%s/map-%d"
+MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
+CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
 REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
 REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
-REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-%d"
+REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
 
 job_name = ""
 http_pool = {}
@@ -67,13 +68,9 @@ def parse_dir(dir_url):
         x, x, host, mode, name = dir_url.split('/')
         html = urllib.urlopen("http://%s:%s/%s" %\
                 (host, HTTP_PORT, name)).read()
-        inputs = re.findall(">(%s-\d+)</a>" % mode, html)
-        if mode == "map":
-                prefix = "chunk"
-        else:
-                prefix = "disco"
-        
-        return ["%s://%s/%s/%s" % (prefix, host, name, x) for x in inputs]
+        inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
+        return ["%s://%s/%s/%s" % (prefix, host, name, x)\
+                        for x, prefix in inputs if "partial" not in x]
 
 
 def open_local(input, fname, is_chunk):
@@ -274,14 +271,13 @@ class MapOutput:
         def __init__(self, part, combiner = None):
                 self.combiner = combiner
                 self.comb_buffer = {}
-                ensure_path(LOCAL_PATH + job_name + "/dummy", False)
-                fd, name = tempfile.mkstemp("", "map-%d-%.9d-" %
-                        (this_partition(), part), LOCAL_PATH + job_name)
+                self.fname = MAP_OUTPUT % (job_name, this_partition(), part)
+                ensure_path(self.fname, False)
+                self.fd = file(self.fname + ".partial", "w")
                 self.part = part
-                self.fname = name
-                self.fd = os.fdopen(fd, "w")
                 
         def flush_comb_buffer(self):
+                comb = self.combiner
                 self.combiner = None
                 for key, value in self.comb_buffer.iteritems():
                         self.add(key, value)
@@ -291,18 +287,25 @@ class MapOutput:
         def add(self, key, value):
                 if self.combiner:
                         comb = self.combiner
-                        if comb(key, value, self.comb_buffer, 0):
+                        ret = comb(key, value, self.comb_buffer, 0)
+                        if type(ret) == tuple:
+                                encode_kv_pair(self.fd, ret[0], ret[1])
+                        elif ret == True:
                                 self.flush_comb_buffer()
-                        return
-
-                encode_kv_pair(self.fd, key, value)
+                else:
+                        encode_kv_pair(self.fd, key, value)
 
         def close(self):
                 if self.combiner:
                         self.combiner(None, None, self.comb_buffer, 1)
                         self.flush_comb_buffer()
                 self.fd.close()
+                os.rename(self.fname + ".partial", self.fname)
         
+        def disco_address(self):
+                return "disco://%s/%s" %\
+                        (this_host(), self.fname[len(LOCAL_PATH):])
+
 
 class ReduceOutput:
         def __init__(self):
@@ -397,7 +400,7 @@ class ReduceReader:
                 for x in lst:
                         yield x
                         i += 1
-                        if not i % 10000:
+                        if not i % 100000:
                                 msg("%d entries reduced" % i)
                 msg("Reduce done: %d entries reduced in total" % i)
 
@@ -409,7 +412,7 @@ class ReduceReader:
                         for x in reader(fd, sze, fname):
                                 yield x
                                 i += 1
-                                if progress and not i % 10000:
+                                if progress and not i % 100000:
                                         msg("%d entries reduced" % i)
 
                 if progress:
@@ -442,18 +445,17 @@ def run_map(job_input, partitions, param):
                         p = fun_partition(key, nr_reduces)
                         partitions[p].add(key, value)
                 i += 1
-                if not i % 10000:
+                if not i % 100000:
                         msg("%d entries mapped" % i)
 
         msg("Done: %d entries mapped in total" % i)
 
 def merge_chunks(partitions):
-        mapout = MAP_OUTPUT % (job_name, this_partition())
+        mapout = CHUNK_OUTPUT % (job_name, this_partition())
      
         f = file(mapout + ".partial", "w")
         offset = (len(partitions) + 1) * 8
         for p in partitions:
-                p.fd.close()
                 f.write(struct.pack("Q", offset))
                 offset += os.stat(p.fname).st_size
         f.write(struct.pack("Q", offset))
@@ -492,10 +494,15 @@ def op_map(job):
                 partitions = [MapOutput(i) for i in range(nr_reduces)]
         
         run_map(job_input[0], partitions, map_params)
-        merge_chunks(partitions)
-        msg("%d chunk://%s/%s/map-%d" % (this_partition(), this_host(),
-                job_name, this_partition()), "OUT")
-
+        for p in partitions:
+                p.close()
+        if 'chunked' in job:
+                merge_chunks(partitions)
+                out = "chunk://%s/%s/map-%d" %\
+                        (this_host(), job_name, this_partition())
+        else:
+                out = partitions[0].disco_address()
+        msg("%d %s" % (this_partition(), out), "OUT")
 
 def op_reduce(job):
         global job_name
