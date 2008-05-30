@@ -229,5 +229,6 @@ job_coordinator(Parent, Name, Msg, PostData) ->
                                 {X, _} <- ets:tab2list(RedResults)]]),
                 ets:delete(RedResults);
         true ->
-                event_server:event(Name, "READY", [], [ready, RedInputs])
+                event_server:event(Name, "READY", [], [ready,
+                        [list_to_binary(X) || X <- MapList]])
         end.
