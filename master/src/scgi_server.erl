@@ -23,7 +23,7 @@
 -behaviour(gen_server).
 
 -compile([verbose, report_errors, report_warnings, trace, debug_info]).
--define(TCP_OPTIONS, [list, {active, false}, {reuseaddr, true}, {packet, raw}]).
+-define(TCP_OPTIONS, [binary, {active, false}, {reuseaddr, true}, {packet, raw}]).
 
 -export([start_link/1, stop/0, handle_request/2, scgi_worker/1]).
 
@@ -100,8 +100,8 @@ handle_request(Socket, Msg) ->
         end.
 
 dispatch_request(Socket, Msg) ->
-        {value, {_, Path}} = lists:keysearch("SCRIPT_NAME", 1, Msg),
-        [_|[N|_]] = string:tokens(Path, "/"),
+        {value, {_, Path}} = lists:keysearch(<<"SCRIPT_NAME">>, 1, Msg),
+        [_|[N|_]] = string:tokens(binary_to_list(Path), "/"),
         Mod = list_to_existing_atom("handle_" ++ N),
         Mod:handle(Socket, Msg).
 

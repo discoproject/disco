@@ -24,20 +24,23 @@ new_coordinator(Name, Msg, PostData) ->
 % init_job() checks that there isn't already a job existing with the same name.
 init_job(PostData) ->
         Msg = netstring:decode_netstring_fd(PostData),
-        {value, {_, Name}} = lists:keysearch("name", 1, Msg),
+        {value, {_, NameB}} = lists:keysearch(<<"name">>, 1, Msg),
+        Name = binary_to_list(NameB),
         error_logger:info_report([{"New job", Name}]),
         
         case gen_server:call(event_server, {get_job_events, Name}) of
-                {ok, []} -> new_coordinator(Name, Msg, list_to_binary(PostData));
+                {ok, []} -> new_coordinator(Name, Msg, PostData);
                 {ok, _Events} -> [?OK_HEADER, 
                                 "ERROR: job ", Name, " already exists"]
         end.
 
 % handle() receives the SCGI request and reads POST data.
 handle(Socket, Msg) ->
-        {value, {_, CLenStr}} = lists:keysearch("CONTENT_LENGTH", 1, Msg),
-        CLen = list_to_integer(CLenStr),
-        {ok, PostData} = gen_tcp:recv(Socket, CLen, 30000),
+        {value, {_, CLenStr}} = lists:keysearch(<<"CONTENT_LENGTH">>, 1, Msg),
+        CLen = list_to_integer(binary_to_list(CLenStr)),
+        % scgi_recv_msg used instead of gen_tcp to work around gen_tcp:recv()'s
+        % 16MB limit.
+        {ok, PostData} = scgi:recv_msg(Socket, <<>>, CLen),
         gen_tcp:send(Socket, init_job(PostData)).
 
 % pref_node() suggests a preferred node for a task (one preserving locality)
@@ -153,16 +156,16 @@ check_failure_rate(Name, PartID, Mode, L) ->
         end.
 
 find_values(Msg) ->
-        {value, {_, InputStr}} = lists:keysearch("input", 1, Msg),
-        Inputs = string:tokens(InputStr, " "),
+        {value, {_, InputStr}} = lists:keysearch(<<"input">>, 1, Msg),
+        Inputs = string:tokens(binary_to_list(InputStr), " "),
 
-        {value, {_, NMapsStr}} = lists:keysearch("nr_maps", 1, Msg),
-        NMap = list_to_integer(NMapsStr),
+        {value, {_, NMapsStr}} = lists:keysearch(<<"nr_maps">>, 1, Msg),
+        NMap = list_to_integer(binary_to_list(NMapsStr)),
         
-        {value, {_, NRedStr}} = lists:keysearch("nr_reduces", 1, Msg),
-        NRed = list_to_integer(NRedStr),
+        {value, {_, NRedStr}} = lists:keysearch(<<"nr_reduces">>, 1, Msg),
+        NRed = list_to_integer(binary_to_list(NRedStr)),
                 
-        case lists:keysearch("reduce", 1, Msg) of 
+        case lists:keysearch(<<"reduce">>, 1, Msg) of 
                 false -> {Inputs, NMap, NRed, false};
                 _Else -> {Inputs, NMap, NRed, true}
         end.

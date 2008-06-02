@@ -112,18 +112,18 @@ update_setting(Key, Val, _) ->
         error_logger:info_report([{"Unknown setting", Key, Val}]).
 
 handle(Socket, Msg) ->
-        {value, {_, Script}} = lists:keysearch("SCRIPT_NAME", 1, Msg),
-        {value, {_, Query}} = lists:keysearch("QUERY_STRING", 1, Msg),
-        {value, {_, CLenStr}} = lists:keysearch("CONTENT_LENGTH", 1, Msg),
-        CLen = list_to_integer(CLenStr),
+        {value, {_, Script}} = lists:keysearch(<<"SCRIPT_NAME">>, 1, Msg),
+        {value, {_, Query}} = lists:keysearch(<<"QUERY_STRING">>, 1, Msg),
+        {value, {_, CLenStr}} = lists:keysearch(<<"CONTENT_LENGTH">>, 1, Msg),
+        CLen = list_to_integer(binary_to_list(CLenStr)),
         if CLen > 0 ->
                 {ok, PostData} = gen_tcp:recv(Socket, CLen, 30000),
                 {ok, Json, _Rest} = json:decode(PostData);
         true ->
                 Json = none
         end,
-        Op = lists:last(string:tokens(Script, "/")),
-        {ok, Res} = op(Op, httpd:parse_query(Query), Json),
+        Op = lists:last(string:tokens(binary_to_list(Script), "/")),
+        {ok, Res} = op(Op, httpd:parse_query(binary_to_list(Query)), Json),
         gen_tcp:send(Socket, [?HTTP_HEADER, json:encode(Res)]).
 
 range_events(Name, Query) ->
