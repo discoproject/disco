@@ -72,12 +72,12 @@ work([{PartID, Input}|Inputs], Mode, Name, Data, N, Max, Res) when N =< Max ->
 % Wait for tasks to return. Note that wait_workers() may return with the same
 % number of tasks still running, i.e. N = M.
 work([_|_] = IArg, Mode, Name, Data, N, Max, Res) when N > Max ->
-        M = wait_workers(N, Res, Name, Mode),
+        M = wait_workers(N, Res, Name, Mode, Data),
         work(IArg, Mode, Name, Data, M, Max, Res);
 
 % 3. No more tasks to distribute. Wait for tasks to return.
 work([], Mode, Name, Data, N, Max, Res) when N > 0 ->
-        M = wait_workers(N, Res, Name, Mode),
+        M = wait_workers(N, Res, Name, Mode, Data),
         work([], Mode, Name, Data, M, Max, Res);
 
 % 4. No more tasks to distribute, no more tasks running. Done.
@@ -87,10 +87,10 @@ work([], _Mode, _Name, _Data, 0, _Max, _Res) -> ok.
 % called when a worker exits. 
 
 % Error condition: should not happen.
-wait_workers(0, _Res, _Name, _Mode) ->
+wait_workers(0, _Res, _Name, _Mode, _Data) ->
         throw("Nothing to wait");
 
-wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
+wait_workers(N, {ResNodes, ErrLog}, Name, Mode, Data) ->
         M = N - 1,
         receive
                 {job_ok, _Result, {Node, PartID}} -> 
@@ -101,7 +101,7 @@ wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
                                 Mode, "/", Name]), ok}),
                         M;
 
-                {data_error, {_Msg, Input, Data}, {Node, PartID}} ->
+                {data_error, {_Msg, Input}, {Node, PartID}} ->
                         handle_data_error(Name, Input, Data,
                                 PartID, Mode, Node, ErrLog),
                         N;

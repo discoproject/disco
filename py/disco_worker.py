@@ -537,9 +537,13 @@ if __name__ == "__main__":
 
         if "op_" + sys.argv[1] not in globals():
                 err("Invalid operation: %s" % sys.argv[1])
+      
+        # Announce my PID to the master
+        print >> sys.stderr, "**<PID>%s" % os.getpid()
 
         try:
-                m = decode_netstring_fd(sys.stdin)
+                params_file = sys.stdin.readline().strip()
+                m = decode_netstring_fd(file(params_file))
         except:
                 msg("Decoding the job description failed", "ERR")
                 raise
@@ -548,7 +552,7 @@ if __name__ == "__main__":
         msg("Worker done", "END")
         # pause here for a while to make sure that the master receives the END
         # message before the watchdog notices the process' death
-        time.sleep(10)
+        #time.sleep(10)
 
 
 

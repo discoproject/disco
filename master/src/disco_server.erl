@@ -39,6 +39,13 @@ init(_Args) ->
         % node_stats contains triples {ok_jobs, failed_jobs, crashed_jobs}
         % for each node.
         ets:new(node_stats, [named_table]),
+
+        SName = case os:getenv("SLAVENAME") of
+                false -> "discoslave";
+                X -> X
+        end,
+        put(slave_name, SName),
+        register(slave_master, spawn_link(fun() -> slave_master(SName) end)),
         {ok, []}.
 
 handle_call({get_active, JobName}, _From, State) ->
@@ -129,8 +136,9 @@ handle_call({try_new_worker, Job}, _From, State) ->
         end;
 
 handle_call({kill_job, JobName}, _From, State) ->
+        event_server:event(JobName, "WARN: Job killed", [], []),
         lists:foreach(fun([Pid]) ->
-                gen_server:cast(Pid, kill_worker)
+                exit(Pid, kill_worker)
         end, ets:match(active_workers, {'$1', {'_', JobName, '_', '_', '_'}})),
         gen_server:cast(job_queue, {filter_queue, fun(Job) -> 
                 Job#job.jobname =/= JobName
@@ -165,7 +173,14 @@ handle_info({'EXIT', Pid, Reason}, State) ->
                 error_logger:info_report(["Disco server dies on error!", Reason]),
                 {stop, stop_requested, State};
         Reason == normal -> {noreply, State};
-        true -> clean_worker(Pid, error, Reason),
+        true -> 
+                error_logger:info_report(["Worker killed", Pid]),
+                case Reason of
+                        {data_error, Input} -> clean_worker(Pid, data_error, 
+                                {"Worker failure", Input});
+                        kill_worker -> clean_worker(Pid, job_error, "");
+                        _ -> clean_worker(Pid, error, Reason)
+                end,
                 {noreply, State}
         end;
 
@@ -179,10 +194,11 @@ handle_info(Msg, State) ->
 % coordinator about the worker's exit status.
 clean_worker(Pid, ReplyType, Msg) ->
         {V, Nfo} = case ets:lookup(active_workers, Pid) of
-                        [] -> event_server:event("[master]",
-                                "WARN: Trying to clean an unknown worker",
-                                        [], []),
-                              {false, none};
+                        [] -> {false, none};
+                                %error_logger:info_report(["Unknown worker", Pid]),
+                                %event_server:event("[master]",
+                                %"WARN: Trying to clean an unknown worker",
+                                %        [], []),
                         R -> {true, R}
                    end,
         if V ->
@@ -247,10 +263,25 @@ start_worker(J, Node) ->
         event_server:event(J#job.jobname, "~s:~B assigned to ~s",
                 [J#job.mode, J#job.partid, Node], []),
         ets:update_counter(node_load, Node, 1),
-        {ok, Pid} = disco_worker:start_link(
-                [J#job.from, J#job.jobname, J#job.partid, 
-                        J#job.mode, Node, J#job.input, J#job.data]),
-        ok = gen_server:call(Pid, start_worker).
+
+        spawn_link(disco_worker, start_link_remote, 
+                [[get(slave_name), self(), whereis(event_server), J#job.from, 
+                J#job.jobname, J#job.partid, J#job.mode, Node, J#job.input, 
+                J#job.data]]),
+        ok.
+
+% slave:start() contains a race condition, thus it is not safe to call it
+% simultaneously in many parallel processes. Instead, we serialize the calls
+% through slave_master().
+slave_master(SlaveName) ->
+        receive
+                {start, Pid, Node, Args} ->
+                        R = slave:start_link(list_to_atom(Node), 
+                                SlaveName, Args),
+                        Pid ! slave_started,
+                        error_logger:info_report(["New slave at ", Node, R]),
+                        slave_master(SlaveName)
+        end.                       
 
 % callback stubs
 terminate(_Reason, _State) -> {}.

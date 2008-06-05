@@ -1,7 +1,7 @@
 -module(event_server).
 -behaviour(gen_server).
 
--export([format_timestamp/1, event/4, event/5]).
+-export([format_timestamp/1, event/4, event/5, event/6]).
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
@@ -98,6 +98,9 @@ event(JobName, Format, Args, Params) ->
         event("master", JobName, Format, Args, Params).
 
 event(Host, JobName, Format, Args, Params) ->
+        event(event_server, Host, JobName, Format, Args, Params).
+        
+event(EventServ, Host, JobName, Format, Args, Params) ->
         SArgs = lists:map(fun(X) ->
                 L = lists:flatlength(io_lib:fwrite("~p", [X])) > 1000,
                 if L -> trunc_io:fprint(X, 1000);
@@ -106,8 +109,8 @@ event(Host, JobName, Format, Args, Params) ->
 
         Msg = {add_job_event, Host, JobName,
                 [lists:flatten(io_lib:fwrite(Format, SArgs))|Params]},
-        gen_server:cast(event_server, Msg).
-
+        gen_server:cast(EventServ, Msg).
+        
 % callback stubs
 terminate(_Reason, _State) -> {}.
 
