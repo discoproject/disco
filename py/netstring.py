@@ -22,7 +22,7 @@
 import StringIO
 
 MAX_LEN_STRING = 10
-MAX_PACKET_LEN = 100 * 1024 * 1024
+MAX_PACKET_LEN = 1024**3
 
 def _read_string(msg, i):
         j = msg.index(" ", i)
