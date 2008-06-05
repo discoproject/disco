@@ -18,6 +18,7 @@ void die(const char *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
+        fprintf(stderr, "**<ERR>");
         vfprintf(stderr, fmt, ap);
         fprintf(stderr, "\n");
         va_end(ap);
@@ -45,7 +46,9 @@ void *xmalloc(unsigned int size)
 static p_entry *read_pentry(unsigned int len)
 {
         p_entry *e = xmalloc(sizeof(p_entry) + len + 1);
-        STDIN_READ(e->data, len);
+        if (len){
+                STDIN_READ(e->data, len);
+        }
         e->len = len;
         e->data[len] = 0;
         return e; 
@@ -71,20 +74,27 @@ void write_num_prefix(int num)
 void write_kv(const p_entry *key, const p_entry *val)
 {
         STDOUT_WRITE(&key->len, 4);
-        STDOUT_WRITE(key->data, key->len);
+        if (key->len){
+                STDOUT_WRITE(key->data, key->len);
+        }
         STDOUT_WRITE(&val->len, 4);
-        STDOUT_WRITE(val->data, val->len);
+        if (val->len){
+                STDOUT_WRITE(val->data, val->len);
+        }
         fflush(stdout);
 }
 
 static p_entry *read_netstr_entry(unsigned int *bytes)
 {
-        unsigned int len, n;
+        unsigned int len, n, tmp;
         if (!fscanf(stdin, "%u %n", &len, &n))
                 die("Couldn't parse item length");
         p_entry *e = read_pentry(len);
+        if (len){
+                STDIN_READ(&tmp, 1);
+        }else
+                --n;
         *bytes += len + n + 1;
-        STDIN_READ(&n, 1);
         return e;
 }      
 

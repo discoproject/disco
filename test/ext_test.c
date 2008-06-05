@@ -24,10 +24,17 @@ int main(int argc, char **argv)
         test_param(params, "dummy", "value");
         msg("All parameters ok!");
         
+        const char DVAL[] = "dkey";
+        p_entry *dkey = xmalloc(sizeof(p_entry) + sizeof(DVAL));
+        dkey->len = sizeof(DVAL) - 1;
+        memcpy(dkey->data, DVAL, dkey->len);
+
         int i = 0;
         p_entry *key, *val;
         while (read_kv(&key, &val)){
                 msg("Got key <%s> val <%s>", key->data, val->data);
+                if (!key->len)
+                        key = dkey;
                 write_num_prefix(3); 
                 write_kv(key, val);
                 write_kv(key, val);

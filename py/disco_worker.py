@@ -1,10 +1,13 @@
 import os, subprocess, cStringIO, marshal, time, sys
 import httplib, re, traceback, tempfile, struct, urllib
 
+import disco_external
 from netstring import *
 
 HTTP_PORT = "8989"
 LOCAL_PATH = "/var/disco/"
+EXT_MAP = LOCAL_PATH + "%s/ext-map"
+EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
 MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
 CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
 REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
@@ -418,7 +421,6 @@ class ReduceReader:
                 if progress:
                         msg("Reduce done: %d entries reduced in total" % i)
 
-
 # Function stubs
 
 def fun_map(e, params):
@@ -481,10 +483,20 @@ def op_map(job):
                         " ".join(job_input))
 
         nr_reduces = int(job['nr_reduces'])
-        fun_map.func_code = marshal.loads(job['map'])
         fun_map_reader.func_code = marshal.loads(job['map_reader'])
         fun_partition.func_code = marshal.loads(job['partition'])
-        map_params = marshal.loads(job['params'])
+        
+        if 'ext_map' in job:
+                if 'ext_params' in job:
+                        map_params = job['ext_params']
+                else:
+                        map_params = "0\n"
+                disco_external.prepare(job['ext_map'],
+                        map_params, EXT_MAP % job_name)
+                fun_map.func_code = disco_external.ext_map.func_code
+        else:
+                map_params = marshal.loads(job['params'])        
+                fun_map.func_code = marshal.loads(job['map'])
 
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
@@ -502,6 +514,8 @@ def op_map(job):
                         (this_host(), job_name, this_partition())
         else:
                 out = partitions[0].disco_address()
+        
+        disco_external.close_ext()
         msg("%d %s" % (this_partition(), out), "OUT")
 
 def op_reduce(job):
@@ -515,16 +529,25 @@ def op_reduce(job):
         do_sort = int(job['sort'])
         mem_sort_limit = int(job['mem_sort_limit'])
         
-        fun_reduce.func_code = marshal.loads(job['reduce'])
-        red_params = marshal.loads(job['params'])
+        if 'ext_reduce' in job:
+                if "ext_params" in job:
+                        red_params = job['ext_params']
+                else:
+                        red_params = "0\n"
+                disco_external.prepare(job['ext_reduce'],
+                        red_params, EXT_REDUCE % job_name)
+                fun_reduce.func_code = disco_external.ext_reduce.func_code
+        else:
+                fun_reduce.func_code = marshal.loads(job['reduce'])
+                red_params = marshal.loads(job['params'])
 
         red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit)
-
         red_out = ReduceOutput()
         msg("Starting reduce")
         fun_reduce(red_in.iter(), red_out, red_params)
         msg("Reduce done")
         red_out.close()
+        disco_external.close_ext()
 
         msg("%d %s" % (this_partition(), red_out.disco_address()), "OUT")
 
@@ -550,9 +573,6 @@ if __name__ == "__main__":
 
         globals()["op_" + sys.argv[1]](m)
         msg("Worker done", "END")
-        # pause here for a while to make sure that the master receives the END
-        # message before the watchdog notices the process' death
-        #time.sleep(10)
 
 
 

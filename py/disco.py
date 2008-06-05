@@ -1,6 +1,6 @@
 
 from netstring import *
-import marshal, traceback, time, re, urllib, httplib, discoapi
+import marshal, traceback, time, re, urllib, httplib, discoapi, os.path
 from disco_worker import re_reader, netstr_reader, parse_dir
 
 DISCO_NEW_JOB = "/disco/job/new"
@@ -27,12 +27,18 @@ def map_line_reader(fd, sze, fname):
 def chain_reader(fd, sze, fname):
         for x in netstr_reader(fd, sze, fname):
                 yield x
-        
+
+def external(files):
+        msg = {"op": file(files[0]).read()}
+        for f in files[1:]:
+                msg[os.path.basename(f)] = file(f).read()
+        return msg
+
 def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
         nr_maps = None, nr_reduces = None, sort = True, params = {},\
         mem_sort_limit = 256 * 1024**2, async = False, clean = True,\
-        chunked = None):
+        chunked = None, ext_params = None):
 
         if len(input_files) < 1:
                 raise "Must have at least one input file"
@@ -51,7 +57,14 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
         req["name"] = "%s@%d" % (name, int(time.time()))
         req["input"] = " ".join(inputs)
         req["map_reader"] = marshal.dumps(map_reader.func_code)
-        req["map"] = marshal.dumps(fun_map.func_code)
+        if type(fun_map) == dict:
+                req["ext_map"] = marshal.dumps(fun_map)
+        else:
+                req["map"] = marshal.dumps(fun_map.func_code)
+        
+        if ext_params:
+                req["ext_params"] = encode_netstring_fd(ext_params)
+        
         req["params"] = marshal.dumps(params)
         req["partition"] = marshal.dumps(partition.func_code)
 
@@ -63,7 +76,11 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
         req["mem_sort_limit"] = str(mem_sort_limit)
 
         if reduce:
-                req["reduce"] = marshal.dumps(reduce.func_code)
+                if type(reduce) == dict:
+                        req["ext_reduce"] = marshal.dumps(reduce)
+                        req["reduce"] = ""
+                else:
+                        req["reduce"] = marshal.dumps(reduce.func_code)
                 nr_reduces = nr_reduces or max(nr_maps / 2, 1)
                 req["chunked"] = "True"
         else:

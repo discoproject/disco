@@ -1,18 +1,19 @@
-import os, os.path, time, struct
+import os, os.path, time, struct, marshal
 from subprocess import *
-from disco_worker import msg
 from netstring import decode_netstring_str
-import disco_external
+import disco_external, disco_worker
+
+proc = None
 
 def pack_kv(k, v):
         return struct.pack("I", len(k)) + k +\
                struct.pack("I", len(v)) + v
 
-def unpack_kv(fd):
-        le = struct.unpack("I", fd.read(4))[0]
-        k = fd.read(le)
-        le = struct.unpack("I", fd.read(4))[0]
-        v = fd.read(le)
+def unpack_kv():
+        le = struct.unpack("I", out_fd.read(4))[0]
+        k = out_fd.read(le)
+        le = struct.unpack("I", out_fd.read(4))[0]
+        v = out_fd.read(le)
         return k, v
 
 def ext_map(e, params):
@@ -24,7 +25,7 @@ def ext_map(e, params):
         disco_external.in_fd.write(
                 disco_external.pack_kv(k, v))
         num = struct.unpack("I", disco_external.out_fd.read(4))[0]
-        return [unpack_kv(out_fd) for i in range(num)]
+        return [disco_external.unpack_kv() for i in range(num)]
 
 def ext_reduce(red_in, red_out, params):
         for e in red_in:
@@ -32,20 +33,24 @@ def ext_reduce(red_in, red_out, params):
                         red_out.add(k, v)
 
 def prepare(ext_job, params, path):
-        external.write_files(decode_netstring_str(ext_job), path)
+        write_files(marshal.loads(ext_job), path)
         open_ext(path + "/op", params)
 
 def open_ext(fname, params):
-        global in_fd, out_fd
+        global proc, in_fd, out_fd
         proc = Popen([fname], stdin = PIPE, stdout = PIPE)
         in_fd = proc.stdin
         out_fd = proc.stdout
         in_fd.write(params)
 
+def close_ext():
+        if proc:
+                os.kill(proc.pid, 9)
+
 def write_files(ext_data, path):
-        ensure_path(path, False)
+        disco_worker.ensure_path(path + "/", False)
         for fname, data in ext_data.iteritems():
-                disco_util.ensure_file(path + "/" + fname, data)
+                ensure_file(path + "/" + fname, data)
 
 def ensure_file(fname, data, timeout = 60):
         while timeout > 0:
@@ -64,8 +69,9 @@ def ensure_file(fname, data, timeout = 60):
                                 time.sleep(1)
                                 timeout -= 1
                         else:
-                                msg("Writing external file %s failed" % fname)
+                                disco_worker.msg("Writing external "\
+                                        "file %s failed" % fname)
                                 raise
-        msg("Timeout in writing external file %s" % fname)
+        disco_worker.msg("Timeout in writing external file %s" % fname)
         raise Exception("Timeout in writing external file %s" % fname)
         
