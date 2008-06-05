@@ -1,7 +1,7 @@
 -module(job_queue).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/0, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
@@ -10,9 +10,6 @@ start_link() ->
                 {ok, Server} -> {ok, Server};
                 {error, {already_started, Server}} -> {ok, Server}
         end.
-
-stop() ->
-        gen_server:call(job_queue, stop).
 
 init(_Args) ->
         {ok, queue:new()}.
