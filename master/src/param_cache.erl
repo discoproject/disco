@@ -56,20 +56,29 @@ file_exists(FName) ->
         X =/= [].
 
 new_file(JobName, Parent) ->
-        Parent ! {get_data, self()},
-        receive
-                {data, Data} -> 
-                        Dir = filename:join(?DISCO_PATH, JobName),
-                        FName = filename:join(Dir, "params"),
-                        os:cmd("mkdir -p " ++ Dir),
-                        ok = file:write_file(FName ++ ".partial", Data, [raw]),
-                        os:cmd("mv " ++ FName ++ ".partial " ++ FName),
-                        Reply = {ok, FName};
-                _ -> Reply = {error, invalid_data}
-        after 60000 ->
-                Reply = {error, data_timeout}
-        end,
+        Dir = filename:join(?DISCO_PATH, JobName),
+        os:cmd("mkdir -p " ++ Dir),
+        FName = filename:join(Dir, "params"),
+        {ok, Io} = file:open(FName ++ ".partial", [raw, write]),
+        Parent ! {copy_data, self()},
+        Reply = receive_file(Io, FName),
+        file:close(Io),
         gen_server:cast(pcache, {wake_waiters, JobName, Reply}).
+
+receive_file(Dst, FName) ->
+        receive 
+                {io_request, From , _, {put_chars, Data}} ->
+                        ok = file:write(Dst, Data),
+                        From ! {io_reply, self(), ok},
+                        receive_file(Dst, FName);
+                copy_ok -> 
+                        os:cmd("mv " ++ FName ++ ".partial " ++ FName),
+                        {ok, FName};
+                _ -> {error, invalid_data}
+        after 60000 ->
+                {error, data_timeout}
+        end.
+
 
 % unused
 

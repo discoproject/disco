@@ -36,10 +36,14 @@ start_link_remote([SlaveName, Master, EventServ, From, JobName, PartID,
                 EventServ, From, PartID, Mode, Node, Input]]),
         receive
                 ok -> ok;
-                {get_data, Pid} ->
+                {copy_data, Pid} ->
                         error_logger:info_report({"Starting to copy",
                                 size(Data), " to ", NodeAtom}),
-                        Pid ! {data, Data},
+                        Sze = size(Data),
+                        {ok, Src} = ram_file:open(Data, [read, binary]),
+                        {ok, Sze} = file:copy(Src, Pid, Sze),
+                        ram_file:close(Src),
+                        Pid ! copy_ok,
                         error_logger:info_report({"Copy ok" , NodeAtom})
         after 60000 ->
                 exit({data_error, Input})
@@ -60,7 +64,7 @@ start_link([Parent, JobName|_] = Args) ->
         error_logger:info_report(["Worker starting at ", node(), Parent]),
         {ok, PCache} = param_cache:start(),
         {ok, ParamsFile} = gen_server:call(PCache,
-                {get_params, JobName, Parent}, 60000),
+                {get_params, JobName, Parent}, 600000),
         {ok, Worker} = gen_server:start_link(disco_worker, Args, []),
         ok = gen_server:call(Worker, {start_worker, ParamsFile}),
         Parent ! ok.
@@ -205,10 +209,13 @@ terminate(_Reason, State) ->
         % child may stay running. However, it may die by itself due to
         % SIGPIPE anyway.
 
-        % Kill child processes of the worker process
-        os:cmd("pkill -9 -P " ++ State#state.child_pid),
-        % Kill the worker process
-        os:cmd("kill -9 " ++ State#state.child_pid).
+        if State#state.child_pid =/= none ->
+                % Kill child processes of the worker process
+                os:cmd("pkill -9 -P " ++ State#state.child_pid),
+                % Kill the worker process
+                os:cmd("kill -9 " ++ State#state.child_pid)
+        true -> ok
+        end.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.              
 
