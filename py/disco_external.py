@@ -52,14 +52,22 @@ def write_files(ext_data, path):
         for fname, data in ext_data.iteritems():
                 ensure_file(path + "/" + fname, data)
 
-def ensure_file(fname, data, timeout = 60):
+def ensure_file(fname, data, timeout = 60, mode = 500):
         while timeout > 0:
                 if os.path.exists(fname):
                         return
                 try:
                         fd = os.open(fname + ".partial",
                                 os.O_CREAT | os.O_EXCL | os.O_WRONLY, 500)
-                        os.write(fd, data)
+                        if type(data) == str:
+                                os.write(fd, data)
+                        else:
+                                try:
+                                        input, stream = data
+                                        os.write(fd, stream.read())
+                                except:
+                                        raise Exception("Couldn't load %s"\
+                                                % input)  
                         os.close(fd)
                         os.rename(fname + ".partial", fname)
                         return

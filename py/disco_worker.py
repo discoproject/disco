@@ -6,6 +6,7 @@ from netstring import *
 
 HTTP_PORT = "8989"
 LOCAL_PATH = "/var/disco/"
+PARAMS_FILE = LOCAL_PATH + "%s/params"
 EXT_MAP = LOCAL_PATH + "%s/ext-map"
 EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
 MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
@@ -38,10 +39,10 @@ def this_host():
         return sys.argv[3]
 
 def this_partition():
-        return int(sys.argv[4])
+        return int(sys.argv[5])
         
 def this_inputs():
-        return sys.argv[5:]
+        return sys.argv[6:]
 
 def ensure_path(path, check_exists = True):
         if check_exists and os.path.exists(path):
@@ -553,23 +554,29 @@ def op_reduce(job):
 
 
 if __name__ == "__main__":
-        if len(sys.argv) < 6:
+        if len(sys.argv) < 7:
                 err("Invalid command line. "\
                     "Usage: disco_worker.py [op_map|op_reduce] "\
-                    "name hostname partid inputs..")
+                    "name hostname master_url partid inputs..")
 
         if "op_" + sys.argv[1] not in globals():
                 err("Invalid operation: %s" % sys.argv[1])
       
         # Announce my PID to the master
         print >> sys.stderr, "**<PID>%s" % os.getpid()
-
+        
+        name = sys.argv[2]
+        master_url = sys.argv[4]
         try:
-                params_file = sys.stdin.readline().strip()
+                ensure_path("%s/%s/" % (LOCAL_PATH, name), False)
+                params_file = PARAMS_FILE % name
+                url_hdle = urllib.urlopen("%s/%s/params" % (master_url, name))
+                disco_external.ensure_file(params_file,\
+                        (master_url, url_hdle), mode = 444)
+                url_hdle.close()
                 m = decode_netstring_fd(file(params_file))
         except:
-                msg("Decoding the job description failed", "ERR")
-                raise
+                data_err("Decoding the job description failed", master_url)
 
         globals()["op_" + sys.argv[1]](m)
         msg("Worker done", "END")

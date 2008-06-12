@@ -6,17 +6,18 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
--record(state, {id, master, eventserv, port, from, jobname, partid, mode, 
-                child_pid, node, input, linecount, errlines, results}).
+-record(state, {id, master, master_url, eventserv, port, from, jobname, 
+                partid, mode, child_pid, node, input, linecount, errlines, 
+                results}).
 
 -define(SLAVE_ARGS, "-pa disco/master/ebin +K true").
 -define(CMD, "nice -n 19 python2.4 "
-                "disco/py/disco_worker.py '~s' '~s' '~s' '~w' ~s").
+                "disco/py/disco_worker.py '~s' '~s' '~s' '~s' '~w' ~s").
 -define(PORT_OPT, [{line, 100000}, {env, [{"PYTHONPATH", "disco/py"}]}, 
         binary, exit_status, use_stdio, stderr_to_stdout]).
 
 start_link_remote([SlaveName, Master, EventServ, From, JobName, PartID, 
-        Mode, Node, Input, Data]) ->
+        Mode, Node, Input]) ->
 
         ets:insert(active_workers, 
                 {self(), {From, JobName, Node, Mode, PartID}}),
@@ -32,19 +33,13 @@ start_link_remote([SlaveName, Master, EventServ, From, JobName, PartID,
                         end
         end,
         process_flag(trap_exit, true),
+        {ok, MasterUrl} = application:get_env(disco_url),
         spawn_link(NodeAtom, disco_worker, remote_worker, [[self(), JobName, Master,
-                EventServ, From, PartID, Mode, Node, Input]]),
+                MasterUrl, EventServ, From, PartID, Mode, Node, Input]]),
         receive
                 ok -> ok;
-                {copy_data, Pid} ->
-                        error_logger:info_report({"Starting to copy",
-                                size(Data), " to ", NodeAtom}),
-                        Sze = size(Data),
-                        {ok, Src} = ram_file:open(Data, [read, binary]),
-                        {ok, Sze} = file:copy(Src, Pid, Sze),
-                        ram_file:close(Src),
-                        Pid ! copy_ok,
-                        error_logger:info_report({"Copy ok" , NodeAtom})
+                {'EXIT', _, Reason} -> exit(Reason);
+                _ -> exit({error, invalid_reply})
         after 60000 ->
                 exit({data_error, Input})
         end,
@@ -60,30 +55,26 @@ wait_for_exit() ->
                 {'EXIT', _, Reason} -> exit(Reason)
         end.
 
-start_link([Parent, JobName|_] = Args) ->
+start_link([Parent|_] = Args) ->
         error_logger:info_report(["Worker starting at ", node(), Parent]),
-        {ok, PCache} = param_cache:start(),
-        {ok, ParamsFile} = gen_server:call(PCache,
-                {get_params, JobName, Parent}, 600000),
         {ok, Worker} = gen_server:start_link(disco_worker, Args, []),
-        ok = gen_server:call(Worker, {start_worker, ParamsFile}),
+        ok = gen_server:call(Worker, start_worker),
         Parent ! ok.
 
-init([Id, JobName, Master, EventServ, From, PartID, Mode, Node, Input]) ->
+init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
+        Mode, Node, Input]) ->
         process_flag(trap_exit, true),
         error_logger:info_report({"Init worker ", JobName, " at ", node()}),
         {ok, #state{id = Id, from = From, jobname = JobName, partid = PartID, 
-                    mode = Mode, master = Master, node = Node, input = Input,
-                    child_pid = none, eventserv = EventServ, linecount = 0,
+                    mode = Mode, master = Master, master_url = MasterUrl,
+                    node = Node, input = Input, child_pid = none, 
+                    eventserv = EventServ, linecount = 0,
                     errlines = [], results = []}}.
 
-handle_call({start_worker, ParamsFile}, _From, State) ->
+handle_call(start_worker, _From, State) ->
         Cmd = spawn_cmd(State),
         error_logger:info_report(["Spawn cmd: ", Cmd]),
         Port = open_port({spawn, spawn_cmd(State)}, ?PORT_OPT),
-        %Sze = size(State#state.data),
-        %port_command(Port, <<Sze:32/little>>),
-        port_command(Port, [ParamsFile, "\n"]),
         {reply, ok, State#state{port = Port}, 30000}.
 
 spawn_cmd(#state{input = [Input|_]} = S) when is_list(Input) ->
@@ -95,9 +86,9 @@ spawn_cmd(#state{input = [Input|_]} = S) when is_binary(Input) ->
         spawn_cmd(S#state{input = InputStr});
 
 spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
-                mode = Mode, input = Input}) ->
+                mode = Mode, input = Input, master_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
-                [Mode, JobName, Node, PartID, Input])).
+                [Mode, JobName, Node, Url, PartID, Input])).
 
 
 strip_timestamp(Msg) when is_binary(Msg) ->
@@ -213,7 +204,7 @@ terminate(_Reason, State) ->
                 % Kill child processes of the worker process
                 os:cmd("pkill -9 -P " ++ State#state.child_pid),
                 % Kill the worker process
-                os:cmd("kill -9 " ++ State#state.child_pid)
+                os:cmd("kill -9 " ++ State#state.child_pid);
         true -> ok
         end.
 

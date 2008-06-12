@@ -6,7 +6,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
--record(job, {jobname, partid, mode, prefnode, input, data, from}).
+-record(job, {jobname, partid, mode, prefnode, input, from}).
 
 start_link() ->
         error_logger:info_report([{"DISCO SERVER STARTS"}]),
@@ -40,11 +40,7 @@ init(_Args) ->
         % for each node.
         ets:new(node_stats, [named_table]),
 
-        SName = case os:getenv("SLAVENAME") of
-                false -> "discoslave";
-                X -> X
-        end,
-        put(slave_name, SName),
+        {ok, SName} = application:get_env(disco_slave),
         register(slave_master, spawn_link(fun() -> slave_master(SName) end)),
         {ok, []}.
 
@@ -93,12 +89,11 @@ handle_call({update_config_table, Config}, _From, State) ->
 % It is important that new_worker returns quickly. Job coordinator
 % assumes that it can send all tasks to the server at once, which 
 % must not take too long.
-handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input, Data}},
-                {Pid, _}, State) ->
+handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input}},
+        {Pid, _}, State) ->
         
         Job = #job{jobname = JobName, partid = PartID, mode = Mode,
-                    prefnode = PrefNode, input = Input, data = Data,
-                    from = Pid},
+                    prefnode = PrefNode, input = Input, from = Pid},
         
         gen_server:cast(job_queue, {add_job, Job}),
         event_server:event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
@@ -263,11 +258,10 @@ start_worker(J, Node) ->
         event_server:event(J#job.jobname, "~s:~B assigned to ~s",
                 [J#job.mode, J#job.partid, Node], []),
         ets:update_counter(node_load, Node, 1),
-
+        {ok, SName} = application:get_env(disco_slave),
         spawn_link(disco_worker, start_link_remote, 
-                [[get(slave_name), self(), whereis(event_server), J#job.from, 
-                J#job.jobname, J#job.partid, J#job.mode, Node, J#job.input, 
-                J#job.data]]),
+                [[SName, self(), whereis(event_server), J#job.from, 
+                J#job.jobname, J#job.partid, J#job.mode, Node, J#job.input]]),
         ok.
 
 % slave:start() contains a race condition, thus it is not safe to call it

@@ -17,6 +17,8 @@ conf(P) ->
 start(_Type, _Args) ->
         ScgiPort = conf(scgi_port),
         _DiscoConfig = conf(disco_config),
+        _DiscoRoot = conf(disco_root),
+        _DiscoUrl = conf(disco_url),
         supervisor:start_link(disco_main, [ScgiPort]).
 
 init([ScgiPort]) -> 
