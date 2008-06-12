@@ -1,4 +1,4 @@
-import os, subprocess, cStringIO, marshal, time, sys
+import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import httplib, re, traceback, tempfile, struct, urllib
 
 import disco_external
@@ -229,10 +229,9 @@ def netstr_reader(fd, content_len, fname):
         data = fd.read(8192)
         tot = idx = 0
         while tot < content_len:
+                key = val = ""
                 idx, data, tot, key = read_netstr(idx, data, tot)
-                if not key: break
                 idx, data, tot, val = read_netstr(idx, data, tot)
-                if not val: break
                 yield key, val
 
 def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
@@ -328,6 +327,13 @@ class ReduceOutput:
                 return "disco://%s/%s" %\
                         (this_host(), self.fname[len(LOCAL_PATH):])
 
+def num_cmp(x, y):
+        try:
+                x = (int(x[0]), x[1])
+                y = (int(y[0]), y[1])
+        except ValueError:
+                pass
+        return cmp(x, y)
 
 class ReduceReader:
         def __init__(self, input_files, do_sort, mem_sort_limit):
@@ -346,14 +352,14 @@ class ReduceReader:
                                 total_size += sze
 
                         msg("Reduce[%d] input is %.2fMB" %\
-                                (this_partition(), total_size / 1024**2))
+                                (this_partition(), total_size / 1024.0**2))
 
                         if total_size > mem_sort_limit:
                                 self.iterator = self.download_and_sort()
                         else: 
                                 msg("Sorting in memory")
                                 m = list(self.multi_file_iterator(self.inputs, False))
-                                m.sort()
+                                m.sort(num_cmp)
                                 self.iterator = self.list_iterator(m)
                 else:
                         self.iterator = self.multi_file_iterator(self.inputs)
@@ -384,7 +390,7 @@ class ReduceReader:
                 msg("Starting external sort")
                 sortname = REDUCE_SORTED % (job_name, this_partition())
                 ensure_path(sortname, False)
-                cmd = ["sort", "-s", "-k", "1,1", "-z",\
+                cmd = ["sort", "-n", "-s", "-k", "1,1", "-z",\
                         "-t", " ", "-o", sortname, dlname]
 
                 proc = subprocess.Popen(cmd)
@@ -496,7 +502,7 @@ def op_map(job):
                         map_params, EXT_MAP % job_name)
                 fun_map.func_code = disco_external.ext_map.func_code
         else:
-                map_params = marshal.loads(job['params'])        
+                map_params = cPickle.loads(job['params'])        
                 fun_map.func_code = marshal.loads(job['map'])
 
         if 'combiner' in job:
@@ -540,7 +546,7 @@ def op_reduce(job):
                 fun_reduce.func_code = disco_external.ext_reduce.func_code
         else:
                 fun_reduce.func_code = marshal.loads(job['reduce'])
-                red_params = marshal.loads(job['params'])
+                red_params = cPickle.loads(job['params'])
 
         red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit)
         red_out = ReduceOutput()

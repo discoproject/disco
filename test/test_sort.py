@@ -11,7 +11,8 @@ def fun_map(e, params):
 def fun_reduce(iter, out, params):
         prev = 0
         for k, v in iter:
-                if k < prev:
+                k = int(k)
+		if k < prev:
                         raise "Val %s < %s -> sorting failed" % (k, prev)
                 prev = k
                 out.add(k, v)
@@ -27,9 +28,9 @@ def run_disco(limit):
 
 tserver.run_server(data_gen)
 
-print "Testing in-memory sort"
-run_disco(1024**4)
-print "in-memory ok"
+#print "Testing in-memory sort"
+#run_disco(1024**4)
+#print "in-memory ok"
 
 print "Testing external sort"
 run_disco(0)

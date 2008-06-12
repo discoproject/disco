@@ -1,11 +1,16 @@
 
 from netstring import *
 import marshal, traceback, time, re, urllib, httplib, discoapi, os.path
+import cPickle
 from disco_worker import re_reader, netstr_reader, parse_dir
 
 DISCO_NEW_JOB = "/disco/job/new"
 HTTP_PORT = "8989"
 
+class Params:
+        def __init__(self, **kwargs):
+                for k, v in kwargs.iteritems():
+                        setattr(self, k, v)
 
 def default_partition(key, nr_reduces):
         return hash(str(key)) % nr_reduces
@@ -36,7 +41,7 @@ def external(files):
 
 def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
-        nr_maps = None, nr_reduces = None, sort = True, params = {},\
+        nr_maps = None, nr_reduces = None, sort = True, params = Params(),\
         mem_sort_limit = 256 * 1024**2, async = False, clean = True,\
         chunked = None, ext_params = None):
 
@@ -63,9 +68,12 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
                 req["map"] = marshal.dumps(fun_map.func_code)
         
         if ext_params:
-                req["ext_params"] = encode_netstring_fd(ext_params)
+                if type(ext_params) == dict:
+                        req["ext_params"] = encode_netstring_fd(ext_params)
+                else:
+                        req["ext_params"] = ext_params
         
-        req["params"] = marshal.dumps(params)
+        req["params"] = cPickle.dumps(params)
         req["partition"] = marshal.dumps(partition.func_code)
 
         if not nr_maps or nr_maps > len(inputs):
@@ -98,7 +106,6 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
                 req["combiner"] = marshal.dumps(combiner.func_code)
 
         msg = encode_netstring_fd(req)
-        print "LEDSN", len(msg)
         if master.startswith("stdout:"):
                 print msg,
         elif master.startswith("disco:"):
@@ -123,7 +130,10 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
 def result_iterator(results, notifier = None):
         res = []
         for dir_url in results:
-                res += parse_dir(dir_url)
+                if dir_url.startswith("dir://"):
+                        res += parse_dir(dir_url)
+                else:
+                        res.append(dir_url)
         for url in res:
                 host, fname = url[8:].split("/", 1)
                 ext_host = host + ":" + HTTP_PORT
