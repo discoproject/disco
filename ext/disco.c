@@ -2,17 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "disco.h"
-
-#define STDIN_READ(buf, len)\
-        if (!fread(buf, len, 1, stdin))\
-                die("Couldn't read %u bytes from stdin", len);
-
-#define STDOUT_WRITE(buf, len)\
-        if (!fwrite(buf, len, 1, stdout))\
-                die("Couldn't write %u bytes to stdout", len);
-
 
 void die(const char *fmt, ...)
 {
@@ -35,7 +27,7 @@ void msg(const char *fmt, ...)
         va_end(ap);
 }
 
-void *xmalloc(unsigned int size)
+void *dxmalloc(unsigned int size)
 {
        void *p = malloc(size);
        if (!p)
@@ -43,15 +35,29 @@ void *xmalloc(unsigned int size)
        return p;
 }
 
-static p_entry *read_pentry(unsigned int len)
+void copy_entry(p_entry **dst, const p_entry *src)
 {
-        p_entry *e = xmalloc(sizeof(p_entry) + len + 1);
-        if (len){
-                STDIN_READ(e->data, len);
+        if (!*dst || (*dst)->sze < src->len){
+                free(*dst);
+                *dst = dxmalloc(sizeof(p_entry) + src->len + 1);
+                (*dst)->sze = src->len;
         }
-        e->len = len;
-        e->data[len] = 0;
-        return e; 
+        (*dst)->len = src->len;
+        memcpy((*dst)->data, src->data, src->len + 1); 
+}
+
+static void read_pentry(p_entry **e, unsigned int len)
+{
+        if (!*e || (*e)->sze < len){
+                free(*e);
+                *e = dxmalloc(sizeof(p_entry) + len + 1);
+                (*e)->sze = len;
+        }
+        if (len){
+                STDIN_READ((*e)->data, len);
+        }
+        (*e)->len = len;
+        (*e)->data[len] = 0;
 }
 
 int read_kv(p_entry **key, p_entry **val)
@@ -59,9 +65,9 @@ int read_kv(p_entry **key, p_entry **val)
         unsigned int len;
         if (!fread(&len, 4, 1, stdin))
                 return 0;
-        *key = read_pentry(len);
+        read_pentry(key, len);
         STDIN_READ(&len, 4);
-        *val = read_pentry(len);
+        read_pentry(val, len);
         return 1;
 }
 
@@ -71,16 +77,18 @@ void write_num_prefix(int num)
         fflush(stdout);
 }
 
+void write_entry(const p_entry *e)
+{
+        STDOUT_WRITE(&e->len, 4);
+        if (e->len){
+                STDOUT_WRITE(e->data, e->len);
+        }
+}
+
 void write_kv(const p_entry *key, const p_entry *val)
 {
-        STDOUT_WRITE(&key->len, 4);
-        if (key->len){
-                STDOUT_WRITE(key->data, key->len);
-        }
-        STDOUT_WRITE(&val->len, 4);
-        if (val->len){
-                STDOUT_WRITE(val->data, val->len);
-        }
+        write_entry(key);
+        write_entry(val);
         fflush(stdout);
 }
 
@@ -89,7 +97,8 @@ static p_entry *read_netstr_entry(unsigned int *bytes)
         unsigned int len, n, tmp;
         if (!fscanf(stdin, "%u %n", &len, &n))
                 die("Couldn't parse item length");
-        p_entry *e = read_pentry(len);
+        p_entry *e = NULL;
+        read_pentry(&e, len);
         if (len){
                 STDIN_READ(&tmp, 1);
         }else

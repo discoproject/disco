@@ -3,6 +3,9 @@ from subprocess import *
 from netstring import decode_netstring_str
 import disco_external, disco_worker
 
+MAX_ITEM_SIZE = 1024**3
+MAX_NUM_OUTPUT = 1000000
+
 proc = None
 
 def pack_kv(k, v):
@@ -11,8 +14,12 @@ def pack_kv(k, v):
 
 def unpack_kv():
         le = struct.unpack("I", out_fd.read(4))[0]
+        if le > MAX_ITEM_SIZE:
+                raise "External key size exceeded: %d bytes" % le
         k = out_fd.read(le)
         le = struct.unpack("I", out_fd.read(4))[0]
+        if le > MAX_ITEM_SIZE:
+                raise "External key size exceeded: %d bytes" % le
         v = out_fd.read(le)
         return k, v
 
@@ -24,13 +31,46 @@ def ext_map(e, params):
                 k, v = e
         disco_external.in_fd.write(
                 disco_external.pack_kv(k, v))
+        disco_external.in_fd.flush()
         num = struct.unpack("I", disco_external.out_fd.read(4))[0]
-        return [disco_external.unpack_kv() for i in range(num)]
+        r = [disco_external.unpack_kv() for i in range(num)]
+        return r
 
 def ext_reduce(red_in, red_out, params):
-        for e in red_in:
-                for k, v in disco_external.ext_map(e, None):
-                        red_out.add(k, v)
+        import select
+        p = select.poll()
+        eof = select.POLLHUP | select.POLLNVAL | select.POLLERR
+        p.register(disco_external.out_fd, select.POLLIN | eof)
+        p.register(disco_external.in_fd, select.POLLOUT | eof)
+        MAX_NUM_OUTPUT = disco_external.MAX_NUM_OUTPUT
+
+        tt = 0
+        while True:
+                for fd, event in p.poll():
+                        if event & (select.POLLNVAL | select.POLLERR):
+                                raise "Pipe to the external process failed"
+                        elif event & select.POLLIN:
+                                num = struct.unpack("I",\
+                                        disco_external.out_fd.read(4))[0]
+                                if num > MAX_NUM_OUTPUT:
+                                        raise "External output limit "\
+                                                "exceeded: %d > %d" %\
+                                                (num, MAX_NUM_OUTPUT)
+                                for i in range(num):
+                                        red_out.add(*disco_external.\
+                                                unpack_kv())
+                                        tt += 1
+                        elif event & select.POLLOUT:
+                                try:
+                                        msg = disco_external.pack_kv(\
+                                                *red_in.next())
+                                        disco_external.in_fd.write(msg)
+                                        disco_external.in_fd.flush()
+                                except StopIteration:
+                                        p.unregister(disco_external.in_fd)
+                                        disco_external.in_fd.close()
+                        else:
+                                return
 
 def prepare(ext_job, params, path):
         write_files(marshal.loads(ext_job), path)

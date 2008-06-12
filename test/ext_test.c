@@ -25,12 +25,13 @@ int main(int argc, char **argv)
         msg("All parameters ok!");
         
         const char DVAL[] = "dkey";
-        p_entry *dkey = xmalloc(sizeof(p_entry) + sizeof(DVAL));
+        p_entry *dkey = dxmalloc(sizeof(p_entry) + sizeof(DVAL));
         dkey->len = sizeof(DVAL) - 1;
         memcpy(dkey->data, DVAL, dkey->len);
 
         int i = 0;
-        p_entry *key, *val;
+        p_entry *key = NULL;
+        p_entry *val = NULL;
         while (read_kv(&key, &val)){
                 msg("Got key <%s> val <%s>", key->data, val->data);
                 if (!key->len)
