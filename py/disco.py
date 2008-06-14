@@ -9,8 +9,34 @@ HTTP_PORT = "8989"
 
 class Params:
         def __init__(self, **kwargs):
+                self._state = {}
                 for k, v in kwargs.iteritems():
                         setattr(self, k, v)
+
+        def __setattr__(self, k, v):
+                if k[0] == '_':
+                        self.__dict__[k] = v
+                        return
+                st_v = v
+                st_k = "n_" + k
+                try:
+                        st_v = marshal.dumps(v.func_code)
+                        st_k = "f_" + k
+                except AttributeError:
+                        pass
+                self._state[st_k] = st_v
+                self.__dict__[k] = v
+        
+        def __getstate__(self):
+                return self._state
+
+        def __setstate__(self, state):
+                for k, v in state.iteritems():
+                        if k.startswith('f_'):
+                                t = lambda x: x
+                                t.func_code = marshal.loads(v)
+                                v = t
+                        self.__dict__[k[2:]] = v
 
 def default_partition(key, nr_reduces):
         return hash(str(key)) % nr_reduces
