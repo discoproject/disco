@@ -36,8 +36,8 @@ fi
 
 DISCO_URL="$DISCO_URL/_$DISCO_NAME/"
 
-PATH=.:$PATH erl +K true
-                 -sname $DISCO_NAME"_master"\
+PATH=.:$PATH erl +K true\
+		 -sname $DISCO_NAME"_master"\
                  -rsh ssh\
                  -smp on\
                  -pa ebin -pa src\

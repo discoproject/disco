@@ -1,4 +1,5 @@
-import httplib, cjson, time
+import urllib, httplib, cjson, time
+from netstring import decode_netstring_fd
 
 class JobException(Exception):
         def __init__(self, msg, master, name):
@@ -16,19 +17,21 @@ class Disco(object):
                 self.host = host.replace("disco://", "", 1)
                 self.conn = httplib.HTTPConnection(self.host)
 
-        def request(self, url, data = None):
+        def request(self, url, data = None, raw_handle = False):
                 try:
                         if data:
                                 self.conn.request("POST", url, data)
                         else:
                                 self.conn.request("GET", url, None)
                         r = self.conn.getresponse()
-                        return r.read()
+                        if raw_handle:
+                                return r
+                        else:
+                                return r.read()
                 except httplib.BadStatusLine:
                         self.conn.close()
                         self.conn = httplib.HTTPConnection(self.host)
                         return self.request(url, data)
-
 
         def nodeinfo(self):
                 return cjson.decode(self.request("/disco/ctrl/nodeinfo"))
@@ -38,6 +41,13 @@ class Disco(object):
         
         def clean(self, name):
                 self.request("/disco/ctrl/clean_job", '"%s"' % name)
+        
+        def parameters(self, name):
+                # Parameters request is handled with a separate connection that
+                # knows how to handle redirects.
+                r = urllib.urlopen("http://%s/disco/ctrl/parameters?name=%s"\
+                        % (self.host, name))
+                return decode_netstring_fd(r)
 
         def results(self, name):
                 r = self.request("/disco/ctrl/get_results?name=" + name)

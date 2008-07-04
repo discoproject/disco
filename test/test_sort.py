@@ -28,9 +28,9 @@ def run_disco(limit):
 
 tserver.run_server(data_gen)
 
-#print "Testing in-memory sort"
-#run_disco(1024**4)
-#print "in-memory ok"
+print "Testing in-memory sort"
+run_disco(1024**4)
+print "in-memory ok"
 
 print "Testing external sort"
 run_disco(0)

@@ -30,6 +30,11 @@ op("jobinfo", Query, _Json) ->
                 gen_server:call(event_server, {get_jobinfo, Name}),
         {ok, render_jobinfo(MapNfo, Nodes, Res, Tasks, Ready, Failed)};
 
+op("parameters", Query, _Json) ->
+        {value, {_, Name}} = lists:keysearch("name", 1, Query),
+        {ok, MasterUrl} = application:get_env(disco_url),
+        {relo, [MasterUrl, "/", Name, "/params"]};
+        
 op("jobevents", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         case lists:keysearch("find", 1, Query) of
@@ -123,8 +128,11 @@ handle(Socket, Msg) ->
                 Json = none
         end,
         Op = lists:last(string:tokens(binary_to_list(Script), "/")),
-        {ok, Res} = op(Op, httpd:parse_query(binary_to_list(Query)), Json),
-        gen_tcp:send(Socket, [?HTTP_HEADER, json:encode(Res)]).
+        Reply = case op(Op, httpd:parse_query(binary_to_list(Query)), Json) of
+                {ok, Res} -> [?HTTP_HEADER, json:encode(Res)];
+                {relo, Loc} -> ["HTTP/1.1 302 ok\nLocation: ", Loc, "\n\n"]
+        end,
+        gen_tcp:send(Socket, Reply).
 
 range_events(Name, Query) ->
         {value, {_, OffsS}} = lists:keysearch("offs", 1, Query),
