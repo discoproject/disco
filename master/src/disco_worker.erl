@@ -8,7 +8,11 @@
 
 -record(state, {id, master, master_url, eventserv, port, from, jobname, 
                 partid, mode, child_pid, node, input, linecount, errlines, 
-                results}).
+                results, last_msg, msg_counter}).
+
+-define(MAX_MSG_LENGTH, 255).
+-define(RATE_WINDOW, 100000). % 100ms
+-define(RATE_LIMIT, 5). 
 
 -define(SLAVE_ARGS, "-pa disco/master/ebin +K true").
 -define(CMD, "nice -n 19 python2.4 "
@@ -69,6 +73,7 @@ init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
                     mode = Mode, master = Master, master_url = MasterUrl,
                     node = Node, input = Input, child_pid = none, 
                     eventserv = EventServ, linecount = 0,
+                    last_msg = now(), msg_counter = 0,
                     errlines = [], results = []}}.
 
 handle_call(start_worker, _From, State) ->
@@ -117,9 +122,30 @@ parse_result(L) ->
 handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
         {noreply, S#state{child_pid = binary_to_list(Line)}}; 
 
-handle_info({_, {data, {eol, <<"**<MSG>", Line/binary>>}}}, S) ->
+
+handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
+        if size(Line0) > ?MAX_MSG_LENGTH ->
+                <<Line:?MAX_MSG_LENGTH/binary, _/binary>> = Line0;
+        true ->
+                Line = Line0
+        end,
+
+        T = now(),
+        D = timer:now_diff(S#state.last_msg, T),
         event(S, "", strip_timestamp(Line)),
-        {noreply, S#state{linecount = S#state.linecount + 1}};
+        S1 = S#state{last_msg = T, linecount = S#state.linecount + 1},
+        
+        if D > ?RATE_WINDOW ->
+                {noreply, S1#state{msg_counter = 1}};
+        S1#state.msg_counter > ?RATE_LIMIT ->
+                Err = "Message rate limit exceeded. Too many msg() calls.",
+                event(S, "ERROR", Err),
+                gen_server:cast(S#state.master, 
+                        {exit_worker, S#state.id, {job_error, Err}}),
+                {stop, normal, S1};
+        true ->
+                {noreply, S1#state{msg_counter = S1#state.msg_counter + 1}}
+        end;
 
 handle_info({_, {data, {eol, <<"**<ERR>", Line/binary>>}}}, S) ->
         M = strip_timestamp(Line),
