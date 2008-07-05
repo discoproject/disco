@@ -36,6 +36,9 @@ fi
 
 DISCO_URL="$DISCO_URL/_$DISCO_NAME/"
 
+# Prevent disasterous memory leaks from trashing the server (limit 16GB)
+ulimit -v 16000000
+
 PATH=.:$PATH erl +K true\
 		 -sname $DISCO_NAME"_master"\
                  -rsh ssh\
