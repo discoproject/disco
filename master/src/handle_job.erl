@@ -23,6 +23,11 @@ new_coordinator(Params) ->
         end.     
 
 save_params(Name, PostData) ->
+        C = string:chr(Name, $/) + string:chr(Name, $.),
+        if C > 0 ->
+                throw("Invalid name");
+        true -> ok
+        end,
         {ok, Root} = application:get_env(disco_root),
         ok = file:make_dir(filename:join(Root, Name)),
         ok = file:write_file(filename:join([Root, Name, "params"]), PostData).
@@ -55,7 +60,7 @@ init_job(PostData) ->
         end,
         error_logger:info_report([{"New job", Name}]),
         
-        case gen_server:call(event_server, {get_job_events, Name}) of
+        case gen_server:call(event_server, {get_job_events, Name, "", 1}) of
                 {ok, []} -> 
                         save_params(Name, PostData),
                         new_coordinator(Params);
@@ -128,7 +133,7 @@ wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
                 {job_ok, _Result, {Node, PartID}} -> 
                         event_server:event(Name, 
                                 "Received results from ~s:~B @ ~s.",
-                                        [Mode, PartID, Node], [task_ready, Mode]),
+                                        [Mode, PartID, Node], {task_ready, Mode}),
                         ets:insert(ResNodes, {lists:flatten(["dir://", Node, "/",
                                 Mode, "/", Name]), ok}),
                         M;
@@ -201,12 +206,14 @@ supervise_work(Inputs, Mode, Name, MaxN) ->
                         "ERROR: Job terminated due to the previous errors",
                                 [], []),
                         gen_server:call(disco_server, {kill_job, Name}),
+                        gen_server:cast(event_server, {flush_events, Name}),
                         exit(logged_error);
                 Error ->
                         event_server:event(Name, 
                         "ERROR: Job coordinator failed unexpectedly: ~p", 
                                 [Error], []),
                         gen_server:call(disco_server, {kill_job, Name}),
+                        gen_server:cast(event_server, {flush_events, Name}),
                         exit(unknown_error)
         end,
         ets:delete(ErrLog),
@@ -218,11 +225,12 @@ supervise_work(Inputs, Mode, Name, MaxN) ->
 % 2) Run map
 % 3) Optionally run reduce
 job_coordinator(Parent, {Name, MapInputs, NMap, NRed, DoReduce}) ->
-        event_server:event(Name, "Job coordinator starts", [], [start, self()]),
+        event_server:event(Name, "Job coordinator starts", [], {start, self()}),
         Parent ! {self(), ok},
 
         event_server:event(Name, "Starting map phase", [], 
-                [map_data, self(), NMap, NRed, DoReduce, MapInputs]),
+                {map_data, {NMap, NRed, DoReduce,
+                        lists:map(fun erlang:list_to_binary/1, MapInputs)}}),
 
         EnumMapInputs = lists:zip(
                 lists:seq(0, length(MapInputs) - 1), MapInputs),
@@ -235,14 +243,16 @@ job_coordinator(Parent, {Name, MapInputs, NMap, NRed, DoReduce}) ->
 
         if DoReduce ->
                 event_server:event(Name, "Starting reduce phase", [],
-                        [red_data, RedInputs]),
+                        {red_data, RedInputs}),
                 RedResults = supervise_work(RedInputs, "reduce", Name, NRed),
                 event_server:event(Name, "Reduce phase done", [], []),
-                event_server:event(Name, "READY", [], [ready, 
+                event_server:event(Name, "READY", [], {ready, 
                         [list_to_binary(X) ||
-                                {X, _} <- ets:tab2list(RedResults)]]),
+                                {X, _} <- ets:tab2list(RedResults)]}),
+                gen_server:cast(event_server, {flush_events, Name}), 
                 ets:delete(RedResults);
         true ->
-                event_server:event(Name, "READY", [], [ready,
-                        [list_to_binary(X) || X <- MapList]])
+                event_server:event(Name, "READY", [], {ready,
+                        [list_to_binary(X) || X <- MapList]}),
+                gen_server:cast(event_server, {flush_events, Name})
         end.

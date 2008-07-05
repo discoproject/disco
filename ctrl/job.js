@@ -4,31 +4,17 @@ $(document).ready(function(){
         $("#kill_job").click(kill_job);
         $("#clean_job").click(clean_job);
 
-        $("#show_page").click(function(){
-                r = $("#pagerange").val().split("-");
-                if (r.length == 1)
-                        r = [r[0], parseInt(r[0]) + 100];
-                if (r[0] < r[1]){
-                        $.getJSON("/disco/ctrl/jobevents" + 
-                                document.location.search +
-                                "&offs=" + r[0] + "&num=" + (r[1] - r[0]), 
-                                        update_events); 
-                }else{
-                        $("#pagerange").val("");
-                }
-        });
-
         $("#find_page").click(function(){
                 $.getJSON("/disco/ctrl/jobevents" +
                         document.location.search +
-                        "&find=" + $("#pagesearch").val(),
+                        "&num=200&filter=" + $("#pagesearch").val(),
                                 update_events);
         });
 
         $.getJSON("/disco/ctrl/jobinfo" + document.location.search,
                 update_jobinfo);
         $.getJSON("/disco/ctrl/jobevents" + document.location.search +
-                "&offs=0&num=100", update_events); 
+                "&num=100", update_events); 
 });
 
 function kill_job(){
@@ -65,7 +51,7 @@ function update_jobinfo(data){
         $("#jobinfo_map").html(make_jobinfo_row(data.mapi, "Map"));
         $("#jobinfo_red").html(make_jobinfo_row(data.redi, "Reduce"));
 
-        if (data.inputs.length > 100){
+        if (data.inputs.length >= 100){
                 $("#map_inputs").html("Showing the first 100 inputs<br/>" + 
                         data.inputs.slice(0, 100).join("<br/>"));
         }else{
@@ -98,64 +84,44 @@ function click_node()
 }
 
 function update_events(events_msg, success, is_auto){
+        
         if ($("#pagesearch").val() && is_auto != undefined)
                 return;
-        if ($("#pagerange").val() && is_auto != undefined)
-                return;
         
-        if (events_msg[0] > 0){
-                if (events_msg[0] < 100)
-                        events_msg[0] = 100;
-                $("#prev_page").show().unbind('click').click(function(){
-                        $.getJSON("/disco/ctrl/jobevents" +
-                                document.location.search + 
-                                "&offs=" + (events_msg[0] - 100) +
-                                "&num=100", update_events)
-                }).text("newer events (" + (events_msg[0] - 100) + "-" + 
-                        (events_msg[0]) + ")");
-        }else
-                $("#prev_page").hide();
-
-        if (events_msg[2]){
-                $("#next_page").show().unbind('click').click(function(){
-                        $.getJSON("/disco/ctrl/jobevents" +
-                                document.location.search + 
-                                "&offs=" + (events_msg[0] + events_msg[1]) +
-                                "&num=100", update_events);
-                }).text("older events (" + (events_msg[0] + events_msg[1]) + "-" + 
-                        (events_msg[0] + events_msg[1] + 100) + ")");
-        }else
-                $("#next_page").hide();
-
-        $(".jobevents").html($.map(events_msg[3], make_event)); 
+        $(".jobevents").html($.map(events_msg, make_event)); 
         $(".jobevent .node").click(click_node);
 
-        if ($("#nfo_active").text() == "active" && events_msg[0] == 0)
+        if ($("#nfo_active").text() == "active")
                 setTimeout(function(){
                         $.getJSON("/disco/ctrl/jobevents" +
                                 document.location.search + 
-                                        "&offs=0&num=100", function(e, x){
+                                        "&num=100", function(e, x){
                                                 update_events(e, x, "auto");
                                 });
                 }, 10000);
 }
 
-
 function make_event(E, i){
-        if (E.msg.match("^WARN"))
+        var sp = E.indexOf(";")
+        var msg = E.slice(sp + 1)
+        var tmp = E.slice(0, sp).split("@")
+        var tstamp = tmp[0]
+        var host = tmp[1]
+
+        if (msg.match("^WARN"))
                 id = "ev_warning";
-        else if (E.msg.match("^ERROR"))
+        else if (msg.match("^ERROR"))
                 id = "ev_error";
-        else if (E.msg.match("^READY"))
+        else if (msg.match("^READY"))
                 id = "ev_ready";
         else
                 id = ""
 
-        var msg = $.map(E.msg.split("\n"), 
+        var msg = $.map(msg.split("\n"), 
                 function(X, i){return $.create("pre", {}, [X])});
 
-        var body = [$.create("span", {"class": "tstamp"}, [E.tstamp]),
-                    $.create("span", {"class": "node"}, [E.host]),
+        var body = [$.create("span", {"class": "tstamp"}, [tstamp]),
+                    $.create("span", {"class": "node"}, [host]),
                     $.create("div", {"class": "evtext", "id": id}, msg)];
         return $.create("div", {"class": "jobevent"}, body);
 }

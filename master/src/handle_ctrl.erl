@@ -15,7 +15,7 @@ op("load_config_table", _Query, _Json) ->
 op("joblist", _Query, _Json) ->
         {ok, Lst} = gen_server:call(event_server, get_jobnames),
         Nu = now(),
-        TLst = lists:map(fun([J, T, P]) ->
+        TLst = lists:map(fun({J, T, P}) ->
                 {round(timer:now_diff(Nu, T) / 1000000),
                         process_status(J, is_process_alive(P)),
                         list_to_binary(J)}
@@ -26,21 +26,31 @@ op("jobinfo", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, {Nodes, Tasks}} =
                 gen_server:call(disco_server, {get_active, Name}),
-        {ok, {MapNfo, Res, Ready, Failed}} =
+        {ok, {TStamp, Pid, MapNfo, Res, Ready, Failed}} =
                 gen_server:call(event_server, {get_jobinfo, Name}),
-        {ok, render_jobinfo(MapNfo, Nodes, Res, Tasks, Ready, Failed)};
+        {ok, render_jobinfo(TStamp, Pid, MapNfo, Nodes, 
+                Res, Tasks, Ready, Failed)};
 
 op("parameters", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, MasterUrl} = application:get_env(disco_url),
         {relo, [MasterUrl, "/", Name, "/params"]};
+
+op("rawevents", Query, _Json) ->
+        {value, {_, Name}} = lists:keysearch("name", 1, Query),
+        {ok, MasterUrl} = application:get_env(disco_url),
+        {relo, [MasterUrl, "/", Name, "/events"]};
         
 op("jobevents", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        case lists:keysearch("find", 1, Query) of
-                false -> range_events(Name, Query);
-                {value, {_, Find}} -> search_events(Name, Find)
-        end;
+        {value, {_, NumS}} = lists:keysearch("num", 1, Query),
+        Num = list_to_integer(NumS),
+        Q = case lists:keysearch("filter", 1, Query) of
+                false -> "";
+                {value, {_, F}} -> string:to_lower(F)
+        end,
+        gen_server:call(event_server,
+                {get_job_events, Name, string:to_lower(Q), Num});
 
 op("nodeinfo", _Query, _Json) ->
         {ok, {Available, Active}} = 
@@ -64,11 +74,11 @@ op("clean_job", _Query, Json) ->
 op("get_results", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         case gen_server:call(event_server, {get_results, Name}) of
-                {ok, [], []} -> {ok, [<<"unknown job">>, []]};
-                {ok, [Pid], []} -> V = is_process_alive(Pid),
+                invalid_job -> {ok, [<<"unknown job">>, []]};
+                {ok, Pid} -> V = is_process_alive(Pid),
                                  if V -> {ok, [<<"active">>, []]};
                                  true -> {ok, [<<"dead">>, []]} end;
-                {ok, _, Events} -> {ok, [<<"ready">>, Events]}
+                {ok, _, Res} -> {ok, [<<"ready">>, Res]}
         end;
 
 op("get_blacklist", _Query, _Json) ->
@@ -130,57 +140,27 @@ handle(Socket, Msg) ->
         Op = lists:last(string:tokens(binary_to_list(Script), "/")),
         Reply = case op(Op, httpd:parse_query(binary_to_list(Query)), Json) of
                 {ok, Res} -> [?HTTP_HEADER, json:encode(Res)];
+                {raw, Res} -> [?HTTP_HEADER, Res];
                 {relo, Loc} -> ["HTTP/1.1 302 ok\nLocation: ", Loc, "\n\n"]
         end,
         gen_tcp:send(Socket, Reply).
 
-range_events(Name, Query) ->
-        {value, {_, OffsS}} = lists:keysearch("offs", 1, Query),
-        {value, {_, NumS}} = lists:keysearch("num", 1, Query),
-        Offs = list_to_integer(OffsS),
-        Num = list_to_integer(NumS),
-        case gen_server:call(event_server, {get_job_events, Name}) of
-                {ok, []} -> {ok, [Offs, Num, false, []]};
-                {ok, Events} -> {ok, [Offs, Num, Offs + Num < length(Events),
-                        page(lists:reverse(Events), Offs, Num)]}
-        end.
-
-search_events(Name, Query) ->
-        Q = string:to_lower(Query),
-        case gen_server:call(event_server, {get_job_events, Name}) of
-                {ok, []} -> {ok, [-1, 0, false, []]};
-                {ok, Events} -> {ok, [-1, 0, false, render_page(
-                        lists:filter(fun({_, _, [M|_]}) ->
-                                string:str(string:to_lower(
-                                        binary_to_list(M)), Q) > 0
-                        end, lists:reverse(Events)))]}
-        end.
-
 process_status(_Jobname, true) -> <<"job_active">>;
 process_status(JobName, false) ->
         case gen_server:call(event_server, {get_results, JobName}) of
-                {ok, _, []} -> <<"job_died">>;
+                {ok, _} -> <<"job_died">>;
                 {ok, _, _} -> <<"job_ready">>
         end.
 
-page(E, O, N) when O < 0; N < 0 ->
-        render_page(E);
-page(E, O, N) when O =< length(E) ->
-        render_page(lists:sublist(E, O + 1, N));
-page(E, O, _N) when O > length(E) -> [].
-render_page(E) ->
-        [{obj, [{tstamp, T}, {host, H}, {msg, M}]} || {{_, T}, H, [M|_]} <- E].
-
 count_maps(L) ->
-        N = length(lists:filter(fun
-                (["map"]) -> true;
-                ([["map"]]) -> true;
-                (_) -> false
-        end, L)),
-        {N, length(L) - N}.
+        {M, N} = lists:foldl(fun
+                ("map", {M, N}) -> {M + 1, N + 1};
+                (["map"], {M, N}) -> {M + 1, N + 1};
+                (_, {M, N}) -> {M, N + 1}
+        end, {0, 0}, L),
+        {M, N - M}.
 
-render_jobinfo([], _, _, _, _, _) -> [];
-render_jobinfo([[Tstamp, [JobPid, NMap, NRed, DoRed, Inputs]]],
+render_jobinfo(Tstamp, JobPid, [{NMap, NRed, DoRed, Inputs}],
         Nodes, Res, Tasks, Ready, Failed) ->
 
         {NMapRun, NRedRun} = count_maps(Tasks),
@@ -200,7 +180,7 @@ render_jobinfo([[Tstamp, [JobPid, NMap, NRed, DoRed, Inputs]]],
                         NRedRun, NRedDone, NRedFail]},
                {reduce, DoRed},
                {results, lists:flatten(Res)},
-               {inputs, lists:map(fun erlang:list_to_binary/1, Inputs)},
+               {inputs, lists:sublist(Inputs, 100)},
                {nodes, lists:map(fun erlang:list_to_binary/1, Nodes)}
         ]}.
 

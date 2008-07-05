@@ -109,7 +109,7 @@ strip_timestamp(Msg) ->
 event(S, "WARN", Msg) ->
         event_server:event(S#state.eventserv, S#state.node, S#state.jobname,
                 "~s [~s:~B] ~s", ["WARN", S#state.mode, S#state.partid, Msg],
-                        [task_failed, S#state.mode]);
+                        {task_failed, S#state.mode});
 
 event(S, Type, Msg) ->
         event_server:event(S#state.eventserv, S#state.node, S#state.jobname,
