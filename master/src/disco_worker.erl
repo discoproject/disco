@@ -131,7 +131,7 @@ handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
         end,
 
         T = now(),
-        D = timer:now_diff(S#state.last_msg, T),
+        D = timer:now_diff(T, S#state.last_msg),
         event(S, "", strip_timestamp(Line)),
         S1 = S#state{last_msg = T, linecount = S#state.linecount + 1},
         
