@@ -47,6 +47,17 @@ Use the :func:`disco_worker.msg` function. Here's an example::
 Note that you must not call :func:`disco_worker.msg` too often. If you send more
 than 10 messages per second, Disco will kill your job.
 
+Can I query / clean / kill Disco jobs in a shell script?
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-Disco Internals
----------------
+Yes. Use the command line interface provided by the :mod:`discoapi` module.
+
+My input files are stored in CSV / XML / XYZ format. What is the easiest to use them in Disco?
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+If the format is textual, it may be possible to define a regular expression that
+can be used to extract input entries from the files. See
+:func:`disco_worker.re_reader` for more information. 
+
+
+

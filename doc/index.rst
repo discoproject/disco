@@ -11,6 +11,7 @@ Contents:
    :maxdepth: 1
 
    What is Disco? <intro>
+   tutorial
    py/index
    external
    FAQ <faq>

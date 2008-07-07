@@ -8,16 +8,16 @@
 The :mod:`disco` module provides a high-level interface for running Disco jobs.
 
 This module also contains a number of generic functions that can be used
-in jobs, as well as utility functions and objects that help in specifying
+in jobs, as well as utility functions and objects that help specifying
 jobs and retrieving their results.
 
 For a lower-level interface for Disco's Web API, see :mod:`discoapi`.
 
-A new job is started with the :func:`disco.job` function. It takes all
-information needed to run a job and posts the job request to a Disco
-master.  In the default case, it blocks to wait for the results. The
-results are not fetched automatically to the calling host, but they can
-be explicitely retrieved with :func:`disco.result_iterator`.
+A new job is started with the :func:`disco.job` function. The function
+is provided with all information needed to run a job, which it packages
+and sends to the master. In the default case, it blocks to wait for the
+results. Once the job has finished, it returns a list of URLs to the
+result files, which can be retrieved with :func:`disco.result_iterator`.
 
 A Disco job may contain several user-defined functions, as specified
 below. When writing custom functions, take into account the following 
@@ -123,9 +123,9 @@ The module :mod:`disco` exports the following classes and functions:
 .. function:: result_iterator(results[, notifier])
 
    Iterates the key-value pairs in job results. *results* is a list of
-   results, as returned by func:`disco.job` in the synchronous mode or
-   func:`discoapi.wait` or func:`discoapi.results` in the asynchronous
-   mode.
+   results, as returned by :func:`disco.job` in the synchronous mode
+   or :meth:`discoapi.Disco.wait` or :meth:`discoapi.Disco.results`
+   in the asynchronous mode.
 
    *notifier* is a function that accepts a single parameter, a URL of
    the result file, that is called when the iterator moves to the next
@@ -136,6 +136,9 @@ The module :mod:`disco` exports the following classes and functions:
    Starts a new Disco job. The first four parameters are required, which define
    the disco master to be used, name of the job, input files, and a map
    function. The rest of the parameters are optional.
+
+   :func:`disco.job` raises a :class:`discoapi.JobException` if an error occurs
+   when the job is run.
 
      * *master* - a URL pointing at the Disco master, for instance ``disco://localhost:5000``.
 
@@ -293,12 +296,12 @@ The module :mod:`disco` exports the following classes and functions:
        
        By setting *async = True*, the function returns immediately when
        the request has been sent and returns the job ID. After this,
-       you can use functions in the module :mod:``discoapi`` for querying
+       you can use functions in the module :mod:`discoapi` for querying
        the job status, receiving the results etc.
 
      * *clean* - clean the job records from the master after the results have
        been returned, if the job was succesful. By default true. If set to
-       false, you must use either :func:``discoapi.clean`` or the web interface
+       false, you must use either :func:`discoapi.Disco.clean` or the web interface
        manually to clean the job records.
 
      * *chunked* - if the reduce function is specified, the worker saves
