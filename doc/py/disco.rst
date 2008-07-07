@@ -118,7 +118,7 @@ The module :mod:`disco` exports the following classes and functions:
                         ["/home/john/bin/cmap", "/home/john/cmap.conf"]))
 
    All files listed in *files* are copied to the same directory so any file
-   hierarchy is lost between the files.
+   hierarchy is lost between the files. For more information, see :ref:`discoext`.
 
 .. function:: result_iterator(results[, notifier])
 
@@ -169,6 +169,9 @@ The module :mod:`disco` exports the following classes and functions:
        specified by *params* in :func:`disco.job`. It may be used to maintain state
        between several calls to the map function.
 
+       The map task can also be an external program. For more information, see
+       :ref:`discoext`.
+        
      * *map_reader* - a function that parses input entries from an input file. By
        default :func:`disco.map_line_reader`. The function is defined as follows::
 
@@ -204,6 +207,9 @@ The module :mod:`disco` exports the following classes and functions:
 
        By default no reduce function is specified and the job will quit after
        the map functions have finished.
+       
+       The reduce task can also be an external program. For more
+       information, see :ref:`discoext`.
 
      * *partition* - a :term:`pure function` that defines the partitioning
        function, that is, the function that decides how the map outputs
@@ -331,6 +337,8 @@ The module :mod:`disco` exports the following classes and functions:
        interface, it can receive parameters in any format. In this case,
        the *ext_params* value can be an arbitrary string which can be
        decoded by the program properly.
+       
+       For more information, see :ref:`discoext`.
 
  
 

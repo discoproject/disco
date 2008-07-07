@@ -3,17 +3,17 @@ Tutorial
 ========
 
 This tutorial shows how to create and run a Disco job that counts words in a
-large text files. To start with, you need nothing but a single large text file.
+large text file. To start with, you need nothing but a single large text file.
 Let's call the file ``bigfile.txt``.
 
 Prepare input data
 ------------------
 
-Disco can distribute computation only if data is distributed as well. Thus our
-first step is to split ``bigfile.txt`` into small chunks. There is a standard
-Unix command, ``split``, that can split a file to many pieces, which does
-exactly what we want. We need also a directory where the chunks are stored.
-Let's call it ``bigtxt``::
+Disco can distribute computation only if data is distributed as well. Thus
+our first step is to split ``bigfile.txt`` into small chunks. There is a
+standard Unix command, ``split``, that can split a file into many pieces,
+which is exactly what we want. We need also a directory where the chunks
+are stored.  Let's call it ``bigtxt``::
 
         % mkdir bigtxt
         % split -l 100000 bigfile.txt bigtxt/bigtxt-
@@ -97,7 +97,7 @@ is an iterator that loops through the intermediate values produced by
 the map function, which belong to this reduce instance or partition.
 
 In this case, different words are randomly assigned to different reduce
-instance. Again, this is something that can be changed --- see the
+instances. Again, this is something that can be changed --- see the
 parameter *partition* in :func:`disco.job` for more information. However,
 as long as all occurrences of the same word goes to the same reduce,
 we can be sure that the final counts are correct.
@@ -120,7 +120,7 @@ Run job
 Now the only thing missing is a command for running the job. In Disco,
 a single function call is needed to start a new job, which is aptly
 called :func:`disco.job`. There's a large number of parameters that you can
-use to tune your job but luckily only first three of them are required.
+use to tune your job but luckily only the first three of them are required.
 
 In addition to starting the job, we want to print out the results as well.
 A function called :func:`disco.result_iterator` takes a list of addresses to
@@ -149,8 +149,8 @@ If everything goes well, the script pauses for some time while the
 job executes. The inputs are read from the file ``bigtxt.chunks``
 which was created earlier. Finally the outputs are written to
 ``bigtxt.results``.  While the job is running, you can point your web
-browser at ``http://localhost:5000`` which lets you to follow the progress
-of your job in real time.
+browser at ``http://localhost:5000`` which lets you follow the progress
+of your job in real-time.
 
 Note that in your case the Disco master, specified here by
 ``disco://localhost:5000``, might be running on a different address. If you
