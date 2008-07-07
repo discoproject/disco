@@ -35,6 +35,9 @@ class Disco(object):
 
         def nodeinfo(self):
                 return cjson.decode(self.request("/disco/ctrl/nodeinfo"))
+
+        def joblist(self):
+                return cjson.decode(self.request("/disco/ctrl/joblist"))
         
         def kill(self, name):
                 self.request("/disco/ctrl/kill_job", '"%s"' % name)
@@ -42,7 +45,7 @@ class Disco(object):
         def clean(self, name):
                 self.request("/disco/ctrl/clean_job", '"%s"' % name)
         
-        def parameters(self, name):
+        def jobspec(self, name):
                 # Parameters request is handled with a separate connection that
                 # knows how to handle redirects.
                 r = urllib.urlopen("http://%s/disco/ctrl/parameters?name=%s"\
