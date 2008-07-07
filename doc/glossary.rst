@@ -18,12 +18,12 @@ Glossary
         Job functions are the functions that the user can specify in
         :func:`disco.job`. Currently, the functions *map*, *reduce*,
         *combiner*, *partitioner* are referred as job functions. A job
-        functions needs to be a :term:`pure function`.
+        function needs to be a :term:`pure function`.
 
    pure function
         The pure function always evaluates the same result value given
         the same argument value(s).  The function should not depend on
-        any global variables, thus it must be totally self-contained. In Disco,
+        any global variables and it must be totally self-contained. In Disco,
         all :term:`job functions` must be pure.
 
         See http://en.wikipedia.org/wiki/Pure_function for more information.

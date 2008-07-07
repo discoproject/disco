@@ -99,7 +99,7 @@ the map function, which belong to this reduce instance or partition.
 In this case, different words are randomly assigned to different reduce
 instances. Again, this is something that can be changed --- see the
 parameter *partition* in :func:`disco.job` for more information. However,
-as long as all occurrences of the same word goes to the same reduce,
+as long as all occurrences of the same word go to the same reduce,
 we can be sure that the final counts are correct.
 
 So we iterate through all the words, and increment a counter in the

@@ -6,10 +6,9 @@ Disco External Interface
 
 Disco provides an external interface for specifying map and reduce
 functions as external programs, instead of Python functions. This feature
-is useful if you have already existing programs or libraries that you
-would like to use in a Disco job, or your map / reduce :term:`task`
-is severely CPU or memory-bound and implementing it, say, in C, would
-remedy the problem.
+is useful if you have already an existing program or a library which could be
+useful for a Disco job, or your map / reduce :term:`task` is severely CPU
+or memory-bound and implementing it, say, in C, would remedy the problem.
 
 Note that currently the external interface is not suitable for speeding up
 jobs that are mostly IO bound, or slowed down due to the overhead caused
@@ -102,10 +101,11 @@ where *num-pairs* is a 32-bit integer, which may be zero. It is followed by
 exactly *num-pairs* consequent key-value pairs as defined above.
 
 Inputs for the external map are read using the provided *map_reader*. The
-map reader may either produce each input entry as a string, in which
-case it is sent to the external map as a key-value pair where key is an
-empty string. Or, the reader may produce a key-value pair as strings,
-which are sent to the map as is.
+map reader may produce each input entry as a single string (like the
+default :func:`disco.map_line_reader` does) that is used as the value
+in a key-value pair where the key is an empty string. Alternatively,
+the reader may return a pair of strings as a tuple, in which case both
+the key and the value are specified.
 
 The map finishes when the result list for the final key-value pair
 is received.
@@ -152,7 +152,7 @@ Any parameters for the external program must be specified in the
 *ext_params* parameter for :func:`disco.job`. If *ext_params* is specified
 as a string, Disco will provide it as is for the external program in the
 standard input, before any key-value pairs. It is on the responsibility
-of the external program to read all bytes that belong to the parameter set,
+of the external program to read all bytes that belong to the parameter set
 before starting to receive key-value pairs.
 
 As a special case, the standard C interface for Disco, as specified
@@ -171,9 +171,11 @@ single flat directory on the target node, so the program must be prepared
 to access any supporting files on its current working directory, including
 any libraries it needs.
 
-Any special settings, or environment variables, that the program needs to be
-set can be usually arranged by a separate shell script that prepares the
-environment before running the actual executable.
+Any special settings, or environment variables, that the program needs to
+be set can be usually arranged by a separate shell script that prepares
+the environment before running the actual executable. In that case your
+main program will be the shell script, and the actual executable one of
+the supporting files.
 
 An external program absolutely must not read any files besides the ones
 included in its supporting files. It must not write to any files on its
@@ -212,7 +214,8 @@ Disco comes with a tiny C file, *ext/disco.c* and a header, *ext/disco.h*
 which wrap the external interface behind a few simple functions. The
 library takes care of allocating memory for incoming key-value pairs,
 without doing malloc-free for each pair separately. It also takes care
-of reading a parameter dictionary to a `Judy array <http://judy.sf.net>`_.
+of reading a parameter dictionary to a `Judy array <http://judy.sf.net>`_
+which is like a dictionary object for C.
 
 Here's a simple external map program that echoes back each key-value pair,
 illustriating usage of the library.
@@ -263,8 +266,16 @@ The following functions are available in the library
 
    .. ***
 
-   Reads a key-value pair from the standard input. Returns key and value
-   strings in :ctype:`p_entry` structs.
+   Reads a key-value pair from the standard input. :cfunc:`read_kv`
+   can re-use *key* and *value* across many calls, so there is no need
+   to *free()* them explicitely. If you need to save a key-value pair
+   on some iteration, use :cfunc:`copy_entry` to make a copy of the
+   desired entry. Naturally you are responsible for freeing any copy that
+   isn't needed anymore, unless you re-use it as a :cfunc:`copy_entry`
+   destination. To summarize, you need to call *free()* for entries that
+   won't be re-used in a :cfunc:`copy_entry` or :cfunc:`read_kv` call.
+   
+   Returns key and value strings in :ctype:`p_entry` structs.
 
         .. ctype:: p_entry
            
