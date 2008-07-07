@@ -8,11 +8,14 @@ Welcome to Disco's documentation!
 Contents:
 
 .. toctree::
-   :maxdepth: 2
-   :glob:
+   :maxdepth: 1
 
-   py/*
+   What is Disco? <intro>
+   py/index
+   external
+   FAQ <faq>
    glossary
+   
 
 
 Indices and tables
