@@ -46,8 +46,6 @@ so light that the execution time is dominated by the overhead caused
 by Disco, you can expect to gain some speedup by adding more maps until
 the number of maps equals to the number of available CPUs.
 
-
-
 How do I pass the output of one map-reduce phase to another?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
