@@ -19,7 +19,7 @@ Disco is based on the master-slave architecture.
  
  * **Python workers** take the user-specified :term:`job functions`, run them
    with the specified input, and write output to result files. As the result,
-   they send addresses to the result files to the master through their
+   they send addresses of the result files to the master through their
    supervisor.
 
  * Input files are accessed via HTTP, unless Python worker runs on the same node

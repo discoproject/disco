@@ -1,6 +1,6 @@
 
-Disco 
-=====
+What is Disco?
+==============
 
 Disco is an implementation of the Map-Reduce framework [MapReduce]_ for
 distributed computing. As the original framework, which was publicized
