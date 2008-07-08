@@ -10,7 +10,8 @@ Contents:
 .. toctree::
    :maxdepth: 1
 
-   What is Disco? <intro>
+   intro
+   overview
    tutorial
    py/index
    external
