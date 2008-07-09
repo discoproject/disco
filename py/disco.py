@@ -133,7 +133,10 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
 
         msg = encode_netstring_fd(req)
         if master.startswith("stdout:"):
+                async = True
                 print msg,
+        elif master.startswith("debug:"):
+                return req
         elif master.startswith("disco:"):
                 reply = urllib.urlopen(master.replace("disco:", "http:", 1)\
                         + DISCO_NEW_JOB, msg)

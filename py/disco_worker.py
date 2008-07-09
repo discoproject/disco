@@ -5,7 +5,11 @@ import disco_external
 from netstring import *
 
 HTTP_PORT = "8989"
-LOCAL_PATH = "/var/disco/"
+if "DISCO_HOME" in os.environ:
+        LOCAL_PATH = os.environ['DISCO_HOME']
+else:
+        LOCAL_PATH = "/var/disco/"
+
 PARAMS_FILE = LOCAL_PATH + "%s/params"
 EXT_MAP = LOCAL_PATH + "%s/ext-map"
 EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
@@ -517,7 +521,7 @@ def op_map(job):
                 p.close()
         if 'chunked' in job:
                 merge_chunks(partitions)
-                out = "chunk://%s/%s/map-%d" %\
+                out = "chunk://%s/%s/map-chunk-%d" %\
                         (this_host(), job_name, this_partition())
         else:
                 out = partitions[0].disco_address()
