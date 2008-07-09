@@ -3,6 +3,19 @@ os.environ['DISCO_HOME'] = "./"
 import sys, disco, disco_worker
 from netstring import decode_netstring_fd
 
+class MsgStream:
+        def __init__(self):
+                self.out = []
+        def write(self, msg):
+                if msg.startswith("**<OUT>"):
+                        addr = msg.split()[-1]
+                        fname = "/".join(addr.split("/")[-2:])
+                        if addr.startswith("chunk://"):
+                                self.out.append("chunkfile://" + fname)
+                        else:
+                                self.out.append("file://" + fname)
+                print msg,
+
 class HomeDisco:
         
         def __init__(self, mode, partition = "0"):
@@ -15,10 +28,13 @@ class HomeDisco:
                 req = disco.job(*args, **kwargs)
 
                 argv_backup = sys.argv[:]
+                out_backup = sys.stderr
                 sys.argv = ["", "", "", "", "", ""]
                 sys.argv[3] = "localhost"
                 sys.argv[5] = self.partition
                 sys.argv += args[2]
+                
+                sys.stderr = out = MsgStream()
                 try:
                         if self.mode == "map":
                                 disco_worker.op_map(req)
@@ -30,6 +46,8 @@ class HomeDisco:
                                         % self.mode
                 finally:
                         sys.argv = argv_backup
+                        sys.stderr = out_backup
+                return out.out
 
 if __name__ == "__main__":
         
@@ -46,5 +64,10 @@ if __name__ == "__main__":
         f.close()
 
         d = HomeDisco("map")
-        d.job("disco://localhost:5000", "homedisco",\
+        res = d.job("disco://localhost:5000", "homedisco",\
                 ["homedisco-test"], fun_map, reduce = fun_reduce)
+        res = HomeDisco("reduce").job("disco://localhost:5000", "homedisco",\
+                res, fun_map, reduce = fun_reduce)
+        for k, v in disco.result_iterator(res):
+                print "K", k, "V", v
+

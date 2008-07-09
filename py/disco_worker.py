@@ -166,7 +166,13 @@ def connect_input(input):
 		local_file = None
         else:
                 host = this_host()
-                local_file = input
+                if input.startswith("chunkfile://"):
+                        is_chunk = True
+                        local_file = input[12:]
+                elif input.startswith("file://"):
+                        local_file = input[7:]
+                else:
+                        local_file = input
 
         if host == this_host() and local_file:
                 return open_local(input, local_file, is_chunk)

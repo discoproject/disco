@@ -164,24 +164,34 @@ def result_iterator(results, notifier = None):
                 else:
                         res.append(dir_url)
         for url in res:
-                host, fname = url[8:].split("/", 1)
-                ext_host = host + ":" + HTTP_PORT
-                ext_file = "/" + fname
+                if url.startswith("file://"):
+                        fname = url[7:]
+                        fd = file(fname)
+                        sze = os.stat(fname).st_size
+                        http = None
+                else:
+                        host, fname = url[8:].split("/", 1)
+                        ext_host = host + ":" + HTTP_PORT
+                        ext_file = "/" + fname
 
-                http = httplib.HTTPConnection(ext_host)
-                http.request("GET", ext_file, "")
-                fd = http.getresponse()
-                if fd.status != 200:
-                        raise "HTTP error %d" % fd.status
+                        http = httplib.HTTPConnection(ext_host)
+                        http.request("GET", ext_file, "")
+                        fd = http.getresponse()
+                        if fd.status != 200:
+                                raise "HTTP error %d" % fd.status
                 
-                sze = int(fd.getheader("content-length"))
+                        sze = int(fd.getheader("content-length"))
 
                 if notifier:
                         notifier(url)
 
                 for x in netstr_reader(fd, sze, fname):
                         yield x
-                http.close()
+                
+                if http:
+                        http.close()
+                else:
+                        fd.close()
 
 
 
