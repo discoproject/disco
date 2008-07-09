@@ -10,7 +10,7 @@ Using Disco
 How to debug / profile programs in Disco?
 '''''''''''''''''''''''''''''''''''''''''
 
-Use :mod:`homedisco`. It allows you to run your jobs locally, as any other
+Use :mod:`homedisco`. It allows you to run Disco jobs locally, as any other
 Python program. This means that you can use any Python debugger or profiler for
 analyzing your code.
 
