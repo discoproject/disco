@@ -58,16 +58,16 @@ if __name__ == "__main__":
                 for k, v in iter:
                         out.add("red:" + k, v)
         
-        # Create an input file
         f = file("homedisco-test", "w")
         print >> f, "dog\ncat\npossum"
         f.close()
 
-        d = HomeDisco("map")
-        res = d.job("disco://localhost:5000", "homedisco",\
-                ["homedisco-test"], fun_map, reduce = fun_reduce)
-        res = HomeDisco("reduce").job("disco://localhost:5000", "homedisco",\
-                res, fun_map, reduce = fun_reduce)
+        map_hd = HomeDisco("map")
+        reduce_hd = HomeDisco("reduce")
+        res = map_hd.job("disco://localhost:5000", "homedisco",\
+                        ["homedisco-test"], fun_map, reduce = fun_reduce)
+        res = reduce_hd.job("disco://localhost:5000", "homedisco",\
+                        res, fun_map, reduce = fun_reduce)
         for k, v in disco.result_iterator(res):
-                print "K", k, "V", v
+                print "KEY", k, "VALUE", v
 

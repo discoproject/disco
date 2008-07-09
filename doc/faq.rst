@@ -7,6 +7,18 @@ Disco FAQ
 Using Disco
 -----------
 
+How to debug / profile programs in Disco?
+'''''''''''''''''''''''''''''''''''''''''
+
+Use :mod:`homedisco`. It allows you to run your jobs locally, as any other
+Python program. This means that you can use any Python debugger or profiler for
+analyzing your code.
+
+:mod:`homedisco` is not only great for debugging and profiling but
+also for development in general. It is highly recommended that you test
+your functions first locally with :mod:`homedisco`, before running them
+in the normal distributed Disco environment.
+
 Do I always have to provide a function for map and reduce?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
