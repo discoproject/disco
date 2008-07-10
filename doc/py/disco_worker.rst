@@ -41,7 +41,7 @@ in accessing an input file.
 Parses a directory URL, such as ``dir://nx02/test_simple@12243344`` to
 a list of direct URLs. In contrast to other functions in this module,
 this function is not used by the job functions, but might be useful for
-other programs that need to parse results returned by :func:``disco.job``,
+other programs that need to parse results returned by :func:`disco.job`,
 for instance.
 
 .. function:: netstr_reader(fd, size, fname)
