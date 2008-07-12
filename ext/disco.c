@@ -111,8 +111,18 @@ Pvoid_t read_parameters()
 {
         Pvoid_t params = NULL;
         unsigned int len, bytes = 0;
-        if (!fscanf(stdin, "%u\n", &len))
+        unsigned char tmp;
+ 
+        if (!fscanf(stdin, "%u", &len))
                 die("Couldn't parse parameter set size");
+        /* Read a newline after the size spec. Earlier I did 
+         * fscanf(stdin, "%u\n", &len)
+         * on the line above, but this was a stupid idea. Fscanf interpretes
+         * *any* whitespace character as a sign to read *any number* of
+         * following whitespace characters, which obviously caused great havoc
+         * here.
+         * */
+        fread(&tmp, 1, 1, stdin);
         while (bytes < len){
                 p_entry *key = read_netstr_entry(&bytes);      
                 p_entry *val = read_netstr_entry(&bytes);
