@@ -89,7 +89,7 @@ Now, let's write the corresponding reduce function::
                                 stats[word] += 1
                         else:
                                 stats[word] = 1
-                for word, total in stats:
+                for word, total in stats.iteritems():
                         out.add(word, total)
 
 The reduce function takes three parameters: The first parameter, *iter*,
@@ -132,7 +132,7 @@ of your file::
 
         import disco, sys
         results = disco.job(sys.argv[1], sys.argv[2:], fun_map, reduce = fun_reduce)
-        for word, total in results:
+        for word, total in disco.result_iterator(results):
                 print word, total
 
 Here we read the address of the Disco master and the input files from the
