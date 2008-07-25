@@ -131,7 +131,7 @@ The following lines run the job and print out the results. Write them to the end
 of your file::
 
         import disco, sys
-        results = disco.job(sys.argv[1], sys.argv[2:], fun_map, reduce = fun_reduce)
+        results = disco.job(sys.argv[1], "disco_tut", sys.argv[2:], fun_map, reduce = fun_reduce)
         for word, total in disco.result_iterator(results):
                 print word, total
 
