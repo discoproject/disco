@@ -39,12 +39,12 @@ class Params:
                                 v = t
                         self.__dict__[k[2:]] = v
 
-def default_partition(key, nr_reduces):
+def default_partition(key, nr_reduces, params):
         return hash(str(key)) % nr_reduces
 
 def make_range_partition(min_val, max_val):
         r = max_val - min_val
-        f = "lambda k, n: int(round(float(int(k) - %d) / %d * (n - 1)))" %\
+        f = "lambda k, n, p: int(round(float(int(k) - %d) / %d * (n - 1)))" %\
                 (min_val, r)
         return eval(f)
 

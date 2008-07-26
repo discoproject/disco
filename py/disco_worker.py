@@ -1,5 +1,5 @@
 import os, subprocess, cStringIO, marshal, time, sys, cPickle
-import httplib, re, traceback, tempfile, struct, urllib
+import httplib, re, traceback, tempfile, struct, urllib, random
 
 import disco_external
 from netstring import *
@@ -281,37 +281,32 @@ def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
                         break
 
 class MapOutput:
-        def __init__(self, part, combiner = None):
+        def __init__(self, part, params, combiner = None):
                 self.combiner = combiner
+                self.params = params
                 self.comb_buffer = {}
                 self.fname = MAP_OUTPUT % (job_name, this_partition(), part)
                 ensure_path(self.fname, False)
                 self.fd = file(self.fname + ".partial", "w")
                 self.part = part
                 
-        def flush_comb_buffer(self):
-                comb = self.combiner
-                self.combiner = None
-                for key, value in self.comb_buffer.iteritems():
-                        self.add(key, value)
-                self.combiner = comb
-                self.comb_buffer = {}
-
         def add(self, key, value):
                 if self.combiner:
-                        comb = self.combiner
-                        ret = comb(key, value, self.comb_buffer, 0)
-                        if type(ret) == tuple:
-                                encode_kv_pair(self.fd, ret[0], ret[1])
-                        elif ret == True:
-                                self.flush_comb_buffer()
+                        ret = self.combiner(key, value, self.comb_buffer,\
+				   0, self.params)
+                        if ret:
+                                for key, value in ret:
+                                        encode_kv_pair(self.fd, key, value)
                 else:
                         encode_kv_pair(self.fd, key, value)
 
         def close(self):
                 if self.combiner:
-                        self.combiner(None, None, self.comb_buffer, 1)
-                        self.flush_comb_buffer()
+                        ret = self.combiner(None, None, self.comb_buffer,\
+                                1, self.params)
+                        if ret:
+                                for key, value in ret:
+                                        encode_kv_pair(self.fd, key, value)
                 self.fd.close()
                 os.rename(self.fname + ".partial", self.fname)
         
@@ -446,10 +441,10 @@ def fun_map(e, params):
 def fun_map_reader(fd, sze, job_input):
         pass
 
-def fun_partition(key, nr_reduces):
+def fun_partition(key, nr_reduces, params):
         pass
 
-def fun_combiner(key, value, comb_buffer, flush):
+def fun_combiner(key, value, comb_buffer, flush, params):
         pass
 
 def fun_reduce(red_in, red_out, params):
@@ -459,9 +454,10 @@ def run_map(job_input, partitions, param):
         i = 0
         sze, fd = connect_input(job_input)
         nr_reduces = len(partitions)
+        
         for entry in fun_map_reader(fd, sze, job_input):
                 for key, value in fun_map(entry, param):
-                        p = fun_partition(key, nr_reduces)
+                        p = fun_partition(key, nr_reduces, param)
                         partitions[p].add(key, value)
                 i += 1
                 if not i % 100000:
@@ -517,10 +513,10 @@ def op_map(job):
 
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
-                partitions = [MapOutput(i, fun_combiner)\
+                partitions = [MapOutput(i, map_params, fun_combiner)\
                         for i in range(nr_reduces)]
         else:
-                partitions = [MapOutput(i) for i in range(nr_reduces)]
+                partitions = [MapOutput(i, map_params) for i in range(nr_reduces)]
         
         run_map(job_input[0], partitions, map_params)
         for p in partitions:
