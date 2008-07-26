@@ -10,9 +10,9 @@
                 partid, mode, child_pid, node, input, linecount, errlines, 
                 results, last_msg, msg_counter}).
 
--define(MAX_MSG_LENGTH, 255).
+-define(MAX_MSG_LENGTH, 8192).
 -define(RATE_WINDOW, 100000). % 100ms
--define(RATE_LIMIT, 5). 
+-define(RATE_LIMIT, 10). 
 
 -define(SLAVE_ARGS, "-pa disco/master/ebin +K true").
 -define(CMD, "nice -n 19 python2.4 "
