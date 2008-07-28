@@ -69,11 +69,11 @@ The module :mod:`disco` exports the following classes and functions:
    can be an arbitrary :term:`pure function`, such as *params.f* in the
    previous example.
 
-.. function:: default_partition(key, nr_reduces)
+.. function:: default_partition(key, nr_reduces, params)
 
    Default partitioning function. Defined as::
 
-        def default_partition(key, nr_reduces):
+        def default_partition(key, nr_reduces, params):
                 return hash(str(key)) % nr_reduces
 
 .. function:: make_range_partition(min_val, max_val)
@@ -216,49 +216,43 @@ The module :mod:`disco` exports the following classes and functions:
        are distributed to the reduce functions. The function is defined as
        follows::
 
-                def partition(key, nr_reduces)
+                def partition(key, nr_reduces, params)
 
        where *key* is a key returned by the map function and *nr_reduces* the
        number of reduce functions. The function returns an integer between 0 and
        *nr_reduces* that defines to which reduce instance this key-value pair is
-       assigned.
+       assigned. *params* is an user-defined object as defined by the *params*
+       parameter in :func:`disco.job`.
 
-       The default partitioning function is func:`disco.default_partition`.
+       The default partitioning function is :func:`disco.default_partition`.
 
      * *combiner* - a :term:`pure function` that can be used to post-process
        results of the map function. The function is defined as follows::
 
-                def combiner(key, value, comb_buffer, flush)
+                def combiner(key, value, comb_buffer, done, params)
 
        where the first two parameters correspond to a single key-value
        pair from the map function. The third parameter, *comb_buffer*,
        is an accumulator object, a dictionary, that combiner can use to
        save its state. Combiner must control the *comb_buffer* size,
-       to prevent it from consuming too much memory. 
+       to prevent it from consuming too much memory, for instance, by
+       calling *comb_buffer.clear()* after a block of results has been
+       processed. *params* is an user-defined object as defined by the
+       *params* parameter in :func:`disco.job`.
+       
+       Combiner function may return an iterator of key-value pairs
+       (tuples) or *None*.
 
-       The combiner has two main modes of operation, depending on
-       the value it returns. Most often, it is used to merge results
-       using an internal buffer, *comb_buffer*. The buffer is flushed
-       by the worker if the function returns the boolean value *True*.
-       Alternatively, you can ignore the buffer and use the combiner only
-       to rewrite key-value pairs by returning a tuple. If the returned
-       value is neither *True* nor a tuple, the key-value pair is ignored.
+       Combiner function is called after the partitioning function, so
+       there are *nr_reduces* separate *comb_buffers*, one for each reduce
+       partition. Combiner receives all key-value pairs from the map
+       functions before they are saved to intermediate results. Only the
+       pairs that are returned by the combiner are saved to the results.
 
-       The last parameter, *flush*, is a boolean value that instructs combiner
-       to transform *comb_buffer* to valid key-value pairs for the output stream.
-       After the combiner call returns, the worker will iterate through the
-       *comb_buffer*, add values to the output stream and empty the buffer. This
-       feature allows the combiner function to store data in *comb_buffer* in
-       any way it likes and transform it to proper stringified key-value pairs
-       only when needed. This is the first mode of operation.
-
-       In the second mode of operation, the combiner function returns a
-       key-value pair in a tuple, the pair is immediately added to the
-       output stream. Since combiner is called after partitioning, you
-       can use the map function to output a key-value pair that contains
-       necessary information in the key for the partitioning function, and
-       use the combiner to filter out the partitioning information from
-       the key and reformat the key-value pair for the reduce function.
+       After the map functions have consumed all input entries,
+       combiner is called for the last time with the *done* flag set to
+       *True*. This is the last opportunity for the combiner to return
+       an iterator to the key-value pairs it wants to output.
 
      * *nr_maps* - the number of parallel map operations. By default,
        ``nr_maps = len(input_files)``. Note that making this value
