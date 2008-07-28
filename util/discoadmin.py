@@ -15,9 +15,8 @@ def op_kill(n, s):
                 disco.kill(n)
 
 def op_clean(n, s):
-        if s in OK_STATUS:
-                print "Cleaning", n
-                disco.clean(n)
+               print "Cleaning", n
+               disco.clean(n)
 
 for t, s, name in disco.joblist():
         if sys.argv[3] in name:
