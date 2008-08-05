@@ -3,9 +3,9 @@ from subprocess import *
  
 files = os.listdir(sys.argv[1])
 if sys.argv[1][-1] == "/":
-	name = sys.argv[1][:-1].split("/")[-1]
+	name = os.path.basename(sys.argv[1][:-1])
 else:
-	name = sys.argv[1].split("/")[-1]
+	name = os.path.basename(sys.argv[1])
 
 nodes = file(sys.argv[2]).readlines()
 fno = int(math.ceil(max(1, float(len(files)) / len(nodes))))
@@ -42,7 +42,8 @@ for node, p, nset in procs:
 		print >> sys.stderr, "Copying to %s failed" % node
 	else:
 		print >> sys.stderr, "%s ok" % node
-		print "\n".join(("disco://%s/%s" % (node, f) for f in nset))
+		print "\n".join(("disco://%s/%s/%s" %
+                        (node, name, os.path.basename(f)) for f in nset))
 
 print >> sys.stderr, "Done"
 
