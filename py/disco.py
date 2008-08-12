@@ -1,11 +1,9 @@
 
 from netstring import *
-import marshal, traceback, time, re, urllib, httplib, discoapi, os.path
-import cPickle
-from disco_worker import re_reader, netstr_reader, parse_dir
+import sys, os, marshal, traceback, time, re, urllib, httplib, cPickle
+import discoapi
 
 DISCO_NEW_JOB = "/disco/job/new"
-HTTP_PORT = "8989"
 
 class Params:
         def __init__(self, **kwargs):
@@ -39,8 +37,99 @@ class Params:
                                 v = t
                         self.__dict__[k[2:]] = v
 
+
+def load_conf():
+        port = root = None
+        
+        conf = (os.path.exists("disco.conf") and "disco.conf") or\
+               (os.path.exists("/etc/disco/disco.conf") and\
+                        "/etc/disco/disco.conf")
+        if conf:
+                txt = file(conf).read()
+                port = re.search("DISCO_PORT\s*=\s*(\d+)", txt)
+                root = re.search("DISCO_ROOT\s*=\s*(.+)", txt)
+        
+        port = (port and port.group(1)) or "8989"
+        root = (root and root.group(1)) or "/srv/disco/"
+        
+        return os.environ.get("DISCO_PORT", port.strip()),\
+               os.environ.get("DISCO_ROOT", root.strip()) + "/data/"
+
+
+def parse_dir(dir_url):
+        x, x, host, mode, name = dir_url.split('/')
+        html = urllib.urlopen("http://%s:%s/%s" %\
+                (host, HTTP_PORT, name)).read()
+        inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
+        return ["%s://%s/%s/%s" % (prefix, host, name, x)\
+                        for x, prefix in inputs if "partial" not in x]
+
+
+def netstr_reader(fd, content_len, fname):
+        if content_len == None:
+                err("Content-length must be defined for netstr_reader")
+        def read_netstr(idx, data, tot):
+                ldata = len(data)
+                i = 0
+                lenstr = ""
+                if ldata - idx < 11:
+                        data = data[idx:] + fd.read(8192)
+                        ldata = len(data)
+                        idx = 0
+
+                i = data.find(" ", idx, idx + 11)
+                if i == -1:
+                        err("Corrupted input (%s). Could not "\
+                               "parse a value length at %d bytes."\
+                                        % (fname, tot))
+                else:
+                        lenstr = data[idx:i + 1]
+                        idx = i + 1
+
+                if ldata < i + 1:
+                        data_err("Truncated input (%s). "\
+                                "Expected %d bytes, got %d" %\
+                                (fname, content_len, tot), fname)
+                
+                try:
+                        llen = int(lenstr)
+                except ValueError:
+                        err("Corrupted input (%s). Could not "\
+                                "parse a value length at %d bytes."\
+                                        % (fname, tot))
+
+                tot += len(lenstr)
+
+                if ldata - idx < llen + 1:
+                        data = data[idx:] + fd.read(llen + 8193)
+                        ldata = len(data)
+                        idx = 0
+
+                msg = data[idx:idx + llen]
+                
+                if idx + llen + 1 > ldata:
+                        data_err("Truncated input (%s). "\
+                                "Expected a value of %d bytes "\
+                                "(offset %u bytes)" %\
+                                (fname, llen + 1, tot), fname)
+
+                tot += llen + 1
+                idx += llen + 1
+                return idx, data, tot, msg
+        
+        data = fd.read(8192)
+        tot = idx = 0
+        while tot < content_len:
+                key = val = ""
+                idx, data, tot, key = read_netstr(idx, data, tot)
+                idx, data, tot, val = read_netstr(idx, data, tot)
+                yield key, val
+
+
+
 def default_partition(key, nr_reduces, params):
         return hash(str(key)) % nr_reduces
+
 
 def make_range_partition(min_val, max_val):
         r = max_val - min_val
@@ -48,23 +137,28 @@ def make_range_partition(min_val, max_val):
                 (min_val, r)
         return eval(f)
 
+
 def nop_reduce(iter, out, params):
         for k, v in iter:
                 out.add(k, v)
+
 
 def map_line_reader(fd, sze, fname):
         for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
                 yield x[0]
 
+
 def chain_reader(fd, sze, fname):
         for x in netstr_reader(fd, sze, fname):
                 yield x
+
 
 def external(files):
         msg = {"op": file(files[0]).read()}
         for f in files[1:]:
                 msg[os.path.basename(f)] = file(f).read()
         return msg
+
 
 def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,\
         reduce = None, partition = default_partition, combiner = None,\
@@ -136,11 +230,21 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
         if master.startswith("stdout:"):
                 async = True
                 print msg,
+                return
         elif master.startswith("debug:"):
                 return req
-        elif master.startswith("disco:"):
-                reply = urllib.urlopen(master.replace("disco:", "http:", 1)\
-                        + DISCO_NEW_JOB, msg)
+        
+        if master.startswith("disco:"):
+                master = master.split("/")[-1]
+                if ":" in master:
+                        master = master.split(":")[0]
+                        print >> sys.stderr, "NOTE! disco://host:port format "\
+                                "is deprecated.\nUse disco://host instead, or "\
+                                "http://host:port if master doesn't run at "\
+                                "DISCO_PORT."
+                master = "http://%s:%s" % (master.split("/")[-1], HTTP_PORT)
+        if master.startswith("http:"):
+                reply = urllib.urlopen(master + DISCO_NEW_JOB, msg)
                 r = reply.read()
                 if "job started" not in r:
                         raise "Failed to start a job. Server replied: " + r
@@ -156,6 +260,7 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
                 if clean:
                         d.clean(req['name'])
                 return results
+
 
 def result_iterator(results, notifier = None):
         res = []
@@ -193,6 +298,9 @@ def result_iterator(results, notifier = None):
                         http.close()
                 else:
                         fd.close()
+
+HTTP_PORT, tmp = load_conf()
+
 
 
 

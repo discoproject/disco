@@ -1,26 +1,28 @@
 import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import httplib, re, traceback, tempfile, struct, urllib, random
+from disco import parse_dir, load_conf, netstr_reader
 
 import disco_external
 from netstring import *
 
-HTTP_PORT = "8989"
-if "DISCO_HOME" in os.environ:
-        LOCAL_PATH = os.environ['DISCO_HOME']
-else:
-        LOCAL_PATH = "/var/disco/"
-
-PARAMS_FILE = LOCAL_PATH + "%s/params"
-EXT_MAP = LOCAL_PATH + "%s/ext-map"
-EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
-MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
-CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
-REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
-REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
-REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
-
 job_name = ""
 http_pool = {}
+
+def init():
+        global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
+               MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
+
+        HTTP_PORT, LOCAL_PATH = load_conf()
+        
+        PARAMS_FILE = LOCAL_PATH + "%s/params"
+        EXT_MAP = LOCAL_PATH + "%s/ext-map"
+        EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
+        MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
+        CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
+        REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
+        REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
+        REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
+
 
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
@@ -71,15 +73,6 @@ def ensure_path(path, check_exists = True):
                         pass
                 else:
                         raise
-
-def parse_dir(dir_url):
-        x, x, host, mode, name = dir_url.split('/')
-        html = urllib.urlopen("http://%s:%s/%s" %\
-                (host, HTTP_PORT, name)).read()
-        inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
-        return ["%s://%s/%s/%s" % (prefix, host, name, x)\
-                        for x, prefix in inputs if "partial" not in x]
-
 
 def open_local(input, fname, is_chunk):
         try:
@@ -184,65 +177,6 @@ def encode_kv_pair(fd, key, value):
         sval = str(value)
         fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
 
-def netstr_reader(fd, content_len, fname):
-        if content_len == None:
-                err("Content-length must be defined for netstr_reader")
-        def read_netstr(idx, data, tot):
-                ldata = len(data)
-                i = 0
-                lenstr = ""
-                if ldata - idx < 11:
-                        data = data[idx:] + fd.read(8192)
-                        ldata = len(data)
-                        idx = 0
-
-                i = data.find(" ", idx, idx + 11)
-                if i == -1:
-                        err("Corrupted input (%s). Could not "\
-                               "parse a value length at %d bytes."\
-                                        % (fname, tot))
-                else:
-                        lenstr = data[idx:i + 1]
-                        idx = i + 1
-
-                if ldata < i + 1:
-                        data_err("Truncated input (%s). "\
-                                "Expected %d bytes, got %d" %\
-                                (fname, content_len, tot), fname)
-                
-                try:
-                        llen = int(lenstr)
-                except ValueError:
-                        err("Corrupted input (%s). Could not "\
-                                "parse a value length at %d bytes."\
-                                        % (fname, tot))
-
-                tot += len(lenstr)
-
-                if ldata - idx < llen + 1:
-                        data = data[idx:] + fd.read(llen + 8193)
-                        ldata = len(data)
-                        idx = 0
-
-                msg = data[idx:idx + llen]
-                
-                if idx + llen + 1 > ldata:
-                        data_err("Truncated input (%s). "\
-                                "Expected a value of %d bytes "\
-                                "(offset %u bytes)" %\
-                                (fname, llen + 1, tot), fname)
-
-                tot += llen + 1
-                idx += llen + 1
-                return idx, data, tot, msg
-        
-        data = fd.read(8192)
-        tot = idx = 0
-        while tot < content_len:
-                key = val = ""
-                idx, data, tot, key = read_netstr(idx, data, tot)
-                idx, data, tot, val = read_netstr(idx, data, tot)
-                yield key, val
 
 def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
         item_re = re.compile(item_re_str)
@@ -570,6 +504,8 @@ if __name__ == "__main__":
                 err("Invalid command line. "\
                     "Usage: disco_worker.py [op_map|op_reduce] "\
                     "name hostname master_url partid inputs..")
+        
+        init()
 
         if "op_" + sys.argv[1] not in globals():
                 err("Invalid operation: %s" % sys.argv[1])
