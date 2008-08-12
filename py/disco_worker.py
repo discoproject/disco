@@ -1,3 +1,5 @@
+#!/usr/bin/python2.4
+
 import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import httplib, re, traceback, tempfile, struct, urllib, random
 from disco import parse_dir, load_conf, netstr_reader
