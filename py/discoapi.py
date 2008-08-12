@@ -1,5 +1,6 @@
 import urllib, httplib, cjson, time
 from netstring import decode_netstring_fd
+import disco
 
 class JobException(Exception):
         def __init__(self, msg, master, name):
@@ -14,7 +15,7 @@ class JobException(Exception):
 class Disco(object):
 
         def __init__(self, host):
-                self.host = host.replace("disco://", "", 1)
+                self.host = disco.disco_host(host)[7:]
                 self.conn = httplib.HTTPConnection(self.host)
 
         def request(self, url, data = None, raw_handle = False):

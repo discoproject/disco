@@ -56,6 +56,22 @@ def load_conf():
                os.environ.get("DISCO_ROOT", root.strip()) + "/data/"
 
 
+def disco_host(addr):
+        if addr.startswith("disco:"):
+                addr = addr.split("/")[-1]
+                if ":" in addr:
+                        addr = addr.split(":")[0]
+                        print >> sys.stderr, "NOTE! disco://host:port format "\
+                                "is deprecated.\nUse disco://host instead, or "\
+                                "http://host:port if master doesn't run at "\
+                                "DISCO_PORT."
+                return "http://%s:%s" % (addr.split("/")[-1], HTTP_PORT)
+        elif addr.startswith("http:"):
+                return addr
+        else:
+                raise "Unknown host specifier: %s" % master
+
+
 def parse_dir(dir_url):
         x, x, host, mode, name = dir_url.split('/')
         html = urllib.urlopen("http://%s:%s/%s" %\
@@ -234,23 +250,11 @@ def job(master, name, input_files, fun_map = None, map_reader = map_line_reader,
         elif master.startswith("debug:"):
                 return req
         
-        if master.startswith("disco:"):
-                master = master.split("/")[-1]
-                if ":" in master:
-                        master = master.split(":")[0]
-                        print >> sys.stderr, "NOTE! disco://host:port format "\
-                                "is deprecated.\nUse disco://host instead, or "\
-                                "http://host:port if master doesn't run at "\
-                                "DISCO_PORT."
-                master = "http://%s:%s" % (master.split("/")[-1], HTTP_PORT)
-        if master.startswith("http:"):
-                reply = urllib.urlopen(master + DISCO_NEW_JOB, msg)
-                r = reply.read()
-                if "job started" not in r:
-                        raise "Failed to start a job. Server replied: " + r
-                reply.close()
-        else:
-                raise "Unknown host specifier: %s" % master
+        reply = urllib.urlopen(disco_host(master) + DISCO_NEW_JOB, msg)
+        r = reply.read()
+        if "job started" not in r:
+                raise "Failed to start a job. Server replied: " + r
+        reply.close()
 
         if async:
                 return req["name"]
