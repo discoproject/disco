@@ -32,7 +32,8 @@ while True:
 		print >> sys.stderr, "Couldn't mkdir %s:/var/disco/%s" % (node, name)
 
 	print >> sys.stderr, "Copying %d files to %s" % (len(nset), node)
-	p = Popen(["scp"] + nset + ["%s:/var/disco/%s/" % (node, name)])
+	p = Popen("nice -19 ionice -n 7 scp " + " ".join(nset) +
+                  " %s:/var/disco/%s/" % (node, name), shell = True)
 	procs.append((node, p, nset))
 
 print >> sys.stderr, "Waiting for copyers to finish.."
