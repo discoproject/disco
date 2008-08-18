@@ -1,7 +1,6 @@
 import os, os.path, time, struct, marshal
 from subprocess import *
 from disco.netstring import decode_netstring_str
-#from disconode import external
 from disconode.util import *
 
 MAX_ITEM_SIZE = 1024**3
