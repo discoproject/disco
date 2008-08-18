@@ -179,7 +179,7 @@ class Job(object):
                                 inputs.append(inp)
 
                 req = {"name": self.name,
-                       "input": " ".join(kw["input"]),
+                       "input": " ".join(inputs),
                        "map_reader": marshal.dumps(d("map_reader").func_code),
                        "partition": marshal.dumps(d("partition").func_code),
                        "params": cPickle.dumps(d("params")),
