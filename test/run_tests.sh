@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export PYTHONPATH=../py
+export PYTHONPATH=../pydisco
 
 if [[ -z $1 ]]
 then

@@ -1,5 +1,7 @@
 
-import tserver, sys, disco
+import tserver, sys
+from disco import Disco, result_iterator
+from disco.func import chain_reader
 
 ani = ["horse", "sheep", "whale", "tiger"]
 
@@ -17,20 +19,21 @@ def fun_reduce(iter, out, params):
                 out.add(k + "-", v)
 
 tserver.run_server(data_gen)
+disco = Disco(sys.argv[1])
 
-results = disco.job(sys.argv[1], "test_chain_0", tserver.makeurl([""] * 100),
-                fun_map, reduce = fun_reduce, nr_reduces = 4,
-                sort = False, clean = True, params = {'suffix': '0'})
+results = disco.new_job(name = "test_chain_0", input = tserver.makeurl([""] * 100),
+                map = fun_map, reduce = fun_reduce, nr_reduces = 4,
+                sort = False, clean = True, params = {'suffix': '0'}).wait()
 
 i = 1
 while i < 10:
-        results = disco.job(sys.argv[1], "test_chain_%d" % i, results,
-                fun_map, reduce = fun_reduce, nr_reduces = 4,
-                map_reader = disco.chain_reader,  
-                sort = False, clean = True, params = {'suffix': str(i)})
+        results = disco.new_job(name = "test_chain_%d" % i, input = results,
+                map = fun_map, reduce = fun_reduce, nr_reduces = 4,
+                map_reader = chain_reader, sort = False, clean = True,
+                params = {'suffix': str(i)}).wait()
         i += 1
 
-for key, value in disco.result_iterator(results):
+for key, value in result_iterator(results):
         if key[:5] not in ani or key[5:] != "0-1-2-3-4-5-6-7-8-9-":
                 raise "Corrupted key: %s" % key
         if value != "9":

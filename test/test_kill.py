@@ -1,5 +1,6 @@
 
-import tserver, sys, discoapi, disco, time
+import tserver, sys, time
+from disco import Disco
 
 def data_gen(path):
         return "1 2 3\n"
@@ -9,19 +10,20 @@ def fun_map(e, params):
         time.sleep(100)
         return []
 
-d = discoapi.Disco(sys.argv[1])
-num = sum(x['max_workers'] for x in d.nodeinfo()['available'])
+disco = Disco(sys.argv[1])
+num = sum(x['max_workers'] for x in disco.nodeinfo()['available'])
 print >> sys.stderr, num, "slots available"
 tserver.run_server(data_gen)
-name = disco.job(sys.argv[1], "test_kill", tserver.makeurl([""] * num * 2),
-                        fun_map, async = True)
+job = disco.new_job(name = "test_kill",
+        input = tserver.makeurl([""] * num * 2), map = fun_map)
+
 time.sleep(10)
-print >> sys.stderr, "Killing", name
-d.kill(name)
+print >> sys.stderr, "Killing", job.name
+job.kill()
 time.sleep(5)
-if d.jobinfo(name)['active'] == "dead":
+if job.jobinfo()['active'] == "dead":
         print "ok"
-        d.clean(name)
+        job.clean()
 else:
         raise Exception("Killing failed")
 

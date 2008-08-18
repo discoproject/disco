@@ -1,5 +1,7 @@
 
-import tserver, disco, sys
+import tserver, sys
+from disco import Disco, result_iterator
+from disco.util import external
 
 def data_gen(path):
         return "test_%s\n" % path[1:]
@@ -15,14 +17,16 @@ params = {"test1": "1,2,3",\
           "one two three": "dim\ndam\n",\
           "dummy": "value"}
 
-results = disco.job(sys.argv[1], "test_external", tserver.makeurl(inputs),
-                fun_map = disco.external(["ext_test"]), 
+results = Disco(sys.argv[1]).new_job(
+                name = "test_external",
+                input = tserver.makeurl(inputs),
+                map = external(["ext_test"]), 
 		reduce = fun_reduce, 
                 ext_params = params,
 		nr_reduces = 1,
-		sort = False)
+		sort = False).wait()
 
-results = sorted([(v, k) for k, v in disco.result_iterator(results)])
+results = sorted([(v, k) for k, v in result_iterator(results)])
 for i, e in enumerate(results): 
 	v, k = e
         if k != "red_dkey" or v != "red_test_%s" % inputs[i / 3]:

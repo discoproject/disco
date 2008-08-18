@@ -1,5 +1,6 @@
 
-import tserver, sys, discoapi, disco, random, time
+import tserver, sys, random, time
+from disco import Disco
 
 def data_gen(path):
         return "badger\n" * 100
@@ -10,14 +11,14 @@ def fun_map(e, params):
 
 tserver.run_server(data_gen)
 inputs = tserver.makeurl([1])
-name = disco.job(sys.argv[1], "test_ratelimit", inputs, fun_map, async = True)
+job = Disco(sys.argv[1]).new_job(name = "test_ratelimit",
+        input = inputs, map = fun_map)
 
 time.sleep(5)
 
-d = discoapi.Disco(sys.argv[1])
-if d.jobinfo(name)['active'] == "dead":
+if job.jobinfo()['active'] == "dead":
         print "ok"
-        d.clean(name)
+        job.clean(name)
 else:
         raise Exception("Rate limit failed")
 
