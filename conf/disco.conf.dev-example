@@ -1,0 +1,17 @@
+#!/bin/bash
+set -a
+
+if [ -e master/ebin ]; then
+        DISCO_PORT=5500
+        DISCO_SCGI_PORT=4441
+        DISCO_ROOT="$PWD/root/"
+        DISCO_HOME="$PWD/master/"
+        DISCO_USER=$USER
+        DISCO_LOG=$PWD
+        DISCO_PID_DIR=$PWD
+else
+        echo "Usage: source conf/disco.conf.dev-example"
+        echo "This command should be executed on the root of the Disco tree."
+fi
+
+
