@@ -16,7 +16,7 @@
 
 -define(SLAVE_ARGS, "-pa disco/master/ebin +K true").
 -define(CMD, "nice -n 19 disco_worker.py '~s' '~s' '~s' '~s' '~w' ~s").
--define(SPAWNED_ENV, [{"PYTHONPATH", "disco/py"}]).
+-define(SPAWNED_ENV, [{"PYTHONPATH", "disco/node"}]).
 -define(PORT_OPT, [{line, 100000}, binary, exit_status,
                    use_stdio, stderr_to_stdout]).
 
@@ -88,7 +88,7 @@ init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
 handle_call(start_worker, _From, State) ->
         Cmd = spawn_cmd(State),
         error_logger:info_report(["Spawn cmd: ", Cmd]),
-        Env = [{"PATH", "disco/py:" ++ os:getenv("PATH")}|?SPAWNED_ENV],
+        Env = [{"PATH", "disco/node:" ++ os:getenv("PATH")}|?SPAWNED_ENV],
         Port = open_port({spawn, spawn_cmd(State)}, [{env, Env}|?PORT_OPT]),
         {reply, ok, State#state{port = Port}, 30000}.
 
