@@ -12,8 +12,8 @@ class DeprecatedFunc:
                 if name == "func_code":
                         print >> sys.stderr, "WARNING! disco.%s is "\
                                 "deprecated. Use disco.func.%s instead."\
-                                        % (name, name)
-                        return fun.func_code
+                                        % (self.name, self.name)
+                        return self.fun.func_code
                 raise AttributeException("%s not found" % name)
 
 chain_reader = DeprecatedFunc(func.chain_reader, "chain_reader")
