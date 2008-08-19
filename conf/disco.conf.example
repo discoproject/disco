@@ -1,9 +1,7 @@
-#!/bin/bash
-set -a
 
 # Lighttpd for master and nodes runs on this port. 
 # disco://host URIs are mapped to http://host:DISCO_PORT.
-#DISCO_PORT=8989
+DISCO_PORT=8989
 
 # Port for master <-> lighty communication.
 DISCO_SCGI_PORT=4444
