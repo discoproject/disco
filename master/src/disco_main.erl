@@ -18,12 +18,11 @@ start(_Type, _Args) ->
         ScgiPort = conf(scgi_port),
         _DiscoConfig = conf(disco_config),
         _DiscoRoot = conf(disco_root),
-        _DiscoUrl = conf(disco_url),
+        _DiscoName = conf(disco_name),
         supervisor:start_link(disco_main, [ScgiPort]).
 
 init([ScgiPort]) -> 
         error_logger:info_report([{"DISCO BOOTS"}]),
-
         {ok, {{one_for_one, ?MAX_R, ?MAX_T},
                  [{event_server, {event_server, start_link, []},
                         permanent, 10, worker, dynamic},

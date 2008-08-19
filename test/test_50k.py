@@ -1,5 +1,5 @@
 
-import tserver, sys, discoapi, disco
+import tserver, sys, disco
 
 def data_gen(path):
         return "Gutta cavat cavat capidem\n" * 100

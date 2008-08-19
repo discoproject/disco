@@ -40,8 +40,10 @@ init(_Args) ->
         % for each node.
         ets:new(node_stats, [named_table]),
 
-        {ok, SName} = application:get_env(disco_slave),
-        register(slave_master, spawn_link(fun() -> slave_master(SName) end)),
+        {ok, Name} = application:get_env(disco_name),
+        register(slave_master, spawn_link(fun() ->
+                slave_master(lists:flatten([Name, "_slave"]))
+        end)),
         {ok, []}.
 
 handle_call({get_active, JobName}, _From, State) ->
@@ -258,7 +260,8 @@ start_worker(J, Node) ->
         event_server:event(J#job.jobname, "~s:~B assigned to ~s",
                 [J#job.mode, J#job.partid, Node], []),
         ets:update_counter(node_load, Node, 1),
-        {ok, SName} = application:get_env(disco_slave),
+        {ok, Name} = application:get_env(disco_name),
+        SName = lists:flatten([Name, "_slave"]),
         spawn_link(disco_worker, start_link_remote, 
                 [[SName, self(), whereis(event_server), J#job.from, 
                 J#job.jobname, J#job.partid, J#job.mode, Node, J#job.input]]),

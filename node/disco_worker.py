@@ -1,44 +1,32 @@
+#!/usr/bin/python2.4
+
 import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import httplib, re, traceback, tempfile, struct, urllib, random
+from disco.util import parse_dir, load_conf
+from disco.func import netstr_reader, re_reader
+from disco.netstring import *
 
-import disco_external
-from netstring import *
-
-HTTP_PORT = "8989"
-if "DISCO_HOME" in os.environ:
-        LOCAL_PATH = os.environ['DISCO_HOME']
-else:
-        LOCAL_PATH = "/var/disco/"
-
-PARAMS_FILE = LOCAL_PATH + "%s/params"
-EXT_MAP = LOCAL_PATH + "%s/ext-map"
-EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
-MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
-CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
-REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
-REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
-REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
+from disconode import external, util
+from disconode.util import *
 
 job_name = ""
 http_pool = {}
 
-def msg(m, c = 'MSG', job_input = ""):
-        t = time.strftime("%y/%m/%d %H:%M:%S")
-        print >> sys.stderr, "**<%s>[%s %s (%s)] %s" %\
-                (c, t, job_name, job_input, m)
+def init():
+        global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
+               MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
 
-def err(m):
-        msg(m, 'MSG')
-        raise m 
+        HTTP_PORT, LOCAL_PATH = load_conf()
+        
+        PARAMS_FILE = LOCAL_PATH + "%s/params"
+        EXT_MAP = LOCAL_PATH + "%s/ext-map"
+        EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
+        MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
+        CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
+        REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
+        REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
+        REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
 
-def data_err(m, job_input):
-        if sys.exc_info() == (None, None, None):
-                raise m
-        else:
-                print traceback.print_exc()
-                msg(m, 'DAT', job_input)
-                raise
-            
 def this_host():
         return sys.argv[3]
 
@@ -47,39 +35,6 @@ def this_partition():
         
 def this_inputs():
         return sys.argv[6:]
-
-def ensure_path(path, check_exists = True):
-        if check_exists and os.path.exists(path):
-                err("File exists: %s" % path)
-        try:
-                os.remove(path)
-        except OSError, x:
-                if x.errno == 2:
-                        # no such file
-                        pass
-                elif x.errno == 21:
-                        # directory
-                        pass
-                else:
-                        raise
-        try:
-                dir, fname = os.path.split(path)
-                os.makedirs(dir)
-        except OSError, x:
-                if x.errno == 17:
-                        # directory already exists
-                        pass
-                else:
-                        raise
-
-def parse_dir(dir_url):
-        x, x, host, mode, name = dir_url.split('/')
-        html = urllib.urlopen("http://%s:%s/%s" %\
-                (host, HTTP_PORT, name)).read()
-        inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
-        return ["%s://%s/%s/%s" % (prefix, host, name, x)\
-                        for x, prefix in inputs if "partial" not in x]
-
 
 def open_local(input, fname, is_chunk):
         try:
@@ -184,101 +139,6 @@ def encode_kv_pair(fd, key, value):
         sval = str(value)
         fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
 
-def netstr_reader(fd, content_len, fname):
-        if content_len == None:
-                err("Content-length must be defined for netstr_reader")
-        def read_netstr(idx, data, tot):
-                ldata = len(data)
-                i = 0
-                lenstr = ""
-                if ldata - idx < 11:
-                        data = data[idx:] + fd.read(8192)
-                        ldata = len(data)
-                        idx = 0
-
-                i = data.find(" ", idx, idx + 11)
-                if i == -1:
-                        err("Corrupted input (%s). Could not "\
-                               "parse a value length at %d bytes."\
-                                        % (fname, tot))
-                else:
-                        lenstr = data[idx:i + 1]
-                        idx = i + 1
-
-                if ldata < i + 1:
-                        data_err("Truncated input (%s). "\
-                                "Expected %d bytes, got %d" %\
-                                (fname, content_len, tot), fname)
-                
-                try:
-                        llen = int(lenstr)
-                except ValueError:
-                        err("Corrupted input (%s). Could not "\
-                                "parse a value length at %d bytes."\
-                                        % (fname, tot))
-
-                tot += len(lenstr)
-
-                if ldata - idx < llen + 1:
-                        data = data[idx:] + fd.read(llen + 8193)
-                        ldata = len(data)
-                        idx = 0
-
-                msg = data[idx:idx + llen]
-                
-                if idx + llen + 1 > ldata:
-                        data_err("Truncated input (%s). "\
-                                "Expected a value of %d bytes "\
-                                "(offset %u bytes)" %\
-                                (fname, llen + 1, tot), fname)
-
-                tot += llen + 1
-                idx += llen + 1
-                return idx, data, tot, msg
-        
-        data = fd.read(8192)
-        tot = idx = 0
-        while tot < content_len:
-                key = val = ""
-                idx, data, tot, key = read_netstr(idx, data, tot)
-                idx, data, tot, val = read_netstr(idx, data, tot)
-                yield key, val
-
-def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
-        item_re = re.compile(item_re_str)
-        buf = ""
-        tot = 0
-        while True:
-                try:
-                        if content_len:
-                                r = fd.read(min(8192, content_len - tot))
-                        else:
-                                r = fd.read(8192)
-                        tot += len(r)
-                        buf += r
-                except:
-                        data_err("Receiving data failed", fname)
-
-                m = item_re.match(buf)
-                while m:
-                        yield m.groups()
-                        buf = buf[m.end():]
-                        m = item_re.match(buf)
-
-                if not len(r) or tot >= content_len:
-                        if content_len != None and tot < content_len:
-                                data_err("Truncated input (%s). "\
-                                         "Expected %d bytes, got %d" %\
-                                         (fname, content_len, tot), fname)
-                        if len(buf):
-                                if output_tail:
-                                        yield [buf]
-                                else:
-                                        msg("Couldn't match the last %d "\
-                                            "bytes in %s. Some bytes may be "\
-                                            "missing from input." %\
-                                                (len(buf), fname))
-                        break
 
 class MapOutput:
         def __init__(self, part, params, combiner = None):
@@ -487,7 +347,6 @@ def merge_chunks(partitions):
 def op_map(job):
         global job_name
         
-        job_name = job['name']
         job_input = this_inputs()
         msg("Received a new map job!")
         
@@ -504,9 +363,9 @@ def op_map(job):
                         map_params = job['ext_params']
                 else:
                         map_params = "0\n"
-                disco_external.prepare(job['ext_map'],
+                external.prepare(job['ext_map'],
                         map_params, EXT_MAP % job_name)
-                fun_map.func_code = disco_external.ext_map.func_code
+                fun_map.func_code = external.ext_map.func_code
         else:
                 map_params = cPickle.loads(job['params'])        
                 fun_map.func_code = marshal.loads(job['map'])
@@ -528,13 +387,12 @@ def op_map(job):
         else:
                 out = partitions[0].disco_address()
         
-        disco_external.close_ext()
+        external.close_ext()
         msg("%d %s" % (this_partition(), out), "OUT")
 
 def op_reduce(job):
         global job_name
 
-        job_name = job['name']
         job_inputs = this_inputs()
 
         msg("Received a new reduce job!")
@@ -547,9 +405,9 @@ def op_reduce(job):
                         red_params = job['ext_params']
                 else:
                         red_params = "0\n"
-                disco_external.prepare(job['ext_reduce'],
-                        red_params, EXT_REDUCE % job_name)
-                fun_reduce.func_code = disco_external.ext_reduce.func_code
+                external.prepare(job['ext_reduce'], red_params,
+                        EXT_REDUCE % job_name)
+                fun_reduce.func_code = external.ext_reduce.func_code
         else:
                 fun_reduce.func_code = marshal.loads(job['reduce'])
                 red_params = cPickle.loads(job['params'])
@@ -560,7 +418,7 @@ def op_reduce(job):
         fun_reduce(red_in.iter(), red_out, red_params)
         msg("Reduce done")
         red_out.close()
-        disco_external.close_ext()
+        external.close_ext()
 
         msg("%d %s" % (this_partition(), red_out.disco_address()), "OUT")
 
@@ -570,6 +428,8 @@ if __name__ == "__main__":
                 err("Invalid command line. "\
                     "Usage: disco_worker.py [op_map|op_reduce] "\
                     "name hostname master_url partid inputs..")
+        
+        init()
 
         if "op_" + sys.argv[1] not in globals():
                 err("Invalid operation: %s" % sys.argv[1])
@@ -583,12 +443,20 @@ if __name__ == "__main__":
                 ensure_path("%s/%s/" % (LOCAL_PATH, name), False)
                 params_file = PARAMS_FILE % name
                 url_hdle = urllib.urlopen("%s/%s/params" % (master_url, name))
-                disco_external.ensure_file(params_file,\
+                external.ensure_file(params_file,
                         (master_url, url_hdle), mode = 444)
                 url_hdle.close()
                 m = decode_netstring_fd(file(params_file))
         except:
                 data_err("Decoding the job description failed", master_url)
+        
+        job_name = util.job_name = m['name']
+
+        my_ver = ".".join(map(str, sys.version_info[:2]))
+        if m["version"] != my_ver:
+                msg("Python version mismatch: client = %s vs. node = %s" %\
+                                (m["version"], my_ver), "DAT")
+                sys.exit(1)
 
         globals()["op_" + sys.argv[1]](m)
         msg("Worker done", "END")

@@ -1,7 +1,7 @@
 import os, os.path, time, struct, marshal
 from subprocess import *
-from netstring import decode_netstring_str
-import disco_external, disco_worker
+from disco.netstring import decode_netstring_str
+from disconode.util import *
 
 MAX_ITEM_SIZE = 1024**3
 MAX_NUM_OUTPUT = 1000000
@@ -29,20 +29,19 @@ def ext_map(e, params):
                 v = e
         else:
                 k, v = e
-        disco_external.in_fd.write(
-                disco_external.pack_kv(k, v))
-        disco_external.in_fd.flush()
-        num = struct.unpack("I", disco_external.out_fd.read(4))[0]
-        r = [disco_external.unpack_kv() for i in range(num)]
+        external.in_fd.write(external.pack_kv(k, v))
+        external.in_fd.flush()
+        num = struct.unpack("I", external.out_fd.read(4))[0]
+        r = [external.unpack_kv() for i in range(num)]
         return r
 
 def ext_reduce(red_in, red_out, params):
         import select
         p = select.poll()
         eof = select.POLLHUP | select.POLLNVAL | select.POLLERR
-        p.register(disco_external.out_fd, select.POLLIN | eof)
-        p.register(disco_external.in_fd, select.POLLOUT | eof)
-        MAX_NUM_OUTPUT = disco_external.MAX_NUM_OUTPUT
+        p.register(external.out_fd, select.POLLIN | eof)
+        p.register(external.in_fd, select.POLLOUT | eof)
+        MAX_NUM_OUTPUT = external.MAX_NUM_OUTPUT
 
         tt = 0
         while True:
@@ -50,25 +49,23 @@ def ext_reduce(red_in, red_out, params):
                         if event & (select.POLLNVAL | select.POLLERR):
                                 raise "Pipe to the external process failed"
                         elif event & select.POLLIN:
-                                num = struct.unpack("I",\
-                                        disco_external.out_fd.read(4))[0]
+                                num = struct.unpack("I",
+                                        external.out_fd.read(4))[0]
                                 if num > MAX_NUM_OUTPUT:
                                         raise "External output limit "\
                                                 "exceeded: %d > %d" %\
                                                 (num, MAX_NUM_OUTPUT)
                                 for i in range(num):
-                                        red_out.add(*disco_external.\
-                                                unpack_kv())
+                                        red_out.add(*external.unpack_kv())
                                         tt += 1
                         elif event & select.POLLOUT:
                                 try:
-                                        msg = disco_external.pack_kv(\
-                                                *red_in.next())
-                                        disco_external.in_fd.write(msg)
-                                        disco_external.in_fd.flush()
+                                        msg = external.pack_kv(*red_in.next())
+                                        external.in_fd.write(msg)
+                                        external.in_fd.flush()
                                 except StopIteration:
-                                        p.unregister(disco_external.in_fd)
-                                        disco_external.in_fd.close()
+                                        p.unregister(external.in_fd)
+                                        external.in_fd.close()
                         else:
                                 return
 
@@ -88,7 +85,7 @@ def close_ext():
                 os.kill(proc.pid, 9)
 
 def write_files(ext_data, path):
-        disco_worker.ensure_path(path + "/", False)
+        ensure_path(path + "/", False)
         for fname, data in ext_data.iteritems():
                 ensure_file(path + "/" + fname, data)
 
@@ -117,9 +114,8 @@ def ensure_file(fname, data, timeout = 60, mode = 500):
                                 time.sleep(1)
                                 timeout -= 1
                         else:
-                                disco_worker.msg("Writing external "\
-                                        "file %s failed" % fname)
+                                msg("Writing external file %s failed" % fname)
                                 raise
-        disco_worker.msg("Timeout in writing external file %s" % fname)
+        msg("Timeout in writing external file %s" % fname)
         raise Exception("Timeout in writing external file %s" % fname)
         

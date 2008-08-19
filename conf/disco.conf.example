@@ -1,0 +1,28 @@
+#!/bin/bash
+set -a
+
+# Lighttpd for master and nodes runs on this port. 
+# disco://host URIs are mapped to http://host:DISCO_PORT.
+#DISCO_PORT=8989
+
+# Port for master <-> lighty communication.
+DISCO_SCGI_PORT=4444
+
+# Root directory for Disco data.
+DISCO_ROOT=/srv/disco/
+
+# Root directory for Disco binaries. Binaries must be found
+# under DISCO_HOME/ebin.
+DISCO_HOME=/usr/lib/disco/
+
+# Root directory for Disco logs.
+DISCO_LOG=/var/log/disco/
+
+# The maximum amount of virtual memory available for master
+# (ulimit -v DISCO_ULIMIT)
+DISCO_ULIMIT=16000000
+
+DISCO_USER=disco
+
+DISCO_PID_DIR=/var/run/
+

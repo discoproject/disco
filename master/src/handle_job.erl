@@ -67,10 +67,26 @@ init_job(PostData) ->
                 {ok, _Events} -> throw(["job ", Name, " already exists"])
         end.
 
+set_disco_url(SPort) ->
+        {ok, Name} = application:get_env(disco_name),
+        {ok, HostN} = inet:gethostname(),
+        DiscoUrl = lists:flatten(["http://", HostN, ":",
+                binary_to_list(SPort), "/disco/master/_", Name, "/"]),
+        application:set_env(disco, disco_url, DiscoUrl).
+
 % handle() receives the SCGI request and reads POST data.
 handle(Socket, Msg) ->
         {value, {_, CLenStr}} = lists:keysearch(<<"CONTENT_LENGTH">>, 1, Msg),
         CLen = list_to_integer(binary_to_list(CLenStr)),
+        
+        Url = application:get_env(disco_url),
+        if Url == undefined ->
+                {value, {_, SPort}} =
+                        lists:keysearch(<<"SERVER_PORT">>, 1, Msg),
+                set_disco_url(SPort);
+        true -> ok
+        end,
+
         % scgi_recv_msg used instead of gen_tcp to work around gen_tcp:recv()'s
         % 16MB limit.
         {ok, PostData} = scgi:recv_msg(Socket, <<>>, CLen),

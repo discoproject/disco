@@ -1,7 +1,11 @@
 
 import sys
-from disco_external import *
-from netstring import encode_netstring_fd
+from disconode import external
+from disco.netstring import encode_netstring_fd
+
+# An ugly workaround for the problem that prevents saying
+# "from disconode import external in external.py.
+external.external = external
 
 params = {"test1": "1,2,3",\
           "one two three": "dim\ndam\n",\
@@ -15,9 +19,9 @@ class RedOut:
                         print "Result mismatch:", (k, v)
                         sys.exit(1)
 
-open_ext("./ext_test", encode_netstring_fd(params))
+external.open_ext("./ext_test", encode_netstring_fd(params))
 for e in data:
-        r = ext_map(e, None) 
+        r = external.ext_map(e, None) 
         print r
         if r != [e] * 3:
                 print "Result mismatch:", r
@@ -25,8 +29,8 @@ for e in data:
 
 print "map ok!"
 
-open_ext("./ext_test", encode_netstring_fd(params))
-ext_reduce(iter(data), RedOut(), encode_netstring_fd(params))
+external.open_ext("./ext_test", encode_netstring_fd(params))
+external.ext_reduce(iter(data), RedOut(), encode_netstring_fd(params))
 
 print "reduce ok!"
 

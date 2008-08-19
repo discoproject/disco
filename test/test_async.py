@@ -1,5 +1,6 @@
 
-import tserver, sys, discoapi, disco, random, time
+import tserver, sys, random, time
+from disco import Disco, result_iterator
 
 def data_gen(path):
         return "\n".join([path[1:]] * 10)
@@ -15,27 +16,27 @@ def fun_reduce(iter, out, params):
 
 tserver.run_server(data_gen)
 
-d = discoapi.Disco(sys.argv[1])
-num = sum(x['max_workers'] for x in d.nodeinfo()['available'])
+disco = Disco(sys.argv[1])
+num = sum(x['max_workers'] for x in disco.nodeinfo()['available'])
 print >> sys.stderr, num, "slots available"
 inputs = tserver.makeurl(range(num * 10))
 random.shuffle(inputs)
 
 jobs = []
 for i in range(5):
-        jobs.append(disco.job(sys.argv[1], "test_async_%d" % i,
-                       inputs[i * (num * 2):(i + 1) * (num * 2)],
-                       fun_map, reduce = fun_reduce, nr_reduces = 11,
-                       sort = False, async = True))
+        jobs.append(disco.new_job(name = "test_async_%d" % i,
+                       input = inputs[i * (num * 2):(i + 1) * (num * 2)],
+                       map = fun_map, reduce = fun_reduce, nr_reduces = 11,
+                       sort = False))
         time.sleep(1)
 
 all = dict(("[%s]" % i, 0) for i in range(num * 10))
 for job in jobs:
-        results = d.wait(job)
+        results = job.wait()
         print "Job", job, "done"
-        for k, v in disco.result_iterator(results):
+        for k, v in result_iterator(results):
                 all[k] += 1
-        d.clean(job)
+        job.clean()
 
 for v in all.values():
         if v != 10:
