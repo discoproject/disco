@@ -1,0 +1,113 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+# Sample debian/rules that uses debhelper.
+#
+# This file was originally written by Joey Hess and Craig Small.
+# As a special exception, when this file is copied by dh-make into a
+# dh-make output file, you may use that output file without restriction.
+# This special exception was added by Craig Small in version 0.37 of dh-make.
+#
+# Modified to make a template file for a multi-binary package with separated
+# build-arch and build-indep targets  by Bill Allombert 2001
+
+# Uncomment this to turn on verbose mode.
+export DH_VERBOSE=1
+
+# This has to be exported to make some magic below work.
+export DH_OPTIONS
+
+DESTDIR=$(CURDIR)/debian/disco-master
+NODEDEST=$(CURDIR)/debian/disco-node
+PYDISCODEST=$(CURDIR)/debian/python-disco
+
+configure: configure-stamp
+configure-stamp:
+	dh_testdir
+	touch configure-stamp
+
+build: build-arch build-indep
+
+build-arch: build-arch-stamp
+build-arch-stamp: configure-stamp  
+	$(MAKE)
+	touch $@
+
+build-indep: build-indep-stamp
+build-indep-stamp:
+	touch $@
+
+clean: 
+	dh_testdir
+	dh_testroot
+	rm -f build-arch-stamp build-indep-stamp configure-stamp
+
+	# Add here commands to clean up after the build process.
+	$(MAKE) clean
+
+	dh_clean 
+
+install: install-arch install-indep
+
+install-arch:
+	dh_testdir
+	dh_testroot
+	dh_clean -k -a 
+	dh_installdirs -a
+
+	$(MAKE) install-master DESTDIR=$(DESTDIR) 
+
+	dh_install -s
+
+
+install-indep:
+	dh_testdir
+	dh_testroot
+	dh_clean -k -i
+	dh_installdirs -i
+	
+	$(MAKE) install-pydisco PYDISCODEST=$(PYDISCODEST)
+	$(MAKE) install-node NODEDEST=$(NODEDEST)
+
+	dh_install -i
+
+# Must not depend on anything. This is to be called by
+# binary-arch/binary-indep
+# in another 'make' thread.
+binary-common:
+	dh_testdir -A
+	dh_testroot -A 
+	dh_installchangelogs -A
+	dh_installdocs -A
+	dh_installexamples -A
+	dh_pysupport -i
+#	dh_installmenu
+#	dh_installdebconf	
+#	dh_installlogrotate	
+#	dh_installemacsen
+#	dh_installpam
+#	dh_installmime
+#	dh_python
+	dh_installinit -A
+#	dh_installcron
+#	dh_installinfo
+	dh_installman -A
+	dh_link -A
+	dh_strip -A
+	dh_compress -A
+	dh_fixperms -A
+#	dh_perl
+	dh_makeshlibs -A
+	dh_installdeb -A
+	dh_shlibdeps -A
+	dh_gencontrol -A
+	dh_md5sums -A
+	dh_builddeb -A
+
+binary-indep:
+
+binary-arch: build install
+	$(MAKE) -f debian/rules binary-common
+
+binary: binary-arch binary-indep
+
+.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch configure

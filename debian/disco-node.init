@@ -1,0 +1,83 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          disco-lighttpd
+# Required-Start:    $remote_fs $network
+# Required-Stop:     $remote_fs $network
+# Should-Start:      fam
+# Should-Stop:       fam
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start the lighttpd web server for Disco.
+### END INIT INFO
+
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/usr/sbin/lighttpd
+NAME=disco-lighttpd
+DESC="web server for disco"
+PIDFILE=/var/run/$NAME.pid
+SCRIPTNAME=/etc/init.d/$NAME
+
+DAEMON_OPTS="-f /etc/disco/disco-lighttpd.conf"
+
+test -x $DAEMON || exit 0
+
+set -e
+
+# be sure there is a /var/run/lighttpd, even with tmpfs
+mkdir -p /var/run/disco-lighttpd > /dev/null 2> /dev/null
+chown disco:disco /var/run/disco-lighttpd
+chmod 0750 /var/run/disco-lighttpd
+
+. /lib/lsb/init-functions
+
+case "$1" in
+    start)
+        log_daemon_msg "Starting $DESC" $NAME
+        if ! start-stop-daemon --start --quiet --oknodo \
+            --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_OPTS
+        then
+            log_end_msg 1
+        else
+            log_end_msg 0
+        fi
+        ;;
+    stop)
+        log_daemon_msg "Stopping $DESC" $NAME
+        if start-stop-daemon --quiet --stop --oknodo --retry 30 --oknodo \
+            --pidfile $PIDFILE --exec $DAEMON
+        then
+            rm -f $PIDFILE
+            log_end_msg 0
+        else
+            log_end_msg 1
+        fi
+        ;;
+    reload)
+        log_daemon_msg "Reloading $DESC configuration" $NAME
+        if start-stop-daemon --stop --signal 2 --oknodo --retry 30 --oknodo \
+            --quiet --pidfile $PIDFILE --exec $DAEMON
+        then
+            if start-stop-daemon --start --quiet  \
+                --pidfile $PIDFILE --exec $DAEMON -- $DAEMON_OPTS ; then
+                log_end_msg 0
+            else
+                log_end_msg 1
+            fi
+        else
+            log_end_msg 1
+        fi
+        ;;
+    restart|force-reload)
+        $0 stop
+        test -r  $PIDFILE && while pidof lighttpd | \
+            grep -q `cat $PIDFILE 2>/dev/null` 2>/dev/null ; do sleep 1; done
+        $0 start
+        ;;
+    *)
+        echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

@@ -1,0 +1,27 @@
+Source: disco
+Section: unknown
+Priority: extra
+Maintainer: Ville Tuulos <ville.h.tuulos@nokia.com>
+Build-Depends: debhelper (>= 7), erlang-dev (>= 1:12.b.3-dfsg-1), erlang-nox (>= 1:12.b.3-dfsg-1)
+Standards-Version: 3.7.3
+Homepage: http://www.discoproject.org
+
+Package: python-disco
+Architecture: all
+Build-Depends: python-support
+Depends: ${misc:Depends}, python2.4, python-cjson
+Description: Disco client
+ This is Disco client.
+
+Package: disco-node
+Architecture: all
+Depends: ${misc:Depends}, erlang (>= 1:12.b.3-dfsg-1), python2.4, python-disco (= ${source:Version})
+Description: Disco node
+ This is Disco node.
+
+Package: disco-master
+Architecture: all
+Depends: ${misc:Depends}, disco-node (= ${source:Version}), erlang (>= 1:12.b.3-dfsg-1)
+Description: Disco master
+ This is Disco master.
+
