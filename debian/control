@@ -8,6 +8,7 @@ Homepage: http://www.discoproject.org
 
 Package: python-disco
 Architecture: all
+Section: python
 Build-Depends: python-support
 Depends: ${misc:Depends}, python2.4, python-cjson
 Description: Disco client
