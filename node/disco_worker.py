@@ -347,7 +347,6 @@ def merge_chunks(partitions):
 def op_map(job):
         global job_name
         
-        job_name = util.job_name = job['name']
         job_input = this_inputs()
         msg("Received a new map job!")
         
@@ -394,7 +393,6 @@ def op_map(job):
 def op_reduce(job):
         global job_name
 
-        job_name = util.job_name = job['name']
         job_inputs = this_inputs()
 
         msg("Received a new reduce job!")
@@ -451,6 +449,14 @@ if __name__ == "__main__":
                 m = decode_netstring_fd(file(params_file))
         except:
                 data_err("Decoding the job description failed", master_url)
+        
+        job_name = util.job_name = m['name']
+
+        my_ver = ".".join(map(str, sys.version_info[:2]))
+        if m["version"] != my_ver:
+                msg("Python version mismatch: client = %s vs. node = %s" %\
+                                (m["version"], my_ver), "DAT")
+                sys.exit(1)
 
         globals()["op_" + sys.argv[1]](m)
         msg("Worker done", "END")

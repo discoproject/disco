@@ -180,6 +180,7 @@ class Job(object):
 
                 req = {"name": self.name,
                        "input": " ".join(inputs),
+                       "version": ".".join(map(str, sys.version_info[:2])),
                        "map_reader": marshal.dumps(d("map_reader").func_code),
                        "partition": marshal.dumps(d("partition").func_code),
                        "params": cPickle.dumps(d("params")),
@@ -232,7 +233,7 @@ class Job(object):
                 reply = self.master.request("/disco/job/new", self.msg)
                         
                 if reply != "job started":
-                        raise "Failed to start a job. Server replied: " + r
+                        raise "Failed to start a job. Server replied: " + reply
 
 
 
