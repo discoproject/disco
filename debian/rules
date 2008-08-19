@@ -20,55 +20,26 @@ DESTDIR=$(CURDIR)/debian/disco-master
 NODEDEST=$(CURDIR)/debian/disco-node
 PYDISCODEST=$(CURDIR)/debian/python-disco
 
-configure: configure-stamp
-configure-stamp:
-	dh_testdir
-	touch configure-stamp
-
-build: build-arch build-indep
-
-build-arch: build-arch-stamp
-build-arch-stamp: configure-stamp  
-	$(MAKE)
-	touch $@
-
-build-indep: build-indep-stamp
-build-indep-stamp:
-	touch $@
-
 clean: 
 	dh_testdir
 	dh_testroot
 	rm -f build-arch-stamp build-indep-stamp configure-stamp
 
-	# Add here commands to clean up after the build process.
 	$(MAKE) clean
-
 	dh_clean 
 
-install: install-arch install-indep
-
-install-arch:
+install:
 	dh_testdir
 	dh_testroot
-	dh_clean -k -a 
-	dh_installdirs -a
+	dh_clean -k -A
+	dh_installdirs -A
 
 	$(MAKE) install-master DESTDIR=$(DESTDIR) 
+	$(MAKE) install-pydisco DESTDIR=$(PYDISCODEST)
+	$(MAKE) install-node DESTDIR=$(NODEDEST)
 
-	dh_install -s
+	dh_install -A
 
-
-install-indep:
-	dh_testdir
-	dh_testroot
-	dh_clean -k -i
-	dh_installdirs -i
-	
-	$(MAKE) install-pydisco PYDISCODEST=$(PYDISCODEST)
-	$(MAKE) install-node NODEDEST=$(NODEDEST)
-
-	dh_install -i
 
 # Must not depend on anything. This is to be called by
 # binary-arch/binary-indep
@@ -105,7 +76,7 @@ binary-common:
 
 binary-indep:
 
-binary-arch: build install
+binary-arch: install
 	$(MAKE) -f debian/rules binary-common
 
 binary: binary-arch binary-indep

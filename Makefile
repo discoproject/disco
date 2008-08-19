@@ -7,20 +7,23 @@ PYTHON = python2.4
 ESRC = master/src
 EBIN = master/ebin
 
-ifndef NODEDEST
-	NODEDEST = $(DESTDIR)
-endif
-ifndef PYDISCODEST
-	PYDISCODEST = $(DESTDIR)
-endif
-
-NODEDEST = $(shell cd $(NODEDEST); pwd)
-PYDISCODEST = $(shell cd $(PYDISCODEST); pwd)
-
 BIN_DIR = /usr/bin/
 INSTALL_DIR = /usr/lib/disco/
+CONFIG_DIR = /etc/disco/
+
+#ifndef NODEDEST
+#	NODEDEST = $(DESTDIR)
+#endif
+#ifndef PYDISCODEST
+#	PYDISCODEST = $(DESTDIR)
+#endif
+#
+#NODEDEST = $(shell cd $(NODEDEST); pwd)
+#PYDISCODEST = $(shell cd $(PYDISCODEST); pwd)
+
 TARGETDIR = $(DESTDIR)/$(INSTALL_DIR)
 TARGETBIN = $(DESTDIR)/$(BIN_DIR)
+TARGETCFG = $(DESTDIR)/$(CONFIG_DIR)
 
 SRC = $(wildcard $(ESRC)/*.erl)
 TARGET = $(addsuffix .beam, $(basename \
@@ -42,18 +45,25 @@ clean:
 
 install: install-master install-pydisco install-node
  
-install-master: master
+install-master: install-config master
 	install -d $(TARGETDIR)/ebin
 	install -d $(TARGETBIN)
 	cp $(TARGET) $(APP) $(TARGETDIR)/ebin
 	cp $(BOOT) $(TARGETDIR)
+	cp -r master/www $(TARGETDIR)
+	cp conf/lighttpd-master.conf $(TARGETCFG)
 	cp master/disco-master $(TARGETBIN)
 
-install-node:
-	(cd node; $(PYTHON) setup.py install --root=$(NODEDEST))
+install-node: install-config
+	(cd node; $(PYTHON) setup.py install --root=$(DESTDIR))
+	cp conf/lighttpd-node.conf $(TARGETCFG)
 
 install-pydisco:
-	(cd pydisco; $(PYTHON) setup.py install --root=$(PYDISCODEST))
+	(cd pydisco; $(PYTHON) setup.py install --root=$(DESTDIR))
+
+install-config:
+	install -d $(TARGETCFG)
+	cp conf/disco.conf.example $(TARGETCFG)/disco.conf
 
 $(APP): $(BOOT)
 
