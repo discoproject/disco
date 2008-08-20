@@ -25,8 +25,7 @@ case "$1" in
 
     purge)
 	deluser disco 2>/dev/null || true
-        delgroup disco 2>/dev/null || true
-	rmdir --parents --ignore-fail-on-non-empty /srv/disco
+	[ -e /srv/disco ] && rmdir --ignore-fail-on-non-empty /srv/disco
     ;;
 
     *)

@@ -1,1 +1,3 @@
 srv/disco/data
+var/log/disco
+var/run/disco

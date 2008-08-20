@@ -13,21 +13,18 @@
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/sbin/lighttpd
-NAME=disco-lighttpd
+NAME=disco-node
 DESC="web server for disco"
-PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 
-DAEMON_OPTS="-f /etc/disco/disco-lighttpd.conf"
+DAEMON_OPTS="-f /etc/disco/lighttpd-node.conf"
 
 test -x $DAEMON || exit 0
 
-set -e
+set -e -a
+. /etc/disco/disco.conf
 
-# be sure there is a /var/run/lighttpd, even with tmpfs
-mkdir -p /var/run/disco-lighttpd > /dev/null 2> /dev/null
-chown disco:disco /var/run/disco-lighttpd
-chmod 0750 /var/run/disco-lighttpd
+PIDFILE="$DISCO_PID_DIR/disco-node.pid"
 
 . /lib/lsb/init-functions
 

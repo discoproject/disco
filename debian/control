@@ -16,7 +16,7 @@ Description: Disco client
 
 Package: disco-node
 Architecture: all
-Depends: ${misc:Depends}, adduser, erlang (>= 1:12.b.3-dfsg-1), python2.4, python-disco (= ${source:Version})
+Depends: ${misc:Depends}, adduser, lighttpd, erlang (>= 1:12.b.3-dfsg-1), python2.4, python-disco (= ${source:Version})
 Description: Disco node
  This is Disco node.
 
