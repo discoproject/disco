@@ -21,7 +21,7 @@ set -e
 case "$1" in
     configure)
     	# Create disco user
-	adduser --no-create-home --system --home /srv/disco --disabled-password --quiet --group
+	adduser --no-create-home --system --home /srv/disco --disabled-password --quiet --group disco
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
