@@ -2,6 +2,8 @@
 #
 # Start / stop Disco master.
 #
+# Disco-specific changes to start/stop functions marked with DISCO below.
+#
 # Copyright (c) 2007 Javier Fernandez-Sanguino <jfs@debian.org>
 #
 # This is free software; you may redistribute it and/or modify
@@ -32,11 +34,14 @@
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 DAEMON=/usr/bin/disco-master # Introduce the server's location here
-NAME=#PACKAGE                # Introduce the short server's name here
-DESC=#PACKAGE                # Introduce a short description here
+NAME=disco-master            # Introduce the short server's name here
+DESC="disco master"          # Introduce a short description here
 LOGDIR=/var/log/disco  # Log directory to use
 
-PIDFILE=/var/run/$NAME.pid
+set -e -a
+. /etc/disco/disco.conf
+
+PIDFILE="$DISCO_PID_DIR/disco-master.pid"
 
 test -x $DAEMON || exit 0
 
@@ -60,7 +65,7 @@ DIETIME=10              # Time to wait for the server to die, in seconds
                         # be a false positive (says it did not start
                         # when it actually did)
                         
-LOGFILE=$LOGDIR/$NAME.log  # Server logfile
+#LOGFILE=$LOGDIR/$NAME.log  # Server logfile
 DAEMONUSER=disco   # Users to run the daemons as. If this value
                    # is set start-stop-daemon will chuid the server
 
@@ -91,9 +96,14 @@ running_pid() {
     name=$2
     [ -z "$pid" ] && return 1
     [ ! -d /proc/$pid ] &&  return 1
-    cmd=`cat /proc/$pid/cmdline | tr "\000" "\n"|head -n 1 |cut -d : -f 1`
+    
+    # DISCO The next lines are modified for Disco:
+    # WAS: cmd=`cat /proc/$pid/cmdline | tr "\000" "\n"|head -n 1 |cut -d : -f 1`
+    cmd=`cat /proc/$pid/cmdline | tr "\000" "\n"|grep disco`
+
     # Is this the expected server
-    [ "$cmd" != "$name" ] &&  return 1
+    # WAS: [ "$cmd" != "$name" ] &&  return 1
+    [ -z "$cmd" ] && return 1
     return 0
 }
 
@@ -115,9 +125,15 @@ start_server() {
             errcode=$?
         else
 # if we are using a daemonuser then change the user id
+# DISCO: --background added. It seems to be necessary only for
+# apt-get install which kills the process unless it's daemonized
+# properly.
             start-stop-daemon --start --quiet --pidfile $PIDFILE \
-                        --chuid $DAEMONUSER \
+                        --chuid $DAEMONUSER --background\
                         --exec $DAEMON -- $DAEMON_OPTS
+# DISCO: sleep makes sure that the process has time to write its pid
+# to PIDFILE before we check here that the process is alive. 
+            sleep 1
             errcode=$?
         fi
 	return $errcode
@@ -131,8 +147,10 @@ stop_server() {
         else
 # if we are using a daemonuser then look for process that match
             start-stop-daemon --stop --quiet --pidfile $PIDFILE \
-                        --user $DAEMONUSER \
-                        --exec $DAEMON
+                        --user $DAEMONUSER
+                        # DISCO - $DAEMON doesn't match the actual process name
+                        # (disco-master vs. beam.smp) so better to remove it.
+                        # WAS: --exec $DAEMON
             errcode=$?
         fi
 
