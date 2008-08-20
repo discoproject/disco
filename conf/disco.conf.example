@@ -22,5 +22,5 @@ DISCO_ULIMIT=16000000
 
 DISCO_USER=disco
 
-DISCO_PID_DIR=/var/run/
+DISCO_PID_DIR=/var/run/disco/
 
