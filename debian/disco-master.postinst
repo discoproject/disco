@@ -21,6 +21,7 @@ set -e
 case "$1" in
     configure)
         ln -fs lighttpd-master.conf /etc/disco/lighttpd.conf
+        invoke-rc.d disco-node restart
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

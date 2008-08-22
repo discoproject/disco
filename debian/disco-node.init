@@ -24,7 +24,7 @@ test -x $DAEMON || exit 0
 set -e -a
 . /etc/disco/disco.conf
 
-PIDFILE="$DISCO_PID_DIR/disco-node.pid"
+PIDFILE="$DISCO_PID_DIR/disco-lighttpd.pid"
 
 . /lib/lsb/init-functions
 
