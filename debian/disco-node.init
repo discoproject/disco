@@ -17,7 +17,7 @@ NAME=disco-node
 DESC="web server for disco"
 SCRIPTNAME=/etc/init.d/$NAME
 
-DAEMON_OPTS="-f /etc/disco/lighttpd-node.conf"
+DAEMON_OPTS="-f /etc/disco/lighttpd.conf"
 
 test -x $DAEMON || exit 0
 
