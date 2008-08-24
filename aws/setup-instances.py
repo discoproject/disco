@@ -46,12 +46,6 @@ def open_ssh_pipe(url):
         print >> sys.stderr, "ok. Tunnel PID is %d." % p.pid
 
 
-def ignore_login_garbage(p):
-        r = p.stdout.readline()
-        while not r.startswith("-- END --"):
-                r = p.stdout.readline()
-
-
 def find_instances():
         p = Popen(["%s/ec2-describe-instances" % EC2BIN], stdout = PIPE)
         return [i for i in re.findall("INSTANCE\t(.+?)\t.*?\t(.+?)\t.*"\
@@ -73,10 +67,11 @@ def distribute_file(instances, path, content, change_owner = False):
                 own = ""
                 dir = os.path.dirname(path) 
                 if change_owner:
-                        own = "chown -R disco:disco %s;" % dir
+			own = "touch %s; chmod 400 %s;"\
+                              "chown -R disco:disco %s;" % (path, path, dir)
                 p = ssh(url, "mkdir %s 2>/dev/null;%s cat > %s"\
                         % (dir, own, path), stdin = PIPE)
-                p.stdin.write(content)
+                p.stdin.write(content)	
                 p.stdin.close()
                 return p
         process_instances(instances, copy_file, "Copy %s" % path)
@@ -120,9 +115,8 @@ def make_hosts(master, instances):
         hosts = cStringIO.StringIO()
         fmt = "node%%.%dd\n" % len(str(len(instances) - 1))
         n = 1
-
-        #p.stdin.write("echo '-- END --'\n")
-        #ignore_login_garbage(p)
+        
+        f = file("ec2-nodes", "w")
 
         for inst, url in instances:
                 p.stdin.write("ping -c 1 %s | head -1\n" % url)
@@ -132,6 +126,7 @@ def make_hosts(master, instances):
                 else:
                         hosts.write("%s\t" % m.group(1))
                         hosts.write(fmt % n)
+                        print >> f, "%s\t%s" % (url, fmt % n),
                         n += 1
 
         cluster_spec = "%s:%d" % ((fmt % 1).strip(), n - 1)
@@ -141,9 +136,6 @@ def make_hosts(master, instances):
 
 def update_discoconfig(master, cluster_spec):
         print >> sys.stderr, "Updating disco config..",
-        #p = ssh(master, "echo '-- END --'; cat /proc/cpuinfo | grep processor",
-        #        stdout = PIPE)
-        #ignore_login_garbage(p)
         p = ssh(master, "cat /proc/cpuinfo | grep processor", stdout = PIPE)
         num_cores = len(p.stdout.readlines())
         try:
@@ -211,16 +203,21 @@ if __name__ == "__main__":
                 change_owner = True)
        
         cookie = get_cookie(MASTER[1])
-        distribute_file(instances, "/srv/disco/.erlang.cookie", cookie)
+        distribute_file(instances, "/srv/disco/.erlang.cookie", cookie,
+                change_owner = True)
 
         open_ssh_pipe(MASTER[1])
         
         update_discoconfig(MASTER[1], cluster_spec)
+        
+        print >> sys.stderr, "Nodes written to ec2-nodes. "\
+                "Use this file with distrfiles.py."
 
         print >> sys.stderr, "All done!\n\n"\
         "Disco master is now ready for use at http://localhost:8989.\n"\
         "Remember to set USE_MASTER_AS_PROXY=1 for Disco clients as results "\
         "must be accessed through the master.\n"
+        
 
 
         

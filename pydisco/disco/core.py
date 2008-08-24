@@ -1,4 +1,4 @@
-import sys, re, marshal, urllib, httplib, cjson, time, cPickle
+import sys, re, os, marshal, urllib, httplib, cjson, time, cPickle
 from disco import func, util
 from netstring import *
 
@@ -237,13 +237,22 @@ class Job(object):
 
 
 
-def result_iterator(results, notifier = None):
+def result_iterator(results, notifier = None, proxy = None):
+        
+        if not proxy:
+                proxy = os.environ.get("DISCO_PROXY", None)
+        if proxy.startswith("disco://"):
+                proxy = "%s:%s" % (proxy[8:], util.HTTP_PORT)
+        elif proxy.startswith("http://"):
+                proxy = proxy[7:]
+        
         res = []
         for dir_url in results:
                 if dir_url.startswith("dir://"):
-                        res += util.parse_dir(dir_url)
+                        res += util.parse_dir(dir_url, proxy)
                 else:
                         res.append(dir_url)
+        
         for url in res:
                 if url.startswith("file://"):
                         fname = url[7:]
@@ -252,7 +261,11 @@ def result_iterator(results, notifier = None):
                         http = None
                 else:
                         host, fname = url[8:].split("/", 1)
-                        ext_host = host + ":" + util.HTTP_PORT
+                        if proxy:
+                                ext_host = proxy
+                                fname = "/disco/node/%s/%s" % (host, fname)
+                        else:
+                                ext_host = host + ":" + util.HTTP_PORT
                         ext_file = "/" + fname
 
                         http = httplib.HTTPConnection(ext_host)
