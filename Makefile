@@ -50,6 +50,7 @@ install-master: install-config master
 	install -d $(TARGETBIN)
 	cp $(TARGET) $(APP) $(TARGETDIR)/ebin
 	cp $(BOOT) $(TARGETDIR)
+	cp master/make-lighttpd-proxyconf.py $(TARGETDIR)
 	cp -r master/www $(TARGETDIR)
 	cp conf/lighttpd-master.conf $(TARGETCFG)
 	cp master/disco-master $(TARGETBIN)
