@@ -11,16 +11,6 @@ BIN_DIR = /usr/bin/
 INSTALL_DIR = /usr/lib/disco/
 CONFIG_DIR = /etc/disco/
 
-#ifndef NODEDEST
-#	NODEDEST = $(DESTDIR)
-#endif
-#ifndef PYDISCODEST
-#	PYDISCODEST = $(DESTDIR)
-#endif
-#
-#NODEDEST = $(shell cd $(NODEDEST); pwd)
-#PYDISCODEST = $(shell cd $(PYDISCODEST); pwd)
-
 TARGETDIR = $(DESTDIR)/$(INSTALL_DIR)
 TARGETBIN = $(DESTDIR)/$(BIN_DIR)
 TARGETCFG = $(DESTDIR)/$(CONFIG_DIR)
@@ -48,14 +38,16 @@ install: install-master install-pydisco install-node
 install-master: install-config master
 	install -d $(TARGETDIR)/ebin
 	install -d $(TARGETBIN)
-	cp $(TARGET) $(APP) $(TARGETDIR)/ebin
 	cp $(BOOT) $(TARGETDIR)
+	cp $(APP) $(TARGETDIR)/ebin
 	cp master/make-lighttpd-proxyconf.py $(TARGETDIR)
 	cp -r master/www $(TARGETDIR)
 	cp conf/lighttpd-master.conf $(TARGETCFG)
 	cp master/disco-master $(TARGETBIN)
 
-install-node: install-config
+install-node: install-config master
+	install -d $(TARGETDIR)/ebin
+	cp $(TARGET) $(TARGETDIR)/ebin
 	(cd node; $(PYTHON) setup.py install --root=$(DESTDIR))
 	cp conf/lighttpd-node.conf $(TARGETCFG)
 
