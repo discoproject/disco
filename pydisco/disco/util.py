@@ -42,10 +42,13 @@ def disco_host(addr):
                 raise "Unknown host specifier: %s" % master
 
 
-def parse_dir(dir_url):
+def parse_dir(dir_url, proxy = None):
         x, x, host, mode, name = dir_url.split('/')
-        html = urllib.urlopen("http://%s:%s/%s" %\
-                (host, HTTP_PORT, name)).read()
+        if proxy:
+                url = "http://%s/disco/node/%s/%s/" % (proxy, host, name)
+        else:
+                url = "http://%s:%s/%s/" % (host, HTTP_PORT, name)
+        html = urllib.urlopen(url).read()
         inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
         return ["%s://%s/%s/%s" % (prefix, host, name, x)\
                         for x, prefix in inputs if "partial" not in x]
