@@ -1,5 +1,6 @@
 #!/usr/bin/python
-import sys, os, re, cStringIO
+import sys, os, re, cStringIO, time
+from urllib import urlopen
 from subprocess import *
 
 SOURCES_LIST = """
@@ -26,9 +27,29 @@ def check_path(path):
 def ssh(url, cmd, **args):
         args["stdout"] = args.get("stdout", VERBOSE_OUT)
         args["stderr"] = args.get("stderr", STDOUT)
-        return Popen(["ssh", "-o", "UserKnownHostsFile=/dev/null",
+        return Popen(["ssh", "-q", "-o", "UserKnownHostsFile=/dev/null",
                 "-o", "StrictHostKeyChecking=no", "-i", KEYPATH,
                 "root@" + url, cmd], **args)
+
+
+def open_ssh_pipe(url):
+        print >> sys.stderr, "Opening ssh tunnel to the master..",
+        p = Popen(["ssh", "-o", "UserKnownHostsFile=/dev/null",
+                "-o", "StrictHostKeyChecking=no", "-i", KEYPATH,
+                "-L", "8989:localhost:8989", "-N", "-n",
+                "root@" + url], stdout = VERBOSE_OUT, stderr = STDOUT)
+        time.sleep(1)
+        try:
+                urlopen("http://localhost:8989/disco/ctrl/joblist").read()
+        except:
+                die("SSH tunnel failed or Disco master is not alive.")
+        print >> sys.stderr, "ok. Tunnel PID is %d." % p.pid
+
+
+def ignore_login_garbage(p):
+        r = p.stdout.readline()
+        while not r.startswith("-- END --"):
+                r = p.stdout.readline()
 
 
 def find_instances():
@@ -87,12 +108,22 @@ def make_sshkey(master):
        print >> sys.stderr, "ok."
        return key
 
+def get_cookie(master):
+        p = ssh(master, "cat /srv/disco/.erlang.cookie", stdout = PIPE)
+        cookie = p.stdout.read()
+        if p.wait():
+                die("Couldn't read ~/.erlang.cookie")
+        return cookie
 
 def make_hosts(master, instances):
         p = ssh(master, "bash -s", stdin = PIPE, stdout = PIPE, bufsize = 0)
         hosts = cStringIO.StringIO()
-        fmt = "node%%.%dd\n" % len(str(len(instances)))
+        fmt = "node%%.%dd\n" % len(str(len(instances) - 1))
         n = 1
+
+        #p.stdin.write("echo '-- END --'\n")
+        #ignore_login_garbage(p)
+
         for inst, url in instances:
                 p.stdin.write("ping -c 1 %s | head -1\n" % url)
                 m = re.search(" \((.*?)\) ", p.stdout.readline())
@@ -102,7 +133,28 @@ def make_hosts(master, instances):
                         hosts.write("%s\t" % m.group(1))
                         hosts.write(fmt % n)
                         n += 1
-        return hosts.getvalue()
+
+        cluster_spec = "%s:%d" % ((fmt % 1).strip(), n - 1)
+        return hosts.getvalue(), cluster_spec
+
+
+
+def update_discoconfig(master, cluster_spec):
+        print >> sys.stderr, "Updating disco config..",
+        #p = ssh(master, "echo '-- END --'; cat /proc/cpuinfo | grep processor",
+        #        stdout = PIPE)
+        #ignore_login_garbage(p)
+        p = ssh(master, "cat /proc/cpuinfo | grep processor", stdout = PIPE)
+        num_cores = len(p.stdout.readlines())
+        try:
+                r = urlopen("http://localhost:8989/disco/ctrl/save_config_table",
+                        '[["%s","%d"]]' % (cluster_spec, num_cores))
+                if not r.headers.getheader("status").startswith("200"):
+                        die("Couldn't update disco config. "
+                            "Cluster spec is: %s, %d" % (cluster_spec, num_cores))
+        except:
+                die("Couldn't connect to Disco master")
+        print >> sys.stderr, "ok."
 
 
 if __name__ == "__main__":
@@ -148,13 +200,28 @@ if __name__ == "__main__":
         
         distribute_file(instances, "/etc/apt/sources.list", SOURCES_LIST)
         
+        hosts, cluster_spec = make_hosts(MASTER[1], instances)
+        hosts += "\n127.0.0.1\tlocalhost\n"
+        distribute_file(instances, "/etc/hosts", hosts)
+
         process_instances(instances, install_packages, "Install packages")
         
         key = make_sshkey(MASTER[1])
         distribute_file(instances, "/srv/disco/.ssh/authorized_keys", key,
                 change_owner = True)
+       
+        cookie = get_cookie(MASTER[1])
+        distribute_file(instances, "/srv/disco/.erlang.cookie", cookie)
+
+        open_ssh_pipe(MASTER[1])
         
-        hosts = make_hosts(MASTER[1], instances) + "\nlocalhost\t127.0.0.1"
-        distribute_file(instances, "/etc/hosts", hosts)
+        update_discoconfig(MASTER[1], cluster_spec)
+
+        print >> sys.stderr, "All done!\n\n"\
+        "Disco master is now ready for use at http://localhost:8989.\n"\
+        "Remember to set USE_MASTER_AS_PROXY=1 for Disco clients as results "\
+        "must be accessed through the master.\n"
+
+
         
-        # open ssh pipe
+
