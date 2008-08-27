@@ -51,6 +51,6 @@ def parse_dir(dir_url, proxy = None):
         html = urllib.urlopen(url).read()
         inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
         return ["%s://%s/%s/%s" % (prefix, host, name, x)\
-                        for x, prefix in inputs if "partial" not in x]
+                        for x, prefix in inputs if "." not in x]
 
 HTTP_PORT, tmp = load_conf()
