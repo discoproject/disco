@@ -1,4 +1,6 @@
 
+.. _ec2setup:
+
 How to set up Disco on Amazon EC2
 =================================
 
@@ -23,23 +25,27 @@ You need an Amazon Web Services account
 to use EC2. Go to the `Amazon Elastic Compute Cloud
 <http://www.amazon.com/EC2-AWS-Service-Pricing/b/ref=sc_fe_l_2?ie=UTF8&node=201590011>`_
 home page and click "Sign up for this web service". See the section
-"Setting up an account" in the Getting Started Guide and follow the
-given instructions.
+`"Setting up an account"
+<http://docs.amazonwebservices.com/AWSEC2/2008-05-05/GettingStartedGuide/index.html?account.html>`_ in the Getting Started Guide and follow the given instructions.
 
 Once you have an account, `download EC2 command-line tools
 <http://developer.amazonwebservices.com/connect/entry.jspa?externalID=351&categoryID=88>`_
-that are used to communicate with EC2. You need Java Runtime Environment
-(version 5 or newer) to run the tools.  Follow the instructions in the
-section "Setting up the tools" and set up the necessary environment
-variables (EC2_HOME, EC2_PRIVATE_KEY, EC2_CERT, and JAVA_HOME).
+that are used to communicate with EC2. You need
+Java Runtime Environment (version 5 or newer) to run the
+tools.  Follow the instructions in the section `"Setting up the tools"
+<http://docs.amazonwebservices.com/AWSEC2/2008-05-05/GettingStartedGuide/index.html?setting-up-your-tools.html>`_
+and set up the necessary environment variables (EC2_HOME, EC2_PRIVATE_KEY,
+EC2_CERT, and JAVA_HOME).
 
 2. Verify that your account works
 ---------------------------------
 
-You need a private SSH keypair that is used to control server instances
-in EC2 securely. Follow the instructions in the "Running an instance /
-Generating an SSH keypair" section to create a keypair. In the end,
-you should have a file that contains your private key.
+You need a private SSH keypair that is used to control
+server instances in EC2 securely. Follow the instructions
+in the `"Running an instance / Generating an SSH keypair" section
+<http://docs.amazonwebservices.com/AWSEC2/2008-05-05/GettingStartedGuide/index.html?running-an-instance.html>`_
+to create a keypair. In the end, you should have a file that contains
+your private key.
 
 Now you can try to start a server instance. Run the following command::
 
@@ -128,12 +134,16 @@ tunnel which is started at port 8989. You can open more tunnels to the
 master node as necessary using your SSH keypair.
 
 Now you have a working Disco cluster! If you haven't used Disco before, now
-it is a good time to go through the :ref`tutorial`.
+it is a good time to go through :ref:`tutorial`.
 
 If the script wasn't succesful, you can try to re-run it with the
 ``VERBOSE=1`` environment variable set. This will make the script to
-redirect outputs of all commands it runs on the nodes to the standard
-output.
+redirect outputs of all commands it runs to the standard output which
+might reveal what goes wrong.
+
+Remember to terminate your cluster when you are done with it. You can easily
+start up a new one when needed just by repeating this step.
+
 
 Using Disco on EC2
 ------------------
@@ -141,15 +151,15 @@ Using Disco on EC2
 In general, you can use the EC2 cluster as any other Disco
 cluster. However, note the following differences.
 
-You need to set the ``USE_MASTER_AS_PROXY=1`` environment variable when
-running any Disco jobs using EC2. This is required to access any result
-files through the master node, as the computation nodes on EC2 are not
-directly accessible.
+You need to set the ``DISCO_PROXY=http://localhost:8989`` environment
+variable when running any Disco jobs using EC2. This is required to access
+result files using the master node as a proxy, as the computation nodes
+on EC2 are not directly accessible.
 
-The script produces a file called ``ec2-nodes`` that maps node
-names to their addresses on EC2. You need to provide this file to
-``util/distrfiles.py`` when distributing data to your EC2 cluster. You
-have to specify your SSH keypair to the script as well.
+The ``setup-instances.py`` script produces a file called ``ec2-nodes``
+that maps node names to their addresses on EC2. You need to provide
+this file to ``util/distrfiles.py`` when distributing data to your EC2
+cluster. You have to specify your SSH keypair to the script as well.
 
 Here's an example::
 
