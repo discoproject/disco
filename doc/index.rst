@@ -35,14 +35,6 @@ References
    py/index
    external
 
-Developers
-----------
-
-.. toctree::
-   :maxdepth: 1
-
-   devsetup
-
 Indices and tables
 ------------------
 

@@ -2,14 +2,15 @@
 What is Disco?
 ==============
 
-Disco is an implementation of the Map-Reduce framework [MapReduce]_ for
-distributed computing. As the original framework, which was publicized
-by Google, Disco supports parallel computations over large data sets on
-unreliable cluster of computers. This makes it a perfect tool for
-analyzing and processing large datasets without having to bother about
-difficult technical questions related to distributed computing, such
-as communication protocols, load balancing, locking, job scheduling or
-fault tolerance, which are taken care by Disco.
+Disco is an implementation of the `Map-Reduce framework
+<http://en.wikipedia.org/wiki/MapReduce>`_ for distributed computing. As
+the original framework, which was publicized by Google, Disco supports
+parallel computations over large data sets on unreliable cluster of
+computers. This makes it a perfect tool for analyzing and processing large
+datasets without having to bother about difficult technical questions
+related to distributed computing, such as communication protocols, load
+balancing, locking, job scheduling or fault tolerance, which are taken
+care by Disco.
 
 Disco, standing on the shoulders of the solid Map-Reduce model, is
 suitable and already used for various data mining tasks, large-scale
@@ -20,12 +21,12 @@ Batteries included
 ------------------
 
 In contrast to a well-known open-source implementation of the Map-Reduce
-framework, Hadoop [Hadoop]_, that is implemented in Java, the Disco core
-is written in Erlang [Erlang]_, a functional language that is designed
-for building robust fault-tolerant distributed applications. Users of
-Disco typically write jobs in Python, which makes it possible to express
-even complex algorithms or data processing tasks often only in tens of
-lines of code.
+framework, `Hadoop <http://hadoop.apache.org>`_, that is implemented in
+Java, the Disco core is written in `Erlang <http://www.erlang.org>`_,
+a functional language that is designed for building robust fault-tolerant
+distributed applications. Users of Disco typically write jobs in Python,
+which makes it possible to express even complex algorithms or data
+processing tasks often only in tens of lines of code.
 
 For instance, the following fully working example computes word 
 frequencies in a large text corpus using 100 CPUs in parallel:
@@ -64,14 +65,16 @@ interface for status monitoring.
 High-performance computing made easy
 ------------------------------------
 
-Disco is a good match for a cluster of commodity Linux servers. New nodes
-can be added to the system on the fly, by a single click on the Web
-interface. If a server crashes, active jobs are automatically re-routed
-to other servers without any interruptions. Together with an automatic
-provisioning mechanism, such as Fully Automatic Installation for Debian
-[Fai]_, even a large HPC cluster can be maintained with only a minimal
-amount of manual work. As a proof of concept, the Data Insight team at
-NRC Palo Alto maintains a 240-core cluster running Disco using this setup.
+Disco is a good match for a cluster of commodity Linux servers. New
+nodes can be added to the system on the fly, by a single click on
+the Web interface. If a server crashes, active jobs are automatically
+re-routed to other servers without any interruptions. Together with
+an automatic provisioning mechanism, such as the `Fully Automatic
+Installation for Debian <http://www.informatik.uni-koeln.de/fai/>`_,
+even a large HPC cluster can be maintained with only a minimal amount
+of manual work. As a proof of concept, `Nokia Research Center in Palo
+Alto <http://research.nokia.com>`_ maintains a 240-core cluster running
+Disco using this setup.
 
 
 Main features
@@ -102,14 +105,3 @@ Main features
 
 - Easy to integrate to larger applications using the standard Disco module
   and the Web APIs.
-
-References
-----------
-
-.. [MapReduce] http://en.wikipedia.org/wiki/MapReduce
-.. [Hadoop] http://hadoop.apache.org/
-.. [Erlang] http://www.erlang.org/
-.. [Fai] http://www.informatik.uni-koeln.de/fai/ 
-
-Contact person: ville.h.tuulos@nokia.com
-
