@@ -7,6 +7,28 @@ Disco FAQ
 Using Disco
 -----------
 
+Why not `Hadoop <http://hadoop.apache.org>`_?
+'''''''''''''''''''''''''''''''''''''''''''''
+
+Why `Vim <http://www.vim.org>`_ and not `Emacs
+<http://www.gnu.org/software/emacs/>`_? Currently Hadoop
+is probably faster, more scalable, and more featureful than
+Disco. It has a great development community and it is used by
+`major <http://www.yahoo.com>`_ `Internet <http://www.facebook.com>`_
+`companies <http://www.amazon.com>`_. 
+
+We see that platforms for distributed computing will be of such high
+importance in the future that it is crucial to have a wide variety of
+different approaches which produces healthy competition and co-evolution
+between the projects. In this respect, Hadoop and Disco can be seen as
+complementary projects, similar to `Apache <http://httpd.apache.org>`_,
+`Lighttpd <http://lighttpd.net>`_ and `Nginx <http://nginx.net>`_.
+
+It is a matter of taste whether Erlang and Python are more suitable for
+the task than Java. We feel much more productive with Python than with
+Java. We also feel that Erlang is a perfect match for the Disco core
+that needs to handle tens of thousands of tasks in parallel.
+
 How to debug / profile programs in Disco?
 '''''''''''''''''''''''''''''''''''''''''
 
@@ -143,10 +165,6 @@ Use the :func:`disco_worker.msg` function. Here's an example::
 Note that you must not call :func:`disco_worker.msg` too often. If you send more
 than 10 messages per second, Disco will kill your job.
 
-Can I query / clean / kill Disco jobs in a shell script?
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-Yes. Use the command line interface provided by the :mod:`discoapi` module.
 
 My input files are stored in CSV / XML / XYZ format. What is the easiest to use them in Disco?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
