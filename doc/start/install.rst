@@ -11,7 +11,7 @@ working quickly, you should consider trying out Disco in Amazon EC2
 **Shortcut for Debian / Ubuntu users:** If you run Debian testing or
 some recent version of Ubuntu on the AMD64 architecture, you may try
 out our **experimental** deb-packages which are available at `Disco
-download page </download.html>`_. If you managed
+download page <http://discoproject.org/download.html>`_. If you managed
 to install the packages, you can skip over the steps 0-3 below and go
 to :ref:`configauth` directly.
 
@@ -52,12 +52,12 @@ On each server the following applications / libraries are required:
 ----------------
 
 Download `the latest Disco package from discoproject.org
-</download.html>`_. Alternatively you can download `the
+<http://discoproject.org/download.html>`_. Alternatively you can download `the
 latest development snapshot from GitHub <http://github.com/tuulos/disco>`_.
 
 Extract the package and run make as root as follows::
 
-        make install DESTDIR=/
+        make install DESTIDR=/
 
 This will build and install Disco to your system (see ``Makefile`` for exact
 directories).
@@ -75,13 +75,12 @@ Disco cluster.
 ----------------------------------
 
 Next we need to perform the following tasks on all servers that belong
-to the Disco cluster (more details about the tasks are provided below
-the list):
+to the Disco cluster:
 
  * Create ``disco`` user (optional).
- * Make sure that necessary directories exist for Disco.
  * Check that settings in ``disco.conf`` are correct.
- * Check that ``/etc/hosts`` contains addresses of all nodes.
+ * Check that ``/etc/hosts/`` contains addresses of all nodes.
+ * Make sure that necessary directories exist for Disco.
 
 Often it is convenient to run Disco as a separate user, by default
 ``disco``. Amongst other reasons, this allows setting user-specific
@@ -97,26 +96,25 @@ variables that define the runtime environment for Disco. Make sure that
 in the file exist and they are readable and writable by the Disco user.
 You can change the paths if the defaults are not suitable for your system.
 
-Note that if you run Disco on a single machine, you need to enable in
-```disco.conf`` ``DISCO_MASTER_PORT`` which defines an alternative
-port for the Disco master instead of the default ``DISCO_PORT``. This
-allows running a Disco node on the same server with the master.
-
 Disco uses a script, ``make-lighttpd-proxyconf.py`` to parse
 ``/etc/hosts`` and produce parts of the configuration file for
 Lighttpd. The script requires that all nodes used in Disco are listed
 as simple address-hostname pairs, separated by whitespace. Make sure
 that your ``/etc/hosts`` includes also line ``127.0.0.1 localhost``.
 
+Note that if you run Disco on a single machine, you need to enable
+``DISCO_MASTER_PORT`` which defines an alternative port for the Disco
+master instead of the default ``DISCO_PORT``. This allows running a
+Disco node on the same server with the master.
+
 3. Start Disco
 --------------
 
 Two example scripts, ``conf/start-master`` and ``conf/start-node``,
 are included in the Disco sources. On the master node, start the Disco
-master by executing ``conf/start-master`` as the user ``disco``. On
-all the other servers, execute ``conf/start-node``, again as the user
-``disco``. If you run Disco on a single server, execute both the
-scripts on your server.
+master by executing ``conf/start-master``. On all the other servers,
+execute ``conf/start-node``. If you run Disco on a single server,
+execute both the scripts on your server.
 
 The scripts do only the bare minimum to start up the system. You can
 easily integrate the scripts to your system's startup sequence. For
@@ -176,10 +174,10 @@ Point your browser at ``http://master:<DISCO_PORT>`` or
 replaced with the actual hostname of your machine or ``localhost``
 if you run Disco locally or through a SSH tunnel. The port should be
 either ``DISCO_PORT`` or ``DISCO_MASTER_PORT`` depending what you have
-configured in ``/etc/disco/disco.conf``. The default port is ``8989``.
+configured in ``/etc/disco/disco/conf``. The default port is ``8989``.
 
 You should see the Disco main screen (see `a screenshot here
-</screenshots.html>`_). Click ``configure`` on
+<http://discoproject.org/screenshots.html>`_). Click ``configure`` on
 the right side of the page. On the configuration page, click ``add row``
 to add a new set of available nodes. Click the cells on the new empty
 row, and add hostname of an available server (or a range of hostnames,
@@ -211,7 +209,7 @@ This table specifies that there are 30 nodes available in the cluster, from
 Now Disco should be ready for use.
 
 We can use the following simple Disco script that computes word
-frequencies in `a text file </chekhov.txt>`_
+frequencies in `a text file <http://discoproject.org/chekhov.txt>`_
 to see that the system works correctly. Copy the following code to a
 file called ``count_words.py``::
 
@@ -269,7 +267,7 @@ If the script fails, try to re-run it on the master node instead of some
 remote machine. This reveals if the script fails due to connectivity
 problems. If the script fails on the master as well, don't worry, Disco
 developers can help you in debugging. See `how to get in touch with
-them </getinvolved.html>`_.
+them <http://localhost:7000/discoproject/getinvolved.html>`_.
 
 
 
