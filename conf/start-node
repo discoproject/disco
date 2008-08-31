@@ -1,0 +1,6 @@
+#!/bin/bash
+
+set -a
+source /etc/disco/disco.conf
+
+/usr/sbin/lighttpd -f /etc/disco/lighttpd-node.conf
