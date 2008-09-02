@@ -243,7 +243,7 @@ def result_iterator(results, notifier = None, proxy = None):
                 proxy = os.environ.get("DISCO_PROXY", None)
         if proxy:
                 if proxy.startswith("disco://"):
-                        proxy = "%s:%s" % (proxy[8:], util.HTTP_PORT)
+                        proxy = "%s:%s" % (proxy[8:], util.MASTER_PORT)
                 elif proxy.startswith("http://"):
                         proxy = proxy[7:]
         res = []

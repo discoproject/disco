@@ -16,7 +16,7 @@ def init():
         global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
                MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
 
-        HTTP_PORT, LOCAL_PATH = load_conf()
+        tmp, HTTP_PORT, LOCAL_PATH = load_conf()
         
         PARAMS_FILE = LOCAL_PATH + "%s/params"
         EXT_MAP = LOCAL_PATH + "%s/ext-map"
