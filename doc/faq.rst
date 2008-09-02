@@ -98,7 +98,8 @@ Here's an example that runs ten jobs in a sequence, using outputs from
 the previous job as the input for the next one. The job increments each
 value in the input by one::
 
-        import disco, sys
+        from disco.core import Disco, result_iterator
+        import sys
 
         def init_map(line, params):
                 return [(int(line) + 1, "")]
@@ -107,13 +108,16 @@ value in the input by one::
                 key, value = e
                 return [(int(key) + 1, "")]
         
-        results = disco.job("disco://localhost:5000", "inc_init", sys.argv[2:], init_map)
+        disco = Disco("disco://localhost")
+        results = disco.new_job(name = "inc_init", input = sys.argv[2:], map = init_map)
 
         for i in range(9):
-                results = disco.job("disco://localhost:5000", "inc_%d" % i, results, iter_map,
-                                    map_reader = disco.chain_reader)
+                results = disco.new_job(name =  "inc_%d" % i, 
+                                        input = results,
+                                        map = iter_map,
+                                        map_reader = disco.chain_reader)
 
-        for key, value in disco.result_iterator(results):
+        for key, value in result_iterator(results):
                 print key
 
 Assuming that the input files consists of zeroes, this example will
@@ -123,9 +127,9 @@ Note the following things in the example: You probably need two
 separate map functions, like *init_map* and *iter_map* above. The
 former handles the initial input from the original input files and the
 latter map handles input from the previous map function. When using
-:func:`disco.chain_reader` as the map reader, which reads results of
-a previous job as the input, the input entry for the map function is
-naturally a key-value pair whereas in the default case it is a line
+:func:`disco.func.chain_reader` as the map reader, which reads results
+of a previous job as the input, the input entry for the map function
+is naturally a key-value pair whereas in the default case it is a line
 of text.
 
 Note that the job name includes a counter variable. This ensures that
@@ -135,8 +139,10 @@ each job name is unique, as required by Disco.
 How to maintain state across many map / reduce calls?
 '''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-Use the parameters object :class:`disco.Params` as the closure for your
-functions. Here's an example::
+Use the parameters object :class:`disco.core.Params` as the closure for
+your functions. Here's an example::
+
+        from disco.core import Disco, Params
 
         def fun_map(e, params):
                 params.c += 1
@@ -145,10 +151,11 @@ functions. Here's an example::
                 else:
                         return [(e, "not good")]
 
-        disco.job("disco://localhost:5000", 
-                      ["disco://localhost/myjob/file1"],
-                      fun_map,
-                      params = disco.Params(c = 0))
+        Disco("disco://localhost").new_job(
+                      name = "params_test",
+                      input = ["disco://localhost/myjob/file1"],
+                      map = fun_map,
+                      params = Params(c = 0))
 
 In this case *params.c* is a counter variable that is incremented in
 every call to the map function.
@@ -158,16 +165,19 @@ How to send log entries from my functions to the Web interface?
 
 Use the :func:`disco_worker.msg` function. Here's an example::
 
+        from disco.core import Disco, Params
+
         def fun_map(e, params):
                 params.c += 1
                 if not c % 100000:
                         msg("Now processing %dth entry" % params.c)
                 return [(e, 1)]
 
-        disco.job("disco://localhost:5000", 
-                  ["disco://localhost/myjob/file1"],
-                  fun_map,
-                  params = disco.Params(c = 0))
+        Disco("disco://localhost").new_job(
+                  name = "log_test",
+                  input = ["disco://localhost/myjob/file1"],
+                  map = fun_map,
+                  params = Params(c = 0))
 
 Note that you must not call :func:`disco_worker.msg` too often. If you send more
 than 10 messages per second, Disco will kill your job.
@@ -176,9 +186,9 @@ than 10 messages per second, Disco will kill your job.
 My input files are stored in CSV / XML / XYZ format. What is the easiest to use them in Disco?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-If the format is textual, it may be possible to define a regular expression that
-can be used to extract input entries from the files. See
-:func:`disco_worker.re_reader` for more information. 
+If the format is textual, it may be possible to define a regular
+expression that can be used to extract input entries from the files. See
+:func:`disco.func.re_reader` for more information.
 
 
 
