@@ -45,7 +45,7 @@ def disco_host(addr):
         elif addr.startswith("http:"):
                 return addr
         else:
-                raise "Unknown host specifier: %s" % master
+                raise "Unknown host specifier: %s" % addr
 
 
 def parse_dir(dir_url, proxy = None):
