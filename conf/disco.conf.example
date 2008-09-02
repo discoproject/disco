@@ -1,4 +1,6 @@
 
+set -a
+
 # Enable the following line if you run Disco on a single machine,
 # or you have several masters running on the same server.
 # DISCO_MASTER_PORT=7000
