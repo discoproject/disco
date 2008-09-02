@@ -7,7 +7,7 @@ SOURCES_LIST = """
 deb %s /
 deb http://http.us.debian.org/debian   lenny         main contrib non-free
 deb http://security.debian.org         lenny/updates main contrib non-free
-""" % (os.environ.get("DISCO_SOURCE", "http://disco-project.org/debian"))
+""" % (os.environ.get("DISCO_SOURCE", "http://discoproject.org/debian"))
 
 def msg(s):
         print >> sys.stderr, s
