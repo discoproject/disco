@@ -1,7 +1,19 @@
-import os
-os.environ['DISCO_HOME'] = "./"
-import sys, disco, disco_worker
-from netstring import decode_netstring_fd
+import os, sys, imp, cStringIO
+from disco.netstring import decode_netstring_fd
+from disco.core import Job, result_iterator
+
+def import_disco_worker():
+        global disco_worker
+        path = None
+        for p in sys.path:
+                path = p + "/disco-worker"
+                if os.path.exists(path):
+                        break
+        else:
+                raise Exception("disco-worker not found. Check your PYTHONPATH.")
+        desc = [x for x in imp.get_suffixes() if x[0] == ".py"][0]
+        os.environ["DISCO_ROOT"] = "./"
+        disco_worker = imp.load_module("disco-worker", file(path), path, desc)
 
 class MsgStream:
         def __init__(self):
@@ -11,10 +23,14 @@ class MsgStream:
                         addr = msg.split()[-1]
                         fname = "/".join(addr.split("/")[-2:])
                         if addr.startswith("chunk://"):
-                                self.out.append("chunkfile://" + fname)
+                                self.out.append("chunkfile://data/" + fname)
                         else:
-                                self.out.append("file://" + fname)
+                                self.out.append("file://data/" + fname)
                 print msg,
+
+class DummyDisco:
+        def request(*args, **kwargs):
+                return "job started"
 
 class HomeDisco:
         
@@ -22,18 +38,16 @@ class HomeDisco:
                 self.mode = mode
                 self.partition = partition
         
-        def job(self, *args, **kwargs):
-                args = list(args)
-                args[0] = "debug:"
-                req = disco.job(*args, **kwargs)
+        def new_job(self, *args, **kwargs):
+                job = Job(DummyDisco(), **kwargs)
+                req = decode_netstring_fd(cStringIO.StringIO(job.msg))
 
                 argv_backup = sys.argv[:]
                 out_backup = sys.stderr
-                sys.argv = ["", "", "", "", "", ""]
-                sys.argv[3] = "localhost"
-                sys.argv[5] = self.partition
-                sys.argv += args[2]
-                
+                sys.argv = ["", "", "", "localhost", "", self.partition]
+                sys.argv += kwargs["input"]
+                disco_worker.job_name = job.name
+
                 sys.stderr = out = MsgStream()
                 try:
                         if self.mode == "map":
@@ -51,6 +65,8 @@ class HomeDisco:
 
 if __name__ == "__main__":
         
+        import_disco_worker()
+
         def fun_map(e, params):
                 return [(e, e)]
         
@@ -64,10 +80,17 @@ if __name__ == "__main__":
 
         map_hd = HomeDisco("map")
         reduce_hd = HomeDisco("reduce")
-        res = map_hd.job("disco://localhost:5000", "homedisco",\
-                        ["homedisco-test"], fun_map, reduce = fun_reduce)
-        res = reduce_hd.job("disco://localhost:5000", "homedisco",\
-                        res, fun_map, reduce = fun_reduce)
-        for k, v in disco.result_iterator(res):
+        
+        res = map_hd.new_job(name = "homedisco",
+                             input = ["homedisco-test"],
+                             map = fun_map,
+                             reduce = fun_reduce)
+        
+        res = reduce_hd.new_job(name = "homedisco",
+                                input = res,
+                                map = fun_map,
+                                reduce = fun_reduce)
+
+        for k, v in result_iterator(res):
                 print "KEY", k, "VALUE", v
 
