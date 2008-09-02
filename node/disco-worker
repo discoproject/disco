@@ -17,7 +17,7 @@ def init():
                MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
 
         tmp, HTTP_PORT, LOCAL_PATH = load_conf()
-        
+
         PARAMS_FILE = LOCAL_PATH + "%s/params"
         EXT_MAP = LOCAL_PATH + "%s/ext-map"
         EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
@@ -422,14 +422,13 @@ def op_reduce(job):
 
         msg("%d %s" % (this_partition(), red_out.disco_address()), "OUT")
 
+init()
 
 if __name__ == "__main__":
         if len(sys.argv) < 7:
                 err("Invalid command line. "\
-                    "Usage: disco_worker.py [op_map|op_reduce] "\
+                    "Usage: disco_worker.py [map|reduce] "\
                     "name hostname master_url partid inputs..")
-        
-        init()
 
         if "op_" + sys.argv[1] not in globals():
                 err("Invalid operation: %s" % sys.argv[1])

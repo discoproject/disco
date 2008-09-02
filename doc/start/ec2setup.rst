@@ -133,9 +133,6 @@ nodes. Communication to the Disco master takes place over a secure SSH
 tunnel which is started at port 8989. You can open more tunnels to the
 master node as necessary using your SSH keypair.
 
-Now you have a working Disco cluster! If you haven't used Disco before, now
-it is a good time to go through :ref:`tutorial`.
-
 If the script wasn't succesful, you can try to re-run it with the
 ``VERBOSE=1`` environment variable set. This will make the script to
 redirect outputs of all commands it runs to the standard output which
@@ -143,6 +140,23 @@ might reveal what goes wrong.
 
 Remember to terminate your cluster when you are done with it. You can easily
 start up a new one when needed just by repeating this step.
+
+4. Test the system
+------------------
+
+Now you are ready to run a Disco script in your new EC2 cluster. We can
+use the script provided in the installation guide for local clusters,
+in section :ref:`insttest`. Copy the given script in a file, and run it
+as follows::
+
+        DISCO_PROXY=http://localhost:8989 python2.4 count_words.py http://localhost:8989
+
+You can run the script either on your local machine, through the SSH tunnel that
+was created by ``setup-instances`` or on the master node of your EC2 cluster.
+
+If the script prints out a list of word frequencies, and you can see a job in
+the Disco's Web UI at http://localhost:8989, congratulations, you have a working
+Disco cluster!
 
 
 Using Disco on EC2
@@ -169,9 +183,7 @@ Here's an example::
         python util/distrfiles.py your-data-directory ec2-nodes > my.chunks
 
 The resulting ``my.chunks`` file can be used as usual to define inputs
-for Disco jobs.
-
-
+for Disco jobs. See the :ref:`tutorial` to see how this works in practice.
 
 
 

@@ -2,7 +2,7 @@
 import re, os, urllib
 
 def load_conf():
-        port = root = None
+        port = root = master = None
         
         conf = (os.path.exists("disco.conf") and "disco.conf") or\
                (os.path.exists("/etc/disco/disco.conf") and\
@@ -45,7 +45,7 @@ def disco_host(addr):
         elif addr.startswith("http:"):
                 return addr
         else:
-                raise "Unknown host specifier: %s" % master
+                raise "Unknown host specifier: %s" % addr
 
 
 def parse_dir(dir_url, proxy = None):

@@ -204,6 +204,7 @@ if the nodes are named with a common prefix, as here:
 This table specifies that there are 30 nodes available in the cluster, from
 ``nx01`` to ``nx30`` and each node has 8 cores.
 
+.. _insttest:
 
 6. Test the system
 ------------------
