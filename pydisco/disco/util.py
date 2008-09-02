@@ -2,7 +2,7 @@
 import re, os, urllib
 
 def load_conf():
-        port = root = None
+        port = root = master = None
         
         conf = (os.path.exists("disco.conf") and "disco.conf") or\
                (os.path.exists("/etc/disco/disco.conf") and\
