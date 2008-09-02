@@ -14,12 +14,13 @@ unnecessarily long when the code is run through the cluster. Also, when
 an existing job appears to be slow or faulty, one could benefit from a
 good profiler or debugger.
 
-:mod:`homedisco` makes development of Disco jobs as easy as ordinary
-Python programs. It creates a job request using :func:`disco.job`
-similarly to a normal Disco request, but instead of sending it to the
-master, it instantiates a local :mod:`disco_worker` and passes the request
-to it. This allows local execution of exactly the same map and reduce
-tasks as you would run in the distributed environment.
+:mod:`homedisco` makes development of Disco jobs as easy
+as ordinary Python programs. It creates a job request using
+:meth:`disco.core.Disco.new_job` similarly to a normal Disco request,
+but instead of sending it to the master, it instantiates a local
+:mod:`disco_worker` and passes the request to it. This allows local
+execution of exactly the same map and reduce tasks as you would run in
+the distributed environment.
 
 As a result, you can treat your job functions as a normal Python
 program and use standard Python debuggers and profilers to analyze the
@@ -42,7 +43,6 @@ although both of them may be specified in the parameters. This way you
 can test your map and reduce functions independently from each other
 and focus on edit-run-debug cycle with one task without running the
 other. 
-
 
 :mod:`homedisco` tasks may read any inputs, remote or local, as any
 other Disco job. However, results from a task are always written to a
@@ -86,26 +86,28 @@ file either locally or from an external source, as any Disco job.
 We need two separate :class:`homedisco.HomeDisco` environments: One for
 running the map task, *map_hd*, and one for the reduce, *reduce_hd*. Using
 these environments, we can call :meth:`homedisco.HomeDisco.job` that
-works exactly like :func:`disco.job`. Outputs of the map task are given
-as inputs to the reduce task. In the end, we print out the results using
-:func:`disco.result_iterator`.
+works exactly like :meth:`disco.core.Disco.new_job`. Outputs of the map
+task are given as inputs to the reduce task. In the end, we print out
+the results using :func:`disco.core.result_iterator`.
 
 Since :meth:`homedisco.HomeDisco.job` runs only single instance of
 the given task, the map task accepts only one input, in contrast to
-:func:`disco.job` that can take several. Similarly, if you have several
-partitions (i.e. *nr_reduces* is larger than one), only one of them
-will be processed by the reduce task, as specified by the *partition*
-parameter in :class:`homedisco.HomeDisco`. However, the reduce task may take
-several inputs in which case only data belonging to the specified partition
-will be used from the files, as long as they are saved in the ``chunk://``
-format --- usually Disco handles this issue correctly by itself.
+:meth:`disco.core.Disco.new_job` that can take several. Similarly,
+if you have several partitions (i.e. *nr_reduces* is larger than one),
+only one of them will be processed by the reduce task, as specified by
+the *partition* parameter in :class:`homedisco.HomeDisco`. However, the
+reduce task may take several inputs in which case only data belonging to
+the specified partition will be used from the files, as long as they are
+saved in the ``chunk://`` format --- usually Disco handles this issue
+correctly by itself.
 
-Note that the format of result files that are produced by the map task
-depends whether the map is used alone or whether it is followed by reduce. Thus
-if you want to read outputs of the map task with :func:`disco.result_iterator`,
-you must not specify *reduce* in :meth:`homedisco.HomeDisco.job`. However, if
-your map task is followed by reduce, as in the above example, you should specify
-the parameter *reduce* as usual.
+Note that the format of result files that are produced by the map
+task depends whether the map is used alone or whether it is followed
+by reduce. Thus if you want to read outputs of the map task with
+:func:`disco.core.result_iterator`, you must not specify *reduce* in
+:meth:`homedisco.HomeDisco.job`. However, if your map task is followed
+by reduce, as in the above example, you should specify the parameter
+*reduce* as usual.
 
 Module contents
 ---------------

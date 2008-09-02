@@ -215,8 +215,8 @@ if __name__ == "__main__":
 
         print >> sys.stderr, "All done!\n\n"\
         "Disco master is now ready for use at http://localhost:8989.\n"\
-        "Remember to set USE_MASTER_AS_PROXY=1 for Disco clients as results "\
-        "must be accessed through the master.\n"
+        "Remember to set DISCO_PROXY=http://localhost:8989 for Disco clients "\
+        "as results must be accessed through the master.\n"
         
 
 

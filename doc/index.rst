@@ -2,26 +2,41 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Disco's documentation!
-=================================
+Disco Documentation
+===================
 
-Contents:
+Background
+----------
 
 .. toctree::
    :maxdepth: 1
 
    intro
    overview
-   tutorial
-   py/index
-   external
    FAQ <faq>
    glossary
-   
 
+Getting started
+---------------
+
+.. toctree::
+   :maxdepth: 1
+
+   start/install
+   start/ec2setup
+   start/tutorial
+
+References
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   py/index
+   external
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`

@@ -1,4 +1,10 @@
 
+set -a
+
+# Enable the following line if you run Disco on a single machine,
+# or you have several masters running on the same server.
+# DISCO_MASTER_PORT=7000
+
 # Lighttpd for master and nodes runs on this port. 
 # disco://host URIs are mapped to http://host:DISCO_PORT.
 DISCO_PORT=8989

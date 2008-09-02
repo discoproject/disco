@@ -199,11 +199,11 @@ class Job(object):
                         else:
                                 req["ext_params"] = kw["ext_params"]
         
-
                 if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
-                        req["nr_maps"] = str(len(inputs))
+                        nr_maps = len(inputs)
                 else:
-                        req["nr_maps"] = str(kw["nr_maps"])
+                        nr_maps = kw["nr_maps"]
+                req["nr_maps"] = str(nr_maps)
         
                 nr_reduces = d("nr_reduces")
                 if "reduce" in kw:
@@ -241,11 +241,11 @@ def result_iterator(results, notifier = None, proxy = None):
         
         if not proxy:
                 proxy = os.environ.get("DISCO_PROXY", None)
-        if proxy.startswith("disco://"):
-                proxy = "%s:%s" % (proxy[8:], util.HTTP_PORT)
-        elif proxy.startswith("http://"):
-                proxy = proxy[7:]
-        
+        if proxy:
+                if proxy.startswith("disco://"):
+                        proxy = "%s:%s" % (proxy[8:], util.MASTER_PORT)
+                elif proxy.startswith("http://"):
+                        proxy = proxy[7:]
         res = []
         for dir_url in results:
                 if dir_url.startswith("dir://"):

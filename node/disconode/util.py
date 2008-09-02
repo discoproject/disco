@@ -1,5 +1,7 @@
 import sys, time, os, traceback
 
+job_name = "none"
+
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
         print >> sys.stderr, "**<%s>[%s %s (%s)] %s" %\
@@ -20,23 +22,8 @@ def data_err(m, job_input):
 def ensure_path(path, check_exists = True):
         if check_exists and os.path.exists(path):
                 err("File exists: %s" % path)
-        try:
+        if os.path.isfile(path):
                 os.remove(path)
-        except OSError, x:
-                if x.errno == 2:
-                        # no such file
-                        pass
-                elif x.errno == 21:
-                        # directory
-                        pass
-                else:
-                        raise
-        try:
-                dir, fname = os.path.split(path)
+        dir, fname = os.path.split(path)
+        if not os.path.exists(dir):
                 os.makedirs(dir)
-        except OSError, x:
-                if x.errno == 17:
-                        # directory already exists
-                        pass
-                else:
-                        raise

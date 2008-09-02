@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -a
+source /etc/disco/disco.conf
+
+/usr/bin/disco-master &
+/usr/sbin/lighttpd -f /etc/disco/lighttpd-master.conf
+
+echo "Disco master started."
+

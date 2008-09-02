@@ -102,7 +102,7 @@ exactly *num-pairs* consequent key-value pairs as defined above.
 
 Inputs for the external map are read using the provided *map_reader*. The
 map reader may produce each input entry as a single string (like the
-default :func:`disco.map_line_reader` does) that is used as the value
+default :func:`disco.func.map_line_reader` does) that is used as the value
 in a key-value pair where the key is an empty string. Alternatively,
 the reader may return a pair of strings as a tuple, in which case both
 the key and the value are specified.
@@ -149,7 +149,7 @@ Parameters
 ''''''''''
 
 Any parameters for the external program must be specified in the
-*ext_params* parameter for :func:`disco.job`. If *ext_params* is specified
+*ext_params* parameter for :func:`disco.core.Job`. If *ext_params* is specified
 as a string, Disco will provide it as is for the external program in the
 standard input, before any key-value pairs. It is on the responsibility
 of the external program to read all bytes that belong to the parameter set
@@ -157,7 +157,7 @@ before starting to receive key-value pairs.
 
 As a special case, the standard C interface for Disco, as specified
 below, accepts a dictionary of string-string pairs as *ext_params*. The
-dictionary is then encoded by :func:`disco.job` using the *netstring*
+dictionary is then encoded by :func:`disco.core.Job` using the *netstring*
 module. The *netstring* format is extremely simple, consisting of consequent
 key-value pairs. An example how to parse parameters in this case can be
 found in the :cfunc:`read_parameters` function in *ext/disco.c*.
@@ -182,7 +182,7 @@ included in its supporting files. It must not write to any files on its
 host, to ensure integrity of the runtime environment.
 
 An external map or reduce task is specified by giving a dictionary, instead of a
-function, as the *fun_map* or *reduce* parameter in :func:`disco.job`. The
+function, as the *fun_map* or *reduce* parameter in :func:`disco.core.Job`. The
 dictionary contains at least a single key-value pair where key is the string
 *"op"* and the value the actual executable code. Here's an example::
 
@@ -196,9 +196,9 @@ file names (not paths) of the supporting files, such as *"config.txt"*
 above. The corresponding values must contain the contents of the
 supporting files as strings.
 
-A convenience function :func:`disco.external` is provided for constructing the
+A convenience function :func:`disco.util.external` is provided for constructing the
 dictionary that specifies an external task. Here's the same example as above but
-using :func:`disco.external`::
+using :func:`disco.util.external`::
 
         disco.job("disco://localhost:5000",
                   ["disco://localhost/myjob/file1"],
