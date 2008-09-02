@@ -56,6 +56,9 @@ as the functions can produce arbitrary amounts of debugging output.
 
 The following example illustriates usage of the module::
         
+        from homedisco import HomeDisco
+        from disco.core import result_iterator
+
         def fun_map(e, params):
                 return [(e, e)]
         
@@ -70,13 +73,17 @@ The following example illustriates usage of the module::
         map_hd = HomeDisco("map")
         reduce_hd = HomeDisco("reduce")
         
-        res = map_hd.job("disco://localhost:5000", "homedisco",\
-                        ["homedisco-test"], fun_map, reduce = fun_reduce)
+        res = map_hd.new_job(name = "homedisco",
+                             input = ["homedisco-test"],
+                             map = fun_map,
+                             reduce = fun_reduce)
         
-        res = reduce_hd.job("disco://localhost:5000", "homedisco",\
-                        res, fun_map, reduce = fun_reduce)
+        res = reduce_hd.new_job(name = "homedisco",
+                                input = res,
+                                map = fun_map,
+                                reduce = fun_reduce)
         
-        for k, v in disco.result_iterator(res):
+        for k, v in result_iterator(res):
                 print "KEY", k, "VALUE", v
 
 Map and reduce functions are defined as usual. This example writes its
@@ -85,12 +92,12 @@ file either locally or from an external source, as any Disco job.
 
 We need two separate :class:`homedisco.HomeDisco` environments: One for
 running the map task, *map_hd*, and one for the reduce, *reduce_hd*. Using
-these environments, we can call :meth:`homedisco.HomeDisco.job` that
+these environments, we can call :meth:`homedisco.HomeDisco.new_job` that
 works exactly like :meth:`disco.core.Disco.new_job`. Outputs of the map
 task are given as inputs to the reduce task. In the end, we print out
 the results using :func:`disco.core.result_iterator`.
 
-Since :meth:`homedisco.HomeDisco.job` runs only single instance of
+Since :meth:`homedisco.HomeDisco.new_job` runs only single instance of
 the given task, the map task accepts only one input, in contrast to
 :meth:`disco.core.Disco.new_job` that can take several. Similarly,
 if you have several partitions (i.e. *nr_reduces* is larger than one),
@@ -104,10 +111,10 @@ correctly by itself.
 Note that the format of result files that are produced by the map
 task depends whether the map is used alone or whether it is followed
 by reduce. Thus if you want to read outputs of the map task with
-:func:`disco.core.result_iterator`, you must not specify *reduce* in
-:meth:`homedisco.HomeDisco.job`. However, if your map task is followed
-by reduce, as in the above example, you should specify the parameter
-*reduce* as usual.
+:func:`disco.core.result_iterator`, you must not specify *reduce*
+in :meth:`homedisco.HomeDisco.new_job`. However, if your map task is
+followed by reduce, as in the above example, you should specify the
+parameter *reduce* as usual.
 
 Module contents
 ---------------
@@ -120,16 +127,18 @@ Module contents
    specifies from which partition the reduce will access its data. By
    default *partition = 0*.
 
-   .. method:: HomeDisco.job(...)
+   .. method:: HomeDisco.new_job(...)
 
-      Runs a Disco task locally. It takes exactly the same parameters
-      as :func:`disco.job`. This way you can test and debug your
-      job easily simply by replacing a :func:`disco.job` call with a
-      :meth:`homedisco.HomeDisco.job` call. The *master* parameter as
-      defined in :func:`disco.job` is ignored, although it is required.
-      
-      Returns a list of URLs to (local) result files, similarly to
-      :func:`disco.job`.
+      Runs a Disco task locally. It takes exactly the
+      same parameters as :meth:`disco.core.Disco.new_job`.
+      This way you can test and debug your job easily simply by
+      replacing a :meth:`disco.core.Disco.new_job` call with a
+      :meth:`homedisco.HomeDisco.new_job` call.
+
+      However, in contrast to :meth:`disco.core.Job` the method doesn't
+      return immediately but blocks until the job has finished, similarly
+      to :meth:`disco.core.Disco.wait`. Correspondingly, it returns a
+      list of URLs to (local) result files,
 
       Note that this call runs only a single map or reduce
       instance. Nothing is run in parallel, nor is the map task

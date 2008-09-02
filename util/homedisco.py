@@ -63,9 +63,9 @@ class HomeDisco:
                         sys.stderr = out_backup
                 return out.out
 
+import_disco_worker()
+
 if __name__ == "__main__":
-        
-        import_disco_worker()
 
         def fun_map(e, params):
                 return [(e, e)]
