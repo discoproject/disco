@@ -5,14 +5,14 @@ Glossary
 .. glossary::
 
    disco master
-        Master process that takes care of receiving Disco jobs, scheduling them 
-        and distributing tasks to the cluster. There may be many Disco masters
-        running in parallel, as long as they manage separate sets of resources
-        (CPUs).
+        Master process that takes care of receiving Disco jobs,
+        scheduling them and distributing tasks to the cluster. There
+        may be many Disco masters running in parallel, as long as they
+        manage separate sets of resources (CPUs).
    job
-        A sequence of the map :term:`task` and the reduce
-        :term:`task`. Made with a single call to the :func:`disco.job`
-        function.
+        A sequence of the map :term:`task` and the
+        reduce :term:`task`. Started by calling the
+        :meth:`disco.core.Disco.new_job` method.
 
    job functions
         Job functions are the functions that the user can specify in

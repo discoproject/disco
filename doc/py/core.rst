@@ -1,155 +1,155 @@
 
-:mod:`disco` --- Disco client
-=============================
+:mod:`disco.core` --- Client interface for Disco
+================================================
 
-.. module:: disco
-   :synopsis: Main interface to Disco
+.. module:: disco.core
+   :synopsis: Client interface for Disco
 
-The :mod:`disco` module provides a high-level interface for running Disco jobs.
+The :mod:`disco.core` module provides a high-level interface for
+communication with the Disco master. It provides functions for submitting
+new jobs, querying status of the system, and getting results of jobs.
 
-This module also contains a number of generic functions that can be used
-in jobs, as well as utility functions and objects that help specifying
-jobs and retrieving their results.
+The :class:`Disco` object encapsulates connection to the Disco
+master. Once a connection has been established, you can use the
+object to query status of the system, or submit a new job with the
+:meth:`Disco.new_job` method. See the :mod:`disco.func` module for more
+information about constructing Disco jobs.
 
-For a lower-level interface for Disco's Web API, see :mod:`discoapi`.
+:meth:`Disco.new_job` is provided with all information needed to run
+a job, which it packages and sends to the master. The method returns
+immediately and returns a :class:`Job` object that corresponds to the
+newly started job.
 
-A new job is started with the :func:`disco.job` function. The function
-is provided with all information needed to run a job, which it packages
-and sends to the master. In the default case, it blocks to wait for the
-results. Once the job has finished, it returns a list of URLs to the
-result files, which can be retrieved with :func:`disco.result_iterator`.
+All methods in :class:`Disco` that are related to individual jobs, namely
 
-A Disco job may contain several user-defined functions, as specified
-below. When writing custom functions, take into account the following 
-features of the disco worker environment:
+ - :meth:`Disco.wait`
+ - :meth:`Disco.jobinfo`
+ - :meth:`Disco.results`
+ - :meth:`Disco.jobspec`
+ - :meth:`Disco.clean`
+ - :meth:`Disco.kill`
 
-- Only the specified function is included in the request. The function
-  can't call any other functions specified in your source file nor it can't
-  refer to any global names, including any imported modules. If you need
-  a special module in your function, import it within the function body.
-  Use of global variables or functions with side-effects, such as
-  external files besides the given input, is strongly discouraged.
+are also accessible through the :class:`Job` object, so you can say
+`job.wait()` instead of `disco.wait(job.name)`. However, the job methods
+in :class:`Disco` come in handy if you want to manipulate a job that is
+identified by a job name (:attr:`Job.name`) instead of a :class:`Job`
+object.
 
-- The function should not print anything to the stdout or stderr.
-  Instead, you can use the function :func:`disco_worker.msg` to
-  send messages to the status display. You can use the function
-  :func:`disco_worker.data_err`, to abort the task on this node and
-  request transfer to another node. Otherwise it is a good idea to just
-  let the task die if any exceptions occur -- do not catch any exceptions
-  from which you can't recover.
+:class:`Disco` --- Interface to the Disco master
+------------------------------------------------
 
-In short, this means all user-provded functions must be pure (see
-:term:`pure function`).
+.. class:: Disco(host)
 
-The module :mod:`disco` exports the following classes and functions:
+   Opens and encapsulates connection to the Disco master.
 
-.. class:: Params([key = value])
+   *host* is the address of the Disco master, for instance
+   ``disco://localhost``. See :func:`disco.util.disco_host` for more
+   information on how *host* is interpreted.
 
-   Parameter container for map / reduce tasks. This object provides a convenient
-   way to contain custom parameters, or state, in your tasks. 
+   .. method:: Disco.request(url[, data, raw_handle])
 
-   This example shows a simple way of using :class:`Params`::
-        
-        def fun_map(e, params):
-                if not params.c % 10:
-                        return [(params.f(e), params.c)]
-                else:
-                        return [(e, params.c)]
-                params.c += 1
+   Requests *url* at the master. If a string *data* is specified, a POST request
+   is made with *data* as the request payload. If *raw_handle* is set to *True*,
+   a file handle to the results is returned. By default a string is returned
+   that contains the reply for the request. This method is mostly used by other
+   methods in this class internally.
 
-        disco.job("disco://localhost:5000",
-                  ["disco://localhost/myjob/file1"],
-                  fun_map,
-                  params = disco.Params(c = 0, f = lambda x: x + "!"))
+   .. method:: Disco.nodeinfo()
 
-   You can specify any number of key-value pairs to the :class:`Params`
-   constructor.  The pairs will be delivered as-is to map and reduce
-   functions through the *params* argument. *Key* must be a valid Python
-   identifier but *value* can be any Python object. For instance, *value*
-   can be an arbitrary :term:`pure function`, such as *params.f* in the
-   previous example.
-
-.. function:: default_partition(key, nr_reduces, params)
-
-   Default partitioning function. Defined as::
-
-        def default_partition(key, nr_reduces, params):
-                return hash(str(key)) % nr_reduces
-
-.. function:: make_range_partition(min_val, max_val)
-
-   Returns a new partitioning function that partitions keys in the range
-   *[min_val:max_val]* to equal sized partitions. The number of partitions is
-   defined by *nr_reduces* in :func:`disco.job`. 
-
-.. function:: nop_reduce(iter, out, params)
-
-   No-op reduce. Defined as::
-
-        for k, v in iter:
-                out.add(k, v)
-
-   This function can be used to combine results per partition from many
-   map functions to a single result file per partition.
-
-.. function:: map_line_reader(fd, sze, fname)
-
-   Default input reader function. Reads inputs line by line. 
-
-.. function:: chain_reader(fd, sze, fname)
-
-   Reads output of a map / reduce job as the input for a new job. You must specify this
-   function as *map_reader* in :func:`disco.job` if you want to use outputs of a
-   previous map / reduce job as the input for another job.
-
-.. function:: external(files)
-
-   Packages an external program, together with other files it depends
-   on, to be used either as a map or reduce function. *Files* must be
-   a list of paths to files so that the first file points at the actual
-   executable.
+   Returns a dictionary describing status of the nodes that are managed by
+   this Disco master.
    
-   This example shows how to use an external program, *cmap* that needs a
-   configuration file *cmap.conf*, as the map function::
+   .. method:: Disco.joblist()
 
-        disco.job("disco://localhost:5000",
-                  ["disco://localhost/myjob/file1"],
-                  fun_map = disco.external(
-                        ["/home/john/bin/cmap", "/home/john/cmap.conf"]))
+   Returns a list of jobs and their statuses.
 
-   All files listed in *files* are copied to the same directory so any file
-   hierarchy is lost between the files. For more information, see :ref:`discoext`.
+   .. method:: Disco.kill(name)
 
-.. function:: result_iterator(results[, notifier])
+   Kills the job *name*.
 
-   Iterates the key-value pairs in job results. *results* is a list of
-   results, as returned by :func:`disco.job` in the synchronous mode
-   or :meth:`discoapi.Disco.wait` or :meth:`discoapi.Disco.results`
-   in the asynchronous mode.
+   .. method:: Disco.clean(name)
 
-   *notifier* is a function that accepts a single parameter, a URL of
-   the result file, that is called when the iterator moves to the next
-   result file.
+   Cleans records of the job *name*. Note that after the job records have been
+   cleaned, there is no way to obtain addresses to the result files from the
+   master. However, no files are actually deleted by :meth:`Disco.clean`.
 
-.. function:: job(master, name, input_files, fun_map[, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params])
+   .. method:: Disco.jobspec(name)
 
-   Starts a new Disco job. The first four parameters are required, which define
-   the disco master to be used, name of the job, input files, and a map
-   function. The rest of the parameters are optional.
+   Returns the raw job request package, as constructed by
+   :meth:`Disco.new_job`, for the job *name*.
 
-   :func:`disco.job` raises a :class:`discoapi.JobException` if an error occurs
-   when the job is run.
+   .. method:: Disco.results(name)
 
-     * *master* - a URL pointing at the Disco master, for instance ``disco://localhost:5000``.
+   Returns the list of result files for the job *name*, if available.
 
-     * *name* - the job name. The ``@[timestamp]`` suffix is appended
+   .. method:: Disco.jobinfo(name)
+
+   Returns a dictionary containing information about the job *name*.
+
+   .. method:: Disco.wait(name[, poll_interval, timeout, clean])
+
+   Block until the job *name* has finished. Returns a list URLs to the
+   results files which is typically processed with :func:`result_iterator`.
+   
+   :meth:`Disco.wait` polls the server for the job status every
+   *poll_interval* seconds. It raises a :class:`disco.JobException` if the
+   job hasn't finished in *timeout* seconds, if specified.
+   
+   *clean* is a convenience parameter which, if set to `True`,
+   calls :meth:`Disco.clean` when the job has finished. This makes
+   it possible to execute a typical Disco job in one line::
+   
+        results = disco.new_job(...).wait(clean = True)
+
+   .. method:: Disco.new_job(...)
+
+   Submits a new job request to the master. This method accepts the same
+   set of keyword as the constructor of the :class:`Job` object below. The
+   `master` argument for the :class:`Job` constructor is provided by
+   this method. Returns a :class:`Job` object that corresponds to the
+   newly submitted job request.
+
+:class:`Job` --- Disco job
+--------------------------
+
+.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params])
+
+   Starts a new Disco job. You seldom instantiate this class
+   directly. Instead, the :meth:`Disco.new_job` is used to start a job
+   on a particular Disco master. :meth:`Disco.new_job` accepts the same
+   set of keyword arguments as specified below.
+
+   The constructor returns immediately after a job request has been
+   submitted. A typical pattern in Disco scripts is to run a job
+   synchronously, that is, to block the script until the job has
+   finished. This is accomplished as follows::
+        
+        from disco.core import Disco
+        results = Disco(master).new_job(...).wait(clean = True)
+
+   Note that job methods of the :class:`Disco` class are directly
+   accessible through the :class:`Job` object, such as :meth:`Disco.wait`
+   above.
+
+   The constructor raises a :class:`JobException` if an error occurs
+   when the job is started.
+
+   All arguments that are required are marked as such. All other arguments
+   are optional.
+
+     * *master* - an instance of the :class:`Disco` class that identifies
+       the Disco master runs this job. This argument is required but
+       it is provided automatically when the job is started using
+       :meth:`Disco.new_job`.
+
+     * *name* - the job name (**required**). The ``@[timestamp]`` suffix is appended
        to the name to ensure uniqueness. If you start more than one job
        per second, you cannot rely on the timestamp which increments only
        once per second. In any case, users are strongly recommended to devise a
        good naming scheme of their own. Only characters in ``[a-zA-Z0-9_]``
        are allowed in the job name.
 
-     * *input_files* - a list of input files for the map function. Each
+     * *input_files* - a list of input files for the map function (**required**). Each
        input must be specified in one of the following four protocols:
 
          * ``http://www.example.com/data`` - any HTTP address
@@ -157,8 +157,8 @@ The module :mod:`disco` exports the following classes and functions:
          * ``dir://cnode03/jobname/`` - Result directory. This format is used by Disco internally.
          * ``/home/bob/bigfile.txt`` - a local file. Note that the file must either exist on all the nodes or you must make sure that the job is run only on the nodes where the file exists. Due to these restrictions, this form has only limited use.
 
-     * *fun_map* - a :term:`pure function` that defines the map task. The
-       function takes two parameters, an input entry and a parameter object,
+     * *fun_map* - a :term:`pure function` that defines the map task (**required**). 
+       The function takes two parameters, an input entry and a parameter object,
        and it outputs a list of key-value pairs in tuples. For instance::
 
                 def fun_map(e, params):
@@ -182,11 +182,11 @@ The module :mod:`disco` exports the following classes and functions:
        must read at most *size* bytes from *fd*. The function parses the stream and
        yields input entries to the map function.
 
-       Disco worker provides a convenience function :func:`disco_worker.re_reader`
+       Disco worker provides a convenience function :func:`disco.func.re_reader`
        that can be used to create parser based on regular expressions.
 
        If you want to use outputs of an earlier job as inputs, use
-       :func:`disco.chain_reader` as the *map_reader*.
+       :func:`disco.func.chain_reader` as the *map_reader*.
 
      * *reduce* - a :term:`pure function` that defines the reduce task. The
        function takes three parameters, an iterator to the intermediate
@@ -222,9 +222,9 @@ The module :mod:`disco` exports the following classes and functions:
        number of reduce functions. The function returns an integer between 0 and
        *nr_reduces* that defines to which reduce instance this key-value pair is
        assigned. *params* is an user-defined object as defined by the *params*
-       parameter in :func:`disco.job`.
+       parameter in :meth:`Disco.job`.
 
-       The default partitioning function is :func:`disco.default_partition`.
+       The default partitioning function is :func:`disco.func.default_partition`.
 
      * *combiner* - a :term:`pure function` that can be used to post-process
        results of the map function. The function is defined as follows::
@@ -291,14 +291,6 @@ The module :mod:`disco` exports the following classes and functions:
      * *mem_sort_limit* - sets the maximum size for the input that can be sorted
        in memory. The larger inputs are sorted on disk. By default 256MB.
 
-     * *async* - by default the :func:`disco.job` is synchronous i.e. it blocks
-       until the job has finished and returns URLs to the result files.
-       
-       By setting *async = True*, the function returns immediately when
-       the request has been sent and returns the job ID. After this,
-       you can use functions in the module :mod:`discoapi` for querying
-       the job status, receiving the results etc.
-
      * *clean* - clean the job records from the master after the results have
        been returned, if the job was succesful. By default true. If set to
        false, you must use either :func:`discoapi.Disco.clean` or the web interface
@@ -334,16 +326,67 @@ The module :mod:`disco` exports the following classes and functions:
        
        For more information, see :ref:`discoext`.
 
+    .. attribute:: Job.name
+
+       Name of the job. You can store or transfer the name string if
+       you need to identify the job in another process. In this case,
+       you can use the job methods in :class:`Disco` directly.
+
+    .. attribute:: Job.master
+
+       An instance of the :class:`Disco` class that identifies the Disco
+       master that runs this job.
+
+
+.. class:: Params([key = value])
+
+   Parameter container for map / reduce tasks. This object provides a convenient
+   way to contain custom parameters, or state, in your tasks. 
+
+   This example shows a simple way of using :class:`Params`::
+        
+        def fun_map(e, params):
+                if not params.c % 10:
+                        return [(params.f(e), params.c)]
+                else:
+                        return [(e, params.c)]
+                params.c += 1
+
+        disco.job("disco://localhost:5000",
+                  ["disco://localhost/myjob/file1"],
+                  fun_map,
+                  params = disco.Params(c = 0, f = lambda x: x + "!"))
+
+   You can specify any number of key-value pairs to the :class:`Params`
+   constructor.  The pairs will be delivered as-is to map and reduce
+   functions through the *params* argument. *Key* must be a valid Python
+   identifier but *value* can be any Python object. For instance, *value*
+   can be an arbitrary :term:`pure function`, such as *params.f* in the
+   previous example.
+
+.. function:: result_iterator(results[, notifier])
+
+   Iterates the key-value pairs in job results. *results* is a list of
+   results, as returned by :meth:`Disco.wait`.
+
+   *notifier* is a function that accepts a single parameter, a URL of
+   the result file, that is called when the iterator moves to the next
+   result file.
+
+
+.. class:: JobException
+
+   Raised when job fails on Disco master.
+
+   .. attribute:: msg
  
+   Error message.
 
+   .. attribute:: JobException.name
 
+   Name of the failed job.
 
-
-
-
-
-
-
-
-
+   .. attribute:: JobException.master
+   
+   Address of the Disco master that produced the error.
 
