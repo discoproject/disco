@@ -3,8 +3,8 @@
 set -a
 source /etc/disco/disco.conf
 
-/usr/bin/disco-master &
-/usr/sbin/lighttpd -f /etc/disco/lighttpd-master.conf
+$DISCO_HOME/disco-master &
+`which lighttpd` -f /etc/disco/lighttpd-master.conf
 
 echo "Disco master started."
 

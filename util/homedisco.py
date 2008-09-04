@@ -1,19 +1,7 @@
 import os, sys, imp, cStringIO
 from disco.netstring import decode_netstring_fd
 from disco.core import Job, result_iterator
-
-def import_disco_worker():
-        global disco_worker
-        path = None
-        for p in sys.path:
-                path = p + "/disco-worker"
-                if os.path.exists(path):
-                        break
-        else:
-                raise Exception("disco-worker not found. Check your PYTHONPATH.")
-        desc = [x for x in imp.get_suffixes() if x[0] == ".py"][0]
-        os.environ["DISCO_ROOT"] = "./"
-        disco_worker = imp.load_module("disco-worker", file(path), path, desc)
+from disconode import disco_worker
 
 class MsgStream:
         def __init__(self):
@@ -62,8 +50,6 @@ class HomeDisco:
                         sys.argv = argv_backup
                         sys.stderr = out_backup
                 return out.out
-
-import_disco_worker()
 
 if __name__ == "__main__":
 
