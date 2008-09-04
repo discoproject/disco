@@ -23,9 +23,9 @@ tserver.run_server(data_gen)
 inputs = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31]
 results = disco.job(sys.argv[1], "test_simple", tserver.makeurl(inputs),
                 fun_map, 
-		reduce = fun_reduce, 
-		nr_reduces = 1,
-		sort = False)
+                reduce = fun_reduce, 
+                nr_reduces = 1,
+                sort = False)
 
 if list(disco.result_iterator(results)) != [("result", ANS)]:
         raise Exception("Invalid answer")

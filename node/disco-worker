@@ -115,10 +115,10 @@ def connect_input(input):
                 ext_host = "%s:%s" % (host, HTTP_PORT)
                 ext_file = "/" + fname
         elif input.startswith("http://"):
-		ext_host, fname = input[7:].split("/", 1)
-		host = ext_host
-		ext_file = "/" + fname
-		local_file = None
+                ext_host, fname = input[7:].split("/", 1)
+                host = ext_host
+                ext_file = "/" + fname
+                local_file = None
         else:
                 host = this_host()
                 if input.startswith("chunkfile://"):
@@ -153,7 +153,7 @@ class MapOutput:
         def add(self, key, value):
                 if self.combiner:
                         ret = self.combiner(key, value, self.comb_buffer,\
-				   0, self.params)
+                                   0, self.params)
                         if ret:
                                 for key, value in ret:
                                         encode_kv_pair(self.fd, key, value)

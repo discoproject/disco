@@ -26,9 +26,9 @@ inputs = range(10)
 results = disco.job(sys.argv[1], "test_params", tserver.makeurl(inputs),
                 fun_map, 
                 params = disco.Params(x = 5, f1 = fun1, f2 = fun2),
-		reduce = fun_reduce, 
-		nr_reduces = 1,
-		sort = False)
+                reduce = fun_reduce, 
+                nr_reduces = 1,
+                sort = False)
 
 for x, y in disco.result_iterator(results):
         if fun2(int(x) + 5) != int(y):

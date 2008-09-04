@@ -38,8 +38,8 @@ class Params:
                 return self._state
 
         def __setstate__(self, state):
-		self._state = {}
-		for k, v in state.iteritems():
+                self._state = {}
+                for k, v in state.iteritems():
                         if k.startswith('f_'):
                                 t = lambda x: x
                                 t.func_code = marshal.loads(v)
