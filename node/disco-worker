@@ -28,14 +28,13 @@ if __name__ == "__main__":
         params_file = PARAMS_FILE % name
 
         try:
-                url_hdle = urllib.urlopen("%s/%s/params" % (master_url, name))
+                url_hdle = urllib.urlopen("%s%s/params" % (master_url, name))
+                external.ensure_file(params_file,
+                        (master_url, url_hdle), mode = 444)
+                url_hdle.close()
         except Exception, e:
                 url = "%s/%s/params" % (master_url, name)
                 util.data_err("Failed to get %s" % (url,), master_url)
-
-        external.ensure_file(params_file,
-                (master_url, url_hdle), mode = 444)
-        url_hdle.close()
 
         try:
                 m = decode_netstring_fd(file(params_file))
@@ -46,7 +45,7 @@ if __name__ == "__main__":
 
         my_ver = ".".join(map(str, sys.version_info[:2]))
         if m["version"] != my_ver:
-                msg("Python version mismatch: client = %s vs. node = %s" %\
+                util.msg("Python version mismatch: client = %s vs. node = %s" %\
                                 (m["version"], my_ver), "DAT")
                 sys.exit(1)
 
