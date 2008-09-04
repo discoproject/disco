@@ -9,13 +9,18 @@ def msg(m, c = 'MSG', job_input = ""):
 
 def err(m):
         msg(m, 'MSG')
-        raise m 
+        raise Exception(m)
 
 def data_err(m, job_input):
         if sys.exc_info() == (None, None, None):
-                raise m
+                raise Exception(m)
         else:
                 print traceback.print_exc()
+                exc = traceback.format_exc()
+                f = file("/Users/dialtone/dev/Disco/python.err", "w+")
+                f.write(exc)
+                f.write('\n\n\n')
+                f.close()
                 msg(m, 'DAT', job_input)
                 raise
 

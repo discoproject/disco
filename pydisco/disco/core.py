@@ -233,7 +233,7 @@ class Job(object):
                 reply = self.master.request("/disco/job/new", self.msg)
                         
                 if reply != "job started":
-                        raise "Failed to start a job. Server replied: " + reply
+                        raise Exception("Failed to start a job. Server replied: " + reply)
 
 
 

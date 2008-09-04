@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 import os
 import sys
 import urllib
@@ -17,23 +17,29 @@ if __name__ == "__main__":
                          "Usage: disco_worker [map|reduce] "\
                          "name hostname master_url partid inputs..")
 
-        if "op_" + sys.argv[1] not in globals():
-                util.err("Invalid operation: %s" % sys.argv[1])
       
         # Announce my PID to the master
         print >> sys.stderr, "**<PID>%s" % os.getpid()
         
         name = sys.argv[2]
         master_url = sys.argv[4]
+
+        dw.ensure_path("%s/%s/" % (LOCAL_PATH, name), False)
+        params_file = PARAMS_FILE % name
+
         try:
-                dw.ensure_path("%s/%s/" % (LOCAL_PATH, name), False)
-                params_file = PARAMS_FILE % name
                 url_hdle = urllib.urlopen("%s/%s/params" % (master_url, name))
-                external.ensure_file(params_file,
-                        (master_url, url_hdle), mode = 444)
-                url_hdle.close()
+        except Exception, e:
+                url = "%s/%s/params" % (master_url, name)
+                util.data_err("Failed to get %s" % (url,), master_url)
+
+        external.ensure_file(params_file,
+                (master_url, url_hdle), mode = 444)
+        url_hdle.close()
+
+        try:
                 m = decode_netstring_fd(file(params_file))
-        except:
+        except Exception, e:
                 util.data_err("Decoding the job description failed", master_url)
         
         job_name = util.job_name = m['name']
@@ -44,7 +50,10 @@ if __name__ == "__main__":
                                 (m["version"], my_ver), "DAT")
                 sys.exit(1)
 
-        globals()["op_" + sys.argv[1]](m)
+        method = getattr(dw, 'op_' + sys.argv[1], None)
+        if method is None:
+                util.err("Invalid operation: %s" % sys.argv[1])
+        method(m)
         util.msg("Worker done", "END")
 
 
