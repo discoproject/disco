@@ -4,3 +4,5 @@ set -a
 source /etc/disco/disco.conf
 
 `which lighttpd` -f /etc/disco/lighttpd-node.conf
+
+echo "Disco node started."

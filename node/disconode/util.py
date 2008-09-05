@@ -16,11 +16,12 @@ def data_err(m, job_input):
                 raise Exception(m)
         else:
                 print traceback.print_exc()
-                exc = traceback.format_exc()
-                f = file("/Users/dialtone/dev/Disco/python.err", "w+")
-                f.write(exc)
-                f.write('\n\n\n')
-                f.close()
+                # Until the exceptions bug is fixed this might help.
+                # exc = traceback.format_exc()
+                # f = file("/Users/dialtone/dev/Disco/python.err", "w+")
+                # f.write(exc)
+                # f.write('\n\n\n')
+                # f.close()
                 msg(m, 'DAT', job_input)
                 raise
 

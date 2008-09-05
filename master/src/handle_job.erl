@@ -67,9 +67,16 @@ init_job(PostData) ->
                 {ok, _Events} -> throw(["job ", Name, " already exists"])
         end.
 
+gethostname() ->
+        SecondaryHostname = inet:gethostname(),
+        case application:get_env(disco_master_host) of
+                undefined -> SecondaryHostname;
+                {ok, Val} -> Val
+        end.
+
 set_disco_url(SPort) ->
         {ok, Name} = application:get_env(disco_name),
-        {ok, HostN} = inet:gethostname(),
+        HostN = gethostname(),
         DiscoUrl = lists:flatten(["http://", HostN, ":",
                 binary_to_list(SPort), "/disco/master/_", Name, "/"]),
         application:set_env(disco, disco_url, DiscoUrl).

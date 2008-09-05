@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -a
+source /etc/disco/disco.conf
+
+killall epmd
+killall beam
+killall lighttpd
+
+echo "Disco master stopped."
+

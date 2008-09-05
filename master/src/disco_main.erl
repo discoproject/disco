@@ -16,6 +16,7 @@ conf(P) ->
 
 start(_Type, _Args) ->
         ScgiPort = conf(scgi_port),
+        _MasterHostname = conf(disco_master_host),
         _DiscoConfig = conf(disco_config),
         _DiscoRoot = conf(disco_root),
         _DiscoName = conf(disco_name),
