@@ -8,7 +8,7 @@ DISCO_HOME=${DISCO_HOME:-"/usr/lib/disco/"}
 DISCO_LOG=${DISCO_LOG:-"/var/log/disco/"}
 DISCO_ULIMIT=${DISCO_ULIMIT:-"16000000"}
 DISCO_PID_DIR=${DISCO_PID_DIR:-"/var/run/"}
-DISCO_MASTER_HOST=${DISCO_MASTER_HOST:-"localhost"}
+DISCO_MASTER_HOST=${DISCO_MASTER_HOST:-""}
 
 # Derived settings
 

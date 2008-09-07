@@ -89,6 +89,7 @@ handle_call(start_worker, _From, State) ->
         Cmd = spawn_cmd(State),
         error_logger:info_report(["Spawn cmd: ", Cmd]),
         Env = [{"PATH", "disco/node:" ++ os:getenv("PATH")}|?SPAWNED_ENV],
+        error_logger:info_report(["Spawn env: ", lists:flatten(Env)]),
         Port = open_port({spawn, spawn_cmd(State)}, [{env, Env}|?PORT_OPT]),
         {reply, ok, State#state{port = Port}, 30000}.
 

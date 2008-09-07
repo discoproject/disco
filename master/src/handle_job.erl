@@ -68,9 +68,9 @@ init_job(PostData) ->
         end.
 
 gethostname() ->
-        SecondaryHostname = inet:gethostname(),
+        {ok, SecondaryHostname} = inet:gethostname(),
         case application:get_env(disco_master_host) of
-                undefined -> SecondaryHostname;
+                {ok, ""} -> SecondaryHostname;
                 {ok, Val} -> Val
         end.
 
