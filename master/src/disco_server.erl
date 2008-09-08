@@ -273,8 +273,8 @@ start_worker(J, Node) ->
 slave_master(SlaveName) ->
         receive
                 {start, Pid, Node, Args} ->
-                        R = case os:type() of
-                                {unix,darwin} ->
+                        R = case application:get_env(disco_slaves_os) of
+                                {ok, "osx"} ->
                                         slave:start(list_to_atom(Node),
                                                 SlaveName, Args, self(),
                                                 "/usr/libexec/StartupItemContext erl");

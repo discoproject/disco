@@ -20,6 +20,7 @@ start(_Type, _Args) ->
         _DiscoConfig = conf(disco_config),
         _DiscoRoot = conf(disco_root),
         _DiscoName = conf(disco_name),
+        _DiscoSlavesOS = conf(disco_slaves_os),
         supervisor:start_link(disco_main, [ScgiPort]).
 
 init([ScgiPort]) -> 

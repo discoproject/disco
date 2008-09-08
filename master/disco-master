@@ -9,6 +9,7 @@ DISCO_LOG=${DISCO_LOG:-"/var/log/disco/"}
 DISCO_ULIMIT=${DISCO_ULIMIT:-"16000000"}
 DISCO_PID_DIR=${DISCO_PID_DIR:-"/var/run/"}
 DISCO_MASTER_HOST=${DISCO_MASTER_HOST:-""}
+DISCO_SLAVES_OS=${DISCO_SLAVES_OS:-"linux"}
 
 # Derived settings
 
@@ -24,6 +25,7 @@ if [ ! -e $DISCO_MASTER ] && ! mkdir -p $DISCO_MASTER; then
 fi
 echo "Using master... $DISCO_MASTER"
 echo "Using master host... $DISCO_MASTER_HOST"
+echo "Using slaves with... $DISCO_SLAVES_OS"
 
 if [ ! -e $DISCO_CONFIG ] && ! echo "[]" > $DISCO_CONFIG; then
         echo "Couldn't initialize $DISCO_CONFIG"
@@ -52,6 +54,7 @@ exec erl +K true\
     -disco disco_name \"$DISCO_NAME\"\
     -disco disco_root \"$DISCO_MASTER\"\
     -disco disco_master_host \"$DISCO_MASTER_HOST\"\
+    -disco disco_slaves_os \"$DISCO_SLAVES_OS\"\
     -disco scgi_port $DISCO_SCGI_PORT\
     -disco disco_config \"$DISCO_CONFIG\" </dev/null >/dev/null 2>/dev/null
 
