@@ -1,5 +1,5 @@
 import re
-from disconode.util import err
+from disco.util import err, data_err, msg
 
 def netstr_reader(fd, content_len, fname):
         if content_len == None:
