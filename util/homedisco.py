@@ -11,9 +11,9 @@ class MsgStream:
                         addr = msg.split()[-1]
                         fname = "/".join(addr.split("/")[-2:])
                         if addr.startswith("chunk://"):
-                                self.out.append("chunkfile:///Users/dialtone/dev/Disco/data/data/" + fname)
+				self.out.append("chunkfile://data/" + fname)
                         else:
-                                self.out.append("file:///Users/dialtone/dev/Disco/data/data/" + fname)
+				self.out.append("file://data/" + fname)
                 print msg,
 
 class DummyDisco:
