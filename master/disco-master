@@ -24,8 +24,8 @@ if [ ! -e $DISCO_MASTER ] && ! mkdir -p $DISCO_MASTER; then
 	exit 1
 fi
 echo "Using master... $DISCO_MASTER"
-echo "Using master host... $DISCO_MASTER_HOST"
 echo "Using slaves with... $DISCO_SLAVES_OS"
+[ -z $DISCO_MASTER_HOST ] || echo "Using master host... $DISCO_MASTER_HOST"
 
 if [ ! -e $DISCO_CONFIG ] && ! echo "[]" > $DISCO_CONFIG; then
         echo "Couldn't initialize $DISCO_CONFIG"
