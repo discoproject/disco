@@ -19,6 +19,7 @@
 % THE SOFTWARE.
 
 -module(netstring).
+-compile([binary_comprehension]).
 -export([encode_netstring_fd/1, decode_netstring_fd/1,
          decode_netstring_fdx/1]).
 

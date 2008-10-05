@@ -3,7 +3,7 @@
 OPT = -W
 CC  = erlc
 
-PYTHON = python2.4
+PYTHON = python
 ESRC = master/src
 EBIN = master/ebin
 
