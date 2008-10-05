@@ -134,7 +134,8 @@ class Job(object):
                     "params": Params(),
                     "mem_sort_limit": 256 * 1024**2,
                     "chunked": None,
-                    "ext_params": None}
+                    "ext_params": None,
+                    "required_modules": []}
 
         def __init__(self, master, **kwargs):
                 self.master = master
@@ -185,7 +186,8 @@ class Job(object):
                        "partition": marshal.dumps(d("partition").func_code),
                        "params": cPickle.dumps(d("params")),
                        "sort": str(int(d("sort"))),
-                       "mem_sort_limit": str(d("mem_sort_limit"))}
+                       "mem_sort_limit": str(d("mem_sort_limit")),
+                       "required_modules": " ".join(d("required_modules"))}
 
                 if type(kw["map"]) == dict:
                         req["ext_map"] = marshal.dumps(kw["map"])
