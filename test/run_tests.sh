@@ -16,7 +16,7 @@ do
                 continue
         fi
         echo "Running $tst"
-        python2.4 $tst $1 2> $tst.err.log > $tst.log
+        python $tst $1 2> $tst.err.log > $tst.log
         if [[ `tail -1 $tst.log` == "ok" ]]
         then
                 echo "Test $tst ok."

@@ -1,5 +1,8 @@
 
 import re, os, urllib
+import sys, time, os, traceback
+
+job_name = "none"
 
 def load_conf():
         port = root = master = None
