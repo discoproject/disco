@@ -4,18 +4,6 @@ import re, os, urllib
 def load_conf():
         port = root = master = None
         
-        conf = (os.path.exists("disco.conf") and "disco.conf") or\
-               (os.path.exists("/etc/disco/disco.conf") and\
-                        "/etc/disco/disco.conf")
-        if conf:
-                txt = file(conf).read()
-                master = re.search("^\s*DISCO_MASTER_PORT\s*=\s*(\d+)",
-                        txt, re.MULTILINE)
-                port = re.search("^\s*DISCO_PORT\s*=\s*(\d+)",
-                        txt, re.MULTILINE)
-                root = re.search("^\s*DISCO_ROOT\s*=\s*(.+)",
-                        txt, re.MULTILINE)
-        
         port = (port and port.group(1)) or "8989"
         root = (root and root.group(1)) or "/srv/disco/"
         master = (master and master.group(1)) or port

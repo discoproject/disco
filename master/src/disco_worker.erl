@@ -14,17 +14,25 @@
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 10). 
 
--define(SLAVE_ARGS, "-pa disco/master/ebin +K true").
+-define(SLAVE_ARGS, "+K true").
 -define(CMD, "nice -n 19 disco-worker '~s' '~s' '~s' '~s' '~w' ~s").
--define(SPAWNED_ENV, [{"PYTHONPATH", "disco/node:disco/pydisco"}]).
 -define(PORT_OPT, [{line, 100000}, binary, exit_status,
                    use_stdio, stderr_to_stdout]).
+
+get_env(Var) ->
+        get_env(Var, lists:flatten(io_lib:format(" -env ~s ~~s", [Var]))).
 
 get_env(Var, Fmt) ->
         case os:getenv(Var) of
                 false -> "";
                 Val -> io_lib:format(Fmt, [Val])
         end.
+
+slave_env() ->
+        lists:flatten([?SLAVE_ARGS, 
+                get_env("DISCO_HOME", " -pa ~s/ebin"),
+                [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
+                        "PYTHONPATH", "PATH"]]]).
 
 start_link_remote([SlaveName, Master, EventServ, From, JobName, PartID, 
         Mode, Node, Input]) ->
@@ -36,9 +44,8 @@ start_link_remote([SlaveName, Master, EventServ, From, JobName, PartID,
 
         case net_adm:ping(NodeAtom) of
                 pong -> ok;
-                pang -> SlaveArgs = lists:flatten([?SLAVE_ARGS, 
-                                get_env("DISCO_HOME", " -pa ~s/ebin")]),
-                        slave_master ! {start, self(), Node, SlaveArgs},
+                pang -> 
+                        slave_master ! {start, self(), Node, slave_env()},
                         receive
                                 slave_started -> ok
                         after 60000 ->
@@ -88,8 +95,9 @@ init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
 handle_call(start_worker, _From, State) ->
         Cmd = spawn_cmd(State),
         error_logger:info_report(["Spawn cmd: ", Cmd]),
-        Env = [{"PATH", "disco/node:" ++ os:getenv("PATH")}|?SPAWNED_ENV],
-        Port = open_port({spawn, spawn_cmd(State)}, [{env, Env}|?PORT_OPT]),
+        %Env = [{"PATH", "disco/node:" ++ os:getenv("PATH")}|?SPAWNED_ENV],
+        %Port = open_port({spawn, spawn_cmd(State)}, [{env, Env}|?PORT_OPT]),
+        Port = open_port({spawn, spawn_cmd(State)}, ?PORT_OPT),
         {reply, ok, State#state{port = Port}, 30000}.
 
 spawn_cmd(#state{input = [Input|_]} = S) when is_list(Input) ->
