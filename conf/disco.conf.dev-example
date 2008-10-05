@@ -3,6 +3,7 @@ set -a
 
 if [ -e master/ebin ]; then
         DISCO_PORT=8989
+	DISCO_MASTER_PORT=7000
         DISCO_SCGI_PORT=4441
         DISCO_ROOT="$PWD/root/"
         DISCO_HOME="$PWD/master/"
