@@ -4,23 +4,6 @@ import sys, time, os, traceback
 
 job_name = "none"
 
-def msg(m, c = 'MSG', job_input = ""):
-        t = time.strftime("%y/%m/%d %H:%M:%S")
-        print >> sys.stderr, "**<%s>[%s %s (%s)] %s" %\
-                (c, t, job_name, job_input, m)
-
-def err(m):
-        msg(m, 'MSG')
-        raise Exception(m)
-
-def data_err(m, job_input):
-        if sys.exc_info() == (None, None, None):
-                raise Exception(m)
-        else:
-                print traceback.print_exc()
-                msg(m, 'DAT', job_input)
-                raise
-
 def load_conf():
         port = root = master = None
         
