@@ -41,7 +41,7 @@ if __name__ == "__main__":
         except Exception, e:
                 util.data_err("Decoding the job description failed", master_url)
         
-        job_name = util.job_name = m['name']
+        job_name = dw.job_name = util.job_name = m['name']
 
         my_ver = ".".join(map(str, sys.version_info[:2]))
         if m["version"] != my_ver:
