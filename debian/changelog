@@ -1,6 +1,12 @@
-disco (20080809-1) unstable; urgency=low
+disco (0.1.1) unstable; urgency=low
 
-  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+  * Bugfixes and some minor features added
+ 
+ -- Ville Tuulos <tuulos@nxfront.nokiapaloalto.com>  Mon, 06 Oct 2008 20:34:09 -0700
 
- -- Ville Tuulos <tuulos@nxfront.nokiapaloalto.com>  Sat, 09 Aug 2008 23:17:33 -0700
+disco (0.1) unstable; urgency=low
+
+  * Initial release 
+ 
+ -- Ville Tuulos <tuulos@nxfront.nokiapaloalto.com>  Mon, 01 Sep 2008 23:17:33 -0700
 
