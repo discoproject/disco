@@ -8,6 +8,8 @@ DISCO_HOME=${DISCO_HOME:-"/usr/lib/disco/"}
 DISCO_LOG=${DISCO_LOG:-"/var/log/disco/"}
 DISCO_ULIMIT=${DISCO_ULIMIT:-"16000000"}
 DISCO_PID_DIR=${DISCO_PID_DIR:-"/var/run/"}
+DISCO_MASTER_HOST=${DISCO_MASTER_HOST:-""}
+DISCO_SLAVES_OS=${DISCO_SLAVES_OS:-"linux"}
 
 # Derived settings
 
@@ -21,12 +23,15 @@ if [ ! -e $DISCO_MASTER ] && ! mkdir -p $DISCO_MASTER; then
 	echo "$DISCO_MASTER doesn't exist"
 	exit 1
 fi
+echo "Using master... $DISCO_MASTER"
+echo "Using slaves with... $DISCO_SLAVES_OS"
+[ -z $DISCO_MASTER_HOST ] || echo "Using master host... $DISCO_MASTER_HOST"
 
 if [ ! -e $DISCO_CONFIG ] && ! echo "[]" > $DISCO_CONFIG; then
         echo "Couldn't initialize $DISCO_CONFIG"
         exit 1
 fi
-
+echo "Using config... $DISCO_CONFIG"
 
 # If DISCO_HEART is not specified, HEART_COMMAND is empty and heart
 # will die togehter with the master process.
@@ -48,6 +53,8 @@ exec erl +K true\
     -eval "[handle_job, handle_ctrl]"\
     -disco disco_name \"$DISCO_NAME\"\
     -disco disco_root \"$DISCO_MASTER\"\
+    -disco disco_master_host \"$DISCO_MASTER_HOST\"\
+    -disco disco_slaves_os \"$DISCO_SLAVES_OS\"\
     -disco scgi_port $DISCO_SCGI_PORT\
     -disco disco_config \"$DISCO_CONFIG\" </dev/null >/dev/null 2>/dev/null
 

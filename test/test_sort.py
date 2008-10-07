@@ -12,7 +12,7 @@ def fun_reduce(iter, out, params):
         prev = 0
         for k, v in iter:
                 k = int(k)
-		if k < prev:
+                if k < prev:
                         raise "Val %s < %s -> sorting failed" % (k, prev)
                 prev = k
                 out.add(k, v)

@@ -26,7 +26,7 @@ ANS = {"gutta": int(5e6), "cavat": int(1e7), "capidem": int(5e6)}
 i = 0
 for key, value in disco.result_iterator(results):
         i += 1
-	if ANS[key] == int(value):
+        if ANS[key] == int(value):
                 print "Correct: %s %s" % (key, value)
         else:
                 raise "Results don't match"

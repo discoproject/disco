@@ -21,14 +21,14 @@ results = Disco(sys.argv[1]).new_job(
                 name = "test_external",
                 input = tserver.makeurl(inputs),
                 map = external(["ext_test"]), 
-		reduce = fun_reduce, 
+                reduce = fun_reduce, 
                 ext_params = params,
-		nr_reduces = 1,
-		sort = False).wait()
+                nr_reduces = 1,
+                sort = False).wait()
 
 results = sorted([(v, k) for k, v in result_iterator(results)])
 for i, e in enumerate(results): 
-	v, k = e
+        v, k = e
         if k != "red_dkey" or v != "red_test_%s" % inputs[i / 3]:
                 raise Exception("Invalid answer: %s, %s" % (k, v))
 

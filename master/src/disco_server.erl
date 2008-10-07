@@ -273,8 +273,15 @@ start_worker(J, Node) ->
 slave_master(SlaveName) ->
         receive
                 {start, Pid, Node, Args} ->
-                        R = slave:start_link(list_to_atom(Node), 
-                                SlaveName, Args),
+                        R = case application:get_env(disco_slaves_os) of
+                                {ok, "osx"} ->
+                                        slave:start(list_to_atom(Node),
+                                                SlaveName, Args, self(),
+                                                "/usr/libexec/StartupItemContext erl");
+                                _ ->
+                                        slave:start_link(list_to_atom(Node),
+                                                SlaveName, Args)
+                        end,
                         Pid ! slave_started,
                         error_logger:info_report(["New slave at ", Node, R]),
                         slave_master(SlaveName)

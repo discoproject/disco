@@ -112,7 +112,7 @@ object.
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params])
+.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -325,6 +325,10 @@ object.
        decoded by the program properly.
        
        For more information, see :ref:`discoext`.
+
+     * *required_modules* - is a list of additional modules (module names) which
+       are required by job functions. Modules listed here are imported to the
+       functions' namespace.
 
     .. attribute:: Job.name
 

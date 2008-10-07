@@ -24,9 +24,9 @@ user = os.environ.get("SSH_USER", "")
 
 files = os.listdir(sys.argv[1])
 if sys.argv[1][-1] == "/":
-	name = os.path.basename(sys.argv[1][:-1])
+        name = os.path.basename(sys.argv[1][:-1])
 else:
-	name = os.path.basename(sys.argv[1])
+        name = os.path.basename(sys.argv[1])
 
 nodes = []
 hostname = {}
@@ -42,41 +42,41 @@ fno = int(math.ceil(max(1, float(len(files)) / len(nodes))))
 
 print >> sys.stderr, "Dataset name: %s" % name
 print >> sys.stderr, "%d files and %d nodes: %d files per node" %\
-		(len(files), len(nodes), fno)
+                (len(files), len(nodes), fno)
 
 random.shuffle(nodes)
 nodes = iter(nodes)
 procs = []
 
 while True:
-	nset = [sys.argv[1] + "/" + f  for f  in files[:fno]]
-	if not nset:
-		break
-	files = files[fno:]
-	node = unode = nodes.next().strip()
-	if user:
+        nset = [sys.argv[1] + "/" + f  for f  in files[:fno]]
+        if not nset:
+                break
+        files = files[fno:]
+        node = unode = nodes.next().strip()
+        if user:
                 unode = "%s@%s" % (user, node)
 
-	if "REMOVE_FIRST" in os.environ:
-		call(["ssh"] + ssh + [unode, "rm -Rf %s/data/%s" % (root, name)])
+        if "REMOVE_FIRST" in os.environ:
+                call(["ssh"] + ssh + [unode, "rm -Rf %s/data/%s" % (root, name)])
 
-	if call(["ssh"] + ssh + [unode, "mkdir /%s/data/%s" % (root, name)]):
-		print >> sys.stderr, "Couldn't mkdir %s:%s/data/%s" % (node, root, name)
+        if call(["ssh"] + ssh + [unode, "mkdir /%s/data/%s" % (root, name)]):
+                print >> sys.stderr, "Couldn't mkdir %s:%s/data/%s" % (node, root, name)
 
-	print >> sys.stderr, "Copying %d files to %s" % (len(nset), node)
-	p = Popen("nice -19 ionice -n 7 scp %s %s %s:%s/data/%s/" % 
+        print >> sys.stderr, "Copying %d files to %s" % (len(nset), node)
+        p = Popen("nice -19 ionice -n 7 scp %s %s %s:%s/data/%s/" % 
                 (" ".join(ssh), " ".join(nset), unode, root, name),
                         shell = True)
-	procs.append((node, p, nset))
+        procs.append((node, p, nset))
 
 print >> sys.stderr, "Waiting for copyers to finish.."
 
 for node, p, nset in procs:
-	if p.wait():
-		print >> sys.stderr, "Copying to %s failed" % node
-	else:
-		print >> sys.stderr, "%s ok" % node
-		print "\n".join(("disco://%s/%s/%s" %
+        if p.wait():
+                print >> sys.stderr, "Copying to %s failed" % node
+        else:
+                print >> sys.stderr, "%s ok" % node
+                print "\n".join(("disco://%s/%s/%s" %
                         (hostname[node], name, os.path.basename(f))
                                 for f in nset))
 
