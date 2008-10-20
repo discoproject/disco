@@ -5,14 +5,14 @@ Troubleshooting Disco installation
 ==================================
 
 Sometimes it happens that Disco doesn't work properly right after
-installation. Since Disco is a distributed system which needs several
-separate components to work properly, finding out the culprit often
-requires testing the components one by one. This page explains the
-troubleshooting process.
+installation. Since Disco is a distributed system which is based on
+several separate loosely coupled components, it is possible to debug
+the system by testing the components one by one. This page describes
+the troubleshooting process.
 
-First you should make sure that you can get Disco working locally, on
-a single computer. After this, getting the distributed version to work
-is rather straightforward.
+This page helps you to get Disco working locally, on a single
+computer. After this, getting the distributed version to work is rather
+straightforward.
 
 Here we assume that you have installed Disco locally with the following steps:
 
@@ -20,7 +20,7 @@ Here we assume that you have installed Disco locally with the following steps:
  * Extracted the package to your home directory, say ``~/disco/``.
  * Compiled the sources by writing ``make`` in ``~/disco/``. 
  * Started Disco with ``~/disco/conf/start-master`` and ``~/disco/conf/start-node``.
- * Tried to run the ``count_words.py`` example from :ref:`setup` by saying ``python count_words.py http://localhost:7000``.
+ * Tried to run the ``count_words.py`` example from :ref:`setup` as follows ``python count_words.py http://localhost:7000``.
 
 but the script crashed and/or didn't produce any results.
 
@@ -42,8 +42,12 @@ Then, restart Disco by saying::
         conf/start-node
 
 Here we assume that you've extracted Disco under ``~/disco``. If you
-extracted Disco to some other directory, use it instead. Now you should
-have Disco running locally.
+extracted Disco to some other directory, replace ``~/disco/`` with your
+actual directory here and in the examples below.
+
+These commands should be enough to get Disco up and running. If you
+can't run ``count_words.py`` example successfully, the reason is usually
+a small misconfigured detail somewhere. We will find it out below.
 
 1. Is Disco master running?
 ---------------------------
@@ -69,13 +73,12 @@ If the master is running, you should see something like this::
 If you do see output like above, the master is running correctly and
 you can proceed to the next step.
 
-If not, the master didn't start up properly. See if you can find a
-log file at ``~/disco/disco_*.log``. If the file exists, see the last
-messages in the file: They often reveal what went wrong during the
-startup. A typical problem is a faulty configuration file, in which
-case the last message is something like ``Opening config file`` in
-the log file. In this case remove the faulty config file at
-``~/disco/root/disco_*config"``.
+If not, the master didn't start up properly. See if you can find a log
+file at ``~/disco/disco_*.log``. If the file exists, see the last messages
+in the file: They often reveal what went wrong during the startup. A
+typical problem is a faulty configuration file, in which case the last
+message is something like ``Opening config file``. In this case remove
+the faulty config file at ``~/disco/root/disco_*config``.
 
 If you can't find the log file, the master didn't start at all. See
 if you can find master binaries at ``~/disco/master/ebin/*.ebin``. If
@@ -103,12 +106,12 @@ correctly and you should try to re-install it.
 
 Now that we know that the master process is running, we should
 be able to configure the system. Open your web browser and go to
-`http://localhost:7000/ <http://localhost:7000/>_`. The Disco status
+`http://localhost:7000/ <http://localhost:7000/>`_. The Disco status
 page should open.
 
 Do you see any boxes with black title bars on the status page (like `in
-this screenshot <http://discoproject.org/img/disco-main.png>_`)? If not,
-add nodes to the system as instructed in :ref:`setup`, setup 5.
+this screenshot <http://discoproject.org/img/disco-main.png>`_)? If not,
+add nodes to the system as instructed in :ref:`setup`, section 5.
 
 If adding nodes through the web interface fails, it may be a bug in
 Disco. In that case you can edit the config file manually. For instance,
@@ -144,9 +147,9 @@ If the supervisor is running, you should see something like this::
         disco_4441_master@discodev slave_waiter_0 -pa
         /home/tuulos/src/disco/master//ebin
 
-If you see something like this, go to step 4. If not, read on.
+If you get a similar output, go to step 4. If not, read on.
 
-The most common reason for the supervisor not to start up, is a problem
+The most common reason for the supervisor not starting up is a problem
 with ssh authentication. Try the following command::
 
         ssh localhost erl
@@ -155,7 +158,7 @@ If ssh asks for a password, or any other confirmation, you need to
 configure ssh properly as instructed in :ref:`setup` in section 4.
 
 If ssh seems to work correctly, you should check that the Erlang's
-``slave`` module works correctly. We can check it as follows::
+``slave`` module works correctly. You can check it as follows::
 
         erl -rsh ssh -sname testmaster
 
@@ -167,16 +170,18 @@ If ssh seems to work correctly, you should check that the Erlang's
         pong
 
 If Erlang doesn't return ``{ok..`` for the first expression or if it
-returns ``pang`` for the second expression, there's something wrong
-either with your ssh or Erlang configuration. In this case your problem
-is not specific to Disco.
+returns ``pang`` for the second expression, there's something wrong either
+with your ssh or Erlang configuration. You should double-check that
+the Erlang security cookie at ``~/.erlang.cookie`` is the same on all
+the nodes (see :ref:`setup`, section 4).
+
 
 4. Does disco-worker start up?
 ------------------------------
 
-The worker supervisor in Disco is responsible for starting individual
-Python processes that execute the actual jobs. Since we know that the
-supervisor itself starts up correctly, the problem might be in the
+The worker supervisor is responsible for starting individual Python
+processes that execute the actual map and reduce functions. Assuming
+that the supervisor is running correctly, the problem might be in the
 ``disco-worker`` Python process.
 
 See what happens with the following command::
@@ -190,7 +195,7 @@ It should respond with an error message that includes::
 If you get something else, you may have a problem with your PATH settings
 or Python installation.
 
-You can also see what exactly Disco tries to execute as follows::
+You can find out what exactly Disco tries to execute as follows::
 
         grep "Spawn cmd" ~/disco/disco_*.log 
 
@@ -221,9 +226,9 @@ separate web servers running, typically at ports 7000 (master) and 8989
 Still no success?
 -----------------
 
-If the problem still persists, or you couldn't get one of the steps
-above work correctly, do not feel desperate! Report your problem
-to friendly Disco developers `either on IRC or to the mailing list
+If the problem persists, or you can't get one of the steps above
+work correctly, do not feel desperate! Report your problem to
+friendly Disco developers `either on IRC or on the mailing list
 <http://discoproject.org/getinvolved.html>`_. Please mention in your
 report the steps that you've tried and the results you got.
 
