@@ -13,7 +13,7 @@ echo -e "\nIf this is not what you want, run start-master as follows:"
 echo -e "start-master [disco-config] [lighttpd-config]\n"
 
 source $DISCO_CONF
-export PATH=$PATH:/usr/sbin
+export PATH=$PATH:$DISCO/node:/usr/sbin
 export PYTHONPATH=$PYTHONPATH:$DISCO/node:$DISCO/pydisco
 
 $DISCO_HOME/disco-master &
