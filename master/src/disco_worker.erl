@@ -32,7 +32,7 @@ slave_env() ->
         lists:flatten([?SLAVE_ARGS, 
                 get_env("DISCO_HOME", " -pa ~s/ebin"),
                 [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
-                        "PYTHONPATH", "PATH"]]]).
+                        "DISCO_PORT", "PYTHONPATH", "PATH"]]]).
 
 start_link_remote([SlaveName, Master, EventServ, From, JobName, PartID, 
         Mode, Node, Input]) ->
