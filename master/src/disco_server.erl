@@ -224,11 +224,21 @@ node_busy(_, []) -> true;
 node_busy([{_, Load}], [{_, MaxLoad}]) -> Load >= MaxLoad.
 
 choose_node({PrefNode, TaskBlackNodes}) ->
+
+        % From non-busy nodes, remove the ones that have already
+        % failed this task (TaskBlackNodes) or that are globally
+        % blacklisted (ets-table blacklist).
+        BlackNodes = TaskBlackNodes ++ 
+                [X || [X] <- ets:match(blacklist, {'$1', '_'})],
+        
         % Is our preferred choice available?
         PrefBusy = node_busy(ets:lookup(node_load, PrefNode),
                          ets:lookup(config_table, PrefNode)),
 
-        if PrefBusy ->
+        % Is our preferred choice blacklisted?
+        PrefBlack = lists:member(PrefNode, BlackNodes),
+
+        if PrefBlack; PrefBusy ->
                 % If not, start with all configured nodes..
                 AllNodes = ets:tab2list(node_load),
 
@@ -237,12 +247,6 @@ choose_node({PrefNode, TaskBlackNodes}) ->
                         not node_busy([X], ets:lookup(config_table, Node))
                 end, AllNodes),
 
-                % From non-busy nodes, remove the ones that have already
-                % failed this task (TaskBlackNodes) or that are globally
-                % blacklisted (ets-table blacklist).
-                BlackNodes = TaskBlackNodes ++ 
-                        [X || [X] <- ets:match(blacklist, {'$1', '_'})],
-        
                 AllowedNodes = lists:filter(fun({Node, _Load}) ->
                         not lists:member(Node, BlackNodes)
                 end, AvailableNodes),
