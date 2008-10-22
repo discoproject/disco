@@ -137,8 +137,11 @@ handle_call({kill_job, JobName}, _From, State) ->
         lists:foreach(fun([Pid]) ->
                 exit(Pid, kill_worker)
         end, ets:match(active_workers, {'$1', {'_', JobName, '_', '_', '_'}})),
-        gen_server:cast(job_queue, {filter_queue, fun(Job) -> 
-                Job#job.jobname =/= JobName
+        gen_server:cast(job_queue, {filter_queue, fun
+                (Job) when Job#job.jobname == JobName  -> 
+                        exit(Job#job.from, kill_worker),
+                        false;
+                (_) -> true
         end}),
         {reply, ok, State};
 
