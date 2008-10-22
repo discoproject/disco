@@ -158,6 +158,7 @@ handle_call({blacklist, Node}, _From, State) ->
 handle_call({whitelist, Node}, _From, State) ->
         event_server:event("[master]", "Node ~s whitelisted", [Node], []),
         ets:delete(blacklist, Node),
+        gen_server:cast(job_queue, schedule_job),
         {reply, ok, State};
 
 handle_call(Msg, _From, State) ->
