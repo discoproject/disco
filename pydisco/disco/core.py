@@ -169,15 +169,15 @@ class Job(object):
                 if not ("map" in kw and "input" in kw):
                         raise "Arguments 'map' and 'input' are required"
                 
-                if len(kw["input"]) < 1:
-                        raise "Must have at least one input file"
-
                 inputs = []
                 for inp in kw["input"]:
                         if inp.startswith("dir://"):
                                 inputs += util.parse_dir(inp)
                         else:
                                 inputs.append(inp)
+                
+                if not inputs:
+                        raise "Must have at least one input file"
 
                 req = {"name": self.name,
                        "input": " ".join(inputs),
