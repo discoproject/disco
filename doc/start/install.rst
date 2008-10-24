@@ -1,4 +1,6 @@
 
+.. _setup:
+
 Setting up Disco
 ================
 
@@ -62,11 +64,12 @@ Extract the package and run make as root as follows::
 This will build and install Disco to your system (see ``Makefile`` for exact
 directories).
 
-Note that it is possible to run Disco as an ordinary user under a
-user-specific directory hierarchy. This requires that system-wide
-environment variables ``PYTHONPATH`` and ``PATH`` include Disco
-executables and Python modules appropriately. You should also modify
-directories in ``disco.conf`` to point at correct places.
+If you don't want to install Disco to system-wide directories, you can
+run it locally as an ordinary user. In that case, just write::
+
+        make
+
+This is often the easiest and the least intrusive way to get started with Disco. 
 
 You should repeat the above command on all servers that belong to your
 Disco cluster.
@@ -82,7 +85,12 @@ to the Disco cluster:
  * Make sure that necessary directories exist for Disco.
  * Check that ``/etc/hosts/`` contains addresses of all nodes.
 
-Let's go through the steps one by one.
+Note that if you didn't install Disco to system-wide directories,
+you can use the default config file at ``conf/disco.conf.dev-example``
+as is, without any modifications. This file is read by default by the
+``conf/start-master`` and ``conf/start-node`` startup scripts.
+
+Otherwise, let's go through the steps one by one.
 
 Often it is convenient to run Disco as a separate user, by default
 ``disco``. Amongst other reasons, this allows setting user-specific
@@ -246,9 +254,13 @@ Run the script as follows::
 
         python count_words.py http://master:8989
 
-Replace the address above with the same address you used to configure
-Disco earlier. You must use the same version of Python for running
-Disco scripts as you use on the server side.
+Replace the address above with the same address you used to
+configure Disco earlier. You must use the same version of Python for
+running Disco scripts as you use on the server side.
+
+If you used the default configuration provided in
+``disco.conf.dev-example``, the master is set to run at port ``7000``,
+so replace the address above with ``http://localhost:7000``.
 
 You can run the script on any machine that can access Disco on the
 specified address. Remember to include the ``disco/pydisco`` directory
@@ -266,14 +278,6 @@ If the script produces some results, congratulations, you have a
 working Disco setup! If you are new to Disco, you might want to read
 :ref:`tutorial` next.
 
-If the script fails, try to re-run it on the master node instead of some
-remote machine. This reveals if the script fails due to connectivity
-problems. If the script fails on the master as well, don't worry, Disco
-developers can help you in debugging. See `how to get in touch with
-them <http://discoproject.org/getinvolved.html>`_.
-
-
-
-
+If the script fails, see the section about :ref:`troubleshooting`.
 
 

@@ -25,5 +25,13 @@ def ensure_path(path, check_exists = True):
         if os.path.isfile(path):
                 os.remove(path)
         dir, fname = os.path.split(path)
-        if not os.path.exists(dir):
+        try:
                 os.makedirs(dir)
+        except OSError, x:
+                if x.errno == 17:
+                        # File exists is ok, it may happen
+                        # if two tasks are racing to create
+                        # the directory
+                        pass
+                else:
+                        raise x

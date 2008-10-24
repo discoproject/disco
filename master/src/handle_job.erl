@@ -111,7 +111,7 @@ pref_node([$h, $t, $t, $p, $:, $/, $/|Uri]) ->
 pref_node([$d, $i, $s, $c, $o, $:, $/, $/|Uri]) ->
         [Host|_] = string:tokens(Uri, "/"), Host;
 
-pref_node([$d, $i, $r, $:, $/, $/|Uri]) ->
+pref_node([[$d, $i, $r, $:, $/, $/|Uri]]) ->
         [Host|_] = string:tokens(Uri, "/"), Host;
 
 pref_node(Host) -> Host.

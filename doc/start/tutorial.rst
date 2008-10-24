@@ -131,9 +131,9 @@ Now, let's write the corresponding reduce function::
                 stats = {}
                 for word, count in iter:
                         if word in stats:
-                                stats[word] += 1
+                                stats[word] += int(count)
                         else:
-                                stats[word] = 1
+                                stats[word] = int(count)
                 for word, total in stats.iteritems():
                         out.add(word, total)
 

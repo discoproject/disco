@@ -25,6 +25,7 @@ Getting started
    start/install
    start/ec2setup
    start/tutorial
+   start/troubleshoot
 
 References
 ----------
