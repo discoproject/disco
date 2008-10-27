@@ -350,11 +350,11 @@ object.
    This example shows a simple way of using :class:`Params`::
         
         def fun_map(e, params):
+                params.c += 1
                 if not params.c % 10:
                         return [(params.f(e), params.c)]
                 else:
                         return [(e, params.c)]
-                params.c += 1
 
         disco.job("disco://localhost:5000",
                   ["disco://localhost/myjob/file1"],
