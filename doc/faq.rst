@@ -116,13 +116,15 @@ value in the input by one::
                 return [(int(key) + 1, "")]
         
         disco = Disco("disco://localhost")
-        results = disco.new_job(name = "inc_init", input = sys.argv[2:], map = init_map)
+        results = disco.new_job(name = "inc_init",
+                               input = sys.argv[2:],
+                               map = init_map).wait()
 
         for i in range(9):
                 results = disco.new_job(name =  "inc_%d" % i, 
                                         input = results,
                                         map = iter_map,
-                                        map_reader = disco.chain_reader)
+                                        map_reader = disco.chain_reader).wait()
 
         for key, value in result_iterator(results):
                 print key
