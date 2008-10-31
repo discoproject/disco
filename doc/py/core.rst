@@ -35,6 +35,17 @@ in :class:`Disco` come in handy if you want to manipulate a job that is
 identified by a job name (:attr:`Job.name`) instead of a :class:`Job`
 object.
 
+If you have access only to results of a job, you can extract the job
+name from an address with the :func:`disco.util.jobname` function. A typical
+case is that you are done with results of a job and they are not needed
+anymore. You can delete the unneeded job files as follows::
+        
+        from disco.core import Disco
+        from disco.util import jobname
+
+        Disco(master).purge(jobname(results[0]))
+
+
 :class:`Disco` --- Interface to the Disco master
 ------------------------------------------------
 
@@ -69,9 +80,18 @@ object.
 
    .. method:: Disco.clean(name)
 
-   Cleans records of the job *name*. Note that after the job records have been
-   cleaned, there is no way to obtain addresses to the result files from the
-   master. However, no files are actually deleted by :meth:`Disco.clean`.
+   Cleans records of the job *name*. Note that after the job records
+   have been cleaned, there is no way to obtain addresses to the result
+   files from the master. However, no files are actually deleted by
+   :meth:`Disco.clean`, in contrast to :meth:`Disco.purge`. This function
+   provides a way to notify the master not to bother about the job anymore,
+   although you want to keep results of the job for future use. If you
+   won't need the results, use :meth:`Disco.purge`.
+
+   .. method:: Disco.purge(name)
+
+   Deletes all records and files related to the job *name*. This implies
+   :meth:`Disco.clean`.
 
    .. method:: Disco.jobspec(name)
 
@@ -100,6 +120,13 @@ object.
    it possible to execute a typical Disco job in one line::
    
         results = disco.new_job(...).wait(clean = True)
+
+   Note that this only removes records from the master, but not the
+   actual result files. Once you are done with the results, call::
+
+        disco.purge(disco.util.jobname(results[0]))
+
+   to delete the actual result files.
 
    .. method:: Disco.new_job(...)
 

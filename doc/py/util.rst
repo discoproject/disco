@@ -35,6 +35,13 @@ external interface.
    it is returned as such.
 
 
+.. function:: jobname(addr)
+
+   Extracts the job name from an address *addr*. This function is
+   particularly useful for using the methods in :class:`disco.core.Disco`
+   given only results of a job.
+
+
 .. function:: external(files)
 
    Packages an external program, together with other files it depends
