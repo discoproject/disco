@@ -16,6 +16,15 @@ def load_conf():
                os.environ.get("DISCO_ROOT", root.strip()) + "/data/"
 
 
+def jobname(addr):
+        if addr.startswith("disco:") or addr.startswith("http:"):
+                return addr.split("/")[-2]
+        elif addr.startswith("dir:"):
+                return addr.split("/")[-1]
+        else:
+                raise "Unknown address: %s" % addr
+
+
 def external(files):
         msg = {"op": file(files[0]).read()}
         for f in files[1:]:
