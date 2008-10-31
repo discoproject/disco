@@ -83,6 +83,9 @@ class Disco(object):
         
         def clean(self, name):
                 self.request("/disco/ctrl/clean_job", '"%s"' % name)
+
+        def purge(self, name):
+                self.request("/disco/ctrl/purge_job", '"%s"' % name)
         
         def jobspec(self, name):
                 # Parameters request is handled with a separate connection that
@@ -152,7 +155,7 @@ class Job(object):
                         def g(**kw):
                                 return f(self.name, **kw)
                         return g
-                if name in ["kill", "clean", "jobspec", "results",
+                if name in ["kill", "clean", "purge", "jobspec", "results",
                             "jobinfo", "wait"]:
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
