@@ -19,7 +19,7 @@ spawn_remote([Url|Urls], F) ->
 % module, since it is not usable on the slave nodes due to IO redirection.
 
 remove_dir(Dir) ->
-        os:cmd("rm -Rf " ++ Dir).
+        spawn(fun() -> os:cmd("rm -Rf " ++ Dir) end).
 
 remove_map_results(Urls) ->
         spawn_remote(lists:usort(Urls), fun (JobName, Url) ->
