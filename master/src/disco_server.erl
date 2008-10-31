@@ -154,12 +154,11 @@ handle_call({purge_job, JobName}, From, State) ->
         % SECURITY NOTE! This function leads to the following command
         % being executed:
         %
-        % file:del_dir(filename:join([
-        %        os:getenv("DISCO_ROOT"), "data", JobName])).
+        % os:cmd("rm -Rf " ++ filename:join([Root, JobName]))
         %
         % Evidently, if JobName is not checked correctly, this function
-        % can be used to remove any directory in the system. It should be
-        % enough to ensure that JobName doesn't contain any dots or slashes.
+        % can be used to remove any directory in the system. This function
+        % is totally unsuitable for untrusted environments!
 
         C0 = string:chr(JobName, $.) + string:chr(JobName, $/),
         C1 = string:chr(JobName, $@),

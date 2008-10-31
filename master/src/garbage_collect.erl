@@ -8,31 +8,27 @@ spawn_remote([Url|Urls], F) ->
                 ["dir:", N, _, S0] -> {N, S0};
                 ["disco:", N, S0] -> {N, S0}
         end,
-        spawn(disco_worker:slave_name(Node), fun () -> F(S, Url) end),
+        SName = disco_worker:slave_name(Node),
+        case net_adm:ping(SName) of 
+                pong -> spawn(SName, fun () -> F(S, Url) end);
+                _ -> ok
+        end,
         spawn_remote(Urls, F).
 
-% Assuming that file:rename() is atomic, as it should be,
-% this function should work ok. The first call is guaranteed to succeed.
-remove_dir(Dir) ->
-        spawn(fun() ->
-                NDir = Dir ++ ".delete",
-                ok = file:rename(Dir, NDir),
-                {ok, Files} = file:list_dir(NDir),
-                [file:delete(filename:join([NDir, F])) || F <- Files],
-                file:del_dir(NDir)
-        end).
+% Functions below need to resort to os:cmd() instead of the build-in file
+% module, since it is not usable on the slave nodes due to IO redirection.
 
-% This function can NOT be safely executed in parallel.
+remove_dir(Dir) ->
+        os:cmd("rm -Rf " ++ Dir).
+
 remove_map_results(Urls) ->
         spawn_remote(lists:usort(Urls), fun (JobName, Url) ->
                 Root = os:getenv("DISCO_ROOT"),
                 error_logger:info_report({"Deleting map results at", Url}),
-                Files = filelib:wildcard(filename:join(
-                        [Root, "data", JobName, "map-*"])),
-                [file:delete(F) || F <- Files]
+                os:cmd("rm -Rf " ++
+                        filename:join([Root, "data", JobName, "map-*"]))
         end).
 
-% This function can be safely executed in parallel.
 remove_job(Urls) ->
         spawn_remote(Urls, fun (JobName, Url) ->
                 Root = os:getenv("DISCO_ROOT"),
