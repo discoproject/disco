@@ -4,7 +4,7 @@
 
 -export([start_link/1, start_link_remote/1, remote_worker/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
-        terminate/2, code_change/3]).
+        terminate/2, code_change/3, slave_name/1]).
 
 -record(state, {id, master, master_url, eventserv, port, from, jobname, 
                 partid, mode, child_pid, node, input, linecount, errlines, 
@@ -34,12 +34,18 @@ slave_env() ->
                 [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
                         "DISCO_PORT", "PYTHONPATH", "PATH"]]]).
 
-start_link_remote([SlaveName, Master, EventServ, From, JobName, PartID, 
+slave_name(Node) ->
+        {ok, Name} = application:get_env(disco_name),
+        SName = lists:flatten([Name, "_slave"]),
+        list_to_atom(SName ++ "@" ++ Node).
+
+start_link_remote([Master, EventServ, From, JobName, PartID, 
         Mode, Node, Input]) ->
 
         ets:insert(active_workers, 
                 {self(), {From, JobName, Node, Mode, PartID}}),
-        NodeAtom = list_to_atom(SlaveName ++ "@" ++ Node),
+
+        NodeAtom = slave_name(Node),
         error_logger:info_report(["Starting a worker at ", Node, self()]),
 
         case net_adm:ping(NodeAtom) of

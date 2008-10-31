@@ -3,6 +3,7 @@ $(document).ready(function(){
         $("#hd #title").append(document.location.search.substr(6));
         $("#kill_job").click(kill_job);
         $("#clean_job").click(clean_job);
+        $("#purge_job").click(purge_job);
 
         $("#find_page").click(function(){
                 $.getJSON("/disco/ctrl/jobevents" +
@@ -27,6 +28,12 @@ function clean_job(){
         Name = document.location.search.substr(6);
         if (confirm("Do you really want to clean the job records of " + Name + "?"))
                 post_req("/disco/ctrl/clean_job", JSON.stringify(Name));
+}
+
+function purge_job(){
+        Name = document.location.search.substr(6);
+        if (confirm("Do you really want to delete all data of " + Name + "?"))
+                post_req("/disco/ctrl/purge_job", JSON.stringify(Name));
 }
 
 function make_jobinfo_row(dlist, mode){

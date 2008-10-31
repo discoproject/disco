@@ -150,6 +150,32 @@ handle_call({clean_job, JobName}, From, State) ->
         gen_server:cast(event_server, {clean_job, JobName}),
         {reply, ok, State};
 
+handle_call({purge_job, JobName}, From, State) ->
+        % SECURITY NOTE! This function leads to the following command
+        % being executed:
+        %
+        % os:cmd("rm -Rf " ++ filename:join([Root, JobName]))
+        %
+        % Evidently, if JobName is not checked correctly, this function
+        % can be used to remove any directory in the system. This function
+        % is totally unsuitable for untrusted environments!
+
+        C0 = string:chr(JobName, $.) + string:chr(JobName, $/),
+        C1 = string:chr(JobName, $@),
+        if C0 =/= 0 orelse C1 == 0 ->
+                error_logger:warning_report(
+                        {"Tried to purge an invalid job", JobName});
+        true ->
+                {ok, Root} = application:get_env(disco_root),
+                handle_call({clean_job, JobName}, From, State),
+                Nodes = [lists:flatten(["disco://", Node, "/", JobName]) ||
+                        {Node, _} <- ets:tab2list(node_load)],
+                garbage_collect:remove_job(Nodes),
+                garbage_collect:remove_dir(filename:join([Root, JobName]))
+        end,
+        {reply, ok, State};
+
+
 handle_call({blacklist, Node}, _From, State) ->
         event_server:event("[master]", "Node ~s blacklisted", [Node], []),
         ets:insert(blacklist, {Node, none}),
@@ -268,10 +294,8 @@ start_worker(J, Node) ->
         event_server:event(J#job.jobname, "~s:~B assigned to ~s",
                 [J#job.mode, J#job.partid, Node], []),
         ets:update_counter(node_load, Node, 1),
-        {ok, Name} = application:get_env(disco_name),
-        SName = lists:flatten([Name, "_slave"]),
         spawn_link(disco_worker, start_link_remote, 
-                [[SName, self(), whereis(event_server), J#job.from, 
+                [[self(), whereis(event_server), J#job.from, 
                 J#job.jobname, J#job.partid, J#job.mode, Node, J#job.input]]),
         ok.
 
