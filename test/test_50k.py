@@ -32,7 +32,8 @@ for key, value in disco.result_iterator(results):
                 raise "Results don't match"
 if i != 3:
         raise "Too few results"
-                
+
+disco.Disco(sys.argv[1]).purge(disco.util.jobname(results[0]))
 
 print "ok"
 

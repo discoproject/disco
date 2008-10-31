@@ -36,11 +36,13 @@ for job in jobs:
         print "Job", job, "done"
         for k, v in result_iterator(results):
                 all[k] += 1
-        job.clean()
 
 for v in all.values():
         if v != 10:
                 raise "Invalid results: %s" % all
+
+for job in jobs:
+        job.purge()
 
 print "ok"
 

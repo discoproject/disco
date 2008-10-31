@@ -23,7 +23,7 @@ job.kill()
 time.sleep(5)
 if job.jobinfo()['active'] == "dead":
         print "ok"
-        job.clean()
+        job.purge()
 else:
         raise Exception("Killing failed")
 

@@ -18,7 +18,7 @@ time.sleep(5)
 
 if job.jobinfo()['active'] == "dead":
         print "ok"
-        job.clean(name)
+        job.purge()
 else:
         raise Exception("Rate limit failed")
 

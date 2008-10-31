@@ -2,6 +2,7 @@
 import tserver, sys
 from disco import Disco, result_iterator
 from disco.func import chain_reader
+from disco.util import jobname
 
 ani = ["horse", "sheep", "whale", "tiger"]
 
@@ -27,10 +28,13 @@ results = disco.new_job(name = "test_chain_0", input = tserver.makeurl([""] * 10
 
 i = 1
 while i < 10:
-        results = disco.new_job(name = "test_chain_%d" % i, input = results,
+        nresults = disco.new_job(name = "test_chain_%d" % i, input = results,
                 map = fun_map, reduce = fun_reduce, nr_reduces = 4,
                 map_reader = chain_reader, sort = False, clean = True,
                 params = {'suffix': str(i)}).wait()
+
+        disco.purge(jobname(results[0]))
+        results = nresults
         i += 1
 
 for key, value in result_iterator(results):
@@ -38,6 +42,8 @@ for key, value in result_iterator(results):
                 raise "Corrupted key: %s" % key
         if value != "9":
                 raise "Corrupted value: %s" % value
+
+disco.purge(jobname(results[0]))
 
 print "ok"
 
