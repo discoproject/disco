@@ -60,7 +60,7 @@ function add_to_blacklist(){
 function send_table(){
         var table = $("tbody > tr").map(function(){
                 return JSON.stringify($.makeArray($(this).children().map(
-                        function(){return $(this).text();})));
+                        function(){return jQuery.trim($(this).text());})));
         });
         jsonTable = ("[" + $.makeArray(table).join(",") + "]");
         post_req("/disco/ctrl/save_config_table", jsonTable);
