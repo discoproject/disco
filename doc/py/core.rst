@@ -302,7 +302,7 @@ anymore. You can delete the unneeded job files as follows::
        is less than *mem_sort_limit* bytes. If it is larger, the external
        program ``sort`` is used to sort the input on disk.
        
-       True by default.
+       False by default.
 
      * *params* - an arbitrary object that is passed to the map and reduce
        function as the second argument. The object is serialized using the
