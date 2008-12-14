@@ -106,6 +106,7 @@ the previous job as the input for the next one. The job increments each
 value in the input by one::
 
         from disco.core import Disco, result_iterator
+        from disco.func import chain_reader
         import sys
 
         def init_map(line, params):
@@ -124,7 +125,7 @@ value in the input by one::
                 results = disco.new_job(name =  "inc_%d" % i, 
                                         input = results,
                                         map = iter_map,
-                                        map_reader = disco.chain_reader).wait()
+                                        map_reader = chain_reader).wait()
 
         for key, value in result_iterator(results):
                 print key
