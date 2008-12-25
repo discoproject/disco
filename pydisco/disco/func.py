@@ -61,16 +61,16 @@ def netstr_reader(fd, content_len, fname):
                 yield key, val
 
 
-def re_reader(item_re_str, fd, content_len, fname, output_tail = False):
+def re_reader(item_re_str, fd, content_len, fname, output_tail = False, read_buffer_size=8192):
         item_re = re.compile(item_re_str)
         buf = ""
         tot = 0
         while True:
                 try:
                         if content_len:
-                                r = fd.read(min(8192, content_len - tot))
+                                r = fd.read(min(read_buffer_size, content_len - tot))
                         else:
-                                r = fd.read(8192)
+                                r = fd.read(read_buffer_size)
                         tot += len(r)
                         buf += r
                 except:
