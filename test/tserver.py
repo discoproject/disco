@@ -10,9 +10,11 @@ class Server(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
 
 class Handler(SimpleHTTPServer. SimpleHTTPRequestHandler):
         def do_GET(self):
+                d = data_gen(self.path)
                 self.send_response(200)
+                self.send_header("Content-length", len(d))
                 self.end_headers()
-                self.wfile.write(data_gen(self.path))
+                self.wfile.write(d)
 
 def makeurl(inputs):
         host = "http://%s:%d" % (socket.gethostname(), PORT)

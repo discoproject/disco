@@ -10,6 +10,8 @@ from disconode.util import *
 job_name = ""
 http_pool = {}
 
+status_interval = 0
+
 def init():
         global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
                MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
@@ -273,7 +275,7 @@ class ReduceReader:
                 for x in lst:
                         yield x
                         i += 1
-                        if not i % 100000:
+                        if status_interval and not i % status_interval:
                                 msg("%d entries reduced" % i)
                 msg("Reduce done: %d entries reduced in total" % i)
 
@@ -285,7 +287,8 @@ class ReduceReader:
                         for x in reader(fd, sze, fname):
                                 yield x
                                 i += 1
-                                if progress and not i % 100000:
+                                if progress and status_interval and\
+                                        not i % status_interval:
                                         msg("%d entries reduced" % i)
 
                 if progress:
@@ -318,7 +321,7 @@ def run_map(job_input, partitions, param):
                         p = fun_partition(key, nr_reduces, param)
                         partitions[p].add(key, value)
                 i += 1
-                if not i % 100000:
+                if status_interval and not i % status_interval:
                         msg("%d entries mapped" % i)
 
         msg("Done: %d entries mapped in total" % i)

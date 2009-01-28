@@ -139,7 +139,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules])
+.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules, status_interval])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -356,6 +356,15 @@ anymore. You can delete the unneeded job files as follows::
      * *required_modules* - is a list of additional modules (module names) which
        are required by job functions. Modules listed here are imported to the
        functions' namespace.
+
+     * *status_interval* - print out "K items mapped / reduced" for
+       every Nth item. By default 100000. Setting the value to 0 disables
+       messages.
+
+       Increase this value, or set it to zero, if you get "Message rate limit
+       exceeded" error due to system messages. This might happen if your map /
+       reduce task is really fast. Decrease the value if you want to follow 
+       your task in more real-time or you don't have many data items.
 
     .. attribute:: Job.name
 
