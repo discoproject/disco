@@ -23,7 +23,7 @@ case "$1" in
         [ -e /etc/disco/lighttpd.conf ] || ln -s lighttpd-node.conf /etc/disco/lighttpd.conf
         adduser --system --shell /bin/bash --no-create-home --home /srv/disco\
                 --disabled-password --quiet --group disco
-        chown disco:disco /var/run/disco /var/log/disco /srv/disco
+        chown disco:disco /var/run/disco /var/log/disco /srv/disco /srv/disco/data
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
