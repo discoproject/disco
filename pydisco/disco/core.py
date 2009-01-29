@@ -83,6 +83,9 @@ class Disco(object):
         
         def clean(self, name):
                 self.request("/disco/ctrl/clean_job", '"%s"' % name)
+
+        def purge(self, name):
+                self.request("/disco/ctrl/purge_job", '"%s"' % name)
         
         def jobspec(self, name):
                 # Parameters request is handled with a separate connection that
@@ -135,6 +138,7 @@ class Job(object):
                     "mem_sort_limit": 256 * 1024**2,
                     "chunked": None,
                     "ext_params": None,
+                    "status_interval": 100000,
                     "required_modules": []}
 
         def __init__(self, master, **kwargs):
@@ -152,7 +156,7 @@ class Job(object):
                         def g(**kw):
                                 return f(self.name, **kw)
                         return g
-                if name in ["kill", "clean", "jobspec", "results",
+                if name in ["kill", "clean", "purge", "jobspec", "results",
                             "jobinfo", "wait"]:
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
@@ -187,6 +191,7 @@ class Job(object):
                        "params": cPickle.dumps(d("params")),
                        "sort": str(int(d("sort"))),
                        "mem_sort_limit": str(d("mem_sort_limit")),
+                       "status_interval": str(d("status_interval")),
                        "required_modules": " ".join(d("required_modules"))}
 
                 if type(kw["map"]) == dict:

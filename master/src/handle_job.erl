@@ -268,6 +268,10 @@ job_coordinator(Parent, {Name, MapInputs, NMap, NRed, DoReduce}) ->
                 event_server:event(Name, "Starting reduce phase", [],
                         {red_data, RedInputs}),
                 RedResults = supervise_work(RedInputs, "reduce", Name, NRed),
+                
+                garbage_collect:remove_map_results(
+                        lists:concat([X || {_, X} <- RedInputs])),
+                
                 event_server:event(Name, "Reduce phase done", [], []),
                 event_server:event(Name, "READY", [], {ready, 
                         [list_to_binary(X) ||

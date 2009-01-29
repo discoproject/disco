@@ -25,6 +25,7 @@ def run_disco(limit):
         k = len(list(disco.result_iterator(results)))
         if k != int(1e5): 
                 raise "not enough results: Got %d, expected %d" % (k, 1e5)
+        disco.Disco(sys.argv[1]).purge(disco.util.jobname(results[0]))
 
 tserver.run_server(data_gen)
 

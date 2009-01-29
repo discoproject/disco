@@ -35,6 +35,17 @@ in :class:`Disco` come in handy if you want to manipulate a job that is
 identified by a job name (:attr:`Job.name`) instead of a :class:`Job`
 object.
 
+If you have access only to results of a job, you can extract the job
+name from an address with the :func:`disco.util.jobname` function. A typical
+case is that you are done with results of a job and they are not needed
+anymore. You can delete the unneeded job files as follows::
+        
+        from disco.core import Disco
+        from disco.util import jobname
+
+        Disco(master).purge(jobname(results[0]))
+
+
 :class:`Disco` --- Interface to the Disco master
 ------------------------------------------------
 
@@ -69,9 +80,18 @@ object.
 
    .. method:: Disco.clean(name)
 
-   Cleans records of the job *name*. Note that after the job records have been
-   cleaned, there is no way to obtain addresses to the result files from the
-   master. However, no files are actually deleted by :meth:`Disco.clean`.
+   Cleans records of the job *name*. Note that after the job records
+   have been cleaned, there is no way to obtain addresses to the result
+   files from the master. However, no files are actually deleted by
+   :meth:`Disco.clean`, in contrast to :meth:`Disco.purge`. This function
+   provides a way to notify the master not to bother about the job anymore,
+   although you want to keep results of the job for future use. If you
+   won't need the results, use :meth:`Disco.purge`.
+
+   .. method:: Disco.purge(name)
+
+   Deletes all records and files related to the job *name*. This implies
+   :meth:`Disco.clean`.
 
    .. method:: Disco.jobspec(name)
 
@@ -101,6 +121,13 @@ object.
    
         results = disco.new_job(...).wait(clean = True)
 
+   Note that this only removes records from the master, but not the
+   actual result files. Once you are done with the results, call::
+
+        disco.purge(disco.util.jobname(results[0]))
+
+   to delete the actual result files.
+
    .. method:: Disco.new_job(...)
 
    Submits a new job request to the master. This method accepts the same
@@ -112,7 +139,7 @@ object.
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules])
+.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules, status_interval])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -275,7 +302,7 @@ object.
        is less than *mem_sort_limit* bytes. If it is larger, the external
        program ``sort`` is used to sort the input on disk.
        
-       True by default.
+       False by default.
 
      * *params* - an arbitrary object that is passed to the map and reduce
        function as the second argument. The object is serialized using the
@@ -330,6 +357,15 @@ object.
        are required by job functions. Modules listed here are imported to the
        functions' namespace.
 
+     * *status_interval* - print out "K items mapped / reduced" for
+       every Nth item. By default 100000. Setting the value to 0 disables
+       messages.
+
+       Increase this value, or set it to zero, if you get "Message rate limit
+       exceeded" error due to system messages. This might happen if your map /
+       reduce task is really fast. Decrease the value if you want to follow 
+       your task in more real-time or you don't have many data items.
+
     .. attribute:: Job.name
 
        Name of the job. You can store or transfer the name string if
@@ -350,11 +386,11 @@ object.
    This example shows a simple way of using :class:`Params`::
         
         def fun_map(e, params):
+                params.c += 1
                 if not params.c % 10:
                         return [(params.f(e), params.c)]
                 else:
                         return [(e, params.c)]
-                params.c += 1
 
         disco.job("disco://localhost:5000",
                   ["disco://localhost/myjob/file1"],

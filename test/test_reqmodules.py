@@ -32,5 +32,5 @@ for k, v in res:
                 raise Exception("Invalid answer: %s" % k)
         cor.remove(k)	
 
-job.clean()
+job.purge()
 print "ok"

@@ -66,6 +66,11 @@ op("kill_job", _Query, Json) ->
         gen_server:call(disco_server, {kill_job, JobName}),
         {ok, <<>>};
 
+op("purge_job", _Query, Json) ->
+        JobName = binary_to_list(Json),
+        gen_server:call(disco_server, {purge_job, JobName}),
+        {ok, <<>>};
+
 op("clean_job", _Query, Json) ->
         JobName = binary_to_list(Json),
         gen_server:call(disco_server, {clean_job, JobName}),

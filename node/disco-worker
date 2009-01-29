@@ -42,6 +42,7 @@ if __name__ == "__main__":
                 util.data_err("Decoding the job description failed", master_url)
         
         job_name = dw.job_name = util.job_name = m['name']
+        dw.status_interval = int(m['status_interval']) 
 
         my_ver = ".".join(map(str, sys.version_info[:2]))
         if m["version"] != my_ver:

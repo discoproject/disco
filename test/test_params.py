@@ -1,5 +1,6 @@
 
-import tserver, disco, sys
+import tserver, sys
+from disco import Params, Disco, result_iterator
 
 def fun1(a, b):
         return a + b
@@ -23,15 +24,18 @@ def fun_reduce(iter, out, params):
 tserver.run_server(data_gen)
 
 inputs = range(10)
-results = disco.job(sys.argv[1], "test_params", tserver.makeurl(inputs),
-                fun_map, 
-                params = disco.Params(x = 5, f1 = fun1, f2 = fun2),
+job = Disco(sys.argv[1]).new_job(name = "test_params",
+                input = tserver.makeurl(inputs),
+                map = fun_map, 
+                params = Params(x = 5, f1 = fun1, f2 = fun2),
                 reduce = fun_reduce, 
                 nr_reduces = 1,
                 sort = False)
 
-for x, y in disco.result_iterator(results):
+for x, y in result_iterator(job.wait()):
         if fun2(int(x) + 5) != int(y):
                 raise "Invalid result: %s and %s" % (x, y)
+
+job.purge()
 
 print "ok"

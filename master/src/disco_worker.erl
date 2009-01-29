@@ -4,7 +4,7 @@
 
 -export([start_link/1, start_link_remote/1, remote_worker/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
-        terminate/2, code_change/3]).
+        terminate/2, code_change/3, slave_name/1]).
 
 -record(state, {id, master, master_url, eventserv, port, from, jobname, 
                 partid, mode, child_pid, node, input, linecount, errlines, 
@@ -34,12 +34,18 @@ slave_env() ->
                 [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
                         "DISCO_PORT", "PYTHONPATH", "PATH"]]]).
 
-start_link_remote([SlaveName, Master, EventServ, From, JobName, PartID, 
+slave_name(Node) ->
+        {ok, Name} = application:get_env(disco_name),
+        SName = lists:flatten([Name, "_slave"]),
+        list_to_atom(SName ++ "@" ++ Node).
+
+start_link_remote([Master, EventServ, From, JobName, PartID, 
         Mode, Node, Input]) ->
 
         ets:insert(active_workers, 
                 {self(), {From, JobName, Node, Mode, PartID}}),
-        NodeAtom = list_to_atom(SlaveName ++ "@" ++ Node),
+
+        NodeAtom = slave_name(Node),
         error_logger:info_report(["Starting a worker at ", Node, self()]),
 
         case net_adm:ping(NodeAtom) of
@@ -95,22 +101,25 @@ init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
 handle_call(start_worker, _From, State) ->
         Cmd = spawn_cmd(State),
         error_logger:info_report(["Spawn cmd: ", Cmd]),
-        Port = open_port({spawn, spawn_cmd(State)}, ?PORT_OPT),
+        Port = open_port({spawn, Cmd}, ?PORT_OPT),
         {reply, ok, State#state{port = Port}, 30000}.
 
 spawn_cmd(#state{input = [Input|_]} = S) when is_list(Input) ->
-        InputStr = lists:flatten([[X, 32] || X <- S#state.input]),
-        spawn_cmd(S#state{input = InputStr});
+        InputStr = lists:flatten([[$', X, $', 32] || X <- S#state.input]),
+        spawn_cmd0(S#state{input = InputStr});
 
 spawn_cmd(#state{input = [Input|_]} = S) when is_binary(Input) ->
-        InputStr = lists:flatten([[binary_to_list(X), 32] || X <- S#state.input]),
-        spawn_cmd(S#state{input = InputStr});
+        InputStr = lists:flatten([[$', binary_to_list(X), $', 32] ||
+                X <- S#state.input]),
+        spawn_cmd0(S#state{input = InputStr});
 
-spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
+spawn_cmd(#state{input = Input} = S) ->
+        spawn_cmd0(S#state{input = lists:flatten([$', Input, $'])}).
+
+spawn_cmd0(#state{jobname = JobName, node = Node, partid = PartID,
                 mode = Mode, input = Input, master_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
                 [Mode, JobName, Node, Url, PartID, Input])).
-
 
 strip_timestamp(Msg) when is_binary(Msg) ->
         strip_timestamp(binary_to_list(Msg));

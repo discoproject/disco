@@ -1,6 +1,6 @@
 
 import sys
-from discoapi import Disco
+from disco import Disco
 
 OK_STATUS = ['job_ready', 'job_died']
 
@@ -17,6 +17,10 @@ def op_kill(n, s):
 def op_clean(n, s):
                print "Cleaning", n
                disco.clean(n)
+
+def op_purge(n, s):
+               print "Purging", n
+               disco.purge(n)
 
 for t, s, name in disco.joblist():
         if sys.argv[3] in name:
