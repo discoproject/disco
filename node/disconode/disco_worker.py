@@ -108,20 +108,24 @@ def open_remote(input, ext_host, ext_file, is_chunk):
                                 % (ext_host, ext_file, input), input)
 
 def connect_input(input):
-        if input.startswith("raw://"):
-            return len(input)-6, cStringIO.StringIO(input[6:])
 
         is_chunk = input.startswith("chunk://")
+
         if input.startswith("disco://") or is_chunk:
                 host, fname = input[8:].split("/", 1)
                 local_file = LOCAL_PATH + fname
                 ext_host = "%s:%s" % (host, HTTP_PORT)
                 ext_file = "/" + fname
+
         elif input.startswith("http://"):
                 ext_host, fname = input[7:].split("/", 1)
                 host = ext_host
                 ext_file = "/" + fname
                 local_file = None
+
+        elif input.startswith("raw://"):
+                return len(input) - 6, cStringIO.StringIO(input[6:])
+
         else:
                 host = this_host()
                 if input.startswith("chunkfile://"):
