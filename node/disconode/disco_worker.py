@@ -311,12 +311,17 @@ def fun_combiner(key, value, comb_buffer, flush, params):
 def fun_reduce(red_in, red_out, params):
         pass
 
+def fun_init(reader, params):
+        pass
+
 def run_map(job_input, partitions, param):
         i = 0
         sze, fd = connect_input(job_input)
         nr_reduces = len(partitions)
+        reader = fun_map_reader(fd, sze, job_input)
+        fun_init(reader, param)
         
-        for entry in fun_map_reader(fd, sze, job_input):
+        for entry in reader:
                 for key, value in fun_map(entry, param):
                         p = fun_partition(key, nr_reduces, param)
                         partitions[p].add(key, value)
@@ -378,6 +383,9 @@ def op_map(job):
         for m in required_modules:
                 fun_map.func_globals.setdefault(m, __import__(m))
 
+        if 'map_init' in job:
+                fun_init.func_code = marshal.loads(job['map_init'])
+
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
                 for m in required_modules:
@@ -411,6 +419,9 @@ def op_reduce(job):
         mem_sort_limit = int(job['mem_sort_limit'])
         required_modules = job['required_modules'].split()
         
+        if 'reduce_init' in job:
+                fun_init.func_code = marshal.loads(job['reduce_init'])
+        
         if 'ext_reduce' in job:
                 if "ext_params" in job:
                         red_params = job['ext_params']
@@ -426,11 +437,14 @@ def op_reduce(job):
         for m in required_modules:
                 fun_reduce.func_globals.setdefault(m, __import__(m))
 
-        red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit)
+        red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit).iter()
         red_out = ReduceOutput()
+        
         msg("Starting reduce")
-        fun_reduce(red_in.iter(), red_out, red_params)
+        fun_init(red_in, red_params)
+        fun_reduce(red_in, red_out, red_params)
         msg("Reduce done")
+        
         red_out.close()
         external.close_ext()
 

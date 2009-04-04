@@ -131,6 +131,7 @@ class Job(object):
                     "reduce": None,
                     "partition": func.default_partition,
                     "combiner": None,
+                    "init": None,
                     "nr_maps": None,
                     "nr_reduces": None,
                     "sort": False,
@@ -212,6 +213,12 @@ class Job(object):
                         nr_maps = kw["nr_maps"]
                 req["nr_maps"] = str(nr_maps)
         
+                if "map_init" in kw:
+                        req["map_init"] = marshal.dumps(kw["map_init"].func_code)
+                if "reduce_init" in kw:
+                        req["reduce_init"] =\
+                                marshal.dumps(kw["reduce_init"].func_code)
+
                 nr_reduces = d("nr_reduces")
                 if "reduce" in kw:
                         if type(kw["reduce"]) == dict:

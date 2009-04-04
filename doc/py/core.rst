@@ -289,6 +289,27 @@ anymore. You can delete the unneeded job files as follows::
      * *nr_reduces* - the number of parallel reduce operations. This equals
        to the number of partitions. By default, ``nr_reduces = max(nr_maps / 2, 1)``.
 
+     * *map_init* - initialization function for the map task. This function
+       is called once before the actual processing starts with *fun_map*.
+       The *map_init* function is defined as follows::
+                
+                def init(input_iter, params)
+
+       where *input_iter* is an instance of *map_reader* that produces 
+       for this map task. The second argument, *params*, is the parameter
+       object specified in the ``new_job`` call.
+
+       Typically *map_init* is used to initialize some modules in the worker
+       environment (e.g. ``ctypes.cdll.LoadLibrary()``), to initialize some
+       values in *params*, or to skip unneeded entries in the beginning 
+       of the input stream.
+
+     * *reduce_init* - initialization function for the reduce task. This
+       function is called once before the actual processing starts with
+       the *reduce* function. The function is defined similarly to *map_init* 
+       above. In this case, *input_iter* is a generator object that produces
+       key-value pairs belonging to this partition.
+
      * *sort* - a boolean value that specifies whether the intermediate results,
        that is, input to the reduce function, should be sorted. Sorting is most
        useful in ensuring that the equal keys are consequent in the input for
