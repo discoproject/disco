@@ -1,11 +1,11 @@
 import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import httplib, re, traceback, tempfile, struct, urllib, random
-from disconode.util import *
-from disco.util import parse_dir, load_conf
+from disco.util import parse_dir, load_conf, err, data_err, msg
 from disco.func import re_reader, netstr_reader
 from disco.netstring import *
+from disconode.util import *
 
-from disconode import external, util
+from disconode import external
 
 job_name = ""
 http_pool = {}
