@@ -47,6 +47,7 @@ exec erl +K true\
     -noshell\
     -sname $DISCO_NAME"_master"\
     -rsh ssh\
+    -connect_all false\
     -pa "$DISCO_HOME/ebin"\
     -boot "$DISCO_HOME/disco"\
     -kernel error_logger "{file, \"$DISCO_MASTER_LOG\"}"\
