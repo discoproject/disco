@@ -14,14 +14,16 @@ status_interval = 0
 
 def init():
         global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
-               MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
+               PART_SUFFIX, MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL,\
+               REDUCE_SORTED, REDUCE_OUTPUT
 
         tmp, HTTP_PORT, LOCAL_PATH = load_conf()
 
         PARAMS_FILE = LOCAL_PATH + "%s/params"
         EXT_MAP = LOCAL_PATH + "%s/ext-map"
         EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
-        MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
+        PART_SUFFIX = "-%.9d"
+        MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d" + PART_SUFFIX
         CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
         REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
         REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
@@ -210,9 +212,12 @@ def num_cmp(x, y):
 class ReduceReader:
         def __init__(self, input_files, do_sort, mem_sort_limit):
                 self.inputs = []
+                part = PART_SUFFIX % this_partition()
                 for input in input_files:
                         if input.startswith("dir://"):
-                                self.inputs += parse_dir(input)
+                                self.inputs += [x for x in parse_dir(input)\
+                                        if x.startswith("chunk://") or\
+                                           x.endswith(part)]
                         else:
                                 self.inputs.append(input)
 
