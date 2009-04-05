@@ -2,9 +2,6 @@
 import tserver, sys
 from disco import Disco, result_iterator
 
-ANS = "1028380578493512611198383005758052057919386757620401"\
-      "58350002406688858214958513887550465113168573010369619140625"
-
 def data_gen(path):
         return path[1:] + "\n"
 
