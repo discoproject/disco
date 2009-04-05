@@ -139,7 +139,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules, status_interval])
+.. class:: Job(master, [name, input, map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules, status_interval])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -176,7 +176,7 @@ anymore. You can delete the unneeded job files as follows::
        good naming scheme of their own. Only characters in ``[a-zA-Z0-9_]``
        are allowed in the job name.
 
-     * *input_files* - a list of input files for the map function (**required**). Each
+     * *input* - a list of input files for the map function (**required**). Each
        input must be specified in one of the following protocols:
 
          * ``http://www.example.com/data`` - any HTTP address
@@ -185,7 +185,7 @@ anymore. You can delete the unneeded job files as follows::
          * ``/home/bob/bigfile.txt`` - a local file. Note that the file must either exist on all the nodes or you must make sure that the job is run only on the nodes where the file exists. Due to these restrictions, this form has only limited use.
          * ``raw://some_string`` - pseudo-address; instead of fetching data from a remote source, use ``some_string`` in the address as data. Useful for specifying dummy inputs for generator maps.
 
-     * *fun_map* - a :term:`pure function` that defines the map task (**required**). 
+     * *map* - a :term:`pure function` that defines the map task. 
        The function takes two parameters, an input entry and a parameter object,
        and it outputs a list of key-value pairs in tuples. For instance::
 
@@ -231,13 +231,16 @@ anymore. You can delete the unneeded job files as follows::
                         for w, c in d.iteritems():
                                 out.add(w, c)
       
-       Counts how many teams each key appears in the intermediate results.
-
-       By default no reduce function is specified and the job will quit after
-       the map functions have finished.
+       Counts how many teams each key appears in the intermediate results. If 
+       no reduce function is specified, the job will quit after
+       the map phase has finished. 
        
        The reduce task can also be an external program. For more
        information, see :ref:`discoext`.
+       
+       *Changed in version 0.2*: It is possible to define only *reduce*
+       without *map*. In this case the *nr_reduces* parameter is required
+       as well. For more information, see the FAQ entry :ref:`reduceonly`.
 
      * *partition* - a :term:`pure function` that defines the partitioning
        function, that is, the function that decides how the map outputs

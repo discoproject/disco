@@ -242,35 +242,43 @@ supervise_work(Inputs, Mode, Name, MaxN) ->
         ets:delete(ErrLog),
         ResNodes.
 
-
 % job_coordinator() encapsulates the map/reduce steps:
 % 1) Parse the request
 % 2) Run map
 % 3) Optionally run reduce
-job_coordinator(Parent, {Name, MapInputs, NMap, NRed, DoReduce}) ->
+job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
         event_server:event(Name, "Job coordinator starts", [], {start, self()}),
         Parent ! {self(), ok},
+        
+        event_server:event(Name, "Starting job", [], 
+                {job_data, {NMap, NRed, DoReduce,
+                lists:map(fun erlang:list_to_binary/1, Inputs)}}),
 
-        event_server:event(Name, "Starting map phase", [], 
-                {map_data, {NMap, NRed, DoReduce,
-                        lists:map(fun erlang:list_to_binary/1, MapInputs)}}),
-
-        EnumMapInputs = lists:zip(
-                lists:seq(0, length(MapInputs) - 1), MapInputs),
-        MapResults = supervise_work(EnumMapInputs, "map", Name, NMap),
-        MapList = [X || {X, _} <- ets:tab2list(MapResults)],
-        RedInputs = [{X, MapList} || X <- lists:seq(0, NRed - 1)],
-        ets:delete(MapResults),
-
-        event_server:event(Name, "Map phase done", [], []),
+        RedInputs = if NMap == 0 ->
+                Inputs;
+        true ->
+                event_server:event(Name, "Map phase", [], {}),
+                EnumMapInputs = lists:zip(
+                        lists:seq(0, length(Inputs) - 1), Inputs),
+                MapResults = supervise_work(EnumMapInputs, "map", Name, NMap),
+                MapList = [X || {X, _} <- ets:tab2list(MapResults)],
+                ets:delete(MapResults),
+                event_server:event(Name, "Map phase done", [], []),
+                MapList
+        end,
 
         if DoReduce ->
-                event_server:event(Name, "Starting reduce phase", [],
-                        {red_data, RedInputs}),
-                RedResults = supervise_work(RedInputs, "reduce", Name, NRed),
+                event_server:event(Name, "Starting reduce phase", [], {}),
                 
-                garbage_collect:remove_map_results(
-                        lists:concat([X || {_, X} <- RedInputs])),
+                EnumRedInputs = 
+                        [{X, RedInputs} || X <- lists:seq(0, NRed - 1)],
+                RedResults = supervise_work(
+                        EnumRedInputs, "reduce", Name, NRed),
+                
+                if NMap > 0 ->
+                        garbage_collect:remove_map_results(RedInputs);
+                true -> ok
+                end,
                 
                 event_server:event(Name, "Reduce phase done", [], []),
                 event_server:event(Name, "READY", [], {ready, 
@@ -280,6 +288,6 @@ job_coordinator(Parent, {Name, MapInputs, NMap, NRed, DoReduce}) ->
                 ets:delete(RedResults);
         true ->
                 event_server:event(Name, "READY", [], {ready,
-                        [list_to_binary(X) || X <- MapList]}),
+                        [list_to_binary(X) || X <- RedInputs]}),
                 gen_server:cast(event_server, {flush_events, Name})
         end.

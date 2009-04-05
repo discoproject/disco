@@ -26,9 +26,9 @@ op("jobinfo", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, {Nodes, Tasks}} =
                 gen_server:call(disco_server, {get_active, Name}),
-        {ok, {TStamp, Pid, MapNfo, Res, Ready, Failed}} =
+        {ok, {TStamp, Pid, JobNfo, Res, Ready, Failed}} =
                 gen_server:call(event_server, {get_jobinfo, Name}),
-        {ok, render_jobinfo(TStamp, Pid, MapNfo, Nodes, 
+        {ok, render_jobinfo(TStamp, Pid, JobNfo, Nodes, 
                 Res, Tasks, Ready, Failed)};
 
 op("parameters", Query, _Json) ->

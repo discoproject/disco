@@ -145,10 +145,10 @@ class Job(object):
         def __init__(self, master, **kwargs):
                 self.master = master
                 if "name" not in kwargs:
-                        raise "Argument name is required"
+                        raise Exception("Argument name is required")
                 if re.search("\W", kwargs["name"]):
-                        raise "Only characters in [a-zA-Z0-9_] "\
-                              "are allowed in the job name"
+                        raise Exception("Only characters in [a-zA-Z0-9_] "\
+                              "are allowed in the job name")
                 self.name = "%s@%d" % (kwargs["name"], int(time.time()))
                 self._run(**kwargs)
 
@@ -165,27 +165,23 @@ class Job(object):
         def _run(self, **kw):
                 d = lambda x: kw.get(x, Job.defaults[x])
 
+                # Backwards compatibility 
+                # (fun_map == map, input_files == input)
                 if "fun_map" in kw:
                         kw["map"] = kw["fun_map"]
                 
                 if "input_files" in kw:
                         kw["input"] = kw["input_files"]
                 
-                if not ("map" in kw and "input" in kw):
-                        raise "Arguments 'map' and 'input' are required"
+                if not "input" in kw:
+                        raise Exception("input is required")
                 
-                inputs = []
-                for inp in kw["input"]:
-                        if inp.startswith("dir://"):
-                                inputs += util.parse_dir(inp)
-                        else:
-                                inputs.append(inp)
-                
-                if not inputs:
-                        raise "Must have at least one input file"
+                if not ("map" in kw or "reduce" in kw):
+                        raise Exception("Specify map and/or reduce")
 
+                inputs = kw["input"]
+                
                 req = {"name": self.name,
-                       "input": " ".join(inputs),
                        "version": ".".join(map(str, sys.version_info[:2])),
                        "map_reader": marshal.dumps(d("map_reader").func_code),
                        "partition": marshal.dumps(d("partition").func_code),
@@ -195,10 +191,45 @@ class Job(object):
                        "status_interval": str(d("status_interval")),
                        "required_modules": " ".join(d("required_modules"))}
 
-                if type(kw["map"]) == dict:
-                        req["ext_map"] = marshal.dumps(kw["map"])
+                if "map" in kw:
+                        if type(kw["map"]) == dict:
+                                req["ext_map"] = marshal.dumps(kw["map"])
+                        else:
+                                req["map"] = marshal.dumps(kw["map"].func_code)
+
+                        if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
+                                nr_maps = len(inputs)
+                        else:
+                                nr_maps = kw["nr_maps"]
+
+                        if "map_init" in kw:
+                                req["map_init"] = marshal.dumps(\
+                                        kw["map_init"].func_code)
+                        
+                        parsed_inputs = []
+                        for inp in inputs:
+                                if inp.startswith("dir://"):
+                                        parsed_inputs += util.parse_dir(inp)
+                                else:
+                                        parsed_inputs.append(inp)
+                        inputs = parsed_inputs
                 else:
-                        req["map"] = marshal.dumps(kw["map"].func_code)
+                        addr = [x for x in inputs\
+                                if not x.startswith("dir://")]
+
+                        if d("nr_reduces") == None and not addr:
+                                raise Exception("nr_reduces must match to "\
+                                        "the number of partitions in the "\
+                                        "input data")
+
+                        if d("nr_reduces") != 1 and addr: 
+                                raise Exception("nr_reduces must be 1 when "\
+                                        "using external inputs without "\
+                                        "the map phase")
+                        nr_maps = 0
+               
+                req["input"] = " ".join(inputs)
+                req["nr_maps"] = str(nr_maps)
         
                 if "ext_params" in kw:
                         if type(kw["ext_params"]) == dict:
@@ -207,18 +238,6 @@ class Job(object):
                         else:
                                 req["ext_params"] = kw["ext_params"]
         
-                if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
-                        nr_maps = len(inputs)
-                else:
-                        nr_maps = kw["nr_maps"]
-                req["nr_maps"] = str(nr_maps)
-        
-                if "map_init" in kw:
-                        req["map_init"] = marshal.dumps(kw["map_init"].func_code)
-                if "reduce_init" in kw:
-                        req["reduce_init"] =\
-                                marshal.dumps(kw["reduce_init"].func_code)
-
                 nr_reduces = d("nr_reduces")
                 if "reduce" in kw:
                         if type(kw["reduce"]) == dict:
@@ -229,8 +248,13 @@ class Job(object):
                                         kw["reduce"].func_code)
                         nr_reduces = nr_reduces or max(nr_maps / 2, 1)
                         req["chunked"] = "True"
+
+                        if "reduce_init" in kw:
+                                req["reduce_init"] = marshal.dumps(\
+                                        kw["reduce_init"].func_code)
                 else:
                         nr_reduces = nr_reduces or 1
+                
                 req["nr_reduces"] = str(nr_reduces)
 
                 if d("chunked") != None:

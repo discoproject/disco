@@ -22,7 +22,7 @@ remove_dir(Dir) ->
         spawn(fun() -> os:cmd("rm -Rf " ++ Dir) end).
 
 remove_map_results(Urls) ->
-        spawn_remote(lists:usort(Urls), fun (JobName, Url) ->
+        spawn_remote(Urls, fun (JobName, Url) ->
                 Root = os:getenv("DISCO_ROOT"),
                 error_logger:info_report({"Deleting map results at", Url}),
                 os:cmd("rm -Rf " ++
