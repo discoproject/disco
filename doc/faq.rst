@@ -63,13 +63,13 @@ How can I output arbitrary Python objects in map and reduce, not only strings?
 
 To pass arbitrary Python objects between map and reduce, 
 set *map_writer* to
-:func:`disco.func.marshal_writer` and *reduce_reader* to
-:func:`disco.func.marshal_reader` in :meth:`disco.core.Disco.new_job`. 
+:func:`disco.func.object_writer` and *reduce_reader* to
+:func:`disco.func.object_reader` in :meth:`disco.core.Disco.new_job`. 
 
 If you want to output arbitrary objects in your reduce function, set also 
-*reduce_writer* to :func:`disco.func.marshal_writer`. If you want to use
+*reduce_writer* to :func:`disco.func.object_writer`. If you want to use
 :func:`disco.core.result_iterator` to read results, set its *reader* parameter
-to :func:`disco.func.marshal_reader`.
+to :func:`disco.func.object_reader`.
 
 Do I always have to provide a function for map and reduce?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''

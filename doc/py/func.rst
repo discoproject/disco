@@ -43,14 +43,14 @@ In short, this means all user-provded functions must be pure (see
    Writer for Disco's internal key-value format. This reader is used
    to write results in map and reduce functions.
 
-.. function:: marshal_reader(fd, sze, fname)
+.. function:: object_reader(fd, sze, fname)
 
-   A wrapper for :func:`netstr_reader` that uses Python's ``marshal``
+   A wrapper for :func:`netstr_reader` that uses Python's ``cPickle``
    module to serialize arbitrary Python objects to strings.
 
-.. function:: marshal_writer(fd, key, value, params)
+.. function:: object_writer(fd, key, value, params)
    
-   A wrapper for :func:`netstr_writer` that uses Python's ``marshal``
+   A wrapper for :func:`netstr_writer` that uses Python's ``cPickle``
    module to deserialize strings to Python objects.
 
 .. function:: chain_reader(fd, sze, fname)

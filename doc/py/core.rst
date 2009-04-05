@@ -232,8 +232,8 @@ anymore. You can delete the unneeded job files as follows::
 
        This function comes in handy e.g. when *reduce* is not specified and you
        want *map* to output results in a specific format. Another
-       typical case is to use :func:`disco.func.marshal_writer` as *map_writer*
-       and :func:`disco.func.marshal_reader` as *reduce_reader* so
+       typical case is to use :func:`disco.func.object_writer` as *map_writer*
+       and :func:`disco.func.object_reader` as *reduce_reader* so
        you can output arbitrary Python objects in *map*, not only strings.
 
      * *reduce* - a :term:`pure function` that defines the reduce task. The

@@ -1,4 +1,4 @@
-import re
+import re, cPickle
 
 def netstr_reader(fd, content_len, fname):
         if content_len == None:
@@ -123,14 +123,14 @@ def netstr_writer(fd, key, value, params):
         sval = str(value)
         fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
 
-def marshal_writer(fd, key, value, params):
-        skey = marshal.dumps(key)
-        sval = marshal.dumps(value)
+def object_writer(fd, key, value, params):
+        skey = cPickle.dumps(key, cPickle.HIGHEST_PROTOCOL)
+        sval = cPickle.dumps(value, cPickle.HIGHEST_PROTOCOL)
         fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
 
-def marshal_reader(fd, sze, fname):
+def object_reader(fd, sze, fname):
         for k, v in netstr_reader(fd, sze, fname):
-                yield (marshal.loads(k), marshal.loads(v))
+                yield (cPickle.loads(k), cPickle.loads(v))
 
 
 chain_reader = netstr_reader
