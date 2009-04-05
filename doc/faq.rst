@@ -57,6 +57,20 @@ in the normal distributed Disco environment.
 
 .. _reduceonly:
 
+How can I output arbitrary Python objects in map and reduce, not only strings?
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+*New in Disco 0.2*
+
+To pass arbitrary Python objects between map and reduce, 
+set *map_writer* to
+:func:`disco.func.marshal_writer` and *reduce_reader* to
+:func:`disco.func.marshal_reader` in :meth:`disco.core.Disco.new_job`. 
+
+If you want to output arbitrary objects in your reduce function, set also 
+*reduce_writer* to :func:`disco.func.marshal_writer`. If you want to use
+:func:`disco.core.result_iterator` to read results, set its *reader* parameter
+to :func:`disco.func.marshal_reader`.
+
 Do I always have to provide a function for map and reduce?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 *Updated for Disco 0.2 which supports the reduce-only case*
@@ -76,7 +90,8 @@ results from previous map jobs, specified using the ``dir://`` protocol,
 If your inputs are other arbitrary files, *nr_reduces* must be 1, as the inputs
 files are not partitioned. You can of course run many independent reduce-jobs
 for different sets of input files, if your input files belong to different
-"partitions".
+"partitions". In this case you probably want to set *reduce_reader* in
+:meth:`disco.core.Disco.new_job` to match with the format of your input files.
 
 How many maps can I have? Does higher number of maps lead to better performance?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''

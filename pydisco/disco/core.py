@@ -128,6 +128,9 @@ class Disco(object):
 class Job(object):
 
         defaults = {"map_reader": func.map_line_reader,
+                    "map_writer": func.netstr_writer,
+                    "reduce_reader": func.netstr_reader,
+                    "reduce_writer": func.netstr_writer,
                     "reduce": None,
                     "partition": func.default_partition,
                     "combiner": None,
@@ -183,8 +186,6 @@ class Job(object):
                 
                 req = {"name": self.name,
                        "version": ".".join(map(str, sys.version_info[:2])),
-                       "map_reader": marshal.dumps(d("map_reader").func_code),
-                       "partition": marshal.dumps(d("partition").func_code),
                        "params": cPickle.dumps(d("params")),
                        "sort": str(int(d("sort"))),
                        "mem_sort_limit": str(d("mem_sort_limit")),
@@ -205,6 +206,13 @@ class Job(object):
                         if "map_init" in kw:
                                 req["map_init"] = marshal.dumps(\
                                         kw["map_init"].func_code)
+                       
+                        req["map_reader"] =\
+                                marshal.dumps(d("map_reader").func_code)
+                        req["map_writer"] =\
+                                marshal.dumps(d("map_writer").func_code)
+                        req["partition"] =\
+                                marshal.dumps(d("partition").func_code)
                         
                         parsed_inputs = []
                         for inp in inputs:
@@ -248,6 +256,11 @@ class Job(object):
                                         kw["reduce"].func_code)
                         nr_reduces = nr_reduces or max(nr_maps / 2, 1)
                         req["chunked"] = "True"
+                       
+                        req["reduce_reader"] =\
+                                marshal.dumps(d("reduce_reader").func_code)
+                        req["reduce_writer"] =\
+                                marshal.dumps(d("reduce_writer").func_code)
 
                         if "reduce_init" in kw:
                                 req["reduce_init"] = marshal.dumps(\
@@ -275,7 +288,8 @@ class Job(object):
 
 
 
-def result_iterator(results, notifier = None, proxy = None):
+def result_iterator(results, notifier = None,\
+        proxy = None, reader = func.netstr_reader):
         
         if not proxy:
                 proxy = os.environ.get("DISCO_PROXY", None)
@@ -317,7 +331,7 @@ def result_iterator(results, notifier = None, proxy = None):
                 if notifier:
                         notifier(url)
 
-                for x in func.netstr_reader(fd, sze, fname):
+                for x in reader(fd, sze, fname):
                         yield x
                 
                 if http:

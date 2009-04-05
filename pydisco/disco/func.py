@@ -118,6 +118,21 @@ def map_line_reader(fd, sze, fname):
         for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
                 yield x[0]
 
+def netstr_writer(fd, key, value, params):
+        skey = str(key)
+        sval = str(value)
+        fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
+
+def marshal_writer(fd, key, value, params):
+        skey = marshal.dumps(key)
+        sval = marshal.dumps(value)
+        fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
+
+def marshal_reader(fd, sze, fname):
+        for k, v in netstr_reader(fd, sze, fname):
+                yield (marshal.loads(k), marshal.loads(v))
+
+
 chain_reader = netstr_reader
 
 

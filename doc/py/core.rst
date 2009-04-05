@@ -139,7 +139,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input, map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules, status_interval])
+.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules, status_interval])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -200,8 +200,9 @@ anymore. You can delete the unneeded job files as follows::
        The map task can also be an external program. For more information, see
        :ref:`discoext`.
         
-     * *map_reader* - a function that parses input entries from an input file. By
-       default :func:`disco.map_line_reader`. The function is defined as follows::
+     * *map_reader* - a function that parses input entries from
+       an input file. By default :func:`disco.func.map_line_reader`. The function is defined 
+       as follows::
 
                 def map_reader(fd, size, fname)
 
@@ -215,6 +216,25 @@ anymore. You can delete the unneeded job files as follows::
 
        If you want to use outputs of an earlier job as inputs, use
        :func:`disco.func.chain_reader` as the *map_reader*.
+
+     * *map_writer* - (*Added in version 0.2*) a function that serializes map results to
+       an intermediate result file. This function is defined as follows::
+
+                def map_writer(fd, key, value, params)
+       
+       where *fd* is a file object conneted to an output file. *key* and *value*
+       are an output pair from the *map* function. *params* is the parameter
+       object specified by the *params* parameter. By default, *map_writer* is
+       :func:`disco.func.netstr_writer`.
+       
+       Remember to specify *reduce_reader* that can read the format produced
+       by *map_writer*.
+
+       This function comes in handy e.g. when *reduce* is not specified and you
+       want *map* to output results in a specific format. Another
+       typical case is to use :func:`disco.func.marshal_writer` as *map_writer*
+       and :func:`disco.func.marshal_reader` as *reduce_reader* so
+       you can output arbitrary Python objects in *map*, not only strings.
 
      * *reduce* - a :term:`pure function` that defines the reduce task. The
        function takes three parameters, an iterator to the intermediate
@@ -241,6 +261,25 @@ anymore. You can delete the unneeded job files as follows::
        *Changed in version 0.2*: It is possible to define only *reduce*
        without *map*. In this case the *nr_reduces* parameter is required
        as well. For more information, see the FAQ entry :ref:`reduceonly`.
+  
+     * *reduce_reader* - (*Added in version 0.2*) a function that deserializes
+       intermediate results serialized by *map_writer*. The function signature
+       is the same as in *map_reader*. By default, *reduce_reader* is
+       :func:`disco.func.netstr_reader`. 
+       
+       This function needs to match with *map_writer*, if *map* is specified.
+       If *map* is not specified, you can read arbitrary input files with this
+       function, similarly to *map_reader*.
+
+     * *reduce_writer* - (*Added in version 0.2*) a function that serializes
+       reduce results to a result file. The function signature is the same as
+       in *map_writer*. By default, *reduce_writer* is
+       :func:`disco.func.netstr_writer`.
+
+       You can use this function to output results in an arbitrary format from
+       your map/reduce job. If you use :func:`result_iterator` to read
+       results of the job, set its *reader* parameter to a function
+       that can read the format produced by *reduce_writer*.
 
      * *partition* - a :term:`pure function` that defines the partitioning
        function, that is, the function that decides how the map outputs
@@ -429,7 +468,7 @@ anymore. You can delete the unneeded job files as follows::
    can be an arbitrary :term:`pure function`, such as *params.f* in the
    previous example.
 
-.. function:: result_iterator(results[, notifier])
+.. function:: result_iterator(results[, notifier, reader])
 
    Iterates the key-value pairs in job results. *results* is a list of
    results, as returned by :meth:`Disco.wait`.
@@ -438,6 +477,9 @@ anymore. You can delete the unneeded job files as follows::
    the result file, that is called when the iterator moves to the next
    result file.
 
+   *reader* specifies a custom reader function. Specify this to match
+   with a custom *map_writer* or *reduce_writer*. By default, *reader*
+   is :func:`disco.func.netstr_reader`.
 
 .. class:: JobException
 
