@@ -14,11 +14,11 @@ def err(m):
         raise Exception(m)
 
 def data_err(m, job_input):
+        msg(m, 'DAT', job_input)
         if sys.exc_info() == (None, None, None):
                 raise Exception(m)
         else:
                 print traceback.print_exc()
-                msg(m, 'DAT', job_input)
                 raise
 
 def load_conf():

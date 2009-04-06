@@ -8,11 +8,13 @@
 
 -record(state, {id, master, master_url, eventserv, port, from, jobname, 
                 partid, mode, child_pid, node, input, linecount, errlines, 
-                results, last_msg, msg_counter}).
+                results, last_msg, msg_counter, oob, oob_counter}).
 
 -define(MAX_MSG_LENGTH, 8192).
 -define(RATE_WINDOW, 100000). % 100ms
--define(RATE_LIMIT, 10). 
+-define(RATE_LIMIT, 10).
+-define(OOB_MAX, 1000).
+-define(OOB_KEY_MAX, 256).
 
 -define(SLAVE_ARGS, "+K true").
 -define(CMD, "nice -n 19 disco-worker '~s' '~s' '~s' '~s' '~w' ~s").
@@ -96,6 +98,7 @@ init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
                     node = Node, input = Input, child_pid = none, 
                     eventserv = EventServ, linecount = 0,
                     last_msg = now(), msg_counter = 0,
+                    oob = [], oob_counter = 0,
                     errlines = [], results = []}}.
 
 handle_call(start_worker, _From, State) ->
@@ -146,7 +149,6 @@ parse_result(L) ->
 
 handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
         {noreply, S#state{child_pid = binary_to_list(Line)}}; 
-
 
 handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
         if size(Line0) > ?MAX_MSG_LENGTH ->
@@ -201,8 +203,29 @@ handle_info({_, {data, {eol, <<"**<OUT>", Line/binary>>}}}, S) ->
 handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
         event(S, "", strip_timestamp(Line)),
         gen_server:cast(S#state.master, 
-                {exit_worker, S#state.id, {job_ok, S#state.results}}),
+                {exit_worker, S#state.id,
+                        {job_ok, {S#state.oob, S#state.results}}}),
         {stop, normal, S};
+
+handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
+        S1 = S#state{oob = [Line|S#state.oob],
+                     oob_counter = S#state.oob_counter + 1},
+
+        if size(Line) > ?OOB_KEY_MAX ->
+                Err = "OOB key too long: Max 256 characters",
+                event(S, "ERROR", Err), 
+                gen_server:cast(S#state.master,
+                        {exit_worker, S#state.id, {job_error, Err}}),
+                {stop, normal, S1};
+        S#state.oob_counter > ?OOB_MAX ->
+                Err = "OOB message limit exceeded. Too many put() calls.",
+                event(S, "ERROR", Err), 
+                gen_server:cast(S#state.master,
+                        {exit_worker, S#state.id, {job_error, Err}}),
+                {stop, normal, S1};
+        true ->
+                {noreply, S1}
+        end;
 
 handle_info({_, {data, {eol, <<"**", _/binary>> = Line}}}, S) ->
         event(S, "WARN", "Unknown line ID: " ++ binary_to_list(Line)),

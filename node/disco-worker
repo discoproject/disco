@@ -26,7 +26,8 @@ if __name__ == "__main__":
         name = sys.argv[2]
         master_url = sys.argv[4]
 
-        ensure_path("%s/%s/" % (LOCAL_PATH, name), False)
+        ensure_path("%s/%s/oob/" % (LOCAL_PATH, name), False)
+
         params_file = PARAMS_FILE % name
 
         try:

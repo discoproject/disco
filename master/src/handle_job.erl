@@ -153,10 +153,12 @@ wait_workers(0, _Res, _Name, _Mode) ->
 wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
         M = N - 1,
         receive
-                {job_ok, _Result, {Node, PartID}} -> 
+                {job_ok, {OobKeys, _Result}, {Node, PartID}} -> 
                         event_server:event(Name, 
                                 "Received results from ~s:~B @ ~s.",
                                         [Mode, PartID, Node], {task_ready, Mode}),
+                        gen_server:cast(oob_server,
+                                {store, Name, Node, OobKeys}),
                         ets:insert(ResNodes, {lists:flatten(["dir://", Node, "/",
                                 Mode, "/", Name]), ok}),
                         M;

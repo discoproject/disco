@@ -9,6 +9,7 @@ from disconode import external
 
 job_name = ""
 http_pool = {}
+oob_chars = re.compile("[^a-zA-Z_\-:0-9]")
 
 status_interval = 0
 
@@ -41,23 +42,8 @@ def fun_reduce_writer(fd, key, value, params):
 def fun_init(reader, params):
         pass
 
-
-def init():
-        global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
-               PART_SUFFIX, MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL,\
-               REDUCE_SORTED, REDUCE_OUTPUT
-
-        tmp, HTTP_PORT, LOCAL_PATH = load_conf()
-
-        PARAMS_FILE = LOCAL_PATH + "%s/params"
-        EXT_MAP = LOCAL_PATH + "%s/ext-map"
-        EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
-        PART_SUFFIX = "-%.9d"
-        MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d" + PART_SUFFIX
-        CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
-        REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
-        REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
-        REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
+def this_master():
+        return sys.argv[4].split("/")[2]
 
 def this_host():
         return sys.argv[3]
@@ -67,6 +53,47 @@ def this_partition():
         
 def this_inputs():
         return sys.argv[6:]
+
+def init():
+        global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
+               PART_SUFFIX, MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL,\
+               REDUCE_SORTED, REDUCE_OUTPUT, OOB_FILE, OOB_URL
+
+        tmp, HTTP_PORT, LOCAL_PATH = load_conf()
+
+        OOB_URL = ("http://%s/disco/ctrl/oob_get?" % this_master())\
+                        + "name=%s&key=%s"
+        PARAMS_FILE = LOCAL_PATH + "%s/params"
+        EXT_MAP = LOCAL_PATH + "%s/ext-map"
+        EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
+        PART_SUFFIX = "-%.9d"
+        MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d" + PART_SUFFIX
+        CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
+        REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
+        REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
+        REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
+        OOB_FILE = LOCAL_PATH + "%s/oob/%s" 
+
+def put(key, value):
+        if oob_chars.match(key):
+                raise "OOB key contains invalid characters (%s)" % key
+        f = file(OOB_FILE % (job_name, key), "w")
+        f.write(value)
+        f.close()
+        print >> sys.stderr, "**<OOB>%s" % key
+
+def get(key, job = None):
+        if job:
+                c = urllib.urlopen(OOB_URL % (job, key))
+        else:
+                c = urllib.urlopen(OOB_URL % (job_name, key))
+
+        if "status" in c.headers and not c.headers["status"].startswith("200"):
+                data_err("OOB <%s> key (%s) not found" % (c.headers["status"], key), key)
+        else:
+                r = c.read()
+                c.close()
+                return r
 
 def open_local(input, fname, is_chunk):
         try:

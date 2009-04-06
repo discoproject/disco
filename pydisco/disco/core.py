@@ -75,6 +75,25 @@ class Disco(object):
         def joblist(self):
                 return cjson.decode(self.request("/disco/ctrl/joblist"))
         
+        def oob_get(self, name, key):
+                r = urllib.urlopen(\
+                        "http://%s/disco/ctrl/oob_get?name=%s&key=%s" %\
+                                (self.host, name, key))
+                if "status" in r.headers and\
+                        not r.headers["status"].startswith("200"):
+                        raise JobException("Unknown job or key",\
+                                self.host, name)
+                return r.read()
+
+        def oob_list(self, name):
+                r = urllib.urlopen(\
+                        "http://%s/disco/ctrl/oob_list?name=%s" %\
+                                (self.host, name))
+                if "status" in r.headers and\
+                        not r.headers["status"].startswith("200"):
+                        raise JobException("Unknown job", self.host, name)
+                return cjson.decode(r.read())
+        
         def new_job(self, **kwargs):
                 return Job(self, **kwargs)
         
@@ -161,11 +180,11 @@ class Job(object):
 
         def __getattr__(self, name):
                 def r(f):
-                        def g(**kw):
-                                return f(self.name, **kw)
+                        def g(*args, **kw):
+                                return f(*tuple([self.name] + list(args)), **kw)
                         return g
                 if name in ["kill", "clean", "purge", "jobspec", "results",
-                            "jobinfo", "wait"]:
+                            "jobinfo", "wait", "oob_get", "oob_list"]:
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
        
