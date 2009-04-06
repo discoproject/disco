@@ -127,14 +127,18 @@ class Disco(object):
 
 class Job(object):
 
-        defaults = {"map_reader": func.map_line_reader,
+        defaults = {"name": None,
+                    "map": None,
+                    "input": None,
+                    "map_init": None,
+                    "reduce_init": None,
+                    "map_reader": func.map_line_reader,
                     "map_writer": func.netstr_writer,
                     "reduce_reader": func.netstr_reader,
                     "reduce_writer": func.netstr_writer,
                     "reduce": None,
                     "partition": func.default_partition,
                     "combiner": None,
-                    "init": None,
                     "nr_maps": None,
                     "nr_reduces": None,
                     "sort": False,
@@ -181,6 +185,10 @@ class Job(object):
                 
                 if not ("map" in kw or "reduce" in kw):
                         raise Exception("Specify map and/or reduce")
+                
+                for p in kw:
+                        if p not in Job.defaults:
+                                raise Exception("Unknown argument: %s" % p)
 
                 inputs = kw["input"]
                 
