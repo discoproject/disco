@@ -66,7 +66,7 @@ function add_to_blacklist(){
 function send_table(){
         var table = $("tbody > tr").map(function(){
                 var arr = $.makeArray($(this).children().map(function(){
-                        return jQuery.trim($(this).text() || $(this).find('input').val());}));
+                          return jQuery.trim($(this).text());}));
                 arr.shift();  // throw away the first node - 'remove'
                 return JSON.stringify(arr);
         });
