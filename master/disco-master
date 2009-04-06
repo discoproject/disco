@@ -44,7 +44,7 @@ echo "$$" > $DISCO_PID_DIR"/disco-master.pid"
 
 exec erl +K true\
     -heart\
-    -noshell\
+    -detached\
     -sname $DISCO_NAME"_master"\
     -rsh ssh\
     -connect_all false\
