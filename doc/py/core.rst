@@ -27,7 +27,10 @@ All methods in :class:`Disco` that are related to individual jobs, namely
  - :meth:`Disco.results`
  - :meth:`Disco.jobspec`
  - :meth:`Disco.clean`
+ - :meth:`Disco.purge`
  - :meth:`Disco.kill`
+ - :meth:`Disco.oob_get`
+ - :meth:`Disco.oob_list`
 
 are also accessible through the :class:`Job` object, so you can say
 `job.wait()` instead of `disco.wait(job.name)`. However, the job methods
@@ -139,7 +142,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules, status_interval])
+.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_modules, status_interval])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -381,11 +384,6 @@ anymore. You can delete the unneeded job files as follows::
 
      * *mem_sort_limit* - sets the maximum size for the input that can be sorted
        in memory. The larger inputs are sorted on disk. By default 256MB.
-
-     * *clean* - clean the job records from the master after the results have
-       been returned, if the job was succesful. By default true. If set to
-       false, you must use either :func:`discoapi.Disco.clean` or the web interface
-       manually to clean the job records.
 
      * *chunked* - if the reduce function is specified, the worker saves
        results from a single map instance to a single file that includes
