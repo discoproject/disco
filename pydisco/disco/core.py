@@ -75,6 +75,25 @@ class Disco(object):
         def joblist(self):
                 return cjson.decode(self.request("/disco/ctrl/joblist"))
         
+        def oob_get(self, name, key):
+                r = urllib.urlopen(\
+                        "http://%s/disco/ctrl/oob_get?name=%s&key=%s" %\
+                                (self.host, name, key))
+                if "status" in r.headers and\
+                        not r.headers["status"].startswith("200"):
+                        raise JobException("Unknown job or key",\
+                                self.host, name)
+                return r.read()
+
+        def oob_list(self, name):
+                r = urllib.urlopen(\
+                        "http://%s/disco/ctrl/oob_list?name=%s" %\
+                                (self.host, name))
+                if "status" in r.headers and\
+                        not r.headers["status"].startswith("200"):
+                        raise JobException("Unknown job", self.host, name)
+                return cjson.decode(r.read())
+        
         def new_job(self, **kwargs):
                 return Job(self, **kwargs)
         
@@ -127,7 +146,15 @@ class Disco(object):
 
 class Job(object):
 
-        defaults = {"map_reader": func.map_line_reader,
+        defaults = {"name": None,
+                    "map": None,
+                    "input": None,
+                    "map_init": None,
+                    "reduce_init": None,
+                    "map_reader": func.map_line_reader,
+                    "map_writer": func.netstr_writer,
+                    "reduce_reader": func.netstr_reader,
+                    "reduce_writer": func.netstr_writer,
                     "reduce": None,
                     "partition": func.default_partition,
                     "combiner": None,
@@ -144,60 +171,100 @@ class Job(object):
         def __init__(self, master, **kwargs):
                 self.master = master
                 if "name" not in kwargs:
-                        raise "Argument name is required"
+                        raise Exception("Argument name is required")
                 if re.search("\W", kwargs["name"]):
-                        raise "Only characters in [a-zA-Z0-9_] "\
-                              "are allowed in the job name"
+                        raise Exception("Only characters in [a-zA-Z0-9_] "\
+                              "are allowed in the job name")
                 self.name = "%s@%d" % (kwargs["name"], int(time.time()))
                 self._run(**kwargs)
 
         def __getattr__(self, name):
                 def r(f):
-                        def g(**kw):
-                                return f(self.name, **kw)
+                        def g(*args, **kw):
+                                return f(*tuple([self.name] + list(args)), **kw)
                         return g
                 if name in ["kill", "clean", "purge", "jobspec", "results",
-                            "jobinfo", "wait"]:
+                            "jobinfo", "wait", "oob_get", "oob_list"]:
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
        
         def _run(self, **kw):
                 d = lambda x: kw.get(x, Job.defaults[x])
 
+                # Backwards compatibility 
+                # (fun_map == map, input_files == input)
                 if "fun_map" in kw:
                         kw["map"] = kw["fun_map"]
                 
                 if "input_files" in kw:
                         kw["input"] = kw["input_files"]
                 
-                if not ("map" in kw and "input" in kw):
-                        raise "Arguments 'map' and 'input' are required"
+                if not "input" in kw:
+                        raise Exception("input is required")
                 
-                inputs = []
-                for inp in kw["input"]:
-                        if inp.startswith("dir://"):
-                                inputs += util.parse_dir(inp)
-                        else:
-                                inputs.append(inp)
+                if not ("map" in kw or "reduce" in kw):
+                        raise Exception("Specify map and/or reduce")
                 
-                if not inputs:
-                        raise "Must have at least one input file"
+                for p in kw:
+                        if p not in Job.defaults:
+                                raise Exception("Unknown argument: %s" % p)
 
+                inputs = kw["input"]
+                
                 req = {"name": self.name,
-                       "input": " ".join(inputs),
                        "version": ".".join(map(str, sys.version_info[:2])),
-                       "map_reader": marshal.dumps(d("map_reader").func_code),
-                       "partition": marshal.dumps(d("partition").func_code),
                        "params": cPickle.dumps(d("params")),
                        "sort": str(int(d("sort"))),
                        "mem_sort_limit": str(d("mem_sort_limit")),
                        "status_interval": str(d("status_interval")),
                        "required_modules": " ".join(d("required_modules"))}
 
-                if type(kw["map"]) == dict:
-                        req["ext_map"] = marshal.dumps(kw["map"])
+                if "map" in kw:
+                        if type(kw["map"]) == dict:
+                                req["ext_map"] = marshal.dumps(kw["map"])
+                        else:
+                                req["map"] = marshal.dumps(kw["map"].func_code)
+
+                        if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
+                                nr_maps = len(inputs)
+                        else:
+                                nr_maps = kw["nr_maps"]
+
+                        if "map_init" in kw:
+                                req["map_init"] = marshal.dumps(\
+                                        kw["map_init"].func_code)
+                       
+                        req["map_reader"] =\
+                                marshal.dumps(d("map_reader").func_code)
+                        req["map_writer"] =\
+                                marshal.dumps(d("map_writer").func_code)
+                        req["partition"] =\
+                                marshal.dumps(d("partition").func_code)
+                        
+                        parsed_inputs = []
+                        for inp in inputs:
+                                if inp.startswith("dir://"):
+                                        parsed_inputs += util.parse_dir(inp)
+                                else:
+                                        parsed_inputs.append(inp)
+                        inputs = parsed_inputs
                 else:
-                        req["map"] = marshal.dumps(kw["map"].func_code)
+                        addr = [x for x in inputs\
+                                if not x.startswith("dir://")]
+
+                        if d("nr_reduces") == None and not addr:
+                                raise Exception("nr_reduces must match to "\
+                                        "the number of partitions in the "\
+                                        "input data")
+
+                        if d("nr_reduces") != 1 and addr: 
+                                raise Exception("nr_reduces must be 1 when "\
+                                        "using external inputs without "\
+                                        "the map phase")
+                        nr_maps = 0
+               
+                req["input"] = " ".join(inputs)
+                req["nr_maps"] = str(nr_maps)
         
                 if "ext_params" in kw:
                         if type(kw["ext_params"]) == dict:
@@ -205,12 +272,6 @@ class Job(object):
                                         encode_netstring_fd(kw["ext_params"])
                         else:
                                 req["ext_params"] = kw["ext_params"]
-        
-                if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
-                        nr_maps = len(inputs)
-                else:
-                        nr_maps = kw["nr_maps"]
-                req["nr_maps"] = str(nr_maps)
         
                 nr_reduces = d("nr_reduces")
                 if "reduce" in kw:
@@ -222,8 +283,18 @@ class Job(object):
                                         kw["reduce"].func_code)
                         nr_reduces = nr_reduces or max(nr_maps / 2, 1)
                         req["chunked"] = "True"
+                       
+                        req["reduce_reader"] =\
+                                marshal.dumps(d("reduce_reader").func_code)
+                        req["reduce_writer"] =\
+                                marshal.dumps(d("reduce_writer").func_code)
+
+                        if "reduce_init" in kw:
+                                req["reduce_init"] = marshal.dumps(\
+                                        kw["reduce_init"].func_code)
                 else:
                         nr_reduces = nr_reduces or 1
+                
                 req["nr_reduces"] = str(nr_reduces)
 
                 if d("chunked") != None:
@@ -244,7 +315,8 @@ class Job(object):
 
 
 
-def result_iterator(results, notifier = None, proxy = None):
+def result_iterator(results, notifier = None,\
+        proxy = None, reader = func.netstr_reader):
         
         if not proxy:
                 proxy = os.environ.get("DISCO_PROXY", None)
@@ -286,7 +358,7 @@ def result_iterator(results, notifier = None, proxy = None):
                 if notifier:
                         notifier(url)
 
-                for x in func.netstr_reader(fd, sze, fname):
+                for x in reader(fd, sze, fname):
                         yield x
                 
                 if http:

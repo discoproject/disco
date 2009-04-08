@@ -4,12 +4,14 @@ import sys
 import urllib
 
 from disconode import disco_worker as dw
-from disconode import external, util
+from disconode import external
+from disconode.util import ensure_path 
 
 from disconode.disco_worker import HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE
 from disconode.disco_worker import MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
 
 from disco.netstring import decode_netstring_fd
+from disco import util
 
 if __name__ == "__main__":
         if len(sys.argv) < 7:
@@ -24,7 +26,8 @@ if __name__ == "__main__":
         name = sys.argv[2]
         master_url = sys.argv[4]
 
-        dw.ensure_path("%s/%s/" % (LOCAL_PATH, name), False)
+        ensure_path("%s/%s/oob/" % (LOCAL_PATH, name), False)
+
         params_file = PARAMS_FILE % name
 
         try:

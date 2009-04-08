@@ -52,13 +52,13 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->
         case dict:find(JobName, Events) of
                 error -> {reply, invalid_job, S};
                 {ok, {EvLst, Nu, Pid}} ->
-                        MapNfo = event_filter(map_data, EvLst),
+                        JobNfo = event_filter(job_data, EvLst),
                         Res = event_filter(ready, EvLst),
                         Ready = event_filter(task_ready, EvLst),
                         Failed = event_filter(task_failed, EvLst),
                         TStamp = list_to_binary(format_timestamp(Nu)),
                         {reply, {ok, {TStamp, Pid, 
-                                MapNfo, Res, Ready, Failed}}, S}
+                                JobNfo, Res, Ready, Failed}}, S}
         end.
 
 % There's a small catch with adding a job event: If a job's records have been

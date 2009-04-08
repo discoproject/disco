@@ -26,9 +26,9 @@ op("jobinfo", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, {Nodes, Tasks}} =
                 gen_server:call(disco_server, {get_active, Name}),
-        {ok, {TStamp, Pid, MapNfo, Res, Ready, Failed}} =
+        {ok, {TStamp, Pid, JobNfo, Res, Ready, Failed}} =
                 gen_server:call(event_server, {get_jobinfo, Name}),
-        {ok, render_jobinfo(TStamp, Pid, MapNfo, Nodes, 
+        {ok, render_jobinfo(TStamp, Pid, JobNfo, Nodes, 
                 Res, Tasks, Ready, Failed)};
 
 op("parameters", Query, _Json) ->
@@ -40,6 +40,23 @@ op("rawevents", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, MasterUrl} = application:get_env(disco_url),
         {relo, [MasterUrl, "/", Name, "/events"]};
+
+op("oob_get", Query, _Json) ->
+        {value, {_, Name}} = lists:keysearch("name", 1, Query),
+        {value, {_, Key}} = lists:keysearch("key", 1, Query),
+        case gen_server:call(oob_server, {fetch, 
+                        list_to_binary(Name), list_to_binary(Key)}) of
+                {ok, Node} -> {relo, ["http://", Node, ":", 
+                        os:getenv("DISCO_PORT"), "/", Name, "/oob/", Key]};
+                error -> not_found
+        end;
+
+op("oob_list", Query, _Json) ->
+        {value, {_, Name}} = lists:keysearch("name", 1, Query),
+        case gen_server:call(oob_server, {list, list_to_binary(Name)}) of
+                {ok, Keys} -> {ok, Keys};
+                error -> not_found
+        end;
         
 op("jobevents", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
@@ -146,7 +163,9 @@ handle(Socket, Msg) ->
         Reply = case op(Op, httpd:parse_query(binary_to_list(Query)), Json) of
                 {ok, Res} -> [?HTTP_HEADER, json:encode(Res)];
                 {raw, Res} -> [?HTTP_HEADER, Res];
-                {relo, Loc} -> ["HTTP/1.1 302 ok\nLocation: ", Loc, "\n\n"]
+                {relo, Loc} -> ["HTTP/1.1 302 ok\nLocation: ", Loc, "\n\n"];
+                not_found -> "HTTP/1.1 404 not found\n"
+                             "Status: 404 Not found\n\nNot found."
         end,
         gen_tcp:send(Socket, Reply).
 

@@ -24,13 +24,13 @@ disco = Disco(sys.argv[1])
 
 results = disco.new_job(name = "test_chain_0", input = tserver.makeurl([""] * 100),
                 map = fun_map, reduce = fun_reduce, nr_reduces = 4,
-                sort = False, clean = True, params = {'suffix': '0'}).wait()
+                sort = False, params = {'suffix': '0'}).wait()
 
 i = 1
 while i < 10:
         nresults = disco.new_job(name = "test_chain_%d" % i, input = results,
                 map = fun_map, reduce = fun_reduce, nr_reduces = 4,
-                map_reader = chain_reader, sort = False, clean = True,
+                map_reader = chain_reader, sort = False,
                 params = {'suffix': str(i)}).wait()
 
         disco.purge(jobname(results[0]))

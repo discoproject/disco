@@ -32,6 +32,8 @@ init([ScgiPort]) ->
                         permanent, 10, worker, dynamic},
                  {job_queue, {job_queue, start_link, []},
                         permanent, 10, worker, dynamic},
+                 {oob_server, {oob_server, start_link, []},
+                        permanent, 10, worker, dynamic},
                  {scgi_server, {scgi_server, start_link, [ScgiPort]},
                         permanent, 10, worker, dynamic}
                 ]

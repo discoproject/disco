@@ -1,4 +1,5 @@
-import re
+import re, cPickle
+from disco.util import err, data_err, msg
 
 def netstr_reader(fd, content_len, fname):
         if content_len == None:
@@ -117,6 +118,21 @@ def nop_reduce(iter, out, params):
 def map_line_reader(fd, sze, fname):
         for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
                 yield x[0]
+
+def netstr_writer(fd, key, value, params):
+        skey = str(key)
+        sval = str(value)
+        fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
+
+def object_writer(fd, key, value, params):
+        skey = cPickle.dumps(key, cPickle.HIGHEST_PROTOCOL)
+        sval = cPickle.dumps(value, cPickle.HIGHEST_PROTOCOL)
+        fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
+
+def object_reader(fd, sze, fname):
+        for k, v in netstr_reader(fd, sze, fname):
+                yield (cPickle.loads(k), cPickle.loads(v))
+
 
 chain_reader = netstr_reader
 

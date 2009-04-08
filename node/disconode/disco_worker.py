@@ -1,31 +1,49 @@
 import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import httplib, re, traceback, tempfile, struct, urllib, random
-from disco.util import parse_dir, load_conf
-from disco.func import netstr_reader, re_reader
+from disco.util import parse_dir, load_conf, err, data_err, msg
+from disco.func import re_reader, netstr_reader
 from disco.netstring import *
-
-from disconode import external, util
 from disconode.util import *
+
+from disconode import external
 
 job_name = ""
 http_pool = {}
+oob_chars = re.compile("[^a-zA-Z_\-:0-9]")
 
 status_interval = 0
 
-def init():
-        global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
-               MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
+# Function stubs
 
-        tmp, HTTP_PORT, LOCAL_PATH = load_conf()
+def fun_map(e, params):
+        pass
 
-        PARAMS_FILE = LOCAL_PATH + "%s/params"
-        EXT_MAP = LOCAL_PATH + "%s/ext-map"
-        EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
-        MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d-%.9d"
-        CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
-        REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
-        REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
-        REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
+def fun_map_reader(fd, sze, job_input):
+        pass
+
+def fun_map_writer(fd, key, value, params):
+        pass
+
+def fun_partition(key, nr_reduces, params):
+        pass
+
+def fun_combiner(key, value, comb_buffer, flush, params):
+        pass
+
+def fun_reduce(red_in, red_out, params):
+        pass
+
+def fun_reduce_reader(fd, sze, job_input):
+        pass
+
+def fun_reduce_writer(fd, key, value, params):
+        pass
+
+def fun_init(reader, params):
+        pass
+
+def this_master():
+        return sys.argv[4].split("/")[2]
 
 def this_host():
         return sys.argv[3]
@@ -35,6 +53,47 @@ def this_partition():
         
 def this_inputs():
         return sys.argv[6:]
+
+def init():
+        global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
+               PART_SUFFIX, MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL,\
+               REDUCE_SORTED, REDUCE_OUTPUT, OOB_FILE, OOB_URL
+
+        tmp, HTTP_PORT, LOCAL_PATH = load_conf()
+
+        OOB_URL = ("http://%s/disco/ctrl/oob_get?" % this_master())\
+                        + "name=%s&key=%s"
+        PARAMS_FILE = LOCAL_PATH + "%s/params"
+        EXT_MAP = LOCAL_PATH + "%s/ext-map"
+        EXT_REDUCE = LOCAL_PATH + "%s/ext-reduce"
+        PART_SUFFIX = "-%.9d"
+        MAP_OUTPUT = LOCAL_PATH + "%s/map-disco-%d" + PART_SUFFIX
+        CHUNK_OUTPUT = LOCAL_PATH + "%s/map-chunk-%d"
+        REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
+        REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
+        REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
+        OOB_FILE = LOCAL_PATH + "%s/oob/%s" 
+
+def put(key, value):
+        if oob_chars.match(key):
+                raise "OOB key contains invalid characters (%s)" % key
+        f = file(OOB_FILE % (job_name, key), "w")
+        f.write(value)
+        f.close()
+        print >> sys.stderr, "**<OOB>%s" % key
+
+def get(key, job = None):
+        if job:
+                c = urllib.urlopen(OOB_URL % (job, key))
+        else:
+                c = urllib.urlopen(OOB_URL % (job_name, key))
+
+        if "status" in c.headers and not c.headers["status"].startswith("200"):
+                data_err("OOB <%s> key (%s) not found" % (c.headers["status"], key), key)
+        else:
+                r = c.read()
+                c.close()
+                return r
 
 def open_local(input, fname, is_chunk):
         try:
@@ -108,17 +167,24 @@ def open_remote(input, ext_host, ext_file, is_chunk):
                                 % (ext_host, ext_file, input), input)
 
 def connect_input(input):
+
         is_chunk = input.startswith("chunk://")
+
         if input.startswith("disco://") or is_chunk:
                 host, fname = input[8:].split("/", 1)
                 local_file = LOCAL_PATH + fname
                 ext_host = "%s:%s" % (host, HTTP_PORT)
                 ext_file = "/" + fname
+
         elif input.startswith("http://"):
                 ext_host, fname = input[7:].split("/", 1)
                 host = ext_host
                 ext_file = "/" + fname
                 local_file = None
+
+        elif input.startswith("raw://"):
+                return len(input) - 6, cStringIO.StringIO(input[6:])
+
         else:
                 host = this_host()
                 if input.startswith("chunkfile://"):
@@ -133,12 +199,6 @@ def connect_input(input):
                 return open_local(input, local_file, is_chunk)
         else:
                 return open_remote(input, ext_host, ext_file, is_chunk)
-
-def encode_kv_pair(fd, key, value):
-        skey = str(key)
-        sval = str(value)
-        fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
-
 
 class MapOutput:
         def __init__(self, part, params, combiner = None):
@@ -156,9 +216,10 @@ class MapOutput:
                                    0, self.params)
                         if ret:
                                 for key, value in ret:
-                                        encode_kv_pair(self.fd, key, value)
+                                        fun_map_writer(self.fd, key, value,
+                                                self.params)
                 else:
-                        encode_kv_pair(self.fd, key, value)
+                        fun_map_writer(self.fd, key, value, self.params)
 
         def close(self):
                 if self.combiner:
@@ -166,7 +227,8 @@ class MapOutput:
                                 1, self.params)
                         if ret:
                                 for key, value in ret:
-                                        encode_kv_pair(self.fd, key, value)
+                                        fun_map_writer(self.fd, key, value,\
+                                                self.params)
                 self.fd.close()
                 os.rename(self.fname + ".partial", self.fname)
         
@@ -176,13 +238,14 @@ class MapOutput:
 
 
 class ReduceOutput:
-        def __init__(self):
+        def __init__(self, params):
                 self.fname = REDUCE_OUTPUT % (job_name, this_partition())
+                self.params = params
                 ensure_path(self.fname, False)
                 self.fd = file(self.fname + ".partial", "w")
 
         def add(self, key, value):
-                encode_kv_pair(self.fd, key, value)
+                fun_reduce_writer(self.fd, key, value, self.params)
 
         def close(self):
                 self.fd.close()
@@ -203,9 +266,12 @@ def num_cmp(x, y):
 class ReduceReader:
         def __init__(self, input_files, do_sort, mem_sort_limit):
                 self.inputs = []
+                part = PART_SUFFIX % this_partition()
                 for input in input_files:
                         if input.startswith("dir://"):
-                                self.inputs += parse_dir(input)
+                                self.inputs += [x for x in parse_dir(input)\
+                                        if x.startswith("chunk://") or\
+                                           x.endswith(part)]
                         else:
                                 self.inputs.append(input)
 
@@ -239,7 +305,7 @@ class ReduceReader:
                 out_fd = file(dlname + ".partial", "w")
                 for fname in self.inputs:
                         sze, fd = connect_input(fname)
-                        for k, v in netstr_reader(fd, sze, fname):
+                        for k, v in fun_reduce_reader(fd, sze, fname):
                                 if " " in k:
                                         err("Spaces are not allowed in keys "\
                                             "with external sort.")
@@ -280,7 +346,7 @@ class ReduceReader:
                 msg("Reduce done: %d entries reduced in total" % i)
 
         def multi_file_iterator(self, inputs, progress = True,
-                                reader = netstr_reader):
+                                reader = fun_reduce_reader):
                 i = 0
                 for fname in inputs:
                         sze, fd = connect_input(fname)
@@ -294,29 +360,15 @@ class ReduceReader:
                 if progress:
                         msg("Reduce done: %d entries reduced in total" % i)
 
-# Function stubs
-
-def fun_map(e, params):
-        pass
-
-def fun_map_reader(fd, sze, job_input):
-        pass
-
-def fun_partition(key, nr_reduces, params):
-        pass
-
-def fun_combiner(key, value, comb_buffer, flush, params):
-        pass
-
-def fun_reduce(red_in, red_out, params):
-        pass
 
 def run_map(job_input, partitions, param):
         i = 0
         sze, fd = connect_input(job_input)
         nr_reduces = len(partitions)
+        reader = fun_map_reader(fd, sze, job_input)
+        fun_init(reader, param)
         
-        for entry in fun_map_reader(fd, sze, job_input):
+        for entry in reader:
                 for key, value in fun_map(entry, param):
                         p = fun_partition(key, nr_reduces, param)
                         partitions[p].add(key, value)
@@ -358,6 +410,7 @@ def op_map(job):
         nr_reduces = int(job['nr_reduces'])
         required_modules = job['required_modules'].split()
         fun_map_reader.func_code = marshal.loads(job['map_reader'])
+        fun_map_writer.func_code = marshal.loads(job['map_writer'])
         fun_partition.func_code = marshal.loads(job['partition'])
         for m in required_modules:
                 fun_map_reader.func_globals.setdefault(m, __import__(m))
@@ -377,6 +430,9 @@ def op_map(job):
         
         for m in required_modules:
                 fun_map.func_globals.setdefault(m, __import__(m))
+
+        if 'map_init' in job:
+                fun_init.func_code = marshal.loads(job['map_init'])
 
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
@@ -411,6 +467,12 @@ def op_reduce(job):
         mem_sort_limit = int(job['mem_sort_limit'])
         required_modules = job['required_modules'].split()
         
+        if 'reduce_init' in job:
+                fun_init.func_code = marshal.loads(job['reduce_init'])
+
+        fun_reduce_reader.func_code = marshal.loads(job['reduce_reader'])
+        fun_reduce_writer.func_code = marshal.loads(job['reduce_writer'])
+        
         if 'ext_reduce' in job:
                 if "ext_params" in job:
                         red_params = job['ext_params']
@@ -426,11 +488,14 @@ def op_reduce(job):
         for m in required_modules:
                 fun_reduce.func_globals.setdefault(m, __import__(m))
 
-        red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit)
-        red_out = ReduceOutput()
+        red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit).iter()
+        red_out = ReduceOutput(red_params)
+        
         msg("Starting reduce")
-        fun_reduce(red_in.iter(), red_out, red_params)
+        fun_init(red_in, red_params)
+        fun_reduce(red_in, red_out, red_params)
         msg("Reduce done")
+        
         red_out.close()
         external.close_ext()
 

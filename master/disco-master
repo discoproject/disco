@@ -44,9 +44,10 @@ echo "$$" > $DISCO_PID_DIR"/disco-master.pid"
 
 exec erl +K true\
     -heart\
-    -noshell\
+    -detached\
     -sname $DISCO_NAME"_master"\
     -rsh ssh\
+    -connect_all false\
     -pa "$DISCO_HOME/ebin"\
     -boot "$DISCO_HOME/disco"\
     -kernel error_logger "{file, \"$DISCO_MASTER_LOG\"}"\

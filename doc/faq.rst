@@ -55,14 +55,45 @@ also for development in general. It is highly recommended that you test
 your functions first locally with :mod:`homedisco`, before running them
 in the normal distributed Disco environment.
 
+.. _outputtypes:
+
+How can I output arbitrary Python objects in map and reduce, not only strings?
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+*New in Disco 0.2*
+
+To pass arbitrary Python objects between map and reduce, 
+set *map_writer* to
+:func:`disco.func.object_writer` and *reduce_reader* to
+:func:`disco.func.object_reader` in :meth:`disco.core.Disco.new_job`. 
+
+If you want to output arbitrary objects in your reduce function, set also 
+*reduce_writer* to :func:`disco.func.object_writer`. If you want to use
+:func:`disco.core.result_iterator` to read results, set its *reader* parameter
+to :func:`disco.func.object_reader`.
+
+.. _reduceonly:
+
 Do I always have to provide a function for map and reduce?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+*Updated for Disco 0.2 which supports the reduce-only case*
 
-Currently a map function is always required but the reduce function is
-optional. This might change if someone comes up with a convincing case
-that requires a *map-reduce-reduce* sequence that cannot be expressed
-cleanly as a *map-reduce-map* or as a *map-map-reduce* sequence.
+You have to specify either map or reduce or both. Many simple tasks can be
+solved with a single map function, without reduce. 
 
+It is somewhat less typical to specify only the reduce function. This case 
+mainly arises when you want to merge results from many independent map jobs, 
+or you want to join several input files without going through the map phase.
+
+Note that for the reduce-only case, the *nr_reduces* parameter, which specifies
+the number of partitions in the input data, is required. If your inputs are
+results from previous map jobs, specified using the ``dir://`` protocol, 
+*nr_reduces* must match to the *nr_reduces* specified for the map jobs. 
+
+If your inputs are other arbitrary files, *nr_reduces* must be 1, as the inputs
+files are not partitioned. You can of course run many independent reduce-jobs
+for different sets of input files, if your input files belong to different
+"partitions". In this case you probably want to set *reduce_reader* in
+:meth:`disco.core.Disco.new_job` to match with the format of your input files.
 
 How many maps can I have? Does higher number of maps lead to better performance?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''

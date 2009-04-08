@@ -27,7 +27,10 @@ All methods in :class:`Disco` that are related to individual jobs, namely
  - :meth:`Disco.results`
  - :meth:`Disco.jobspec`
  - :meth:`Disco.clean`
+ - :meth:`Disco.purge`
  - :meth:`Disco.kill`
+ - :meth:`Disco.oob_get`
+ - :meth:`Disco.oob_list`
 
 are also accessible through the :class:`Job` object, so you can say
 `job.wait()` instead of `disco.wait(job.name)`. However, the job methods
@@ -106,6 +109,17 @@ anymore. You can delete the unneeded job files as follows::
 
    Returns a dictionary containing information about the job *name*.
 
+   .. method:: Disco.oob_get(name, key)
+
+   Returns an out-of-band value assigned to *key* for the job *name*. 
+   The key-value pair was stored with a :func:`disco_worker.put` call
+   in the job *name*.
+
+   .. method:: Disco.oob_list(name)
+
+   Returns all out-of-band keys for the job *name*. Keys were stored by
+   the job *name* using the :func:`disco_worker.put` function.
+
    .. method:: Disco.wait(name[, poll_interval, timeout, clean])
 
    Block until the job *name* has finished. Returns a list URLs to the
@@ -139,7 +153,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input_files, fun_map, map_reader, reduce, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, async, clean, chunked, ext_params, required_modules, status_interval])
+.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_modules, status_interval])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -176,15 +190,16 @@ anymore. You can delete the unneeded job files as follows::
        good naming scheme of their own. Only characters in ``[a-zA-Z0-9_]``
        are allowed in the job name.
 
-     * *input_files* - a list of input files for the map function (**required**). Each
-       input must be specified in one of the following four protocols:
+     * *input* - a list of input files for the map function (**required**). Each
+       input must be specified in one of the following protocols:
 
          * ``http://www.example.com/data`` - any HTTP address
          * ``disco://cnode03/bigtxt/file_name`` - Disco address. Refers to ``cnode03:/var/disco/bigtxt/file_name``. Currently this is an alias for ``http://cnode03:8989/bigtxt/file_name``.
          * ``dir://cnode03/jobname/`` - Result directory. This format is used by Disco internally.
          * ``/home/bob/bigfile.txt`` - a local file. Note that the file must either exist on all the nodes or you must make sure that the job is run only on the nodes where the file exists. Due to these restrictions, this form has only limited use.
+         * ``raw://some_string`` - pseudo-address; instead of fetching data from a remote source, use ``some_string`` in the address as data. Useful for specifying dummy inputs for generator maps.
 
-     * *fun_map* - a :term:`pure function` that defines the map task (**required**). 
+     * *map* - a :term:`pure function` that defines the map task. 
        The function takes two parameters, an input entry and a parameter object,
        and it outputs a list of key-value pairs in tuples. For instance::
 
@@ -199,8 +214,9 @@ anymore. You can delete the unneeded job files as follows::
        The map task can also be an external program. For more information, see
        :ref:`discoext`.
         
-     * *map_reader* - a function that parses input entries from an input file. By
-       default :func:`disco.map_line_reader`. The function is defined as follows::
+     * *map_reader* - a function that parses input entries from
+       an input file. By default :func:`disco.func.map_line_reader`. The function is defined 
+       as follows::
 
                 def map_reader(fd, size, fname)
 
@@ -214,6 +230,25 @@ anymore. You can delete the unneeded job files as follows::
 
        If you want to use outputs of an earlier job as inputs, use
        :func:`disco.func.chain_reader` as the *map_reader*.
+
+     * *map_writer* - (*Added in version 0.2*) a function that serializes map results to
+       an intermediate result file. This function is defined as follows::
+
+                def map_writer(fd, key, value, params)
+       
+       where *fd* is a file object conneted to an output file. *key* and *value*
+       are an output pair from the *map* function. *params* is the parameter
+       object specified by the *params* parameter. By default, *map_writer* is
+       :func:`disco.func.netstr_writer`.
+       
+       Remember to specify *reduce_reader* that can read the format produced
+       by *map_writer*.
+
+       This function comes in handy e.g. when *reduce* is not specified and you
+       want *map* to output results in a specific format. Another
+       typical case is to use :func:`disco.func.object_writer` as *map_writer*
+       and :func:`disco.func.object_reader` as *reduce_reader* so
+       you can output arbitrary Python objects in *map*, not only strings.
 
      * *reduce* - a :term:`pure function` that defines the reduce task. The
        function takes three parameters, an iterator to the intermediate
@@ -230,13 +265,35 @@ anymore. You can delete the unneeded job files as follows::
                         for w, c in d.iteritems():
                                 out.add(w, c)
       
-       Counts how many teams each key appears in the intermediate results.
-
-       By default no reduce function is specified and the job will quit after
-       the map functions have finished.
+       Counts how many teams each key appears in the intermediate results. If 
+       no reduce function is specified, the job will quit after
+       the map phase has finished. 
        
        The reduce task can also be an external program. For more
        information, see :ref:`discoext`.
+       
+       *Changed in version 0.2*: It is possible to define only *reduce*
+       without *map*. In this case the *nr_reduces* parameter is required
+       as well. For more information, see the FAQ entry :ref:`reduceonly`.
+  
+     * *reduce_reader* - (*Added in version 0.2*) a function that deserializes
+       intermediate results serialized by *map_writer*. The function signature
+       is the same as in *map_reader*. By default, *reduce_reader* is
+       :func:`disco.func.netstr_reader`. 
+       
+       This function needs to match with *map_writer*, if *map* is specified.
+       If *map* is not specified, you can read arbitrary input files with this
+       function, similarly to *map_reader*.
+
+     * *reduce_writer* - (*Added in version 0.2*) a function that serializes
+       reduce results to a result file. The function signature is the same as
+       in *map_writer*. By default, *reduce_writer* is
+       :func:`disco.func.netstr_writer`.
+
+       You can use this function to output results in an arbitrary format from
+       your map/reduce job. If you use :func:`result_iterator` to read
+       results of the job, set its *reader* parameter to a function
+       that can read the format produced by *reduce_writer*.
 
      * *partition* - a :term:`pure function` that defines the partitioning
        function, that is, the function that decides how the map outputs
@@ -289,6 +346,27 @@ anymore. You can delete the unneeded job files as follows::
      * *nr_reduces* - the number of parallel reduce operations. This equals
        to the number of partitions. By default, ``nr_reduces = max(nr_maps / 2, 1)``.
 
+     * *map_init* - initialization function for the map task. This function
+       is called once before the actual processing starts with *fun_map*.
+       The *map_init* function is defined as follows::
+                
+                def init(input_iter, params)
+
+       where *input_iter* is an instance of *map_reader* that produces 
+       for this map task. The second argument, *params*, is the parameter
+       object specified in the ``new_job`` call.
+
+       Typically *map_init* is used to initialize some modules in the worker
+       environment (e.g. ``ctypes.cdll.LoadLibrary()``), to initialize some
+       values in *params*, or to skip unneeded entries in the beginning 
+       of the input stream.
+
+     * *reduce_init* - initialization function for the reduce task. This
+       function is called once before the actual processing starts with
+       the *reduce* function. The function is defined similarly to *map_init* 
+       above. In this case, *input_iter* is a generator object that produces
+       key-value pairs belonging to this partition.
+
      * *sort* - a boolean value that specifies whether the intermediate results,
        that is, input to the reduce function, should be sorted. Sorting is most
        useful in ensuring that the equal keys are consequent in the input for
@@ -317,11 +395,6 @@ anymore. You can delete the unneeded job files as follows::
 
      * *mem_sort_limit* - sets the maximum size for the input that can be sorted
        in memory. The larger inputs are sorted on disk. By default 256MB.
-
-     * *clean* - clean the job records from the master after the results have
-       been returned, if the job was succesful. By default true. If set to
-       false, you must use either :func:`discoapi.Disco.clean` or the web interface
-       manually to clean the job records.
 
      * *chunked* - if the reduce function is specified, the worker saves
        results from a single map instance to a single file that includes
@@ -404,7 +477,7 @@ anymore. You can delete the unneeded job files as follows::
    can be an arbitrary :term:`pure function`, such as *params.f* in the
    previous example.
 
-.. function:: result_iterator(results[, notifier])
+.. function:: result_iterator(results[, notifier, reader])
 
    Iterates the key-value pairs in job results. *results* is a list of
    results, as returned by :meth:`Disco.wait`.
@@ -413,6 +486,9 @@ anymore. You can delete the unneeded job files as follows::
    the result file, that is called when the iterator moves to the next
    result file.
 
+   *reader* specifies a custom reader function. Specify this to match
+   with a custom *map_writer* or *reduce_writer*. By default, *reader*
+   is :func:`disco.func.netstr_reader`.
 
 .. class:: JobException
 
