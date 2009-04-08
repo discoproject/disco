@@ -109,6 +109,17 @@ anymore. You can delete the unneeded job files as follows::
 
    Returns a dictionary containing information about the job *name*.
 
+   .. method:: Disco.oob_get(name, key)
+
+   Returns an out-of-band value assigned to *key* for the job *name*. 
+   The key-value pair was stored with a :func:`disco_worker.put` call
+   in the job *name*.
+
+   .. method:: Disco.oob_list(name)
+
+   Returns all out-of-band keys for the job *name*. Keys were stored by
+   the job *name* using the :func:`disco_worker.put` function.
+
    .. method:: Disco.wait(name[, poll_interval, timeout, clean])
 
    Block until the job *name* has finished. Returns a list URLs to the

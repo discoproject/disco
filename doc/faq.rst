@@ -55,7 +55,7 @@ also for development in general. It is highly recommended that you test
 your functions first locally with :mod:`homedisco`, before running them
 in the normal distributed Disco environment.
 
-.. _reduceonly:
+.. _outputtypes:
 
 How can I output arbitrary Python objects in map and reduce, not only strings?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -70,6 +70,8 @@ If you want to output arbitrary objects in your reduce function, set also
 *reduce_writer* to :func:`disco.func.object_writer`. If you want to use
 :func:`disco.core.result_iterator` to read results, set its *reader* parameter
 to :func:`disco.func.object_reader`.
+
+.. _reduceonly:
 
 Do I always have to provide a function for map and reduce?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''

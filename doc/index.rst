@@ -14,6 +14,7 @@ Background
    intro
    overview
    FAQ <faq>
+   releases
    glossary
 
 Getting started
