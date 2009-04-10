@@ -46,6 +46,11 @@ class Params:
                                 v = t
                         self.__dict__[k[2:]] = v
 
+class Stats(object):
+        def __init__(self, prof_data):
+                self.stats = marshal.loads(prof_data)
+        def create_stats(self):
+                pass
 
 class Disco(object):
 
@@ -93,6 +98,21 @@ class Disco(object):
                         not r.headers["status"].startswith("200"):
                         raise JobException("Unknown job", self.host, name)
                 return cjson.decode(r.read())
+
+        def profile_stats(self, name, mode = ""):
+                import pstats
+                if mode:
+                        prefix = "profile-%s-" % mode
+                else:
+                        prefix = "profile-"
+                f = [s for s in self.oob_list(name) if s.startswith(prefix)]
+                if not f:
+                        raise JobException("No profile data", self.host, name)
+                
+                stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
+                for s in f[1:]:
+                        stats.add(Stats(self.oob_get(name, s)))
+                return stats
         
         def new_job(self, **kwargs):
                 return Job(self, **kwargs)
@@ -105,7 +125,7 @@ class Disco(object):
 
         def purge(self, name):
                 self.request("/disco/ctrl/purge_job", '"%s"' % name)
-        
+
         def jobspec(self, name):
                 # Parameters request is handled with a separate connection that
                 # knows how to handle redirects.
@@ -166,7 +186,8 @@ class Job(object):
                     "chunked": None,
                     "ext_params": None,
                     "status_interval": 100000,
-                    "required_modules": []}
+                    "required_modules": [],
+                    "profile": False}
 
         def __init__(self, master, **kwargs):
                 self.master = master
@@ -184,7 +205,8 @@ class Job(object):
                                 return f(*tuple([self.name] + list(args)), **kw)
                         return g
                 if name in ["kill", "clean", "purge", "jobspec", "results",
-                            "jobinfo", "wait", "oob_get", "oob_list"]:
+                            "jobinfo", "wait", "oob_get", "oob_list",
+                            "profile_stats"]:
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
        
@@ -217,7 +239,8 @@ class Job(object):
                        "sort": str(int(d("sort"))),
                        "mem_sort_limit": str(d("mem_sort_limit")),
                        "status_interval": str(d("status_interval")),
-                       "required_modules": " ".join(d("required_modules"))}
+                       "required_modules": " ".join(d("required_modules")),
+                       "profile": str(int(d("profile")))}
 
                 if "map" in kw:
                         if type(kw["map"]) == dict:

@@ -72,7 +72,7 @@ def init():
         REDUCE_DL = LOCAL_PATH + "%s/reduce-in-%d.dl"
         REDUCE_SORTED = LOCAL_PATH + "%s/reduce-in-%d.sorted"
         REDUCE_OUTPUT = LOCAL_PATH + "%s/reduce-disco-%d"
-        OOB_FILE = LOCAL_PATH + "%s/oob/%s" 
+        OOB_FILE = LOCAL_PATH + "%s/oob/%s"
 
 def put(key, value):
         if oob_chars.match(key):

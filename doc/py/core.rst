@@ -31,6 +31,7 @@ All methods in :class:`Disco` that are related to individual jobs, namely
  - :meth:`Disco.kill`
  - :meth:`Disco.oob_get`
  - :meth:`Disco.oob_list`
+ - :meth:`Disco.profile_stats`
 
 are also accessible through the :class:`Job` object, so you can say
 `job.wait()` instead of `disco.wait(job.name)`. However, the job methods
@@ -120,6 +121,21 @@ anymore. You can delete the unneeded job files as follows::
    Returns all out-of-band keys for the job *name*. Keys were stored by
    the job *name* using the :func:`disco_worker.put` function.
 
+   .. method:: Disco.profile_stats(name[, mode])
+
+   Returns results of profiling of the given job *name*. The job 
+   must have been run with the ``profile`` flag enabled.
+
+   You can restrict results specifically to the map or reduce task
+   by setting *mode* either to ``"map"`` or ``"reduce"``. By default 
+   results include both the map and the reduce phases. Results are
+   accumulated from all nodes.
+
+   The function returns a `pstats.Stats object <http://docs.python.org/library/profile.html#the-stats-class>`_.
+   You can print out results as follows::
+
+        job.profile_stats().print_stats()
+
    .. method:: Disco.wait(name[, poll_interval, timeout, clean])
 
    Block until the job *name* has finished. Returns a list URLs to the
@@ -153,7 +169,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_modules, status_interval])
+.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_modules, status_interval, profile])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -438,6 +454,9 @@ anymore. You can delete the unneeded job files as follows::
        exceeded" error due to system messages. This might happen if your map /
        reduce task is really fast. Decrease the value if you want to follow 
        your task in more real-time or you don't have many data items.
+
+     * *profile* - Enable tasks profiling. By default false. Retrieve profiling
+       results with the :meth:`Disco.profile_stats` function.
 
     .. attribute:: Job.name
 

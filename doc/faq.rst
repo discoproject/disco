@@ -42,9 +42,41 @@ the core works, and start experimenting with it or adapt it to new
 environments. Thanks to Python, it is easy to add new features around
 the core which ensures that Disco can respond quickly to real-world needs.
 
+How to profile programs in Disco?
+'''''''''''''''''''''''''''''''''
+*New in Disco 0.2.1*
 
-How to debug / profile programs in Disco?
-'''''''''''''''''''''''''''''''''''''''''
+Disco can use the Python's standard `Profile module
+<http://docs.python.org/library/profile.html>`_ to profile map and reduce
+tasks. Enable profiling by setting ``profile = True`` in :meth:`disco.core.Disco.new_job`.
+Once the job has finished, you can retrieve the results of profiling with the 
+:meth:`disco.core.Disco.profile_stats` function. 
+
+Here's a simple example::
+
+        from disco.core import Disco, Params
+
+        def fun_map(e, params):
+                return [(e, 1)]
+
+        job = Disco("disco://localhost").new_job(
+                      name = "params_test",
+                      input = ["disco://localhost/myjob/file1"],
+                      map = fun_map,
+                      profile = True)
+        results = job.wait()
+
+        # retrieve results of profiling
+        stats = job.profile_stats()
+        # sort results by descending cumulative time
+        stats.sort_stats('cumulative')
+        # print out results
+        stats.print_stats()
+
+See also the next question.
+
+How to debug programs in Disco?
+'''''''''''''''''''''''''''''''
 
 Use :mod:`homedisco`. It allows you to run Disco jobs locally, as any other
 Python program. This means that you can use any Python debugger or profiler for
