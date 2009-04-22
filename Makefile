@@ -48,11 +48,11 @@ install-master: install-config master
 install-node: install-config master
 	install -d $(TARGETDIR)/ebin
 	cp $(TARGET) $(TARGETDIR)/ebin
-	(cd node; $(PYTHON) setup.py install --root=$(DESTDIR))
+	(cd node; $(PYTHON) setup.py install --prefix=$(DESTDIR))
 	cp conf/lighttpd-node.conf $(TARGETCFG)
 
 install-pydisco:
-	(cd pydisco; $(PYTHON) setup.py install --root=$(DESTDIR))
+	(cd pydisco; $(PYTHON) setup.py install --prefix=$(DESTDIR))
 
 install-config:
 	install -d $(TARGETCFG)
