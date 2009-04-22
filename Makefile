@@ -7,9 +7,11 @@ PYTHON = python
 ESRC = master/src
 EBIN = master/ebin
 
-BIN_DIR = /usr/bin/
-INSTALL_DIR = /usr/lib/disco/
-CONFIG_DIR = /etc/disco/
+PREFIX=/usr
+SYSCONFDIR=/etc
+BIN_DIR = $(PREFIX)/bin/
+INSTALL_DIR = $(PREFIX)/lib/disco/
+CONFIG_DIR = $(SYSCONFDIR)/disco/
 
 TARGETDIR = $(DESTDIR)/$(INSTALL_DIR)
 TARGETBIN = $(DESTDIR)/$(BIN_DIR)
@@ -48,11 +50,11 @@ install-master: install-config master
 install-node: install-config master
 	install -d $(TARGETDIR)/ebin
 	cp $(TARGET) $(TARGETDIR)/ebin
-	(cd node; $(PYTHON) setup.py install --prefix=$(DESTDIR))
+	(cd node; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
 	cp conf/lighttpd-node.conf $(TARGETCFG)
 
 install-pydisco:
-	(cd pydisco; $(PYTHON) setup.py install --prefix=$(DESTDIR))
+	(cd pydisco; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
 
 install-config:
 	install -d $(TARGETCFG)
