@@ -28,6 +28,13 @@ if sys.argv[1][-1] == "/":
 else:
         name = os.path.basename(sys.argv[1])
 
+# check to see if ionice is installed on this system
+status = Popen('which ionice'.split()).wait()
+if status == 0:
+    ionice = 'ionice -n 7'
+else:
+    ionice = ''
+
 nodes = []
 hostname = {}
 for l in file(sys.argv[2]):
@@ -64,8 +71,8 @@ while True:
                 print >> sys.stderr, "Couldn't mkdir %s:%s/data/%s" % (node, root, name)
 
         print >> sys.stderr, "Copying %d files to %s" % (len(nset), node)
-        p = Popen("nice -19 ionice -n 7 scp %s %s %s:%s/data/%s/" % 
-                (" ".join(ssh), " ".join(nset), unode, root, name),
+        p = Popen("nice -19 %s scp %s %s %s:%s/data/%s/" % 
+                (ionice, " ".join(ssh), " ".join(nset), unode, root, name),
                         shell = True)
         procs.append((node, p, nset))
 
