@@ -397,6 +397,12 @@ def merge_chunks(partitions):
         for p in partitions:
                 os.remove(p.fname)
 
+def import_modules(modules, funcs):
+    for m in modules:
+        mod = __import__(m, fromlist = [m])
+        for fun in funcs:
+            fun.func_globals.setdefault(m.split(".")[-1], mod)
+
 def op_map(job):
         global job_name
         
@@ -408,14 +414,17 @@ def op_map(job):
                         " ".join(job_input))
 
         nr_reduces = int(job['nr_reduces'])
-        required_modules = job['required_modules'].split()
         fun_map_reader.func_code = marshal.loads(job['map_reader'])
         fun_map_writer.func_code = marshal.loads(job['map_writer'])
         fun_partition.func_code = marshal.loads(job['partition'])
-        for m in required_modules:
-                fun_map_reader.func_globals.setdefault(m, __import__(m))
-                fun_partition.func_globals.setdefault(m, __import__(m))
         
+        if 'map_init' in job:
+                fun_init.func_code = marshal.loads(job['map_init'])
+
+        req_mod = job['required_modules'].split()
+        import_modules(req_mod, [fun_map_reader, fun_map_writer,
+            fun_partition, fun_map, fun_combiner, fun_init])
+
         if 'ext_map' in job:
                 if 'ext_params' in job:
                         map_params = job['ext_params']
@@ -428,16 +437,9 @@ def op_map(job):
                 map_params = cPickle.loads(job['params'])        
                 fun_map.func_code = marshal.loads(job['map'])
         
-        for m in required_modules:
-                fun_map.func_globals.setdefault(m, __import__(m))
-
-        if 'map_init' in job:
-                fun_init.func_code = marshal.loads(job['map_init'])
 
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
-                for m in required_modules:
-                        fun_combiner.func_globals.setdefault(m, __import__(m))
                 partitions = [MapOutput(i, map_params, fun_combiner)\
                         for i in range(nr_reduces)]
         else:
@@ -465,14 +467,16 @@ def op_reduce(job):
         
         do_sort = int(job['sort'])
         mem_sort_limit = int(job['mem_sort_limit'])
-        required_modules = job['required_modules'].split()
+        req_mod = job['required_modules'].split()
         
         if 'reduce_init' in job:
                 fun_init.func_code = marshal.loads(job['reduce_init'])
 
         fun_reduce_reader.func_code = marshal.loads(job['reduce_reader'])
         fun_reduce_writer.func_code = marshal.loads(job['reduce_writer'])
-        
+        import_modules(req_mod, [fun_reduce_reader, fun_reduce_writer,\
+            fun_reduce, fun_init])
+         
         if 'ext_reduce' in job:
                 if "ext_params" in job:
                         red_params = job['ext_params']
@@ -484,9 +488,6 @@ def op_reduce(job):
         else:
                 fun_reduce.func_code = marshal.loads(job['reduce'])
                 red_params = cPickle.loads(job['params'])
-
-        for m in required_modules:
-                fun_reduce.func_globals.setdefault(m, __import__(m))
 
         red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit).iter()
         red_out = ReduceOutput(red_params)
