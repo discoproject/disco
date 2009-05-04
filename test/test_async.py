@@ -31,18 +31,16 @@ for i in range(5):
         time.sleep(1)
 
 all = dict(("[%s]" % i, 0) for i in range(num * 10))
-for job in jobs:
-        results = job.wait()
-        print "Job", job, "done"
-        for k, v in result_iterator(results):
-                all[k] += 1
+while jobs:
+        ready, jobs = disco.results(jobs)
+        for name, results in ready:
+                for k, v in result_iterator(results[1]):
+                        all[k] += 1
+                disco.purge(name)
 
 for v in all.values():
         if v != 10:
                 raise "Invalid results: %s" % all
-
-for job in jobs:
-        job.purge()
 
 print "ok"
 
