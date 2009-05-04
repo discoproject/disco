@@ -102,9 +102,41 @@ anymore. You can delete the unneeded job files as follows::
    Returns the raw job request package, as constructed by
    :meth:`Disco.new_job`, for the job *name*.
 
-   .. method:: Disco.results(name)
+   .. method:: Disco.results(jobspec[, timeout = 5000])
 
-   Returns the list of result files for the job *name*, if available.
+   This function returns a list of results for a single job or for many
+   concurrently running jobs, depending on the type of *jobspec*.
+
+   If *jobspec* is a string (job name) or the function is called through the
+   job object (``job.results()``), this function returns a list of results for
+   the job if the results become available in *timeout* milliseconds. If not,
+   returns an empty list.
+
+   If *jobspec* is a list of jobs, the function waits at most 
+   for *timeout* milliseconds for at least one on the jobs to finish. In 
+   this mode, *jobspec* can be a list of strings (job names), a list of job 
+   objects, or a list of result entries as returned by this function. Two 
+   lists are returned: a list of finished jobs and a list of still active jobs. 
+   Both the lists contain elements of the following type::
+       
+       ["job name", ["status", [results]]]
+ 
+   where status is either ``unknown_job``, ``dead``, ``active`` or ``ready``.
+   
+   You can use the latter mode as an efficient way to wait for several jobs
+   to finish. Consider the following example that prints out results of jobs
+   as soon as they finish. Here ``jobs`` is initially a list of jobs, 
+   produced by several calls to :meth:`Disco.new_job`:: 
+
+       while jobs:
+           ready, jobs = disco.results(jobs)
+           for name, results in ready:
+               for k, v in result_iterator(results[1]):
+                   print k, v
+               disco.purge(name)
+   
+   Note how the list of active jobs, ``jobs``, returned by :meth:`Disco.results` 
+   can be used as the input to the function itself.
 
    .. method:: Disco.jobinfo(name)
 

@@ -15,10 +15,13 @@ op("load_config_table", _Query, _Json) ->
 op("joblist", _Query, _Json) ->
         {ok, Lst} = gen_server:call(event_server, get_jobnames),
         Nu = now(),
-        TLst = lists:map(fun({J, T, P}) ->
+        TLst = lists:map(fun({J, T, _}) ->
                 {round(timer:now_diff(Nu, T) / 1000000),
-                        process_status(J, is_process_alive(P)),
-                        list_to_binary(J)}
+                        case gen_server:call(event_server, {get_results, J}) of
+                                {active, _} -> <<"job_active">>;
+                                {dead, _} -> <<"job_died">>;
+                                {ready, _, _} -> <<"job_ready">>
+                        end, list_to_binary(J)}
         end, Lst),
         {ok, lists:keysort(1, TLst)};
 
@@ -93,15 +96,11 @@ op("clean_job", _Query, Json) ->
         gen_server:call(disco_server, {clean_job, JobName}),
         {ok, <<>>};
 
-op("get_results", Query, _Json) ->
-        {value, {_, Name}} = lists:keysearch("name", 1, Query),
-        case gen_server:call(event_server, {get_results, Name}) of
-                invalid_job -> {ok, [<<"unknown job">>, []]};
-                {ok, Pid} -> V = is_process_alive(Pid),
-                                 if V -> {ok, [<<"active">>, []]};
-                                 true -> {ok, [<<"dead">>, []]} end;
-                {ok, _, Res} -> {ok, [<<"ready">>, Res]}
-        end;
+op("get_results", _Query, Json) ->
+        [Timeout, Names] = Json,
+        S = [{N, gen_server:call(event_server,
+                {get_results, binary_to_list(N)})} || N <- Names],
+        {ok, [[N, status_msg(M)] || {N, M} <- wait_jobs(S, Timeout)]};
 
 op("get_blacklist", _Query, _Json) ->
         {ok, lists:map(fun({Node, _}) -> list_to_binary(Node)
@@ -169,12 +168,6 @@ handle(Socket, Msg) ->
         end,
         gen_tcp:send(Socket, Reply).
 
-process_status(_Jobname, true) -> <<"job_active">>;
-process_status(JobName, false) ->
-        case gen_server:call(event_server, {get_results, JobName}) of
-                {ok, _} -> <<"job_died">>;
-                {ok, _, _} -> <<"job_ready">>
-        end.
 
 count_maps(L) ->
         {M, N} = lists:foldl(fun
@@ -207,4 +200,23 @@ render_jobinfo(Tstamp, JobPid, [{NMap, NRed, DoRed, Inputs}],
                {inputs, lists:sublist(Inputs, 100)},
                {nodes, lists:map(fun erlang:list_to_binary/1, Nodes)}
         ]}.
+
+status_msg(invalid_job) -> [<<"unknown job">>, []];
+status_msg({ready, _, Res}) -> [<<"ready">>, Res];
+status_msg({active, _}) -> [<<"active">>, []];
+status_msg({dead, _}) -> [<<"dead">>, []].
+
+wait_jobs(Jobs, Timeout) ->
+        case [erlang:monitor(process, Pid) || {_, {active, Pid}} <- Jobs] of
+                [] -> Jobs;
+                _ -> 
+                        receive
+                                {'DOWN', _, _, _, _} -> ok
+                        after Timeout -> ok
+                        end,
+                        [{N, gen_server:call(event_server,
+                                {get_results, binary_to_list(N)})} ||
+                                        {N, _} <- Jobs]
+        end.
+
 

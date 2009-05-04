@@ -43,9 +43,14 @@ handle_call({get_results, JobName}, _From, {Events, _} = S) ->
         case dict:find(JobName, Events) of
                 error -> {reply, invalid_job, S};
                 {ok, {[{ready, Res}|_], _, Pid}} ->
-                        {reply, {ok, Pid, Res}, S};
+                        {reply, {ready, Pid, Res}, S};
                 {ok, {_, _, Pid}} ->
-                        {reply, {ok, Pid}, S}
+                        Alive = is_process_alive(Pid),
+                        if Alive ->
+                                {reply, {active, Pid}, S};
+                        true ->
+                                {reply, {dead, Pid}, S}
+                        end
         end;
                 
 handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->

@@ -133,12 +133,36 @@ class Disco(object):
                         % (self.host, name))
                 return decode_netstring_fd(r)
 
-        def results(self, name):
-                r = self.request("/disco/ctrl/get_results?name=" + name)
-                if r:
-                        return cjson.decode(r)
-                else:
+        def results(self, names, timeout = 2000):
+                single = type(names) == str
+                if single:
+                        names = [names]
+                
+                nam = []
+                for n in names:
+                        if type(n) == str:
+                                nam.append(n)
+                        elif type(n) == list:
+                                nam.append(n[0])
+                        else:
+                                nam.append(n.name)
+               
+                r = self.request("/disco/ctrl/get_results",
+                        cjson.encode([timeout, nam]))
+                if not r:
                         return None
+                r = cjson.decode(r)
+                if single:
+                        return r[0][1]
+                else:
+                        active = []
+                        others = []
+                        for x in r:
+                                if x[1][0] == "active":
+                                        active.append(x)
+                                else:
+                                        others.append(x)
+                        return others, active
 
         def jobinfo(self, name):
                 r = self.request("/disco/ctrl/jobinfo?name=" + name)
@@ -149,9 +173,9 @@ class Disco(object):
 
         def wait(self, name, poll_interval = 5, timeout = None, clean = False):
                 t = time.time()
+                p = poll_interval * 1000
                 while True:
-                        time.sleep(poll_interval)
-                        status = self.results(name)
+                        status = self.results(name, timeout = p)
                         if status == None:
                                 raise JobException("Unknown job", self.host, name)
                         if status[0] == "ready":
