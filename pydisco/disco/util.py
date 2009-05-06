@@ -1,6 +1,11 @@
 
-import re, os, urllib
+import re, os
 import sys, time, os, traceback
+
+try:
+        import disco.comm_curl as comm
+except:
+        import disco.comm_httplib as comm
 
 job_name = "none"
 
@@ -71,7 +76,7 @@ def parse_dir(dir_url, proxy = None):
                 url = "http://%s/disco/node/%s/%s/" % (proxy, host, name)
         else:
                 url = "http://%s:%s/%s/" % (host, HTTP_PORT, name)
-        html = urllib.urlopen(url).read()
+        html = comm.download(url)
         inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
         return ["%s://%s/%s/%s" % (prefix, host, name, x)\
                         for x, prefix in inputs if "." not in x]

@@ -1,7 +1,11 @@
-import sys, re, os, marshal, urllib, httplib, cjson, time, cPickle
+import sys, re, os, marshal, cjson, time, cPickle
 from disco import func, util
 from netstring import *
 
+try:
+        import disco.comm_curl as comm
+except:
+        import disco.comm_httplib as comm
 
 class JobException(Exception):
         def __init__(self, msg, master, name):
@@ -55,24 +59,11 @@ class Stats(object):
 class Disco(object):
 
         def __init__(self, host):
-                self.host = util.disco_host(host)[7:]
-                self.conn = httplib.HTTPConnection(self.host)
+                self.host = "http://" + util.disco_host(host)[7:]
 
-        def request(self, url, data = None, raw_handle = False):
-                try:
-                        if data:
-                                self.conn.request("POST", url, data)
-                        else:
-                                self.conn.request("GET", url, None)
-                        r = self.conn.getresponse()
-                        if raw_handle:
-                                return r
-                        else:
-                                return r.read()
-                except httplib.BadStatusLine:
-                        self.conn.close()
-                        self.conn = httplib.HTTPConnection(self.host)
-                        return self.request(url, data)
+        def request(self, url, data = None, redir = False):
+                return comm.download(self.host + url,\
+                        data = data, redir = redir)
         
         def nodeinfo(self):
                 return cjson.decode(self.request("/disco/ctrl/nodeinfo"))
@@ -81,23 +72,22 @@ class Disco(object):
                 return cjson.decode(self.request("/disco/ctrl/joblist"))
         
         def oob_get(self, name, key):
-                r = urllib.urlopen(\
-                        "http://%s/disco/ctrl/oob_get?name=%s&key=%s" %\
-                                (self.host, name, key))
-                if "status" in r.headers and\
-                        not r.headers["status"].startswith("200"):
-                        raise JobException("Unknown job or key",\
-                                self.host, name)
-                return r.read()
+                try:
+                        r = self.request("/disco/ctrl/oob_get?name=%s&key=%s" %\
+                                (name, key), redir = True)
+                except comm.CommException, x:
+                        if x.http_code == 404:
+                                raise KeyError("Unknown key or job name")
+                return r
 
         def oob_list(self, name):
-                r = urllib.urlopen(\
-                        "http://%s/disco/ctrl/oob_list?name=%s" %\
-                                (self.host, name))
-                if "status" in r.headers and\
-                        not r.headers["status"].startswith("200"):
-                        raise JobException("Unknown job", self.host, name)
-                return cjson.decode(r.read())
+                try:
+                        r = self.request("/disco/ctrl/oob_list?name=%s" % name,
+                                redir = True)
+                except comm.CommException, x:
+                        if x.http_code == 404:
+                                raise KeyError("Unknown key or job name")
+                return cjson.decode(r)
 
         def profile_stats(self, name, mode = ""):
                 import pstats
@@ -127,10 +117,8 @@ class Disco(object):
                 self.request("/disco/ctrl/purge_job", '"%s"' % name)
 
         def jobspec(self, name):
-                # Parameters request is handled with a separate connection that
-                # knows how to handle redirects.
-                r = urllib.urlopen("http://%s/disco/ctrl/parameters?name=%s"\
-                        % (self.host, name))
+                r = self.request("%s/disco/ctrl/parameters?name=%s"\
+                        % (self.host, name), redir = True)
                 return decode_netstring_fd(r)
 
         def results(self, names, timeout = 2000):
@@ -384,7 +372,6 @@ def result_iterator(results, notifier = None,\
                         fname = url[7:]
                         fd = file(fname)
                         sze = os.stat(fname).st_size
-                        http = None
                 else:
                         host, fname = url[8:].split("/", 1)
                         if proxy:
@@ -392,24 +379,11 @@ def result_iterator(results, notifier = None,\
                                 fname = "/disco/node/%s/%s" % (host, fname)
                         else:
                                 ext_host = host + ":" + util.HTTP_PORT
-                        ext_file = "/" + fname
-
-                        http = httplib.HTTPConnection(ext_host)
-                        http.request("GET", ext_file, "")
-                        fd = http.getresponse()
-                        if fd.status != 200:
-                                raise "HTTP error %d" % fd.status
-                
-                        sze = int(fd.getheader("content-length"))
+                        sze, fd = comm.open_remote("http://%s/%s" % (ext_host, fname))
 
                 if notifier:
                         notifier(url)
 
-                for x in reader(fd, sze, fname):
+                for x in reader(fd, fd.length, fname):
                         yield x
                 
-                if http:
-                        http.close()
-                else:
-                        fd.close()
-

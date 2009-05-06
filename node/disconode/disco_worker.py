@@ -1,14 +1,17 @@
 import os, subprocess, cStringIO, marshal, time, sys, cPickle
-import httplib, re, traceback, tempfile, struct, urllib, random
+import re, traceback, tempfile, struct, random
 from disco.util import parse_dir, load_conf, err, data_err, msg
 from disco.func import re_reader, netstr_reader
 from disco.netstring import *
 from disconode.util import *
-
 from disconode import external
 
+try:
+        import disco.comm_curl as comm
+except:
+        import disco.comm_httplib as comm
+
 job_name = ""
-http_pool = {}
 oob_chars = re.compile("[^a-zA-Z_\-:0-9]")
 
 status_interval = 0
@@ -83,17 +86,16 @@ def put(key, value):
         print >> sys.stderr, "**<OOB>%s" % key
 
 def get(key, job = None):
-        if job:
-                c = urllib.urlopen(OOB_URL % (job, key))
-        else:
-                c = urllib.urlopen(OOB_URL % (job_name, key))
-
-        if "status" in c.headers and not c.headers["status"].startswith("200"):
-                data_err("OOB <%s> key (%s) not found" % (c.headers["status"], key), key)
-        else:
-                r = c.read()
-                c.close()
-                return r
+        try:
+                if job:
+                        return comm.download(OOB_URL % (job, key),\
+                                redir = True)
+                else:
+                        return comm.download(OOB_URL % (job_name, key),\
+                                redir = True)
+        except comm.CommException, x:
+                data_err("OOB key (%s) not found: HTTP status '%s'" %\
+                        (key, x.http_code), key)
 
 def open_local(input, fname, is_chunk):
         try:
@@ -112,59 +114,11 @@ def open_local(input, fname, is_chunk):
 
 def open_remote(input, ext_host, ext_file, is_chunk):
         try:
-                # We can't open a new HTTP connection for each intermediate
-                # result -- this would result to M * R TCP connections where
-                # M is the number of maps and R the number of reduces. Instead,
-                # we pool connections and reuse them whenever possible. HTTP 
-                # 1.1 defaults to keep-alive anyway.
-                if ext_host in http_pool:
-                        http = http_pool[ext_host]
-                        if http._HTTPConnection__response:
-                                http._HTTPConnection__response.read()
-                else:
-                        http = httplib.HTTPConnection(ext_host)
-                        http_pool[ext_host] = http
-
-                if is_chunk:
-                        pos = this_partition() * 8
-                        rge = "bytes=%d-%d" % (pos, pos + 15)
-                        #msg("Reading offsets at %s" % rge)
-                        http.request("GET", ext_file, None, {"Range": rge})
-                        fd = http.getresponse()
-
-                        if fd.status != 206:
-                                raise "HTTP error %d" % fd.status
-                        start, end = struct.unpack("QQ", fd.read())
-                        if start == end:
-                                return 0, cStringIO.StringIO()
-                        else:
-                                rge = "bytes=%d-%d" % (start, end - 1)
-                        #msg("Reading data at %s" % rge)
-                        http.request("GET", ext_file, None, {"Range": rge})
-                        fd = http.getresponse()
-                        if fd.status != 206:
-                                raise "HTTP error %d" % fd.status
-                else:
-                        http.request("GET", ext_file, "")
-                        fd = http.getresponse()
-                        if fd.status != 200:
-                                raise "HTTP error %d" % fd.status
-                sze = fd.getheader("content-length")
-                if sze:
-                        sze = int(sze)
-                return sze, fd
-
-        except httplib.BadStatusLine:
-                # BadStatusLine is caused by a closed connection. Re-open a new
-                # connection by deleting this connection from the pool and
-                # calling this function again. Note that this might result in
-                # endless recursion if something went seriously wrong.
-                http.close()
-                del http_pool[ext_host]
-                return open_remote(input, ext_host, ext_file, is_chunk)
-        except:
+                return comm.open_remote("http://%s%s" % (ext_host, ext_file),
+                        this_partition(), is_chunk)
+        except Exception, x:
                 data_err("Can't access an external input file (%s/%s): %s"\
-                                % (ext_host, ext_file, input), input)
+                                % (ext_host, ext_file, x), x)
 
 def connect_input(input):
 

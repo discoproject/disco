@@ -1,7 +1,5 @@
 #!/usr/bin/python
-import os
-import sys
-import urllib
+import os, sys
 
 from disconode import disco_worker as dw
 from disconode import external
@@ -34,13 +32,10 @@ if __name__ == "__main__":
         params_file = PARAMS_FILE % name
 
         try:
-                url_hdle = urllib.urlopen("%s%s/params" % (master_url, name))
-                external.ensure_file(params_file,
-                        (master_url, url_hdle), mode = 444)
-                url_hdle.close()
+                url = "%s%s/params" % (master_url, name)
+                external.ensure_file(params_file, url = url, mode = 444)
         except Exception, e:
-                url = "%s/%s/params" % (master_url, name)
-                util.data_err("Failed to get %s" % (url,), master_url)
+                util.data_err("Failed to get %s" % url, master_url)
 
         try:
                 m = decode_netstring_fd(file(params_file))

@@ -22,6 +22,10 @@ DISCO_HOME=/usr/lib/disco/
 # Root directory for Disco logs.
 DISCO_LOG=/var/log/disco/
 
+# Miscellaneous flags:
+# - nocurl: use httplib instead of pycurl even if pycurl is available
+#DISCO_FLAGS="nocurl"
+
 # The maximum amount of virtual memory available for master
 # (ulimit -v DISCO_ULIMIT)
 DISCO_ULIMIT=16000000
