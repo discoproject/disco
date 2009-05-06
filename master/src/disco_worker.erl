@@ -34,7 +34,7 @@ slave_env() ->
         lists:flatten([?SLAVE_ARGS, 
                 get_env("DISCO_HOME", " -pa ~s/ebin"),
                 [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
-                        "DISCO_PORT", "PYTHONPATH", "PATH"]]]).
+                        "DISCO_PORT", "DISCO_FLAGS", "PYTHONPATH", "PATH"]]]).
 
 slave_name(Node) ->
         {ok, Name} = application:get_env(disco_name),
