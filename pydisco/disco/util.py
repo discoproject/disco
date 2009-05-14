@@ -71,7 +71,7 @@ def disco_host(addr):
 
 
 def parse_dir(dir_url, proxy = None):
-        x, x, host, mode, name = dir_url.split('/')
+        x, x, host, mode, name = dir_url.split("/", 4)
         if proxy:
                 url = "http://%s/disco/node/%s/%s/" % (proxy, host, name)
         else:

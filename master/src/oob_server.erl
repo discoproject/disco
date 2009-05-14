@@ -21,7 +21,8 @@ handle_cast({store, JobName, Node, Keys}, Cache) ->
         {ok, Root} = application:get_env(disco_root),
         FName = filename:join([Root, JobName, "oob"]),
         {ok, F} = file:open(FName, [raw, append]),
-        file:write(F, [[Node, " ", Key, "\n"] || Key <- Keys]),
+        file:write(F, [[Node, " ", Key, " ", Path, "\n"] ||
+                {Key, Path} <- Keys]),
         file:close(F),
         % invalidate old cache entry
         case cache_find(list_to_binary(JobName), Cache, []) of
@@ -75,8 +76,8 @@ cache_add(JobName, Cache) ->
 
 parse_file(Data) ->
         dict:from_list(lists:map(fun(L) ->
-                [Node, Key] = string:tokens(L, " "),
-                {list_to_binary(Key), list_to_binary(Node)}
+                [N, K, P] = [list_to_binary(X) || X <- string:tokens(L, " ")],
+                {K, {N, P}}
         end, string:tokens(Data, "\n"))).
 
 % callback stubs

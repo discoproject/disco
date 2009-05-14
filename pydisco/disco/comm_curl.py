@@ -35,9 +35,9 @@ def download(url, data = None, redir = False):
                         break
                 except:
                         if retry == MAX_RETRIES:
-                                raise CommException("Download failed "\
+                                raise CommException("Downloading %s failed "\
                                         "after %d attempts: %s" %\
-                                        (MAX_RETRIES, dl_handle.errstr()))
+                                        (url, MAX_RETRIES, dl_handle.errstr()))
                         retry += 1
 
         dl_handle.setopt(POST, 0)

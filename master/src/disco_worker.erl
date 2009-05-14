@@ -143,10 +143,6 @@ event(S, Type, Msg) ->
         event_server:event(S#state.eventserv, S#state.node, S#state.jobname,
                 "~s [~s:~B] ~s", [Type, S#state.mode, S#state.partid, Msg], []).
 
-parse_result(L) ->
-        [PartID|Url] = string:tokens(L, " "),
-        {ok, {list_to_integer(PartID), list_to_binary(Url)}}.
-
 handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
         {noreply, S#state{child_pid = binary_to_list(Line)}}; 
 
@@ -189,16 +185,7 @@ handle_info({_, {data, {eol, <<"**<DAT>", Line/binary>>}}}, S) ->
         {stop, normal, S};
 
 handle_info({_, {data, {eol, <<"**<OUT>", Line/binary>>}}}, S) ->
-        M = strip_timestamp(Line),
-        case catch parse_result(M) of
-                {ok, Item} -> {noreply, S#state{results = 
-                                       [Item|S#state.results]}};
-                _Error -> Err = "Could not parse result line: " ++ Line,
-                          event(S, "ERROR", Err),
-                          gen_server:cast(S#state.master, 
-                                {exit_worker, S#state.id, {job_error, Err}}),
-                          {stop, normal, S}
-        end;
+        {noreply, S#state{results = strip_timestamp(Line)}};
 
 handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
         event(S, "", strip_timestamp(Line)),
@@ -208,10 +195,12 @@ handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
         {stop, normal, S};
 
 handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
-        S1 = S#state{oob = [Line|S#state.oob],
+        [Key|Path] = string:tokens(binary_to_list(Line), " "),
+
+        S1 = S#state{oob = [{Key, Path}|S#state.oob],
                      oob_counter = S#state.oob_counter + 1},
 
-        if size(Line) > ?OOB_KEY_MAX ->
+        if length(Key) > ?OOB_KEY_MAX ->
                 Err = "OOB key too long: Max 256 characters",
                 event(S, "ERROR", Err), 
                 gen_server:cast(S#state.master,

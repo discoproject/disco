@@ -78,6 +78,7 @@ class Disco(object):
                 except comm.CommException, x:
                         if x.http_code == 404:
                                 raise KeyError("Unknown key or job name")
+                        raise
                 return r
 
         def oob_list(self, name):
@@ -87,6 +88,7 @@ class Disco(object):
                 except comm.CommException, x:
                         if x.http_code == 404:
                                 raise KeyError("Unknown key or job name")
+                        raise
                 return cjson.decode(r)
 
         def profile_stats(self, name, mode = ""):

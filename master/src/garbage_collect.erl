@@ -5,7 +5,7 @@
 spawn_remote([], _) -> ok;
 spawn_remote([Url|Urls], F) ->
         {Node, S} = case string:tokens(Url, "/") of
-                ["dir:", N, _, S0] -> {N, S0};
+                ["dir:", N, _|S0] -> {N, lists:flatten(S0)};
                 ["disco:", N, S0] -> {N, S0}
         end,
         SName = disco_worker:slave_name(Node),

@@ -49,8 +49,8 @@ op("oob_get", Query, _Json) ->
         {value, {_, Key}} = lists:keysearch("key", 1, Query),
         case gen_server:call(oob_server, {fetch, 
                         list_to_binary(Name), list_to_binary(Key)}) of
-                {ok, Node} -> {relo, ["http://", Node, ":", 
-                        os:getenv("DISCO_PORT"), "/", Name, "/oob/", Key]};
+                {ok, {Node, Path}} -> {relo, ["http://", Node, ":", 
+                        os:getenv("DISCO_PORT"), "/", Path]};
                 error -> not_found
         end;
 
