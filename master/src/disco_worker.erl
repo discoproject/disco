@@ -55,7 +55,11 @@ start_link_remote([Master, EventServ, From, JobName, PartID,
                 pang -> 
                         slave_master ! {start, self(), Node, slave_env()},
                         receive
-                                slave_started -> ok
+                                slave_started -> ok;
+                                {slave_failed, X} ->
+                                        event_server:event(JobName,
+                                                "WARN: Node failure: ~p", [X], []),
+                                        exit({data_error, Input})
                         after 60000 ->
                                 exit({data_error, Input})
                         end

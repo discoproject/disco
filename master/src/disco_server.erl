@@ -7,6 +7,7 @@
         terminate/2, code_change/3]).
 
 -record(job, {jobname, partid, mode, prefnode, input, from}).
+-define(BLACKLIST_PERIOD, 600000).
 
 start_link() ->
         error_logger:info_report([{"DISCO SERVER STARTS"}]),
@@ -208,7 +209,7 @@ handle_info({'EXIT', Pid, Reason}, State) ->
                 {stop, stop_requested, State};
         Reason == normal -> {noreply, State};
         true -> 
-                error_logger:info_report(["Worker killed", Pid]),
+                error_logger:info_report(["Worker killed", Pid, Reason]),
                 case Reason of
                         {data_error, Input} -> clean_worker(Pid, data_error, 
                                 {"Worker failure", Input});
@@ -312,19 +313,51 @@ start_worker(J, Node) ->
 slave_master(SlaveName) ->
         receive
                 {start, Pid, Node, Args} ->
-                        R = case application:get_env(disco_slaves_os) of
+                        launch(case application:get_env(disco_slaves_os) of
                                 {ok, "osx"} ->
-                                        slave:start(list_to_atom(Node),
+                                        fun() -> 
+                                                slave:start(list_to_atom(Node),
                                                 SlaveName, Args, self(),
-                                                "/usr/libexec/StartupItemContext erl");
+                                                "/usr/libexec/StartupItemContext erl")
+                                        end;
                                 _ ->
-                                        slave:start_link(list_to_atom(Node),
-                                                SlaveName, Args)
-                        end,
-                        Pid ! slave_started,
-                        error_logger:info_report(["New slave at ", Node, R]),
+                                        fun() ->
+                                                slave:start_link(
+                                                        list_to_atom(Node),
+                                                        SlaveName, Args)
+                                        end
+                        end, Pid, Node),
                         slave_master(SlaveName)
-        end.                       
+        end.
+
+launch(F, Pid, Node) ->
+        case catch F() of
+                {ok, _} -> 
+                        error_logger:info_report({"New slave at ", Node}),
+                        Pid ! slave_started;
+                {error, {already_running, _}} -> ok;
+                {error, timeout} ->
+                        Pid ! {slave_failed, lists:flatten(
+                                ["Couldn't connect to ", Node, " (timeout). ",
+                                "Node blacklisted temporarily."])},
+                        spawn_link(fun() -> blacklist_guard(Node) end);
+                X ->
+                        error_logger:warning_report(
+                                {"Couldn't start slave at ", Node, X}),
+                        Pid ! {slave_failed, lists:flatten(
+                                ["Couldn't connect to ", Node,
+                                ". See logs for more information. ",
+                                "Node blacklisted temporarily."])},
+                        spawn_link(fun() -> blacklist_guard(Node) end)
+        end.
+
+blacklist_guard(Node) ->
+        error_logger:info_report({"Blacklisting", Node,
+                "for", ?BLACKLIST_PERIOD, "ms."}), 
+        gen_server:call(disco_server, {blacklist, Node}),
+        timer:sleep(?BLACKLIST_PERIOD),
+        gen_server:call(disco_server, {whitelist, Node}),
+        error_logger:info_report({"Quarantine ended for", Node}).
 
 % callback stubs
 terminate(_Reason, _State) -> {}.
