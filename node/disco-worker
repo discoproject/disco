@@ -30,7 +30,7 @@ if __name__ == "__main__":
         ensure_path(OOB_FILE % "", False)
 
         try:
-                url = "%s%s/params" % (master_url, name)
+                url = "%s/params" % master_url
                 external.ensure_file(PARAMS_FILE, url = url, mode = 444)
         except Exception, e:
                 util.data_err("Failed to get %s" % url, master_url)

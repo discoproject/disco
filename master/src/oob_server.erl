@@ -19,7 +19,7 @@ init(_Args) ->
 
 handle_cast({store, JobName, Node, Keys}, Cache) ->
         {ok, Root} = application:get_env(disco_root),
-        FName = filename:join([Root, JobName, "oob"]),
+        FName = filename:join([Root, disco_server:jobhome(JobName), "oob"]),
         {ok, F} = file:open(FName, [raw, append]),
         file:write(F, [[Node, " ", Key, " ", Path, "\n"] ||
                 {Key, Path} <- Keys]),
@@ -61,7 +61,7 @@ cache_find(JobName, [X|Cache], C) ->
 % LRU cache
 cache_add(JobName, Cache) ->
         {ok, Root} = application:get_env(disco_root),
-        FName = filename:join([Root, binary_to_list(JobName), "oob"]),
+        FName = filename:join([Root, disco_server:jobhome(JobName), "oob"]),
         case file:read_file(FName) of
                 {ok, Data} -> 
                         OobKeys = parse_file(binary_to_list(Data)),

@@ -29,8 +29,11 @@ save_params(Name, PostData) ->
         true -> ok
         end,
         {ok, Root} = application:get_env(disco_root),
-        ok = file:make_dir(filename:join(Root, Name)),
-        ok = file:write_file(filename:join([Root, Name, "params"]), PostData).
+        Home = disco_server:jobhome(Name),
+        [R, _] = filename:split(Home),
+        file:make_dir(filename:join(Root, R)),
+        ok = file:make_dir(filename:join(Root, Home)),
+        ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
 find_values(Msg) ->
         {value, {_, NameB}} = lists:keysearch(<<"name">>, 1, Msg),

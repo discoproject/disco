@@ -107,14 +107,14 @@ handle_info(Msg, State) ->
 
 tail_log(JobName, N)->
         {ok, Root} = application:get_env(disco_root),
-        FName = filename:join([Root, JobName, "events"]),
+        FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
         O = string:tokens(os:cmd(["tail -n ", integer_to_list(N),
                 " ", FName, " 2>/dev/null"]), "\n"),
         lists:map(fun erlang:list_to_binary/1, lists:reverse(O)).
 
 grep_log(JobName, {_, _, MsgLst}, Q, N) ->
         {ok, Root} = application:get_env(disco_root),
-        FName = filename:join([Root, JobName, "events"]),
+        FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
         M = lists:filter(fun(E) ->
                  string:str(string:to_lower(binary_to_list(E)), Q) > 0
         end, MsgLst),
@@ -137,7 +137,8 @@ flush_msgbuf(JobName, FlushBuf) ->
 log_flusher_process(Root) ->
         receive 
                 {flush, JobName, FlushBuf} ->
-                        FName = filename:join([Root, JobName, "events"]),
+                        FName = filename:join([Root,
+                                disco_server:jobhome(JobName), "events"]),
                         {ok, F} = file:open(FName, [raw, append]),
                         file:write(F, lists:reverse(FlushBuf)),
                         file:close(F),

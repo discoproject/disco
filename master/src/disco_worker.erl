@@ -61,7 +61,8 @@ start_link_remote([Master, EventServ, From, JobName, PartID,
                         end
         end,
         process_flag(trap_exit, true),
-        {ok, MasterUrl} = application:get_env(disco_url),
+        {ok, MasterUrl0} = application:get_env(disco_url),
+        MasterUrl = MasterUrl0 ++ disco_server:jobhome(JobName),
         spawn_link(NodeAtom, disco_worker, remote_worker, [[self(), JobName, Master,
                 MasterUrl, EventServ, From, PartID, Mode, Node, Input]]),
         receive

@@ -2,7 +2,7 @@
 -module(disco_server).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0]).
+-export([start_link/0, stop/0, jobhome/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
@@ -19,6 +19,13 @@ start_link() ->
 
 stop() ->
         gen_server:call(disco_server, stop).
+
+jobhome(JobName) when is_list(JobName) -> jobhome(list_to_binary(JobName));
+jobhome(JobName) ->
+        <<D0:8, _/binary>> = erlang:md5(JobName),
+        [D1] = io_lib:format("~.16b", [D0]),
+        Prefix = if length(D1) == 1 -> "0"; true -> "" end,
+        lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
 
 init(_Args) ->
         process_flag(trap_exit, true),
