@@ -318,7 +318,7 @@ class Job(object):
                         else:
                                 req["reduce"] = marshal.dumps(
                                         kw["reduce"].func_code)
-                        nr_reduces = nr_reduces or max(nr_maps / 2, 1)
+                        nr_reduces = nr_reduces or min(max(nr_maps / 2, 1), 100)
                         req["chunked"] = "True"
                        
                         req["reduce_reader"] =\
