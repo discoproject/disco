@@ -220,10 +220,10 @@ check_failure_rate(Name, PartID, Mode, L) ->
         end.
 
 
-% supervise_work() is a common supervisor for both the map and reduce tasks.
+% run_task() is a common supervisor for both the map and reduce tasks.
 % Its main function is to catch and report any errors that occur during
 % work() calls.
-supervise_work(Inputs, Mode, Name, MaxN) ->
+run_task(Inputs, Mode, Name, MaxN) ->
         ErrLog = ets:new(error_log, [bag]),
         ResNodes = ets:new(node_results, [set]),
         case catch work(Inputs, Mode, Name, 0, MaxN, {ResNodes, ErrLog}) of
@@ -243,13 +243,12 @@ supervise_work(Inputs, Mode, Name, MaxN) ->
                         gen_server:cast(event_server, {flush_events, Name}),
                         exit(unknown_error)
         end,
+        R = [list_to_binary(X) || {X, _} <- ets:tab2list(ResNodes)],
+        ets:delete(ResNodes),
         ets:delete(ErrLog),
-        ResNodes.
+        R.
 
-% job_coordinator() encapsulates the map/reduce steps:
-% 1) Parse the request
-% 2) Run map
-% 3) Optionally run reduce
+% job_coordinator() orchestrates map/reduce tasks for a job
 job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
         event_server:event(Name, "Job coordinator starts", [], {start, self()}),
         Parent ! {self(), ok},
@@ -264,11 +263,9 @@ job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
                 event_server:event(Name, "Map phase", [], {}),
                 EnumMapInputs = lists:zip(
                         lists:seq(0, length(Inputs) - 1), Inputs),
-                MapResults = supervise_work(EnumMapInputs, "map", Name, NMap),
-                MapList = [X || {X, _} <- ets:tab2list(MapResults)],
-                ets:delete(MapResults),
+                MapResults = run_task(EnumMapInputs, "map", Name, NMap),
                 event_server:event(Name, "Map phase done", [], []),
-                MapList
+                MapResults
         end,
 
         if DoReduce ->
@@ -276,8 +273,7 @@ job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
                 
                 EnumRedInputs = 
                         [{X, RedInputs} || X <- lists:seq(0, NRed - 1)],
-                RedResults = supervise_work(
-                        EnumRedInputs, "reduce", Name, NRed),
+                RedResults = run_task(EnumRedInputs, "reduce", Name, NRed),
                 
                 if NMap > 0 ->
                         garbage_collect:remove_map_results(RedInputs);
@@ -285,13 +281,9 @@ job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
                 end,
                 
                 event_server:event(Name, "Reduce phase done", [], []),
-                event_server:event(Name, "READY", [], {ready, 
-                        [list_to_binary(X) ||
-                                {X, _} <- ets:tab2list(RedResults)]}),
-                gen_server:cast(event_server, {flush_events, Name}), 
-                ets:delete(RedResults);
+                event_server:event(Name, "READY", [], {ready, RedResults}), 
+                gen_server:cast(event_server, {flush_events, Name});
         true ->
-                event_server:event(Name, "READY", [], {ready,
-                        [list_to_binary(X) || X <- RedInputs]}),
+                event_server:event(Name, "READY", [], {ready, RedInputs}),
                 gen_server:cast(event_server, {flush_events, Name})
         end.

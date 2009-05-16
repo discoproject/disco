@@ -3,7 +3,9 @@
 -export([remove_map_results/1, remove_job/1, remove_dir/1]).
 
 spawn_remote([], _) -> ok;
-spawn_remote([Url|Urls], F) ->
+spawn_remote([Url|Urls], F) when is_binary(Url) ->
+        spawn_remote([binary_to_list(Url)|Urls], F);
+spawn_remote([Url|Urls], F) when is_list(Url) ->
         {Node, S} = case string:tokens(Url, "/") of
                 ["dir:", N, _|S0] -> {N, lists:flatten(S0)};
                 ["disco:", N, S0] -> {N, S0}
