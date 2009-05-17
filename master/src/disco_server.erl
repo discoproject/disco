@@ -6,7 +6,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
--record(job, {jobname, partid, mode, prefnode, input, from}).
+-record(job, {jobname, partid, mode, taskblack, input, from}).
 -define(BLACKLIST_PERIOD, 600000).
 
 start_link() ->
@@ -99,11 +99,11 @@ handle_call({update_config_table, Config}, _From, State) ->
 % It is important that new_worker returns quickly. Job coordinator
 % assumes that it can send all tasks to the server at once, which 
 % must not take too long.
-handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input}},
+handle_call({new_worker, {JobName, PartID, Mode, Taskblack, Input}},
         {Pid, _}, State) ->
         
         Job = #job{jobname = JobName, partid = PartID, mode = Mode,
-                    prefnode = PrefNode, input = Input, from = Pid},
+                    taskblack = Taskblack, input = Input, from = Pid},
         
         gen_server:cast(job_queue, {add_job, Job}),
         event_server:event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
@@ -130,14 +130,14 @@ handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input}},
 % 3) If a node name was returned, a new worker is started in start_worker().
 
 handle_call({try_new_worker, Job}, _From, State) ->
-        case choose_node(Job#job.prefnode) of
+        case choose_node(Job#job.input, Job#job.taskblack) of
                 busy -> {reply, {wait, busy}, State};
                 {all_bad, BLen, ALen} when BLen == ALen ->
                         Job#job.from ! {master_error,
                                 "Job failed on all available nodes"},
                         {reply, killed, State};
                 {all_bad, _, _} -> {reply, {wait, all_bad}, State};
-                Node -> {reply, start_worker(Job, Node), State}
+                {Input, Node} -> {reply, start_worker(Job, Node, Input), State}
         end;
 
 handle_call({kill_job, JobName}, _From, State) ->
@@ -253,11 +253,18 @@ update_stats(Node, job_error) -> ets:update_counter(node_stats, Node, {4, 1});
 update_stats(Node, error) -> ets:update_counter(node_stats, Node, {4, 1});
 update_stats(_Node, _) -> ok.
 
-
 node_busy(_, []) -> true;
 node_busy([{_, Load}], [{_, MaxLoad}]) -> Load >= MaxLoad.
 
-choose_node({PrefNode, TaskBlackNodes}) ->
+node_prio(Node, Nodes, {_, DefaultNode}) ->
+        case lists:keysearch(Node, 1, Nodes) of
+                {value, {N, Load}} ->
+                        error_logger:info_report({"Found:", {N, Load}}),
+                        {Load, N};
+                false -> {inf, DefaultNode}
+        end.
+
+choose_node(Inputs, TaskBlackNodes) ->
 
         % From non-busy nodes, remove the ones that have already
         % failed this task (TaskBlackNodes) or that are globally
@@ -265,46 +272,40 @@ choose_node({PrefNode, TaskBlackNodes}) ->
         BlackNodes = TaskBlackNodes ++ 
                 [X || [X] <- ets:match(blacklist, {'$1', '_'})],
         
-        % Is our preferred choice available?
-        PrefBusy = node_busy(ets:lookup(node_load, PrefNode),
-                         ets:lookup(config_table, PrefNode)),
+        % If not, start with all configured nodes..
+        AllNodes = ets:tab2list(node_load),
 
-        % Is our preferred choice blacklisted?
-        PrefBlack = lists:member(PrefNode, BlackNodes),
+        % ..and choose the ones that are not 100% busy..
+        AvailableNodes = lists:filter(fun({Node, _Load} = X) -> 
+                not node_busy([X], ets:lookup(config_table, Node))
+        end, AllNodes),
 
-        if PrefBlack; PrefBusy ->
-                % If not, start with all configured nodes..
-                AllNodes = ets:tab2list(node_load),
-
-                % ..and choose the ones that are not 100% busy.
-                AvailableNodes = lists:filter(fun({Node, _Load} = X) -> 
-                        not node_busy([X], ets:lookup(config_table, Node))
-                end, AllNodes),
-
-                AllowedNodes = lists:filter(fun({Node, _Load}) ->
-                        not lists:member(Node, BlackNodes)
-                end, AvailableNodes),
+        % ..or blaclisted.
+        AllowedNodes = lists:filter(fun({Node, _Load}) ->
+                not lists:member(Node, BlackNodes)
+        end, AvailableNodes),
                 
-                if length(AvailableNodes) == 0 -> busy;
-                length(AllowedNodes) == 0 -> 
-                        {all_bad, length(TaskBlackNodes), length(AllNodes)};
-                true -> 
-                        % Pick the node with the lowest load.
-                        [{Node, _}|_] = lists:keysort(2, AllowedNodes),
-                        Node
-                end;
-        true ->
-                % If yes, return the preferred node.
-                PrefNode
+        if AvailableNodes == [] -> busy;
+        AllowedNodes == [] -> 
+                {all_bad, length(TaskBlackNodes), length(AllNodes)};
+        true -> 
+                Default = lists:min([{L, N} || {N, L} <- AllowedNodes]),
+                error_logger:info_report({"DEFAULT IS:", Default}),
+                {{_, Node}, Input} = lists:min([
+                        {node_prio(XNode, AllowedNodes, Default), X} ||
+                                {X, XNode} <- Inputs]),
+                error_logger:info_report({"Chosen:", {Node, Input}}),
+                {Input, Node}
         end.
 
-start_worker(J, Node) ->
+
+start_worker(J, Input, Node) ->
         event_server:event(J#job.jobname, "~s:~B assigned to ~s",
                 [J#job.mode, J#job.partid, Node], []),
         ets:update_counter(node_load, Node, 1),
         spawn_link(disco_worker, start_link_remote, 
                 [[self(), whereis(event_server), J#job.from, 
-                J#job.jobname, J#job.partid, J#job.mode, Node, J#job.input]]),
+                J#job.jobname, J#job.partid, J#job.mode, Node, Input]]),
         ok.
 
 % slave:start() contains a race condition, thus it is not safe to call it
