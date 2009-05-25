@@ -40,9 +40,9 @@ def load_conf():
 
 def jobname(addr):
         if addr.startswith("disco:") or addr.startswith("http:"):
-                return addr.split("/")[-2]
+                return addr.strip("/").split("/")[-2]
         elif addr.startswith("dir:"):
-                return addr.split("/")[-1]
+                return addr.strip("/").split("/")[-1]
         else:
                 raise "Unknown address: %s" % addr
 

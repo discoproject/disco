@@ -280,14 +280,22 @@ class Job(object):
                         
                         parsed_inputs = []
                         for inp in inputs:
-                                if inp.startswith("dir://"):
+                                if type(inp) == list:
+                                        parsed_inputs.append(
+                                                "\n".join(reversed(inp)))
+                                elif inp.startswith("dir://"):
                                         parsed_inputs += util.parse_dir(inp)
                                 else:
                                         parsed_inputs.append(inp)
                         inputs = parsed_inputs
                 else:
-                        addr = [x for x in inputs\
-                                if not x.startswith("dir://")]
+                        addr = []
+                        for inp in inputs:
+                                if type(inp) == list:
+                                        raise Exception("Reduce doesn't "\
+                                                "accept redundant inputs")
+                                elif not inp.startswith("dir://"):
+                                        addr.append(inp)
 
                         if d("nr_reduces") == None and not addr:
                                 raise Exception("nr_reduces must match to "\

@@ -112,19 +112,7 @@ handle_call(start_worker, _From, State) ->
         Port = open_port({spawn, Cmd}, ?PORT_OPT),
         {reply, ok, State#state{port = Port}, 30000}.
 
-spawn_cmd(#state{input = [Input|_]} = S) when is_list(Input) ->
-        InputStr = lists:flatten([[$', X, $', 32] || X <- S#state.input]),
-        spawn_cmd0(S#state{input = InputStr});
-
-spawn_cmd(#state{input = [Input|_]} = S) when is_binary(Input) ->
-        InputStr = lists:flatten([[$', binary_to_list(X), $', 32] ||
-                X <- S#state.input]),
-        spawn_cmd0(S#state{input = InputStr});
-
-spawn_cmd(#state{input = Input} = S) ->
-        spawn_cmd0(S#state{input = lists:flatten([$', Input, $'])}).
-
-spawn_cmd0(#state{jobname = JobName, node = Node, partid = PartID,
+spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
                 mode = Mode, input = Input, master_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
                 [Mode, JobName, Node, Url, PartID, Input])).

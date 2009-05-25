@@ -45,6 +45,23 @@ function make_jobinfo_row(dlist, mode){
         });
 }
 
+function prepare_urls(lst){
+        return $.map(lst, function(X, i){
+                var t = "";
+                if (typeof(X) == "string")
+                        t = X
+                else{
+                        X.reverse();
+                        t = X.shift();
+                        if (X.length)
+                                for (i in X)
+                                        t += "<div class='redun'>(" 
+                                                + X[i] + ")</div>";
+                }
+                return "<div class='url'>" + t + "</div>";
+        }).join("");
+}
+
 function update_jobinfo(data){
         $("#nfo_active").text(data.active);
         if (data.active == "active"){
@@ -60,13 +77,15 @@ function update_jobinfo(data){
 
         if (data.inputs.length >= 100){
                 $("#map_inputs").html("Showing the first 100 inputs<br/>" + 
-                        data.inputs.slice(0, 100).join("<br/>"));
+                        prepare_urls(data.inputs.slice(0, 100)));
         }else{
-                $("#map_inputs").html(data.inputs.join("<br/>"));
+                $("#map_inputs").html(prepare_urls(data.inputs));
         }
         $("#cur_nodes").html(data.nodes.join("<br/>"));
-        $("#results").html(data.results.join("<br/>"));
-        
+        $("#results").html(prepare_urls(data.results));
+       
+        $(".url:odd").css({"background": "#eee"});
+
         setTimeout(function(){
                 $.getJSON("/disco/ctrl/jobinfo" + document.location.search,
                         update_jobinfo);

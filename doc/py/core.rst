@@ -112,7 +112,7 @@ anymore. You can delete the unneeded job files as follows::
    the job if the results become available in *timeout* milliseconds. If not,
    returns an empty list.
 
-   If *jobspec* is a list of jobs, the function waits at most 
+   (*Added in version 0.2.1*): If *jobspec* is a list of jobs, the function waits at most 
    for *timeout* milliseconds for at least one on the jobs to finish. In 
    this mode, *jobspec* can be a list of strings (job names), a list of job 
    objects, or a list of result entries as returned by this function. Two 
@@ -154,6 +154,8 @@ anymore. You can delete the unneeded job files as follows::
    the job *name* using the :func:`disco_worker.put` function.
 
    .. method:: Disco.profile_stats(name[, mode])
+
+   (*Added in version 0.2.1*)  
 
    Returns results of profiling of the given job *name*. The job 
    must have been run with the ``profile`` flag enabled.
@@ -242,10 +244,17 @@ anymore. You can delete the unneeded job files as follows::
        input must be specified in one of the following protocols:
 
          * ``http://www.example.com/data`` - any HTTP address
-         * ``disco://cnode03/bigtxt/file_name`` - Disco address. Refers to ``cnode03:/var/disco/bigtxt/file_name``. Currently this is an alias for ``http://cnode03:8989/bigtxt/file_name``.
+         * ``disco://cnode03/bigtxt/file_name`` - Disco address. Refers to ``cnode03:/var/disco/bigtxt/file_name``. Currently this is an alias for ``http://cnode03:[DISCO_PORT]/bigtxt/file_name``.
          * ``dir://cnode03/jobname/`` - Result directory. This format is used by Disco internally.
          * ``/home/bob/bigfile.txt`` - a local file. Note that the file must either exist on all the nodes or you must make sure that the job is run only on the nodes where the file exists. Due to these restrictions, this form has only limited use.
          * ``raw://some_string`` - pseudo-address; instead of fetching data from a remote source, use ``some_string`` in the address as data. Useful for specifying dummy inputs for generator maps.
+
+       (*Added in version 0.2.2*): An input entry can be a list of inputs: This
+       lets you specify multiple redundant versions of an input file. If a list
+       of redundant inputs is specified, scheduler chooses the input that is 
+       located on the node with the lowest load at the time of scheduling. 
+       Redundant inputs are tried one by one until the task succeeds. Redundant
+       inputs require that the *map* function is specified.
 
      * *map* - a :term:`pure function` that defines the map task. 
        The function takes two parameters, an input entry and a parameter object,

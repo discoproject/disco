@@ -167,7 +167,7 @@ handle_call({purge_job, JobName}, From, State) ->
         % Evidently, if JobName is not checked correctly, this function
         % can be used to remove any directory in the system. This function
         % is totally unsuitable for untrusted environments!
-
+        
         C0 = string:chr(JobName, $.) + string:chr(JobName, $/),
         C1 = string:chr(JobName, $@),
         if C0 =/= 0 orelse C1 == 0 ->
@@ -176,10 +176,12 @@ handle_call({purge_job, JobName}, From, State) ->
         true ->
                 {ok, Root} = application:get_env(disco_root),
                 handle_call({clean_job, JobName}, From, State),
-                Nodes = [lists:flatten(["disco://", Node, "/", JobName]) ||
-                        {Node, _} <- ets:tab2list(node_load)],
+                Nodes = [lists:flatten(
+                        ["dir://", Node, "/map/", 
+                        Node, "/", jobhome(JobName)]) ||
+                                {Node, _} <- ets:tab2list(node_load)],
                 garbage_collect:remove_job(Nodes),
-                garbage_collect:remove_dir(filename:join([Root, JobName]))
+                garbage_collect:remove_dir(filename:join([Root, jobhome(JobName)]))
         end,
         {reply, ok, State};
 
@@ -258,9 +260,7 @@ node_busy([{_, Load}], [{_, MaxLoad}]) -> Load >= MaxLoad.
 
 node_prio(Node, Nodes, {_, DefaultNode}) ->
         case lists:keysearch(Node, 1, Nodes) of
-                {value, {N, Load}} ->
-                        error_logger:info_report({"Found:", {N, Load}}),
-                        {Load, N};
+                {value, {N, Load}} -> {Load, N};
                 false -> {inf, DefaultNode}
         end.
 
@@ -290,16 +290,14 @@ choose_node(Inputs, TaskBlackNodes) ->
                 {all_bad, length(TaskBlackNodes), length(AllNodes)};
         true -> 
                 Default = lists:min([{L, N} || {N, L} <- AllowedNodes]),
-                error_logger:info_report({"DEFAULT IS:", Default}),
                 {{_, Node}, Input} = lists:min([
                         {node_prio(XNode, AllowedNodes, Default), X} ||
                                 {X, XNode} <- Inputs]),
-                error_logger:info_report({"Chosen:", {Node, Input}}),
                 {Input, Node}
         end.
 
 
-start_worker(J, Input, Node) ->
+start_worker(J, Node, Input) ->
         event_server:event(J#job.jobname, "~s:~B assigned to ~s",
                 [J#job.mode, J#job.partid, Node], []),
         ets:update_counter(node_load, Node, 1),

@@ -43,7 +43,12 @@ find_values(Msg) ->
         Name = binary_to_list(NameB),
 
         {value, {_, InputStr}} = lists:keysearch(<<"input">>, 1, Msg),
-        Inputs = string:tokens(binary_to_list(InputStr), " "),
+        Inputs = lists:map(fun(Inp) ->
+                        case string:tokens(Inp, "\n") of
+                                [X] -> list_to_binary(X);
+                                Y -> [list_to_binary(X) || X <- Y]
+                        end
+        end, string:tokens(binary_to_list(InputStr), " ")),
 
         {value, {_, NMapsStr}} = lists:keysearch(<<"nr_maps">>, 1, Msg),
         NMap = list_to_integer(binary_to_list(NMapsStr)),
@@ -189,12 +194,12 @@ wait_workers(N, {Results, Failures}, Name, Mode) ->
 % failing node in its blacklist. If a task fails too many times, as 
 % determined by check_failure_rate(), the whole job will be terminated.
 handle_data_error(Name, FailedInput, PartID, Mode, Node, Failures) ->
-        [#failinfo{taskblack = Taskblack, inputs = Inputs}] =
+        [{_, #failinfo{taskblack = Taskblack, inputs = Inputs}}] =
                 ets:lookup(Failures, PartID),
         
         ok = check_failure_rate(Name, PartID, Mode, length(Taskblack)),
         NInputs = if length(Inputs) > 1 ->
-                [X || {X, _} <- Inputs, X =/= FailedInput];
+                [{X, N} || {X, N} <- Inputs, X =/= FailedInput];
         true ->
                 Inputs
         end,
@@ -203,9 +208,6 @@ handle_data_error(Name, FailedInput, PartID, Mode, Node, Failures) ->
         ets:insert(Failures, {PartID,
                 #failinfo{taskblack = NTaskblack, inputs = NInputs}}),
         
-        error_logger:info_report({"taskblack", Taskblack, "ntaskblack", NTaskblack,
-                "inputs", Inputs, "ninputs", NInputs}),
-
         ok = gen_server:call(disco_server, {new_worker, 
                 {Name, PartID, Mode, NTaskblack, NInputs}}).
 
@@ -230,7 +232,8 @@ check_failure_rate(Name, PartID, Mode, L) ->
 run_task(Inputs, Mode, Name, MaxN) ->
         Failures = ets:new(error_log, [set]),
         Results = ets:new(results, [set]),
-        ets:insert([{PartID, #failinfo{taskblack = [], inputs = Input}} ||
+        ets:insert(Failures, [{PartID,
+                #failinfo{taskblack = [], inputs = Input}} ||
                         {PartID, Input} <- Inputs]),
 
         case catch work(Inputs, Mode, Name, 0, MaxN, {Results, Failures}) of
@@ -261,8 +264,7 @@ job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
         Parent ! {self(), ok},
         
         event_server:event(Name, "Starting job", [], 
-                {job_data, {NMap, NRed, DoReduce,
-                lists:map(fun erlang:list_to_binary/1, Inputs)}}),
+                {job_data, {NMap, NRed, DoReduce, Inputs}}),
 
         RedInputs = if NMap == 0 ->
                 Inputs;
@@ -275,8 +277,7 @@ job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
 
         if DoReduce ->
                 event_server:event(Name, "Starting reduce phase", [], {}),
-                
-                RedResults = run_task(reduce_input(Name, RedInputs),
+                RedResults = run_task(reduce_input(Name, RedInputs, NRed),
                         "reduce", Name, NRed),
                 
                 if NMap > 0 ->
@@ -301,7 +302,7 @@ map_input(Inputs) ->
         end, Inputs),
         lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
 
-reduce_input(Name, Inputs) ->
+reduce_input(Name, Inputs, NRed) ->
         V = lists:any(fun erlang:is_list/1, Inputs),
         if V ->
                 event_server:event(Name,
@@ -311,10 +312,12 @@ reduce_input(Name, Inputs) ->
         end,
         B = << <<"'", X/binary, "' ">> || X <- Inputs >>,
 
-        % TODO: We could prioritize preferences according to partition sizes 
-        Prefs = [{B, pref_node(X)} || X <- Inputs],
-        lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
-        
+        % TODO: We could prioritize preferences according to partition sizes.
+        N = length(Inputs),
+        D = dict:from_list(lists:zip(lists:seq(1, N),
+                [pref_node(X) || X <- Inputs])),
+        [{X, [{B, dict:fetch(random:uniform(N), D)}]} ||
+                X <- lists:seq(0, NRed - 1)].
 
 % pref_node() suggests a preferred node for a task (one preserving locality)
 % given the url of its input.

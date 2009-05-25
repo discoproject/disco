@@ -185,6 +185,11 @@ input{
         background: #eee;
 }
 
+.jobinfo .redun{
+        margin-left: 15px;
+        color: #666;
+}
+
 /*
 .jobinfo .ind_wait{
 }

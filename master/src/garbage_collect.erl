@@ -6,10 +6,8 @@ spawn_remote([], _) -> ok;
 spawn_remote([Url|Urls], F) when is_binary(Url) ->
         spawn_remote([binary_to_list(Url)|Urls], F);
 spawn_remote([Url|Urls], F) when is_list(Url) ->
-        {Node, S} = case string:tokens(Url, "/") of
-                ["dir:", N, _|S0] -> {N, lists:flatten(S0)};
-                ["disco:", N, S0] -> {N, S0}
-        end,
+        ["dir:", Node, _|S0] = string:tokens(Url, "/"),
+        S = filename:join(S0),
         SName = disco_worker:slave_name(Node),
         case net_adm:ping(SName) of 
                 pong -> spawn(SName, fun () -> F(S, Url) end);
