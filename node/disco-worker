@@ -1,14 +1,14 @@
 #!/usr/bin/python
-import os
-import sys
-import urllib
+import os, sys
 
 from disconode import disco_worker as dw
 from disconode import external
 from disconode.util import ensure_path 
 
-from disconode.disco_worker import HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE
-from disconode.disco_worker import MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT
+from disconode.disco_worker import\
+        HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
+        MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL, REDUCE_SORTED, REDUCE_OUTPUT,\
+        OOB_FILE
 
 from disco.netstring import decode_netstring_fd
 from disco import util
@@ -23,28 +23,24 @@ if __name__ == "__main__":
         # Announce my PID to the master
         print >> sys.stderr, "**<PID>%s" % os.getpid()
         
+        mode = sys.argv[1]
         name = sys.argv[2]
         master_url = sys.argv[4]
 
-        ensure_path("%s/%s/oob/" % (LOCAL_PATH, name), False)
-
-        params_file = PARAMS_FILE % name
+        ensure_path(OOB_FILE % "", False)
 
         try:
-                url_hdle = urllib.urlopen("%s%s/params" % (master_url, name))
-                external.ensure_file(params_file,
-                        (master_url, url_hdle), mode = 444)
-                url_hdle.close()
+                url = "%s/params" % master_url
+                external.ensure_file(PARAMS_FILE, url = url, mode = 444)
         except Exception, e:
-                url = "%s/%s/params" % (master_url, name)
-                util.data_err("Failed to get %s" % (url,), master_url)
+                util.data_err("Failed to get %s" % url, master_url)
 
         try:
-                m = decode_netstring_fd(file(params_file))
+                m = decode_netstring_fd(file(PARAMS_FILE))
         except Exception, e:
                 util.data_err("Decoding the job description failed", master_url)
         
-        job_name = dw.job_name = util.job_name = m['name']
+        job_name = util.job_name = m['name']
         dw.status_interval = int(m['status_interval']) 
 
         my_ver = ".".join(map(str, sys.version_info[:2]))
@@ -53,10 +49,22 @@ if __name__ == "__main__":
                                 (m["version"], my_ver), "DAT")
                 sys.exit(1)
 
-        method = getattr(dw, 'op_' + sys.argv[1], None)
+        method = getattr(dw, 'op_' + mode, None)
         if method is None:
-                util.err("Invalid operation: %s" % sys.argv[1])
-        method(m)
+                util.err("Invalid operation: %s" % mode)
+        
+        if int(m['profile']):
+                try:
+                        import cProfile as prof
+                except:
+                        import profile as prof
+
+                key = "profile-%s-%s" % (mode, sys.argv[5])
+                prof.run("method(m)", OOB_FILE % key)
+                dw.put(key, None) 
+        else:
+                method(m)
+        
         util.msg("Worker done", "END")
 
 

@@ -6,6 +6,9 @@
                    "Status: 200 OK\n"
                    "Content-type: text/plain\n\n").
 
+
+-record(failinfo, {inputs, taskblack}).
+
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
 % Thus, the HTTP request spawns a new process, job_coordinator, that 
@@ -29,15 +32,23 @@ save_params(Name, PostData) ->
         true -> ok
         end,
         {ok, Root} = application:get_env(disco_root),
-        ok = file:make_dir(filename:join(Root, Name)),
-        ok = file:write_file(filename:join([Root, Name, "params"]), PostData).
+        Home = disco_server:jobhome(Name),
+        [R, _] = filename:split(Home),
+        file:make_dir(filename:join(Root, R)),
+        ok = file:make_dir(filename:join(Root, Home)),
+        ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
 find_values(Msg) ->
         {value, {_, NameB}} = lists:keysearch(<<"name">>, 1, Msg),
         Name = binary_to_list(NameB),
 
         {value, {_, InputStr}} = lists:keysearch(<<"input">>, 1, Msg),
-        Inputs = string:tokens(binary_to_list(InputStr), " "),
+        Inputs = lists:map(fun(Inp) ->
+                        case string:tokens(Inp, "\n") of
+                                [X] -> list_to_binary(X);
+                                Y -> [list_to_binary(X) || X <- Y]
+                        end
+        end, string:tokens(binary_to_list(InputStr), " ")),
 
         {value, {_, NMapsStr}} = lists:keysearch(<<"nr_maps">>, 1, Msg),
         NMap = list_to_integer(binary_to_list(NMapsStr)),
@@ -103,18 +114,6 @@ handle(Socket, Msg) ->
         end,    
         gen_tcp:send(Socket, [?OK_HEADER, Reply]).
 
-% pref_node() suggests a preferred node for a task (one preserving locality)
-% given the url of its input.
-pref_node([$h, $t, $t, $p, $:, $/, $/|Uri]) ->
-        [Host|_] = string:tokens(Uri, "/"), Host;
-
-pref_node([$d, $i, $s, $c, $o, $:, $/, $/|Uri]) ->
-        [Host|_] = string:tokens(Uri, "/"), Host;
-
-pref_node([[$d, $i, $r, $:, $/, $/|Uri]]) ->
-        [Host|_] = string:tokens(Uri, "/"), Host;
-
-pref_node(Host) -> Host.
 
 % work() is the heart of the map/reduce show. First it distributes tasks
 % to nodes. After that, it starts to wait for the results and finally
@@ -123,9 +122,8 @@ pref_node(Host) -> Host.
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
 work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N =< Max ->
-        PrefNode = pref_node(Input),
         ok = gen_server:call(disco_server, {new_worker, 
-                {Name, PartID, Mode, {PrefNode, []}, Input}}),
+                {Name, PartID, Mode, [], Input}}),
         work(Inputs, Mode, Name, N + 1, Max, Res);
 
 % 2. Tasks to distribute but the maximum number of tasks are already running.
@@ -150,22 +148,21 @@ work([], _Mode, _Name, 0, _Max, _Res) -> ok.
 wait_workers(0, _Res, _Name, _Mode) ->
         throw("Nothing to wait");
 
-wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
+wait_workers(N, {Results, Failures}, Name, Mode) ->
         M = N - 1,
         receive
-                {job_ok, {OobKeys, _Result}, {Node, PartID}} -> 
+                {job_ok, {OobKeys, Result}, {Node, PartID}} -> 
                         event_server:event(Name, 
                                 "Received results from ~s:~B @ ~s.",
                                         [Mode, PartID, Node], {task_ready, Mode}),
                         gen_server:cast(oob_server,
                                 {store, Name, Node, OobKeys}),
-                        ets:insert(ResNodes, {lists:flatten(["dir://", Node, "/",
-                                Mode, "/", Name]), ok}),
+                        ets:insert(Results, {Result, ok}),
                         M;
 
                 {data_error, {_Msg, Input}, {Node, PartID}} ->
                         handle_data_error(Name, Input,
-                          PartID, Mode, Node, ErrLog),
+                          PartID, Mode, Node, Failures),
                         N;
                         
                 {job_error, _Error, {_Node, _PartID}} ->
@@ -196,12 +193,23 @@ wait_workers(N, {ResNodes, ErrLog}, Name, Mode) ->
 % handle_data_error() schedules the failed task for a retry, with the
 % failing node in its blacklist. If a task fails too many times, as 
 % determined by check_failure_rate(), the whole job will be terminated.
-handle_data_error(Name, Input, PartID, Mode, Node, ErrLog) ->
-        ets:insert(ErrLog, {PartID, Node}),
-        {_, ErrNodes} = lists:unzip(ets:lookup(ErrLog, PartID)),
-        ok = check_failure_rate(Name, PartID, Mode, length(ErrNodes)),
+handle_data_error(Name, FailedInput, PartID, Mode, Node, Failures) ->
+        [{_, #failinfo{taskblack = Taskblack, inputs = Inputs}}] =
+                ets:lookup(Failures, PartID),
+        
+        ok = check_failure_rate(Name, PartID, Mode, length(Taskblack)),
+        NInputs = if length(Inputs) > 1 ->
+                [{X, N} || {X, N} <- Inputs, X =/= FailedInput];
+        true ->
+                Inputs
+        end,
+
+        NTaskblack = [Node|Taskblack],
+        ets:insert(Failures, {PartID,
+                #failinfo{taskblack = NTaskblack, inputs = NInputs}}),
+        
         ok = gen_server:call(disco_server, {new_worker, 
-                {Name, PartID, Mode, {none, ErrNodes}, Input}}).
+                {Name, PartID, Mode, NTaskblack, NInputs}}).
 
 check_failure_rate(Name, PartID, Mode, L) ->
         V = case application:get_env(max_failure_rate) of
@@ -218,13 +226,17 @@ check_failure_rate(Name, PartID, Mode, L) ->
         end.
 
 
-% supervise_work() is a common supervisor for both the map and reduce tasks.
+% run_task() is a common supervisor for both the map and reduce tasks.
 % Its main function is to catch and report any errors that occur during
 % work() calls.
-supervise_work(Inputs, Mode, Name, MaxN) ->
-        ErrLog = ets:new(error_log, [bag]),
-        ResNodes = ets:new(node_results, [set]),
-        case catch work(Inputs, Mode, Name, 0, MaxN, {ResNodes, ErrLog}) of
+run_task(Inputs, Mode, Name, MaxN) ->
+        Failures = ets:new(error_log, [set]),
+        Results = ets:new(results, [set]),
+        ets:insert(Failures, [{PartID,
+                #failinfo{taskblack = [], inputs = Input}} ||
+                        {PartID, Input} <- Inputs]),
+
+        case catch work(Inputs, Mode, Name, 0, MaxN, {Results, Failures}) of
                 ok -> ok;
                 logged_error ->
                         event_server:event(Name, 
@@ -241,41 +253,32 @@ supervise_work(Inputs, Mode, Name, MaxN) ->
                         gen_server:cast(event_server, {flush_events, Name}),
                         exit(unknown_error)
         end,
-        ets:delete(ErrLog),
-        ResNodes.
+        R = [list_to_binary(X) || {X, _} <- ets:tab2list(Results)],
+        ets:delete(Results),
+        ets:delete(Failures),
+        R.
 
-% job_coordinator() encapsulates the map/reduce steps:
-% 1) Parse the request
-% 2) Run map
-% 3) Optionally run reduce
+% job_coordinator() orchestrates map/reduce tasks for a job
 job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
         event_server:event(Name, "Job coordinator starts", [], {start, self()}),
         Parent ! {self(), ok},
         
         event_server:event(Name, "Starting job", [], 
-                {job_data, {NMap, NRed, DoReduce,
-                lists:map(fun erlang:list_to_binary/1, Inputs)}}),
+                {job_data, {NMap, NRed, DoReduce, Inputs}}),
 
         RedInputs = if NMap == 0 ->
                 Inputs;
         true ->
                 event_server:event(Name, "Map phase", [], {}),
-                EnumMapInputs = lists:zip(
-                        lists:seq(0, length(Inputs) - 1), Inputs),
-                MapResults = supervise_work(EnumMapInputs, "map", Name, NMap),
-                MapList = [X || {X, _} <- ets:tab2list(MapResults)],
-                ets:delete(MapResults),
+                MapResults = run_task(map_input(Inputs), "map", Name, NMap),
                 event_server:event(Name, "Map phase done", [], []),
-                MapList
+                MapResults
         end,
 
         if DoReduce ->
                 event_server:event(Name, "Starting reduce phase", [], {}),
-                
-                EnumRedInputs = 
-                        [{X, RedInputs} || X <- lists:seq(0, NRed - 1)],
-                RedResults = supervise_work(
-                        EnumRedInputs, "reduce", Name, NRed),
+                RedResults = run_task(reduce_input(Name, RedInputs, NRed),
+                        "reduce", Name, NRed),
                 
                 if NMap > 0 ->
                         garbage_collect:remove_map_results(RedInputs);
@@ -283,13 +286,45 @@ job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
                 end,
                 
                 event_server:event(Name, "Reduce phase done", [], []),
-                event_server:event(Name, "READY", [], {ready, 
-                        [list_to_binary(X) ||
-                                {X, _} <- ets:tab2list(RedResults)]}),
-                gen_server:cast(event_server, {flush_events, Name}), 
-                ets:delete(RedResults);
+                event_server:event(Name, "READY", [], {ready, RedResults}), 
+                gen_server:cast(event_server, {flush_events, Name});
         true ->
-                event_server:event(Name, "READY", [], {ready,
-                        [list_to_binary(X) || X <- RedInputs]}),
+                event_server:event(Name, "READY", [], {ready, RedInputs}),
                 gen_server:cast(event_server, {flush_events, Name})
         end.
+
+map_input(Inputs) ->
+        Prefs = lists:map(fun
+                (Inp) when is_list(Inp) ->
+                        [{X, pref_node(X)} || X <- Inp];
+                (Inp) ->
+                        [{Inp, pref_node(Inp)}]
+        end, Inputs),
+        lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
+
+reduce_input(Name, Inputs, NRed) ->
+        V = lists:any(fun erlang:is_list/1, Inputs),
+        if V ->
+                event_server:event(Name,
+                        "ERROR: Reduce doesn't support redundant inputs"),
+                throw({error, "redundant inputs in reduce"});
+        true -> ok
+        end,
+        B = << <<"'", X/binary, "' ">> || X <- Inputs >>,
+
+        % TODO: We could prioritize preferences according to partition sizes.
+        N = length(Inputs),
+        D = dict:from_list(lists:zip(lists:seq(1, N),
+                [pref_node(X) || X <- Inputs])),
+        [{X, [{B, dict:fetch(random:uniform(N), D)}]} ||
+                X <- lists:seq(0, NRed - 1)].
+
+% pref_node() suggests a preferred node for a task (one preserving locality)
+% given the url of its input.
+
+pref_node(X) when is_binary(X) -> pref_node(binary_to_list(X));
+pref_node("disco://" ++ _ = Uri) -> remote_uri(Uri);
+pref_node("dir://" ++ _ = Uri) -> remote_uri(Uri);
+pref_node("http://" ++ _ = Uri) -> remote_uri(Uri);
+pref_node(_) -> false.
+remote_uri(Uri) -> string:sub_word(Uri, 2, $/).

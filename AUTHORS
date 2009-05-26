@@ -2,15 +2,26 @@
 Disco Contributors
 ------------------
 
-The list is sorted roughly by the number of lines changed. Contributor's
-username in GitHub, if known, is in parentheses.
+This file lists Disco authors as returned by
+
+        git-shortlog -s | sort -rn
+
+For full details, run 
+
+        git-shortlog
+
+Contributor's username in GitHub, if known, is in parentheses.
 
 Ville Tuulos / Nokia Research Center (tuulos)
-Taneli Mielikainen / Nokia Research Center (tmielika)
 Valentino Volonghi (dialtone)
+Roberto Aguilar (rca)
 Jerry Zhou (zhou)
-Wes Chow
+Taneli Mielikainen / Nokia Research Center (tmielika)
 Paul Smith (paulsmith)
 Eran Sandler (erans)
 Attila Babo (issuu)
 Jiri Kaiser
+
+Other patches by:
+
+Wes Chow

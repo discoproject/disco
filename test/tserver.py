@@ -5,20 +5,34 @@ if "TSERVER_PORT" in os.environ:
 else:
         PORT = 9444
 
+class FailedReply(Exception):
+        pass
+
 class Server(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
         allow_reuse_address = True
 
 class Handler(SimpleHTTPServer. SimpleHTTPRequestHandler):
         def do_GET(self):
-                d = data_gen(self.path)
-                self.send_response(200)
-                self.send_header("Content-length", len(d))
-                self.end_headers()
-                self.wfile.write(d)
+                try:
+                        d = data_gen(self.path)
+                        self.send_response(200)
+                        self.send_header("Content-length", len(d))
+                        self.end_headers()
+                        self.wfile.write(d)
+                except FailedReply:
+                        self.send_response(500)
+                        self.end_headers()
+                        self.wfile.write("fail")
 
 def makeurl(inputs):
         host = "http://%s:%d" % (socket.gethostname(), PORT)
-        return ["%s/%s" % (host, i) for i in inputs]
+        r = []
+        for i in inputs:
+                if type(i) == list:
+                        r.append(["%s/%s" % (host, j) for j in i])
+                else:
+                        r.append("%s/%s" % (host, i))
+        return r
 
 def run_server(data_gen0):
         global data_gen

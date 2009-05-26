@@ -34,7 +34,7 @@ slave_env() ->
         lists:flatten([?SLAVE_ARGS, 
                 get_env("DISCO_HOME", " -pa ~s/ebin"),
                 [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
-                        "DISCO_PORT", "PYTHONPATH", "PATH"]]]).
+                        "DISCO_PORT", "DISCO_FLAGS", "PYTHONPATH", "PATH"]]]).
 
 slave_name(Node) ->
         {ok, Name} = application:get_env(disco_name),
@@ -55,13 +55,18 @@ start_link_remote([Master, EventServ, From, JobName, PartID,
                 pang -> 
                         slave_master ! {start, self(), Node, slave_env()},
                         receive
-                                slave_started -> ok
+                                slave_started -> ok;
+                                {slave_failed, X} ->
+                                        event_server:event(JobName,
+                                                "WARN: Node failure: ~p", [X], []),
+                                        exit({data_error, Input})
                         after 60000 ->
                                 exit({data_error, Input})
                         end
         end,
         process_flag(trap_exit, true),
-        {ok, MasterUrl} = application:get_env(disco_url),
+        {ok, MasterUrl0} = application:get_env(disco_url),
+        MasterUrl = MasterUrl0 ++ disco_server:jobhome(JobName),
         spawn_link(NodeAtom, disco_worker, remote_worker, [[self(), JobName, Master,
                 MasterUrl, EventServ, From, PartID, Mode, Node, Input]]),
         receive
@@ -107,19 +112,7 @@ handle_call(start_worker, _From, State) ->
         Port = open_port({spawn, Cmd}, ?PORT_OPT),
         {reply, ok, State#state{port = Port}, 30000}.
 
-spawn_cmd(#state{input = [Input|_]} = S) when is_list(Input) ->
-        InputStr = lists:flatten([[$', X, $', 32] || X <- S#state.input]),
-        spawn_cmd0(S#state{input = InputStr});
-
-spawn_cmd(#state{input = [Input|_]} = S) when is_binary(Input) ->
-        InputStr = lists:flatten([[$', binary_to_list(X), $', 32] ||
-                X <- S#state.input]),
-        spawn_cmd0(S#state{input = InputStr});
-
-spawn_cmd(#state{input = Input} = S) ->
-        spawn_cmd0(S#state{input = lists:flatten([$', Input, $'])}).
-
-spawn_cmd0(#state{jobname = JobName, node = Node, partid = PartID,
+spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
                 mode = Mode, input = Input, master_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
                 [Mode, JobName, Node, Url, PartID, Input])).
@@ -142,10 +135,6 @@ event(S, "WARN", Msg) ->
 event(S, Type, Msg) ->
         event_server:event(S#state.eventserv, S#state.node, S#state.jobname,
                 "~s [~s:~B] ~s", [Type, S#state.mode, S#state.partid, Msg], []).
-
-parse_result(L) ->
-        [PartID|Url] = string:tokens(L, " "),
-        {ok, {list_to_integer(PartID), list_to_binary(Url)}}.
 
 handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
         {noreply, S#state{child_pid = binary_to_list(Line)}}; 
@@ -189,16 +178,7 @@ handle_info({_, {data, {eol, <<"**<DAT>", Line/binary>>}}}, S) ->
         {stop, normal, S};
 
 handle_info({_, {data, {eol, <<"**<OUT>", Line/binary>>}}}, S) ->
-        M = strip_timestamp(Line),
-        case catch parse_result(M) of
-                {ok, Item} -> {noreply, S#state{results = 
-                                       [Item|S#state.results]}};
-                _Error -> Err = "Could not parse result line: " ++ Line,
-                          event(S, "ERROR", Err),
-                          gen_server:cast(S#state.master, 
-                                {exit_worker, S#state.id, {job_error, Err}}),
-                          {stop, normal, S}
-        end;
+        {noreply, S#state{results = strip_timestamp(Line)}};
 
 handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
         event(S, "", strip_timestamp(Line)),
@@ -208,10 +188,12 @@ handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
         {stop, normal, S};
 
 handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
-        S1 = S#state{oob = [Line|S#state.oob],
+        [Key|Path] = string:tokens(binary_to_list(Line), " "),
+
+        S1 = S#state{oob = [{Key, Path}|S#state.oob],
                      oob_counter = S#state.oob_counter + 1},
 
-        if size(Line) > ?OOB_KEY_MAX ->
+        if length(Key) > ?OOB_KEY_MAX ->
                 Err = "OOB key too long: Max 256 characters",
                 event(S, "ERROR", Err), 
                 gen_server:cast(S#state.master,

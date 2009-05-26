@@ -1,7 +1,20 @@
 import os, sys, imp, cStringIO
 from disco.netstring import decode_netstring_fd
-from disco.core import Job, result_iterator
-from disconode import disco_worker
+from disco.core import Job, result_iterator, util
+
+def parse_dir(dir):
+        x, x, LOCAL_PATH = util.load_conf()
+        x, x, x, mode, path = dir.split("/", 4)
+        res = []
+        for f in os.listdir(LOCAL_PATH + path):
+                if not (f.startswith(mode) or "." in f):
+                        continue
+                proto = f.split("-")[1]
+                if proto == "chunk":
+                        res.append("chunkfile://%s%s" % (path, f))
+                elif proto == "disco":
+                        res.append("disco://localhost/%s%s" % (path, f))
+        return res
 
 class MsgStream:
         def __init__(self):
@@ -9,11 +22,7 @@ class MsgStream:
         def write(self, msg):
                 if msg.startswith("**<OUT>"):
                         addr = msg.split()[-1]
-                        fname = "/".join(addr.split("/")[-2:])
-                        if addr.startswith("chunk://"):
-				self.out.append("chunkfile://data/" + fname)
-                        else:
-				self.out.append("file://data/" + fname)
+                        self.out = parse_dir(addr)
                 print msg,
 
 class DummyDisco:
@@ -32,9 +41,11 @@ class HomeDisco:
 
                 argv_backup = sys.argv[:]
                 out_backup = sys.stderr
-                sys.argv = ["", "", "", "localhost", "", self.partition]
+                sys.argv = ["", "", job.name, "localhost",
+                            "http://nohost", self.partition]
                 sys.argv += kwargs["input"]
-                disco_worker.job_name = job.name
+                
+                from disconode import disco_worker
 
                 sys.stderr = out = MsgStream()
                 try:

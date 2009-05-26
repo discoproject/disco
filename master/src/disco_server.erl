@@ -2,11 +2,12 @@
 -module(disco_server).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0]).
+-export([start_link/0, stop/0, jobhome/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
--record(job, {jobname, partid, mode, prefnode, input, from}).
+-record(job, {jobname, partid, mode, taskblack, input, from}).
+-define(BLACKLIST_PERIOD, 600000).
 
 start_link() ->
         error_logger:info_report([{"DISCO SERVER STARTS"}]),
@@ -19,6 +20,13 @@ start_link() ->
 
 stop() ->
         gen_server:call(disco_server, stop).
+
+jobhome(JobName) when is_list(JobName) -> jobhome(list_to_binary(JobName));
+jobhome(JobName) ->
+        <<D0:8, _/binary>> = erlang:md5(JobName),
+        [D1] = io_lib:format("~.16b", [D0]),
+        Prefix = if length(D1) == 1 -> "0"; true -> "" end,
+        lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
 
 init(_Args) ->
         process_flag(trap_exit, true),
@@ -91,11 +99,11 @@ handle_call({update_config_table, Config}, _From, State) ->
 % It is important that new_worker returns quickly. Job coordinator
 % assumes that it can send all tasks to the server at once, which 
 % must not take too long.
-handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input}},
+handle_call({new_worker, {JobName, PartID, Mode, Taskblack, Input}},
         {Pid, _}, State) ->
         
         Job = #job{jobname = JobName, partid = PartID, mode = Mode,
-                    prefnode = PrefNode, input = Input, from = Pid},
+                    taskblack = Taskblack, input = Input, from = Pid},
         
         gen_server:cast(job_queue, {add_job, Job}),
         event_server:event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
@@ -122,14 +130,14 @@ handle_call({new_worker, {JobName, PartID, Mode, PrefNode, Input}},
 % 3) If a node name was returned, a new worker is started in start_worker().
 
 handle_call({try_new_worker, Job}, _From, State) ->
-        case choose_node(Job#job.prefnode) of
+        case choose_node(Job#job.input, Job#job.taskblack) of
                 busy -> {reply, {wait, busy}, State};
                 {all_bad, BLen, ALen} when BLen == ALen ->
                         Job#job.from ! {master_error,
                                 "Job failed on all available nodes"},
                         {reply, killed, State};
                 {all_bad, _, _} -> {reply, {wait, all_bad}, State};
-                Node -> {reply, start_worker(Job, Node), State}
+                {Input, Node} -> {reply, start_worker(Job, Node, Input), State}
         end;
 
 handle_call({kill_job, JobName}, _From, State) ->
@@ -159,7 +167,7 @@ handle_call({purge_job, JobName}, From, State) ->
         % Evidently, if JobName is not checked correctly, this function
         % can be used to remove any directory in the system. This function
         % is totally unsuitable for untrusted environments!
-
+        
         C0 = string:chr(JobName, $.) + string:chr(JobName, $/),
         C1 = string:chr(JobName, $@),
         if C0 =/= 0 orelse C1 == 0 ->
@@ -168,10 +176,12 @@ handle_call({purge_job, JobName}, From, State) ->
         true ->
                 {ok, Root} = application:get_env(disco_root),
                 handle_call({clean_job, JobName}, From, State),
-                Nodes = [lists:flatten(["disco://", Node, "/", JobName]) ||
-                        {Node, _} <- ets:tab2list(node_load)],
+                Nodes = [lists:flatten(
+                        ["dir://", Node, "/map/", 
+                        Node, "/", jobhome(JobName)]) ||
+                                {Node, _} <- ets:tab2list(node_load)],
                 garbage_collect:remove_job(Nodes),
-                garbage_collect:remove_dir(filename:join([Root, JobName]))
+                garbage_collect:remove_dir(filename:join([Root, jobhome(JobName)]))
         end,
         {reply, ok, State};
 
@@ -201,7 +211,7 @@ handle_info({'EXIT', Pid, Reason}, State) ->
                 {stop, stop_requested, State};
         Reason == normal -> {noreply, State};
         true -> 
-                error_logger:info_report(["Worker killed", Pid]),
+                error_logger:info_report(["Worker killed", Pid, Reason]),
                 case Reason of
                         {data_error, Input} -> clean_worker(Pid, data_error, 
                                 {"Worker failure", Input});
@@ -245,11 +255,16 @@ update_stats(Node, job_error) -> ets:update_counter(node_stats, Node, {4, 1});
 update_stats(Node, error) -> ets:update_counter(node_stats, Node, {4, 1});
 update_stats(_Node, _) -> ok.
 
-
 node_busy(_, []) -> true;
 node_busy([{_, Load}], [{_, MaxLoad}]) -> Load >= MaxLoad.
 
-choose_node({PrefNode, TaskBlackNodes}) ->
+node_prio(Node, Nodes, {_, DefaultNode}) ->
+        case lists:keysearch(Node, 1, Nodes) of
+                {value, {N, Load}} -> {Load, N};
+                false -> {inf, DefaultNode}
+        end.
+
+choose_node(Inputs, TaskBlackNodes) ->
 
         % From non-busy nodes, remove the ones that have already
         % failed this task (TaskBlackNodes) or that are globally
@@ -257,46 +272,38 @@ choose_node({PrefNode, TaskBlackNodes}) ->
         BlackNodes = TaskBlackNodes ++ 
                 [X || [X] <- ets:match(blacklist, {'$1', '_'})],
         
-        % Is our preferred choice available?
-        PrefBusy = node_busy(ets:lookup(node_load, PrefNode),
-                         ets:lookup(config_table, PrefNode)),
+        % If not, start with all configured nodes..
+        AllNodes = ets:tab2list(node_load),
 
-        % Is our preferred choice blacklisted?
-        PrefBlack = lists:member(PrefNode, BlackNodes),
+        % ..and choose the ones that are not 100% busy..
+        AvailableNodes = lists:filter(fun({Node, _Load} = X) -> 
+                not node_busy([X], ets:lookup(config_table, Node))
+        end, AllNodes),
 
-        if PrefBlack; PrefBusy ->
-                % If not, start with all configured nodes..
-                AllNodes = ets:tab2list(node_load),
-
-                % ..and choose the ones that are not 100% busy.
-                AvailableNodes = lists:filter(fun({Node, _Load} = X) -> 
-                        not node_busy([X], ets:lookup(config_table, Node))
-                end, AllNodes),
-
-                AllowedNodes = lists:filter(fun({Node, _Load}) ->
-                        not lists:member(Node, BlackNodes)
-                end, AvailableNodes),
+        % ..or blaclisted.
+        AllowedNodes = lists:filter(fun({Node, _Load}) ->
+                not lists:member(Node, BlackNodes)
+        end, AvailableNodes),
                 
-                if length(AvailableNodes) == 0 -> busy;
-                length(AllowedNodes) == 0 -> 
-                        {all_bad, length(TaskBlackNodes), length(AllNodes)};
-                true -> 
-                        % Pick the node with the lowest load.
-                        [{Node, _}|_] = lists:keysort(2, AllowedNodes),
-                        Node
-                end;
-        true ->
-                % If yes, return the preferred node.
-                PrefNode
+        if AvailableNodes == [] -> busy;
+        AllowedNodes == [] -> 
+                {all_bad, length(TaskBlackNodes), length(AllNodes)};
+        true -> 
+                Default = lists:min([{L, N} || {N, L} <- AllowedNodes]),
+                {{_, Node}, Input} = lists:min([
+                        {node_prio(XNode, AllowedNodes, Default), X} ||
+                                {X, XNode} <- Inputs]),
+                {Input, Node}
         end.
 
-start_worker(J, Node) ->
+
+start_worker(J, Node, Input) ->
         event_server:event(J#job.jobname, "~s:~B assigned to ~s",
                 [J#job.mode, J#job.partid, Node], []),
         ets:update_counter(node_load, Node, 1),
         spawn_link(disco_worker, start_link_remote, 
                 [[self(), whereis(event_server), J#job.from, 
-                J#job.jobname, J#job.partid, J#job.mode, Node, J#job.input]]),
+                J#job.jobname, J#job.partid, J#job.mode, Node, Input]]),
         ok.
 
 % slave:start() contains a race condition, thus it is not safe to call it
@@ -305,19 +312,51 @@ start_worker(J, Node) ->
 slave_master(SlaveName) ->
         receive
                 {start, Pid, Node, Args} ->
-                        R = case application:get_env(disco_slaves_os) of
+                        launch(case application:get_env(disco_slaves_os) of
                                 {ok, "osx"} ->
-                                        slave:start(list_to_atom(Node),
+                                        fun() -> 
+                                                slave:start(list_to_atom(Node),
                                                 SlaveName, Args, self(),
-                                                "/usr/libexec/StartupItemContext erl");
+                                                "/usr/libexec/StartupItemContext erl")
+                                        end;
                                 _ ->
-                                        slave:start_link(list_to_atom(Node),
-                                                SlaveName, Args)
-                        end,
-                        Pid ! slave_started,
-                        error_logger:info_report(["New slave at ", Node, R]),
+                                        fun() ->
+                                                slave:start_link(
+                                                        list_to_atom(Node),
+                                                        SlaveName, Args)
+                                        end
+                        end, Pid, Node),
                         slave_master(SlaveName)
-        end.                       
+        end.
+
+launch(F, Pid, Node) ->
+        case catch F() of
+                {ok, _} -> 
+                        error_logger:info_report({"New slave at ", Node}),
+                        Pid ! slave_started;
+                {error, {already_running, _}} -> ok;
+                {error, timeout} ->
+                        Pid ! {slave_failed, lists:flatten(
+                                ["Couldn't connect to ", Node, " (timeout). ",
+                                "Node blacklisted temporarily."])},
+                        spawn_link(fun() -> blacklist_guard(Node) end);
+                X ->
+                        error_logger:warning_report(
+                                {"Couldn't start slave at ", Node, X}),
+                        Pid ! {slave_failed, lists:flatten(
+                                ["Couldn't connect to ", Node,
+                                ". See logs for more information. ",
+                                "Node blacklisted temporarily."])},
+                        spawn_link(fun() -> blacklist_guard(Node) end)
+        end.
+
+blacklist_guard(Node) ->
+        error_logger:info_report({"Blacklisting", Node,
+                "for", ?BLACKLIST_PERIOD, "ms."}), 
+        gen_server:call(disco_server, {blacklist, Node}),
+        timer:sleep(?BLACKLIST_PERIOD),
+        gen_server:call(disco_server, {whitelist, Node}),
+        error_logger:info_report({"Quarantine ended for", Node}).
 
 % callback stubs
 terminate(_Reason, _State) -> {}.

@@ -22,7 +22,7 @@ def fun_reduce_writer(fd, key, value, params):
         fd.write("<%s>" % value)
 
 def result_reader(fd, sze, fname):
-        yield fd.read()[1:-1]
+        yield fd.read(sze)[1:-1]
 
 def fun_reduce(iter, out, params):
         s = 1

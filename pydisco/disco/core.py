@@ -1,7 +1,11 @@
-import sys, re, os, marshal, urllib, httplib, cjson, time, cPickle
+import sys, re, os, marshal, cjson, time, cPickle
 from disco import func, util
 from netstring import *
 
+try:
+        import disco.comm_curl as comm
+except:
+        import disco.comm_httplib as comm
 
 class JobException(Exception):
         def __init__(self, msg, master, name):
@@ -46,28 +50,20 @@ class Params:
                                 v = t
                         self.__dict__[k[2:]] = v
 
+class Stats(object):
+        def __init__(self, prof_data):
+                self.stats = marshal.loads(prof_data)
+        def create_stats(self):
+                pass
 
 class Disco(object):
 
         def __init__(self, host):
-                self.host = util.disco_host(host)[7:]
-                self.conn = httplib.HTTPConnection(self.host)
+                self.host = "http://" + util.disco_host(host)[7:]
 
-        def request(self, url, data = None, raw_handle = False):
-                try:
-                        if data:
-                                self.conn.request("POST", url, data)
-                        else:
-                                self.conn.request("GET", url, None)
-                        r = self.conn.getresponse()
-                        if raw_handle:
-                                return r
-                        else:
-                                return r.read()
-                except httplib.BadStatusLine:
-                        self.conn.close()
-                        self.conn = httplib.HTTPConnection(self.host)
-                        return self.request(url, data)
+        def request(self, url, data = None, redir = False):
+                return comm.download(self.host + url,\
+                        data = data, redir = redir)
         
         def nodeinfo(self):
                 return cjson.decode(self.request("/disco/ctrl/nodeinfo"))
@@ -76,23 +72,39 @@ class Disco(object):
                 return cjson.decode(self.request("/disco/ctrl/joblist"))
         
         def oob_get(self, name, key):
-                r = urllib.urlopen(\
-                        "http://%s/disco/ctrl/oob_get?name=%s&key=%s" %\
-                                (self.host, name, key))
-                if "status" in r.headers and\
-                        not r.headers["status"].startswith("200"):
-                        raise JobException("Unknown job or key",\
-                                self.host, name)
-                return r.read()
+                try:
+                        r = self.request("/disco/ctrl/oob_get?name=%s&key=%s" %\
+                                (name, key), redir = True)
+                except comm.CommException, x:
+                        if x.http_code == 404:
+                                raise KeyError("Unknown key or job name")
+                        raise
+                return r
 
         def oob_list(self, name):
-                r = urllib.urlopen(\
-                        "http://%s/disco/ctrl/oob_list?name=%s" %\
-                                (self.host, name))
-                if "status" in r.headers and\
-                        not r.headers["status"].startswith("200"):
-                        raise JobException("Unknown job", self.host, name)
-                return cjson.decode(r.read())
+                try:
+                        r = self.request("/disco/ctrl/oob_list?name=%s" % name,
+                                redir = True)
+                except comm.CommException, x:
+                        if x.http_code == 404:
+                                raise KeyError("Unknown key or job name")
+                        raise
+                return cjson.decode(r)
+
+        def profile_stats(self, name, mode = ""):
+                import pstats
+                if mode:
+                        prefix = "profile-%s-" % mode
+                else:
+                        prefix = "profile-"
+                f = [s for s in self.oob_list(name) if s.startswith(prefix)]
+                if not f:
+                        raise JobException("No profile data", self.host, name)
+                
+                stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
+                for s in f[1:]:
+                        stats.add(Stats(self.oob_get(name, s)))
+                return stats
         
         def new_job(self, **kwargs):
                 return Job(self, **kwargs)
@@ -105,20 +117,42 @@ class Disco(object):
 
         def purge(self, name):
                 self.request("/disco/ctrl/purge_job", '"%s"' % name)
-        
+
         def jobspec(self, name):
-                # Parameters request is handled with a separate connection that
-                # knows how to handle redirects.
-                r = urllib.urlopen("http://%s/disco/ctrl/parameters?name=%s"\
-                        % (self.host, name))
+                r = self.request("%s/disco/ctrl/parameters?name=%s"\
+                        % (self.host, name), redir = True)
                 return decode_netstring_fd(r)
 
-        def results(self, name):
-                r = self.request("/disco/ctrl/get_results?name=" + name)
-                if r:
-                        return cjson.decode(r)
-                else:
+        def results(self, names, timeout = 2000):
+                single = type(names) == str
+                if single:
+                        names = [names]
+                
+                nam = []
+                for n in names:
+                        if type(n) == str:
+                                nam.append(n)
+                        elif type(n) == list:
+                                nam.append(n[0])
+                        else:
+                                nam.append(n.name)
+               
+                r = self.request("/disco/ctrl/get_results",
+                        cjson.encode([timeout, nam]))
+                if not r:
                         return None
+                r = cjson.decode(r)
+                if single:
+                        return r[0][1]
+                else:
+                        active = []
+                        others = []
+                        for x in r:
+                                if x[1][0] == "active":
+                                        active.append(x)
+                                else:
+                                        others.append(x)
+                        return others, active
 
         def jobinfo(self, name):
                 r = self.request("/disco/ctrl/jobinfo?name=" + name)
@@ -129,9 +163,9 @@ class Disco(object):
 
         def wait(self, name, poll_interval = 5, timeout = None, clean = False):
                 t = time.time()
+                p = poll_interval * 1000
                 while True:
-                        time.sleep(poll_interval)
-                        status = self.results(name)
+                        status = self.results(name, timeout = p)
                         if status == None:
                                 raise JobException("Unknown job", self.host, name)
                         if status[0] == "ready":
@@ -166,7 +200,8 @@ class Job(object):
                     "chunked": None,
                     "ext_params": None,
                     "status_interval": 100000,
-                    "required_modules": []}
+                    "required_modules": [],
+                    "profile": False}
 
         def __init__(self, master, **kwargs):
                 self.master = master
@@ -184,7 +219,8 @@ class Job(object):
                                 return f(*tuple([self.name] + list(args)), **kw)
                         return g
                 if name in ["kill", "clean", "purge", "jobspec", "results",
-                            "jobinfo", "wait", "oob_get", "oob_list"]:
+                            "jobinfo", "wait", "oob_get", "oob_list",
+                            "profile_stats"]:
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
        
@@ -217,7 +253,8 @@ class Job(object):
                        "sort": str(int(d("sort"))),
                        "mem_sort_limit": str(d("mem_sort_limit")),
                        "status_interval": str(d("status_interval")),
-                       "required_modules": " ".join(d("required_modules"))}
+                       "required_modules": " ".join(d("required_modules")),
+                       "profile": str(int(d("profile")))}
 
                 if "map" in kw:
                         if type(kw["map"]) == dict:
@@ -243,14 +280,22 @@ class Job(object):
                         
                         parsed_inputs = []
                         for inp in inputs:
-                                if inp.startswith("dir://"):
+                                if type(inp) == list:
+                                        parsed_inputs.append(
+                                                "\n".join(reversed(inp)))
+                                elif inp.startswith("dir://"):
                                         parsed_inputs += util.parse_dir(inp)
                                 else:
                                         parsed_inputs.append(inp)
                         inputs = parsed_inputs
                 else:
-                        addr = [x for x in inputs\
-                                if not x.startswith("dir://")]
+                        addr = []
+                        for inp in inputs:
+                                if type(inp) == list:
+                                        raise Exception("Reduce doesn't "\
+                                                "accept redundant inputs")
+                                elif not inp.startswith("dir://"):
+                                        addr.append(inp)
 
                         if d("nr_reduces") == None and not addr:
                                 raise Exception("nr_reduces must match to "\
@@ -281,7 +326,7 @@ class Job(object):
                         else:
                                 req["reduce"] = marshal.dumps(
                                         kw["reduce"].func_code)
-                        nr_reduces = nr_reduces or max(nr_maps / 2, 1)
+                        nr_reduces = nr_reduces or min(max(nr_maps / 2, 1), 100)
                         req["chunked"] = "True"
                        
                         req["reduce_reader"] =\
@@ -337,7 +382,6 @@ def result_iterator(results, notifier = None,\
                         fname = url[7:]
                         fd = file(fname)
                         sze = os.stat(fname).st_size
-                        http = None
                 else:
                         host, fname = url[8:].split("/", 1)
                         if proxy:
@@ -345,24 +389,11 @@ def result_iterator(results, notifier = None,\
                                 fname = "/disco/node/%s/%s" % (host, fname)
                         else:
                                 ext_host = host + ":" + util.HTTP_PORT
-                        ext_file = "/" + fname
-
-                        http = httplib.HTTPConnection(ext_host)
-                        http.request("GET", ext_file, "")
-                        fd = http.getresponse()
-                        if fd.status != 200:
-                                raise "HTTP error %d" % fd.status
-                
-                        sze = int(fd.getheader("content-length"))
+                        sze, fd = comm.open_remote("http://%s/%s" % (ext_host, fname))
 
                 if notifier:
                         notifier(url)
 
-                for x in reader(fd, sze, fname):
+                for x in reader(fd, fd.length, fname):
                         yield x
                 
-                if http:
-                        http.close()
-                else:
-                        fd.close()
-

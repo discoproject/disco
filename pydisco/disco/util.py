@@ -1,6 +1,11 @@
 
-import re, os, urllib
+import re, os
 import sys, time, os, traceback
+
+try:
+        import disco.comm_curl as comm
+except:
+        import disco.comm_httplib as comm
 
 job_name = "none"
 
@@ -35,9 +40,9 @@ def load_conf():
 
 def jobname(addr):
         if addr.startswith("disco:") or addr.startswith("http:"):
-                return addr.split("/")[-2]
+                return addr.strip("/").split("/")[-2]
         elif addr.startswith("dir:"):
-                return addr.split("/")[-1]
+                return addr.strip("/").split("/")[-1]
         else:
                 raise "Unknown address: %s" % addr
 
@@ -66,12 +71,12 @@ def disco_host(addr):
 
 
 def parse_dir(dir_url, proxy = None):
-        x, x, host, mode, name = dir_url.split('/')
+        x, x, host, mode, name = dir_url.split("/", 4)
         if proxy:
                 url = "http://%s/disco/node/%s/%s/" % (proxy, host, name)
         else:
                 url = "http://%s:%s/%s/" % (host, HTTP_PORT, name)
-        html = urllib.urlopen(url).read()
+        html = comm.download(url)
         inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
         return ["%s://%s/%s/%s" % (prefix, host, name, x)\
                         for x, prefix in inputs if "." not in x]

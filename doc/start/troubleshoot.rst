@@ -173,7 +173,12 @@ If Erlang doesn't return ``{ok..`` for the first expression or if it
 returns ``pang`` for the second expression, there's something wrong either
 with your ssh or Erlang configuration. You should double-check that
 the Erlang security cookie at ``~/.erlang.cookie`` is the same on all
-the nodes (see :ref:`setup`, section 4).
+the nodes (see :ref:`setup`, section 4). The cookie must be readable only to the
+disco user, so run ``chmod 400 ~/.erlang.cookie`` on all the nodes.
+
+Note that node names need to be consistent. If your master node is called
+``huey`` and your remote node ``dewey``, ``dewey`` must be able to connect to
+the master node by the name ``huey`` and vice versa. Aliasing is not allowed.
 
 
 4. Does disco-worker start up?

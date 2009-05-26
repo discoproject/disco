@@ -31,6 +31,7 @@ All methods in :class:`Disco` that are related to individual jobs, namely
  - :meth:`Disco.kill`
  - :meth:`Disco.oob_get`
  - :meth:`Disco.oob_list`
+ - :meth:`Disco.profile_stats`
 
 are also accessible through the :class:`Job` object, so you can say
 `job.wait()` instead of `disco.wait(job.name)`. However, the job methods
@@ -101,9 +102,41 @@ anymore. You can delete the unneeded job files as follows::
    Returns the raw job request package, as constructed by
    :meth:`Disco.new_job`, for the job *name*.
 
-   .. method:: Disco.results(name)
+   .. method:: Disco.results(jobspec[, timeout = 5000])
 
-   Returns the list of result files for the job *name*, if available.
+   This function returns a list of results for a single job or for many
+   concurrently running jobs, depending on the type of *jobspec*.
+
+   If *jobspec* is a string (job name) or the function is called through the
+   job object (``job.results()``), this function returns a list of results for
+   the job if the results become available in *timeout* milliseconds. If not,
+   returns an empty list.
+
+   (*Added in version 0.2.1*): If *jobspec* is a list of jobs, the function waits at most 
+   for *timeout* milliseconds for at least one on the jobs to finish. In 
+   this mode, *jobspec* can be a list of strings (job names), a list of job 
+   objects, or a list of result entries as returned by this function. Two 
+   lists are returned: a list of finished jobs and a list of still active jobs. 
+   Both the lists contain elements of the following type::
+       
+       ["job name", ["status", [results]]]
+ 
+   where status is either ``unknown_job``, ``dead``, ``active`` or ``ready``.
+   
+   You can use the latter mode as an efficient way to wait for several jobs
+   to finish. Consider the following example that prints out results of jobs
+   as soon as they finish. Here ``jobs`` is initially a list of jobs, 
+   produced by several calls to :meth:`Disco.new_job`:: 
+
+       while jobs:
+           ready, jobs = disco.results(jobs)
+           for name, results in ready:
+               for k, v in result_iterator(results[1]):
+                   print k, v
+               disco.purge(name)
+   
+   Note how the list of active jobs, ``jobs``, returned by :meth:`Disco.results` 
+   can be used as the input to the function itself.
 
    .. method:: Disco.jobinfo(name)
 
@@ -119,6 +152,23 @@ anymore. You can delete the unneeded job files as follows::
 
    Returns all out-of-band keys for the job *name*. Keys were stored by
    the job *name* using the :func:`disco_worker.put` function.
+
+   .. method:: Disco.profile_stats(name[, mode])
+
+   (*Added in version 0.2.1*)  
+
+   Returns results of profiling of the given job *name*. The job 
+   must have been run with the ``profile`` flag enabled.
+
+   You can restrict results specifically to the map or reduce task
+   by setting *mode* either to ``"map"`` or ``"reduce"``. By default 
+   results include both the map and the reduce phases. Results are
+   accumulated from all nodes.
+
+   The function returns a `pstats.Stats object <http://docs.python.org/library/profile.html#the-stats-class>`_.
+   You can print out results as follows::
+
+        job.profile_stats().print_stats()
 
    .. method:: Disco.wait(name[, poll_interval, timeout, clean])
 
@@ -153,7 +203,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_modules, status_interval])
+.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_modules, status_interval, profile])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -194,10 +244,17 @@ anymore. You can delete the unneeded job files as follows::
        input must be specified in one of the following protocols:
 
          * ``http://www.example.com/data`` - any HTTP address
-         * ``disco://cnode03/bigtxt/file_name`` - Disco address. Refers to ``cnode03:/var/disco/bigtxt/file_name``. Currently this is an alias for ``http://cnode03:8989/bigtxt/file_name``.
+         * ``disco://cnode03/bigtxt/file_name`` - Disco address. Refers to ``cnode03:/var/disco/bigtxt/file_name``. Currently this is an alias for ``http://cnode03:[DISCO_PORT]/bigtxt/file_name``.
          * ``dir://cnode03/jobname/`` - Result directory. This format is used by Disco internally.
          * ``/home/bob/bigfile.txt`` - a local file. Note that the file must either exist on all the nodes or you must make sure that the job is run only on the nodes where the file exists. Due to these restrictions, this form has only limited use.
          * ``raw://some_string`` - pseudo-address; instead of fetching data from a remote source, use ``some_string`` in the address as data. Useful for specifying dummy inputs for generator maps.
+
+       (*Added in version 0.2.2*): An input entry can be a list of inputs: This
+       lets you specify multiple redundant versions of an input file. If a list
+       of redundant inputs is specified, scheduler chooses the input that is 
+       located on the node with the lowest load at the time of scheduling. 
+       Redundant inputs are tried one by one until the task succeeds. Redundant
+       inputs require that the *map* function is specified.
 
      * *map* - a :term:`pure function` that defines the map task. 
        The function takes two parameters, an input entry and a parameter object,
@@ -438,6 +495,9 @@ anymore. You can delete the unneeded job files as follows::
        exceeded" error due to system messages. This might happen if your map /
        reduce task is really fast. Decrease the value if you want to follow 
        your task in more real-time or you don't have many data items.
+
+     * *profile* - Enable tasks profiling. By default false. Retrieve profiling
+       results with the :meth:`Disco.profile_stats` function.
 
     .. attribute:: Job.name
 
