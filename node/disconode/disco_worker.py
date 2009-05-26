@@ -151,7 +151,7 @@ def connect_input(input):
                 host = this_host()
                 if input.startswith("chunkfile://"):
                         is_chunk = True
-                        local_file = input[12:]
+                        local_file = LOCAL_PATH + input[12:]
                 elif input.startswith("file://"):
                         local_file = input[7:]
                 else:
