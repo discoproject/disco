@@ -42,6 +42,8 @@ the core works, and start experimenting with it or adapt it to new
 environments. Thanks to Python, it is easy to add new features around
 the core which ensures that Disco can respond quickly to real-world needs.
 
+.. _profiling:
+
 How to profile programs in Disco?
 '''''''''''''''''''''''''''''''''
 *New in Disco 0.2.1*
