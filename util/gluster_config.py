@@ -24,10 +24,13 @@ where
 """
 import sys, cjson, md5, cStringIO, os
 
-DEFAULT_PORT = 9999
+DEFAULT_REPL_PORT = 9900
+DEFAULT_NUFA_PORT = 9800
 
-def check_config(config):
-        REQ = ["nodes", "volumes", "replicas", "master", "config_dir"]
+def check_config(config, replicas = True):
+        REQ = ["nodes", "volumes", "master", "config_dir"]
+        if replicas:
+            REQ.append("replicas")
         for k in REQ:
                 if k not in config:
                         print "Required field '%s' is missing." % k
@@ -37,7 +40,6 @@ def check_config(config):
                 print "replicas must be less than equal to the number of nodes."
                 print "Check the config file."
                 sys.exit(1)
-        config["port"] = config.get("port", DEFAULT_PORT)
 
 def output_volume(f, name, type, subvol = None, options = {}):
         print >> f, "volume %s" % name
@@ -85,6 +87,14 @@ def client_sect(f, config):
                         for v in range(nv)]
         output_volume(f, "distribute", "cluster/distribute", s)
 
+def client_sect_nufa(f, config):
+        print >> f, "\n# ------\n# NUFA CLIENT\n# ------\n"
+        nv = len(config["volumes"])
+        s = ["%s-vol%d" % (n, v + 1) for n in config["nodes"]
+                        for v in range(nv)]
+        output_volume(f, "nufa", "cluster/nufa", s,\
+                {"local-volume-name": "`echo \"$(hostname)-vol1\"`"})
+
 def server_sect(f, config, options, writevol):
         print >> f, "\n# ------\n# SERVER\n# ------\n"
         subvol = []
@@ -118,8 +128,55 @@ def server_sect(f, config, options, writevol):
                 "transport.socket.listen-port": config["port"]})
         output_volume(f, "server", "protocol/server", subvol, options)
 
+def create_replicating_config(config, path):
+        config["port"] = config.get("port", DEFAULT_REPL_PORT)
+        client_conf = cStringIO.StringIO()
+        nodes_sect(client_conf, config)
+        repl_sect(client_conf, config)
+        client_sect(client_conf, config)
 
-if len(sys.argv) < 2:
+        nodecfg = os.path.join(path, "inputfs_node.vol")
+        print "Writing node config to %s.." % nodecfg
+        nodef = file(nodecfg, "w")
+        server_sect(nodef, config, {}, True)
+        nodef.write(client_conf.getvalue())
+        nodef.close()
+        print "ok"
+        return client_conf
+
+def create_nufa_config(config, path):
+        if len(config["volumes"]) > 1:
+            print "Specify only one volume for results"
+            sys.exit(1)
+        
+        config["port"] = config.get("port", DEFAULT_NUFA_PORT)
+
+        client_conf = cStringIO.StringIO()
+        nodes_sect(client_conf, config)
+        client_sect_nufa(client_conf, config)
+        
+        nodecfg = os.path.join(path, "resultfs_node.vol")
+        print "Writing node config to %s.." % nodecfg
+        nodef = file(nodecfg, "w")
+        server_sect(nodef, config, {}, True)
+        nodef.write(client_conf.getvalue())
+        nodef.close()
+        print "ok"
+        return client_conf
+
+def create_master_config(name, config, path, client_conf):
+        mastercfg = os.path.join(path, "%s_master.vol" % name)
+        nodecfg = os.path.join(path, "%s_node.vol" % name)
+        print "Writing master config to %s.." % mastercfg
+        masterf = file(mastercfg, "w")
+        server_sect(masterf, config,
+                {"volume-filename.glu_node": nodecfg},
+                config["master"] in config["nodes"])
+        masterf.write(client_conf.getvalue())
+        masterf.close()
+        print "ok"
+
+if len(sys.argv) < 3 or sys.argv[1] not in ["inputfs", "resultfs"]:
         print "\nGiven a file, config.json, that specifies available nodes,"
         print "generates config files for Gluster, a distributed filesystem."
         print "The resulting filesystem is suitable for storing input data for"
@@ -127,34 +184,17 @@ if len(sys.argv) < 2:
         print "the source of this file for an example config file.\n"
         print "If you want to use Gluster also for internal communication of "
         print "Disco (instead of HTTP), run gluster_config_comm.py.\n"
-        print "Usage: python gluster_config_data.py config.json\n"
+        print "Usage: python gluster_config.py [inputfs|resultfs] config.json\n"
         sys.exit(1)
 
-config = cjson.decode(file(sys.argv[1]).read())
-check_config(config)
-
-client_conf = cStringIO.StringIO()
-nodes_sect(client_conf, config)
-repl_sect(client_conf, config)
-client_sect(client_conf, config)
-
+config = cjson.decode(file(sys.argv[2]).read())
 path = os.path.abspath(config["config_dir"])
-nodecfg = os.path.join(path, "glu_node.vol")
-print "Writing node config to %s.." % nodecfg
-nodef = file(nodecfg, "w")
-server_sect(nodef, config, {}, True)
-nodef.write(client_conf.getvalue())
-nodef.close()
-print "ok"
 
-mastercfg = os.path.join(path, "glu_master.vol")
-print "Writing master config to %s.." % mastercfg
-masterf = file(mastercfg, "w")
-server_sect(masterf, config,
-        {"volume-filename.glu_node": nodecfg},
-        config["master"] in config["nodes"])
-masterf.write(client_conf.getvalue())
-masterf.close()
-print "ok"
-
+if sys.argv[1] == "inputfs":
+        check_config(config, replicas = True)
+        client = create_replicating_config(config, path)
+elif sys.argv[1] == "resultfs":
+        check_config(config, replicas = False)
+        client = create_nufa_config(config, path)
+create_master_config(sys.argv[1], config, path, client)
 
