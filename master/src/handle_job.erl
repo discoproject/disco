@@ -225,6 +225,37 @@ check_failure_rate(Name, PartID, Mode, L) ->
                 ok
         end.
 
+kill_job(Name, Msg, P, Type) ->
+        event_server:event(Name, Msg, P, []),
+        gen_server:call(disco_server, {kill_job, Name}),
+        gen_server:cast(event_server, {flush_events, Name}),
+        exit(Type).
+
+resultfs_enabled() ->
+    S = case os:getenv("DISCO_FLAGS") of
+            false -> [];
+            X -> string:tokens(string:to_lower(X), " ")
+    end,
+    [ 1 || "resultfs" <- S] =/= [].
+
+move_to_resultfs(_, _, false) -> ok;
+move_to_resultfs(Name, R, _) ->
+        event_server:event(Name, "Moving results to resultfs", [], []),
+        case catch garbage_collect:move_results(R) of
+                ok -> ok;
+                {error, Node, Error} ->
+                        kill_job(Name,
+                        "ERROR: Moving to resultfs failed on ~s: ~s",
+                                [Node, Error], logged_error);
+                timeout ->
+                        kill_job(Name,
+                        "ERROR: Moving to resultfs failed (timeout)",
+                                [], logged_error);
+                Error ->
+                        kill_job(Name, 
+                        "ERROR: Moving to resultfs failed: ~p", 
+                                [Error], unknown_error)
+        end.
 
 % run_task() is a common supervisor for both the map and reduce tasks.
 % Its main function is to catch and report any errors that occur during
@@ -239,21 +270,17 @@ run_task(Inputs, Mode, Name, MaxN) ->
         case catch work(Inputs, Mode, Name, 0, MaxN, {Results, Failures}) of
                 ok -> ok;
                 logged_error ->
-                        event_server:event(Name, 
+                        kill_job(Name, 
                         "ERROR: Job terminated due to the previous errors",
-                                [], []),
-                        gen_server:call(disco_server, {kill_job, Name}),
-                        gen_server:cast(event_server, {flush_events, Name}),
-                        exit(logged_error);
+                                [], logged_error);
                 Error ->
-                        event_server:event(Name, 
+                        kill_job(Name, 
                         "ERROR: Job coordinator failed unexpectedly: ~p", 
-                                [Error], []),
-                        gen_server:call(disco_server, {kill_job, Name}),
-                        gen_server:cast(event_server, {flush_events, Name}),
-                        exit(unknown_error)
+                                [Error], unknown_error)
         end,
+
         R = [list_to_binary(X) || {X, _} <- ets:tab2list(Results)],
+        move_to_resultfs(Name, R, resultfs_enabled()),
         ets:delete(Results),
         ets:delete(Failures),
         R.

@@ -1,13 +1,11 @@
 
 import re, os
 import sys, time, os, traceback
-
-try:
-        import disco.comm_curl as comm
-except:
-        import disco.comm_httplib as comm
+from disco import comm
 
 job_name = "none"
+resultfs_enabled =\
+        "resultfs" in os.environ.get("DISCO_FLAGS", "").lower().split()
 
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
@@ -35,14 +33,14 @@ def load_conf():
         
         return os.environ.get("DISCO_MASTER_PORT", master.strip()),\
                os.environ.get("DISCO_PORT", port.strip()),\
-               os.environ.get("DISCO_ROOT", root.strip()) + "/data/"
+               os.environ.get("DISCO_ROOT", root.strip())
 
 
 def jobname(addr):
         if addr.startswith("disco:") or addr.startswith("http:"):
                 return addr.strip("/").split("/")[-2]
         elif addr.startswith("dir:"):
-                return addr.strip("/").split("/")[-1]
+                return addr.strip("/").split("/")[-2]
         else:
                 raise "Unknown address: %s" % addr
 
@@ -70,15 +68,45 @@ def disco_host(addr):
                 raise "Unknown host specifier: %s" % addr
 
 
-def parse_dir(dir_url, proxy = None):
-        x, x, host, mode, name = dir_url.split("/", 4)
+def parse_dir(dir_url, proxy = None, part_id = None):
+        x, x, host, name = dir_url.split("/", 3)
         if proxy:
-                url = "http://%s/disco/node/%s/%s/" % (proxy, host, name)
+                url = "http://%s/disco/node/%s/%s" % (proxy, host, name)
         else:
-                url = "http://%s:%s/%s/" % (host, HTTP_PORT, name)
-        html = comm.download(url)
-        inputs = re.findall(">(%s-(.+?)-.*?)</a>" % mode, html)
-        return ["%s://%s/%s/%s" % (prefix, host, name, x)\
-                        for x, prefix in inputs if "." not in x]
+                url = "http://%s:%s/%s" % (host, HTTP_PORT, name)
 
-MASTER_PORT, HTTP_PORT, tmp = load_conf()
+        if name.endswith(".txt"):
+                if resultfs_enabled:
+                        r = file("%s/data/%s" % (ROOT, name)).readlines()
+                else:
+                        r = comm.download(url).splitlines()
+        else:
+                b, max = name.split("/")[-1].split(":")
+                fl = len(max)
+                base = b[:len(b) - fl]
+                t = "%s%%.%dd" % (base, fl)
+                if part_id != None:
+                        r = [t % part_id]
+                else:
+                        r = [t % i for i in range(int(max) + 1)]
+
+        p = "/".join(name.split("/")[:-1])
+        return ["disco://%s/%s/%s" % (host, p, x.strip()) for x in r]
+
+def load_oob(host, name, key):
+        url = "%s/disco/ctrl/oob_get?name=%s&key=%s" % (host, name, key)
+        if resultfs_enabled:
+                sze, fd = comm.open_remote(url, expect = 302)
+                loc = fd.getheader("location")
+                fname = "%s/data/%s" % (ROOT, "/".join(loc.split("/")[3:]))
+                try:
+                        return file(fname).read()
+                except Exception, x:
+                        raise comm.CommException(404, 
+                                "OOB key (%s) not found at %s" %\
+                                (key, fname))
+        else:
+                return comm.download(url, redir = True)
+
+
+MASTER_PORT, HTTP_PORT, ROOT = load_conf()

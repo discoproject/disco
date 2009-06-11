@@ -2,11 +2,7 @@ import os, os.path, time, struct, marshal
 from subprocess import *
 from disco.netstring import decode_netstring_str
 from disconode.util import *
-
-try:
-        import disco.comm_curl as comm
-except:
-        import disco.comm_httplib as comm
+from disco.util import msg
 
 MAX_ITEM_SIZE = 1024**3
 MAX_NUM_OUTPUT = 1000000
@@ -79,6 +75,7 @@ def prepare(ext_job, params, path):
         open_ext(path + "/op", params)
 
 def open_ext(fname, params):
+        # XXX! Run external programs in /data/ dir, not /temp/
         global proc, in_fd, out_fd
         proc = Popen([fname], stdin = PIPE, stdout = PIPE)
         in_fd = proc.stdin
@@ -94,28 +91,4 @@ def write_files(ext_data, path):
         for fname, data in ext_data.iteritems():
                 ensure_file(path + "/" + fname, data = data)
 
-def ensure_file(fname, data = None, url = None, timeout = 60, mode = 500):
-        while timeout > 0:
-                if os.path.exists(fname):
-                        return
-                try:
-                        fd = os.open(fname + ".partial",
-                                os.O_CREAT | os.O_EXCL | os.O_WRONLY, 500)
-                        if data:
-                                os.write(fd, data)
-                        else:
-                                os.write(fd, comm.download(url))
-                        os.close(fd)
-                        os.rename(fname + ".partial", fname)
-                        return
-                except OSError, x:
-                        # File exists
-                        if x.errno == 17:
-                                time.sleep(1)
-                                timeout -= 1
-                        else:
-                                msg("Writing external file %s failed" % fname)
-                                raise
-        msg("Timeout in writing external file %s" % fname)
-        raise Exception("Timeout in writing external file %s" % fname)
         

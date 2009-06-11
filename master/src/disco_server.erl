@@ -177,8 +177,8 @@ handle_call({purge_job, JobName}, From, State) ->
                 {ok, Root} = application:get_env(disco_root),
                 handle_call({clean_job, JobName}, From, State),
                 Nodes = [lists:flatten(
-                        ["dir://", Node, "/map/", 
-                        Node, "/", jobhome(JobName)]) ||
+                        ["dir://", Node, "/", Node, "/",
+                                jobhome(JobName), "/null"]) ||
                                 {Node, _} <- ets:tab2list(node_load)],
                 garbage_collect:remove_job(Nodes),
                 garbage_collect:remove_dir(filename:join([Root, jobhome(JobName)]))

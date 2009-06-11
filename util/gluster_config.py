@@ -30,16 +30,17 @@ DEFAULT_NUFA_PORT = 9800
 def check_config(config, replicas = True):
         REQ = ["nodes", "volumes", "master", "config_dir"]
         if replicas:
-            REQ.append("replicas")
+                REQ.append("replicas")
+                if config["replicas"] > len(config["nodes"]):
+                        print "replicas must be less than equal"\
+                              "to the number of nodes."
+                        print "Check the config file."
+                        sys.exit(1)
         for k in REQ:
                 if k not in config:
                         print "Required field '%s' is missing." % k
                         print "Check the config file."
                         sys.exit(1)
-        if config["replicas"] > len(config["nodes"]):
-                print "replicas must be less than equal to the number of nodes."
-                print "Check the config file."
-                sys.exit(1)
 
 def output_volume(f, name, type, subvol = None, options = {}):
         print >> f, "volume %s" % name
@@ -54,7 +55,8 @@ def output_volume(f, name, type, subvol = None, options = {}):
 def nodes_sect(f, config):
         print >> f, "\n# -----\n# NODES\n# -----\n"
         opt = {"transport-type": "tcp",
-               "remote-port": config["port"]}
+               "remote-port": config["port"],
+               "ping-timeout": "60"}
         
         for node in config["nodes"]:
                 print >> f, "# -- %s\n" % node
@@ -105,12 +107,16 @@ def server_sect(f, config, options, writevol):
                         output_volume(f, "%s-posix" % vol, "storage/posix",
                                 [], {"directory": dir})
                         subvol.append(vol)
-                        output_volume(f, "%s-lock" % vol, "features/locks",
+                        output_volume(f, "%s-lock" % vol,
+                                "features/locks",
                                 ["%s-posix" % vol])
-                        output_volume(f, vol, "performance/read-ahead",
+                        output_volume(f, "%s-readahead" % vol,
+                                "performance/read-ahead",
                                 ["%s-lock" % vol], {
-                                        "page-size": "512KB", 
-                                        "page-count": "4"})
+                                "page-size": "512KB", 
+                                "page-count": "4"})
+                        output_volume(f, vol, "performance/io-threads",
+                                ["%s-readahead" % vol], {"thread-count": "32"})
         else:
                 print >> f, "# this is just a dummy volume as gluster"
                 print >> f, "# requires us to specify a subvolume for"
@@ -118,7 +124,7 @@ def server_sect(f, config, options, writevol):
                 print >> f, "# here."
                 path = os.path.abspath(config["config_dir"])
                 output_volume(f, "masterdummy", "storage/posix",
-                        [], {"directory": path})
+                        [], {"directory": "/tmp"})
                 subvol = ["masterdummy"]
 
         print >> f, "# -- server\n" 
@@ -147,6 +153,10 @@ def create_replicating_config(config, path):
 def create_nufa_config(config, path):
         if len(config["volumes"]) > 1:
             print "Specify only one volume for results"
+            sys.exit(1)
+        if config["master"] not in config["nodes"]:
+            print "Add your master node '%s' to the list of nodes" %\
+                config["master"]
             sys.exit(1)
         
         config["port"] = config.get("port", DEFAULT_NUFA_PORT)

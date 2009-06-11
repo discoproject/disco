@@ -1,12 +1,12 @@
 
 -module(disco_config).
--export([get_config_table/0, save_config_table/1]).
+-export([get_config_table/0, save_config_table/1, expand_range/2]).
 
 config_file() ->
         {ok, Val} = application:get_env(disco_config),
         Val.
 
-add_nodes([FirstNode, Max], Instances) ->
+expand_range(FirstNode, Max) ->
         Len = string:len(FirstNode),
         FieldLen = string:len(Max),
         MaxNum = list_to_integer(Max),
@@ -14,9 +14,11 @@ add_nodes([FirstNode, Max], Instances) ->
         MinNum = list_to_integer(
                 string:sub_string(FirstNode, Len - FieldLen + 1)),
         Format = lists:flatten(io_lib:format("~s~~.~w.0w", [Name, FieldLen])),
+        [lists:flatten(io_lib:fwrite(Format, [I])) ||
+                I <- lists:seq(MinNum, MaxNum)].
 
-        [{lists:flatten(io_lib:fwrite(Format, [I])), Instances} ||
-                I <- lists:seq(MinNum, MaxNum)];
+add_nodes([FirstNode, Max], Instances) ->
+        [{N, Instances} || N <- expand_range(FirstNode, Max)];
 
 add_nodes([Node], Instances) -> {Node, Instances}.
         
