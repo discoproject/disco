@@ -326,5 +326,6 @@ pref_node(X) when is_binary(X) -> pref_node(binary_to_list(X));
 pref_node("disco://" ++ _ = Uri) -> remote_uri(Uri);
 pref_node("dir://" ++ _ = Uri) -> remote_uri(Uri);
 pref_node("http://" ++ _ = Uri) -> remote_uri(Uri);
+pref_node("dfs://" ++ _ = Uri) -> remote_uri(Uri);
 pref_node(_) -> false.
 remote_uri(Uri) -> string:sub_word(Uri, 2, $/).

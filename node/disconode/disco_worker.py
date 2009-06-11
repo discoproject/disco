@@ -152,6 +152,9 @@ def connect_input(input):
                 if input.startswith("chunkfile://"):
                         is_chunk = True
                         local_file = LOCAL_PATH + input[12:]
+                elif input.startswith("dfs://"):
+                        t, path = input[6:].split("/", 1)
+                        local_file = "%s/input/%s" % (LOCAL_PATH[:-6], path)
                 elif input.startswith("file://"):
                         local_file = input[7:]
                 else:
