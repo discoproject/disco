@@ -31,7 +31,7 @@ for key, value in disco.result_iterator(results):
         else:
                 raise "Results don't match"
 if i != 3:
-        raise "Too few results"
+        raise "Wrong number of results: Got %d expected 3" % i
 
 disco.Disco(sys.argv[1]).purge(disco.util.jobname(results[0]))
 
