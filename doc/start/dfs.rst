@@ -125,7 +125,7 @@ Inputfs
 '''''''
 
 *Inputfs* is a shared directory that is mounted at ``$DISCO_ROOT/input``. You
-can mount it manually on every node of the disco cluster as follows::
+can mount it manually on every worker node of the disco cluster as follows::
         
         mkdir $DISCO_ROOT/input
         mount your-dfs-parameters $DISCO_ROOT/input
@@ -171,8 +171,10 @@ You can create a local directory for temporary results and mount your DFS to the
         mount your-dfs-parameters $DISCO_ROOT/data
         mkdir $DISCO_ROOT/temp
 
-As with *inputfs*, you can add the mount command to your ``/etc/fstab``. Disco
-needs read and write access to both the directories. Enable *resultfs* 
+As with *inputfs*, you can add the mount command to your ``/etc/fstab``. In
+contrast to *inputfs*, you need to mount it also on the master node.
+
+Disco needs read and write access to both the directories. Enable *resultfs* 
 by adding the flag ``resultfs`` to ``DISCO_FLAGS`` (i.e. ``DISCO_FLAGS=resultfs``) in 
 your ``disco.conf``.
 
@@ -182,29 +184,129 @@ unnecessary overhead. Once the phase has finished succesfully, Disco moves the
 results from ``$DISCO_ROOT/temp`` to ``$DISCO_ROOT/data`` so that they can be
 accessed from all nodes.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 .. _gluster:
 
 Configuring GlusterFS
 ---------------------
-  
-Setting up Gluster
+
+`GlusterFS <http://gluster.org>`_ is a flexible, reasonably efficient,
+POSIX-compatible and easy-to-install open-source distributed filesystem
+for Linux and OS X. These features, among others, make it a good match
+for Disco although GlusterFS is still under heavy development. This 
+document assumes that you have GlusterFS 2.0 or newer installed.
+
+GlusterFS provides a highly modular, layered design that gives the user
+great freedom in configuring the DFS. This also means that setting it up
+requires some knowledge on how Gluster works, so it can be configured for
+a particular use case. Since *inputfs* and *resultfs* are well-defined
+use cases, Disco comes with a utility script, ``util/gluster_config.py``
+that can generate suitable configs for *inputfs* and *resultfs*, given a
+simple specification that specifies which nodes and disks are available.
+
+Gluster config script
+'''''''''''''''''''''
+
+The configuration script ``gluster_config.py`` requires a specification
+file that is encoded in JSON. The file contains a small number of key-value pairs::
+
+
+      {
+        "nodes": ["node01", "node02", "node03"],
+        "volumes": ["/mnt/disk1", "/mnt/disk2"],
+        "master": "nxfront",
+        "config_dir": "/tmp/config"
+        "replicas": 2,
+      }
+
+where
+
+ * **nodes** is a list that specifies all nodes in the Disco cluster.
+ * **volumes** is a list of mountpoints (directories) which Gluster uses as
+   its storage backend. Only one directory can be listed for *resultfs*. The mount
+   points need to exist on all the nodes.
+ * **master** specifies hostname of the disco master. It needs to be included
+   in the `nodes` list for *resultfs*. With *inputfs* inclusion is optional but
+   recommended, so you can use the master node to manage data to *inputfs*.
+ * **config_dir** specifies a directory on the master node where the GlusterFS
+   configuration is saved and from where it is distributed to the nodes.
+ * **replicas** is required only in *inputfs* which provides *K*-way replication for
+   files. This value specifies *K* or the number of replicas required for each
+   file.
+
+After you have created the specification file, one for *resultfs* and *inputfs*,
+you can generate the GlusterFS configuration as follows. First for *inputfs*::
+
+        python gluster_config.py inputfs inputfs.json
+
+and for *resultfs*::
+
+        python gluster_config.py resultfs resultfs.json
+
+The script creates configuration for the master and the worker nodes separately
+in the specified ``config_dir``. The master config is found at ``inputfs_master.vol``
+and the worker config in ``inputfs_node.vol`` and correspondingly for *resultfs*.
+
+Running GlusterFS
+'''''''''''''''''
+
+Once the configuration files are generated, you can start your Gluster
+filesystem. In case you don't need both *inputfs* and *results*, follow only
+the relevant instructions below.
+
+First start the *resultfs* master as follows, as the super user::
+
+        glusterfs -f resultfs_master.vol $DISCO_ROOT/data/
+
+Next, *inputfs*. If the `nodes` list includes `master` in your *inputfs*
+specification, you need to specify a mount point for the data directory
+on the master::
+
+        glusterfs -f inputfs_master.vol /some/data/directory
+
+Otherwise you can leave ``/some/data/directory`` out.
+
+After the master process(es) are running, you can start *inputfs* on all the
+worker nodes as follows::
+
+        glusterfs -s mymaster --volfile-server-port 9900 --volfile-id=glu_node $DISCO_ROOT/input/
+
+and *resultfs*::
+        
+        glusterfs -s mymaster --volfile-server-port 9800 --volfile-id=glu_node $DISCO_ROOT/data/
+
+Replace ``mymaster`` with the name of your master node. Nodes will contact the
+master node to retrieve the configuration file. This way you don't have to
+distribute ``*_node.vol`` files to your nodes manually.
+
+Now you should have a DFS running on your cluster! You can create some files
+under *inputfs* and *resultfs*. They should be visible on all the nodes.
+
+
+Technical details
+'''''''''''''''''
+
+This section briefly explains how *inputfs* and *resultfs* are configured for
+GlusterFS. See GlusterFS documentation for more detailed information.
+
+*Inputfs* is a combination of client-side ``cluster/distribute`` and
+``cluster/replicate`` translators which together implement distributed
+*K*-way replication. Nodes are configured based on consistent hashing,
+using the MD5 hash of the hostname. This makes it possible to add and remove
+nodes in the system with minimal changes in the data distribution.
+
+*Resultfs* uses the client-side ``cluster/nufa`` translator so intermediate
+results are not copied unnecessarily to remote nodes. 
+
+
+
+
+
+
+
+
+
+
+
 
 
 

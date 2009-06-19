@@ -24,8 +24,9 @@ Getting started
    :maxdepth: 1
 
    start/install
-   start/ec2setup
    start/tutorial
+   start/ec2setup
+   start/dfs
    start/troubleshoot
 
 References
