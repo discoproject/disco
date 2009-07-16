@@ -168,7 +168,7 @@ sure that all servers in the Disco cluster use the same Erlang cookie,
 which is used for authentication between Erlang nodes. Run the following
 command as the Disco user on the master server::
 
-        scp ~/.erlang_cookie nodeX:
+        scp ~/.erlang.cookie nodeX:
 
 Repeat the command for all the servers ``nodeX``.
         
