@@ -31,9 +31,8 @@ def check_config(config, replicas = True):
         REQ = ["nodes", "volumes", "master", "config_dir"]
         if replicas:
                 REQ.append("replicas")
-                if config["replicas"] > len(config["nodes"]):
-                        print "replicas must be less than equal"\
-                              "to the number of nodes."
+                if len(config["nodes"]) % config["replicas"]:
+                        print "Number of nodes must be divisible by nreplicas."
                         print "Check the config file."
                         sys.exit(1)
         for k in REQ:
@@ -70,13 +69,18 @@ def repl_sect(f, config):
         print >> f, "\n# -----------\n# REPLICATION\n# -----------\n"
         hashes = sorted((int(md5.md5(node).hexdigest(), 16), node)\
                 for node in config["nodes"])
-        k = config["replicas"]
-        for i, h in enumerate(hashes):
-                print >> f, "# -- %s (%s)\n" % (h[1], hex(h[0])[2:-1])
-                repl = [hashes[i - j][1] for j in range(k)]
+        nr = config["replicas"]
+        for j, i in enumerate(range(0, len(hashes), nr)):
+                print >> f, "# replication group %d" % (j + 1)
+                repl = []
+                for k in range(nr):
+                    h = hashes[i + k]
+                    print >> f, "#    %s (%s)" % (h[1], hex(h[0])[2:-1])
+                    repl.append(h[1])
+                print >> f
                 for v in range(len(config["volumes"])):
                         vol = "vol%d" % (v + 1)
-                        name = "%s-%s-repl" % (h[1], vol)
+                        name = "repl%d-%s" % (j + 1, vol)
                         r = ["%s-%s" % (x, vol) for x in repl]
                         output_volume(f, name, "cluster/replicate", r,
                                 {"read-subvolume": "`echo \"$(hostname)-%s\"`" 
@@ -84,8 +88,10 @@ def repl_sect(f, config):
 
 def client_sect(f, config):
         print >> f, "\n# ------\n# CLIENT\n# ------\n"
+        n = len(config["nodes"])
         nv = len(config["volumes"])
-        s = ["%s-vol%d-repl" % (n, v + 1) for n in config["nodes"]
+        nr = config["replicas"]
+        s = ["repl%d-vol%d" % (n + 1, v + 1) for n in range(n / nr)
                         for v in range(nv)]
         output_volume(f, "distribute", "cluster/distribute", s)
 
