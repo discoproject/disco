@@ -187,14 +187,21 @@ def create_master_config(name, config, path, client_conf):
         print "ok"
 
 if len(sys.argv) < 3 or sys.argv[1] not in ["inputfs", "resultfs"]:
-        print "\nGiven a file, config.json, that specifies available nodes,"
-        print "generates config files for Gluster, a distributed filesystem."
-        print "The resulting filesystem is suitable for storing input data for"
-        print "Disco so that data is k-way replicated over the nodes. See"
-        print "the source of this file for an example config file.\n"
-        print "If you want to use Gluster also for internal communication of "
-        print "Disco (instead of HTTP), run gluster_config_comm.py.\n"
-        print "Usage: python gluster_config.py [inputfs|resultfs] config.json\n"
+        print "\nUsage: python gluster_config.py [inputfs|resultfs] config.json"
+        print 
+        print "This script generates Disco-compatible config files for Gluster,"
+        print "a distributed filesystem."
+        print 
+        print "Two modes are available:"
+        print "- inputfs, which produces a Gluster volfile that is suitable for"
+        print "  storing input data for Disco so that data is k-way replicated"
+        print "  over nodes."
+        print "- resultfs, which produces a Gluster volfile for communication"
+        print "  between Disco nodes, in place of the default HTTP-based"
+        print "  solution."
+        print 
+        print "See gluster_example.json for an example config gile. For more"
+        print "information, see http://discoproject.org/doc/start/dfs.html.\n"
         sys.exit(1)
 
 config = cjson.decode(file(sys.argv[2]).read())
