@@ -16,11 +16,13 @@ source $DISCO_CONF
 export PATH=$PATH:$DISCO/node:/usr/sbin
 export PYTHONPATH=$PYTHONPATH:$DISCO/node:$DISCO/pydisco
 
-$DISCO_HOME/disco-master &
+$DISCO_HOME/disco-master 
+
+echo -e "\nDisco master started. Starting Lighttpd..\n"
 
 if lighttpd -f $LIGHTTPD_CONF; then
 	echo -e "\nLighttpd for Disco master started.\n"
 else
-	echo -e "\nLighttpd for Disco master didn't start.\n"
+	echo -e "\nLighttpd for Disco master didn't start (it's ok if it's already running).\n"
 fi
 

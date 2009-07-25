@@ -37,12 +37,19 @@ echo "Using config... $DISCO_CONFIG"
 # will die togehter with the master process.
 export HEART_COMMAND=${DISCO_HEART:+"$0 $@"}
 
+export DISCO_PID_FILE=$DISCO_PID_DIR"/disco-master.pid"
+
+PID=$(cat $DISCO_PID_FILE 2>/dev/null)
+
+if [ $PID ] && [ -d "/proc/$PID" ]; then
+        echo "Disco master seems to be running already (PID $PID)."
+        exit 1
+fi
+
 # Prevent disasterous memory leaks from trashing the server
-ulimit -v $DISCO_ULIMIT
+ulimit -v $DISCO_ULIMIT 2>/dev/null
 
-echo "$$" > $DISCO_PID_DIR"/disco-master.pid"
-
-exec erl +K true\
+erl +K true\
     -heart\
     -detached\
     -sname $DISCO_NAME"_master"\
@@ -58,4 +65,15 @@ exec erl +K true\
     -disco disco_slaves_os \"$DISCO_SLAVES_OS\"\
     -disco scgi_port $DISCO_SCGI_PORT\
     -disco disco_config \"$DISCO_CONFIG\" </dev/null >/dev/null 2>/dev/null
+
+sleep 1
+
+NPID=$(cat $DISCO_PID_FILE 2>/dev/null)
+
+if [ -z $NPID ] || [ ! -d "/proc/$NPID" ]; then
+        echo "Starting Disco master failed."
+        echo "See the log file at $DISCO_MASTER_LOG for more information."
+        exit 1
+fi
+
 
