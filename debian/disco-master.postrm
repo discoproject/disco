@@ -24,7 +24,7 @@ case "$1" in
     ;;
 
     purge)
-        ln -fs lighttpd-node.conf /etc/disco/lighttpd.conf
+        # ln -fs lighttpd-node.conf /etc/disco/lighttpd.conf
     ;;
 
     *)

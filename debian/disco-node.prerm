@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# This is a workaround for a bug in disco 0.2.1 packages which prevents 
+# them from being purged correctly
+
+touch /etc/disco/disco.conf
