@@ -214,8 +214,8 @@ file that is encoded in JSON. The file contains a small number of key-value pair
         "nodes": ["node01", "node02", "node03"],
         "volumes": ["/mnt/disk1", "/mnt/disk2"],
         "master": "nxfront",
-        "config_dir": "/tmp/config"
-        "replicas": 2,
+        "config_dir": "/tmp/config",
+        "replicas": 2
       }
 
 where
