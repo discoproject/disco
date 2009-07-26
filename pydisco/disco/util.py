@@ -67,14 +67,22 @@ def disco_host(addr):
         else:
                 raise "Unknown host specifier: %s" % addr
 
+def proxy_url(proxy, path, node = "x"):
+        if not proxy:
+                proxy = os.environ.get("DISCO_PROXY", None)
+        if not proxy:
+                return "http://%s:%s/%s" % (node, HTTP_PORT, path)
+        if proxy.startswith("disco://"):
+                host = "%s:%s" % (proxy[8:], MASTER_PORT)
+        elif proxy.startswith("http://"):
+                host = proxy[7:]
+        else:
+                raise Exception("Unknown proxy protocol: %s" % proxy)
+        return "http://%s/disco/node/%s/%s" % (host, node, path)
 
 def parse_dir(dir_url, proxy = None, part_id = None):
         x, x, host, name = dir_url.split("/", 3)
-        if proxy:
-                url = "http://%s/disco/node/%s/%s" % (proxy, host, name)
-        else:
-                url = "http://%s:%s/%s" % (host, HTTP_PORT, name)
-
+        url = proxy_url(proxy, name, host)
         if name.endswith(".txt"):
                 if resultfs_enabled:
                         r = file("%s/data/%s" % (ROOT, name)).readlines()
@@ -94,7 +102,9 @@ def parse_dir(dir_url, proxy = None, part_id = None):
         return ["disco://%s/%s/%s" % (host, p, x.strip()) for x in r]
 
 def load_oob(host, name, key):
-        url = "%s/disco/ctrl/oob_get?name=%s&key=%s" % (host, name, key)
+        use_proxy = "DISCO_PROXY" in os.environ
+        url = "%s/disco/ctrl/oob_get?name=%s&key=%s&proxy=%d" %\
+                (host, name, key, use_proxy)
         if resultfs_enabled:
                 sze, fd = comm.open_remote(url, expect = 302)
                 loc = fd.getheader("location")

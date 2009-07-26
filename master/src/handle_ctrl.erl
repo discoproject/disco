@@ -47,11 +47,19 @@ op("rawevents", Query, _Json) ->
 op("oob_get", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {value, {_, Key}} = lists:keysearch("key", 1, Query),
-        case gen_server:call(oob_server, {fetch, 
-                        list_to_binary(Name), list_to_binary(Key)}) of
-                {ok, {Node, Path}} -> {relo, ["http://", Node, ":", 
-                        os:getenv("DISCO_PORT"), "/", Path]};
-                error -> not_found
+        Proxy = lists:keysearch("proxy", 1, Query),
+        case {Proxy, gen_server:call(oob_server, {fetch, 
+                        list_to_binary(Name), list_to_binary(Key)})} of
+                {P, {ok, {Node, Path}}} when P == false;
+                                P == {value, {"proxy", "0"}} -> 
+                        {relo, ["http://", Node, ":", 
+                                os:getenv("DISCO_PORT"), "/", Path]};
+                {_, {ok, {Node, Path}}} ->
+                        {ok, MasterUrl} = application:get_env(disco_url),
+                        [_, H|_] = string:tokens(MasterUrl, "/"),
+                        {relo, ["http://", H,
+                                "/disco/node/", Node, "/", Path]};
+                {_, error} -> not_found
         end;
 
 op("oob_list", Query, _Json) ->

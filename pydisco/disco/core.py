@@ -373,13 +373,6 @@ class Job(object):
 def result_iterator(results, notifier = None,\
         proxy = None, reader = func.netstr_reader):
         
-        if not proxy:
-                proxy = os.environ.get("DISCO_PROXY", None)
-        if proxy:
-                if proxy.startswith("disco://"):
-                        proxy = "%s:%s" % (proxy[8:], util.MASTER_PORT)
-                elif proxy.startswith("http://"):
-                        proxy = proxy[7:]
         res = []
         for dir_url in results:
                 if dir_url.startswith("dir://"):
@@ -396,18 +389,13 @@ def result_iterator(results, notifier = None,\
                         sze = os.stat(fname).st_size
                 elif url.startswith("disco://"):
                         host, fname = url[8:].split("/", 1)
-                        if proxy:
-                                ext_host = proxy
-                                fname = "/disco/node/%s/%s" % (host, fname)
-                        else:
-                                ext_host = host + ":" + util.HTTP_PORT
+                        url = util.proxy_url(proxy, fname, host)
                         if util.resultfs_enabled:
                                 f = "%s/data/%s" % (root, fname)
                                 fd = file(f)
                                 sze = os.stat(f).st_size
                         else:
-                                sze, fd = comm.open_remote("http://%s/%s"\
-                                        % (ext_host, fname))
+                                sze, fd = comm.open_remote(url)
                 else:
                         raise JobException("Invalid result url: %s" % url)
 

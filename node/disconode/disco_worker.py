@@ -218,7 +218,7 @@ class ReduceReader:
                                         self.inputs += parse_dir(input,
                                                 part_id = this_partition())
                                 except:
-                                        data_err("Couldn't resolved address %s"\
+                                        data_err("Couldn't resolve address %s"\
                                                 % input, input)
                         else:
                                 self.inputs.append(input)
