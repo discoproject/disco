@@ -2,6 +2,30 @@
 Release notes
 =============
 
+Disco 0.2.2 (July 26th 2009)
+----------------------------
+
+New features
+''''''''''''
+
+ - Experimental support for POSIX-compatible distributed filesystems, 
+   in particular `GlusterFS <http://gluster.com>`_. Two modes are available: Disco
+   can read input data from a distributed filesystem while preserving data locality
+   (aka *inputfs*). Disco can also use a DFS for internal communication,
+   replacing the need for node-specific web servers (aka *resultfs*). For more
+   information, see :ref:`dfs`.
+
+
+Bugfixes
+''''''''
+
+ - ``DISCO_PROXY`` handles now out-of-band results correctly (commit b1c0f9911)
+ - `make-lighttpd-proxyconf.py` now ignores commented out lines in `/etc/hosts` (bug #14, commit a1a93045d) 
+ - Fixed missing PID file in the `disco-master` script. The `/etc/init.d/disco-master` script in Debian packages now works correctly (commit 223c2eb01)
+ - Fixed a regression in `Makefile`. Config files were not copied to `/etc/disco` (bug #13, commit c058e5d6)
+ - Increased `server.max-write-idle` setting in Lighttpd config. This prevents the http connection from disconnecting with long running, cpu-intensive reduce tasks  (bug #12, commit 956617b0)
+
+
 Disco 0.2.1 (May 26th 2009)
 ---------------------------
 

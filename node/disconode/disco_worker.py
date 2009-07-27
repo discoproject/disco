@@ -1,15 +1,12 @@
 import os, subprocess, cStringIO, marshal, time, sys, cPickle, md5
 import re, traceback, tempfile, struct, random
-from disco.util import parse_dir, load_conf, err, data_err, msg
+from disco.util import\
+    parse_dir, load_conf, err, data_err, msg, resultfs_enabled, load_oob
 from disco.func import re_reader, netstr_reader
 from disco.netstring import *
 from disconode.util import *
 from disconode import external
-
-try:
-        import disco.comm_curl as comm
-except:
-        import disco.comm_httplib as comm
+from disco import comm
 
 oob_chars = re.compile("[^a-zA-Z_\-:0-9]")
 
@@ -60,30 +57,36 @@ def this_inputs():
         return sys.argv[6:]
 
 def init():
-        global HTTP_PORT, LOCAL_PATH, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
-               PART_SUFFIX, MAP_OUTPUT, CHUNK_OUTPUT, REDUCE_DL,\
-               REDUCE_SORTED, REDUCE_OUTPUT, OOB_FILE, OOB_URL,\
-               JOB_HOME
+        global HTTP_PORT, PARAMS_FILE, EXT_MAP, EXT_REDUCE,\
+               PART_SUFFIX, MAP_OUTPUT, REDUCE_DL,\
+               REDUCE_SORTED, REDUCE_OUTPUT, OOB_FILE,\
+               JOB_HOME, DISCO_ROOT, JOB_ROOT, PART_OUTPUT,\
+               MAP_INDEX, REDUCE_INDEX
 
-        tmp, HTTP_PORT, LOCAL_PATH = load_conf()
+        tmp, HTTP_PORT, DISCO_ROOT = load_conf()
         job_name = this_name()
 
         JOB_HOME = "%s/%s/%s/" %\
                 (this_host(), md5.md5(job_name).hexdigest()[:2], job_name)
-        pp = LOCAL_PATH + "/" + JOB_HOME
+        JOB_ROOT = "%s/data/%s" % (DISCO_ROOT, JOB_HOME)
 
-        OOB_URL = ("http://%s/disco/ctrl/oob_get?" % this_master())\
-                        + "name=%s&key=%s"
-        PARAMS_FILE = pp + "params"
-        EXT_MAP = pp + "ext-map"
-        EXT_REDUCE = pp + "ext-reduce"
+        if resultfs_enabled:
+                pp = "%s/temp/%s" % (DISCO_ROOT, JOB_HOME)
+        else:
+                pp = JOB_ROOT
+
+        PARAMS_FILE = pp + "params.dl"
+        EXT_MAP = pp + "ext.map"
+        EXT_REDUCE = pp + "ext.reduce"
         PART_SUFFIX = "-%.9d"
         MAP_OUTPUT = pp + "map-disco-%d" + PART_SUFFIX
-        CHUNK_OUTPUT = pp + "map-chunk-%d"
+        PART_OUTPUT = pp + "part-disco-%.9d"
         REDUCE_DL = pp + "reduce-in-%d.dl"
         REDUCE_SORTED = pp + "reduce-in-%d.sorted"
         REDUCE_OUTPUT = pp + "reduce-disco-%d"
         OOB_FILE = pp + "oob/%s"
+        MAP_INDEX = pp + "map-index.txt"
+        REDUCE_INDEX = pp + "reduce-index.txt"
 
 def put(key, value):
         if oob_chars.match(key):
@@ -96,45 +99,33 @@ def put(key, value):
 
 def get(key, job = None):
         try:
-                if job:
-                        url = OOB_URL % (job, key)
-                else:
-                        url = OOB_URL % (this_name(), key)
-                return comm.download(url, redir = True)
+                job = job or this_name()
+                return load_oob("http://" + this_master(), job, key)
         except comm.CommException, x:
                 data_err("OOB key (%s) not found at %s: HTTP status '%s'" %\
                         (key, url, x.http_code), key)
 
-def open_local(input, fname, is_chunk):
+def open_local(input, fname):
         try:
                 f = file(fname)
-                if is_chunk:
-                        f.seek(this_partition() * 8)
-                        start, end = struct.unpack("QQ", f.read(16))
-                        sze = end - start
-                        f.seek(start)
-                else:
-                        sze = os.stat(fname).st_size
+                sze = os.stat(fname).st_size
                 return sze, f
         except:
                 data_err("Can't access a local input file (%s): %s"\
                                 % (input, fname), input)
 
-def open_remote(input, ext_host, ext_file, is_chunk):
+def open_remote(input, ext_host, ext_file):
         try:
-                return comm.open_remote("http://%s%s" % (ext_host, ext_file),
-                        this_partition(), is_chunk)
+                return comm.open_remote("http://%s%s" % (ext_host, ext_file))
         except Exception, x:
                 data_err("Can't access an external input file (%s/%s): %s"\
                                 % (ext_host, ext_file, x), x)
 
 def connect_input(input):
-
-        is_chunk = input.startswith("chunk://")
-
-        if input.startswith("disco://") or is_chunk:
+        
+        if input.startswith("disco://"):
                 host, fname = input[8:].split("/", 1)
-                local_file = LOCAL_PATH + fname
+                local_file = "%s/data/%s" % (DISCO_ROOT, fname)
                 ext_host = "%s:%s" % (host, HTTP_PORT)
                 ext_file = "/" + fname
 
@@ -146,21 +137,20 @@ def connect_input(input):
 
         elif input.startswith("raw://"):
                 return len(input) - 6, cStringIO.StringIO(input[6:])
-
         else:
                 host = this_host()
-                if input.startswith("chunkfile://"):
-                        is_chunk = True
-                        local_file = LOCAL_PATH + input[12:]
+                if input.startswith("dfs://"):
+                        t, path = input[6:].split("/", 1)
+                        local_file = "%s/input/%s" % (DISCO_ROOT, path)
                 elif input.startswith("file://"):
                         local_file = input[7:]
                 else:
                         local_file = input
 
-        if host == this_host() and local_file:
-                return open_local(input, local_file, is_chunk)
+        if local_file and (resultfs_enabled or host == this_host()):
+                return open_local(input, local_file)
         else:
-                return open_remote(input, ext_host, ext_file, is_chunk)
+                return open_remote(input, ext_host, ext_file)
 
 class MapOutput:
         def __init__(self, part, params, combiner = None):
@@ -224,9 +214,12 @@ class ReduceReader:
                 part = PART_SUFFIX % this_partition()
                 for input in input_files:
                         if input.startswith("dir://"):
-                                self.inputs += [x for x in parse_dir(input)\
-                                        if x.startswith("chunk://") or\
-                                           x.endswith(part)]
+                                try:
+                                        self.inputs += parse_dir(input,
+                                                part_id = this_partition())
+                                except:
+                                        data_err("Couldn't resolve address %s"\
+                                                % input, input)
                         else:
                                 self.inputs.append(input)
 
@@ -333,23 +326,9 @@ def run_map(job_input, partitions, param):
 
         msg("Done: %d entries mapped in total" % i)
 
-def merge_chunks(partitions):
-        mapout = CHUNK_OUTPUT % this_partition()
-     
-        f = file(mapout + ".partial", "w")
-        offset = (len(partitions) + 1) * 8
-        for p in partitions:
-                f.write(struct.pack("Q", offset))
-                offset += os.stat(p.fname).st_size
-        f.write(struct.pack("Q", offset))
-        f.close()
-
-        if subprocess.call("cat %s >> %s.partial" % 
-                        (" ".join([p.fname for p in partitions]),
-                                mapout), shell = True):
-                data_err("Couldn't create a chunk", mapout)
-        os.rename(mapout + ".partial", mapout)
-        for p in partitions:
+def merge_partitions(partitions):
+        for i, p in enumerate(partitions):
+                safe_append(file(p.fname), PART_OUTPUT % i)
                 os.remove(p.fname)
 
 def import_modules(modules, funcs):
@@ -367,6 +346,7 @@ def op_map(job):
                         " ".join(job_input))
 
         nr_reduces = int(job['nr_reduces'])
+        nr_part = max(1, nr_reduces)
         fun_map_reader.func_code = marshal.loads(job['map_reader'])
         fun_map_writer.func_code = marshal.loads(job['map_writer'])
         fun_partition.func_code = marshal.loads(job['partition'])
@@ -393,18 +373,27 @@ def op_map(job):
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
                 partitions = [MapOutput(i, map_params, fun_combiner)\
-                        for i in range(nr_reduces)]
+                        for i in range(nr_part)]
         else:
-                partitions = [MapOutput(i, map_params) for i in range(nr_reduces)]
+                partitions = [MapOutput(i, map_params) for i in range(nr_part)]
         
         run_map(job_input[0], partitions, map_params)
+        external.close_ext()
+        
         for p in partitions:
                 p.close()
-        if 'chunked' in job:
-                merge_chunks(partitions)
-        
-        external.close_ext()
-        msg("dir://%s/map/%s" % (this_host(), JOB_HOME), "OUT")
+
+        if nr_reduces:
+                merge_partitions(partitions)
+                n = os.path.basename(PART_OUTPUT % 0)
+                msg("dir://%s/%s%s:%d" % (this_host(), JOB_HOME, n,
+                        len(partitions) - 1), "OUT")
+        else:
+                res = [os.path.basename(p.fname) for p in partitions]
+                index = cStringIO.StringIO("\n".join(res) + "\n")
+                safe_append(index, MAP_INDEX)
+                msg("dir://%s/%smap-index.txt" %\
+                        (this_host(), JOB_HOME), "OUT")
 
 def op_reduce(job):
         job_inputs = this_inputs()
@@ -444,7 +433,9 @@ def op_reduce(job):
         
         red_out.close()
         external.close_ext()
-
-        msg("dir://%s/reduce/%s" % (this_host(), JOB_HOME), "OUT")
+        
+        index = cStringIO.StringIO(os.path.basename(red_out.fname) + "\n")
+        safe_append(index, REDUCE_INDEX)
+        msg("dir://%s/%sreduce-index.txt" % (this_host(), JOB_HOME), "OUT")
 
 init()

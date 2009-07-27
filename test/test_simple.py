@@ -30,8 +30,6 @@ results = disco.job(sys.argv[1], "test_simple", tserver.makeurl(inputs),
 if list(disco.result_iterator(results)) != [("result", ANS)]:
         raise Exception("Invalid answer")
 
-print results
-
 disco.Disco(sys.argv[1]).purge(disco.util.jobname(results[0]))
 
 print "ok"

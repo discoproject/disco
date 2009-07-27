@@ -2,9 +2,6 @@ import cStringIO, struct, time, sys, os
 from pycurl import *
 from disco.comm_httplib import CommException
 
-if "nocurl" in os.environ.get("DISCO_FLAGS", "").lower().split():
-        raise Exception("nocurl")
-
 MAX_BUF = 1024**2
 MAX_RETRIES = 10
 dl_handle = None
@@ -45,14 +42,14 @@ def download(url, data = None, redir = False):
         return outbuf.getvalue()
 
 class CurlConn:
-        def __init__(self, url, start = None, end = None, handle = None):
+        def __init__(self, url, handle = None, expect = 200):
                 if handle:
                         self.handle = handle
                 else:
                         self.handle = Curl()
 
                 for i in range(MAX_RETRIES):
-                        self.init_handle(url, start, end)
+                        self.init_handle(url)
                         self.perform()
                         x, succ, fail = self.multi.info_read(1) 
                         if not fail:
@@ -71,18 +68,12 @@ class CurlConn:
                 code = self.handle.getinfo(HTTP_CODE)
                 if code == 0:
                         raise CommException("Couldn't receive http response")
-
-                if start == None:
-                        check_code(self.handle, 200)
-                else:
-                        check_code(self.handle, 206)
+                check_code(self.handle, expect)
                 
-        def init_handle(self, url, start, end):
+        def init_handle(self, url):
                 self.handle.setopt(URL, url)
                 self.handle.setopt(WRITEFUNCTION, self.write)
                 self.handle.setopt(HEADERFUNCTION, self.head)
-                if start != None:
-                        self.handle.setopt(RANGE, "%d-%d" % (start, end - 1))
                 self.multi = CurlMulti()
                 self.multi.add_handle(self.handle)
                 self.buf = ""
@@ -102,8 +93,15 @@ class CurlConn:
                         self.cont = num_handles
         
         def head(self, buf):
-                if buf.lower().startswith("content-length:"):
+                buf = buf.lower()
+                if buf.startswith("content-length:"):
                         self.length = int(buf.split(":")[1])
+                elif buf.startswith("location:"):
+                        self.location = buf.split(":", 1)[1].strip()
+
+        def getheader(self, x):
+                if x == "location":
+                        return self.location
 
         def write(self, buf):
                 self.body = True
@@ -119,23 +117,9 @@ class CurlConn:
         def disco_stats(self):
                 pass
 
-def open_remote(url, part = None, is_chunk = None):
+def open_remote(url, expect = 200):
         c = Curl()
-        if is_chunk:
-                pos = part * 8
-                buf = cStringIO.StringIO()
-                c.setopt(URL, url)
-                c.setopt(RANGE, "%d-%d" % (pos, pos + 15))
-                c.setopt(WRITEFUNCTION, buf.write)
-                c.perform()
-                check_code(c, 206)
-                start, end = struct.unpack("QQ", buf.getvalue())
-                if start == end:
-                        return 0, cStringIO.StringIO()        
-        else:
-                start = end = None
-        
-        conn = CurlConn(url, start, end, handle = c)
+        conn = CurlConn(url, handle = c, expect = expect)
         return conn.length, conn
 
 

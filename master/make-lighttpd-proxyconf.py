@@ -1,10 +1,25 @@
 #!/usr/bin/python
 import os, re
 
-port = os.environ["DISCO_PORT"]
-print "proxy.server = ("
-for x in re.finditer("(\d+\.\d+\.\d+\.\d+)\s+(.*)", file("/etc/hosts").read()):
-        ip, host = x.groups()
-        print '"/disco/node/%s/" => (("host" => "%s", "port" => %s)),' %\
-                (host, ip, port)
-print ")"
+
+def resultfs_config():
+        print 'url.rewrite = ( "^/disco/node/(.*?)/(.*)" => '\
+              '"/disco/master/$2" )'
+
+def normal_config():
+        port = os.environ["DISCO_PORT"]
+        r = re.compile("^(\d+\.\d+\.\d+\.\d+)\s+(.*?)\s", re.MULTILINE)
+        print "proxy.server = ("
+        for x in re.finditer(r, file("/etc/hosts").read()):
+                ip, host = x.groups()
+                print '"/disco/node/%s/" => '\
+                      '(("host" => "%s", "port" => %s)),' %\
+                                (host, ip, port)
+        print ")"
+
+if "resultfs" in os.environ.get("DISCO_FLAGS", "").lower().split():
+        resultfs_config()
+else:
+        normal_config()
+
+

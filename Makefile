@@ -48,7 +48,7 @@ install-master: install-config master
 	cp -r master/www $(TARGETDIR)
 	chmod -R u=rwX,g=rX,o=rX $(TARGETDIR)/www
 
-	$(if $(TARGETCFG)/lighttpd-master.conf,\
+	$(if $(wildcard $(TARGETCFG)/lighttpd-master.conf),\
 		$(info lighttpd-master config already exists, skipping),\
 		install -m 0644 conf/lighttpd-master.conf $(TARGETCFG))
 
@@ -56,7 +56,7 @@ install-node: install-config master
 	install -d $(TARGETDIR)/ebin
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
 	(cd node; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
-	$(if $(TARGETCFG)/lighttpd-node.conf,\
+	$(if $(wildcard $(TARGETCFG)/lighttpd-node.conf),\
 		$(info lighttpd-node config already exists, skipping),\
 		install -m 0644 conf/lighttpd-node.conf $(TARGETCFG))
 
@@ -65,7 +65,7 @@ install-pydisco:
 
 install-config:
 	install -d $(TARGETCFG)
-	$(if $(TARGETCFG)/disco.conf,\
+	$(if $(wildcard $(TARGETCFG)/disco.conf),\
 		$(info disco config already exists, skipping),\
 		install -m 0644 conf/disco.conf.example $(TARGETCFG)/disco.conf)
 

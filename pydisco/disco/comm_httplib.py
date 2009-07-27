@@ -33,7 +33,7 @@ def check_code(fd, expected):
         if fd.status != expected:
                 raise CommException(fd.status)
 
-def open_remote(url, part = None, is_chunk = False, data = None):
+def open_remote(url, data = None, expect = 200):
         try:
                 ext_host, ext_file = url[7:].split("/", 1)
                 ext_file = "/" + ext_file
@@ -51,30 +51,14 @@ def open_remote(url, part = None, is_chunk = False, data = None):
                         http = httplib.HTTPConnection(ext_host)
                         http_pool[ext_host] = http
 
-                if is_chunk:
-                        pos = part * 8
-                        rge = "bytes=%d-%d" % (pos, pos + 15)
-                        http.request("GET", ext_file, None, {"Range": rge})
-                        fd = http.getresponse()
-                        check_code(fd, 206)
-                        
-                        start, end = struct.unpack("QQ", fd.read())
-                        if start == end:
-                                return 0, cStringIO.StringIO()
-                        else:
-                                rge = "bytes=%d-%d" % (start, end - 1)
-                        
-                        http.request("GET", ext_file, None, {"Range": rge})
-                        fd = http.getresponse()
-                        check_code(fd, 206)
-                elif data:
+                if data:
                         http.request("POST", ext_file, data)
                         fd = http.getresponse()
-                        check_code(fd, 200)
+                        check_code(fd, expect)
                 else:
                         http.request("GET", ext_file, None)
                         fd = http.getresponse()
-                        check_code(fd, 200)
+                        check_code(fd, expect)
                
                 sze = fd.getheader("content-length")
                 if sze:
@@ -88,4 +72,4 @@ def open_remote(url, part = None, is_chunk = False, data = None):
                 # endless recursion if something went seriously wrong.
                 http.close()
                 del http_pool[ext_host]
-                return open_remote(url, part, is_chunk)
+                return open_remote(url, data)

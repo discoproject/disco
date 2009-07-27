@@ -1,11 +1,6 @@
 import sys, re, os, marshal, cjson, time, cPickle
-from disco import func, util
+from disco import func, util, comm
 from netstring import *
-
-try:
-        import disco.comm_curl as comm
-except:
-        import disco.comm_httplib as comm
 
 class JobException(Exception):
         def __init__(self, msg, master, name):
@@ -73,13 +68,11 @@ class Disco(object):
         
         def oob_get(self, name, key):
                 try:
-                        r = self.request("/disco/ctrl/oob_get?name=%s&key=%s" %\
-                                (name, key), redir = True)
+                        return util.load_oob(self.host, name, key)
                 except comm.CommException, x:
                         if x.http_code == 404:
                                 raise KeyError("Unknown key or job name")
                         raise
-                return r
 
         def oob_list(self, name):
                 try:
@@ -197,7 +190,6 @@ class Job(object):
                     "sort": False,
                     "params": Params(),
                     "mem_sort_limit": 256 * 1024**2,
-                    "chunked": None,
                     "ext_params": None,
                     "status_interval": 100000,
                     "required_modules": [],
@@ -234,6 +226,9 @@ class Job(object):
                 
                 if "input_files" in kw:
                         kw["input"] = kw["input_files"]
+
+                if "chunked" in kw:
+                        raise Exception("Argument 'chunked' is deprecated")
                 
                 if not "input" in kw:
                         raise Exception("input is required")
@@ -289,24 +284,46 @@ class Job(object):
                                         parsed_inputs.append(inp)
                         inputs = parsed_inputs
                 else:
-                        addr = []
+                        nr_maps = 0
+                        ext_inputs = []
+                        red_inputs = []
                         for inp in inputs:
                                 if type(inp) == list:
                                         raise Exception("Reduce doesn't "\
                                                 "accept redundant inputs")
-                                elif not inp.startswith("dir://"):
-                                        addr.append(inp)
+                                elif inp.startswith("dir://"):
+                                        if inp.endswith(".txt"):
+                                                ext_inputs.append(inp)
+                                        else:
+                                                red_inputs.append(inp)
+                                else:
+                                        ext_inputs.append(inp)
 
-                        if d("nr_reduces") == None and not addr:
-                                raise Exception("nr_reduces must match to "\
-                                        "the number of partitions in the "\
-                                        "input data")
-
-                        if d("nr_reduces") != 1 and addr: 
+                        if ext_inputs and red_inputs:
+                                raise Exception("Can't mix partitioned "\
+                                        "inputs with other inputs")
+                        elif red_inputs:
+                                q = lambda x: int(x.split(":")[-1]) + 1
+                                nr_red = q(red_inputs[0])
+                                for x in red_inputs:
+                                        if q(x) != nr_red:
+                                                raise Exception(\
+                                                "Number of partitions must "\
+                                                "match in all inputs")
+                                n = d("nr_reduces") or nr_red
+                                if n != nr_red:
+                                        raise Exception(
+                                        "Specified nr_reduces = %d but "\
+                                        "number of partitions in the input "\
+                                        "is %d" % (n, nr_red))
+                                kw["nr_reduces"] = nr_red
+                                inputs = red_inputs
+                        elif d("nr_reduces") != 1:
                                 raise Exception("nr_reduces must be 1 when "\
-                                        "using external inputs without "\
-                                        "the map phase")
-                        nr_maps = 0
+                                        "using non-partitioned inputs "\
+                                        "without the map phase")
+                        else:
+                                inputs = ext_inputs
                
                 req["input"] = " ".join(inputs)
                 req["nr_maps"] = str(nr_maps)
@@ -327,7 +344,6 @@ class Job(object):
                                 req["reduce"] = marshal.dumps(
                                         kw["reduce"].func_code)
                         nr_reduces = nr_reduces or min(max(nr_maps / 2, 1), 100)
-                        req["chunked"] = "True"
                        
                         req["reduce_reader"] =\
                                 marshal.dumps(d("reduce_reader").func_code)
@@ -338,15 +354,9 @@ class Job(object):
                                 req["reduce_init"] = marshal.dumps(\
                                         kw["reduce_init"].func_code)
                 else:
-                        nr_reduces = nr_reduces or 1
-                
+                        nr_reduces = nr_reduces or 0
+               
                 req["nr_reduces"] = str(nr_reduces)
-
-                if d("chunked") != None:
-                        if d("chunked"):
-                                req["chunked"] = "True"
-                        elif "chunked" in req:
-                                del req["chunked"]
 
                 if "combiner" in kw:
                         req["combiner"] =\
@@ -363,13 +373,6 @@ class Job(object):
 def result_iterator(results, notifier = None,\
         proxy = None, reader = func.netstr_reader):
         
-        if not proxy:
-                proxy = os.environ.get("DISCO_PROXY", None)
-        if proxy:
-                if proxy.startswith("disco://"):
-                        proxy = "%s:%s" % (proxy[8:], util.MASTER_PORT)
-                elif proxy.startswith("http://"):
-                        proxy = proxy[7:]
         res = []
         for dir_url in results:
                 if dir_url.startswith("dir://"):
@@ -377,23 +380,28 @@ def result_iterator(results, notifier = None,\
                 else:
                         res.append(dir_url)
         
+        x, x, root = util.load_conf()
+
         for url in res:
                 if url.startswith("file://"):
                         fname = url[7:]
                         fd = file(fname)
                         sze = os.stat(fname).st_size
-                else:
+                elif url.startswith("disco://"):
                         host, fname = url[8:].split("/", 1)
-                        if proxy:
-                                ext_host = proxy
-                                fname = "/disco/node/%s/%s" % (host, fname)
+                        url = util.proxy_url(proxy, fname, host)
+                        if util.resultfs_enabled:
+                                f = "%s/data/%s" % (root, fname)
+                                fd = file(f)
+                                sze = os.stat(f).st_size
                         else:
-                                ext_host = host + ":" + util.HTTP_PORT
-                        sze, fd = comm.open_remote("http://%s/%s" % (ext_host, fname))
+                                sze, fd = comm.open_remote(url)
+                else:
+                        raise JobException("Invalid result url: %s" % url)
 
                 if notifier:
                         notifier(url)
 
-                for x in reader(fd, fd.length, fname):
+                for x in reader(fd, sze, fname):
                         yield x
                 
