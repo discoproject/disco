@@ -1,67 +1,80 @@
 
 #define _GNU_SOURCE
 
+#include <unistd.h>
+#include <cmph.h>
+
 #include <discodb.h>
 
 discodb_t *discodb_new(const char *path_prefix)
 {
-        char *toc_name = NULL;
-        char *data_name = NULL;
-        char *valmap_name = NULL;
-        char *valtoc_name = NULL;
         discodb_t *db = NULL;
 
         if (!(db = calloc(1, sizeof(discodb_t))))
                 return NULL;
                 
-        if (asprintf(&toc_name, "%s-toc.temp", path_prefix) == -1){
-                toc_name = NULL;
+        if (asprintf(&db->toc_name, "%s-toc.temp", path_prefix) == -1){
+                db->toc_name = NULL;
                 goto err;
         }
-        if (asprintf(&data_name, "%s-data.temp", path_prefix) == -1){
-                data_name = NULL;
+        if (asprintf(&db->data_name, "%s-data.temp", path_prefix) == -1){
+                db->data_name = NULL;
                 goto err;
         }
-        if (asprintf(&valmap_name, "%s-valmap.temp", path_prefix) == -1){
-                valmap_name = NULL;
+        if (asprintf(&db->valmap_name, "%s-valmap.temp", path_prefix) == -1){
+                db->valmap_name = NULL;
                 goto err;
         }
-        if (asprintf(&valtoc_name, "%s-valtoc.temp", path_prefix) == -1){
-                valtoc_name = NULL;
+        if (asprintf(&db->valtoc_name, "%s-valtoc.temp", path_prefix) == -1){
+                db->valtoc_name = NULL;
                 goto err;
         }
-        if (!(db->toc_f = fopen(toc_name, "w")))
+        if (!(db->toc_f = fopen(db->toc_name, "w+")))
                 goto err;
-        if (!(db->data_f = fopen(data_name, "w")))
+        if (!(db->data_f = fopen(db->data_name, "w+")))
                 goto err;
-        if (!(db->valmap_f = fopen(valmap_name, "w")))
+        if (!(db->valmap_f = fopen(db->valmap_name, "w+")))
                 goto err;
-        if (!(db->valtoc_f = fopen(valtoc_name, "w")))
+        if (!(db->valtoc_f = fopen(db->valtoc_name, "w+")))
                 goto err;
         
         db->next_id = 1;
-
-        free(toc_name);
-        free(data_name);
-        free(valmap_name);
-        free(valtoc_name);
         return db;
-
 err:
-        free(toc_name);
-        free(data_name);
-        free(valmap_name);
-        free(valtoc_name);
-        if (db && db->toc_f)
+        discodb_free(db);
+        return NULL;
+}
+
+void discodb_free(discodb_t *db)
+{
+        Word_t tmp;
+
+        if (db->toc_f){
                 fclose(db->toc_f);
-        if (db && db->data_f)
+                unlink(db->toc_name);
+        }
+        if (db->data_f){
                 fclose(db->data_f);
-        if (db && db->valmap_f)
+                unlink(db->data_name);
+        }
+        if (db->valmap_f){
                 fclose(db->valmap_f);
-        if (db && db->valtoc_f)
+                unlink(db->valmap_name);
+        }
+        if (db->valtoc_f){
                 fclose(db->valtoc_f);
+                unlink(db->valtoc_name);
+        }
+
+        free(db->toc_name);
+        free(db->data_name);
+        free(db->valmap_name);
+        free(db->valtoc_name);
+
+        JHSFA(tmp, db->valmap);
+
+        free(db->tmpbuf);
         free(db);
-        return NULL;      
 }
 
 static uint32_t new_val(discodb_t *db, Word_t *id, const ddb_attr_t *attr)
@@ -132,7 +145,9 @@ int discodb_add(discodb_t *db, const ddb_attr_t *key,
         qsort(values, num_values, sizeof(ddb_attr_t), id_cmp);
 
         /* delta-encode value ID list */
-        uint32_t size = encode_values(db, values, num_values);
+        uint32_t size = 0;
+        if (!(size = encode_values(db, values, num_values)))
+                return -1;
         
         /* write data 
          
@@ -151,7 +166,72 @@ int discodb_add(discodb_t *db, const ddb_attr_t *key,
                 return -1;
         
         db->data_offs += 4 + key->len + 4 + size;
+        ++db->num_keys;
 
+        return 0;
+}
+
+#define READ_SAFE(dst, sze)\
+        if (fread(dst, sze, 1, db->data_f) != 1){\
+                hash_fail = 1;\
+                *len = 0;\
+                return 0;\
+        }
+
+static int build_hash(discodb_t *db)
+{
+        int hash_fail = 0;
+
+        void xdispose(void *data, char *key, cmph_uint32 l) {}
+        void xrewind(void *data) { rewind(db->data_f); }
+        int xread(void *data, char **p, cmph_uint32 *len)
+        {
+                uint32_t x;
+                READ_SAFE(len, 4)
+                if (!(*p = malloc(*len))){
+                        hash_fail = 1;
+                        *len = 0;
+                        return 0;
+                }
+                READ_SAFE(*p, *len)
+                READ_SAFE(&x, 4)
+                if (fseek(db->data_f, x, SEEK_CUR)){
+                        hash_fail = 1;
+                        *len = 0;
+                        return 0;
+                }
+                return *len;
+        }
+
+        cmph_io_adapter_t r;
+        r.data = NULL;
+        r.nkeys = db->num_keys;
+        r.read = xread;
+        r.dispose = xdispose;
+        r.rewind = xrewind;
+        
+        rewind(db->data_f);
+
+        cmph_config_t *c = cmph_config_new(&r);
+        cmph_config_set_algo(c, CMPH_CHD);
+    
+        if (getenv("DEBUG"))
+                cmph_config_set_verbosity(c, 5);
+        
+        cmph_t *g = cmph_new(c);
+        if (!g)
+                printf("HASH FAILED\n");
+
+        printf("HASH SIZE %u\n", cmph_packed_size(g));
+
+
+        return 0;
+
+}
+
+int discodb_build(discodb_t *db, int outfd)
+{       
+        build_hash(db);
         return 0;
 }
 
@@ -190,9 +270,16 @@ int main(int argc, char **argv)
 
         ddb_attr_t key = {NULL, 0, 0};
         discodb_t *db = discodb_new("ddb");
+        if (!db){
+                printf("DB init failed\n");
+                exit(1);
+        }
         uint32_t n;
         
         while (--argc){
+                if (key.data)
+                        free(key.data);
+                key.data = NULL;
                 ddb_attr_t *values = read_file(argv[argc], &key, &n);
                 //int i = 0;
                 //printf("VALUES (%u):\n", n);
@@ -201,6 +288,9 @@ int main(int argc, char **argv)
                 if (discodb_add(db, &key, values, n))
                         printf("ERROR!\n");
         }
+
+        discodb_build(db, 0);
+        //discodb_free(db);
 
         return 0;
 }

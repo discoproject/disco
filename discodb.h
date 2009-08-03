@@ -20,8 +20,14 @@ typedef struct {
         FILE *valmap_f;
         FILE *valtoc_f;
         
+        char *toc_name;
+        char *data_name;
+        char *valmap_name;
+        char *valtoc_name;
+        
         uint32_t data_offs;
 
+        uint32_t num_keys;
         Pvoid_t valmap;
 
         /* It doesn't matter if these values oveflow.
@@ -34,6 +40,12 @@ typedef struct {
         uint32_t tmpbuf_len;
 
 } discodb_t;
+
+discodb_t *discodb_new(const char *path_prefix);
+void discodb_free(discodb_t *db);
+int discodb_add(discodb_t *db, const ddb_attr_t *key,
+        ddb_attr_t *values, uint32_t num_values);
+int discodb_build(discodb_t *db, int outfd);
 
 /* util.c */
 

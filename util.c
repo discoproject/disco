@@ -33,8 +33,11 @@ uint32_t allocate_bits(discodb_t *db, uint32_t size_in_bits)
         if (!len)
                 len = 1;
         if (len > db->tmpbuf_len){
-                db->tmpbuf_len = len;
-                if (!(db->tmpbuf = realloc(db->tmpbuf, len)))
+                /* + 8 is for write_bits and read_bits which
+                 * may try to access at most 7 bytes out of
+                 * array bounds */
+                db->tmpbuf_len = len + 8;
+                if (!(db->tmpbuf = realloc(db->tmpbuf, len + 8)))
                         return 0;
         }
         memset(db->tmpbuf, 0, len);
