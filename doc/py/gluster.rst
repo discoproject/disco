@@ -17,15 +17,15 @@ replicas on GlusterFS.
 
 .. function:: files(path[, filter, hostname_map])
 
-   This function walks recursively through a specified *path* of *inputfs* (often
-   *path* refers to a directory that contains one dataset) and constructs a list 
-   of input addresses.
+   This function walks recursively through a specified *path* on *inputfs* 
+   and constructs a list of input addresses for a job. Often *path* refers 
+   to a directory that contains a dataset. 
 
    ``files()`` supports replication. It uses the ``xattr`` module (see above) to
    resolve nodes that host replicas of each file based on the file's extended
-   attributes. A valid `dfs://` address returned for each replica, so Disco can
-   use them in case that the disk hosting the primary copy fails. This means
-   that ``files()`` returns a list of lists.
+   attributes. A valid `dfs://` address is returned for each replica, so
+   the scheduler can resort to them in case that the disk hosting the 
+   primary copy fails. This means that ``files()`` returns a list of lists.
    
    Only file names that match *filter* are included in the list. *filter* can be
    either a substring occurring anywhere in the file's absolute path or a compiled 
@@ -63,7 +63,7 @@ replicas on GlusterFS.
       variable is specified, the mapping is read from a file specified in
       ``DISCO_HOSTNAME_MAP``. The file follows the format specified above.
 
-   Here's a typical example of ``files()``::
+   Here's a typical example of ``files()`` usage::
 
         from disco.dfs.gluster import files
 
@@ -72,7 +72,7 @@ replicas on GlusterFS.
                 input = files("/data/web_logs/", "2006-07"),
                 map = my_map)
 
-   This example reads recursively all files that contain the substring
+   This example finds recursively all files that contain the substring
    ``2006-07``  under the ``/data/web_logs`` directory that should 
    be part of the *inputfs* hierarchy. Since ``files()`` returns all *K* 
    replicas of each input file, execution of the map function ``my_map`` 
