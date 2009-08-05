@@ -20,6 +20,33 @@ is probably minimal compared to gained benefits.
 
 .. contents::
 
+Easy approach using the `ctypes` module
+---------------------------------------
+
+In many cases there is an easier alternative to the external interface: 
+You can write the CPU-intensive functions in C and compile them to 
+a shared library which can be included in the *required_files* list
+of :meth:`disco.core.Disco.new_job`. Here is an example::
+
+        def fast_map(e, params):
+                return [("", params.mylib.fast_function(e))]
+        
+        def map_init(iter, params):
+                ctypes.cdll.LoadLibrary("mylib.so")
+                params.mylib = ctypes.CDLL("mylib.so")
+
+        Disco("disco://discomaster").new_job(
+                name = "mylib_job",
+                input = ["http://someinput"],
+                map = fast_map,
+                map_init = map_init,
+                required_files = ["mylib.so"],
+                required_modules = ["ctypes"])
+
+If this approach works for you, there is no need to read this document further.
+For more information, see documentation of the `ctypes module
+<http://docs.python.org/library/ctypes.html>`_.
+
 External interface
 ------------------
 

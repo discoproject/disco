@@ -19,7 +19,8 @@
 -define(SLAVE_ARGS, "+K true").
 -define(CMD, "nice -n 19 disco-worker '~s' '~s' '~s' '~s' '~w' ~s").
 -define(PORT_OPT, [{line, 100000}, binary, exit_status,
-                   use_stdio, stderr_to_stdout]).
+                   use_stdio, stderr_to_stdout, 
+                   {env, [{"LD_LIBRARY_PATH", "lib"}]}]).
 
 get_env(Var) ->
         get_env(Var, lists:flatten(io_lib:format(" -env ~s ~~s", [Var]))).

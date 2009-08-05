@@ -203,7 +203,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_modules, status_interval, profile])
+.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_files, required_modules, status_interval, profile])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -453,11 +453,11 @@ anymore. You can delete the unneeded job files as follows::
      * *mem_sort_limit* - sets the maximum size for the input that can be sorted
        in memory. The larger inputs are sorted on disk. By default 256MB.
 
-     * *chunked* - if the reduce function is specified, the worker saves
-       results from a single map instance to a single file that includes
-       key-value pairs for all partitions. When the reduce function is
-       executed, the worker knows how to retrieve pairs for each partition
-       from the files separately. This is called the chunked mode.
+     * *chunked* - (*Deprecated in version 0.2.2*) if the reduce function is 
+       specified, the worker saves results from a single map instance to a 
+       single file that includes key-value pairs for all partitions. When the 
+       reduce function is executed, the worker knows how to retrieve pairs for 
+       each partition from the files separately. This is called the chunked mode.
 
        If no reduce is specified, results for each partition are saved
        to a separate file. This produces *M \* P* files where *M* is the number
@@ -482,6 +482,19 @@ anymore. You can delete the unneeded job files as follows::
        decoded by the program properly.
        
        For more information, see :ref:`discoext`.
+
+     * *required_files* - (*Added in version 0.2.3*) is a list of additional 
+       files that are required by the job. You can either specify a list of
+       paths to files that should be included, or a dictionary which contains
+       file names as keys and file contents as the corresponding values. Note
+       that all files will be saved in a flat directory - no subdirectories 
+       are created.
+
+       You can use this parameter to include custom modules or shared libraries
+       in the job. Note that ``LD_LIBRARY_PATH`` is set so that you can include
+       a shared library ``foo.so`` in *required_files* and load it in the job
+       directly as ``ctypes.cdll.LoadLibrary("foo.so")``. For an example, see 
+       :ref:`discoext`.
 
      * *required_modules* - is a list of additional modules (module names) which
        are required by job functions. Modules listed here are imported to the

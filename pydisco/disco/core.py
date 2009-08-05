@@ -192,6 +192,7 @@ class Job(object):
                     "mem_sort_limit": 256 * 1024**2,
                     "ext_params": None,
                     "status_interval": 100000,
+                    "required_files": [],
                     "required_modules": [],
                     "profile": False}
 
@@ -250,6 +251,13 @@ class Job(object):
                        "status_interval": str(d("status_interval")),
                        "required_modules": " ".join(d("required_modules")),
                        "profile": str(int(d("profile")))}
+
+                if "required_files" in kw:
+                        if type(kw["required_files"]) == dict:
+                                rf = kw["required_files"]
+                        else:
+                                rf = util.pack_files(kw["required_files"])
+                        req["required_files"] = marshal.dumps(rf)
 
                 if "map" in kw:
                         if type(kw["map"]) == dict:

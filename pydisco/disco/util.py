@@ -44,13 +44,16 @@ def jobname(addr):
         else:
                 raise "Unknown address: %s" % addr
 
-
-def external(files):
-        msg = {"op": file(files[0]).read()}
-        for f in files[1:]:
+def pack_files(files):
+        msg = {}
+        for f in files:
                 msg[os.path.basename(f)] = file(f).read()
         return msg
 
+def external(files):
+        msg = pack_files(files[1:])
+        msg["op"] = file(files[0]).read()
+        return msg
 
 def disco_host(addr):
         if addr.startswith("disco:"):

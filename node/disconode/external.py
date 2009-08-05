@@ -86,9 +86,3 @@ def close_ext():
         if proc:
                 os.kill(proc.pid, 9)
 
-def write_files(ext_data, path):
-        ensure_path(path + "/", False)
-        for fname, data in ext_data.iteritems():
-                ensure_file(path + "/" + fname, data = data)
-
-        

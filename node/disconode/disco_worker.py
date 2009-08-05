@@ -61,7 +61,7 @@ def init():
                PART_SUFFIX, MAP_OUTPUT, REDUCE_DL,\
                REDUCE_SORTED, REDUCE_OUTPUT, OOB_FILE,\
                JOB_HOME, DISCO_ROOT, JOB_ROOT, PART_OUTPUT,\
-               MAP_INDEX, REDUCE_INDEX
+               MAP_INDEX, REDUCE_INDEX, REQ_FILES, CHDIR_PATH
 
         tmp, HTTP_PORT, DISCO_ROOT = load_conf()
         job_name = this_name()
@@ -75,7 +75,9 @@ def init():
         else:
                 pp = JOB_ROOT
 
+        CHDIR_PATH = pp
         PARAMS_FILE = pp + "params.dl"
+        REQ_FILES = pp + "lib"
         EXT_MAP = pp + "ext.map"
         EXT_REDUCE = pp + "ext.reduce"
         PART_SUFFIX = "-%.9d"
@@ -350,9 +352,13 @@ def op_map(job):
         fun_map_reader.func_code = marshal.loads(job['map_reader'])
         fun_map_writer.func_code = marshal.loads(job['map_writer'])
         fun_partition.func_code = marshal.loads(job['partition'])
-        
+
         if 'map_init' in job:
                 fun_init.func_code = marshal.loads(job['map_init'])
+        
+        if 'required_files' in job:
+                write_files(marshal.loads(job['required_files']), REQ_FILES)
+                sys.path.insert(0, REQ_FILES)
 
         req_mod = job['required_modules'].split()
         import_modules(req_mod, [fun_map_reader, fun_map_writer,
@@ -409,6 +415,11 @@ def op_reduce(job):
 
         fun_reduce_reader.func_code = marshal.loads(job['reduce_reader'])
         fun_reduce_writer.func_code = marshal.loads(job['reduce_writer'])
+        
+        if 'required_files' in job:
+                write_files(marshal.loads(job['required_files']), REQ_FILES)
+                sys.path.insert(0, REQ_FILES)
+        
         import_modules(req_mod, [fun_reduce_reader, fun_reduce_writer,\
             fun_reduce, fun_init])
          
