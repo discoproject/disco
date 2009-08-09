@@ -323,9 +323,9 @@ job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
 map_input(Inputs) ->
         Prefs = lists:map(fun
                 (Inp) when is_list(Inp) ->
-                        [{X, pref_node(X)} || X <- Inp];
+                        [{<<"'", X/binary, "' ">>, pref_node(X)} || X <- Inp];
                 (Inp) ->
-                        [{Inp, pref_node(Inp)}]
+                        [{<<"'", Inp/binary, "' ">>, pref_node(Inp)}]
         end, Inputs),
         lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
 
