@@ -35,7 +35,10 @@ nodes before importing it and no pre-installation is required.
 For instance, the following is a valid list for
 ``required_modules``::
 
-        required_modules = [("math", "random", ("mymodule", "lib/mymodule.py")]
+        required_modules = ["math", "random", ("mymodule", "lib/mymodule.py")]
+
+This expression imports the standard modules ``math`` and ``random`` and sends
+a custom module ``lib/mymodule.py`` to nodes before importing it.
 
 Note that Disco sends only the files that can be found in your `PYTHONPATH`. It
 is assumed that files outside ``PYTHONPATH`` belong either to the Python standard
