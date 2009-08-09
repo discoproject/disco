@@ -496,9 +496,14 @@ anymore. You can delete the unneeded job files as follows::
        directly as ``ctypes.cdll.LoadLibrary("foo.so")``. For an example, see 
        :ref:`discoext`.
 
-     * *required_modules* - is a list of additional modules (module names) which
-       are required by job functions. Modules listed here are imported to the
-       functions' namespace.
+     * *required_modules* - (*Changed in version 0.2.3*) Disco tries to guess
+       which modules are needed by your job functions automatically. It sends
+       any local dependencies (i.e. modules not included in the Python standard
+       library) to nodes by default.
+
+       If the guessing fails, or you have other special requirements, see
+       :mod:`disco.modutil` for options. Note that a *required_modules* list 
+       specified for an earlier Disco version still works as intended.
 
      * *status_interval* - print out "K items mapped / reduced" for
        every Nth item. By default 100000. Setting the value to 0 disables

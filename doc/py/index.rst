@@ -11,6 +11,7 @@ Disco client
    core
    func
    util
+   modutil
 
 Runtime environment for Disco jobs
 ----------------------------------

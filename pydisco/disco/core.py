@@ -1,5 +1,5 @@
-import sys, re, os, marshal, cjson, time, cPickle
-from disco import func, util, comm
+import sys, re, os, marshal, cjson, time, cPickle, types
+from disco import func, util, comm, modutil
 from netstring import *
 
 class JobException(Exception):
@@ -173,6 +173,10 @@ class Disco(object):
 
 class Job(object):
 
+        funs = ["map", "map_init", "reduce_init", "map_reader", "map_writer",\
+                "reduce_reader", "reduce_writer", "reduce", "partition",\
+                "combiner"]
+
         defaults = {"name": None,
                     "map": None,
                     "input": None,
@@ -219,6 +223,8 @@ class Job(object):
        
         def _run(self, **kw):
                 d = lambda x: kw.get(x, Job.defaults[x])
+                
+                # -- check parametets --
 
                 # Backwards compatibility 
                 # (fun_map == map, input_files == input)
@@ -242,6 +248,8 @@ class Job(object):
                                 raise Exception("Unknown argument: %s" % p)
 
                 inputs = kw["input"]
+
+                # -- initialize request --
                 
                 req = {"name": self.name,
                        "version": ".".join(map(str, sys.version_info[:2])),
@@ -249,15 +257,44 @@ class Job(object):
                        "sort": str(int(d("sort"))),
                        "mem_sort_limit": str(d("mem_sort_limit")),
                        "status_interval": str(d("status_interval")),
-                       "required_modules": " ".join(d("required_modules")),
                        "profile": str(int(d("profile")))}
+                
+                # -- required modules --
+
+                if "required_modules" in kw:
+                        rm = kw["required_modules"]
+                else:
+                        funlist = []
+                        for f in Job.funs:
+                                df = d(f)
+                                if type(df) == types.FunctionType:
+                                        funlist.append(df)
+                                elif type(df) == list:
+                                        funlist += df
+                        rm = modutil.find_modules(funlist)
+                send_mod = []
+                imp_mod = []
+                for mod in rm:
+                        if type(mod) == tuple:
+                                send_mod.append(mod[1])
+                                mod = mod[0]
+                        imp_mod.append(mod)
+
+                req["required_modules"] = " ".join(imp_mod)
+                rf = util.pack_files(send_mod)
+                
+                # -- required files --
 
                 if "required_files" in kw:
                         if type(kw["required_files"]) == dict:
-                                rf = kw["required_files"]
+                                rf.update(kw["required_files"])
                         else:
-                                rf = util.pack_files(kw["required_files"])
+                                rf.update(util.pack_files(\
+                                        kw["required_files"]))
+                if rf:
                         req["required_files"] = marshal.dumps(rf)
+
+                # -- map --
 
                 if "map" in kw:
                         if type(kw["map"]) == dict:
@@ -281,6 +318,10 @@ class Job(object):
                         req["partition"] =\
                                 marshal.dumps(d("partition").func_code)
                         
+                        if "combiner" in kw:
+                                req["combiner"] =\
+                                        marshal.dumps(kw["combiner"].func_code)
+                        
                         parsed_inputs = []
                         for inp in inputs:
                                 if type(inp) == list:
@@ -291,6 +332,9 @@ class Job(object):
                                 else:
                                         parsed_inputs.append(inp)
                         inputs = parsed_inputs
+
+                # -- only reduce --
+
                 else:
                         nr_maps = 0
                         ext_inputs = []
@@ -342,7 +386,9 @@ class Job(object):
                                         encode_netstring_fd(kw["ext_params"])
                         else:
                                 req["ext_params"] = kw["ext_params"]
-        
+                
+                # -- reduce --
+
                 nr_reduces = d("nr_reduces")
                 if "reduce" in kw:
                         if type(kw["reduce"]) == dict:
@@ -365,10 +411,8 @@ class Job(object):
                         nr_reduces = nr_reduces or 0
                
                 req["nr_reduces"] = str(nr_reduces)
-
-                if "combiner" in kw:
-                        req["combiner"] =\
-                                marshal.dumps(kw["combiner"].func_code)
+                
+                # -- encode and send the request -- 
 
                 self.msg = encode_netstring_fd(req)
                 reply = self.master.request("/disco/job/new", self.msg)
