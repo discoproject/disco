@@ -5,7 +5,7 @@
 .. module:: disco.modutil
    :synopsis: Parse and find module dependencies
 
-*(This module was added in version 0.2.3)*
+*(New in version 0.2.3)*
 
 This module provides helper functions to be used with the ``required_modules``
 parameter in :meth:`disco.core.Disco.new_job`. These functions are needed when
