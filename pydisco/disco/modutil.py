@@ -5,7 +5,7 @@ from opcode import opname
 
 def parse_function(fun):
         code = fun.func_code
-        mod = re.compile("\\x%x(..)\\x%x" %\
+        mod = re.compile("\\x%.2x(..)\\x%.2x" %\
                (opname.index("LOAD_GLOBAL"), opname.index("LOAD_ATTR")))
         modules = []
         for x in mod.findall(code.co_code):
