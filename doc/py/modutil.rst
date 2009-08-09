@@ -5,6 +5,8 @@
 .. module:: disco.modutil
    :synopsis: Parse and find module dependencies
 
+*(This module was added in version 0.2.3)*
+
 This module provides helper functions to be used with the ``required_modules``
 parameter in :meth:`disco.core.Disco.new_job`. These functions are needed when
 your job functions depend on external Python modules and the default value
@@ -15,7 +17,7 @@ automatically. If the found modules are not included in the Python standard libr
 or other package that is installed system-wide, it sends them to nodes so they
 can be used by the Disco worker process.
 
-Sometimes Disco fails to detect all required modules. In this case,
+Sometimes Disco may fail to detect all required modules. In this case,
 you can override the default value either by providing a list of requirements manually, 
 or by generating the list semi-automatically using the functions in this module.
 
