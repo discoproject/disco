@@ -225,7 +225,7 @@ check_failure_rate(Name, PartID, Mode, L) ->
 kill_job(Name, Msg, P, Type) ->
         event_server:event(Name, Msg, P, []),
         gen_server:call(disco_server, {kill_job, Name}),
-        gen_server:cast(event_server, {flush_events, Name}),
+        gen_server:cast(event_server, {job_done, Name}),
         exit(Type).
 
 resultfs_enabled() ->
@@ -310,12 +310,11 @@ job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
                 end,
                 
                 event_server:event(Name, "Reduce phase done", [], []),
-                event_server:event(Name, "READY", [], {ready, RedResults}), 
-                gen_server:cast(event_server, {flush_events, Name});
+                event_server:event(Name, "READY", [], {ready, RedResults});
         true ->
-                event_server:event(Name, "READY", [], {ready, RedInputs}),
-                gen_server:cast(event_server, {flush_events, Name})
-        end.
+                event_server:event(Name, "READY", [], {ready, RedInputs})
+        end,
+        gen_server:cast(event_server, {job_done, Name}).
 
 map_input(Inputs) ->
         Prefs = lists:map(fun
