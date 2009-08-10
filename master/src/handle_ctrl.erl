@@ -37,12 +37,12 @@ op("jobinfo", Query, _Json) ->
 op("parameters", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, MasterUrl} = application:get_env(disco_url),
-        {relo, [MasterUrl, "/", Name, "/params"]};
+        {relo, [MasterUrl, "/", disco_server:jobhome(Name), "params"]};
 
 op("rawevents", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, MasterUrl} = application:get_env(disco_url),
-        {relo, [MasterUrl, "/", Name, "/events"]};
+        {relo, [MasterUrl, "/", disco_server:jobhome(Name), "events"]};
 
 op("oob_get", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
@@ -166,6 +166,9 @@ handle(Socket, Msg) ->
         true ->
                 Json = none
         end,
+        
+        handle_job:set_disco_url(application:get_env(disco_url), Msg),
+        
         Op = lists:last(string:tokens(binary_to_list(Script), "/")),
         Reply = case op(Op, httpd:parse_query(binary_to_list(Query)), Json) of
                 {ok, Res} -> [?HTTP_HEADER, json:encode(Res)];

@@ -1,6 +1,6 @@
 
 -module(handle_job).
--export([handle/2, job_coordinator/2]).
+-export([handle/2, job_coordinator/2, set_disco_url/2]).
 
 -define(OK_HEADER, "HTTP/1.1 200 OK\n"
                    "Status: 200 OK\n"
@@ -85,25 +85,22 @@ gethostname() ->
                 {ok, Val} -> Val
         end.
 
-set_disco_url(SPort) ->
+set_disco_url(undefined, Msg) ->
+        {value, {_, SPort}} =
+                lists:keysearch(<<"SERVER_PORT">>, 1, Msg),
         {ok, Name} = application:get_env(disco_name),
         HostN = gethostname(),
         DiscoUrl = lists:flatten(["http://", HostN, ":",
                 binary_to_list(SPort), "/disco/master/_", Name, "/"]),
-        application:set_env(disco, disco_url, DiscoUrl).
+        application:set_env(disco, disco_url, DiscoUrl);
+set_disco_url(_, _) -> ok.
 
 % handle() receives the SCGI request and reads POST data.
 handle(Socket, Msg) ->
         {value, {_, CLenStr}} = lists:keysearch(<<"CONTENT_LENGTH">>, 1, Msg),
         CLen = list_to_integer(binary_to_list(CLenStr)),
         
-        Url = application:get_env(disco_url),
-        if Url == undefined ->
-                {value, {_, SPort}} =
-                        lists:keysearch(<<"SERVER_PORT">>, 1, Msg),
-                set_disco_url(SPort);
-        true -> ok
-        end,
+        set_disco_url(application:get_env(disco_url), Msg),
 
         % scgi_recv_msg used instead of gen_tcp to work around gen_tcp:recv()'s
         % 16MB limit.
