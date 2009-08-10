@@ -1,4 +1,4 @@
-import httplib, urllib, cStringIO, struct
+import httplib, urllib2, cStringIO, struct
 
 http_pool = {}
 
@@ -15,17 +15,20 @@ class CommException(Exception):
                         return "HTTP exception (http status '%s')" %\
                                 self.http_code
 
-def download(url, data = None, redir = False):
+def download(url, data = None, redir = False, offset = 0):
         if redir:
-                c = urllib.urlopen(url, data)
+                req = urllib2.Request(url, data)
+                if offset:
+                        req.add_header("Range", "bytes=%d-" % offset)
+                try:
+                        c = urllib2.urlopen(req)
+                except urllib2.HTTPError, x:
+                        raise CommException(x.msg)
                 r = c.read()
                 c.close()
-                if "status" in c.headers and\
-                        not c.headers["status"].startswith("200"):
-                        raise CommException(c.headers["status"])
                 return r
         else:
-                sze, fd = open_remote(url, data = data)
+                sze, fd = open_remote(url, data = data, offset = offset)
                 return fd.read()
 
 
@@ -33,7 +36,7 @@ def check_code(fd, expected):
         if fd.status != expected:
                 raise CommException(fd.status)
 
-def open_remote(url, data = None, expect = 200):
+def open_remote(url, data = None, expect = 200, offset = 0):
         try:
                 ext_host, ext_file = url[7:].split("/", 1)
                 ext_file = "/" + ext_file
@@ -51,12 +54,17 @@ def open_remote(url, data = None, expect = 200):
                         http = httplib.HTTPConnection(ext_host)
                         http_pool[ext_host] = http
 
+                h = {}
+                if offset:
+                        h = {"Range": "bytes=%d-" % offset}
+                        expect = 206
+
                 if data:
-                        http.request("POST", ext_file, data)
+                        http.request("POST", ext_file, data, headers = h)
                         fd = http.getresponse()
                         check_code(fd, expect)
                 else:
-                        http.request("GET", ext_file, None)
+                        http.request("GET", ext_file, None, headers = h)
                         fd = http.getresponse()
                         check_code(fd, expect)
                
