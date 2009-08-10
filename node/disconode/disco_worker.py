@@ -1,4 +1,4 @@
-import os, subprocess, cStringIO, marshal, time, sys, cPickle, md5
+import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import re, traceback, tempfile, struct, random
 from disco.util import\
     parse_dir, load_conf, err, data_err, msg, resultfs_enabled, load_oob
@@ -7,6 +7,12 @@ from disco.netstring import *
 from disconode.util import *
 from disconode import external
 from disco import comm
+
+try:
+        import hashlib as md5
+except ImportError:
+        # Hashlib is not available in Python2.4
+        import md5
 
 oob_chars = re.compile("[^a-zA-Z_\-:0-9]")
 
