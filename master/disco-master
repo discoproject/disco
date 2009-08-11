@@ -15,6 +15,7 @@ DISCO_SLAVES_OS=${DISCO_SLAVES_OS:-"linux"}
 
 DISCO_NAME=${DISCO_NAME:-"disco_$DISCO_SCGI_PORT"}
 DISCO_DATA=${DISCO_DATA:-"$DISCO_ROOT/data"}
+DISCO_LOCALDIR=${DISCO_LOCALDIR:-"$DISCO_ROOT/local/_$DISCO_NAME"}
 DISCO_MASTER=${DISCO_MASTER:-"$DISCO_DATA/_$DISCO_NAME"}
 DISCO_CONFIG=${DISCO_CONFIG:-"$DISCO_ROOT/$DISCO_NAME.config"}
 DISCO_MASTER_LOG=${DISCO_MASTER_LOG:-"$DISCO_LOG/$DISCO_NAME.log"}
@@ -23,6 +24,12 @@ if [ ! -e $DISCO_MASTER ] && ! mkdir -p $DISCO_MASTER; then
 	echo "$DISCO_MASTER doesn't exist"
 	exit 1
 fi
+
+if [ ! -e $DISCO_LOCALDIR ] && ! mkdir -p $DISCO_LOCALDIR; then
+	echo "$DISCO_LOCALDIR doesn't exist"
+	exit 1
+fi
+
 echo "Using master... $DISCO_MASTER"
 echo "Using slaves with... $DISCO_SLAVES_OS"
 [ -z $DISCO_MASTER_HOST ] || echo "Using master host... $DISCO_MASTER_HOST"
@@ -61,6 +68,7 @@ erl +K true\
     -eval "[handle_job, handle_ctrl]"\
     -disco disco_name \"$DISCO_NAME\"\
     -disco disco_root \"$DISCO_MASTER\"\
+    -disco disco_localdir \"$DISCO_LOCALDIR\"\
     -disco disco_master_host \"$DISCO_MASTER_HOST\"\
     -disco disco_slaves_os \"$DISCO_SLAVES_OS\"\
     -disco scgi_port $DISCO_SCGI_PORT\

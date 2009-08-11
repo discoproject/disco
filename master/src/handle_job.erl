@@ -25,6 +25,16 @@ new_coordinator(Params) ->
                 throw("couldn't start a new job coordinator")
         end.     
 
+make_local({_, true}, Root, Home) ->
+        {ok, LocalRoot} = application:get_env(disco_localdir),
+        [R, _] = filename:split(Home),
+        file:make_dir(filename:join(LocalRoot, R)),
+        ok = file:make_dir(filename:join(LocalRoot, Home)),
+        Dst = filename:join([LocalRoot, Home, "events"]),
+        Src = filename:join([Root, Home, "events"]),
+        file:make_symlink(Dst, Src);
+make_local(_, _, _) -> ok.
+
 save_params(Name, PostData) ->
         C = string:chr(Name, $/) + string:chr(Name, $.),
         if C > 0 ->
@@ -36,6 +46,7 @@ save_params(Name, PostData) ->
         [R, _] = filename:split(Home),
         file:make_dir(filename:join(Root, R)),
         ok = file:make_dir(filename:join(Root, Home)),
+        ok = make_local(application:get_env(resultfs_enabled), Root, Home),
         ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
 find_values(Msg) ->
