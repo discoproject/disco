@@ -158,9 +158,9 @@ format_timestamp(Tstamp) ->
 
 add_event(Host, JobName, Msg, Params, {Events, MsgBuf}) ->
         {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
-        M = list_to_binary(json:encode([format_timestamp(now()),
-                list_to_binary(Host), Msg])),
-        Line = <<M/binary, 10>>,
+        T = format_timestamp(now()),
+        H = list_to_binary(Host),
+        Line = <<"[\"", T/binary, "\",\"", H/binary, "\",", Msg/binary, "]", 10>>,
 
         [{_, EvF}] = ets:lookup(event_files, JobName),
         file:write(EvF, Line),
@@ -188,8 +188,9 @@ event(Host, JobName, Format, Args, Params) ->
         event(event_server, Host, JobName, Format, Args, Params).
 
 event(EventServ, Host, JobName, Format, Args, Params) ->
-        gen_server:cast(EventServ, {add_job_event, Host, JobName,
-                list_to_binary(io_lib:fwrite(Format, Args)), Params}).
+        M = list_to_binary(json:encode(
+                list_to_binary(io_lib:fwrite(Format, Args)))),
+        gen_server:cast(EventServ, {add_job_event, Host, JobName, M, Params}).
         
 % callback stubs
 terminate(_Reason, _State) -> {}.
