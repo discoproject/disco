@@ -1,5 +1,5 @@
 import sys, re, os, marshal, cjson, time, cPickle, types
-from disco import func, util, comm, modutil
+from disco import func, util, comm, modutil, eventmonitor
 from netstring import *
 
 class JobException(Exception):
@@ -56,9 +56,9 @@ class Disco(object):
         def __init__(self, host):
                 self.host = "http://" + util.disco_host(host)[7:]
 
-        def request(self, url, data = None, redir = False):
+        def request(self, url, data = None, redir = False, offset = 0):
                 return comm.download(self.host + url,\
-                        data = data, redir = redir)
+                        data = data, redir = redir, offset = offset)
         
         def nodeinfo(self):
                 return cjson.decode(self.request("/disco/ctrl/nodeinfo"))
@@ -112,9 +112,36 @@ class Disco(object):
                 self.request("/disco/ctrl/purge_job", '"%s"' % name)
 
         def jobspec(self, name):
-                r = self.request("%s/disco/ctrl/parameters?name=%s"\
-                        % (self.host, name), redir = True)
+                r = self.request("/disco/ctrl/parameters?name=%s"\
+                        % ame, redir = True)
                 return decode_netstring_fd(r)
+
+        def events(self, name, offset = 0):
+                def event_iter(events):
+                        offs = offset
+                        lines = events.splitlines()
+                        for i, l in enumerate(lines):
+                                offs += len(l) + 1
+                                if not len(l):
+                                        continue
+                                try:
+                                        ent = tuple(cjson.decode(l))
+                                except cjson.DecodeError:
+                                        break
+                                # HTTP range request doesn't like empty ranges:
+                                # Let's ensure that at least the last newline
+                                # is always retrieved.
+                                if i == len(lines) - 1:
+                                        offs -= 1
+                                yield offs, ent
+                
+                r = self.request("/disco/ctrl/rawevents?name=%s"\
+                         % name, redir = True, offset = offset)
+                
+                if len(r) < 2:
+                        return []
+                else:
+                        return event_iter(r)
 
         def results(self, names, timeout = 2000):
                 single = type(names) == str
@@ -154,18 +181,32 @@ class Disco(object):
                 else:
                         return r
 
-        def wait(self, name, poll_interval = 5, timeout = None, clean = False):
+        def wait(self, name, show_events = None, poll_interval = 5,\
+                        timeout = None, clean = False):
+                
+                mon = eventmonitor.EventMonitor(show_events,\
+                        disco = self, name = name)
                 t = time.time()
-                p = poll_interval * 1000
+                if mon.isenabled():
+                        p = 2000
+                else:
+                        p = poll_interval * 1000
                 while True:
+                        mon.refresh()
                         status = self.results(name, timeout = p)
                         if status == None:
                                 raise JobException("Unknown job", self.host, name)
                         if status[0] == "ready":
+                                if mon.isenabled():
+                                        time.sleep(p / 1000.0 + 1)
+                                        mon.refresh()
                                 if clean:
                                         self.clean(name)
                                 return status[1]
                         if status[0] != "active":
+                                if mon.isenabled():
+                                        time.sleep(p / 1000.0 + 1)
+                                        mon.refresh()
                                 raise JobException("Job failed", self.host, name)
                         if timeout and time.time() - t > timeout:
                                 raise JobException("Timeout", self.host, name)
@@ -217,7 +258,7 @@ class Job(object):
                         return g
                 if name in ["kill", "clean", "purge", "jobspec", "results",
                             "jobinfo", "wait", "oob_get", "oob_list",
-                            "profile_stats"]:
+                            "profile_stats", "events"]:
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
        
