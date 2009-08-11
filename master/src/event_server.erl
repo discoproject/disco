@@ -5,7 +5,7 @@
 -define(WRITE_BUFFER, 64 * 1024).
 -define(BUFFER_TIMEOUT, 2000).
 
--export([format_timestamp/1, event/4, event/5, event/6]).
+-export([event/4, event/5, event/6]).
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
@@ -23,6 +23,12 @@ init(_Args) ->
         ets:new(event_files, [named_table]),
         {ok, {dict:new(), dict:new()}}.
 
+json_list([], _) -> [];
+json_list([X], L) ->
+        [<<"[">>, lists:reverse([X|L]), <<"]">>];
+json_list([X|R], L) ->
+        json_list(R, [<<X/binary, ",">>|L]).
+
 handle_call(get_jobnames, _From, {Events, _} = S) ->
         Lst = dict:fold(fun(JobName, {_, Nu, Pid}, L) ->
                 [{JobName, Nu, Pid}|L]
@@ -33,11 +39,14 @@ handle_call({get_job_events, JobName, Q, N0}, _From, {_, MsgBuf} = S) ->
         N = if N0 > 1000 -> 1000; true -> N0 end,
         case dict:find(JobName, MsgBuf) of
                 _ when Q =/= "" ->
-                        {reply, {ok, grep_log(JobName, Q, N)}, S};
+                        {reply, {ok, 
+                                json_list(grep_log(JobName, Q, N), [])}, S};
                 {ok, {_, _, MsgLst}} ->
-                        {reply, {ok, lists:sublist(MsgLst, N)}, S};
+                        {reply, {ok,
+                                json_list(lists:sublist(MsgLst, N), [])}, S};
                 error ->
-                        {reply, {ok, tail_log(JobName, N)}, S}
+                        {reply, {ok,
+                                json_list(tail_log(JobName, N), [])}, S}
         end;
 
 handle_call({get_results, JobName}, _From, {Events, _} = S) ->
@@ -62,7 +71,7 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->
                         Res = event_filter(ready, EvLst),
                         Ready = event_filter(task_ready, EvLst),
                         Failed = event_filter(task_failed, EvLst),
-                        TStamp = list_to_binary(format_timestamp(Nu)),
+                        TStamp = format_timestamp(Nu),
                         {reply, {ok, {TStamp, Pid, 
                                 JobNfo, Res, Ready, Failed}}, S}
         end.
@@ -145,11 +154,12 @@ format_timestamp(Tstamp) ->
         {Date, Time} = calendar:now_to_local_time(Tstamp),
         DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
         TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
-        DateStr ++ TimeStr.
+        list_to_binary([DateStr, TimeStr]).
 
 add_event(Host, JobName, Msg, Params, {Events, MsgBuf}) ->
         {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
-        M = iolist_to_binary([format_timestamp(now()), $@, Host, $;, Msg]),
+        M = list_to_binary(json:encode([format_timestamp(now()),
+                list_to_binary(Host), Msg])),
         Line = <<M/binary, 10>>,
 
         [{_, EvF}] = ets:lookup(event_files, JobName),
@@ -179,7 +189,7 @@ event(Host, JobName, Format, Args, Params) ->
 
 event(EventServ, Host, JobName, Format, Args, Params) ->
         gen_server:cast(EventServ, {add_job_event, Host, JobName,
-                lists:flatten(io_lib:fwrite(Format, Args)), Params}).
+                list_to_binary(io_lib:fwrite(Format, Args)), Params}).
         
 % callback stubs
 terminate(_Reason, _State) -> {}.

@@ -128,11 +128,9 @@ function update_events(events_msg, success, is_auto){
 }
 
 function make_event(E, i){
-        var sp = E.indexOf(";")
-        var msg = E.slice(sp + 1)
-        var tmp = E.slice(0, sp).split("@")
-        var tstamp = tmp[0]
-        var host = tmp[1]
+        var tstamp = E[0];
+        var host = E[1];
+        var msg = E[2];
 
         if (msg.match("^WARN"))
                 id = "ev_warning";

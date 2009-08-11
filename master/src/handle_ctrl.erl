@@ -77,8 +77,9 @@ op("jobevents", Query, _Json) ->
                 false -> "";
                 {value, {_, F}} -> string:to_lower(F)
         end,
-        gen_server:call(event_server,
-                {get_job_events, Name, string:to_lower(Q), Num});
+        {ok, Ev} = gen_server:call(event_server,
+                {get_job_events, Name, string:to_lower(Q), Num}),
+        {raw, Ev};
 
 op("nodeinfo", _Query, _Json) ->
         {ok, {Available, Active}} = 
