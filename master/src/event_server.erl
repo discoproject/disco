@@ -92,8 +92,8 @@ handle_cast({add_job_event, Host, JobName, M, {start, Pid} = P},
                 
                 {ok, Root} = application:get_env(disco_root),
                 FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
-                Pid = spawn(fun() -> job_event_handler(FName) end),
-                ets:insert(event_files, {JobName, Pid}),
+                EventProc = spawn(fun() -> job_event_handler(FName) end),
+                ets:insert(event_files, {JobName, EventProc}),
 
                 {noreply, add_event(Host, JobName, M, P, {Events, MsgBuf})}
         end;
