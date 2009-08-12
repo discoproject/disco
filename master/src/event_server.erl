@@ -2,8 +2,8 @@
 -behaviour(gen_server).
 
 -define(EVENT_PAGE_SIZE, 100).
--define(WRITE_BUFFER, 64 * 1024).
--define(BUFFER_TIMEOUT, 2000).
+-define(EVENT_BUFFER_SIZE, 1000).
+-define(EVENT_BUFFER_TIMEOUT, 2000).
 
 -export([event/4, event/5, event/6]).
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, 
@@ -92,9 +92,8 @@ handle_cast({add_job_event, Host, JobName, M, {start, Pid} = P},
                 
                 {ok, Root} = application:get_env(disco_root),
                 FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
-                {ok, F} = file:open(FName, [append,
-                        {delayed_write, ?WRITE_BUFFER, ?BUFFER_TIMEOUT}]),
-                ets:insert(event_files, {JobName, F}),
+                Pid = spawn(fun() -> job_event_handler(FName) end),
+                ets:insert(event_files, {JobName, Pid}),
 
                 {noreply, add_event(Host, JobName, M, P, {Events, MsgBuf})}
         end;
@@ -108,8 +107,8 @@ handle_cast({add_job_event, Host, JobName, M, P}, {_, MsgBuf} = S) ->
 handle_cast({job_done, JobName}, {Events, MsgBuf} = S) ->
         case ets:lookup(event_files, JobName) of
                 [] -> ok;
-                [{_, F}] ->
-                        file:close(F),
+                [{_, EventProc}] ->
+                        EventProc ! done,
                         ets:delete(event_files, JobName)
         end,
         case dict:find(JobName, MsgBuf) of
@@ -162,8 +161,8 @@ add_event(Host, JobName, Msg, Params, {Events, MsgBuf}) ->
         H = list_to_binary(Host),
         Line = <<"[\"", T/binary, "\",\"", H/binary, "\",", Msg/binary, "]", 10>>,
 
-        [{_, EvF}] = ets:lookup(event_files, JobName),
-        file:write(EvF, Line),
+        [{_, EventProc}] = ets:lookup(event_files, JobName),
+        EventProc ! {event, Line},
 
         if LstLen0 + 1 > ?EVENT_PAGE_SIZE * 2 ->
                 MsgLst = lists:sublist([Line|MsgLst0], ?EVENT_PAGE_SIZE),
@@ -188,8 +187,14 @@ event(Host, JobName, Format, Args, Params) ->
         event(event_server, Host, JobName, Format, Args, Params).
 
 event(EventServ, Host, JobName, Format, Args, Params) ->
+        SArgs = lists:map(fun(X) ->
+                L = lists:flatlength(io_lib:fwrite("~p", [X])) > 1000,
+                if L -> trunc_io:fprint(X, 1000);
+                true -> X 
+        end end, Args),
+
         M = list_to_binary(json:encode(
-                list_to_binary(io_lib:fwrite(Format, Args)))),
+                list_to_binary(io_lib:fwrite(Format, SArgs)))),
         gen_server:cast(EventServ, {add_job_event, Host, JobName, M, Params}).
         
 % callback stubs
@@ -197,3 +202,34 @@ terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+job_event_handler(FName) ->
+        {ok, F} = file:open(FName, [append, raw]),
+        job_event_handler_do(F, [], 0). 
+
+job_event_handler_do(F, Buf, BufSize) when BufSize > ?EVENT_BUFFER_SIZE ->
+        flush_buffer(F, Buf),
+        job_event_handler_do(F, [], 0);
+
+job_event_handler_do(F, Buf, BufSize) ->
+        receive
+                {event, Line} ->
+                        job_event_handler_do(F, [Line|Buf], BufSize + 1);
+                done ->
+                        flush_buffer(F, Buf),
+                        file:close(F);
+                E ->
+                        error_logger:warning_report(
+                                {"Unknown message in job_event_handler", E}),
+                        file:close(F)
+        after ?EVENT_BUFFER_TIMEOUT ->
+                flush_buffer(F, Buf),
+                job_event_handler_do(F, [], 0)
+        end.
+
+flush_buffer(F, Buf) ->
+        file:write(F, lists:reverse(Buf)).
+                        
+                        
+                
+        
+        
