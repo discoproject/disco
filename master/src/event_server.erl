@@ -204,6 +204,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 job_event_handler(FName) ->
         {ok, F} = file:open(FName, [append, raw]),
+        timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
         job_event_handler_do(F, [], 0). 
 
 job_event_handler_do(F, Buf, BufSize) when BufSize > ?EVENT_BUFFER_SIZE ->
@@ -214,6 +215,10 @@ job_event_handler_do(F, Buf, BufSize) ->
         receive
                 {event, Line} ->
                         job_event_handler_do(F, [Line|Buf], BufSize + 1);
+                flush ->
+                        flush_buffer(F, Buf),
+                        timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
+                        job_event_handler_do(F, [], 0);
                 done ->
                         flush_buffer(F, Buf),
                         file:close(F);
@@ -221,11 +226,9 @@ job_event_handler_do(F, Buf, BufSize) ->
                         error_logger:warning_report(
                                 {"Unknown message in job_event_handler", E}),
                         file:close(F)
-        after ?EVENT_BUFFER_TIMEOUT ->
-                flush_buffer(F, Buf),
-                job_event_handler_do(F, [], 0)
         end.
 
+flush_buffer(_, []) -> ok;
 flush_buffer(F, Buf) ->
         file:write(F, lists:reverse(Buf)).
                         
