@@ -318,7 +318,7 @@ slave_master(SlaveName) ->
         receive
                 {start, Pid, Node, Args} ->
                         launch(case application:get_env(disco_slaves_os) of
-                                {ok, "osx"} ->
+                                {ok, "Darwin"} ->
                                         fun() -> 
                                                 slave:start(list_to_atom(Node),
                                                 SlaveName, Args, self(),

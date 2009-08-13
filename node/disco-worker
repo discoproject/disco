@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 import os, sys
 
 from disconode import disco_worker as dw
@@ -69,26 +69,3 @@ if __name__ == "__main__":
                 method(m)
         
         util.msg("Worker done", "END")
-
-
-
-
-
-
-
-
-                
-
-        
-
-
-
-
-
-
-
-
-
-
-
-        

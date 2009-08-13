@@ -33,8 +33,7 @@ resultfs_enabled() ->
 
 
 start(_Type, _Args) ->
-        write_pid(os:getenv("DISCO_PID_FILE")),
-
+        write_pid(os:getenv("DISCO_MASTER_PID")),
         ScgiPort = conf(scgi_port),
         _MasterHostname = conf(disco_master_host),
         _DiscoConfig = conf(disco_config),

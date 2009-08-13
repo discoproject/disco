@@ -33,7 +33,7 @@ get_env(Var, Fmt) ->
 
 slave_env() ->
         lists:flatten([?SLAVE_ARGS, 
-                get_env("DISCO_HOME", " -pa ~s/ebin"),
+                get_env("DISCO_MASTER_HOME", " -pa ~s/ebin"),
                 [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
                         "DISCO_PORT", "DISCO_FLAGS", "PYTHONPATH", "PATH"]]]).
 

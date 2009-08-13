@@ -1,0 +1,9 @@
+*.beam
+*.log
+*.pid
+*.pyc
+conf/disco.conf
+master/disco.boot
+master/disco.rel
+master/disco.script
+root/
