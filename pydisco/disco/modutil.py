@@ -5,8 +5,8 @@ from opcode import opname
 
 def parse_function(fun):
         code = fun.func_code
-        mod = re.compile("\\x%.2x(..)\\x%.2x" %\
-               (opname.index("LOAD_GLOBAL"), opname.index("LOAD_ATTR")))
+        mod = re.compile("\\x%.2x(..)\\x%.2x" % (opname.index("LOAD_GLOBAL"),\
+                opname.index("LOAD_ATTR")), re.DOTALL)
         modules = []
         for x in mod.findall(code.co_code):
                 modules.append(code.co_names[struct.unpack("<H", x)[0]])
@@ -71,37 +71,5 @@ def find_modules(funs, send_modules = True, recurse = True):
                        [k for k, v in mods.iteritems() if not v]
         else:
                 return mods.keys()
-"""
-def koira():
-        random.random()
-        time.time()
-        msg()
-        PIL.Image.load()
-        nenuto = "dssd"
-        nenuto.poko()
-        gluster.ke
-        util.ko
-        nero.ds()
-
-print ["colorsys"] + find_modules([koira], send_modules = True)
-"""
-# - if you want to find and send all required modules recursively which are used 
-# by any m/r function, don't specify required_modules (default).
-# - if you want to find and import all required modules, but not send them, or
-# you want to disable recursive analysis, use ``required_modules =
-# find_modules()`` explicitly.
-# - if you want to send a known set of modules (possibly recursively)
-# but you don't know their paths, use locate_modules().
-# - if you want to send a known set of modules, provide a list of 
-# (module name, module path) tuples.
-# - if you just want to import specific modules, provide a list of module
-# names.
-# Any combinations of the above are allowed, e.g. 
-# required_modules = find_modules([fun_map]) + [("mymodule", "/tmp/mymodule.py"), "time", "random"]
-#
-# PACKAGES are NOT supported
-
-
-
         
 
