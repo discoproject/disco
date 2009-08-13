@@ -277,7 +277,7 @@ class ReduceReader:
                 msg("Starting external sort")
                 sortname = REDUCE_SORTED % this_partition()
                 ensure_path(sortname, False)
-                cmd = ["sort", "-n", "-s", "-k", "1,1", "-z",\
+                cmd = ["sort", "-n", "-k", "1,1", "-z",\
                         "-t", " ", "-o", sortname, dlname]
 
                 proc = subprocess.Popen(cmd)
