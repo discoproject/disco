@@ -105,6 +105,11 @@ Functions
         a = random
         a.uniform(1, 10)
 
+   Also, modules used in generator expressions, like here::
+
+        return ((k, base64.encodestring(v)) for k, v in d.iteritems())
+ 
+   are not detected correctly.
 
 .. function:: locate_modules(modules[, recurse])
 
