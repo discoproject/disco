@@ -343,11 +343,6 @@ class Job(object):
                         else:
                                 req["map"] = marshal.dumps(kw["map"].func_code)
 
-                        if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
-                                nr_maps = len(inputs)
-                        else:
-                                nr_maps = kw["nr_maps"]
-
                         if "map_init" in kw:
                                 req["map_init"] = marshal.dumps(\
                                         kw["map_init"].func_code)
@@ -373,6 +368,11 @@ class Job(object):
                                 else:
                                         parsed_inputs.append(inp)
                         inputs = parsed_inputs
+                        
+                        if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
+                                nr_maps = len(inputs)
+                        else:
+                                nr_maps = kw["nr_maps"]
 
                 # -- only reduce --
 
