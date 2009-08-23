@@ -1,4 +1,4 @@
-import sys, re, os, marshal, cjson, time, cPickle, types
+import sys, re, os, marshal, cjson, time, cPickle, types, cStringIO
 from disco import func, util, comm, modutil, eventmonitor
 from netstring import *
 
@@ -73,7 +73,7 @@ class Disco(object):
                         if x.http_code == 404:
                                 raise KeyError("Unknown key or job name")
                         raise
-
+        
         def oob_list(self, name):
                 try:
                         r = self.request("/disco/ctrl/oob_list?name=%s" % name,
@@ -113,8 +113,8 @@ class Disco(object):
 
         def jobspec(self, name):
                 r = self.request("/disco/ctrl/parameters?name=%s"\
-                        % ame, redir = True)
-                return decode_netstring_fd(r)
+                        % name, redir = True)
+                return decode_netstring_fd(cStringIO.StringIO(r))
 
         def events(self, name, offset = 0):
                 def event_iter(events):

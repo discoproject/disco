@@ -45,6 +45,8 @@ def download(url, data = None, redir = False, offset = 0):
         if offset:
                 dl_handle.setopt(RANGE, "")
                 check_code(dl_handle, 206)
+        else:
+                check_code(dl_handle, 200)
         return outbuf.getvalue()
 
 class CurlConn:
