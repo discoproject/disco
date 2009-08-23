@@ -2,6 +2,7 @@
 import os, re
 from xattr import xattr
 from os.path import join
+from subprocess import Popen, PIPE
 
 class DFSException(Exception):
         def __init__(self, msg):
@@ -10,14 +11,21 @@ class DFSException(Exception):
                 return self.msg
 
 def find_gluster_mountpoint(path):
-        is_gluster = lambda p: len([x for x in xattr(p) if "trusted" in x]) > 0
-        if not is_gluster(path):
+        mount = Popen("mount", stdout = PIPE)
+        if mount.wait():
+                raise DFSException("Could not execute mount")
+        root = ""
+        for l in mount.communicate()[0].splitlines():
+                # mount output follows the format
+                # dxadm|on|/data|type fuse.glusterfs...
+                x, x, p, t = l.split(" ", 3)
+                if "glusterfs" in t and path.startswith(p)\
+                        and len(p) > len(root):
+                        root = p
+        if root:
+                return root
+        else:
                 raise DFSException("%s: Not a Gluster filesystem" % path)
-        head = mp = path
-        while head != "/" and is_gluster(head):
-                mp = head
-                head = os.path.split(head)[0]
-        return mp
 
 def load_hostname_map(hmap):
         try:
@@ -34,10 +42,17 @@ def load_hostname_map(hmap):
 
 def replicas(path, hmap):
         r = []
-        for x in xattr(path):
-                if "trusted" in x:
-                        h = x.split(".")[-1]
-                        r.append(hmap.get(h, h))
+        attr = xattr(path)
+        if "user.glusterfs.location" in attr:
+                r = [attr["user.glusterfs.location"]]
+        elif "trusted.glusterfs.location" in attr:
+                r = [attr["trusted.glusterfs.location"]]
+        else:
+                # this mode for gluster prior v.2.0.6
+                for x in xattr(path):
+                        if "trusted" in x:
+                                h = x.split(".")[-1]
+                                r.append(hmap.get(h, h))
         if r:
                 return r
         else:
