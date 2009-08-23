@@ -289,7 +289,7 @@ class ReduceReader:
                 msg("External sort done: %s" % sortname)
                 return self.multi_file_iterator([sortname], reader =\
                         lambda fd, sze, fname:\
-                                re_reader("(.*?) (.*?)\000", fd, sze, fname))
+                                re_reader("(?s)(.*?) (.*?)\000", fd, sze, fname))
 
        
         def list_iterator(self, lst):
