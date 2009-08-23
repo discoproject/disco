@@ -63,16 +63,16 @@ erl +K true\
     -rsh ssh\
     -connect_all false\
     -pa "$DISCO_HOME/ebin"\
-    -boot "$DISCO_HOME/disco"\
     -kernel error_logger "{file, \"$DISCO_MASTER_LOG\"}"\
-    -eval "[handle_job, handle_ctrl]"\
     -disco disco_name \"$DISCO_NAME\"\
     -disco disco_root \"$DISCO_MASTER\"\
     -disco disco_localdir \"$DISCO_LOCALDIR\"\
     -disco disco_master_host \"$DISCO_MASTER_HOST\"\
     -disco disco_slaves_os \"$DISCO_SLAVES_OS\"\
     -disco scgi_port $DISCO_SCGI_PORT\
-    -disco disco_config \"$DISCO_CONFIG\" </dev/null >/dev/null 2>/dev/null
+    -disco disco_config \"$DISCO_CONFIG\"\
+    -eval "[handle_job, handle_ctrl]"\
+    -eval "application:start(disco)" </dev/null >/dev/null 2>/dev/null
 
 sleep 1
 

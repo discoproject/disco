@@ -22,8 +22,7 @@ write_pid(PidFile) ->
                         ["Could not write PID to ", PidFile, ":", Error])
         end.
 
-resultfs_enabled() -> true.
-resultfs_enabled0() ->
+resultfs_enabled() ->
         case os:getenv("DISCO_FLAGS") of
                 false -> false;
                 Flags ->
