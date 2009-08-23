@@ -44,9 +44,11 @@ def replicas(path, hmap):
         r = []
         attr = xattr(path)
         if "user.glusterfs.location" in attr:
-                r = [attr["user.glusterfs.location"]]
+                a = attr["user.glusterfs.location"]
+                r = [hmap.get(a, a)]
         elif "trusted.glusterfs.location" in attr:
-                r = [attr["trusted.glusterfs.location"]]
+                a = attr["trusted.glusterfs.location"]
+                r = [hmap.get(a, a)]
         else:
                 # this mode for gluster prior v.2.0.6
                 for x in xattr(path):
