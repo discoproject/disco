@@ -2,7 +2,7 @@ Source: disco
 Section: admin
 Priority: extra
 Maintainer: Ville Tuulos <ville.h.tuulos@nokia.com>
-Build-depends: debhelper (>= 7), erlang-dev (>= 1:12.b.3-dfsg-1), erlang-nox (>= 1:12.b.3-dfsg-1)
+Build-depends: debhelper (>= 7), erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a
 Standards-Version: 3.7.3
 Homepage: http://www.discoproject.org
 
@@ -16,13 +16,13 @@ Description: Disco client
 
 Package: disco-node
 Architecture: all
-Depends: ${misc:Depends}, adduser, lighttpd, erlang (>= 1:12.b.3-dfsg-1), python (>= 2.4), python-disco (= ${source:Version})
+Depends: ${misc:Depends}, adduser, lighttpd, erlang-base (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a, python (>= 2.4), python-disco (= ${source:Version})
 Description: Disco node
  This is Disco node.
 
 Package: disco-master
 Architecture: all
-Depends: ${misc:Depends}, disco-node (= ${source:Version}), erlang (>= 1:12.b.3-dfsg-1)
+Depends: ${misc:Depends}, disco-node (= ${source:Version}), erlang-base (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a
 Description: Disco master
  This is Disco master.
 
