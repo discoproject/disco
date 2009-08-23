@@ -62,7 +62,23 @@ handle_call({get_results, JobName}, _From, {Events, _} = S) ->
                                 {reply, {dead, Pid}, S}
                         end
         end;
+
+handle_call({new_job, JobName, Pid}, _From, {Events0, MsgBuf0} = S) ->
+        V = dict:is_key(JobName, Events0),
+        if V -> {reply, eexist, S};
+        true ->
+                Events = dict:store(JobName, {[], now(), Pid}, Events0),
+                MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
                 
+                {ok, Root} = application:get_env(disco_root),
+                FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
+                EventProc = spawn(fun() -> job_event_handler(FName) end),
+                ets:insert(event_files, {JobName, EventProc}),
+                
+                {reply, ok, add_event("master", JobName, list_to_binary("\"New job!\""),
+                        {start, Pid}, {Events, MsgBuf})}
+        end;
+
 handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->
         case dict:find(JobName, Events) of
                 error -> {reply, invalid_job, S};
@@ -76,27 +92,6 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->
                                 JobNfo, Res, Ready, Failed}}, S}
         end.
 
-% There's a small catch with adding a job event: If a job's records have been
-% cleaned with clean_job already, we do not want a zombie worker to re-open
-% the job's records by adding a new event. Thus only an event with the atom
-% start is allowed to initialize records for a new job. Other events are 
-% silently ignored if there are no previous records for this job.
-handle_cast({add_job_event, Host, JobName, M, {start, Pid} = P},
-        {Events0, MsgBuf0} = S) ->
-        
-        V = dict:is_key(JobName, Events0),
-        if V -> {noreply, S};
-        true ->
-                Events = dict:store(JobName, {[], now(), Pid}, Events0),
-                MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
-                
-                {ok, Root} = application:get_env(disco_root),
-                FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
-                EventProc = spawn(fun() -> job_event_handler(FName) end),
-                ets:insert(event_files, {JobName, EventProc}),
-
-                {noreply, add_event(Host, JobName, M, P, {Events, MsgBuf})}
-        end;
 
 handle_cast({add_job_event, Host, JobName, M, P}, {_, MsgBuf} = S) ->
         V = dict:is_key(JobName, MsgBuf),

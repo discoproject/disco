@@ -1,6 +1,6 @@
 
 -module(handle_job).
--export([handle/2, job_coordinator/2, set_disco_url/2]).
+-export([handle/2, set_disco_url/2]).
 
 -define(OK_HEADER, "HTTP/1.1 200 OK\n"
                    "Status: 200 OK\n"
@@ -15,27 +15,62 @@
 % takes care of coordinating the whole map-reduce show, including
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
-new_coordinator(Params) ->
+new_coordinator(PostData) ->
+        TMsg = "couldn't start a new job coordinator in 10s (master busy?)",
         S = self(),
-        P = spawn(fun() -> job_coordinator(S, Params) end),
+        P = spawn(fun() -> init_job_coordinator(S, PostData) end),
         receive
                 {P, ok} -> ok;
+                {P, eexist} -> throw("job already exists");
+                {P, env_failed} -> throw("creating job directories failed "
+                                         "(disk full?)");
+                {P, invalid_jobdesc} -> throw("invalid job description");
+                {P, timeout} -> throw(TMsg);
                 _ -> throw("job coordinator failed")
-        after 5000 ->
-                throw("couldn't start a new job coordinator")
+        after 20000 ->
+                throw(TMsg)
         end.     
+
+% job_coordinator() orchestrates map/reduce tasks for a job
+init_job_coordinator(Parent, PostData) ->
+        Msg = netstring:decode_netstring_fd(PostData),
+        case catch find_values(Msg) of
+                {'EXIT', _} ->
+                        Parent ! {self(), invalid_jobdesc};
+                Params ->
+                        init_job_coordinator(Parent, Params, PostData)
+        end.
+
+init_job_coordinator(Parent, {Name, _, _, _, _} = Params, PostData) ->
+        EnvStatus = (catch prepare_environment(Name)),
+        case gen_server:call(event_server, {new_job, Name, self()}, 10000) of
+                eexist ->
+                        Parent ! {self(), eexist};
+                _ when EnvStatus =/= ok ->
+                        Parent ! {self(), env_failed};
+                ok ->
+                        save_params(Name, PostData),
+                        Parent ! {self(), ok},
+                        job_coordinator(Params);
+                _ ->
+                        Parent ! {self(), timeout}
+        end.
+
+check_mkdir(ok) -> ok;
+check_mkdir({error, eexist}) -> ok;
+check_mkdir(_) -> throw("creating directory failed").
 
 make_local({_, true}, Root, Home) ->
         {ok, LocalRoot} = application:get_env(disco_localdir),
         [R, _] = filename:split(Home),
-        file:make_dir(filename:join(LocalRoot, R)),
-        ok = file:make_dir(filename:join(LocalRoot, Home)),
+        check_mkdir(file:make_dir(filename:join(LocalRoot, R))),
+        check_mkdir(file:make_dir(filename:join(LocalRoot, Home))),
         Dst = filename:join([LocalRoot, Home, "events"]),
         Src = filename:join([Root, Home, "events"]),
-        file:make_symlink(Dst, Src);
+        ok = file:make_symlink(Dst, Src);
 make_local(_, _, _) -> ok.
 
-save_params(Name, PostData) ->
+prepare_environment(Name) ->
         C = string:chr(Name, $/) + string:chr(Name, $.),
         if C > 0 ->
                 throw("Invalid name");
@@ -44,9 +79,13 @@ save_params(Name, PostData) ->
         {ok, Root} = application:get_env(disco_root),
         Home = disco_server:jobhome(Name),
         [R, _] = filename:split(Home),
-        file:make_dir(filename:join(Root, R)),
-        ok = file:make_dir(filename:join(Root, Home)),
-        ok = make_local(application:get_env(resultfs_enabled), Root, Home),
+        check_mkdir(file:make_dir(filename:join(Root, R))),
+        check_mkdir(file:make_dir(filename:join(Root, Home))),
+        make_local(application:get_env(resultfs_enabled), Root, Home).
+
+save_params(Name, PostData) ->
+        {ok, Root} = application:get_env(disco_root),
+        Home = disco_server:jobhome(Name),
         ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
 find_values(Msg) ->
@@ -70,23 +109,6 @@ find_values(Msg) ->
         case lists:keysearch(<<"reduce">>, 1, Msg) of 
                 false -> {Name, Inputs, NMap, NRed, false};
                 _Else -> {Name, Inputs, NMap, NRed, true}
-        end.
-
-% init_job() checks that there isn't already a job existing with the same name.
-init_job(PostData) ->
-        Msg = netstring:decode_netstring_fd(PostData),
-        {Name, _, _, _, _} = Params = case catch find_values(Msg) of
-                {'EXIT', _} ->
-                        throw("Missing parameters");
-                P -> P
-        end,
-        error_logger:info_report([{"New job", Name}]),
-        
-        case gen_server:call(event_server, {get_job_events, Name, "", 1}) of
-                {ok, []} -> 
-                        save_params(Name, PostData),
-                        new_coordinator(Params);
-                {ok, _Events} -> throw(["job ", Name, " already exists"])
         end.
 
 gethostname() ->
@@ -116,7 +138,7 @@ handle(Socket, Msg) ->
         % scgi_recv_msg used instead of gen_tcp to work around gen_tcp:recv()'s
         % 16MB limit.
         {ok, PostData} = scgi:recv_msg(Socket, <<>>, CLen),
-        Reply = case catch init_job(PostData) of
+        Reply = case catch new_coordinator(PostData) of
                 ok -> ["job started"];
                 E -> ["ERROR: ", E]
         end,    
@@ -293,11 +315,8 @@ run_task(Inputs, Mode, Name, MaxN) ->
         ets:delete(Failures),
         R.
 
-% job_coordinator() orchestrates map/reduce tasks for a job
-job_coordinator(Parent, {Name, Inputs, NMap, NRed, DoReduce}) ->
-        event_server:event(Name, "Job coordinator starts", [], {start, self()}),
-        Parent ! {self(), ok},
         
+job_coordinator({Name, Inputs, NMap, NRed, DoReduce}) ->
         event_server:event(Name, "Starting job", [], 
                 {job_data, {NMap, NRed, DoReduce, Inputs}}),
 
