@@ -116,7 +116,7 @@ class CurlConn:
                 self.buf += buf
 
         def read(self, bytes):
-                while self.cont and not self.buf:
+                while len(self.buf) < bytes and self.cont:
                         self.perform()
                 r = self.buf[:bytes]
                 self.buf = self.buf[bytes:]
