@@ -22,7 +22,15 @@ where
 - config_dir: where to store config files on the master node
 
 """
-import sys, cjson, md5, cStringIO, os
+import sys, cStringIO, os
+
+try:
+        import hashlib as md5
+except ImportError:
+        # Hashlib is not available in Python2.4
+        import md5
+
+from disco.comm import json
 
 DEFAULT_REPL_PORT = 9900
 DEFAULT_NUFA_PORT = 9800
@@ -193,24 +201,26 @@ def create_master_config(name, config, path, client_conf):
         print "ok"
 
 if len(sys.argv) < 3 or sys.argv[1] not in ["inputfs", "resultfs"]:
-        print "\nUsage: python gluster_config.py [inputfs|resultfs] config.json"
-        print 
-        print "This script generates Disco-compatible config files for Gluster,"
-        print "a distributed filesystem."
-        print 
-        print "Two modes are available:"
-        print "- inputfs, which produces a Gluster volfile that is suitable for"
-        print "  storing input data for Disco so that data is k-way replicated"
-        print "  over nodes."
-        print "- resultfs, which produces a Gluster volfile for communication"
-        print "  between Disco nodes, in place of the default HTTP-based"
-        print "  solution."
-        print 
-        print "See gluster_example.json for an example config gile. For more"
-        print "information, see http://discoproject.org/doc/start/dfs.html.\n"
+        print """
+        Usage: python gluster_config.py [inputfs|resultfs] config.json
+
+        This script generates Disco-compatible config files for Gluster,
+        a distributed filesystem.
+
+        Two modes are available:
+        - inputfs, which produces a Gluster volfile that is suitable for
+          storing input data for Disco so that data is k-way replicated
+          over nodes.
+        - resultfs, which produces a Gluster volfile for communication
+          between Disco nodes, in place of the default HTTP-based
+          solution.
+
+        See gluster_example.json for an example config gile. For more
+        information, see http://discoproject.org/doc/start/dfs.html.
+        """
         sys.exit(1)
 
-config = cjson.decode(file(sys.argv[2]).read())
+config = json.loads(file(sys.argv[2]).read())
 path = os.path.abspath(config["config_dir"])
 
 if sys.argv[1] == "inputfs":

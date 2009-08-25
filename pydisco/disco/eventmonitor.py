@@ -1,5 +1,7 @@
-import sys, cjson
+import sys
 from os import environ
+from disco.comm import json
+from disco.error import DiscoError
 
 # Following from Python cookbook, #475186
 def has_colors(stream):
@@ -27,7 +29,7 @@ class EventMonitor(object):
                         self.name = name
 
                 if not disco:
-                        raise Exception("Specify either job or disco and name")
+                        raise DiscoError("Specify either job or disco and name")
 
                 self.offset = 0
                 self.output = None
@@ -101,7 +103,7 @@ class EventMonitor(object):
 
         def json_output(self, status, tstamp, host, msg):
                 if tstamp:
-                        print cjson.encode([tstamp, host, msg])
+                        print json.dumps([tstamp, host, msg])
         
         def ansi_output(self, status, tstamp, host, msg):
                 if status:

@@ -1,8 +1,9 @@
 import os, os.path, time, struct, marshal
-from subprocess import *
+from subprocess import Popen, PIPE
 from disco.netstring import decode_netstring_str
-from disconode.util import *
+from disconode.util import write_files
 from disco.util import msg
+from disco.error import DiscoError
 
 MAX_ITEM_SIZE = 1024**3
 MAX_NUM_OUTPUT = 1000000
@@ -16,11 +17,11 @@ def pack_kv(k, v):
 def unpack_kv():
         le = struct.unpack("I", out_fd.read(4))[0]
         if le > MAX_ITEM_SIZE:
-                raise "External key size exceeded: %d bytes" % le
+                raise DiscoError("External key size exceeded: %d bytes" % le)
         k = out_fd.read(le)
         le = struct.unpack("I", out_fd.read(4))[0]
         if le > MAX_ITEM_SIZE:
-                raise "External key size exceeded: %d bytes" % le
+                raise DiscoError("External key size exceeded: %d bytes" % le)
         v = out_fd.read(le)
         return k, v
 
@@ -48,14 +49,14 @@ def ext_reduce(red_in, red_out, params):
         while True:
                 for fd, event in p.poll():
                         if event & (select.POLLNVAL | select.POLLERR):
-                                raise "Pipe to the external process failed"
+                                raise DiscoError("Pipe to the external process failed")
                         elif event & select.POLLIN:
                                 num = struct.unpack("I",
                                         external.out_fd.read(4))[0]
                                 if num > MAX_NUM_OUTPUT:
-                                        raise "External output limit "\
+                                        raise DiscoError("External output limit "\
                                                 "exceeded: %d > %d" %\
-                                                (num, MAX_NUM_OUTPUT)
+                                                (num, MAX_NUM_OUTPUT))
                                 for i in range(num):
                                         red_out.add(*external.unpack_kv())
                                         tt += 1

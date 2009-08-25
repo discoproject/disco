@@ -1,19 +1,10 @@
-import sys, re, os, marshal, cjson, time, cPickle, types, cStringIO
-from disco import func, util, comm, modutil, eventmonitor
-from netstring import *
+import sys, re, os, marshal, time, cPickle
+from disco import func, util, comm
+from disco.comm import json
+from disco.error import DiscoError, JobException
+from disco.netstring import encode_netstring_fd, decode_netstring_fd
 
-class JobException(Exception):
-        def __init__(self, msg, master, name):
-                self.msg = msg
-                self.name = name
-                self.master = master
-
-        def __str__(self):
-                return "Job %s/%s failed: %s" %\
-                        (self.master, self.name, self.msg)
-
-
-class Params:
+class Params(object):
         def __init__(self, **kwargs):
                 self._state = {}
                 for k, v in kwargs.iteritems():
@@ -56,22 +47,24 @@ class Disco(object):
         def __init__(self, host):
                 self.host = "http://" + util.disco_host(host)[7:]
 
-        def request(self, url, data = None, redir = False, offset = 0):
-                return comm.download(self.host + url,\
-                        data = data, redir = redir, offset = offset)
-        
+        def request(self, url, data = None, redir = False):
+                try:
+                        return comm.download(self.host + url, data = data, redir = redir)
+                except comm.CommException, msg:
+                        raise DiscoError("Failed to fetch %r, data of len %r, redir=%r. Error was %s" % (self.host + url, len(data), redir, msg))
+
         def nodeinfo(self):
-                return cjson.decode(self.request("/disco/ctrl/nodeinfo"))
+                return json.loads(self.request("/disco/ctrl/nodeinfo"))
 
         def joblist(self):
-                return cjson.decode(self.request("/disco/ctrl/joblist"))
+                return json.loads(self.request("/disco/ctrl/joblist"))
         
         def oob_get(self, name, key):
                 try:
                         return util.load_oob(self.host, name, key)
                 except comm.CommException, x:
                         if x.http_code == 404:
-                                raise KeyError("Unknown key or job name")
+                                raise DiscoError("Unknown key or job name")
                         raise
         
         def oob_list(self, name):
@@ -80,9 +73,9 @@ class Disco(object):
                                 redir = True)
                 except comm.CommException, x:
                         if x.http_code == 404:
-                                raise KeyError("Unknown key or job name")
+                                raise DiscoError("Unknown key or job name")
                         raise
-                return cjson.decode(r)
+                return json.loads(r)
 
         def profile_stats(self, name, mode = ""):
                 import pstats
@@ -125,8 +118,8 @@ class Disco(object):
                                 if not len(l):
                                         continue
                                 try:
-                                        ent = tuple(cjson.decode(l))
-                                except cjson.DecodeError:
+                                        ent = tuple(json.loads(l))
+                                except ValueError:
                                         break
                                 # HTTP range request doesn't like empty ranges:
                                 # Let's ensure that at least the last newline
@@ -158,10 +151,10 @@ class Disco(object):
                                 nam.append(n.name)
                
                 r = self.request("/disco/ctrl/get_results",
-                        cjson.encode([timeout, nam]))
+                        json.dumps([timeout, nam]))
                 if not r:
                         return None
-                r = cjson.decode(r)
+                r = json.loads(r)
                 if single:
                         return r[0][1]
                 else:
@@ -177,7 +170,7 @@ class Disco(object):
         def jobinfo(self, name):
                 r = self.request("/disco/ctrl/jobinfo?name=" + name)
                 if r:
-                        return cjson.decode(r)
+                        return json.loads(r)
                 else:
                         return r
 
@@ -244,9 +237,9 @@ class Job(object):
         def __init__(self, master, **kwargs):
                 self.master = master
                 if "name" not in kwargs:
-                        raise Exception("Argument name is required")
+                        raise DiscoError("Argument name is required")
                 if re.search("\W", kwargs["name"]):
-                        raise Exception("Only characters in [a-zA-Z0-9_] "\
+                        raise DiscoError("Only characters in [a-zA-Z0-9_] "\
                               "are allowed in the job name")
                 self.name = "%s@%d" % (kwargs["name"], int(time.time()))
                 self._run(**kwargs)
@@ -276,17 +269,17 @@ class Job(object):
                         kw["input"] = kw["input_files"]
 
                 if "chunked" in kw:
-                        raise Exception("Argument 'chunked' is deprecated")
+                        raise DiscoError("Argument 'chunked' is deprecated")
                 
                 if not "input" in kw:
-                        raise Exception("input is required")
+                        raise DiscoError("input is required")
                 
                 if not ("map" in kw or "reduce" in kw):
-                        raise Exception("Specify map and/or reduce")
+                        raise DiscoError("Specify map and/or reduce")
                 
                 for p in kw:
                         if p not in Job.defaults:
-                                raise Exception("Unknown argument: %s" % p)
+                                raise DiscoError("Unknown argument: %s" % p)
 
                 inputs = kw["input"]
 
@@ -382,7 +375,7 @@ class Job(object):
                         red_inputs = []
                         for inp in inputs:
                                 if type(inp) == list:
-                                        raise Exception("Reduce doesn't "\
+                                        raise DiscoError("Reduce doesn't "\
                                                 "accept redundant inputs")
                                 elif inp.startswith("dir://"):
                                         if inp.endswith(".txt"):
@@ -393,26 +386,26 @@ class Job(object):
                                         ext_inputs.append(inp)
 
                         if ext_inputs and red_inputs:
-                                raise Exception("Can't mix partitioned "\
+                                raise DiscoError("Can't mix partitioned "\
                                         "inputs with other inputs")
                         elif red_inputs:
                                 q = lambda x: int(x.split(":")[-1]) + 1
                                 nr_red = q(red_inputs[0])
                                 for x in red_inputs:
                                         if q(x) != nr_red:
-                                                raise Exception(\
+                                                raise DiscoError(\
                                                 "Number of partitions must "\
                                                 "match in all inputs")
                                 n = d("nr_reduces") or nr_red
                                 if n != nr_red:
-                                        raise Exception(
+                                        raise DiscoError(
                                         "Specified nr_reduces = %d but "\
                                         "number of partitions in the input "\
                                         "is %d" % (n, nr_red))
                                 kw["nr_reduces"] = nr_red
                                 inputs = red_inputs
                         elif d("nr_reduces") != 1:
-                                raise Exception("nr_reduces must be 1 when "\
+                                raise DiscoError("nr_reduces must be 1 when "\
                                         "using non-partitioned inputs "\
                                         "without the map phase")
                         else:
@@ -459,7 +452,7 @@ class Job(object):
                 reply = self.master.request("/disco/job/new", self.msg)
                         
                 if reply != "job started":
-                        raise Exception("Failed to start a job. Server replied: " + reply)
+                        raise DiscoError("Failed to start a job. Server replied: " + reply)
 
 
 

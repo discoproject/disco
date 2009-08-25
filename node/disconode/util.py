@@ -6,9 +6,9 @@ def ensure_path(path, check_exists = True):
                 err("File exists: %s" % path)
         if os.path.isfile(path):
                 os.remove(path)
-        dir, fname = os.path.split(path)
+        dirpath, fname = os.path.split(path)
         try:
-                os.makedirs(dir)
+                os.makedirs(dirpath)
         except OSError, x:
                 if x.errno == 17:
                         # File exists is ok, it may happen

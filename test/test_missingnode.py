@@ -1,5 +1,6 @@
-import sys, cjson
+import sys
 import tserver
+from disco.comm import json
 from disco.core import Disco, result_iterator
 
 def data_gen(path):
@@ -12,12 +13,12 @@ def fun_map(e, params):
         return [(int(e), "")]
 
 def add_node():
-        orig_config = cjson.decode(
+        orig_config = json.loads(
                 disco.request("/disco/ctrl/load_config_table"))
         config = orig_config[:]
         config.append(["missingnode", "2"])
         r = disco.request("/disco/ctrl/save_config_table",
-                cjson.encode(config))
+                json.dumps(config))
         if r != "\"table saved!\"":
                 raise Exception("Couldn't add a dummy node: %s" % r)
         return orig_config
@@ -48,7 +49,7 @@ except:
         raise
 finally:
         disco.request("/disco/ctrl/save_config_table",
-                cjson.encode(orig_config))
+                json.dumps(orig_config))
 
 print "ok"
 

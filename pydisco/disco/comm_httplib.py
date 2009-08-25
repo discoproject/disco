@@ -1,4 +1,4 @@
-import httplib, urllib2, cStringIO, struct
+import httplib, urllib
 
 http_pool = {}
 

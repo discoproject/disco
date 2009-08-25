@@ -35,7 +35,7 @@ init(_Args) ->
         % disco_worker processes.
         ets:new(active_workers, [named_table, public]),
 
-        % node_laod records how many disco_workers there are
+        % node_load records how many disco_workers are
         % running on a node (could be found in active_workers
         % as well). This table exists mainly for convenience and
         % possibly for performance reasons.
