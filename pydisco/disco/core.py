@@ -271,7 +271,7 @@ class Job(object):
                 
                 req = {"name": self.name,
                        "version": ".".join(map(str, sys.version_info[:2])),
-                       "params": cPickle.dumps(d("params")),
+                       "params": cPickle.dumps(d("params"), cPickle.HIGHEST_PROTOCOL),
                        "sort": str(int(d("sort"))),
                        "mem_sort_limit": str(d("mem_sort_limit")),
                        "status_interval": str(d("status_interval")),
