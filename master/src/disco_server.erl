@@ -216,6 +216,11 @@ handle_info({'EXIT', Pid, Reason}, State) ->
                         {data_error, Input} -> clean_worker(Pid, data_error, 
                                 {"Worker failure", Input});
                         kill_worker -> clean_worker(Pid, job_error, "");
+                        noconnection -> 
+                                event_server:event("[master]",
+                                        "WARN: Temporary node failure", [], []),
+                                clean_worker(Pid, data_error,
+                                        {"Temporary node failure", noinput});
                         _ -> clean_worker(Pid, error, Reason)
                 end,
                 {noreply, State}
