@@ -1,4 +1,3 @@
-
 -module(disco_worker).
 -behaviour(gen_server).
 
@@ -17,7 +16,7 @@
 -define(OOB_KEY_MAX, 256).
 
 -define(SLAVE_ARGS, "+K true").
--define(CMD, "nice -n 19 disco-worker '~s' '~s' '~s' '~s' '~w' ~s").
+-define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
 -define(PORT_OPT, [{line, 100000}, binary, exit_status,
                    use_stdio, stderr_to_stdout, 
                    {env, [{"LD_LIBRARY_PATH", "lib"}]}]).
@@ -32,13 +31,17 @@ get_env(Var, Fmt) ->
         end.
 
 slave_env() ->
-        lists:flatten([?SLAVE_ARGS, 
-                get_env("DISCO_MASTER_HOME", " -pa ~s/ebin"),
-                [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
-                        "DISCO_PORT", "DISCO_FLAGS", "PYTHONPATH", "PATH"]]]).
+    lists:flatten([?SLAVE_ARGS, 
+                   get_env("DISCO_MASTER_HOME", " -pa ~s/ebin"),
+                   [get_env(X) || X <- ["DISCO_MASTER_PORT",
+                                        "DISCO_ROOT",
+                                        "DISCO_PORT",
+                                        "DISCO_WORKER",
+                                        "DISCO_FLAGS",
+                                        "PYTHONPATH"]]]).
 
 slave_name(Node) ->
-        {ok, Name} = application:get_env(disco_name),
+        {ok, Name} = application:get_env(disco_name), %get_env("DISCO_NAME"),
         SName = lists:flatten([Name, "_slave"]),
         list_to_atom(SName ++ "@" ++ Node).
 
@@ -114,9 +117,8 @@ handle_call(start_worker, _From, State) ->
         {reply, ok, State#state{port = Port}, 30000}.
 
 spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
-                mode = Mode, input = Input, master_url = Url}) ->
-        lists:flatten(io_lib:fwrite(?CMD,
-                [Mode, JobName, Node, Url, PartID, Input])).
+                 mode = Mode, input = Input, master_url = Url}) ->
+        lists:flatten(io_lib:fwrite(?CMD, [Mode, JobName, Node, Url, PartID, Input])).
 
 strip_timestamp(Msg) when is_binary(Msg) ->
         strip_timestamp(binary_to_list(Msg));

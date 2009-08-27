@@ -1,4 +1,4 @@
-import httplib, urllib
+import httplib, urllib2
 
 http_pool = {}
 

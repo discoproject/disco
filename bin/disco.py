@@ -8,14 +8,12 @@ class DiscoSettings(dict):
         'DISCO_FLAGS':          "''",
         'DISCO_LOG_DIR':        "'/var/log/disco'",
         'DISCO_MASTER_HOME':    "'/usr/lib/disco'",
-        'DISCO_MASTER_HOST':    "''",
         'DISCO_MASTER_PORT':    "DISCO_PORT",
         'DISCO_NAME':           "'disco_%s' % DISCO_SCGI_PORT",
         'DISCO_PID_DIR':        "'/var/run'",
         'DISCO_PORT':           "8989",
         'DISCO_ROOT':           "'/srv/disco'",
         'DISCO_SCGI_PORT':      "4444",
-        'DISCO_SLAVES_OS':      "os.uname()[0]",
         'DISCO_ULIMIT':         "16000000",
         'DISCO_USER':           "os.getlogin()",
         'DISCO_DATA':           "os.path.join(DISCO_ROOT, 'data')",
@@ -23,12 +21,13 @@ class DiscoSettings(dict):
         'DISCO_CONFIG':         "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
         'DISCO_MASTER_LOG':     "os.path.join(DISCO_LOG_DIR, '%s.log' % DISCO_NAME)",
         'DISCO_MASTER_PID':     "os.path.join(DISCO_PID_DIR, 'disco-master.pid')",
-        'ERLANG':               "'erl'",
+        'DISCO_LOCAL_DIR':      "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
+        'DISCO_WORKER':         "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
+        'ERLANG':               "guess_erlang()",
         'LIGHTTPD':             "'lighttpd'",
         'LIGHTTPD_MASTER_ROOT': "os.path.join(DISCO_MASTER_HOME, 'www')",
-        # shouldn't need these
-        'PATH':                 "'%s:%s/node' % (os.getenv('PATH', ''), DISCO_HOME)",
-        'PYTHONPATH':           "'%s:%s/node:%s/pydisco' % (os.getenv('PYTHONPATH', ''), DISCO_HOME, DISCO_HOME)",
+        # only need this if disco isn't in site-packages
+        'PYTHONPATH':           "'%s:%s/pydisco' % (os.getenv('PYTHONPATH', ''), DISCO_HOME)",
         }
 
     def __init__(self, filename, **kwargs):
@@ -133,22 +132,22 @@ class master(server):
     @property
     def args(self):
         settings = self.disco_settings
-        return [settings['ERLANG'], '+K', 'true',
+        return settings['ERLANG'].split() + \
+               ['+K', 'true',
                 '-heart',
                 '-detached',
                 '-sname', '%s_master' % settings['DISCO_NAME'],
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
                 '-pa', os.path.join(settings['DISCO_MASTER_HOME'], 'ebin'),
-                '-boot', os.path.join(settings['DISCO_MASTER_HOME'], 'disco'),
                 '-kernel', 'error_logger', '{file, "%s"}' % settings['DISCO_MASTER_LOG'],
-                '-eval', '[handle_job, handle_ctrl]',
                 '-disco', 'disco_name', '"%s"' % settings['DISCO_NAME'],
                 '-disco', 'disco_root', '"%s"' % settings['DISCO_MASTER_ROOT'],
-                '-disco', 'disco_master_host', '"%s"' % settings['DISCO_MASTER_HOST'],
-                '-disco', 'disco_slaves_os', '"%s"' % settings['DISCO_SLAVES_OS'],
                 '-disco', 'scgi_port', '%s' % settings['DISCO_SCGI_PORT'],
-                '-disco', 'disco_config', '"%s"' % settings['DISCO_CONFIG']]    
+                '-disco', 'disco_config', '"%s"' % settings['DISCO_CONFIG'],
+                '-disco', 'disco_localdir', '"%s"' % settings['DISCO_LOCAL_DIR'],
+                '-eval', '[handle_job, handle_ctrl]',
+                '-eval', 'application:start(disco)']
     
     @property
     def lighttpd(self):
@@ -174,6 +173,11 @@ class worker(server):
 
     def send(self, command):
         return self.lighttpd.send(command)
+
+def guess_erlang():
+    if os.uname()[0] == 'Darwin':
+        return '/usr/libexec/StartupItemContext erl'
+    return 'erl'
     
 def main():
     DISCO_BIN  = os.path.realpath(os.path.dirname(__file__))
@@ -187,6 +191,9 @@ def main():
     option_parser.add_option('-v', '--verbose',
                              action='store_true',
                              help='print debugging messages')
+    option_parser.add_option('-p', '--print-env',
+                             action='store_true',
+                             help='print the parsed disco environment and exit')
     options, sys.argv = option_parser.parse_args()
 
     disco_settings = DiscoSettings(options.settings,
@@ -203,6 +210,11 @@ def main():
             If this is not what you want, see the `--help` option
             """.format(options.settings, **disco_settings)) # python2.6+
 
+    if options.print_env:
+        for item in sorted(disco_settings.env.iteritems()):
+            print('%s = %s' % (item))
+        sys.exit(0)
+            
     argdict      = dict(enumerate(sys.argv))
     disco_object = globals()[argdict.pop(0, 'master')](disco_settings)
 

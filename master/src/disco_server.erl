@@ -316,22 +316,13 @@ start_worker(J, Node, Input) ->
 % through slave_master().
 slave_master(SlaveName) ->
         receive
-                {start, Pid, Node, Args} ->
-                        launch(case application:get_env(disco_slaves_os) of
-                                {ok, "Darwin"} ->
-                                        fun() -> 
-                                                slave:start(list_to_atom(Node),
-                                                SlaveName, Args, self(),
-                                                "/usr/libexec/StartupItemContext erl")
-                                        end;
-                                _ ->
-                                        fun() ->
-                                                slave:start_link(
-                                                        list_to_atom(Node),
-                                                        SlaveName, Args)
-                                        end
-                        end, Pid, Node),
-                        slave_master(SlaveName)
+            {start, Pid, Node, Args} -> 
+                launch(fun() ->
+                               slave:start(list_to_atom(Node),
+                                           SlaveName, Args, self(),
+                                           os:getenv("ERLANG"))
+                       end, Pid, Node),
+                slave_master(SlaveName)
         end.
 
 launch(F, Pid, Node) ->

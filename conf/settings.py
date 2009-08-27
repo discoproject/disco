@@ -34,16 +34,4 @@ DISCO_PID_DIR = DISCO_HOME
 # (ulimit -v DISCO_ULIMIT)
 DISCO_ULIMIT = 16000000
 
-# Specify hostname of your master node. Usually this is
-# resolved correctly by the web server and DISCO_MASTER_HOST
-# can be unspecified. If this fails, you can override the automatic
-# guess and specify the hostname with DISCO_MASTER_HOST. This
-# is often the case with Mac OS X.
-DISCO_MASTER_HOST = "localhost"
-
 DISCO_USER = "jflatow"
-
-# get rid of this setting
-# (should be able to mix slave types, and each node should be able to use uname if necessary)
-DISCO_SLAVES_OS = "none"
-

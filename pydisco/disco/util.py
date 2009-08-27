@@ -90,7 +90,7 @@ def parse_dir(dir_url, proxy = None, part_id = None):
                 if resultfs_enabled:
                         r = file("%s/data/%s" % (ROOT, name)).readlines()
                 else:
-                        r = comm.download(url).splitlines()
+                        r = download(url).splitlines()
         else:
                 b, mmax = name.split("/")[-1].split(":")
                 fl = len(mmax)
@@ -109,17 +109,15 @@ def load_oob(host, name, key):
         url = "%s/disco/ctrl/oob_get?name=%s&key=%s&proxy=%d" %\
                 (host, name, key, use_proxy)
         if resultfs_enabled:
-                sze, fd = comm.open_remote(url, expect = 302)
+                sze, fd = open_remote(url, expect = 302)
                 loc = fd.getheader("location")
                 fname = "%s/data/%s" % (ROOT, "/".join(loc.split("/")[3:]))
                 try:
                         return file(fname).read()
                 except DiscoError:
-                        raise comm.CommException(404, 
-                                "OOB key (%s) not found at %s" %\
-                                (key, fname))
+                        raise CommException(404, "OOB key (%s) not found at %s" % (key, fname))
         else:
-                return comm.download(url, redir = True)
+                return download(url, redir = True)
 
 
 MASTER_PORT, HTTP_PORT, ROOT = load_conf()

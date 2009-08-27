@@ -1,5 +1,6 @@
 import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import re, traceback, tempfile, struct, random
+
 from disco.util import\
     parse_dir, load_conf, err, data_err, msg, resultfs_enabled, load_oob
 from disco.func import re_reader, netstr_reader
@@ -125,8 +126,8 @@ def open_remote(input, ext_host, ext_file):
         try:
                 return comm.open_remote("http://%s%s" % (ext_host, ext_file))
         except Exception, x:
-                data_err("Can't access an external input file (%s/%s): %s"\
-                                % (ext_host, ext_file, x), x)
+                data_err("Can't access an external input file (%s%s): %s"\
+                         % (ext_host, ext_file, x), x)
 
 def connect_input(input):
         

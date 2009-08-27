@@ -22,7 +22,6 @@ add_nodes([FirstNode, Max], Instances) ->
 
 add_nodes([Node], Instances) -> {Node, Instances}.
         
-parse_row([<<>>, <<>>]) -> none;
 parse_row([NodeSpecB, InstancesB]) ->
         NodeSpec = string:strip(binary_to_list(NodeSpecB)),
         Instances = string:strip(binary_to_list(InstancesB)),
@@ -34,6 +33,7 @@ update_config_table(Json) ->
 
 get_config_table() ->
         error_logger:info_report([{"Opening config file"}]),
+        % check to see if file exists, otherwise create and initialize with []
         {ok, Config} = file:read_file(config_file()),
         {ok, Json, _Rest} = json:decode(Config),
         update_config_table(Json),

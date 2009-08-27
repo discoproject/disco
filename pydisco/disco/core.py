@@ -1,7 +1,8 @@
-import sys, re, os, marshal, time, cPickle
+import sys, re, os, marshal, modutil, time, types, cPickle
 from disco import func, util, comm
 from disco.comm import json
 from disco.error import DiscoError, JobException
+from disco.eventmonitor import EventMonitor
 from disco.netstring import encode_netstring_fd, decode_netstring_fd
 
 class Params(object):
@@ -47,11 +48,8 @@ class Disco(object):
         def __init__(self, host):
                 self.host = "http://" + util.disco_host(host)[7:]
 
-        def request(self, url, data = None, redir = False):
-                try:
-                        return comm.download(self.host + url, data = data, redir = redir)
-                except comm.CommException, msg:
-                        raise DiscoError("Failed to fetch %r, data of len %r, redir=%r. Error was %s" % (self.host + url, len(data), redir, msg))
+        def request(self, url, data = None, redir = False, offset = 0):
+                return comm.download(self.host + url, data = data, redir = redir, offset = offset)
 
         def nodeinfo(self):
                 return json.loads(self.request("/disco/ctrl/nodeinfo"))
@@ -177,7 +175,7 @@ class Disco(object):
         def wait(self, name, show_events = None, poll_interval = 5,\
                         timeout = None, clean = False):
                 
-                mon = eventmonitor.EventMonitor(show_events,\
+                mon = EventMonitor(show_events,\
                         disco = self, name = name)
                 t = time.time()
                 if mon.isenabled():

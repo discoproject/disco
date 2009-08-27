@@ -2,6 +2,8 @@
 -module(handle_job).
 -export([handle/2, set_disco_url/2]).
 
+-include_lib("kernel/include/inet.hrl").
+
 -define(OK_HEADER, "HTTP/1.1 200 OK\n"
                    "Status: 200 OK\n"
                    "Content-type: text/plain\n\n").
@@ -112,11 +114,9 @@ find_values(Msg) ->
         end.
 
 gethostname() ->
-        {ok, SecondaryHostname} = inet:gethostname(),
-        case application:get_env(disco_master_host) of
-                {ok, ""} -> SecondaryHostname;
-                {ok, Val} -> Val
-        end.
+        {ok, Hostname} = inet:gethostname(),
+        {ok, Hostent}  = inet:gethostbyname(Hostname),
+        Hostent#hostent.h_name.
 
 set_disco_url(undefined, Msg) ->
         {value, {_, SPort}} =
@@ -124,7 +124,7 @@ set_disco_url(undefined, Msg) ->
         {ok, Name} = application:get_env(disco_name),
         HostN = gethostname(),
         DiscoUrl = lists:flatten(["http://", HostN, ":",
-                binary_to_list(SPort), "/disco/master/_", Name, "/"]),
+                                  binary_to_list(SPort), "/disco/master/_", Name, "/"]),
         application:set_env(disco, disco_url, DiscoUrl);
 set_disco_url(_, _) -> ok.
 
