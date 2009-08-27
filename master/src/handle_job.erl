@@ -151,7 +151,7 @@ handle(Socket, Msg) ->
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
-work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N =< Max ->
+work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
         ok = gen_server:call(disco_server, {new_worker, 
                 {Name, PartID, Mode, [], Input}}),
         work(Inputs, Mode, Name, N + 1, Max, Res);
@@ -159,7 +159,7 @@ work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N =< Max ->
 % 2. Tasks to distribute but the maximum number of tasks are already running.
 % Wait for tasks to return. Note that wait_workers() may return with the same
 % number of tasks still running, i.e. N = M.
-work([_|_] = IArg, Mode, Name, N, Max, Res) when N > Max ->
+work([_|_] = IArg, Mode, Name, N, Max, Res) when N >= Max ->
         M = wait_workers(N, Res, Name, Mode),
         work(IArg, Mode, Name, M, Max, Res);
 
