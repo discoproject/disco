@@ -4,6 +4,8 @@
 -export([start_link/1, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
+-include("task.hrl").
+
 start_link(Nodes) ->
         error_logger:info_report([{"Fair scheduler starts"}]),
         case gen_server:start_link({local, scheduler},
@@ -17,7 +19,7 @@ init(Nodes) ->
                 {ok, "fifo"} ->
                         error_logger:info_report(
                                 [{"Scheduler uses fifo policy"}]),
-                        fair_scheduler_fifo_policy:start_link(Nodes)
+                        fair_scheduler_fifo_policy:start_link(Nodes);
                 _ ->
                         error_logger:info_report(
                                 [{"Scheduler uses fair policy"}]),
@@ -33,7 +35,7 @@ handle_cast({update_nodes, NewNodes}, _) ->
 
 handle_cast({new_task, Task}, Nodes) ->
         JobName = Task#task.jobname,
-        JobPid = case ets:lookup(jobs, JobName) of
+        Job = case ets:lookup(jobs, JobName) of
                 [] ->
                         {ok, JobPid} = fair_scheduler_job:start(
                                 Task#task.jobname, Task#task.from),
@@ -44,7 +46,7 @@ handle_cast({new_task, Task}, Nodes) ->
                         JobPid;
                 [{_, JobPid}] -> JobPid
         end,
-        gen_server:cast(JobPid, {new_task, Task}),
+        gen_server:cast(Job, {new_task, Task}),
         {noreply, Nodes}.
 
 handle_call({next_job, AvailableNodes}, _From, Nodes) ->
@@ -56,13 +58,13 @@ next_job(AvailableNodes, Jobs, NotJobs) ->
                 {ok, JobPid} -> 
                         case fair_scheduler_job:next_task(
                                         JobPid, Jobs, AvailableNodes) of
-                                {ok, {Node, Task} = E} ->
-                                        {ok, E};
+                                {ok, Task} ->
+                                        {ok, Task};
                                 none ->
                                         next_job(AvailableNodes,
                                                 Jobs, [JobPid|NotJobs])
                         end;
-                nojobs -> nojobs;
+                nojobs -> nojobs
         end.
 
 job_cast(Msg) ->

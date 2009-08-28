@@ -22,9 +22,9 @@ init(Nodes) ->
         register(fairy, spawn_link(fun() -> fairness_fairy(NumCores) end)),
         {ok, {gb_trees:empty(), [], NumCores}}.
 
-% messages starting with _ are not part of the public policy api
+% messages starting with 'priv' are not part of the public policy api
 
-handle_cast({_update_priorities, Priorities}, _, {Jobs, _, NC}) ->
+handle_cast({priv_update_priorities, Priorities}, {Jobs, _, NC}) ->
         % The Jobs tree may have changed while fairy was working.
         % Update only the elements that fairy knew about.
         NewJobs = lists:foldl(fun({JobPid, NewJob}, NJobs) ->
@@ -42,12 +42,12 @@ handle_cast({_update_priorities, Priorities}, _, {Jobs, _, NC}) ->
 
 % Cluster topology has changed. Inform the fairy about the new total
 % number of cores available.
-handle_cast({update_nodes, Nodes}, _, {Jobs, PrioQ, _}) ->
+handle_cast({update_nodes, Nodes}, {Jobs, PrioQ, _}) ->
         NumCores = lists:sum([C || {_, C} <- Nodes]),
         fairy ! {update, NumCores},
         {noreply, {Jobs, PrioQ, NumCores}};
 
-handle_cast({new_job, JobPid, JobName}, _, {Jobs, PrioQ, NC}) ->
+handle_cast({new_job, JobPid, JobName}, {Jobs, PrioQ, NC}) ->
         InitialPrio = -1.0 / lists:max([gb_trees:size(Jobs), 1.0]),
         
         Job = #job{name = JobName, cputime = 0, prio = InitialPrio,
@@ -62,13 +62,13 @@ handle_call({next_job, _}, _, {{0, _}, _, _} = S) ->
 
 % NotJobs lists all jobs that got 'none' reply from the fair_scheduler_job task
 % scheduler. We want to skip them.
-handle_call({next_job, NotJobs} _, {Jobs, PrioQ, NC}) ->
+handle_call({next_job, NotJobs}, _, {Jobs, PrioQ, NC}) ->
         {NextJob, RPrioQ} = dropwhile(PrioQ, [], NotJobs),
         {UJobs, UPrioQ} = bias_priority(
                 gb_trees:get(NextJob), RPrioQ, Jobs, NC),
         {reply, {ok, NextJob}, {UJobs, UPrioQ, NC}};
 
-handle_call(_get_jobs, _, {Jobs, _, _} = S) ->
+handle_call(priv_get_jobs, _, {Jobs, _, _} = S) ->
         {reply, {ok, Jobs}, S}.
 
 handle_info({'DOWN', _, _, JobPid, _}, {Jobs, PrioQ, NC}) ->
@@ -78,7 +78,7 @@ handle_info({'DOWN', _, _, JobPid, _}, {Jobs, PrioQ, NC}) ->
 dropwhile([JobPid|R], H, NotJobs) ->
         case lists:member(JobPid, NotJobs) of
                 false -> {JobPid, lists:reverse(H) ++ R};
-                true -> dropwhile(R, [JobPid|H], NotJob)
+                true -> dropwhile(R, [JobPid|H], NotJobs)
         end.
 
 % Bias priority is a cheap trick to estimate a new priority for a job that
@@ -95,8 +95,7 @@ bias_priority(Job, PrioQ, Jobs, NumCores) ->
 
 % Insert an item to an already sorted list
 prioq_insert(Item, R) -> prioq_insert(Item, R, []).
-prioq_insert({Prio, _} = Item, [], H) ->
-        lists:reverse([Item|H]);
+prioq_insert(Item, [], H) -> lists:reverse([Item|H]);
 prioq_insert({Prio, _} = Item, [{P, _} = E|R], H) when Prio > P ->
         prioq_insert(Item, R, [E|H]);
 prioq_insert(Item, L, H) ->
@@ -114,11 +113,11 @@ fairness_fairy(NumCores) ->
                 {ok, Alpha} = application:get_env(fair_scheduler_alpha),
                 update_priorities(Alpha, NumCores),
                 fairness_fairy(NumCores)
-        end
+        end.
 
 update_priorities(_, 0) -> ok;
 update_priorities(Alpha, NumCores) ->
-        {ok, Jobs} = gen_server:call(sched_policy, _get_jobs),
+        {ok, Jobs} = gen_server:call(sched_policy, priv_get_jobs),
         NumJobs = gb_trees:size(Jobs),
 
         % Get the status of each running job
@@ -135,7 +134,7 @@ update_priorities(Alpha, NumCores) ->
         % Extra resources are shared equally among the needy 
         ExtraShare = lists:sum(Extra) / (NumJobs - length(Extra)),
 
-        gen_server:cast(sched_policy, {_update_priorities, lists:map(fun
+        gen_server:cast(sched_policy, {priv_update_priorities, lists:map(fun
                 ({Job, {NumTasks, NumRunning}}) ->
                         MyShare = 
                                 if NumTasks < Share ->
@@ -151,18 +150,9 @@ update_priorities(Alpha, NumCores) ->
                         Prio = Alpha * Deficit + (1 - Alpha) * Job#job.prio,
                         {Job#job.pid, Job#job{prio = Prio, bias = 0,
                                 cputime = Job#job.cputime + NumRunning}}
-        end, Stats)}),
+        end, Stats)}).
 
-                        
+% callback stubs
+terminate(_Reason, _State) -> {}.
 
-                
-
-
-
-
-
-
-
-
-
-        
+code_change(_OldVsn, State, _Extra) -> {ok, State}.

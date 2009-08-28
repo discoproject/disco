@@ -2,8 +2,10 @@
 -module(fair_scheduler_job).
 -behaviour(gen_server).
 
--export([start/0, init/1, next_task/3, handle_call/3, handle_cast/2, 
+-export([start/2, init/1, next_task/3, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
+
+-include("task.hrl").
 
 start(JobName, JobCoord) ->
         error_logger:info_report([{"JobProc starts for", JobName}]),
@@ -32,14 +34,14 @@ next_task(Job, Jobs, AvailableNodes) ->
                                 nonodes ->
                                         none
                         end
-        end
+        end.
 
 % Return an often empty subset of AvailableNodes that don't have any tasks 
 % assigned to them by any job.
 all_empty_nodes(_, []) -> [];
 all_empty_nodes([], AvailableNodes) -> AvailableNodes;
 all_empty_nodes([Job|Jobs], AvailableNodes) -> 
-        get_empty(Jobs, gen_server:call(Job,
+        all_empty_nodes(Jobs, gen_server:call(Job,
                 {get_empty_nodes, AvailableNodes})).
 
 % Assign a new task to this job.
@@ -48,7 +50,7 @@ handle_cast({new_task, Task}, {Tasks, Running, Nodes}) ->
         {noreply, {NewTasks, Running, Nodes}};
 
 % Cluster topology changed (see below).
-handle_cast({update_nodes, NewNodes}, {Tasks, Running, Nodes}) ->
+handle_cast({update_nodes, NewNodes}, {Tasks, Running, _}) ->
         NewTasks = reassign_tasks(Tasks, NewNodes),
         {noreply, {NewTasks, Running, NewNodes}};
 
@@ -69,7 +71,7 @@ handle_call({get_empty_nodes, AvailableNodes}, _, {Tasks, _, _} = S) ->
         case gb_trees:get(nopref, Tasks) of
                 {0, _} ->
                         {reply, empty_nodes(Tasks, AvailableNodes), S};
-                _ =>
+                _ ->
                         {reply, [], S}
         end; 
 
@@ -79,7 +81,7 @@ handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
         {reply, Reply, {UpdatedTasks, Running, Nodes}};
 
 % Secondary scheduling policy (see below).
-handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes} = S) ->
+handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
         {Reply, UpdatedTasks} = schedule_remote(Tasks, FreeNodes),
         {reply, Reply, {UpdatedTasks, Running, Nodes}}.
 
@@ -108,7 +110,7 @@ schedule_local(Tasks, AvailableNodes) ->
                         end;
                 % Local tasks found. Choose an AvailableNode that has the
                 % longest queue of tasks waiting. Pick the first task from it.
-                Nodes -> pop_busiest_node(Tasks, AvailableNodes)
+                Nodes -> pop_busiest_node(Tasks, Nodes)
         end.
 
 % Secondary task scheduling policy:
@@ -136,11 +138,11 @@ pop_busiest_node(Tasks, Nodes) ->
 
 % return nodes that don't have any local tasks assigned to them
 empty_nodes(Tasks, AvailableNodes) ->
-        filter_nodes(Tasks, AvailableNodes, false);
+        filter_nodes(Tasks, AvailableNodes, false).
 
 % return nodes that have at least one local tasks assigned to them
 datalocal_nodes(Tasks, AvailableNodes) ->
-        filter_nodes(Tasks, AvailableNodes, true);
+        filter_nodes(Tasks, AvailableNodes, true).
 
 filter_nodes(Tasks, AvailableNodes, Local) ->
         lists:filter(fun(Node) ->
@@ -158,8 +160,8 @@ filter_nodes(Tasks, AvailableNodes, Local) ->
 assign_task(Task, Tasks, Nodes) ->
         findpref(Task#task.input, Task, Tasks, Nodes).
 
-findpref([], Task, Tasks, Nodes) ->
-        {N, L} = gb_trees:get(nopref, Tasks)
+findpref([], Task, Tasks, _) ->
+        {N, L} = gb_trees:get(nopref, Tasks),
         gb_trees:update(nopref, {N + 1, [Task|L]}, Tasks);
 
 findpref([{_, Node}|R], Task, Tasks, Nodes) ->
@@ -167,14 +169,14 @@ findpref([{_, Node}|R], Task, Tasks, Nodes) ->
                 none ->
                         ValidNode = lists:member(Node, Nodes),
                         if ValidNode ->
-                                gb_trees:insert(Node, {1, [Task]}, Tasks)
+                                gb_trees:insert(Node, {1, [Task]}, Tasks);
                         true ->
-                                findpref(R, Task, Tasks)
+                                findpref(R, Task, Tasks, Nodes)
                         end;
                 {value, {N, L}} ->
                         IsBlack = lists:member(Node, Task#task.taskblack),
                         if IsBlack ->
-                                findpref(R, Task, Tasks);
+                                findpref(R, Task, Tasks, Nodes);
                         true ->
                                 gb_trees:update(Node, {N + 1, [Task|L]}, Tasks)
                         end
@@ -187,14 +189,14 @@ reassign_tasks(Tasks, NewNodes) ->
                 case gb_trees:lookup(Node, OTasks) of
                         {value, TList} ->
                                 {gb_trees:delete(Node, OTasks),
-                                 gb_trees:insert(Node, TList, NTasks)}
+                                 gb_trees:insert(Node, TList, NTasks)};
                         none ->
-                                {OTasks, NTasks};
+                                {OTasks, NTasks}
                 end
         end, {Tasks, gb_trees:empty()}, NewNodes),
 
-        lists:foldl(fun(Task, NTasks) ->
-                assing_task(Task, NTasks)
+        lists:foldl(fun(Task, NTasks0) ->
+                assign_task(Task, NTasks0, NewNodes)
         end, gb_trees:insert(nopref, {0, []}, NTasks),
                 lists:flatten([L || {_, L} <- gb_trees:values(OTasks)])).
 

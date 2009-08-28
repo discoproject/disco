@@ -16,10 +16,10 @@ start_link(Nodes) ->
 init(_) ->
         {ok, queue:new()}.
 
-handle_cast({update_nodes, _}, _, Q) ->
+handle_cast({update_nodes, _}, Q) ->
         {noreply, Q};
 
-handle_cast({new_job, JobPid, JobName}, _, Q) ->
+handle_cast({new_job, JobPid, JobName}, Q) ->
         erlang:monitor(process, JobPid),
         {noreply, queue:in(JobPid, Q)}.
 
@@ -32,7 +32,7 @@ dropwhile(Q, NotJobs) ->
                         V = lists:member(Job, NotJobs),
                         if V ->
                                 dropwhile(NQ, NotJobs);
-                        false ->
+                        true ->
                                 {ok, Job}
                         end;
                 {empty, _} -> nojobs
@@ -42,7 +42,6 @@ handle_info({'DOWN', _, _, Job, _}, Q) ->
         {noreply, queue:filter(fun(J) -> J =/= Job end, Q)}.
 
 % unused
-
 
 terminate(_Reason, _State) -> {}.
 
