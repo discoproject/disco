@@ -2,7 +2,7 @@
 *.log
 *.pid
 *.pyc
-conf/disco.conf
+conf/settings.py
 master/disco.boot
 master/disco.rel
 master/disco.script

@@ -1,10 +1,5 @@
-
 -module(disco_config).
 -export([get_config_table/0, save_config_table/1, expand_range/2]).
-
-config_file() ->
-        {ok, Val} = application:get_env(disco_config),
-        Val.
 
 expand_range(FirstNode, Max) ->
         Len = string:len(FirstNode),
@@ -32,16 +27,18 @@ update_config_table(Json) ->
                 lists:flatten([parse_row(R) || R <- Json])}).
 
 get_config_table() ->
-        error_logger:info_report([{"Opening config file"}]),
-        % check to see if file exists, otherwise create and initialize with []
-        {ok, Config} = file:read_file(config_file()),
+        case file:read_file(os:getenv("DISCO_CONFIG")) of
+                {ok, Config} -> ok;
+                {error, enoent} ->
+                        Config = "[]"
+        end,
         {ok, Json, _Rest} = json:decode(Config),
         update_config_table(Json),
         {ok, Json}.
 
 save_config_table(Json) ->
         update_config_table(Json),
-        ok = file:write_file(config_file(), json:encode(Json)),
+        ok = file:write_file(os:getenv("DISCO_CONFIG"), json:encode(Json)),
         {ok, <<"table saved!">>}.
 
 

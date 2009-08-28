@@ -30,6 +30,8 @@ class DiscoSettings(dict):
         'PYTHONPATH':           "'%s:%s/pydisco' % (os.getenv('PYTHONPATH', ''), DISCO_HOME)",
         }
 
+    must_exist = ('DISCO_DATA', 'DISCO_MASTER_ROOT')
+
     def __init__(self, filename, **kwargs):
         super(DiscoSettings, self).__init__(kwargs)
         execfile(filename, {}, self)
@@ -144,7 +146,6 @@ class master(server):
                 '-disco', 'disco_name', '"%s"' % settings['DISCO_NAME'],
                 '-disco', 'disco_root', '"%s"' % settings['DISCO_MASTER_ROOT'],
                 '-disco', 'scgi_port', '%s' % settings['DISCO_SCGI_PORT'],
-                '-disco', 'disco_config', '"%s"' % settings['DISCO_CONFIG'],
                 '-disco', 'disco_localdir', '"%s"' % settings['DISCO_LOCAL_DIR'],
                 '-eval', '[handle_job, handle_ctrl]',
                 '-eval', 'application:start(disco)']
@@ -210,6 +211,11 @@ def main():
             If this is not what you want, see the `--help` option
             """.format(options.settings, **disco_settings)) # python2.6+
 
+    for name in disco_settings.must_exist:
+        path = disco_settings[name]
+        if not os.path.exists(path):
+            os.makedirs(path)
+
     if options.print_env:
         for item in sorted(disco_settings.env.iteritems()):
             print('%s = %s' % (item))
@@ -224,5 +230,5 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except DiscoError, e:
+    except Exception, e:
         sys.exit(e)

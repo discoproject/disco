@@ -30,8 +30,3 @@ DISCO_PID_DIR = DISCO_HOME
 # - nocurl: use httplib instead of pycurl even if pycurl is available
 #DISCO_FLAGS = "nocurl"
 
-# The maximum amount of virtual memory available for master
-# (ulimit -v DISCO_ULIMIT)
-DISCO_ULIMIT = 16000000
-
-DISCO_USER = "jflatow"
