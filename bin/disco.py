@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import optparse, os, subprocess, signal, sys
+import optparse, os, subprocess, signal, socket, sys
 from itertools import chain
 
 class DiscoSettings(dict):
@@ -19,8 +19,6 @@ class DiscoSettings(dict):
         'DISCO_DATA':           "os.path.join(DISCO_ROOT, 'data')",
         'DISCO_MASTER_ROOT':    "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
         'DISCO_CONFIG':         "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
-        'DISCO_MASTER_LOG':     "os.path.join(DISCO_LOG_DIR, '%s.log' % DISCO_NAME)",
-        'DISCO_MASTER_PID':     "os.path.join(DISCO_PID_DIR, 'disco-master.pid')",
         'DISCO_LOCAL_DIR':      "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_WORKER':         "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'ERLANG':               "guess_erlang()",
@@ -30,7 +28,9 @@ class DiscoSettings(dict):
         'PYTHONPATH':           "'%s:%s/pydisco' % (os.getenv('PYTHONPATH', ''), DISCO_HOME)",
         }
 
-    must_exist = ('DISCO_DATA', 'DISCO_MASTER_ROOT')
+    must_exist = ('DISCO_DATA', 'DISCO_ROOT',
+                  'DISCO_MASTER_HOME', 'DISCO_MASTER_ROOT',
+                  'DISCO_LOG_DIR', 'DISCO_PID_DIR')
 
     def __init__(self, filename, **kwargs):
         super(DiscoSettings, self).__init__(kwargs)
@@ -51,16 +51,30 @@ class DiscoError(Exception):
     pass
 
 class server(object):
-    def __init__(self, disco_settings):
+    def __init__(self, disco_settings, port=None):
         self.disco_settings = disco_settings
+        self.host = socket.gethostname()
+        self.port = port
 
     @property
     def env(self):
         return self.disco_settings.env
 
     @property
+    def id(self):
+        return self.__class__.__name__, self.host, self.port
+
+    @property
     def pid(self):
         return int(open(self.pid_file).readline().strip())
+
+    @property
+    def log_file(self):
+        return os.path.join(self.disco_settings['DISCO_LOG_DIR'], '%s-%s_%s.log' % self.id)
+
+    @property
+    def pid_file(self):
+        return os.path.join(self.disco_settings['DISCO_PID_DIR'], '%s-%s_%s.pid' % self.id)
 
     def conf_path(self, filename):
         return os.path.join(self.disco_settings['DISCO_CONF'], filename)
@@ -73,7 +87,7 @@ class server(object):
 
     def start(self, **kwargs):
         if self._status == 'running':
-            raise DiscoError("%s already started" % self)
+            raise DiscoError("%s already running" % self)
         process = subprocess.Popen(self.args, env=self.env, **kwargs)
         if process.wait():
             raise DiscoError("Failed to start %s" % self)
@@ -91,6 +105,8 @@ class server(object):
         yield '%s %s' % (self, self._status)
 
     def stop(self):
+        if self._status == 'stopped':
+            raise DiscoError("%s already stopped" % self)
         try:
             os.kill(self.pid, signal.SIGTERM)
             while self._status == 'running':
@@ -103,10 +119,9 @@ class server(object):
         return ' '.join(self.args)
 
 class lighttpd(server):
-    def __init__(self, disco_settings, config_file, port):
-        super(lighttpd, self).__init__(disco_settings)
+    def __init__(self, disco_settings, port, config_file):
+        super(lighttpd, self).__init__(disco_settings, port)
         self.config_file = config_file
-        self.port = port
 
     @property
     def args(self):
@@ -119,18 +134,11 @@ class lighttpd(server):
                     'LIGHTTPD_PID': self.pid_file,
                     'LIGHTTPD_PORT': str(self.port)})
         return env
-
-    @property
-    def log_file(self):
-        # could change to be unique to host:port instead of just port
-        return os.path.join(self.disco_settings['DISCO_LOG_DIR'], 'lighttpd-%s.log' % self.port)
-        
-    @property
-    def pid_file(self):
-        # could change to be unique to host:port instead of just port
-        return os.path.join(self.disco_settings['DISCO_PID_DIR'], 'lighttpd-%s.pid' % self.port)
         
 class master(server):
+    def __init__(self, disco_settings):
+        super(master, self).__init__(disco_settings, disco_settings['DISCO_SCGI_PORT'])
+
     @property
     def args(self):
         settings = self.disco_settings
@@ -138,26 +146,29 @@ class master(server):
                ['+K', 'true',
                 '-heart',
                 '-detached',
-                '-sname', '%s_master' % settings['DISCO_NAME'],
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
+                '-kernel', 'error_logger', '{file, "%s"}' % self.log_file,
                 '-pa', os.path.join(settings['DISCO_MASTER_HOME'], 'ebin'),
-                '-kernel', 'error_logger', '{file, "%s"}' % settings['DISCO_MASTER_LOG'],
+                '-sname', '%s_master' % settings['DISCO_NAME'],
                 '-disco', 'disco_name', '"%s"' % settings['DISCO_NAME'],
                 '-disco', 'disco_root', '"%s"' % settings['DISCO_MASTER_ROOT'],
                 '-disco', 'scgi_port', '%s' % settings['DISCO_SCGI_PORT'],
                 '-disco', 'disco_localdir', '"%s"' % settings['DISCO_LOCAL_DIR'],
                 '-eval', '[handle_job, handle_ctrl]',
                 '-eval', 'application:start(disco)']
+
+    @property
+    def env(self):
+        env = self.disco_settings.env
+        env.update({'DISCO_MASTER_PID': self.pid_file})
+        return env
     
     @property
     def lighttpd(self):
         return lighttpd(self.disco_settings,
-                        self.conf_path('lighttpd-master.conf'),
-                        self.disco_settings['DISCO_MASTER_PORT'])
-    @property
-    def pid_file(self):
-        return self.disco_settings['DISCO_MASTER_PID']
+                        self.disco_settings['DISCO_MASTER_PORT'],
+                        self.conf_path('lighttpd-master.conf'))
 
     def send(self, command):
         return chain(getattr(self, command)(), self.lighttpd.send(command))
@@ -169,8 +180,8 @@ class worker(server):
     @property
     def lighttpd(self):
         return lighttpd(self.disco_settings,
-                        self.conf_path('lighttpd-worker.conf'),
-                        self.disco_settings['DISCO_PORT'])        
+                        self.disco_settings['DISCO_PORT'],
+                        self.conf_path('lighttpd-worker.conf'))
 
     def send(self, command):
         return self.lighttpd.send(command)
@@ -230,5 +241,5 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except Exception, e:
+    except DiscoError, e:
         sys.exit(e)

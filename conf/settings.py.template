@@ -23,8 +23,8 @@ DISCO_ROOT = os.path.join(DISCO_HOME, 'root')
 DISCO_MASTER_HOME = os.path.join(DISCO_HOME, 'master')
 
 # Root directory for Disco logs.
-DISCO_LOG_DIR = DISCO_HOME
-DISCO_PID_DIR = DISCO_HOME
+DISCO_LOG_DIR = os.path.join(DISCO_HOME, 'log')
+DISCO_PID_DIR = os.path.join(DISCO_HOME, 'run')
 
 # Miscellaneous flags:
 # - nocurl: use httplib instead of pycurl even if pycurl is available
