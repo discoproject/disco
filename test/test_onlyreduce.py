@@ -1,5 +1,5 @@
 import tserver, sys
-from disco import Disco, result_iterator
+from disco.core import Disco, result_iterator
 import random
 
 def data_gen(path):

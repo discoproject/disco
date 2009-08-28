@@ -1,5 +1,8 @@
 #!/bin/bash
 
+bin=`dirname $0`
+cd $bin
+
 export PYTHONPATH=../pydisco
 TESTS=(test_*.py)
 NUM_TESTS=${#TESTS[*]}

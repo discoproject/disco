@@ -1,6 +1,6 @@
 import tserver, sys, os
 from os.path import abspath
-from disco import Disco, result_iterator, modutil
+from disco.core import Disco, result_iterator, modutil
 
 os.environ["PYTHONPATH"] = os.environ.get("PYTHONPATH", "") + ":extra"
 sys.path.append(abspath("extra"))

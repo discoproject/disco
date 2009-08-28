@@ -1,6 +1,6 @@
 
 import sys, tserver
-from disco import Disco, result_iterator
+from disco.core import Disco, result_iterator
 
 def data_gen(path):
         return "\n".join([path[1:]])

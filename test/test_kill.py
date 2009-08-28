@@ -1,6 +1,6 @@
 
 import tserver, sys, time
-from disco import Disco
+from disco.core import Disco
 
 def data_gen(path):
         return "1 2 3\n"

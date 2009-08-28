@@ -1,6 +1,6 @@
 
 import tserver, sys, random, time
-from disco import Disco
+from disco.core import Disco
 
 def check_dead(job):
         if job.jobinfo()['active'] == "dead":

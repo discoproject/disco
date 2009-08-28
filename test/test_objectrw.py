@@ -1,6 +1,6 @@
 
 import tserver, sys, math
-from disco import Params, Disco, result_iterator, func
+from disco.core import Params, Disco, result_iterator, func
 
 def data_gen(path):
         return "\n".join([path[1:]] * 10)

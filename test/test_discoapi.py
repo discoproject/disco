@@ -1,6 +1,5 @@
-
 import sys
-from disco import Disco, result_iterator
+from disco.core import Disco, result_iterator
 
 def fun_map(e, params):
         for i in range(3):

@@ -1,4 +1,4 @@
-import sys, re, os, marshal, modutil, time, types, cPickle
+import sys, re, os, marshal, modutil, time, types, cPickle, cStringIO
 from disco import func, util, comm
 from disco.comm import json
 from disco.error import DiscoError, JobException

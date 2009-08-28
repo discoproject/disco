@@ -1,6 +1,5 @@
-
 import tserver, sys
-from disco import Disco, result_iterator
+from disco.core import Disco, result_iterator
 from disco.util import external
 
 def data_gen(path):
