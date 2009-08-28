@@ -15,7 +15,7 @@ class DiscoSettings(dict):
         'DISCO_ROOT':           "'/srv/disco'",
         'DISCO_SCGI_PORT':      "4444",
         'DISCO_ULIMIT':         "16000000",
-        'DISCO_USER':           "os.getlogin()",
+        'DISCO_USER':           "os.getenv('LOGNAME')",
         'DISCO_DATA':           "os.path.join(DISCO_ROOT, 'data')",
         'DISCO_MASTER_ROOT':    "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
         'DISCO_CONFIG':         "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
