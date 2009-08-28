@@ -1,9 +1,7 @@
 *.beam
+*.dump
 *.log
 *.pid
 *.pyc
 conf/settings.py
-master/disco.boot
-master/disco.rel
-master/disco.script
 root/
