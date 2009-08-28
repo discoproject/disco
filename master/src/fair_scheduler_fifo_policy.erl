@@ -7,7 +7,7 @@
 
 start_link(Nodes) ->
         error_logger:info_report([{"Fair scheduler: FIFO policy"}]),
-        case gen_server:start_link({local, fair_scheduler_policy}, 
+        case gen_server:start_link({local, sched_policy}, 
                         fair_scheduler_fifo_policy, Nodes, []) of
                 {ok, Server} -> {ok, Server};
                 {error, {already_started, Server}} -> {ok, Server}
@@ -19,15 +19,24 @@ init(_) ->
 handle_cast({update_nodes, _}, _, Q) ->
         {noreply, Q};
 
-handle_cast({new_job, Job}, _, Q) ->
-        erlang:monitor(process, Job),
-        {noreply, queue:in(Job, Q)}.
+handle_cast({new_job, JobPid, JobName}, _, Q) ->
+        erlang:monitor(process, JobPid),
+        {noreply, queue:in(JobPid, Q)}.
 
-handle_call(next_job, _, Q) ->
-        case queue:peek(Q) of
-                {value, Job} -> {reply, {ok, Job}, Q};
-                empty -> {reply, nojobs, Q}
-        end;
+handle_call({next_job, NotJobs}, _, Q) ->
+        {reply, dropwhile(Q, NotJobs), Q}.
+
+dropwhile(Q, NotJobs) ->
+        case queue:out(Q) of
+                {{value, Job}, NQ} ->
+                        V = lists:member(Job, NotJobs),
+                        if V ->
+                                dropwhile(NQ, NotJobs);
+                        false ->
+                                {ok, Job}
+                        end;
+                {empty, _} -> nojobs
+        end.
 
 handle_info({'DOWN', _, _, Job, _}, Q) ->
         {noreply, queue:filter(fun(J) -> J =/= Job end, Q)}.

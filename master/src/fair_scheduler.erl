@@ -1,89 +1,72 @@
 -module(fair_scheduler).
 -behaviour(gen_server).
 
--export([start_link/0, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/1, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
--define(ACCOUNTING_INTERVAL, 1000).
-
-start_link() ->
+start_link(Nodes) ->
         error_logger:info_report([{"Fair scheduler starts"}]),
         case gen_server:start_link({local, scheduler},
-                        fair_scheduler, [], []) of
+                fair_scheduler, Nodes, []) of
                 {ok, Server} -> {ok, Server};
                 {error, {already_started, Server}} -> {ok, Server}
         end.
 
-init() ->
-        case application:get_env(disco_scheduler_opt) of
+init(Nodes) ->
+        case application:get_env(scheduler_opt) of
                 {ok, "fifo"} ->
                         error_logger:info_report(
                                 [{"Scheduler uses fifo policy"}]),
-                        spawn_link(fun() -> fifo_policy_proc() end);
+                        fair_scheduler_fifo_policy:start_link(Nodes)
                 _ ->
                         error_logger:info_report(
                                 [{"Scheduler uses fair policy"}]),
-                        spawn_link(fun() -> fair_policy_proc() end)
+                        fair_scheduler_fair_policy:start_link(Nodes)
         end,
         ets:new(jobs, [private, named_table]),
         {ok, Nodes}.
 
-handle_cast({update_nodes, NewNodes}, Nodes) ->
-        job_cast({update_nodes, Nodes}),
-        {noreply, Nodes};
+handle_cast({update_nodes, NewNodes}, _) ->
+        gen_server:cast(sched_policy, {update_nodes, NewNodes}),
+        job_cast({update_nodes, NewNodes}),
+        {noreply, NewNodes};
 
 handle_cast({new_task, Task}, Nodes) ->
-        JobPid = case ets:lookup(jobs, Task#task.jobname) of
+        JobName = Task#task.jobname,
+        JobPid = case ets:lookup(jobs, JobName) of
                 [] ->
-                        {ok, Job} = fair_scheduler_job:start(
+                        {ok, JobPid} = fair_scheduler_job:start(
                                 Task#task.jobname, Task#task.from),
-                        gen_server:cast(Job, {update_nodes, Nodes}),
-                        ets:insert(jobs, {Task#task.jobname, Job}),
-                        policy ! {new_job, Job},
-                        Job;
-                [{_, Pid}] -> Pid
+                        gen_server:cast(JobPid, {update_nodes, Nodes}),
+                        gen_server:cast(sched_policy,
+                                {new_job, JobPid, JobName}),
+                        ets:insert(jobs, {JobName, JobPid}),
+                        JobPid;
+                [{_, JobPid}] -> JobPid
         end,
         gen_server:cast(JobPid, {new_task, Task}),
         {noreply, Nodes}.
 
-handle_call(_Msg, _From, State) ->
-        {reply, ok, State}.
+handle_call({next_job, AvailableNodes}, _From, Nodes) ->
+        Jobs = [JobPid || {_, JobPid} <- ets:tab2list(jobs)],
+        {reply, next_job(AvailableNodes, Jobs, []), Nodes}.
 
+next_job(AvailableNodes, Jobs, NotJobs) ->
+        case gen_server:call(sched_policy, {next_job, NotJobs}) of
+                {ok, JobPid} -> 
+                        case fair_scheduler_job:next_task(
+                                        JobPid, Jobs, AvailableNodes) of
+                                {ok, {Node, Task} = E} ->
+                                        {ok, E};
+                                none ->
+                                        next_job(AvailableNodes,
+                                                Jobs, [JobPid|NotJobs])
+                        end;
+                nojobs -> nojobs;
+        end.
 
 job_cast(Msg) ->
-        [gen_server:cast(Job, Msg) || {_, Job} <- ets:tab2list(jobs)].
-
-
-
-
-%
-% Fair Accounting
-%
-
-%accounting_proc() ->
-%        true = register(accounting, self()),
-%        accounting_loop(accounting_update_stats(gb_trees:empty())).
-%
-%accounting_loop(Stats) ->
-%        receive
-%                {new_job, Job} ->
-%                        NStats = gb_trees:insert(Job, 0.0, Stats),
-%                        erlang:monitor(process, Job),
-%                        accounting_loop(NStats);
-%                {'DOWN', _, _, Job, _} ->
-%                        accounting_loop(gb_trees:delete(Job, Stats));
-%                update_stats ->
-%                        accounting_loop(accounting_update(Stats))
-%        end.
-%
-%accounting_update_stats(Stats) ->
-%         
-%        timer:send_after(?ACCOUNTING_INTERVAL, update_stats).
-
-
-
-% unused
-
+        [gen_server:cast(JobPid, Msg) || {_, JobPid} <- ets:tab2list(jobs)].
 
 handle_info(_Msg, State) -> {noreply, State}. 
 
