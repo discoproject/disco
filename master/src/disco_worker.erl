@@ -22,11 +22,12 @@
                    {env, [{"LD_LIBRARY_PATH", "lib"}]}]).
 
 get_env(Var) ->
-        get_env(Var, lists:flatten(io_lib:format(" -env ~s ~~s", [Var]))).
+        get_env(Var, lists:flatten(io_lib:format(" -env ~s '~~s'", [Var]))).
 
 get_env(Var, Fmt) ->
         case os:getenv(Var) of
                 false -> "";
+                "" -> "";
                 Val -> io_lib:format(Fmt, [Val])
         end.
 
