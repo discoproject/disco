@@ -1,36 +1,37 @@
 -module(fair_scheduler).
 -behaviour(gen_server).
 
--export([start_link/1, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/0, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
 -include("task.hrl").
 
-start_link(Nodes) ->
+start_link() ->
         error_logger:info_report([{"Fair scheduler starts"}]),
         case gen_server:start_link({local, scheduler},
-                fair_scheduler, Nodes, []) of
+                        fair_scheduler, [], []) of
                 {ok, Server} -> {ok, Server};
                 {error, {already_started, Server}} -> {ok, Server}
         end.
 
-init(Nodes) ->
+init([]) ->
         case application:get_env(scheduler_opt) of
                 {ok, "fifo"} ->
                         error_logger:info_report(
                                 [{"Scheduler uses fifo policy"}]),
-                        fair_scheduler_fifo_policy:start_link(Nodes);
+                        fair_scheduler_fifo_policy:start_link();
                 _ ->
                         error_logger:info_report(
                                 [{"Scheduler uses fair policy"}]),
-                        fair_scheduler_fair_policy:start_link(Nodes)
+                        fair_scheduler_fair_policy:start_link()
         end,
         ets:new(jobs, [private, named_table]),
-        {ok, Nodes}.
+        {ok, []}.
 
 handle_cast({update_nodes, NewNodes}, _) ->
         gen_server:cast(sched_policy, {update_nodes, NewNodes}),
-        job_cast({update_nodes, NewNodes}),
+        Msg = {update_nodes, NewNodes},
+        [gen_server:cast(JobPid, Msg) || {_, JobPid} <- ets:tab2list(jobs)],
         {noreply, NewNodes};
 
 handle_cast({new_task, Task}, Nodes) ->
@@ -59,16 +60,13 @@ next_job(AvailableNodes, Jobs, NotJobs) ->
                         case fair_scheduler_job:next_task(
                                         JobPid, Jobs, AvailableNodes) of
                                 {ok, Task} ->
-                                        {ok, Task};
+                                        {ok, {JobPid, Task}};
                                 none ->
                                         next_job(AvailableNodes,
                                                 Jobs, [JobPid|NotJobs])
                         end;
                 nojobs -> nojobs
         end.
-
-job_cast(Msg) ->
-        [gen_server:cast(JobPid, Msg) || {_, JobPid} <- ets:tab2list(jobs)].
 
 handle_info(_Msg, State) -> {noreply, State}. 
 

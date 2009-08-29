@@ -26,7 +26,7 @@ build: master
 master: $(TARGET)
 
 clean:
-	- rm -Rf master/disco.rel master/disco.script 
+	- rm -Rf master/ebin/*.beam
 	- rm -Rf pydisco/build
 	- rm -Rf pydisco/disco.egg-info
 	- rm -Rf node/build

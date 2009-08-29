@@ -57,7 +57,7 @@ init([ScgiPort]) ->
                         permanent, 10, worker, dynamic},
                  {disco_server, {disco_server, start_link, []},
                         permanent, 10, worker, dynamic},
-                 {job_queue, {job_queue, start_link, []},
+                 {fair_scheduler, {fair_scheduler, start_link, []},
                         permanent, 10, worker, dynamic},
                  {oob_server, {oob_server, start_link, []},
                         permanent, 10, worker, dynamic},

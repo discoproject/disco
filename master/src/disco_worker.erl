@@ -2,13 +2,14 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_link/1, start_link_remote/1, remote_worker/1]).
+-export([start_link/1, start_link_remote/4, remote_worker/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3, slave_name/1]).
 
--record(state, {id, master, master_url, eventserv, port, from, jobname, 
-                partid, mode, child_pid, node, input, linecount, errlines, 
-                results, last_msg, msg_counter, oob, oob_counter}).
+-include("task.hrl").
+-record(state, {id, master, master_url, eventserv, port, task,
+                child_pid, node, linecount, errlines, results, 
+                last_msg, msg_counter, oob, oob_counter}).
 
 -define(MAX_MSG_LENGTH, 8192).
 -define(RATE_WINDOW, 100000). % 100ms
@@ -42,13 +43,9 @@ slave_name(Node) ->
         SName = lists:flatten([Name, "_slave"]),
         list_to_atom(SName ++ "@" ++ Node).
 
-start_link_remote([Master, EventServ, From, JobName, PartID, 
-        Mode, Node, Input]) ->
-
-        ets:insert(active_workers, 
-                {self(), {From, JobName, Node, Mode, PartID}}),
-
+start_link_remote(Master, EventServ, Node, Task) ->
         NodeAtom = slave_name(Node),
+        JobName = Task#task.jobname,
         error_logger:info_report(["Starting a worker at ", Node, self()]),
 
         case net_adm:ping(NodeAtom) of
@@ -60,22 +57,31 @@ start_link_remote([Master, EventServ, From, JobName, PartID,
                                 {slave_failed, X} ->
                                         event_server:event(JobName,
                                                 "WARN: Node failure: ~p", [X], []),
-                                        exit({data_error, Input})
+                                        exit({data_error, Task#task.input})
                         after 60000 ->
-                                exit({data_error, Input})
+                                exit({data_error, Task#task.input})
                         end
         end,
         process_flag(trap_exit, true),
+
         {ok, MasterUrl0} = application:get_env(disco_url),
         MasterUrl = MasterUrl0 ++ disco_server:jobhome(JobName),
-        spawn_link(NodeAtom, disco_worker, remote_worker, [[self(), JobName, Master,
-                MasterUrl, EventServ, From, PartID, Mode, Node, Input]]),
+
+        spawn_link(NodeAtom, disco_worker, remote_worker,
+                 [[self(), Master, MasterUrl, EventServ, Task, Node]]),
+        
         receive
                 ok -> ok;
+                timeout -> 
+                        event_server:event(JobName,
+                                "WARN: Worker timeout on ~s", [Node], []),
+                        exit({data_error, Task#task.input});
                 {'EXIT', _, Reason} -> exit(Reason);
                 _ -> exit({error, invalid_reply})
         after 60000 ->
-                exit({data_error, Input})
+                event_server:event(JobName,
+                        "WARN: Worker timeout on ~s", [Node], []),
+                exit({data_error, Task#task.input})
         end,
         wait_for_exit().
 
@@ -91,21 +97,33 @@ wait_for_exit() ->
 
 start_link([Parent|_] = Args) ->
         error_logger:info_report(["Worker starting at ", node(), Parent]),
-        {ok, Worker} = gen_server:start_link(disco_worker, Args, []),
-        ok = gen_server:call(Worker, start_worker),
-        Parent ! ok.
+        Worker = gen_server:start_link(disco_worker, Args, []),
+        % NB: start_worker call is known to timeout if the node is really
+        % busy - it should not be a fatal problem
+        case catch gen_server:call(Worker, start_worker, 30000) of
+                ok -> Parent ! ok;
+                _ -> Parent ! timeout
+        end.
 
-init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
-        Mode, Node, Input]) ->
+init([Id, Master, MasterUrl, EventServ, Task, Node]) ->
         process_flag(trap_exit, true),
-        error_logger:info_report({"Init worker ", JobName, " at ", node()}),
-        {ok, #state{id = Id, from = From, jobname = JobName, partid = PartID, 
-                    mode = Mode, master = Master, master_url = MasterUrl,
-                    node = Node, input = Input, child_pid = none, 
-                    eventserv = EventServ, linecount = 0,
-                    last_msg = now(), msg_counter = 0,
-                    oob = [], oob_counter = 0,
-                    errlines = [], results = []}}.
+        error_logger:info_report(
+                {"Init worker ", Task#task.jobname, " at ", node()}),
+        erlang:monitor(process, Task#task.from),
+        {ok, #state{id = Id, 
+                    master = Master,
+                    master_url = MasterUrl,
+                    task = Task,
+                    node = Node,
+                    child_pid = none, 
+                    eventserv = EventServ,
+                    linecount = 0,
+                    last_msg = now(),
+                    msg_counter = 0,
+                    oob = [],
+                    oob_counter = 0,
+                    errlines = [],
+                    results = []}}.
 
 handle_call(start_worker, _From, State) ->
         Cmd = spawn_cmd(State),
@@ -113,10 +131,10 @@ handle_call(start_worker, _From, State) ->
         Port = open_port({spawn, Cmd}, ?PORT_OPT),
         {reply, ok, State#state{port = Port}, 30000}.
 
-spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
-                mode = Mode, input = Input, master_url = Url}) ->
+spawn_cmd(#state{task = T, node = Node, master_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
-                [Mode, JobName, Node, Url, PartID, Input])).
+                [T#task.mode, T#task.jobname, Node, Url, 
+                        T#task.taskid, T#task.input])).
 
 strip_timestamp(Msg) when is_binary(Msg) ->
         strip_timestamp(binary_to_list(Msg));
@@ -128,14 +146,14 @@ strip_timestamp(Msg) ->
                 string:substr(Msg, P + 2)
         end.
 
-event(S, "WARN", Msg) ->
-        event_server:event(S#state.eventserv, S#state.node, S#state.jobname,
-                "~s [~s:~B] ~s", ["WARN", S#state.mode, S#state.partid, Msg],
-                        {task_failed, S#state.mode});
+event(#state{task = T, eventserv = EvServ, node = Node}, "WARN", Msg) ->
+        event_server:event(EvServ, Node, T#task.jobname,
+                "~s [~s:~B] ~s", ["WARN", T#task.mode, T#task.taskid, Msg],
+                        {task_failed, T#task.mode});
 
-event(S, Type, Msg) ->
-        event_server:event(S#state.eventserv, S#state.node, S#state.jobname,
-                "~s [~s:~B] ~s", [Type, S#state.mode, S#state.partid, Msg], []).
+event(#state{task = T, eventserv = EvServ, node = Node}, Type, Msg) ->
+        event_server:event(EvServ, Node, T#task.jobname,
+                "~s [~s:~B] ~s", [Type, T#task.mode, T#task.taskid, Msg], []).
 
 handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
         {noreply, S#state{child_pid = binary_to_list(Line)}}; 
@@ -174,8 +192,9 @@ handle_info({_, {data, {eol, <<"**<ERR>", Line/binary>>}}}, S) ->
 handle_info({_, {data, {eol, <<"**<DAT>", Line/binary>>}}}, S) ->
         M = strip_timestamp(Line),
         event(S, "WARN", M ++ [10] ++ S#state.errlines),
+        T = S#state.task,
         gen_server:cast(S#state.master, {exit_worker, S#state.id,
-                {data_error, {M, S#state.input}}}),
+                {data_error, {M, T#task.input}}}),
         {stop, normal, S};
 
 handle_info({_, {data, {eol, <<"**<OUT>", Line/binary>>}}}, S) ->
@@ -225,8 +244,9 @@ handle_info({_, {data, {noeol, Line}}}, S) ->
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
         M =  "Worker didn't start:\n" ++ S#state.errlines,
         event(S, "WARN", M),
+        T = S#state.task,
         gen_server:cast(S#state.master, {exit_worker, S#state.id,
-                {data_error, {M, S#state.input}}}),
+                {data_error, {M, T#task.input}}}),
         {stop, normal, S};
 
 handle_info({_, {exit_status, _Status}}, S) ->
@@ -246,8 +266,16 @@ handle_info({_, closed}, S) ->
 handle_info(timeout, #state{linecount = 0} = S) ->
         M = "Worker didn't start in 30 seconds",
         event(S, "WARN", M),
+        T = S#state.task,
         gen_server:cast(S#state.master, {exit_worker, S#state.id,
-                {data_error, {M, S#state.input}}}),
+                {data_error, {M, T#task.input}}}),
+        {stop, normal, S};
+
+handle_info({'DOWN', _, _, _, _}, S) ->
+        M = "Worker killed. Last words:\n" ++ S#state.errlines,
+        event(S, "ERROR", M),
+        gen_server:cast(S#state.master, 
+                {exit_worker, S#state.id, {job_error, M}}),
         {stop, normal, S}.
 
 handle_cast(_, State) -> {noreply, State}.

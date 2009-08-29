@@ -6,6 +6,7 @@
                    "Status: 200 OK\n"
                    "Content-type: text/plain\n\n").
 
+-include("task.hrl").
 
 -record(failinfo, {inputs, taskblack}).
 
@@ -151,15 +152,20 @@ handle(Socket, Msg) ->
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
-work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N =< Max ->
-        ok = gen_server:call(disco_server, {new_worker, 
-                {Name, PartID, Mode, [], Input}}),
+work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
+        Task = #task{jobname = Name,
+                     taskid = PartID,
+                     mode = Mode,
+                     taskblack = [],
+                     input = Input,
+                     from = self()},
+        gen_server:cast(disco_server, {new_task, Task}),
         work(Inputs, Mode, Name, N + 1, Max, Res);
 
 % 2. Tasks to distribute but the maximum number of tasks are already running.
 % Wait for tasks to return. Note that wait_workers() may return with the same
 % number of tasks still running, i.e. N = M.
-work([_|_] = IArg, Mode, Name, N, Max, Res) when N > Max ->
+work([_|_] = IArg, Mode, Name, N, Max, Res) when N >= Max ->
         M = wait_workers(N, Res, Name, Mode),
         work(IArg, Mode, Name, M, Max, Res);
 
@@ -227,7 +233,9 @@ handle_data_error(Name, FailedInput, PartID, Mode, Node, Failures) ->
         [{_, #failinfo{taskblack = Taskblack, inputs = Inputs}}] =
                 ets:lookup(Failures, PartID),
         
-        ok = check_failure_rate(Name, PartID, Mode, length(Taskblack)),
+        {ok, NumCores} = gen_server:call(disco_server, get_num_cores),
+        check_failure_rate(Name, PartID, Mode, length(Taskblack), NumCores),
+        
         NInputs = if length(Inputs) > 1 ->
                 [{X, N} || {X, N} <- Inputs, X =/= FailedInput];
         true ->
@@ -238,18 +246,30 @@ handle_data_error(Name, FailedInput, PartID, Mode, Node, Failures) ->
         ets:insert(Failures, {PartID,
                 #failinfo{taskblack = NTaskblack, inputs = NInputs}}),
         
-        ok = gen_server:call(disco_server, {new_worker, 
-                {Name, PartID, Mode, NTaskblack, NInputs}}).
+        Task = #task{jobname = Name,
+                     taskid = PartID,
+                     mode = Mode,
+                     taskblack = NTaskblack,
+                     input = NInputs,
+                     from = self()},
 
-check_failure_rate(Name, PartID, Mode, L) ->
-        V = case application:get_env(max_failure_rate) of
-                undefined -> L > 3;
-                {ok, N} -> L > N
+        gen_server:cast(disco_server, {new_task, Task}).
+
+check_failure_rate(Name, PartID, Mode, L, NumCores) when NumCores =< L ->
+        event_server:event(Name, 
+                "ERROR: ~s:~B failed on all available cores (~B times in "
+                "total). Aborting the job.", [Mode, PartID, L], []),
+        throw(logged_error);
+
+check_failure_rate(Name, PartID, Mode, L, _) ->
+        N = case application:get_env(max_failure_rate) of
+                undefined -> 3;
+                {ok, N0} -> N0
         end,
-        if V ->
+        if L > N ->
                 event_server:event(Name, 
-                        "ERROR: ~s:~B failed ~B times. Aborting job.",
-                                [Mode, PartID, L], []),
+                        "ERROR: ~s:~B failed ~B times. At most ~B failures "
+                        "are allowed. Aborting the job.", [Mode, PartID, L, N], []),
                 throw(logged_error);
         true -> 
                 ok

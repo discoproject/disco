@@ -6,16 +6,21 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
--record(job, {jobname, partid, mode, taskblack, input, from}).
+-include("task.hrl").
+-record(dnode, {name, blacklisted, slots, num_running, 
+                stats_ok, stats_failed, stats_crashed}).
+
 -define(BLACKLIST_PERIOD, 600000).
 
 start_link() ->
         error_logger:info_report([{"DISCO SERVER STARTS"}]),
         case gen_server:start_link({local, disco_server}, 
                         disco_server, [], []) of
-                {ok, Server} -> {ok, _} = disco_config:get_config_table(),
-                                {ok, Server};
-                {error, {already_started, Server}} -> {ok, Server}
+                {ok, Server} ->
+                        {ok, _} = disco_config:get_config_table(),
+                        {ok, Server};
+                {error, {already_started, Server}} ->
+                        {ok, Server}
         end.
 
 stop() ->
@@ -31,126 +36,123 @@ jobhome(JobName) ->
 init(_Args) ->
         process_flag(trap_exit, true),
 
-        % active_workers contains Pids of all running
+        % active_workers contains pids of all running
         % disco_worker processes.
-        ets:new(active_workers, [named_table, public]),
-
-        % node_laod records how many disco_workers there are
-        % running on a node (could be found in active_workers
-        % as well). This table exists mainly for convenience and
-        % possibly for performance reasons.
-        ets:new(node_load, [named_table]),
-
-        % blacklist contains globally blacklisted nodes 
-        ets:new(blacklist, [named_table]),
-
-        % node_stats contains triples {ok_jobs, failed_jobs, crashed_jobs}
-        % for each node.
-        ets:new(node_stats, [named_table]),
+        ets:new(active_workers, [named_table, private]),
 
         {ok, Name} = application:get_env(disco_name),
         register(slave_master, spawn_link(fun() ->
                 slave_master(lists:flatten([Name, "_slave"]))
         end)),
-        {ok, []}.
+        {ok, gb_trees:empty()}.
+
+
+handle_cast({update_config_table, Config}, {Nodes, _}) ->
+        error_logger:info_report([{"Config table update"}]),
+        NewNodes = lists:foldl(fun({Node, Slots}, NewNodes) ->
+                NewNode = case gb_trees:lookup(Node, Nodes) of
+                        none -> 
+                                #dnode{name = Node,
+                                       slots = Slots,
+                                       blacklisted = false,
+                                       stats_ok = 0,
+                                       num_running = 0,
+                                       stats_failed = 0,
+                                       stats_crashed = 0};
+                        {value, N} ->
+                                #dnode{name = Node,
+                                       slots = Slots,
+                                       blacklisted = N#dnode.blacklisted,
+                                       stats_ok = N#dnode.stats_ok,
+                                       num_running = N#dnode.num_running,
+                                       stats_failed = N#dnode.stats_failed,
+                                       stats_crashed = N#dnode.stats_crashed}
+                end,
+                gb_trees:insert(Node, NewNode, NewNodes)
+        end, gb_trees:empty(), Config),
+
+        gen_server:cast(scheduler, {update_nodes, Config}),
+        gen_server:cast(self(), schedule_task),
+        {noreply, NewNodes};
+
+handle_cast({new_task, Task}, State) ->
+        gen_server:cast(scheduler, {new_task, Task}),
+        gen_server:cast(self(), schedule_next),
+        event_server:event(Task#task.jobname, "~s:~B added to waitlist",
+                [Task#task.mode, Task#task.taskid], []),
+        {noreply, State};
+
+handle_cast(schedule_next, Nodes) ->
+        AvailableNodes = [N#dnode.name || #dnode{slots = S, num_running = N}
+                                <- gb_trees:values(Nodes), S > N],
+        if AvailableNodes =/= [] ->
+                case gen_server:call(scheduler, {next_job, AvailableNodes}) of
+                        {ok, {JobSchedPid, {Node, Task}}} -> 
+                                
+                                WorkerPid = start_worker(Node, Task),
+                                gen_server:cast(JobSchedPid,
+                                        {task_started, Node, WorkerPid}),
+
+                                M = gb_trees:get(Node, Nodes),
+                                UNodes = gb_trees:update(Node, 
+                                        M#dnode{num_running = 
+                                                M#dnode.num_running + 1},
+                                                         Nodes),
+                                {noreply, UNodes};
+                        nojobs -> 
+                                {noreply, Nodes}
+                end;
+        true -> {noreply, Nodes}
+        end;
+
+handle_cast({update_stats, Node, ReplyType}, Nodes) ->
+        N = gb_trees:get(Node, Nodes),
+        M = N#dnode{num_running = N#dnode.num_running - 1},
+        M0 = case ReplyType of
+                job_ok ->
+                        M#dnode{stats_ok = M#dnode.stats_ok + 1};
+                data_error ->
+                        M#dnode{stats_failed = M#dnode.stats_failed + 1};
+                job_error ->
+                        M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
+                error ->
+                        M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
+        end,
+        {noreply, gb_trees:update(Node, M0, Nodes)};
+
+handle_cast({exit_worker, Pid, {ReplyType, Msg}}, State) ->
+        clean_worker(Pid, ReplyType, Msg),
+        {noreply, State}.
 
 handle_call({get_active, JobName}, _From, State) ->
         Tasks = ets:match(active_workers, {'_', {'_', JobName, '_', '$1', '_'}}),
         Nodes = ets:match(active_workers, {'_', {'_', JobName, '$1', '_', '_'}}),
         {reply, {ok, {Nodes, Tasks}}, State};
 
-handle_call({get_nodeinfo, all}, _From, State) ->
+handle_call({get_nodeinfo, all}, _From, Nodes) ->
         Active = ets:match(active_workers, {'_', {'_', '$2', '$1', '_', '_'}}),
-        Available = lists:map(fun({Node, Max}) ->
-                [{_, A, B, C}] = ets:lookup(node_stats, Node),
-                BL = case ets:lookup(blacklist, Node) of
-                        [] -> false;
-                        _ -> true
-                end,
-                {obj, [{node, list_to_binary(Node)},
-                       {job_ok, A}, {data_error, B}, {error, C}, 
-                       {max_workers, Max}, {blacklisted, BL}]}
-        end, ets:tab2list(config_table)),
-        {reply, {ok, {Available, Active}}, State};
+        Available = lists:map(fun(N) ->
+                {obj, [{node, list_to_binary(N#dnode.name)},
+                       {job_ok, N#dnode.stats_ok},
+                       {data_error, N#dnode.stats_failed},
+                       {error, N#dnode.stats_crashed}, 
+                       {max_workers, N#dnode.slots},
+                       {blacklisted, N#dnode.blacklisted}]}
+        end, Nodes),
+        {reply, {ok, {Available, Active}}, Nodes};
 
-handle_call({get_nodeinfo, Node}, _From, State) ->
-        case ets:lookup(node_stats, Node) of
-                [] -> {reply, {ok, []}, State};
-                [{_, V}] -> Nfo = ets:match(active_workers, 
-                        {'_', {'_', '$1', Node, '_', '_'}}),
-                        {reply, {ok, {V, Nfo}}, State}
-        end;
-
-handle_call({update_config_table, Config}, _From, State) ->
-        error_logger:info_report([{'Config table update'}]),
-        case ets:info(config_table) of
-                undefined -> none;
-                _ -> ets:delete(config_table)
-        end,
-        ets:new(config_table, [named_table, ordered_set]),
-        ets:insert(config_table, Config),
-        lists:foreach(fun({Node, _}) -> 
-                ets:insert_new(node_load, {Node, 0}),
-                ets:insert_new(node_stats, {Node, 0, 0, 0})
-        end, Config),
-        gen_server:cast(job_queue, schedule_job),
-        {reply, ok, State};
-
-% It is important that new_worker returns quickly. Job coordinator
-% assumes that it can send all tasks to the server at once, which 
-% must not take too long.
-handle_call({new_worker, {JobName, PartID, Mode, Taskblack, Input}},
-        {Pid, _}, State) ->
-        
-        Job = #job{jobname = JobName, partid = PartID, mode = Mode,
-                    taskblack = Taskblack, input = Input, from = Pid},
-        
-        gen_server:cast(job_queue, {add_job, Job}),
-        event_server:event(JobName, "~s:~B added to waitlist", [Mode, PartID], []),
-        {reply, ok, State};
-
-% The functions, node_busy(), choose_node(),
-% start_worker() and handle_call(try_new_worker) handle task scheduling
-% together with the job_queue server.
-%
-% The basic scheme is as follows:
-%
-% 0) A node becomes available, either due to a task finishing in
-%    clean_worker() or a new node or slots being added at 
-%    update_config_table().
-%
-% 1) job_queue server goes through its internal wait queue that includes all 
-%    pending, not yet running tasks, and tries to get a task running, one by
-%    one from the wait queue.
-%
-% 2) try_new_worker asks a preferred node from choose_node(). It may report
-%    that all the nodes are 100% busy (busy) or that a suitable node could
-%    not be found (all_bad). If all goes well, it returns a node name.
-%
-% 3) If a node name was returned, a new worker is started in start_worker().
-
-handle_call({try_new_worker, Job}, _From, State) ->
-        case choose_node(Job#job.input, Job#job.taskblack) of
-                busy -> {reply, {wait, busy}, State};
-                {all_bad, BLen, ALen} when BLen == ALen ->
-                        Job#job.from ! {master_error,
-                                "Job failed on all available nodes"},
-                        {reply, killed, State};
-                {all_bad, _, _} -> {reply, {wait, all_bad}, State};
-                {Input, Node} -> {reply, start_worker(Job, Node, Input), State}
-        end;
+handle_call(get_num_cores, _, Nodes) ->
+        NumCores = lists:sum([N#dnode.slots || N <- gb_trees:values(Nodes)]),
+        {reply, {ok, NumCores}, Nodes};
 
 handle_call({kill_job, JobName}, _From, State) ->
         event_server:event(JobName, "WARN: Job killed", [], []),
-        lists:foreach(fun([Pid]) ->
-                exit(Pid, kill_worker)
-        end, ets:match(active_workers, {'$1', {'_', JobName, '_', '_', '_'}})),
-        gen_server:cast(job_queue, {filter_queue, fun
-                (Job) when Job#job.jobname == JobName  -> 
-                        exit(Job#job.from, kill_worker),
-                        false;
-                (_) -> true
-        end}),
+        JobPid = lists:foldl(fun([WorkerPid, JobPid], _) ->
+                exit(WorkerPid, kill_worker),
+                JobPid
+        end, none, ets:match(active_workers,
+                {'$1', {'$2', JobName, '_', '_', '_'}})),
+        exit(JobPid, kill_worker),
         {reply, ok, State};
 
 handle_call({clean_job, JobName}, From, State) ->
@@ -158,7 +160,7 @@ handle_call({clean_job, JobName}, From, State) ->
         gen_server:cast(event_server, {clean_job, JobName}),
         {reply, ok, State};
 
-handle_call({purge_job, JobName}, From, State) ->
+handle_call({purge_job, JobName}, From, Nodes) ->
         % SECURITY NOTE! This function leads to the following command
         % being executed:
         %
@@ -175,35 +177,20 @@ handle_call({purge_job, JobName}, From, State) ->
                         {"Tried to purge an invalid job", JobName});
         true ->
                 {ok, Root} = application:get_env(disco_root),
-                handle_call({clean_job, JobName}, From, State),
-                Nodes = [lists:flatten(
-                        ["dir://", Node, "/", Node, "/",
+                handle_call({clean_job, JobName}, From, Nodes),
+                Nodes = [lists:flatten(["dir://", Node, "/", Node, "/",
                                 jobhome(JobName), "/null"]) ||
-                                {Node, _} <- ets:tab2list(node_load)],
+                                        #dnode{name = Node} <- Nodes],
                 garbage_collect:remove_job(Nodes),
                 garbage_collect:remove_dir(filename:join([Root, jobhome(JobName)]))
         end,
-        {reply, ok, State};
+        {reply, ok, Nodes};
 
+handle_call({blacklist, Node}, _From, Nodes) ->
+        {reply, ok, toggle_blacklist(Node, Nodes, true)};
 
-handle_call({blacklist, Node}, _From, State) ->
-        event_server:event("[master]", "Node ~s blacklisted", [Node], []),
-        ets:insert(blacklist, {Node, none}),
-        {reply, ok, State};
-
-handle_call({whitelist, Node}, _From, State) ->
-        event_server:event("[master]", "Node ~s whitelisted", [Node], []),
-        ets:delete(blacklist, Node),
-        gen_server:cast(job_queue, schedule_job),
-        {reply, ok, State};
-
-handle_call(Msg, _From, State) ->
-        error_logger:info_report(["Invalid call: ", Msg]),
-        {reply, error, State}.
-
-handle_cast({exit_worker, Pid, {ReplyType, Msg}}, State) ->
-        clean_worker(Pid, ReplyType, Msg),
-        {noreply, State}.
+handle_call({whitelist, Node}, _From, Nodes) ->
+        {reply, ok, toggle_blacklist(Node, Nodes, false)}.
 
 handle_info({'EXIT', Pid, Reason}, State) ->
         if Pid == self() -> 
@@ -219,92 +206,55 @@ handle_info({'EXIT', Pid, Reason}, State) ->
                         _ -> clean_worker(Pid, error, Reason)
                 end,
                 {noreply, State}
-        end;
+        end.
 
-handle_info(Msg, State) ->
-        error_logger:info_report(["Unknown message received: ", Msg]),
-        {noreply, State}.
+toggle_blacklist(Node, Nodes, IsBlacklisted) ->
+        UpdatedNodes = lists:map(fun
+                (#dnode{name = Node} = N) ->
+                        N#dnode{blacklisted = IsBlacklisted};
+                (N) -> N
+        end, Nodes),
+        Config = [{N#dnode.name, N#dnode.slots} ||
+                #dnode{blacklisted = false} = N <- UpdatedNodes],
+        gen_server:cast(scheduler, {update_nodes, Config}),
+        gen_server:cast(self(), schedule_next),
+        UpdatedNodes.
 
 % clean_worker() gets called whenever a disco_worker process dies, either
-% normally or abnormally. Its main job is to remove the exiting worker
-% from the active_workers table and to notify the corresponding job 
-% coordinator about the worker's exit status.
+% normally or abnormally. It removes the worker from the active_workers 
+% table and notifies the corresponding job coordinator about the worker's
+% status.
 clean_worker(Pid, ReplyType, Msg) ->
         {V, Nfo} = case ets:lookup(active_workers, Pid) of
-                        [] -> {false, none};
-                                %error_logger:info_report(["Unknown worker", Pid]),
-                                %event_server:event("[master]",
-                                %"WARN: Trying to clean an unknown worker",
-                                %        [], []),
+                        [] -> 
+                                error_logger:warning_report(
+                                        {"clean_worker: unknown pid",
+                                                Pid, ReplyType, Msg}),
+                                {false, none};
                         R -> {true, R}
                    end,
         if V ->
                 [{_, {From, _JobName, Node, _Mode, PartID}}] = Nfo,
-                update_stats(Node, ReplyType),
                 ets:delete(active_workers, Pid),
-                ets:update_counter(node_load, Node, -1),
                 From ! {ReplyType, Msg, {Node, PartID}},
-                gen_server:cast(job_queue, schedule_job);
-                %schedule_waiter(WaitQueue, []);
+                gen_server:cast(self(), {update_stats, Node, ReplyType});
         true -> ok
-        end.
-
-update_stats(Node, job_ok) -> ets:update_counter(node_stats, Node, {2, 1});
-update_stats(Node, data_error) -> ets:update_counter(node_stats, Node, {3, 1});
-update_stats(Node, job_error) -> ets:update_counter(node_stats, Node, {4, 1});
-update_stats(Node, error) -> ets:update_counter(node_stats, Node, {4, 1});
-update_stats(_Node, _) -> ok.
-
-node_busy(_, []) -> true;
-node_busy([{_, Load}], [{_, MaxLoad}]) -> Load >= MaxLoad.
-
-node_prio(Node, Nodes, {_, DefaultNode}) ->
-        case lists:keysearch(Node, 1, Nodes) of
-                {value, {N, Load}} -> {Load, N};
-                false -> {inf, DefaultNode}
-        end.
-
-choose_node(Inputs, TaskBlackNodes) ->
-
-        % From non-busy nodes, remove the ones that have already
-        % failed this task (TaskBlackNodes) or that are globally
-        % blacklisted (ets-table blacklist).
-        BlackNodes = TaskBlackNodes ++ 
-                [X || [X] <- ets:match(blacklist, {'$1', '_'})],
-        
-        % If not, start with all configured nodes..
-        AllNodes = ets:tab2list(node_load),
-
-        % ..and choose the ones that are not 100% busy..
-        AvailableNodes = lists:filter(fun({Node, _Load} = X) -> 
-                not node_busy([X], ets:lookup(config_table, Node))
-        end, AllNodes),
-
-        % ..or blaclisted.
-        AllowedNodes = lists:filter(fun({Node, _Load}) ->
-                not lists:member(Node, BlackNodes)
-        end, AvailableNodes),
-                
-        if AvailableNodes == [] -> busy;
-        AllowedNodes == [] -> 
-                {all_bad, length(TaskBlackNodes), length(AllNodes)};
-        true -> 
-                Default = lists:min([{L, N} || {N, L} <- AllowedNodes]),
-                {{_, Node}, Input} = lists:min([
-                        {node_prio(XNode, AllowedNodes, Default), X} ||
-                                {X, XNode} <- Inputs]),
-                {Input, Node}
-        end.
+        end,
+        gen_server:cast(self(), schedule_next).
 
 
-start_worker(J, Node, Input) ->
-        event_server:event(J#job.jobname, "~s:~B assigned to ~s",
-                [J#job.mode, J#job.partid, Node], []),
-        ets:update_counter(node_load, Node, 1),
-        spawn_link(disco_worker, start_link_remote, 
-                [[self(), whereis(event_server), J#job.from, 
-                J#job.jobname, J#job.partid, J#job.mode, Node, Input]]),
-        ok.
+start_worker(Node, T) ->
+        event_server:event(T#task.jobname, "~s:~B assigned to ~s",
+                [T#task.mode, T#task.taskid, Node], []),
+        Pid = spawn_link(disco_worker, start_link_remote, 
+                [self(), whereis(event_server), Node, T]),
+        ets:insert(active_workers, 
+                        {Pid, {T#task.from, 
+                               T#task.jobname,
+                               Node,
+                               T#task.mode,
+                               T#task.taskid}}),
+        Pid.
 
 % slave:start() contains a race condition, thus it is not safe to call it
 % simultaneously in many parallel processes. Instead, we serialize the calls
