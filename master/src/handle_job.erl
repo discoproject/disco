@@ -122,8 +122,8 @@ set_disco_url(undefined, Msg) ->
         {value, {_, SPort}} =
                 lists:keysearch(<<"SERVER_PORT">>, 1, Msg),
         {ok, Name} = application:get_env(disco_name),
-        HostN = gethostname(),
-        DiscoUrl = lists:flatten(["http://", HostN, ":",
+        Hostname = gethostname(),
+        DiscoUrl = lists:flatten(["http://", Hostname, ":",
                                   binary_to_list(SPort), "/disco/master/_", Name, "/"]),
         application:set_env(disco, disco_url, DiscoUrl);
 set_disco_url(_, _) -> ok.

@@ -85,14 +85,19 @@ class server(object):
     def send(self, command):
         return getattr(self, command)()
 
-    def start(self, **kwargs):
-        if self._status == 'running':
-            raise DiscoError("%s already running" % self)
-        process = subprocess.Popen(self.args, env=self.env, **kwargs)
+    def start(self, args=None, **kwargs):
+        self.assert_status('stopped')
+        if not args:
+            args = self.args
+        process = subprocess.Popen(args, env=self.env, **kwargs)
         if process.wait():
             raise DiscoError("Failed to start %s" % self)
         yield '%s started' % self
     
+    def assert_status(self, status):
+        if self._status != status:
+            raise DiscoError("%s already %s" % (self, self._status))
+
     @property
     def _status(self):
         try:
@@ -105,15 +110,15 @@ class server(object):
         yield '%s %s' % (self, self._status)
 
     def stop(self):
-        if self._status == 'stopped':
-            raise DiscoError("%s already stopped" % self)
+        self.assert_status('running')
         try:
             os.kill(self.pid, signal.SIGTERM)
             while self._status == 'running':
                 pass
         except Exception:
             pass
-        return chain(self.status())
+        for msg in chain(self.status()):
+            yield msg
 
     def __str__(self):
         return ' '.join(self.args)
@@ -141,16 +146,19 @@ class master(server):
 
     @property
     def args(self):
+        return self.basic_args + ['-detached',
+                                  '-heart',
+                                  '-kernel', 'error_logger', '{file, "%s"}' % self.log_file]
+
+    @property
+    def basic_args(self):
         settings = self.disco_settings
         return settings['ERLANG'].split() + \
                ['+K', 'true',
-                '-heart',
-                '-detached',
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
-                '-kernel', 'error_logger', '{file, "%s"}' % self.log_file,
                 '-pa', os.path.join(settings['DISCO_MASTER_HOME'], 'ebin'),
-                '-sname', '%s_master' % settings['DISCO_NAME'],
+                '-sname', self.name,
                 '-disco', 'disco_name', '"%s"' % settings['DISCO_NAME'],
                 '-disco', 'disco_root', '"%s"' % settings['DISCO_MASTER_ROOT'],
                 '-disco', 'scgi_port', '%s' % settings['DISCO_SCGI_PORT'],
@@ -170,7 +178,22 @@ class master(server):
                         self.disco_settings['DISCO_MASTER_PORT'],
                         self.conf_path('lighttpd-master.conf'))
 
+    @property
+    def name(self):
+        return '%s_master' % self.disco_settings['DISCO_NAME']
+
+    @property
+    def nodename(self):
+        return '%s@%s' % (self.name, self.host.split('.', 1)[0])
+
+    def nodaemon(self):
+        return chain(self.lighttpd.start(),
+                     ('' for x in self.start(self.basic_args)), # suppress output
+                     self.lighttpd.stop())
+
     def send(self, command):
+        if command in ('nodaemon', 'remsh'):
+            return getattr(self, command)()
         return chain(getattr(self, command)(), self.lighttpd.send(command))
     
     def __str__(self):
@@ -183,8 +206,31 @@ class worker(server):
                         self.disco_settings['DISCO_PORT'],
                         self.conf_path('lighttpd-worker.conf'))
 
+    @property
+    def name(self):
+        return '%s_slave' % self.disco_settings['DISCO_NAME']
+
     def send(self, command):
         return self.lighttpd.send(command)
+
+class debug(object):
+    def __init__(self, disco_settings):
+        self.disco_settings = disco_settings
+
+    @property
+    def name(self):
+        return '%s_remsh' % os.getpid()
+
+    def send(self, command):
+        discomaster = master(self.disco_settings)
+        nodename = discomaster.nodename
+        if command != 'status':
+            nodename = '%s@%s' % (discomaster.name, command)
+        args = self.disco_settings['ERLANG'].split() + ['-remsh', nodename,
+                                                        '-sname', self.name]
+        if subprocess.Popen(args).wait():
+            raise DiscoError("Could not connect to %s (%s)" % (command, nodename))
+        yield 'closing remote shell to %s (%s)' % (command, nodename)
 
 def guess_erlang():
     if os.uname()[0] == 'Darwin':
@@ -192,11 +238,16 @@ def guess_erlang():
     return 'erl'
     
 def main():
-    DISCO_BIN  = os.path.realpath(os.path.dirname(__file__))
+    DISCO_BIN  = os.path.dirname(os.path.realpath(__file__))
     DISCO_HOME = os.path.dirname(DISCO_BIN)
     DISCO_CONF = os.path.join(DISCO_HOME, 'conf')
 
-    option_parser = optparse.OptionParser()
+    usage = """            
+            %prog [options] [master|worker] [start|stop|restart|status]
+            %prog [options] master nodaemon
+            %prog [options] debug [hostname]
+            """
+    option_parser = optparse.OptionParser(usage=usage)
     option_parser.add_option('-s', '--settings',
                              default=os.path.join(DISCO_CONF, 'settings.py'),
                              help='use settings file settings')
@@ -235,11 +286,18 @@ def main():
     argdict      = dict(enumerate(sys.argv))
     disco_object = globals()[argdict.pop(0, 'master')](disco_settings)
 
-    for message in disco_object.send(argdict.pop(1, 'status')):
-        print(message)
+    command = argdict.pop(1, 'status')
+    for message in disco_object.send(command):
+        if options.verbose or command == 'status':
+            print(message)
+
+signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 if __name__ == '__main__':
     try:
         main()
     except DiscoError, e:
+        sys.exit(e)
+    except Exception, e:
+        print('Disco encountered a fatal system error:')
         sys.exit(e)
