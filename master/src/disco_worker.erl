@@ -55,11 +55,14 @@ start_link_remote(Master, EventServ, Node, Task) ->
                         receive
                                 slave_started -> ok;
                                 {slave_failed, X} ->
-                                        event_server:event(JobName,
+                                        event_server:event(Node, JobName,
                                                 "WARN: Node failure: ~p", [X], []),
-                                        exit({data_error, Task})
+                                        exit({worker_dies,
+                                                {data_error, "node failure"}})
                         after 60000 ->
-                                exit({data_error, Task})
+                                event_server:event(Node, JobName,
+                                        "WARN: Node timeout", [], []),
+                                exit({worker_dies, {data_error, "node timeout"}})
                         end
         end,
         process_flag(trap_exit, true),
@@ -68,20 +71,16 @@ start_link_remote(Master, EventServ, Node, Task) ->
         MasterUrl = MasterUrl0 ++ disco_server:jobhome(JobName),
 
         spawn_link(NodeAtom, disco_worker, remote_worker,
-                 [[self(), Master, MasterUrl, EventServ, Task, Node]]),
+                 [[self(), EventServ, Master, MasterUrl, Task, Node]]),
         
         receive
                 ok -> ok;
-                timeout -> 
-                        event_server:event(JobName,
-                                "WARN: Worker timeout on ~s", [Node], []),
-                        exit({data_error, Task});
                 {'EXIT', _, Reason} -> exit(Reason);
                 _ -> exit({error, invalid_reply})
         after 60000 ->
-                event_server:event(JobName,
-                        "WARN: Worker timeout on ~s", [Node], []),
-                exit({data_error, Task})
+                event_server:event(Node, JobName,
+                        "WARN: Worker did not start in 60s", [], []),
+                exit({worker_dies, {data_error, "worker did not start in 60s"}})
         end,
         wait_for_exit().
 
@@ -95,17 +94,23 @@ wait_for_exit() ->
                 {'EXIT', _, Reason} -> exit(Reason)
         end.
 
-start_link([Parent|_] = Args) ->
+start_link([Parent, EventServ, _, _, Task, Node] = Args) ->
         error_logger:info_report(["Worker starting at ", node(), Parent]),
         Worker = gen_server:start_link(disco_worker, Args, []),
         % NB: start_worker call is known to timeout if the node is really
         % busy - it should not be a fatal problem
         case catch gen_server:call(Worker, start_worker, 30000) of
-                ok -> Parent ! ok;
-                _ -> Parent ! timeout
+                ok ->
+                        Parent ! ok;
+                Reason ->
+                        event_server:event(EventServ, Node, Task#task.jobname,
+                                "WARN: [~s:~B] startup failed",
+                                        [Task#task.mode, Task#task.taskid], []),
+                        error_logger:info_report({"start_worker fails", Node, Task, Reason}),
+                        exit({worker_dies, {data_error, "startup failed"}})
         end.
 
-init([Id, Master, MasterUrl, EventServ, Task, Node]) ->
+init([Id, EventServ, Master, MasterUrl, Task, Node]) ->
         process_flag(trap_exit, true),
         error_logger:info_report(
                 {"Init worker ", Task#task.jobname, " at ", node()}),

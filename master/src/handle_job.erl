@@ -8,8 +8,6 @@
 
 -include("task.hrl").
 
--record(failinfo, {inputs, taskblack}).
-
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
 % Thus, the HTTP request spawns a new process, job_coordinator, that 
@@ -152,9 +150,9 @@ handle(Socket, Msg) ->
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
-work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
+work([{TaskID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
         Task = #task{jobname = Name,
-                     taskid = PartID,
+                     taskid = TaskID,
                      mode = Mode,
                      taskblack = [],
                      input = Input,
@@ -185,36 +183,30 @@ wait_workers(0, _Res, _Name, _Mode) ->
         throw("Nothing to wait");
 
 wait_workers(N, Results, Name, Mode) ->
-        M = N - 1,
         receive
-                {job_ok, {OobKeys, Result}, {Node, PartID}} -> 
+                {{job_ok, {OobKeys, Result}}, Task, Node} -> 
                         event_server:event(Name, 
                                 "Received results from ~s:~B @ ~s.",
-                                        [Mode, PartID, Node], {task_ready, Mode}),
+                                        [Task#task.mode, Task#task.taskid, Node],
+                                                {task_ready, Mode}),
                         gen_server:cast(oob_server,
                                 {store, Name, Node, OobKeys}),
-                        {M, [Result|Results]};
+                        {N - 1, [Result|Results]};
 
-                {data_error, {_Msg, Task}, {Node, PartID}} ->
-                        handle_data_error(Name, Input, PartID, Mode, Node),
+                {{data_error, _Msg}, Task, Node} ->
+                        handle_data_error(Task, Node),
                         {N, Results};
                         
-                {job_error, _Error, {_Node, _PartID}} ->
+                {{job_error, _Error}, _Task, _Node} ->
                         throw(logged_error);
                         
-                {error, Error, {Node, PartID}} ->
+                {{error, Error}, Task, Node} ->
                         event_server:event(Name, 
                                 "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
-                                        [Mode, PartID, Node, Error], []),
-
+                                        [Task#task.mode, Task#task.taskid,
+                                                Node, Error], []),
                         throw(logged_error);
 
-                {master_error, Error} ->
-                        event_server:event(Name, 
-                                "ERROR: Master terminated the job: ~s",
-                                        [Error], []),
-                        throw(logged_error);
-                        
                 Error ->
                         event_server:event(Name, 
                                 "ERROR: Received an unknown error: ~p",
@@ -229,34 +221,25 @@ wait_workers(N, Results, Name, Mode) ->
 % determined by check_failure_rate(), the whole job will be terminated.
 handle_data_error(Task, Node) ->
         {ok, NumCores} = gen_server:call(disco_server, get_num_cores),
-        check_failure_rate(Name, PartID, Mode, length(Taskblack), NumCores),
-        
+        check_failure_rate(Task#task.jobname, Task#task.taskid, Task#task.mode,
+                length(Task#task.taskblack), NumCores),
+
+        Inputs = Task#task.input,
         NInputs = if length(Inputs) > 1 ->
-                [{X, N} || {X, N} <- Inputs, X =/= FailedInput];
+                [{X, N} || {X, N} <- Inputs, X =/= Task#task.chosen_input];
         true ->
                 Inputs
         end,
+        gen_server:cast(disco_server, {new_task, Task#task{taskblack = 
+                [Node|Task#task.taskblack], input = NInputs}}).
 
-        NTaskblack = [Node|Taskblack],
-        ets:insert(Failures, {PartID,
-                #failinfo{taskblack = NTaskblack, inputs = NInputs}}),
-        
-        Task = #task{jobname = Name,
-                     taskid = PartID,
-                     mode = Mode,
-                     taskblack = NTaskblack,
-                     input = NInputs,
-                     from = self()},
-
-        gen_server:cast(disco_server, {new_task, Task}).
-
-check_failure_rate(Name, PartID, Mode, L, NumCores) when NumCores =< L ->
+check_failure_rate(Name, TaskID, Mode, L, NumCores) when NumCores =< L ->
         event_server:event(Name, 
                 "ERROR: ~s:~B failed on all available cores (~B times in "
-                "total). Aborting the job.", [Mode, PartID, L], []),
+                "total). Aborting the job.", [Mode, TaskID, L], []),
         throw(logged_error);
 
-check_failure_rate(Name, PartID, Mode, L, _) ->
+check_failure_rate(Name, TaskID, Mode, L, _) ->
         N = case application:get_env(max_failure_rate) of
                 undefined -> 3;
                 {ok, N0} -> N0
@@ -264,7 +247,7 @@ check_failure_rate(Name, PartID, Mode, L, _) ->
         if L > N ->
                 event_server:event(Name, 
                         "ERROR: ~s:~B failed ~B times. At most ~B failures "
-                        "are allowed. Aborting the job.", [Mode, PartID, L, N], []),
+                        "are allowed. Aborting the job.", [Mode, TaskID, L, N], []),
                 throw(logged_error);
         true -> 
                 ok
@@ -306,8 +289,8 @@ move_to_resultfs(Name, R, _) ->
 % Its main function is to catch and report any errors that occur during
 % work() calls.
 run_task(Inputs, Mode, Name, MaxN) ->
-        case catch work(Inputs, Mode, Name, 0, MaxN, []) of
-                ok -> ok;
+        Results = case catch work(Inputs, Mode, Name, 0, MaxN, []) of
+                {ok, Res} -> Res;
                 logged_error ->
                         kill_job(Name, 
                         "ERROR: Job terminated due to the previous errors",
