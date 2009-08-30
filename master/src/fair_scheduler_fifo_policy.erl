@@ -23,25 +23,32 @@ handle_cast({update_nodes, _}, Q) ->
 
 handle_cast({new_job, JobPid, JobName}, Q) ->
         erlang:monitor(process, JobPid),
-        {noreply, queue:in(JobPid, Q)}.
+        {noreply, queue:in({JobPid, JobName}, Q)}.
 
 handle_call({next_job, NotJobs}, _, Q) ->
-        {reply, dropwhile(Q, NotJobs), Q}.
+        {reply, dropwhile(Q, NotJobs), Q};
+
+handle_call(dbg_get_state, _, Q) ->
+        {reply, Q, Q}.
 
 dropwhile(Q, NotJobs) ->
         case queue:out(Q) of
-                {{value, Job}, NQ} ->
-                        V = lists:member(Job, NotJobs),
+                {{value, {JobPid, _}}, NQ} ->
+                        V = lists:member(JobPid, NotJobs),
                         if V ->
                                 dropwhile(NQ, NotJobs);
                         true ->
-                                {ok, Job}
+                                {ok, JobPid}
                         end;
                 {empty, _} -> nojobs
         end.
 
-handle_info({'DOWN', _, _, Job, _}, Q) ->
-        {noreply, queue:filter(fun(J) -> J =/= Job end, Q)}.
+handle_info({'DOWN', _, _, JobPid, _}, Q) ->
+        L = queue:to_list(Q),
+        {value, {_, JobName} = E} = lists:keysearch(JobPid, 1, L),
+        error_logger:info_report({"job", JobName, "dies in fifo"}),
+        gen_server:cast(scheduler, {job_done, JobName}),
+        {noreply, queue:from_list(L -- [E])}.
 
 % unused
 

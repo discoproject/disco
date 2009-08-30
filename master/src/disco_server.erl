@@ -2,7 +2,7 @@
 -module(disco_server).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0, jobhome/1, debug_flags/1]).
+-export([start_link/0, stop/0, jobhome/1, debug_flags/1, format_time/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
         terminate/2, code_change/3]).
 
@@ -45,6 +45,18 @@ jobhome(JobName) ->
         Prefix = if length(D1) == 1 -> "0"; true -> "" end,
         lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
 
+format_time(T) ->
+        SEC = 1000000,
+        MIN = 60 * SEC,
+        HOUR = 60 * MIN,
+        D = timer:now_diff(now(), T),
+        Ms = D div 1000,
+        Sec = (D rem MIN) div SEC,
+        Min = (D rem HOUR) div MIN,
+        Hour = D div HOUR,
+        lists:flatten(io_lib:format("~B:~2.10.0B:~2.10.0B.~3.10.0B",
+                [Hour, Min, Sec, Ms])).
+
 init(_Args) ->
         process_flag(trap_exit, true),
 
@@ -82,23 +94,17 @@ handle_cast({update_config_table, Config}, S) ->
         gen_server:cast(self(), schedule_next),
         {noreply, S#state{nodes = NewNodes}};
 
-handle_cast({new_task, Task}, State) ->
-        gen_server:cast(scheduler, {new_task, Task}),
-        gen_server:cast(self(), schedule_next),
-        event_server:event(Task#task.jobname, "~s:~B added to waitlist",
-                [Task#task.mode, Task#task.taskid], []),
-        {noreply, State};
-
 handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
         AvailableNodes = [N || #dnode{slots = X, num_running = Y, name = N}
                                 <- gb_trees:values(Nodes), X > Y],
+        error_logger:info_report({"Schedule next", AvailableNodes}),
         if AvailableNodes =/= [] ->
-                case gen_server:call(scheduler, {next_job, AvailableNodes}) of
+                case gen_server:call(scheduler, {next_task, AvailableNodes}) of
                         {ok, {JobSchedPid, {Node, Task}}} -> 
                                 
                                 WorkerPid = start_worker(Node, Task),
                                 UWorkers = gb_trees:insert(
-                                        WorkerPid, Task, Workers),
+                                        WorkerPid, {Node, Task}, Workers),
                                 gen_server:cast(JobSchedPid,
                                         {task_started, Node, WorkerPid}),
 
@@ -125,10 +131,35 @@ handle_cast({update_stats, Node, ReplyType}, #state{nodes = Nodes} = S) ->
                         M#dnode{stats_failed = M#dnode.stats_failed + 1};
                 job_error ->
                         M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
-                error ->
+                _ ->
                         M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
         end,
-        {noreply, S#state{nodes = gb_trees:update(Node, M0, Nodes)}}.
+        {noreply, S#state{nodes = gb_trees:update(Node, M0, Nodes)}};
+
+handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
+        {Node, Task} = gb_trees:get(Pid, S#state.workers),
+        UWorkers = gb_trees:delete(Pid, S#state.workers),
+        Task#task.from ! {Res, Task, Node},
+        gen_server:cast(self(), {update_stats, Node, Type}),
+        gen_server:cast(self(), schedule_next),
+        {noreply, S#state{workers = UWorkers}}.
+
+handle_call(dbg_get_state, _, S) ->
+        {reply, S, S};
+
+handle_call({new_task, Task}, _, State) ->
+        case catch gen_server:call(scheduler, {new_task, Task}) of
+                ok ->
+                        gen_server:cast(self(), schedule_next),
+                        event_server:event(Task#task.jobname, 
+                                "~s:~B added to waitlist",
+                                [Task#task.mode, Task#task.taskid], []),
+                        {reply, ok, State};
+                Error ->
+                        error_logger:warning_report({"Scheduling task failed",
+                                Task, Error}),
+                        {reply, failed, State}
+        end;
 
 handle_call({get_active, JobName}, _From, #state{workers = Workers} = S) ->
         {Nodes, Tasks} = lists:unzip([{N, M} || 
@@ -189,7 +220,7 @@ handle_call({purge_job, JobName}, From, #state{nodes = Nodes} = S) ->
                         {"Tried to purge an invalid job", JobName});
         true ->
                 {ok, Root} = application:get_env(disco_root),
-                handle_call({clean_job, JobName}, From, Nodes),
+                handle_call({clean_job, JobName}, From, S),
                 Nodes = [lists:flatten(["dir://", Node, "/", Node, "/",
                                 jobhome(JobName), "/null"]) ||
                                         #dnode{name = Node} <- Nodes],
@@ -204,24 +235,37 @@ handle_call({blacklist, Node}, _From, #state{nodes = Nodes} = S) ->
 handle_call({whitelist, Node}, _From, #state{nodes = Nodes} = S) ->
         {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, false)}}.
 
-handle_info({'EXIT', Pid, {worker_dies, {Type, _} = Res}}, S) ->
-        {_, {Node, Task}} = gb_trees:get(Pid, S#state.workers),
-        UWorkers = gb_trees:delete(Pid, S#state.workers),
-        Task#task.from ! {Res, Task, Node},
-        gen_server:cast(self(), {update_stats, Node, Type}),
-        gen_server:cast(self(), schedule_next),
-        {noreply, S#state{workers = UWorkers}};
+handle_info({'EXIT', Pid, normal}, S) ->
+        V = gb_trees:lookup(Pid, S#state.workers),
+        if V == none ->
+                {noreply, S};
+        true ->
+                {value, {Node, T}} = V,
+                error_logger:warning_report(
+                        {"Task failed to call exit_worker", Node, T}),
+                event_server:event(Node, T#task.jobname,
+                        "WARN: [~s:~B] Died unexpectedly without a reason",
+                                [T#task.mode, T#task.taskid], []),
+                gen_server:cast({exit_worker, Pid,
+                        {data_error, "unexpected"}})
+        end;
+
+handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
+        {Node, T} = gb_trees:get(Pid, S#state.workers),
+        event_server:event(Node, T#task.jobname, "WARN: [~s:~B] ~s",
+                [T#task.mode, T#task.taskid, Msg|Args], []),
+        gen_server:cast({exit_worker, Pid, {data_error, "worker_dies"}});
         
 handle_info({'EXIT', Pid, noconnection}, S) ->
-        {_, {Node, T}} = gb_trees:get(Pid, S#state.workers),
+        {Node, T} = gb_trees:get(Pid, S#state.workers),
         event_server:event(Node, T#task.jobname,
                 "WARN: [~s:~B] Connection lost to the node (network busy?)",
                         [T#task.mode, T#task.taskid], []),
-        handle_info({'EXIT', Pid, {worker_dies,
-                {data_error, "noconnection"}}}, S);
+        gen_server:cast({exit_worker, Pid, {data_error, "noconnection"}}),
+        {noreply, S};
 
 handle_info({'EXIT', Pid, Reason}, State) when Pid == self() ->
-        error_logger:info_report(["Disco server dies on error!", Reason]),
+        error_logger:warning_report(["Disco server dies on error!", Reason]),
         {stop, stop_requested, State};
 
 handle_info({'EXIT', Pid, Reason}, S) ->
@@ -231,8 +275,7 @@ handle_info({'EXIT', Pid, Reason}, S) ->
                 event_server:event(Node, T#task.jobname,
                         "WARN: [~s:~B] Worker died unexpectedly: ~p",
                                 [T#task.mode, T#task.taskid, Reason], []),
-                handle_info({'EXIT', Pid, {worker_dies,
-                        {data_error, "exception"}}}, S);
+                gen_server:cast({exit_worker, Pid, {data_error, "unexpected"}});
         true ->
                 error_logger:warning_report({"Unknown exit signal", Pid, Reason}),
                 {noreply, S}

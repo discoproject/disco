@@ -34,10 +34,19 @@ handle_cast({update_nodes, NewNodes}, _) ->
         [gen_server:cast(JobPid, Msg) || {_, JobPid} <- ets:tab2list(jobs)],
         {noreply, NewNodes};
 
-handle_cast({new_task, Task}, Nodes) ->
+handle_cast({job_done, JobName}, Nodes) ->
+        error_logger:info_report({"Scheduler removes", JobName}),
+        ets:delete(jobs, JobName),
+        {noreply, Nodes}.
+
+% This is not a handle_cast function, since we don't want to race against
+% disco_server. We need to send the new_job and new_task messaged before
+% disco_server sends its task_started and next_task messages. 
+handle_call({new_task, Task}, _, Nodes) ->
         JobName = Task#task.jobname,
         Job = case ets:lookup(jobs, JobName) of
                 [] ->
+                        error_logger:info_report({"NEW JOB", JobName}),
                         {ok, JobPid} = fair_scheduler_job:start(
                                 Task#task.jobname, Task#task.from),
                         gen_server:cast(JobPid, {update_nodes, Nodes}),
@@ -48,13 +57,13 @@ handle_cast({new_task, Task}, Nodes) ->
                 [{_, JobPid}] -> JobPid
         end,
         gen_server:cast(Job, {new_task, Task}),
-        {noreply, Nodes}.
+        {reply, ok, Nodes};
 
-handle_call({next_job, AvailableNodes}, _From, Nodes) ->
+handle_call({next_task, AvailableNodes}, _From, Nodes) ->
         Jobs = [JobPid || {_, JobPid} <- ets:tab2list(jobs)],
-        {reply, next_job(AvailableNodes, Jobs, []), Nodes}.
+        {reply, next_task(AvailableNodes, Jobs, []), Nodes}.
 
-next_job(AvailableNodes, Jobs, NotJobs) ->
+next_task(AvailableNodes, Jobs, NotJobs) ->
         case gen_server:call(sched_policy, {next_job, NotJobs}) of
                 {ok, JobPid} -> 
                         case fair_scheduler_job:next_task(
@@ -62,7 +71,7 @@ next_job(AvailableNodes, Jobs, NotJobs) ->
                                 {ok, Task} ->
                                         {ok, {JobPid, Task}};
                                 none ->
-                                        next_job(AvailableNodes,
+                                        next_task(AvailableNodes,
                                                 Jobs, [JobPid|NotJobs])
                         end;
                 nojobs -> nojobs

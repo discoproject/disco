@@ -74,7 +74,7 @@ handle_call({new_job, JobName, Pid}, _From, {Events0, MsgBuf0} = S) ->
                 FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
                 EventProc = spawn(fun() -> job_event_handler(FName) end),
                 ets:insert(event_files, {JobName, EventProc}),
-                
+                error_logger:info_report({"EVENT NEW_JOB"}),
                 {reply, ok, add_event("master", JobName, list_to_binary("\"New job!\""),
                         {start, Pid}, {Events, MsgBuf})}
         end;

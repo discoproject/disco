@@ -157,7 +157,7 @@ work([{TaskID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
                      taskblack = [],
                      input = Input,
                      from = self()},
-        gen_server:cast(disco_server, {new_task, Task}),
+        submit_task(Task),
         work(Inputs, Mode, Name, N + 1, Max, Res);
 
 % 2. Tasks to distribute but the maximum number of tasks are already running.
@@ -214,6 +214,17 @@ wait_workers(N, Results, Name, Mode) ->
                         throw(logged_error)
         end.
 
+submit_task(Task) ->
+        case catch gen_server:call(disco_server, {new_task, Task}) of
+                ok -> ok;
+                _ -> 
+                        event_server:event(Task#task.jobname, 
+                                "ERROR: ~s:~B scheduling failed. "
+                                "Try again later.",
+                                [Task#task.mode, Task#task.taskid]),
+                        throw(logged_error)
+        end.
+
 % data_error signals that a task failed on an error that is not likely
 % to repeat when the task is ran on another node. The function
 % handle_data_error() schedules the failed task for a retry, with the
@@ -230,8 +241,8 @@ handle_data_error(Task, Node) ->
         true ->
                 Inputs
         end,
-        gen_server:cast(disco_server, {new_task, Task#task{taskblack = 
-                [Node|Task#task.taskblack], input = NInputs}}).
+        submit_task(Task#task{taskblack = [Node|Task#task.taskblack],
+                input = NInputs}).
 
 check_failure_rate(Name, TaskID, Mode, L, NumCores) when NumCores =< L ->
         event_server:event(Name, 
@@ -307,6 +318,7 @@ run_task(Inputs, Mode, Name, MaxN) ->
 
         
 job_coordinator({Name, Inputs, NMap, NRed, DoReduce}) ->
+        Started = now(), 
         event_server:event(Name, "Starting job", [], 
                 {job_data, {NMap, NRed, DoReduce, Inputs}}),
 
@@ -330,9 +342,13 @@ job_coordinator({Name, Inputs, NMap, NRed, DoReduce}) ->
                 end,
                 
                 event_server:event(Name, "Reduce phase done", [], []),
-                event_server:event(Name, "READY", [], {ready, RedResults});
+                event_server:event(Name, "READY: Job finished in " ++
+                        disco_server:format_time(Started), 
+                                [], {ready, RedResults});
         true ->
-                event_server:event(Name, "READY", [], {ready, RedInputs})
+                event_server:event(Name, "READY: Job finished in " ++ 
+                        disco_server:format_time(Started), 
+                                [], {ready, RedInputs})
         end,
         gen_server:cast(event_server, {job_done, Name}).
 

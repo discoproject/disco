@@ -8,14 +8,37 @@
 -include("task.hrl").
 
 start(JobName, JobCoord) ->
-        error_logger:info_report([{"JobProc starts for", JobName}]),
-        gen_server:start(fair_scheduler_job, JobCoord, 
-                disco_server:debug_flags("fair_scheduler_job-" ++ JobName)).
+        error_logger:info_report([{"JobProc starts for", JobName, JobCoord}]),
+        case gen_server:start(fair_scheduler_job, JobCoord, 
+                disco_server:debug_flags("fair_scheduler_job-" ++ JobName)) of
+                {ok, Server} -> {ok, Server};
+                Error ->
+                        % This happens mainly if the job coordinator has 
+                        % already died.
+                        V = is_process_alive(JobCoord),
+                        if V ->
+                                % If it hasn't, this is a real error.
+                                Error;
+                        true ->
+                                % If it's dead, we can just remove a dummy
+                                % pid that will become zombie right away.
+                                % Scheduler monitoring will notice that it's
+                                % dead and react accordingly.
+                                {ok, spawn(fun() -> ok end)}
+                        end
+        end.
 
 init(JobCoord) ->
-        link(JobCoord),
-        {ok, {gb_trees:insert(nopref, {0, []}, gb_trees:empty()),
-              gb_trees:empty(), []}}.
+        process_flag(trap_exit, true),
+        case catch link(JobCoord) of
+                true -> 
+                        {ok, {gb_trees:insert(nopref, {0, []},
+                                        gb_trees:empty()),
+                              gb_trees:empty(), []}};
+                R -> 
+                        error_logger:info_report({"Linking failed", R}),
+                        {stop, normal}
+        end.
 
 % MAIN FUNCTION:
 % Return a next task to be executed from this Job.
@@ -44,11 +67,16 @@ next_task(Job, Jobs, AvailableNodes) ->
 all_empty_nodes(_, []) -> [];
 all_empty_nodes([], AvailableNodes) -> AvailableNodes;
 all_empty_nodes([Job|Jobs], AvailableNodes) -> 
-        all_empty_nodes(Jobs, gen_server:call(Job,
-                {get_empty_nodes, AvailableNodes})).
+        % Job may have died already, don't care
+        case catch gen_server:call(Job, 
+                        {get_empty_nodes, AvailableNodes}, 500) of
+                {ok, L} -> all_empty_nodes(Jobs, L);
+                _ -> all_empty_nodes(Jobs, AvailableNodes)
+        end.
 
 % Assign a new task to this job.
 handle_cast({new_task, Task}, {Tasks, Running, Nodes}) ->
+        error_logger:info_report({"New task", self(), Task}),
         NewTasks = assign_task(Task, Tasks, Nodes),
         {noreply, {NewTasks, Running, Nodes}};
 
@@ -63,6 +91,9 @@ handle_cast({task_started, Node, Worker}, {Tasks, Running, Nodes}) ->
         NewRunning = gb_trees:insert(Worker, Node, Running),
         {noreply, {Tasks, NewRunning, Nodes}}.
 
+handle_call(dbg_get_state, _, S) ->
+        {reply, S, S};
+
 % Job stats for the fairness fairy
 handle_call(get_stats, _, {Tasks, Running, _} = S) ->
         NumTasks = lists:sum([N || {N, _} <- gb_trees:values(Tasks)]),
@@ -73,9 +104,9 @@ handle_call(get_stats, _, {Tasks, Running, _} = S) ->
 handle_call({get_empty_nodes, AvailableNodes}, _, {Tasks, _, _} = S) ->
         case gb_trees:get(nopref, Tasks) of
                 {0, _} ->
-                        {reply, empty_nodes(Tasks, AvailableNodes), S};
+                        {reply, {ok, empty_nodes(Tasks, AvailableNodes)}, S};
                 _ ->
-                        {reply, [], S}
+                        {reply, {ok, []}, S}
         end; 
 
 % Primary task scheduling policy:
@@ -84,7 +115,7 @@ handle_call({get_empty_nodes, AvailableNodes}, _, {Tasks, _, _} = S) ->
 % 2) any remote task
 handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
         {Reply, UpdatedTasks} = schedule_local(Tasks, AvailableNodes),
-        error_logger:info_report({"schedule_local:", Reply}),
+        error_logger:info_report({"schedule_local:", self(), Reply}),
         {reply, Reply, {UpdatedTasks, Running, Nodes}};
 
 % Secondary task scheduling policy:
@@ -96,12 +127,21 @@ handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
                 datalocal_nodes(Tasks, gb_trees:keys(Tasks)),
                         FreeNodes),
 
-        error_logger:info_report({"schedule_remote:", Reply}),
+        error_logger:info_report({"schedule_remote:", self(), Reply}),
         {reply, Reply, {UpdatedTasks, Running, Nodes}}.
 
 % Task done. Remove it from the list of running tasks. (for the fairness fairy)
 handle_info({'DOWN', _, _, Worker, _}, {Tasks, Running, Nodes}) ->
-        {noreply, {Tasks, gb_trees:delete(Worker, Running), Nodes}}.
+        error_logger:info_report({"TSK DONE"}),
+        {noreply, {Tasks, gb_trees:delete(Worker, Running), Nodes}};
+
+handle_info({'EXIT', Pid, normal}, S) when Pid == self() ->
+        {stop, normal, S};
+
+% Our job coordinator dies, the job is dead, we have no reason to live anymore
+handle_info({'EXIT', Pid, normal}, S) ->
+        error_logger:info_report({"JOB IS DEAD", Pid, self()}),
+        {stop, normal, S}.
 
 schedule_local(Tasks, AvailableNodes) ->
         % Does the job have any local tasks to be run on AvailableNodes?
@@ -126,6 +166,7 @@ schedule_local(Tasks, AvailableNodes) ->
                 Nodes -> pop_busiest_node(Tasks, Nodes)
         end.
 
+pop_and_switch_node(Tasks, _, []) -> {nonodes, Tasks};
 pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
         % Pick a target node randomly from the list of available nodes
         Target = lists:nth(random:uniform(length(AvailableNodes)),
@@ -215,6 +256,7 @@ reassign_tasks(Tasks, NewNodes) ->
 
 % unused
 
-terminate(_Reason, _State) -> {}.
+terminate(_Reason, _State) -> 
+        error_logger:info_report({"Sched job", self(), "dies"}).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

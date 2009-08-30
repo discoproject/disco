@@ -26,11 +26,14 @@ op("joblist", _Query, _Json) ->
         {ok, lists:keysort(1, TLst)};
 
 op("jobinfo", Query, _Json) ->
+        error_logger:info_report({"jobinfo 1"}),
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, {Nodes, Tasks}} =
                 gen_server:call(disco_server, {get_active, Name}),
+        error_logger:info_report({"jobinfo 1", Nodes, Tasks}),
         {ok, {TStamp, Pid, JobNfo, Res, Ready, Failed}} =
                 gen_server:call(event_server, {get_jobinfo, Name}),
+        error_logger:info_report({"jobinfo 2", Nodes, Tasks}),
         {ok, render_jobinfo(TStamp, Pid, JobNfo, Nodes, 
                 Res, Tasks, Ready, Failed)};
 
@@ -109,8 +112,10 @@ op("clean_job", _Query, Json) ->
 
 op("get_results", _Query, Json) ->
         [Timeout, Names] = Json,
+        error_logger:info_report({"CTRL RESUT"}),
         S = [{N, gen_server:call(event_server,
                 {get_results, binary_to_list(N)})} || N <- Names],
+        error_logger:info_report({"GET RESUT", S}),
         {ok, [[N, status_msg(M)] || {N, M} <- wait_jobs(S, Timeout)]};
 
 op("get_blacklist", _Query, _Json) ->
@@ -173,12 +178,18 @@ handle(Socket, Msg) ->
         handle_job:set_disco_url(application:get_env(disco_url), Msg),
         
         Op = lists:last(string:tokens(binary_to_list(Script), "/")),
-        Reply = case op(Op, httpd:parse_query(binary_to_list(Query)), Json) of
+        error_logger:info_report({"OP", Op}),
+        Reply = case catch op(Op,
+                        httpd:parse_query(binary_to_list(Query)), Json) of
                 {ok, Res} -> [?HTTP_HEADER, json:encode(Res)];
                 {raw, Res} -> [?HTTP_HEADER, Res];
                 {relo, Loc} -> ["HTTP/1.1 302 ok\nLocation: ", Loc, "\n\n"];
                 not_found -> "HTTP/1.1 404 not found\n"
-                             "Status: 404 Not found\n\nNot found."
+                             "Status: 404 Not found\n\nNot found.";
+                R -> error_logger:info_report({"Request failed", Op, R}),
+                    "HTTP/1.1 500 internal server error\n"
+                    "Status: 500 Internal server error\n\n"
+                    "Internal server error."
         end,
         gen_tcp:send(Socket, Reply).
 
