@@ -9,18 +9,19 @@
 
 start(JobName, JobCoord) ->
         error_logger:info_report([{"JobProc starts for", JobName}]),
-        gen_server:start(fair_scheduler_job, JobCoord, []).
+        gen_server:start(fair_scheduler_job, JobCoord, 
+                disco_server:debug_flags("fair_scheduler_job-" ++ JobName)).
 
 init(JobCoord) ->
         link(JobCoord),
-        {ok, {gb_trees:empty(), 
-                gb_trees:insert(nopref, {0, []}, gb_trees:empty()), []}}.
+        {ok, {gb_trees:insert(nopref, {0, []}, gb_trees:empty()),
+              gb_trees:empty(), []}}.
 
 % MAIN FUNCTION:
 % Return a next task to be executed from this Job.
 next_task(Job, Jobs, AvailableNodes) ->
         % First try to find a node-local or remote task to execute
-        case gen_server:call(Job, {schedule_local, AvailableNodes}) of
+        case catch gen_server:call(Job, {schedule_local, AvailableNodes}) of
                 {run, Node, Task} ->
                         {ok, {Node, Task}};
                 nolocal ->
@@ -28,12 +29,14 @@ next_task(Job, Jobs, AvailableNodes) ->
                         % has any tasks assigned) are available, we can assign
                         % a task to one of them.
                         Empty = all_empty_nodes(Jobs, AvailableNodes),
-                        case gen_server:call(Job, {schedule_remote, Empty}) of
+                        case catch gen_server:call(Job, 
+                                        {schedule_remote, Empty}) of
                                 {run, Node, Task} ->
                                         {ok, {Node, Task}};
-                                nonodes ->
+                                _ ->
                                         none
-                        end
+                        end;
+                _ -> none
         end.
 
 % Return an often empty subset of AvailableNodes that don't have any tasks 
@@ -56,7 +59,7 @@ handle_cast({update_nodes, NewNodes}, {Tasks, Running, _}) ->
 
 % Add a new task to the list of running tasks (for the fairness fairy).
 handle_cast({task_started, Node, Worker}, {Tasks, Running, Nodes}) ->
-        erlang:monitor(Worker),
+        erlang:monitor(process, Worker),
         NewRunning = gb_trees:insert(Worker, Node, Running),
         {noreply, {Tasks, NewRunning, Nodes}}.
 
@@ -75,24 +78,31 @@ handle_call({get_empty_nodes, AvailableNodes}, _, {Tasks, _, _} = S) ->
                         {reply, [], S}
         end; 
 
-% Primary scheduling policy (see below).
+% Primary task scheduling policy:
+% Try to find 
+% 1) a local task assigned to one of the AvailableNodes
+% 2) any remote task
 handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
         {Reply, UpdatedTasks} = schedule_local(Tasks, AvailableNodes),
+        error_logger:info_report({"schedule_local:", Reply}),
         {reply, Reply, {UpdatedTasks, Running, Nodes}};
 
-% Secondary scheduling policy (see below).
+% Secondary task scheduling policy:
+% No local or remote tasks were found. Free nodes are available that have
+% no tasks assigned to them by any job. Pick a task from the longest queue
+% and assign it to a random free node.
 handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
-        {Reply, UpdatedTasks} = schedule_remote(Tasks, FreeNodes),
+        {Reply, UpdatedTasks} = pop_and_switch_node(Tasks, 
+                datalocal_nodes(Tasks, gb_trees:keys(Tasks)),
+                        FreeNodes),
+
+        error_logger:info_report({"schedule_remote:", Reply}),
         {reply, Reply, {UpdatedTasks, Running, Nodes}}.
 
 % Task done. Remove it from the list of running tasks. (for the fairness fairy)
 handle_info({'DOWN', _, _, Worker, _}, {Tasks, Running, Nodes}) ->
         {noreply, {Tasks, gb_trees:delete(Worker, Running), Nodes}}.
 
-% Primary task scheduling policy:
-% Try to find 
-% 1) a local task assigned to one of the AvailableNodes
-% 2) any remote task
 schedule_local(Tasks, AvailableNodes) ->
         % Does the job have any local tasks to be run on AvailableNodes?
         case datalocal_nodes(Tasks, AvailableNodes) of
@@ -105,35 +115,35 @@ schedule_local(Tasks, AvailableNodes) ->
                                 % schedule_remote() call if free nodes are
                                 % available.
                                 {0, _} -> {nolocal, Tasks};
-                                % Remote tasks found, pick the first one.
-                                _ -> pop_busiest_node(Tasks, [nopref])
+                                % Remote tasks found. Pick a remote task
+                                % and run it on a random node that is 
+                                % available.
+                                _ -> pop_and_switch_node(Tasks, [nopref],
+                                        AvailableNodes)
                         end;
                 % Local tasks found. Choose an AvailableNode that has the
                 % longest queue of tasks waiting. Pick the first task from it.
                 Nodes -> pop_busiest_node(Tasks, Nodes)
         end.
 
-% Secondary task scheduling policy:
-% No local or remote tasks were found. A free node is available that has
-% no tasks assigned to it by any job. Pick a task from the longest queue
-% and assign it to the free node.
-schedule_remote(Tasks, []) -> {nonodes, Tasks};
-schedule_remote(Tasks, [FreeNode|_]) ->
-        case pop_busiest_node(Tasks, datalocal_nodes(Tasks, 
-                        gb_trees:keys(Tasks))) of
+pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
+        % Pick a target node randomly from the list of available nodes
+        Target = lists:nth(random:uniform(length(AvailableNodes)),
+                AvailableNodes),
+        case pop_busiest_node(Tasks, Nodes) of
                 % No tasks left. However, the last currently running task
                 % might fail, so we must stay alive.
                 {nonodes, UTasks} -> {nonodes, UTasks};
-                % Move Task from its local node to FreeNode
-                {{run, _, Task}, UTasks} -> {{run, FreeNode, Task}, UTasks}
-        end.
+                % Move Task from its local node to the Target node
+                {{run, _, Task}, UTasks} -> {{run, Target, Task}, UTasks}
+        end.    
 
 % pop_busiest_node defines the policy for choosing the next task from a chosen
 % set of Nodes. Pick the task from the longest list.
 pop_busiest_node(Tasks, []) -> {nonodes, Tasks};
 pop_busiest_node(Tasks, Nodes) ->
-        {{N, [Task|R]}, MaxNode} =
-                lists:max([{gb_trees:get(Node), Node} || Node <- Nodes]),
+        {{N, [Task|R]}, MaxNode} = lists:max(
+                [{gb_trees:get(Node, Tasks), Node} || Node <- Nodes]),
         {{run, MaxNode, Task}, gb_trees:update(MaxNode, {N - 1, R}, Tasks)}.
 
 % return nodes that don't have any local tasks assigned to them
@@ -148,7 +158,7 @@ filter_nodes(Tasks, AvailableNodes, Local) ->
         lists:filter(fun(Node) ->
                 case gb_trees:lookup(Node, Tasks) of
                         none -> false == Local;
-                        {0, _} -> false == Local;
+                        {value, {0, _}} -> false == Local;
                         _ -> true == Local
                 end
         end, AvailableNodes).
@@ -162,24 +172,27 @@ assign_task(Task, Tasks, Nodes) ->
 
 findpref([], Task, Tasks, _) ->
         {N, L} = gb_trees:get(nopref, Tasks),
-        gb_trees:update(nopref, {N + 1, [Task|L]}, Tasks);
+        [{Input, _}|_] = Task#task.input,
+        T = Task#task{chosen_input = Input},
+        gb_trees:update(nopref, {N + 1, [T|L]}, Tasks);
 
-findpref([{_, Node}|R], Task, Tasks, Nodes) ->
-        case gb_trees:lookup(Node, Tasks) of
-                none ->
-                        ValidNode = lists:member(Node, Nodes),
-                        if ValidNode ->
-                                gb_trees:insert(Node, {1, [Task]}, Tasks);
-                        true ->
-                                findpref(R, Task, Tasks, Nodes)
-                        end;
-                {value, {N, L}} ->
-                        IsBlack = lists:member(Node, Task#task.taskblack),
-                        if IsBlack ->
-                                findpref(R, Task, Tasks, Nodes);
-                        true ->
-                                gb_trees:update(Node, {N + 1, [Task|L]}, Tasks)
-                        end
+findpref([{Input, Node}|R], Task, Tasks, Nodes) ->
+        IsBlack = lists:member(Node, Task#task.taskblack),
+        if IsBlack ->
+                findpref(R, Task, Tasks, Nodes);
+        true ->
+                T = Task#task{chosen_input = Input},
+                case gb_trees:lookup(Node, Tasks) of
+                        none ->
+                                ValidNode = lists:member(Node, Nodes),
+                                if ValidNode ->
+                                        gb_trees:insert(Node, {1, [T]}, Tasks);
+                                true ->
+                                        findpref(R, Task, Tasks, Nodes)
+                                end;
+                        {value, {N, L}} ->
+                                gb_trees:update(Node, {N + 1, [T|L]}, Tasks)
+                end
         end.
 
 % Cluster topology changed: New nodes appeared or existing ones were deleted

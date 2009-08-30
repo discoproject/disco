@@ -70,6 +70,8 @@ erl +K true\
     -disco disco_master_host \"$DISCO_MASTER_HOST\"\
     -disco disco_slaves_os \"$DISCO_SLAVES_OS\"\
     -disco scgi_port $DISCO_SCGI_PORT\
+    -disco fair_scheduler_alpha 0.5\
+    -disco scheduler_opt \"fifo\"\
     -disco disco_config \"$DISCO_CONFIG\"\
     -eval "[handle_job, handle_ctrl]"\
     -eval "application:start(disco)" </dev/null >/dev/null 2>/dev/null

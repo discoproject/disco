@@ -166,16 +166,16 @@ work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
 % Wait for tasks to return. Note that wait_workers() may return with the same
 % number of tasks still running, i.e. N = M.
 work([_|_] = IArg, Mode, Name, N, Max, Res) when N >= Max ->
-        M = wait_workers(N, Res, Name, Mode),
-        work(IArg, Mode, Name, M, Max, Res);
+        {M, NRes} = wait_workers(N, Res, Name, Mode),
+        work(IArg, Mode, Name, M, Max, NRes);
 
 % 3. No more tasks to distribute. Wait for tasks to return.
 work([], Mode, Name, N, Max, Res) when N > 0 ->
-        M = wait_workers(N, Res, Name, Mode),
-        work([], Mode, Name, M, Max, Res);
+        {M, NRes} = wait_workers(N, Res, Name, Mode),
+        work([], Mode, Name, M, Max, NRes);
 
 % 4. No more tasks to distribute, no more tasks running. Done.
-work([], _Mode, _Name, 0, _Max, _Res) -> ok.
+work([], _Mode, _Name, 0, _Max, Res) -> {ok, Res}.
 
 % wait_workers receives messages from disco_server:clean_worker() that is
 % called when a worker exits. 
@@ -184,7 +184,7 @@ work([], _Mode, _Name, 0, _Max, _Res) -> ok.
 wait_workers(0, _Res, _Name, _Mode) ->
         throw("Nothing to wait");
 
-wait_workers(N, {Results, Failures}, Name, Mode) ->
+wait_workers(N, Results, Name, Mode) ->
         M = N - 1,
         receive
                 {job_ok, {OobKeys, Result}, {Node, PartID}} -> 
@@ -193,13 +193,11 @@ wait_workers(N, {Results, Failures}, Name, Mode) ->
                                         [Mode, PartID, Node], {task_ready, Mode}),
                         gen_server:cast(oob_server,
                                 {store, Name, Node, OobKeys}),
-                        ets:insert(Results, {Result, ok}),
-                        M;
+                        {M, [Result|Results]};
 
-                {data_error, {_Msg, Input}, {Node, PartID}} ->
-                        handle_data_error(Name, Input,
-                          PartID, Mode, Node, Failures),
-                        N;
+                {data_error, {_Msg, Task}, {Node, PartID}} ->
+                        handle_data_error(Name, Input, PartID, Mode, Node),
+                        {N, Results};
                         
                 {job_error, _Error, {_Node, _PartID}} ->
                         throw(logged_error);
@@ -229,10 +227,7 @@ wait_workers(N, {Results, Failures}, Name, Mode) ->
 % handle_data_error() schedules the failed task for a retry, with the
 % failing node in its blacklist. If a task fails too many times, as 
 % determined by check_failure_rate(), the whole job will be terminated.
-handle_data_error(Name, FailedInput, PartID, Mode, Node, Failures) ->
-        [{_, #failinfo{taskblack = Taskblack, inputs = Inputs}}] =
-                ets:lookup(Failures, PartID),
-        
+handle_data_error(Task, Node) ->
         {ok, NumCores} = gen_server:call(disco_server, get_num_cores),
         check_failure_rate(Name, PartID, Mode, length(Taskblack), NumCores),
         
@@ -311,13 +306,7 @@ move_to_resultfs(Name, R, _) ->
 % Its main function is to catch and report any errors that occur during
 % work() calls.
 run_task(Inputs, Mode, Name, MaxN) ->
-        Failures = ets:new(error_log, [set]),
-        Results = ets:new(results, [set]),
-        ets:insert(Failures, [{PartID,
-                #failinfo{taskblack = [], inputs = Input}} ||
-                        {PartID, Input} <- Inputs]),
-
-        case catch work(Inputs, Mode, Name, 0, MaxN, {Results, Failures}) of
+        case catch work(Inputs, Mode, Name, 0, MaxN, []) of
                 ok -> ok;
                 logged_error ->
                         kill_job(Name, 
@@ -329,10 +318,8 @@ run_task(Inputs, Mode, Name, MaxN) ->
                                 [Error], unknown_error)
         end,
 
-        R = [list_to_binary(X) || {X, _} <- ets:tab2list(Results)],
+        R = [list_to_binary(X) || X <- Results],
         move_to_resultfs(Name, R, resultfs_enabled()),
-        ets:delete(Results),
-        ets:delete(Failures),
         R.
 
         

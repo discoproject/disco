@@ -2,13 +2,15 @@
 -module(fair_scheduler_fifo_policy).
 -behaviour(gen_server).
 
--export([start_link/1, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/0, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
-start_link(Nodes) ->
+start_link() ->
         error_logger:info_report([{"Fair scheduler: FIFO policy"}]),
         case gen_server:start_link({local, sched_policy}, 
-                        fair_scheduler_fifo_policy, Nodes, []) of
+                        fair_scheduler_fifo_policy, [],
+                        disco_server:debug_flags(
+                                "fair_scheduler_fifo_policy")) of
                 {ok, Server} -> {ok, Server};
                 {error, {already_started, Server}} -> {ok, Server}
         end.

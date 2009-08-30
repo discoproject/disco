@@ -51,15 +51,15 @@ start_link_remote(Master, EventServ, Node, Task) ->
         case net_adm:ping(NodeAtom) of
                 pong -> ok;
                 pang -> 
-                        slave_master ! {start, self(), Node, slave_env()},
+                        slave_maste ! {start, self(), Node, slave_env()},
                         receive
                                 slave_started -> ok;
                                 {slave_failed, X} ->
                                         event_server:event(JobName,
                                                 "WARN: Node failure: ~p", [X], []),
-                                        exit({data_error, Task#task.input})
+                                        exit({data_error, Task})
                         after 60000 ->
-                                exit({data_error, Task#task.input})
+                                exit({data_error, Task})
                         end
         end,
         process_flag(trap_exit, true),
@@ -75,13 +75,13 @@ start_link_remote(Master, EventServ, Node, Task) ->
                 timeout -> 
                         event_server:event(JobName,
                                 "WARN: Worker timeout on ~s", [Node], []),
-                        exit({data_error, Task#task.input});
+                        exit({data_error, Task});
                 {'EXIT', _, Reason} -> exit(Reason);
                 _ -> exit({error, invalid_reply})
         after 60000 ->
                 event_server:event(JobName,
                         "WARN: Worker timeout on ~s", [Node], []),
-                exit({data_error, Task#task.input})
+                exit({data_error, Task})
         end,
         wait_for_exit().
 
@@ -134,7 +134,7 @@ handle_call(start_worker, _From, State) ->
 spawn_cmd(#state{task = T, node = Node, master_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
                 [T#task.mode, T#task.jobname, Node, Url, 
-                        T#task.taskid, T#task.input])).
+                        T#task.taskid, T#task.chosen_input])).
 
 strip_timestamp(Msg) when is_binary(Msg) ->
         strip_timestamp(binary_to_list(Msg));
@@ -175,9 +175,9 @@ handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
         S1#state.msg_counter > ?RATE_LIMIT ->
                 Err = "Message rate limit exceeded. Too many msg() calls.",
                 event(S, "ERROR", Err),
-                gen_server:cast(S#state.master, 
-                        {exit_worker, S#state.id, {job_error, Err}}),
-                {stop, normal, S1};
+                %gen_server:cast(S#state.master, 
+                %        {exit_worker, S#state.task, {job_error, Err}}),
+                {stop, {worker_dies, {job_error, Err}}, S1};
         true ->
                 {noreply, S1#state{msg_counter = S1#state.msg_counter + 1}}
         end;
@@ -185,27 +185,25 @@ handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
 handle_info({_, {data, {eol, <<"**<ERR>", Line/binary>>}}}, S) ->
         M = strip_timestamp(Line),
         event(S, "ERROR", M),
-        gen_server:cast(S#state.master,
-                {exit_worker, S#state.id, {job_error, M}}),
-        {stop, normal, S};
+        %gen_server:cast(S#state.master,
+        %        {exit_worker, S#state.task, {job_error, M}}),
+        {stop, {worker_dies, {job_error, M}}, S};
 
 handle_info({_, {data, {eol, <<"**<DAT>", Line/binary>>}}}, S) ->
         M = strip_timestamp(Line),
         event(S, "WARN", M ++ [10] ++ S#state.errlines),
-        T = S#state.task,
-        gen_server:cast(S#state.master, {exit_worker, S#state.id,
-                {data_error, {M, T#task.input}}}),
-        {stop, normal, S};
+        %gen_server:cast(S#state.master, {exit_worker, S#state.task,
+        %        {data_error, {M, S#state.task}}}),
+        {stop, {worker_dies, {data_error, M}}, S};
 
 handle_info({_, {data, {eol, <<"**<OUT>", Line/binary>>}}}, S) ->
         {noreply, S#state{results = strip_timestamp(Line)}};
 
 handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
         event(S, "", strip_timestamp(Line)),
-        gen_server:cast(S#state.master, 
-                {exit_worker, S#state.id,
-                        {job_ok, {S#state.oob, S#state.results}}}),
-        {stop, normal, S};
+        %gen_server:cast(S#state.master, 
+        %        {exit_worker, S#state.task,
+        {stop, {worker_dies, {job_ok, {S#state.oob, S#state.results}}}, S};
 
 handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
         [Key|Path] = string:tokens(binary_to_list(Line), " "),
@@ -216,15 +214,15 @@ handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
         if length(Key) > ?OOB_KEY_MAX ->
                 Err = "OOB key too long: Max 256 characters",
                 event(S, "ERROR", Err), 
-                gen_server:cast(S#state.master,
-                        {exit_worker, S#state.id, {job_error, Err}}),
-                {stop, normal, S1};
+                %gen_server:cast(S#state.master,
+                %        {exit_worker, S#state.task, {job_error, Err}}),
+                {stop, {worker_dies, {job_error, Err}}, S1};
         S#state.oob_counter > ?OOB_MAX ->
                 Err = "OOB message limit exceeded. Too many put() calls.",
                 event(S, "ERROR", Err), 
-                gen_server:cast(S#state.master,
-                        {exit_worker, S#state.id, {job_error, Err}}),
-                {stop, normal, S1};
+                %gen_server:cast(S#state.master,
+                %        {exit_worker, S#state.task, {job_error, Err}}),
+                {stop, {worker_dies, {job_error, Err}}, S1};
         true ->
                 {noreply, S1}
         end;
@@ -244,39 +242,37 @@ handle_info({_, {data, {noeol, Line}}}, S) ->
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
         M =  "Worker didn't start:\n" ++ S#state.errlines,
         event(S, "WARN", M),
-        T = S#state.task,
-        gen_server:cast(S#state.master, {exit_worker, S#state.id,
-                {data_error, {M, T#task.input}}}),
-        {stop, normal, S};
+        %gen_server:cast(S#state.master, {exit_worker, S#state.task,
+        %        {data_error, {M, S#state.task}}}),
+        {stop, {worker_dies, {data_error, M}}, S};
 
 handle_info({_, {exit_status, _Status}}, S) ->
         M =  "Worker failed. Last words:\n" ++ S#state.errlines,
         event(S, "ERROR", M),
-        gen_server:cast(S#state.master,
-                {exit_worker, S#state.id, {job_error, M}}),
-        {stop, normal, S};
+        %gen_server:cast(S#state.master,
+        %        {exit_worker, S#state.task, {job_error, M}}),
+        {stop, {worker_dies, {job_error, M}}, S};
         
 handle_info({_, closed}, S) ->
         M = "Worker killed. Last words:\n" ++ S#state.errlines,
         event(S, "ERROR", M),
-        gen_server:cast(S#state.master, 
-                {exit_worker, S#state.id, {job_error, M}}),
-        {stop, normal, S};
+        %gen_server:cast(S#state.master, 
+        %        {exit_worker, S#state.task, {job_error, M}}),
+        {stop, {worker_dies, {job_error, M}}, S};
 
 handle_info(timeout, #state{linecount = 0} = S) ->
         M = "Worker didn't start in 30 seconds",
         event(S, "WARN", M),
-        T = S#state.task,
-        gen_server:cast(S#state.master, {exit_worker, S#state.id,
-                {data_error, {M, T#task.input}}}),
-        {stop, normal, S};
+        %gen_server:cast(S#state.master, {exit_worker, S#state.id,
+        %        {data_error, {M, S#state.task}}}),
+        {stop, {worker_dies, {data_error, M}}, S};
 
 handle_info({'DOWN', _, _, _, _}, S) ->
         M = "Worker killed. Last words:\n" ++ S#state.errlines,
         event(S, "ERROR", M),
-        gen_server:cast(S#state.master, 
-                {exit_worker, S#state.id, {job_error, M}}),
-        {stop, normal, S}.
+        %gen_server:cast(S#state.master, 
+        %        {exit_worker, S#state.task, {job_error, M}}),
+        {stop, {worker_dies, {job_error, M}}, S}.
 
 handle_cast(_, State) -> {noreply, State}.
 

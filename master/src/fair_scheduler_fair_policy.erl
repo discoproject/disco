@@ -2,25 +2,26 @@
 -module(fair_scheduler_fair_policy).
 -behaviour(gen_server).
 
--export([start_link/1, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/0, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
 -define(FAIRY_INTERVAL, 1000).
 
 -record(job, {name, prio, cputime, bias, pid}).
 
-start_link(Nodes) ->
+start_link() ->
         error_logger:info_report([{"Fair scheduler: Fair policy"}]),
         case gen_server:start_link({local, sched_policy}, 
-                        fair_scheduler_fair_policy, Nodes, []) of
+                        fair_scheduler_fair_policy, [], 
+                        disco_server:debug_flags(
+                                "fair_scheduler_fair_policy")) of
                 {ok, Server} -> {ok, Server};
                 {error, {already_started, Server}} -> {ok, Server}
         end.
 
-init(Nodes) ->
-        NumCores = lists:sum([C || {_, C} <- Nodes]),
-        register(fairy, spawn_link(fun() -> fairness_fairy(NumCores) end)),
-        {ok, {gb_trees:empty(), [], NumCores}}.
+init(_) ->
+        register(fairy, spawn_link(fun() -> fairness_fairy(0) end)),
+        {ok, {gb_trees:empty(), [], 0}}.
 
 % messages starting with 'priv' are not part of the public policy api
 
@@ -132,7 +133,7 @@ update_priorities(Alpha, NumCores) ->
         Extra = [Share - NumTasks ||
                         {_, {NumTasks, _}} <- Stats, NumTasks < Share],
         % Extra resources are shared equally among the needy 
-        ExtraShare = lists:sum(Extra) / (NumJobs - length(Extra)),
+        ExtraShare = lists:sum(Extra) / lists:max([1, NumJobs - length(Extra)]),
 
         gen_server:cast(sched_policy, {priv_update_priorities, lists:map(fun
                 ({Job, {NumTasks, NumRunning}}) ->

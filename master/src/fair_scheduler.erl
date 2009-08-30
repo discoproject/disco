@@ -8,8 +8,8 @@
 
 start_link() ->
         error_logger:info_report([{"Fair scheduler starts"}]),
-        case gen_server:start_link({local, scheduler},
-                        fair_scheduler, [], []) of
+        case gen_server:start_link({local, scheduler}, fair_scheduler, [],
+                        disco_server:debug_flags("fair_scheduler")) of
                 {ok, Server} -> {ok, Server};
                 {error, {already_started, Server}} -> {ok, Server}
         end.
