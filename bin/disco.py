@@ -217,9 +217,9 @@ class test(object):
         self.disco_settings = disco_settings
 
     def send(self, *names):
+        from disco.test import DiscoTestRunner
         sys.path.insert(0, os.path.join(self.disco_settings['DISCO_HOME'], 'tests'))
         yield 'searching for names in sys.path:\n%s' % sys.path
-        from disco.test import DiscoTestRunner
         DiscoTestRunner(self.disco_settings).run(*names)
 
 def main():
