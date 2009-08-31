@@ -28,6 +28,13 @@ handle_cast({new_job, JobPid, JobName}, Q) ->
 handle_call({next_job, NotJobs}, _, Q) ->
         {reply, dropwhile(Q, NotJobs), Q};
 
+handle_call(current_priorities, _, Q) ->
+        {reply, {ok, case queue:to_list(Q) of
+                [{_, N}|R] ->
+                        [{N, -1.0}|[{M, 1.0} || {_, M} <- R]];
+                [] -> []
+        end}, Q};
+
 handle_call(dbg_get_state, _, Q) ->
         {reply, Q, Q}.
 
