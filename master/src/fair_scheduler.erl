@@ -30,9 +30,10 @@ init([]) ->
 
 handle_cast({update_nodes, NewNodes}, _) ->
         gen_server:cast(sched_policy, {update_nodes, NewNodes}),
-        Msg = {update_nodes, NewNodes},
+        NNodes = [Name || {Name, _NumCores} <- NewNodes],
+        Msg = {update_nodes, NNodes},
         [gen_server:cast(JobPid, Msg) || {_, JobPid} <- ets:tab2list(jobs)],
-        {noreply, NewNodes};
+        {noreply, NNodes};
 
 handle_cast({job_done, JobName}, Nodes) ->
         error_logger:info_report({"Scheduler removes", JobName}),
