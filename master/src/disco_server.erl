@@ -320,7 +320,7 @@ slave_master(SlaveName) ->
                 launch(fun() ->
                                slave:start(list_to_atom(Node),
                                            SlaveName, Args, self(),
-                                           os:getenv("ERLANG"))
+                                           os:getenv("DISCO_ERLANG"))
                        end, Pid, Node),
                 slave_master(SlaveName)
         end.

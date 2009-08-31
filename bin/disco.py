@@ -21,10 +21,9 @@ class DiscoSettings(dict):
         'DISCO_CONFIG':         "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
         'DISCO_LOCAL_DIR':      "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_WORKER':         "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
-        'ERLANG':               "guess_erlang()",
-        'LIGHTTPD':             "'lighttpd'",
-        'LIGHTTPD_MASTER_ROOT': "os.path.join(DISCO_MASTER_HOME, 'www')",
-        # only need this if disco isn't in site-packages
+        'DISCO_ERLANG':         "guess_erlang()",
+        'DISCO_HTTPD':          "'lighttpd'",
+        'DISCO_WWW_ROOT':       "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':           "'%s:%s/pydisco' % (os.getenv('PYTHONPATH', ''), DISCO_HOME)",
         }
 
@@ -130,14 +129,14 @@ class lighttpd(server):
 
     @property
     def args(self):
-        return [self.disco_settings['LIGHTTPD'], '-f', self.config_file]
+        return [self.disco_settings['DISCO_HTTPD'], '-f', self.config_file]
 
     @property
     def env(self):
         env = self.disco_settings.env
-        env.update({'LIGHTTPD_LOG': self.log_file,
-                    'LIGHTTPD_PID': self.pid_file,
-                    'LIGHTTPD_PORT': str(self.port)})
+        env.update({'DISCO_HTTP_LOG': self.log_file,
+                    'DISCO_HTTP_PID': self.pid_file,
+                    'DISCO_HTTP_PORT': str(self.port)})
         return env
         
 class master(server):
@@ -153,7 +152,7 @@ class master(server):
     @property
     def basic_args(self):
         settings = self.disco_settings
-        return settings['ERLANG'].split() + \
+        return settings['DISCO_ERLANG'].split() + \
                ['+K', 'true',
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
@@ -226,7 +225,7 @@ class debug(object):
         nodename = discomaster.nodename
         if command != 'status':
             nodename = '%s@%s' % (discomaster.name, command)
-        args = self.disco_settings['ERLANG'].split() + ['-remsh', nodename,
+        args = self.disco_settings['DISCO_ERLANG'].split() + ['-remsh', nodename,
                                                         '-sname', self.name]
         if subprocess.Popen(args).wait():
             raise DiscoError("Could not connect to %s (%s)" % (command, nodename))
