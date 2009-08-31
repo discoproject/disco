@@ -6,6 +6,13 @@
                      "Status: 200 OK\n"
                      "Content-type: text/plain\n\n").
 
+job_status(J) ->
+        case gen_server:call(event_server, {get_results, J}) of
+                {active, _} -> <<"job_active">>;
+                {dead, _} -> <<"job_died">>;
+                {ready, _, _} -> <<"job_ready">>
+        end.
+
 op("save_config_table", _Query, Json) ->
         disco_config:save_config_table(Json);
 
@@ -14,26 +21,22 @@ op("load_config_table", _Query, _Json) ->
 
 op("joblist", _Query, _Json) ->
         {ok, Lst} = gen_server:call(event_server, get_jobnames),
-        Nu = now(),
-        TLst = lists:map(fun({J, T, _}) ->
-                {round(timer:now_diff(Nu, T) / 1000000),
-                        case gen_server:call(event_server, {get_results, J}) of
-                                {active, _} -> <<"job_active">>;
-                                {dead, _} -> <<"job_died">>;
-                                {ready, _, _} -> <<"job_ready">>
-                        end, list_to_binary(J)}
+        {ok, Prios} = gen_server:call(sched_policy, current_priorities),
+
+        TLst = lists:map(fun({J, _, _}) ->
+                {case lists:keysearch(J, 1, Prios) of
+                        false -> 1.0;
+                        {value, {_, Prio}} -> Prio
+                 end, job_status(J), list_to_binary(J)}
         end, Lst),
         {ok, lists:keysort(1, TLst)};
 
 op("jobinfo", Query, _Json) ->
-        error_logger:info_report({"jobinfo 1"}),
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {ok, {Nodes, Tasks}} =
                 gen_server:call(disco_server, {get_active, Name}),
-        error_logger:info_report({"jobinfo 1", Nodes, Tasks}),
         {ok, {TStamp, Pid, JobNfo, Res, Ready, Failed}} =
                 gen_server:call(event_server, {get_jobinfo, Name}),
-        error_logger:info_report({"jobinfo 2", Nodes, Tasks}),
         {ok, render_jobinfo(TStamp, Pid, JobNfo, Nodes, 
                 Res, Tasks, Ready, Failed)};
 
@@ -87,7 +90,7 @@ op("jobevents", Query, _Json) ->
 op("nodeinfo", _Query, _Json) ->
         {ok, {Available, Active}} = 
                 gen_server:call(disco_server, {get_nodeinfo, all}),
-        ActiveB = lists:map(fun([Node, JobName]) ->
+        ActiveB = lists:map(fun({Node, JobName}) ->
                 {obj, [{node, list_to_binary(Node)},
                        {jobname, list_to_binary(JobName)}]}
         end, Active),
@@ -100,9 +103,7 @@ op("kill_job", _Query, Json) ->
 
 op("purge_job", _Query, Json) ->
         JobName = binary_to_list(Json),
-        spawn(fun() ->
-                gen_server:call(disco_server, {purge_job, JobName}, 60000)
-        end),
+        gen_server:cast(disco_server, {purge_job, JobName}),
         {ok, <<>>};
 
 op("clean_job", _Query, Json) ->
@@ -112,10 +113,8 @@ op("clean_job", _Query, Json) ->
 
 op("get_results", _Query, Json) ->
         [Timeout, Names] = Json,
-        error_logger:info_report({"CTRL RESUT"}),
         S = [{N, gen_server:call(event_server,
                 {get_results, binary_to_list(N)})} || N <- Names],
-        error_logger:info_report({"GET RESUT", S}),
         {ok, [[N, status_msg(M)] || {N, M} <- wait_jobs(S, Timeout)]};
 
 op("get_blacklist", _Query, _Json) ->
@@ -178,7 +177,6 @@ handle(Socket, Msg) ->
         handle_job:set_disco_url(application:get_env(disco_url), Msg),
         
         Op = lists:last(string:tokens(binary_to_list(Script), "/")),
-        error_logger:info_report({"OP", Op}),
         Reply = case catch op(Op,
                         httpd:parse_query(binary_to_list(Query)), Json) of
                 {ok, Res} -> [?HTTP_HEADER, json:encode(Res)];

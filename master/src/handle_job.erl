@@ -191,7 +191,10 @@ wait_workers(N, Results, Name, Mode) ->
                                                 {task_ready, Mode}),
                         gen_server:cast(oob_server,
                                 {store, Name, Node, OobKeys}),
-                        {N - 1, [Result|Results]};
+                        % We may get a multiple instances of the same result
+                        % address but only one of them must be taken into
+                        % account. That's why we use gb_trees instead of a list.
+                        {N - 1, gb_trees:enter(Result, true, Results)};
 
                 {{data_error, _Msg}, Task, Node} ->
                         handle_data_error(Task, Node),
@@ -300,7 +303,8 @@ move_to_resultfs(Name, R, _) ->
 % Its main function is to catch and report any errors that occur during
 % work() calls.
 run_task(Inputs, Mode, Name, MaxN) ->
-        Results = case catch work(Inputs, Mode, Name, 0, MaxN, []) of
+        Results = case catch work(Inputs, Mode, Name,
+                        0, MaxN, gb_trees:empty()) of
                 {ok, Res} -> Res;
                 logged_error ->
                         kill_job(Name, 
@@ -312,7 +316,8 @@ run_task(Inputs, Mode, Name, MaxN) ->
                                 [Error], unknown_error)
         end,
 
-        R = [list_to_binary(X) || X <- Results],
+        R = [list_to_binary(X) || X <- gb_trees:keys(Results)],
+        error_logger:info_report({"RESULTS", R}),
         move_to_resultfs(Name, R, resultfs_enabled()),
         R.
 
@@ -321,6 +326,14 @@ job_coordinator({Name, Inputs, NMap, NRed, DoReduce}) ->
         Started = now(), 
         event_server:event(Name, "Starting job", [], 
                 {job_data, {NMap, NRed, DoReduce, Inputs}}),
+
+        case catch gen_server:call(disco_server, {new_job, Name, self()}) of
+                ok -> ok;
+                R ->
+                        event_server:event(Name,
+                                "ERROR; Job initialization failed: ~p", [R]),
+                        exit(job_init_failed)
+        end,
 
         RedInputs = if NMap == 0 ->
                 Inputs;

@@ -113,6 +113,7 @@ handle_cast({job_done, JobName}, {Events, MsgBuf} = S) ->
         end;
 
 handle_cast({clean_job, JobName}, {Events, _} = S) ->
+        error_logger:info_report({"clean job", JobName}),
         {_, {_, MsgBufN}} = handle_cast({job_done, JobName}, S),
         {noreply, {dict:erase(JobName, Events), MsgBufN}}.
 

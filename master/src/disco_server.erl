@@ -46,11 +46,12 @@ jobhome(JobName) ->
         lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
 
 format_time(T) ->
-        SEC = 1000000,
+        MS = 1000,
+        SEC = 1000 * MS,
         MIN = 60 * SEC,
         HOUR = 60 * MIN,
         D = timer:now_diff(now(), T),
-        Ms = D div 1000,
+        Ms = (D rem SEC) div MS,
         Sec = (D rem MIN) div SEC,
         Min = (D rem HOUR) div MIN,
         Hour = D div HOUR,
@@ -113,6 +114,11 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
                                         M#dnode{num_running = 
                                                 M#dnode.num_running + 1},
                                                          Nodes),
+
+                                if length(AvailableNodes) > 1 ->
+                                        gen_server:cast(self, schedule_next);
+                                true -> ok
+                                end,
                                 {noreply, S#state{nodes = UNodes,
                                         workers = UWorkers}};
                         nojobs -> 
@@ -142,10 +148,44 @@ handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
         Task#task.from ! {Res, Task, Node},
         gen_server:cast(self(), {update_stats, Node, Type}),
         gen_server:cast(self(), schedule_next),
-        {noreply, S#state{workers = UWorkers}}.
+        {noreply, S#state{workers = UWorkers}};
+
+handle_cast({purge_job, JobName}, S) ->
+        % SECURITY NOTE! This function leads to the following command
+        % being executed:
+        %
+        % os:cmd("rm -Rf " ++ filename:join([Root, JobName]))
+        %
+        % Evidently, if JobName is not checked correctly, this function
+        % can be used to remove any directory in the system. This function
+        % is totally unsuitable for untrusted environments!
+        error_logger:info_report({"PURGE", JobName}), 
+        C0 = string:chr(JobName, $.) + string:chr(JobName, $/),
+        C1 = string:chr(JobName, $@),
+        if C0 =/= 0 orelse C1 == 0 ->
+                error_logger:warning_report(
+                        {"Tried to purge an invalid job", JobName});
+        true ->
+                spawn_link(fun() ->
+                        {ok, Root} = application:get_env(disco_root),
+                        handle_call({clean_job, JobName}, none, S),
+                        Nodes = [lists:flatten(["dir://", Node, "/", Node, "/",
+                                jobhome(JobName), "/null"]) ||
+                                        #dnode{name = Node}
+                                        <- gb_trees:values(S#state.nodes)],
+                        garbage_collect:remove_job(Nodes),
+                        garbage_collect:remove_dir(
+                                filename:join([Root, jobhome(JobName)]))
+                end)
+        end,
+        {noreply, S}.
 
 handle_call(dbg_get_state, _, S) ->
         {reply, S, S};
+
+handle_call({new_job, JobName, JobCoord}, _, S) ->
+        {reply, catch gen_server:call(scheduler,
+                {new_job, JobName, JobCoord}), S};
 
 handle_call({new_task, Task}, _, State) ->
         case catch gen_server:call(scheduler, {new_task, Task}) of
@@ -185,49 +225,28 @@ handle_call(get_num_cores, _, #state{nodes = Nodes} = S) ->
         {reply, {ok, NumCores}, S};
 
 handle_call({kill_job, JobName}, _From, #state{workers = Workers} = S) ->
+        error_logger:info_report({"Kill requested", JobName}),
         event_server:event(JobName, "WARN: Job killed", [], []),
-        JobPid = lists:foldl(fun({WorkerPid, 
-                {_, #task{from = JobPid, jobname = X}}}, _) when X == JobName ->
-                        exit(WorkerPid, {worker_dies, {job_error, "killed"}}),
-                        JobPid;
-                (_, _) -> none
-                end, none, gb_trees:to_list(Workers)),
-        if JobPid =/= none ->
-                exit(JobPid, kill_worker);
-        true -> ok
-        end,
+        % Make sure that scheduler don't accept new tasks from this job
+        gen_server:cast(scheduler, {job_done, JobName}),
+        %JobPid = lists:foldl(fun({WorkerPid, 
+        %        {_, #task{from = JobPid, jobname = X}}}, _) when X == JobName ->
+        %                error_logger:info_report({"KILL", WorkerPid}),
+        %                gen_server:cast(WorkerPid, kill_worker),
+        %                JobPid;
+        %        (_, JobPid) -> JobPid
+        %        end, none, gb_trees:to_list(Workers)),
+        %if JobPid =/= none ->
+        %        error_logger:info_report({"KILL COORD", JobPid}),
+        %        exit(JobPid, kill_worker);
+        %true -> ok
+        %end,
         {reply, ok, S};
 
 handle_call({clean_job, JobName}, From, State) ->
         handle_call({kill_job, JobName}, From, State),
         gen_server:cast(event_server, {clean_job, JobName}),
         {reply, ok, State};
-
-handle_call({purge_job, JobName}, From, #state{nodes = Nodes} = S) ->
-        % SECURITY NOTE! This function leads to the following command
-        % being executed:
-        %
-        % os:cmd("rm -Rf " ++ filename:join([Root, JobName]))
-        %
-        % Evidently, if JobName is not checked correctly, this function
-        % can be used to remove any directory in the system. This function
-        % is totally unsuitable for untrusted environments!
-        
-        C0 = string:chr(JobName, $.) + string:chr(JobName, $/),
-        C1 = string:chr(JobName, $@),
-        if C0 =/= 0 orelse C1 == 0 ->
-                error_logger:warning_report(
-                        {"Tried to purge an invalid job", JobName});
-        true ->
-                {ok, Root} = application:get_env(disco_root),
-                handle_call({clean_job, JobName}, From, S),
-                Nodes = [lists:flatten(["dir://", Node, "/", Node, "/",
-                                jobhome(JobName), "/null"]) ||
-                                        #dnode{name = Node} <- Nodes],
-                garbage_collect:remove_job(Nodes),
-                garbage_collect:remove_dir(filename:join([Root, jobhome(JobName)]))
-        end,
-        {reply, ok, S};
 
 handle_call({blacklist, Node}, _From, #state{nodes = Nodes} = S) ->
         {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, true)}};
@@ -246,22 +265,24 @@ handle_info({'EXIT', Pid, normal}, S) ->
                 event_server:event(Node, T#task.jobname,
                         "WARN: [~s:~B] Died unexpectedly without a reason",
                                 [T#task.mode, T#task.taskid], []),
-                gen_server:cast({exit_worker, Pid,
-                        {data_error, "unexpected"}})
+                gen_server:cast(self(), {exit_worker, Pid,
+                        {data_error, "unexpected"}}),
+                {noreply, S}
         end;
 
 handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
         {Node, T} = gb_trees:get(Pid, S#state.workers),
         event_server:event(Node, T#task.jobname, "WARN: [~s:~B] ~s",
                 [T#task.mode, T#task.taskid, Msg|Args], []),
-        gen_server:cast({exit_worker, Pid, {data_error, "worker_dies"}});
+        gen_server:cast(self(), {exit_worker, Pid, {data_error, "worker_dies"}}),
+        {noreply, S};
         
 handle_info({'EXIT', Pid, noconnection}, S) ->
         {Node, T} = gb_trees:get(Pid, S#state.workers),
         event_server:event(Node, T#task.jobname,
                 "WARN: [~s:~B] Connection lost to the node (network busy?)",
                         [T#task.mode, T#task.taskid], []),
-        gen_server:cast({exit_worker, Pid, {data_error, "noconnection"}}),
+        gen_server:cast(self(), {exit_worker, Pid, {data_error, "noconnection"}}),
         {noreply, S};
 
 handle_info({'EXIT', Pid, Reason}, State) when Pid == self() ->
@@ -275,7 +296,9 @@ handle_info({'EXIT', Pid, Reason}, S) ->
                 event_server:event(Node, T#task.jobname,
                         "WARN: [~s:~B] Worker died unexpectedly: ~p",
                                 [T#task.mode, T#task.taskid, Reason], []),
-                gen_server:cast({exit_worker, Pid, {data_error, "unexpected"}});
+                gen_server:cast(self(), {exit_worker, Pid,
+                        {data_error, "unexpected"}});
+                {noreply, S};
         true ->
                 error_logger:warning_report({"Unknown exit signal", Pid, Reason}),
                 {noreply, S}
@@ -306,14 +329,13 @@ slave_master(SlaveName) ->
                         launch(case application:get_env(disco_slaves_os) of
                                 {ok, "osx"} ->
                                         fun() -> 
-                                                slave:start(list_to_atom(Node),
+                                                slave:start_link(list_to_atom(Node),
                                                 SlaveName, Args, self(),
                                                 "/usr/libexec/StartupItemContext erl")
                                         end;
                                 _ ->
                                         fun() ->
-                                                slave:start_link(
-                                                        list_to_atom(Node),
+                                                slave:start_link(list_to_atom(Node),
                                                         SlaveName, Args)
                                         end
                         end, Pid, Node),
@@ -321,12 +343,16 @@ slave_master(SlaveName) ->
         end.
 
 launch(F, Pid, Node) ->
+        error_logger:info_report({"HERE LAUNCH"}),
         case catch F() of
                 {ok, _} -> 
                         error_logger:info_report({"New slave at ", Node}),
                         Pid ! slave_started;
-                {error, {already_running, _}} -> ok;
+                {error, {already_running, _}} ->
+                        error_logger:info_report({"already"}),
+                        Pid ! slave_started;
                 {error, timeout} ->
+                        error_logger:info_report({"timeout"}),
                         Pid ! {slave_failed, lists:flatten(
                                 ["Couldn't connect to ", Node, " (timeout). ",
                                 "Node blacklisted temporarily."])},

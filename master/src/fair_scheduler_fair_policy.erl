@@ -37,8 +37,8 @@ handle_cast({priv_update_priorities, Priorities}, {Jobs, _, NC}) ->
                 end
         end, Jobs, Priorities),
         % Include all known jobs in the priority queue.
-        NewPrioQ = [{Prio, Pid} || #job{pid = Pid, prio = Prio} <- 
-                gb_trees:values(NewJobs)],
+        NewPrioQ = [{Prio, Pid, N} || #job{name = N, pid = Pid, prio = Prio} 
+                        <- gb_trees:values(NewJobs)],
         {noreply, {NewJobs, lists:keysort(1, NewPrioQ), NC}};
 
 % Cluster topology has changed. Inform the fairy about the new total
@@ -55,19 +55,33 @@ handle_cast({new_job, JobPid, JobName}, {Jobs, PrioQ, NC}) ->
                 bias = 0.0, pid = JobPid},
 
         NewJobs = gb_trees:insert(JobPid, Job, Jobs),
-        erlang:monitor(process, Job),
-        {noreply, {NewJobs, prioq_insert({InitialPrio, JobPid}, PrioQ), NC}}.
+        erlang:monitor(process, JobPid),
+        {noreply, {NewJobs, prioq_insert(
+                {InitialPrio, JobPid, JobName}, PrioQ), NC}}.
+
+% Return current priorities for the ui
+handle_call(current_priorities, _, {_, PrioQ, _} = S) ->
+        {reply, {ok, [{N, Prio} || {Prio, _, N} <- PrioQ]}, S};
 
 handle_call({next_job, _}, _, {{0, _}, _, _} = S) ->
+        {reply, nojobs, S};
+
+handle_call({next_job, NotJobs}, _, {{N, _}, _, _} = S)
+                when length(NotJobs) >= N ->
         {reply, nojobs, S};
 
 % NotJobs lists all jobs that got 'none' reply from the fair_scheduler_job task
 % scheduler. We want to skip them.
 handle_call({next_job, NotJobs}, _, {Jobs, PrioQ, NC}) ->
+        error_logger:info_report({"FAIR JOB", PrioQ}),
         {NextJob, RPrioQ} = dropwhile(PrioQ, [], NotJobs),
-        {UJobs, UPrioQ} = bias_priority(
-                gb_trees:get(NextJob), RPrioQ, Jobs, NC),
+        error_logger:info_report({"NEXT JOB", NextJob}),
+        {UJobs, UPrioQ} = bias_priority(gb_trees:get(NextJob, Jobs),
+                RPrioQ, Jobs, NC),
         {reply, {ok, NextJob}, {UJobs, UPrioQ, NC}};
+
+handle_call(dbg_get_state, _, S) ->
+        {reply, S, S};
 
 handle_call(priv_get_jobs, _, {Jobs, _, _} = S) ->
         {reply, {ok, Jobs}, S}.
@@ -79,10 +93,10 @@ handle_info({'DOWN', _, _, JobPid, _}, {Jobs, PrioQ, NC}) ->
         {noreply, {gb_trees:delete(JobPid, Jobs),
                 lists:keydelete(JobPid, 2, PrioQ), NC}}.
 
-dropwhile([JobPid|R], H, NotJobs) ->
+dropwhile([{_, JobPid, _} = E|R], H, NotJobs) ->
         case lists:member(JobPid, NotJobs) of
                 false -> {JobPid, lists:reverse(H) ++ R};
-                true -> dropwhile(R, [JobPid|H], NotJobs)
+                true -> dropwhile(R, [E|H], NotJobs)
         end.
 
 % Bias priority is a cheap trick to estimate a new priority for a job that
@@ -94,13 +108,13 @@ bias_priority(Job, PrioQ, Jobs, NumCores) ->
         JobPid = Job#job.pid,
         Bias = Job#job.bias + 1 / NumCores,
         Prio = Job#job.prio + Bias,
-        NPrioQ = prioq_insert({Prio, JobPid}, PrioQ),
+        NPrioQ = prioq_insert({Prio, JobPid, Job#job.name}, PrioQ),
         {gb_trees:update(JobPid, Job#job{bias = Bias}, Jobs), NPrioQ}.
 
 % Insert an item to an already sorted list
 prioq_insert(Item, R) -> prioq_insert(Item, R, []).
 prioq_insert(Item, [], H) -> lists:reverse([Item|H]);
-prioq_insert({Prio, _} = Item, [{P, _} = E|R], H) when Prio > P ->
+prioq_insert({Prio, _, _} = Item, [{P, _} = E|R], H) when Prio > P ->
         prioq_insert(Item, R, [E|H]);
 prioq_insert(Item, L, H) ->
         lists:reverse(H) ++ [Item|L].
@@ -152,6 +166,8 @@ update_priorities(Alpha, NumCores) ->
                         % Job's priority is the exponential moving average
                         % of its deficits over time
                         Prio = Alpha * Deficit + (1 - Alpha) * Job#job.prio,
+                        error_logger:info_report({"Job", Job#job.name, "deficit", Deficit,
+                                "old prio", Job#job.prio, "new prio", Prio}),
                         {Job#job.pid, Job#job{prio = Prio, bias = 0,
                                 cputime = Job#job.cputime + NumRunning}}
         end, Stats)}).

@@ -56,7 +56,9 @@ start_link_remote(Master, EventServ, Node, Task) ->
                                 slave_started -> ok;
                                 {slave_failed, X} ->
                                         exit({worker_dies,
-                                                {"Node failure: ~p", [X]}})
+                                                {"Node failure: ~p", [X]}});
+                                X ->
+                                        error_logger:info_report({"ARGH", X})
                         after 60000 ->
                                 exit({worker_dies, {"Node timeout", []}})
                         end
@@ -270,7 +272,11 @@ handle_info({'DOWN', _, _, _, _}, S) ->
         %        {exit_worker, S#state.task, {job_error, M}}),
         {stop, worker_exit(S, {job_error, M}), S}.
 
-handle_cast(_, State) -> {noreply, State}.
+handle_cast(kill_worker, S) -> 
+        error_logger:info_report({"KILL WORKERD"}),
+        M = "Worker killed. Last words:\n" ++ S#state.errlines,
+        event(S, "ERROR", M),
+        {stop, worker_exit(S, {job_error, M}), S}.
 
 terminate(_Reason, State) -> 
         % Possible bug: If we end up here before knowing child_pid, the

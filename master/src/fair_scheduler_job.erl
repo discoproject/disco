@@ -132,15 +132,13 @@ handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
 
 % Task done. Remove it from the list of running tasks. (for the fairness fairy)
 handle_info({'DOWN', _, _, Worker, _}, {Tasks, Running, Nodes}) ->
-        error_logger:info_report({"TSK DONE"}),
         {noreply, {Tasks, gb_trees:delete(Worker, Running), Nodes}};
 
 handle_info({'EXIT', Pid, normal}, S) when Pid == self() ->
         {stop, normal, S};
 
 % Our job coordinator dies, the job is dead, we have no reason to live anymore
-handle_info({'EXIT', Pid, normal}, S) ->
-        error_logger:info_report({"JOB IS DEAD", Pid, self()}),
+handle_info({'EXIT', _, _}, S) ->
         {stop, normal, S}.
 
 schedule_local(Tasks, AvailableNodes) ->
@@ -256,7 +254,6 @@ reassign_tasks(Tasks, NewNodes) ->
 
 % unused
 
-terminate(_Reason, _State) -> 
-        error_logger:info_report({"Sched job", self(), "dies"}).
+terminate(_Reason, _State) -> ok.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

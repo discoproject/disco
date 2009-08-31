@@ -36,31 +36,43 @@ handle_cast({update_nodes, NewNodes}, _) ->
 
 handle_cast({job_done, JobName}, Nodes) ->
         error_logger:info_report({"Scheduler removes", JobName}),
-        ets:delete(jobs, JobName),
-        {noreply, Nodes}.
+        % We absolutely don't want to have the job coordinator alive after the
+        % job has been removed from the scheduler. Make sure that doesn't
+        % happen.
+        case ets:lookup(jobs, JobName) of
+                [] -> {noreply, Nodes};
+                [{_, {_, JobCoord}}] ->
+                        ets:delete(jobs, JobName),
+                        exit(JobCoord, kill_worker),
+                        {noreply, Nodes}
+        end.
+
+handle_call({new_job, JobName, JobCoord}, _, Nodes) ->
+        error_logger:info_report({"NEW JOB", JobName}),
+        {ok, JobPid} = fair_scheduler_job:start(JobName, JobCoord),
+        gen_server:cast(JobPid, {update_nodes, Nodes}),
+        gen_server:cast(sched_policy, {new_job, JobPid, JobName}),
+        ets:insert(jobs, {JobName, {JobPid, JobCoord}}),
+        {reply, ok, Nodes};
 
 % This is not a handle_cast function, since we don't want to race against
 % disco_server. We need to send the new_job and new_task messaged before
 % disco_server sends its task_started and next_task messages. 
 handle_call({new_task, Task}, _, Nodes) ->
         JobName = Task#task.jobname,
-        Job = case ets:lookup(jobs, JobName) of
+        case ets:lookup(jobs, JobName) of
                 [] ->
-                        error_logger:info_report({"NEW JOB", JobName}),
-                        {ok, JobPid} = fair_scheduler_job:start(
-                                Task#task.jobname, Task#task.from),
-                        gen_server:cast(JobPid, {update_nodes, Nodes}),
-                        gen_server:cast(sched_policy,
-                                {new_job, JobPid, JobName}),
-                        ets:insert(jobs, {JobName, JobPid}),
-                        JobPid;
-                [{_, JobPid}] -> JobPid
-        end,
-        gen_server:cast(Job, {new_task, Task}),
-        {reply, ok, Nodes};
+                        {reply, unknown_job, Nodes};
+                [{_, {JobPid, _}}] ->
+                        gen_server:cast(JobPid, {new_task, Task}),
+                        {reply, ok, Nodes}
+        end;
+
+handle_call(dbg_get_state, _, S) ->
+        {reply, S, S};
 
 handle_call({next_task, AvailableNodes}, _From, Nodes) ->
-        Jobs = [JobPid || {_, JobPid} <- ets:tab2list(jobs)],
+        Jobs = [JobPid || {_, {JobPid, _}} <- ets:tab2list(jobs)],
         {reply, next_task(AvailableNodes, Jobs, []), Nodes}.
 
 next_task(AvailableNodes, Jobs, NotJobs) ->
