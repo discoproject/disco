@@ -83,8 +83,12 @@ function job_element(job, i){
         
         cbox = $.create("div", {"class": "live " + job_status}, []);
         jbox = $.create("div", {"class": "job"}, [cbox, name]);
-        $(cbox).css("background", "rgb(" + parseInt(rgb[0]) + 
-                       "," + parseInt(rgb[1]) + "," + parseInt(rgb[2]) + ")");
+        if (job_status == "active"){
+                $(cbox).css("background", "rgb(" + 
+                                parseInt(rgb[0]) + "," + 
+                                parseInt(rgb[1]) + "," + 
+                                parseInt(rgb[2]) + ")");
+        }
         jbox.onmouseover = job_mouseover;
         jbox.onmouseout = job_mouseout;
         jbox.onclick = job_click;
