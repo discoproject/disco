@@ -3,49 +3,6 @@
 import optparse, os, subprocess, signal, socket, sys
 from itertools import chain
 
-class DiscoSettings(dict):
-    defaults = {
-        'DISCO_FLAGS':          "''",
-        'DISCO_LOG_DIR':        "'/var/log/disco'",
-        'DISCO_MASTER_HOME':    "'/usr/lib/disco'",
-        'DISCO_MASTER_PORT':    "DISCO_PORT",
-        'DISCO_NAME':           "'disco_%s' % DISCO_SCGI_PORT",
-        'DISCO_PID_DIR':        "'/var/run'",
-        'DISCO_PORT':           "8989",
-        'DISCO_ROOT':           "'/srv/disco'",
-        'DISCO_SCGI_PORT':      "4444",
-        'DISCO_ULIMIT':         "16000000",
-        'DISCO_USER':           "os.getenv('LOGNAME')",
-        'DISCO_DATA':           "os.path.join(DISCO_ROOT, 'data')",
-        'DISCO_MASTER_ROOT':    "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
-        'DISCO_CONFIG':         "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
-        'DISCO_LOCAL_DIR':      "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
-        'DISCO_WORKER':         "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
-        'DISCO_ERLANG':         "guess_erlang()",
-        'DISCO_HTTPD':          "'lighttpd'",
-        'DISCO_WWW_ROOT':       "os.path.join(DISCO_MASTER_HOME, 'www')",
-        'PYTHONPATH':           "'%s:%s/pydisco' % (os.getenv('PYTHONPATH', ''), DISCO_HOME)",
-        }
-
-    must_exist = ('DISCO_DATA', 'DISCO_ROOT',
-                  'DISCO_MASTER_HOME', 'DISCO_MASTER_ROOT',
-                  'DISCO_LOG_DIR', 'DISCO_PID_DIR')
-
-    def __init__(self, filename, **kwargs):
-        super(DiscoSettings, self).__init__(kwargs)
-        execfile(filename, {}, self)
-
-    def __getitem__(self, key):
-        if key not in self:
-            return eval(self.defaults[key], globals(), self)
-        return super(DiscoSettings, self).__getitem__(key)
-
-    @property
-    def env(self):
-        settings = os.environ.copy()
-        settings.update(dict((k, str(self[k])) for k in self.defaults))
-        return settings
-
 class DiscoError(Exception):
     pass
 
@@ -231,15 +188,24 @@ class debug(object):
             raise DiscoError("Could not connect to %s (%s)" % (command, nodename))
         yield 'closing remote shell to %s (%s)' % (command, nodename)
 
-def guess_erlang():
-    if os.uname()[0] == 'Darwin':
-        return '/usr/libexec/StartupItemContext erl'
-    return 'erl'
+class test(object):
+    def __init__(self, disco_settings):
+        self.disco_settings = disco_settings
+
+    def send(self, *names):
+        sys.path.insert(0, os.path.join(self.disco_settings['DISCO_HOME'], 'tests'))
+        yield 'searching for names in sys.path:\n%s' % sys.path
+        from disco.test import DiscoTestRunner
+        DiscoTestRunner(self.disco_settings).run(*names)
     
 def main():
     DISCO_BIN  = os.path.dirname(os.path.realpath(__file__))
     DISCO_HOME = os.path.dirname(DISCO_BIN)
     DISCO_CONF = os.path.join(DISCO_HOME, 'conf')
+    DISCO_PATH = os.path.join(DISCO_HOME, 'pydisco')
+
+    sys.path.insert(0, DISCO_PATH)
+    from disco.settings import DiscoSettings
 
     usage = """            
             %prog [options] [master|worker] [start|stop|restart|status]
@@ -261,7 +227,8 @@ def main():
     disco_settings = DiscoSettings(options.settings,
                                    DISCO_BIN=DISCO_BIN,
                                    DISCO_HOME=DISCO_HOME,
-                                   DISCO_CONF=DISCO_CONF)
+                                   DISCO_CONF=DISCO_CONF,
+                                   DISCO_PATH=DISCO_PATH)
 
     if options.verbose:
         print(
@@ -285,8 +252,8 @@ def main():
     argdict      = dict(enumerate(sys.argv))
     disco_object = globals()[argdict.pop(0, 'master')](disco_settings)
 
-    command = argdict.pop(1, 'status')
-    for message in disco_object.send(command):
+    command, args = argdict.pop(1, 'status'), sys.argv[2:]
+    for message in disco_object.send(command, *args):
         if options.verbose or command == 'status':
             print(message)
 
