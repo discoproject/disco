@@ -44,12 +44,14 @@ class Stats(object):
                 pass
 
 class Disco(object):
-
         def __init__(self, host):
                 self.host = "http://" + util.disco_host(host)[7:]
 
         def request(self, url, data = None, redir = False, offset = 0):
-                return comm.download(self.host + url, data = data, redir = redir, offset = offset)
+                try:
+                        return comm.download(self.host + url, data = data, redir = redir, offset = offset)
+                except Exception, e:
+                        raise DiscoError('Got %s, make sure disco master is running at %s' % (e, self.host))
 
         def nodeinfo(self):
                 return json.loads(self.request("/disco/ctrl/nodeinfo"))
@@ -103,8 +105,8 @@ class Disco(object):
                 self.request("/disco/ctrl/purge_job", '"%s"' % name)
 
         def jobspec(self, name):
-                r = self.request("/disco/ctrl/parameters?name=%s"\
-                        % name, redir = True)
+                r = self.request("/disco/ctrl/parameters?name=%s" % name,
+                                 redir = True)
                 return decode_netstring_fd(cStringIO.StringIO(r))
 
         def events(self, name, offset = 0):
@@ -126,82 +128,66 @@ class Disco(object):
                                         offs -= 1
                                 yield offs, ent
                 
-                r = self.request("/disco/ctrl/rawevents?name=%s"\
-                         % name, redir = True, offset = offset)
+                r = self.request("/disco/ctrl/rawevents?name=%s" % name,
+                                 redir = True, offset = offset)
                 
                 if len(r) < 2:
                         return []
                 else:
                         return event_iter(r)
 
-        def results(self, names, timeout = 2000):
-                single = type(names) == str
-                if single:
-                        names = [names]
+        def results(self, jobspec, timeout = 2000):
+                jobspec = JobSpecifier(jobspec)
+                data    = json.dumps([timeout, list(jobspec.jobnames)])
+                results = json.loads(self.request("/disco/ctrl/get_results", data))
+
+                if len(jobspec) is 1:
+                        return results[0][1]
                 
-                nam = []
-                for n in names:
-                        if type(n) == str:
-                                nam.append(n)
-                        elif type(n) == list:
-                                nam.append(n[0])
+                others, active = [], []
+                for result in results:
+                        if result[1][0] == 'active':
+                                active.append(result)
                         else:
-                                nam.append(n.name)
-               
-                r = self.request("/disco/ctrl/get_results",
-                        json.dumps([timeout, nam]))
-                if not r:
-                        return None
-                r = json.loads(r)
-                if single:
-                        return r[0][1]
-                else:
-                        active = []
-                        others = []
-                        for x in r:
-                                if x[1][0] == "active":
-                                        active.append(x)
-                                else:
-                                        others.append(x)
-                        return others, active
+                                others.append(result)
+                return others, active
 
         def jobinfo(self, name):
-                r = self.request("/disco/ctrl/jobinfo?name=" + name)
-                if r:
-                        return json.loads(r)
-                else:
-                        return r
+                jobinfo = self.request("/disco/ctrl/jobinfo?name=%s" % name)
+                if jobinfo:
+                        return json.loads(jobinfo)
 
-        def wait(self, name, show_events = None, poll_interval = 5,\
-                        timeout = None, clean = False):
-                
-                mon = EventMonitor(show_events,\
-                        disco = self, name = name)
-                t = time.time()
-                if mon.isenabled():
-                        p = 2000
-                else:
-                        p = poll_interval * 1000
+        def wait(self, name, show = None, poll_interval = 2, timeout = None, clean = False):
+                event_monitor = EventMonitor(show, disco=self, name=name)
+                start_time    = time.time()
                 while True:
-                        mon.refresh()
-                        status = self.results(name, timeout = p)
-                        if status == None:
-                                raise JobException("Unknown job", self.host, name)
-                        if status[0] == "ready":
-                                if mon.isenabled():
-                                        time.sleep(p / 1000.0 + 1)
-                                        mon.refresh()
+                        status, results = self.results(name, timeout = poll_interval * 1000)
+                        event_monitor.refresh()
+                        if status == 'ready':
                                 if clean:
                                         self.clean(name)
-                                return status[1]
-                        if status[0] != "active":
-                                if mon.isenabled():
-                                        time.sleep(p / 1000.0 + 1)
-                                        mon.refresh()
-                                raise JobException("Job failed", self.host, name)
-                        if timeout and time.time() - t > timeout:
+                                return results
+                        if status != 'active':
+                                raise JobException("Job status %s" % status, self.host, name)
+                        if timeout and time.time() - start_time > timeout:
                                 raise JobException("Timeout", self.host, name)
 
+class JobSpecifier(list):
+        def __init__(self, jobspec):
+                super(JobSpecifier, self).__init__([jobspec] if type(jobspec) is str else jobspec)
+
+        @property
+        def jobnames(self):
+                for job in self:
+                        if type(job) is str:
+                                yield job
+                        elif type(job) is list:
+                                yield job[0]
+                        else:
+                                yield job.name
+
+        def __str__(self):
+                return '{%s}' % ', '.join(self.jobnames)
 
 class Job(object):
 
@@ -256,7 +242,7 @@ class Job(object):
         def _run(self, **kw):
                 d = lambda x: kw.get(x, Job.defaults[x])
                 
-                # -- check parametets --
+                # -- check parameters --
 
                 # Backwards compatibility 
                 # (fun_map == map, input_files == input)
