@@ -30,7 +30,7 @@ class TestServer(ThreadingMixIn, HTTPServer):
 
         def urls(self, inputs):
                 return ['%s/%s' % (self.address, input) for input in inputs]
-        
+
 class FailedReply(Exception):
         pass
 
@@ -41,7 +41,7 @@ def handler(data_generator):
                         self.send_header("Content-length", len(data))
                         self.end_headers()
                         self.wfile.write(data)
-                
+
                 def do_GET(self):
                         try:
                                 self.send_data(data_generator(self.path.strip('/')))
@@ -50,7 +50,7 @@ def handler(data_generator):
 
                 def log_request(*args):
                         pass # suppress logging output for now
-                
+
         return Handler
 
 class DiscoTestCase(TestCase):
@@ -70,7 +70,7 @@ class DiscoJobTestFixture(object):
         @staticmethod
         def map(*args, **kwargs):
                 raise NotImplementedError
-        
+
         @property
         def disco_master_url(self):
                 return 'http://%s:%s' % (self.disco_settings['DISCO_MASTER_HOST'],
@@ -78,8 +78,8 @@ class DiscoJobTestFixture(object):
 
         @property
         def test_server_address(self):
-                return (self.disco_settings['DISCO_TEST_HOST'],
-                        self.disco_settings['DISCO_TEST_PORT'])
+                return (str(self.disco_settings['DISCO_TEST_HOST']),
+                        int(self.disco_settings['DISCO_TEST_PORT']))
 
         @property
         def results(self):
@@ -103,15 +103,15 @@ class DiscoJobTestFixture(object):
                            'map_writer':     self.map_writer,
                            'sort':           self.sort,
                            'mem_sort_limit': self.mem_sort_limit}
-                
+
                 if self.reduce:
                         jobargs.update({'reduce':        self.reduce,
                                         'reduce_reader': self.reduce_reader,
                                         'reduce_writer': self.reduce_writer,
                                         'nr_reduces':    self.nr_reduces})
-                        
+
                 self.job = self.disco.new_job(**jobargs)
-                
+
         def tearDown(self):
                 self.test_server.stop()
                 self.job.purge()
@@ -124,7 +124,7 @@ class DiscoTestLoader(TestLoader):
         def __init__(self, disco_settings):
                 super(DiscoTestLoader, self).__init__()
                 self.disco_settings = disco_settings
-        
+
         def loadTestsFromTestCase(self, testCaseClass):
                 if issubclass(DiscoTestCase, testCaseClass):
                         testCaseClass.disco_settings = self.disco_settings
