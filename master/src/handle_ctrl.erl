@@ -191,7 +191,7 @@ count_maps(L) ->
         end, {0, 0}, L),
         {M, N - M}.
 
-render_jobinfo(Tstamp, JobPid, [{NMap, NRed, DoRed, Inputs}],
+render_jobinfo(Tstamp, JobPid, [{_NMap, NRed, DoRed, Inputs}],
         Nodes, Res, Tasks, Ready, Failed) ->
 
         {NMapRun, NRedRun} = count_maps(Tasks),
@@ -205,7 +205,7 @@ render_jobinfo(Tstamp, JobPid, [{NMap, NRed, DoRed, Inputs}],
         end,
         {obj, [{timestamp, Tstamp}, 
                {active, R},
-               {mapi, [NMap - (NMapDone + NMapRun),
+               {mapi, [length(Inputs) - (NMapDone + NMapRun),
                         NMapRun, NMapDone, NMapFail]},
                {redi, [NRed - (NRedDone + NRedRun),
                         NRedRun, NRedDone, NRedFail]},
