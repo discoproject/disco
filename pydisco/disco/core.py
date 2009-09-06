@@ -1,4 +1,4 @@
-import sys, re, os, marshal, modutil, time, types, cPickle, cStringIO
+import sys, re, os, marshal, modutil, time, types, cPickle, cStringIO, random
 from disco import func, util, comm
 from disco.comm import json
 from disco.error import DiscoError, JobException
@@ -394,7 +394,14 @@ class Job(object):
                                         "without the map phase")
                         else:
                                 inputs = ext_inputs
-               
+              
+                # shuffle fixes a pathological case in the fifo scheduler:
+                # if inputs for a node are consequent, data locality will be
+                # lost after K inputs where K is the number of cores.
+                # Randomizing the order of inputs makes this pathological case
+                # unlikely. This issue will be fixed in the new scheduler.
+                random.shuffle(inputs)
+
                 req["input"] = " ".join(inputs)
                 req["nr_maps"] = str(nr_maps)
         
