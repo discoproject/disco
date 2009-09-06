@@ -62,7 +62,7 @@ start_link_remote([Master, EventServ, From, JobName, PartID,
                         receive
                                 slave_started -> ok;
                                 {slave_failed, X} ->
-                                        event_server:event(JobName,
+                                        event_server:event(Node, JobName,
                                                 "WARN: Node failure: ~p", [X], []),
                                         exit({data_error, Input})
                         after 60000 ->
@@ -76,6 +76,11 @@ start_link_remote([Master, EventServ, From, JobName, PartID,
                 MasterUrl, EventServ, From, PartID, Mode, Node, Input]]),
         receive
                 ok -> ok;
+                timeout -> 
+                        event_server:event(Node, JobName,
+                                "WARN: Could not start a worker "
+                                "process in 5s (node busy?)", [], []),
+                        exit({data_error, Input});
                 {'EXIT', _, Reason} -> exit(Reason);
                 _ -> exit({error, invalid_reply})
         after 60000 ->
@@ -96,8 +101,13 @@ wait_for_exit() ->
 start_link([Parent|_] = Args) ->
         error_logger:info_report(["Worker starting at ", node(), Parent]),
         {ok, Worker} = gen_server:start_link(disco_worker, Args, []),
-        ok = gen_server:call(Worker, start_worker),
-        Parent ! ok.
+        case catch gen_server:call(Worker, start_worker) of
+                ok -> Parent ! ok;
+                E -> 
+                        error_logger:info_report(
+                                {"disco_worker:start_worker failed: ", E}),
+                        Parent ! timeout
+        end.
 
 init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
         Mode, Node, Input]) ->
