@@ -11,6 +11,20 @@ class server(object):
         self.disco_settings = disco_settings
         self.host = socket.gethostname()
         self.port = port
+   
+    def setid(self):
+        user = self.disco_settings['DISCO_USER'] 
+        if user != os.getenv('LOGNAME'):
+            if os.getuid() != 0:
+                raise DiscoError("Only root can change DISCO_USER")
+            try:
+                import pwd
+                uid, gid, x, home = pwd.getpwnam(user)[2:6]
+                os.setgid(gid)
+                os.setuid(uid)
+                os.environ['HOME'] = home
+            except Exception, x:
+                raise DiscoError("Could not switch to the user '%s'" % user)
 
     @property
     def env(self):
@@ -66,7 +80,6 @@ class server(object):
         yield '%s %s' % (self, self._status)
 
     def stop(self):
-        self.assert_status('running')
         try:
             os.kill(self.pid, signal.SIGTERM)
             while self._status == 'running':
@@ -99,13 +112,13 @@ class lighttpd(server):
 class master(server):
     def __init__(self, disco_settings):
         super(master, self).__init__(disco_settings, disco_settings['DISCO_SCGI_PORT'])
+        self.setid()
 
     @property
     def args(self):
         return self.basic_args + ['-detached',
                                   '-heart',
                                   '-kernel', 'error_logger', '{file, "%s"}' % self.log_file]
-
     @property
     def basic_args(self):
         settings = self.disco_settings
@@ -156,6 +169,10 @@ class master(server):
         return 'disco master'
 
 class worker(server):
+    def __init__(self, disco_settings):
+        super(worker, self).__init__(disco_settings)
+        self.setid()
+    
     @property
     def lighttpd(self):
         return lighttpd(self.disco_settings,
@@ -204,6 +221,12 @@ def main():
     DISCO_CONF = os.path.join(DISCO_HOME, 'conf')
     DISCO_PATH = os.path.join(DISCO_HOME, 'pydisco')
 
+    if not os.path.exists(DISCO_CONF):
+        DISCO_CONF = "/etc/disco"
+
+    # Don't include the directory where this disco.py script is located.
+    # Otherwise it'llt be confused with the disco package.
+    del sys.path[0]
     sys.path.insert(0, DISCO_PATH)
     from disco.settings import DiscoSettings
 
@@ -239,18 +262,18 @@ def main():
             If this is not what you want, see the `--help` option
             """.format(options.settings, **disco_settings)) # python2.6+
 
-    for name in disco_settings.must_exist:
-        path = disco_settings[name]
-        if not os.path.exists(path):
-            os.makedirs(path)
-
     if options.print_env:
         for item in sorted(disco_settings.env.iteritems()):
             print('%s = %s' % (item))
         sys.exit(0)
-            
+    
     argdict      = dict(enumerate(sys.argv))
     disco_object = globals()[argdict.pop(0, 'master')](disco_settings)
+    
+    for name in disco_settings.must_exist:
+        path = disco_settings[name]
+        if not os.path.exists(path):
+            os.makedirs(path)
 
     command, args = argdict.pop(1, 'status'), sys.argv[2:]
     for message in disco_object.send(command, *args):
