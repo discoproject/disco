@@ -124,7 +124,7 @@ set_disco_url(undefined, Msg) ->
         {ok, Name} = application:get_env(disco_name),
         Hostname = gethostname(),
         DiscoUrl = lists:flatten(["http://", Hostname, ":",
-                                  binary_to_list(SPort), "/disco/master/_", Name, "/"]),
+                                  binary_to_list(SPort), "/_", Name, "/"]),
         application:set_env(disco, disco_url, DiscoUrl);
 set_disco_url(_, _) -> ok.
 

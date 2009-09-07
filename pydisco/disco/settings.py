@@ -8,7 +8,6 @@ class DiscoSettings(dict):
         'DISCO_LOG_DIR':         "'/var/log/disco'",
         'DISCO_MASTER_HOME':     "'/usr/lib/disco'",
         'DISCO_MASTER_HOST':     "socket.gethostname()",
-        'DISCO_MASTER_PORT':     "DISCO_PORT",
         'DISCO_NAME':            "'disco_%s' % DISCO_SCGI_PORT",
         'DISCO_PID_DIR':         "'/var/run'",
         'DISCO_PORT':            "8989",

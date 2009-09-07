@@ -131,7 +131,7 @@ class master(server):
     @property
     def lighttpd(self):
         return lighttpd(self.disco_settings,
-                        self.disco_settings['DISCO_MASTER_PORT'],
+                        self.disco_settings['DISCO_PORT'],
                         self.conf_path('lighttpd-master.conf'))
 
     @property
