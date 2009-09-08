@@ -141,7 +141,7 @@ class Disco(object):
                 data    = json.dumps([timeout, list(jobspec.jobnames)])
                 results = json.loads(self.request("/disco/ctrl/get_results", data))
 
-                if len(jobspec) is 1:
+                if type(jobspec) == str:
                         return results[0][1]
                 
                 others, active = [], []
@@ -174,7 +174,8 @@ class Disco(object):
 
 class JobSpecifier(list):
         def __init__(self, jobspec):
-                super(JobSpecifier, self).__init__([jobspec] if type(jobspec) is str else jobspec)
+                super(JobSpecifier, self).__init__([jobspec]
+                        if type(jobspec) is str else jobspec)
 
         @property
         def jobnames(self):
