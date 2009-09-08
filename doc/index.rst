@@ -28,6 +28,7 @@ Getting started
    start/ec2setup
    start/dfs
    start/troubleshoot
+   man/disco
 
 References
 ----------
@@ -37,6 +38,7 @@ References
 
    py/index
    external
+   man/settings
 
 Indices and tables
 ------------------
