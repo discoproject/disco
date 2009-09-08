@@ -26,7 +26,6 @@ case "$1" in
     purge)
 	deluser disco 2>/dev/null || true
 	[ -e /srv/disco ] && rmdir --ignore-fail-on-non-empty /srv/disco
-        rm /etc/disco/lighttpd.conf
     ;;
 
     *)

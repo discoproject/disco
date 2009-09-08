@@ -24,7 +24,8 @@ case "$1" in
     ;;
 
     purge)
-        # ln -fs lighttpd-node.conf /etc/disco/lighttpd.conf
+	deluser disco 2>/dev/null || true
+	[ -e /srv/disco ] && rmdir --ignore-fail-on-non-empty /srv/disco
     ;;
 
     *)
