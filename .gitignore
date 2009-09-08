@@ -3,5 +3,4 @@
 *.log
 *.pid
 *.pyc
-conf/settings.py
 root/
