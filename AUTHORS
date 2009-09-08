@@ -2,21 +2,24 @@
 Disco Contributors
 ------------------
 
-This file lists Disco authors as returned by
+This file lists Disco authors based on
 
-        git-shortlog -s | sort -rn
+        git shortlog -s | sort -rn
 
 For full details, run 
 
-        git-shortlog
+        git shortlog
 
 Contributor's username in GitHub, if known, is in parentheses.
 
 Ville Tuulos / Nokia Research Center (tuulos)
+Jared Flatow / Nokia Research Center (jflatow)
 Valentino Volonghi (dialtone)
 Roberto Aguilar (rca)
 Jerry Zhou (zhou)
 Taneli Mielikainen / Nokia Research Center (tmielika)
+Mistobaan (Mistobaan)
+Jarno Seppanen / Nokia Research Center (jarnsepp)
 Paul Smith (paulsmith)
 Eran Sandler (erans)
 Attila Babo (issuu)
