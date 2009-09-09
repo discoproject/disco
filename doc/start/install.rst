@@ -49,7 +49,7 @@ On each server the following applications / libraries are required:
  * `Python 2.4 or newer <http://www.python.org>`_
  * `Python setuptools <http://pypi.python.org/pypi/setuptools>`_
  * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_
- 
+
 1. Install Disco
 ----------------
 
@@ -69,7 +69,7 @@ run it locally as an ordinary user. In that case, just write::
 
         make
 
-This is often the easiest and the least intrusive way to get started with Disco. 
+This is often the easiest and the least intrusive way to get started with Disco.
 
 You should repeat the above command on all servers that belong to your
 Disco cluster.
@@ -138,7 +138,7 @@ other servers.
 
 .. _configauth:
 
-4. Configure authentication 
+4. Configure authentication
 ---------------------------
 
 Next we need to enable passwordless login via ssh to all servers in
@@ -151,10 +151,10 @@ have valid ssh-keys already::
         ssh-keygen -N '' -f ~/.ssh/id_dsa
 
 If you have one server (or shared home directories), say::
-        
+
         cat ~/.ssh/id_dsa.pub >> ~/.ssh/authorized_keys
 
-Otherwise, repeat the following command for all the servers ``nodeX`` 
+Otherwise, repeat the following command for all the servers ``nodeX``
 in the cluster::
 
         ssh-copy-id nodeX
@@ -171,7 +171,7 @@ command as the Disco user on the master server::
         scp ~/.erlang.cookie nodeX:
 
 Repeat the command for all the servers ``nodeX``.
-        
+
 5. Add nodes to Disco
 ---------------------
 
@@ -225,7 +225,7 @@ to see that the system works correctly. Copy the following code to a
 file called ``count_words.py``::
 
         import sys
-        from disco import Disco, result_iterator
+        from disco.core import Disco, result_iterator
 
         def fun_map(e, params):
             return [(w, 1) for w in e.split()]

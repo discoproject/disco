@@ -24,7 +24,7 @@ class Params(object):
                         pass
                 self._state[st_k] = st_v
                 self.__dict__[k] = v
-        
+
         def __getstate__(self):
                 return self._state
 
@@ -58,7 +58,7 @@ class Disco(object):
 
         def joblist(self):
                 return json.loads(self.request("/disco/ctrl/joblist"))
-        
+
         def oob_get(self, name, key):
                 try:
                         return util.load_oob(self.host, name, key)
@@ -66,7 +66,7 @@ class Disco(object):
                         if x.http_code == 404:
                                 raise DiscoError("Unknown key or job name")
                         raise
-        
+
         def oob_list(self, name):
                 try:
                         r = self.request("/disco/ctrl/oob_list?name=%s" % name,
@@ -86,18 +86,18 @@ class Disco(object):
                 f = [s for s in self.oob_list(name) if s.startswith(prefix)]
                 if not f:
                         raise JobException("No profile data", self.host, name)
-                
+
                 stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
                 for s in f[1:]:
                         stats.add(Stats(self.oob_get(name, s)))
                 return stats
-        
+
         def new_job(self, **kwargs):
                 return Job(self, **kwargs)
-        
+
         def kill(self, name):
                 self.request("/disco/ctrl/kill_job", '"%s"' % name)
-        
+
         def clean(self, name):
                 self.request("/disco/ctrl/clean_job", '"%s"' % name)
 
@@ -127,23 +127,23 @@ class Disco(object):
                                 if i == len(lines) - 1:
                                         offs -= 1
                                 yield offs, ent
-                
+
                 r = self.request("/disco/ctrl/rawevents?name=%s" % name,
                                  redir = True, offset = offset)
-                
+
                 if len(r) < 2:
                         return []
                 else:
                         return event_iter(r)
 
         def results(self, jobspec, timeout = 2000):
-                jobspec = JobSpecifier(jobspec)
-                data    = json.dumps([timeout, list(jobspec.jobnames)])
-                results = json.loads(self.request("/disco/ctrl/get_results", data))
+                jobspecifier = JobSpecifier(jobspec)
+                data         = json.dumps([timeout, list(jobspecifier.jobnames)])
+                results      = json.loads(self.request("/disco/ctrl/get_results", data))
 
                 if type(jobspec) == str:
                         return results[0][1]
-                
+
                 others, active = [], []
                 for result in results:
                         if result[1][0] == 'active':
@@ -239,29 +239,29 @@ class Job(object):
                             "profile_stats", "events"]:
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
-       
+
         def _run(self, **kw):
                 d = lambda x: kw.get(x, Job.defaults[x])
-                
+
                 # -- check parameters --
 
-                # Backwards compatibility 
+                # Backwards compatibility
                 # (fun_map == map, input_files == input)
                 if "fun_map" in kw:
                         kw["map"] = kw["fun_map"]
-                
+
                 if "input_files" in kw:
                         kw["input"] = kw["input_files"]
 
                 if "chunked" in kw:
                         raise DiscoError("Argument 'chunked' is deprecated")
-                
+
                 if not "input" in kw:
                         raise DiscoError("input is required")
-                
+
                 if not ("map" in kw or "reduce" in kw):
                         raise DiscoError("Specify map and/or reduce")
-                
+
                 for p in kw:
                         if p not in Job.defaults:
                                 raise DiscoError("Unknown argument: %s" % p)
@@ -269,7 +269,7 @@ class Job(object):
                 inputs = kw["input"]
 
                 # -- initialize request --
-                
+
                 req = {"name": self.name,
                        "version": ".".join(map(str, sys.version_info[:2])),
                        "params": cPickle.dumps(d("params"), cPickle.HIGHEST_PROTOCOL),
@@ -277,7 +277,7 @@ class Job(object):
                        "mem_sort_limit": str(d("mem_sort_limit")),
                        "status_interval": str(d("status_interval")),
                        "profile": str(int(d("profile")))}
-                
+
                 # -- required modules --
 
                 if "required_modules" in kw:
@@ -301,7 +301,7 @@ class Job(object):
 
                 req["required_modules"] = " ".join(imp_mod)
                 rf = util.pack_files(send_mod)
-                
+
                 # -- required files --
 
                 if "required_files" in kw:
@@ -324,18 +324,18 @@ class Job(object):
                         if "map_init" in kw:
                                 req["map_init"] = marshal.dumps(\
                                         kw["map_init"].func_code)
-                       
+
                         req["map_reader"] =\
                                 marshal.dumps(d("map_reader").func_code)
                         req["map_writer"] =\
                                 marshal.dumps(d("map_writer").func_code)
                         req["partition"] =\
                                 marshal.dumps(d("partition").func_code)
-                        
+
                         if "combiner" in kw:
                                 req["combiner"] =\
                                         marshal.dumps(kw["combiner"].func_code)
-                        
+
                         parsed_inputs = []
                         for inp in inputs:
                                 if type(inp) == list:
@@ -346,7 +346,7 @@ class Job(object):
                                 else:
                                         parsed_inputs.append(inp)
                         inputs = parsed_inputs
-                        
+
                         if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
                                 nr_maps = len(inputs)
                         else:
@@ -395,7 +395,7 @@ class Job(object):
                                         "without the map phase")
                         else:
                                 inputs = ext_inputs
-              
+
                 # shuffle fixes a pathological case in the fifo scheduler:
                 # if inputs for a node are consequent, data locality will be
                 # lost after K inputs where K is the number of cores.
@@ -405,14 +405,14 @@ class Job(object):
 
                 req["input"] = " ".join(inputs)
                 req["nr_maps"] = str(nr_maps)
-        
+
                 if "ext_params" in kw:
                         if type(kw["ext_params"]) == dict:
                                 req["ext_params"] =\
                                         encode_netstring_fd(kw["ext_params"])
                         else:
                                 req["ext_params"] = kw["ext_params"]
-                
+
                 # -- reduce --
 
                 nr_reduces = d("nr_reduces")
@@ -424,7 +424,7 @@ class Job(object):
                                 req["reduce"] = marshal.dumps(
                                         kw["reduce"].func_code)
                         nr_reduces = nr_reduces or min(max(nr_maps / 2, 1), 100)
-                       
+
                         req["reduce_reader"] =\
                                 marshal.dumps(d("reduce_reader").func_code)
                         req["reduce_writer"] =\
@@ -435,14 +435,14 @@ class Job(object):
                                         kw["reduce_init"].func_code)
                 else:
                         nr_reduces = nr_reduces or 0
-               
+
                 req["nr_reduces"] = str(nr_reduces)
-                
-                # -- encode and send the request -- 
+
+                # -- encode and send the request --
 
                 self.msg = encode_netstring_fd(req)
                 reply = self.master.request("/disco/job/new", self.msg)
-                        
+
                 if reply != "job started":
                         raise DiscoError("Failed to start a job. Server replied: " + reply)
 
@@ -450,14 +450,14 @@ class Job(object):
 
 def result_iterator(results, notifier = None,\
         proxy = None, reader = func.netstr_reader):
-        
+
         res = []
         for dir_url in results:
                 if dir_url.startswith("dir://"):
                         res += util.parse_dir(dir_url, proxy)
                 else:
                         res.append(dir_url)
-        
+
         x, x, root = util.load_conf()
 
         for url in res:
@@ -482,4 +482,4 @@ def result_iterator(results, notifier = None,\
 
                 for x in reader(fd, sze, fname):
                         yield x
-                
+

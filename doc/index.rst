@@ -24,11 +24,11 @@ Getting started
    :maxdepth: 1
 
    start/install
+   disco command line interface <man/disco>
    start/tutorial
    start/ec2setup
    start/dfs
    start/troubleshoot
-   man/disco
 
 References
 ----------
