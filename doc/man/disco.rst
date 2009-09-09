@@ -1,3 +1,6 @@
+
+.. _disco:
+
 =====
 disco
 =====
@@ -5,9 +8,6 @@ disco
 -----------------------
 control a Disco cluster
 -----------------------
-
-.. _disco:
-
 
 SYNOPSIS
 ========
