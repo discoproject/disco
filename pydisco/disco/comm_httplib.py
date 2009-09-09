@@ -80,5 +80,6 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
                                             "after %d attempts: %s" %\
                                             (url, MAX_RETRIES, e))
                 http.close()
-                del http_pool[ext_host]
+                if ext_host in http_pool:
+                        del http_pool[ext_host]
                 return open_remote(url, data, ttl=ttl - 1)
