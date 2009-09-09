@@ -1,5 +1,6 @@
 import httplib, urllib2
 
+MAX_RETRIES = 10
 http_pool = {}
 
 class CommException(Exception):
@@ -36,7 +37,7 @@ def check_code(fd, expected):
         if fd.status != expected:
                 raise CommException(fd.status)
 
-def open_remote(url, data = None, expect = 200, offset = 0):
+def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
         try:
                 ext_host, ext_file = url[7:].split("/", 1)
                 ext_file = "/" + ext_file
@@ -44,7 +45,7 @@ def open_remote(url, data = None, expect = 200, offset = 0):
                 # We can't open a new HTTP connection for each intermediate
                 # result -- this would result to M * R TCP connections where
                 # M is the number of maps and R the number of reduces. Instead,
-                # we pool connections and reuse them whenever possible. HTTP 
+                # we pool connections and reuse them whenever possible. HTTP
                 # 1.1 defaults to keep-alive anyway.
                 if ext_host in http_pool:
                         http = http_pool[ext_host]
@@ -67,17 +68,17 @@ def open_remote(url, data = None, expect = 200, offset = 0):
                         http.request("GET", ext_file, None, headers = h)
                         fd = http.getresponse()
                         check_code(fd, expect)
-               
+
                 sze = fd.getheader("content-length")
                 if sze:
                         sze = int(sze)
                 return sze, fd
 
-        except httplib.BadStatusLine:
-                # BadStatusLine is caused by a closed connection. Re-open a new
-                # connection by deleting this connection from the pool and
-                # calling this function again. Note that this might result in
-                # endless recursion if something went seriously wrong.
+        except Exception, e:
+                if not ttl:
+                        raise CommException("Downloading %s failed "\
+                                            "after %d attempts: %s" %\
+                                            (url, MAX_RETRIES, e))
                 http.close()
                 del http_pool[ext_host]
-                return open_remote(url, data)
+                return open_remote(url, data, ttl=ttl - 1)

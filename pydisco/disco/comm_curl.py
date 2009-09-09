@@ -1,9 +1,8 @@
 import cStringIO, struct, time, sys, os
 from pycurl import *
-from disco.comm_httplib import CommException
+from disco.comm_httplib import CommException, MAX_RETRIES
 
 MAX_BUF = 1024**2
-MAX_RETRIES = 10
 dl_handle = None
 
 def check_code(c, expected):
@@ -59,7 +58,7 @@ class CurlConn:
                 for i in range(MAX_RETRIES):
                         self.init_handle(url)
                         self.perform()
-                        x, succ, fail = self.multi.info_read(1) 
+                        x, succ, fail = self.multi.info_read(1)
                         if not fail:
                                 break
                         self.handle = Curl()
@@ -68,7 +67,7 @@ class CurlConn:
                         raise CommException(
                                 "Couldn't connect after %d attempts: %s" %\
                                         (MAX_RETRIES, fail[0][2]))
-                
+
                 # make sure all headers are read
                 while self.cont and not self.body:
                         self.perform()
@@ -77,7 +76,7 @@ class CurlConn:
                 if code == 0:
                         raise CommException("Couldn't receive http response")
                 check_code(self.handle, expect)
-                
+
         def init_handle(self, url):
                 self.handle.setopt(URL, url)
                 self.handle.setopt(WRITEFUNCTION, self.write)
@@ -99,7 +98,7 @@ class CurlConn:
                 while ret == E_CALL_MULTI_PERFORM:
                         ret, num_handles = self.multi.perform()
                         self.cont = num_handles
-        
+
         def head(self, buf):
                 buf = buf.lower()
                 if buf.startswith("content-length:"):
@@ -132,12 +131,12 @@ def open_remote(url, expect = 200):
 
 
 
-                
 
 
 
-                
-                
 
-        
+
+
+
+
 
