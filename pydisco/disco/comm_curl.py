@@ -3,7 +3,9 @@ from pycurl import *
 from disco.comm_httplib import CommException, MAX_RETRIES
 
 MAX_BUF = 1024**2
-dl_handle = None
+MAX_RETRIES = 10
+CONNECT_TIMEOUT = 20
+TRANSFER_TIMEOUT = 10 * 60
 
 def check_code(c, expected):
         code = c.getinfo(HTTP_CODE)
@@ -11,9 +13,10 @@ def check_code(c, expected):
                 raise CommException(code)
 
 def download(url, data = None, redir = False, offset = 0):
-        global dl_handle
-        if not dl_handle:
-                dl_handle = Curl()
+        dl_handle = Curl()
+        dl_handle.setopt(NOSIGNAL, 1)
+        dl_handle.setopt(CONNECTTIMEOUT, CONNECT_TIMEOUT)
+        dl_handle.setopt(TIMEOUT, TRANSFER_TIMEOUT)
         if redir:
                 dl_handle.setopt(FOLLOWLOCATION, 1)
         retry = 0
@@ -37,10 +40,9 @@ def download(url, data = None, redir = False, offset = 0):
                                 raise CommException("Downloading %s failed "\
                                         "after %d attempts: %s" %\
                                         (url, MAX_RETRIES, dl_handle.errstr()))
+                        dl_handle.setopt(FRESH_CONNECT, 1)
                         retry += 1
 
-        dl_handle.setopt(POST, 0)
-        dl_handle.setopt(FOLLOWLOCATION, 0)
         if offset:
                 dl_handle.setopt(RANGE, "")
                 check_code(dl_handle, 206)
@@ -54,6 +56,7 @@ class CurlConn:
                         self.handle = handle
                 else:
                         self.handle = Curl()
+                self.url = url
 
                 for i in range(MAX_RETRIES):
                         self.init_handle(url)
@@ -79,6 +82,9 @@ class CurlConn:
 
         def init_handle(self, url):
                 self.handle.setopt(URL, url)
+                self.handle.setopt(NOSIGNAL, 1)
+                self.handle.setopt(CONNECTTIMEOUT, 20)
+                self.handle.setopt(TIMEOUT, 10 * 60)
                 self.handle.setopt(WRITEFUNCTION, self.write)
                 self.handle.setopt(HEADERFUNCTION, self.head)
                 self.multi = CurlMulti()
@@ -92,13 +98,22 @@ class CurlConn:
                 if not self.cont:
                         return
                 r = -1
-                while r == -1:
-                        r = self.multi.select(100.0)
+                timeout = CONNECT_TIMEOUT
+                while r == -1 and timeout > 0:
+                        r = self.multi.select(1.0)
+                        timeout -= 1
+                if timeout == 0:
+                        raise CommException("Connection timeout: %s" % self.url)
+
+                timeout = CONNECT_TIMEOUT
                 ret = E_CALL_MULTI_PERFORM
-                while ret == E_CALL_MULTI_PERFORM:
+                while ret == E_CALL_MULTI_PERFORM and timeout > 0:
                         ret, num_handles = self.multi.perform()
                         self.cont = num_handles
-
+                        timeout -= 1
+                if timeout == 0:
+                        raise CommException("Connection timeout: %s" % self.url)
+        
         def head(self, buf):
                 buf = buf.lower()
                 if buf.startswith("content-length:"):
