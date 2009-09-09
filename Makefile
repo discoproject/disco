@@ -76,4 +76,6 @@ $(EBIN)/%.beam: $(ESRC)/%.erl
 	$(CC) $(OPT) -o $(EBIN) $<
 
 config:
-	cp -n conf/settings.py.template conf/settings.py || true
+	$(if $(wildcard conf/settings.py),\
+	        $(info not overwriting existing conf/settings.py),\
+                 cp conf/settings.py.template conf/settings.py)
