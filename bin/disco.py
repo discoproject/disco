@@ -59,7 +59,14 @@ class server(object):
         self.assert_status('stopped')
         if not args:
             args = self.args
-        process = subprocess.Popen(args, env=self.env, **kwargs)
+        try:
+            process = subprocess.Popen(args, env=self.env, **kwargs)
+        except OSError, x:
+            if x.errno == 2:
+                    raise DiscoError("%s not found. "\
+                            "Is it in your PATH?" % args[0])
+            else:
+                    raise
         if process.wait():
             raise DiscoError("Failed to start %s" % self)
         yield '%s started' % self
@@ -224,7 +231,13 @@ def main():
     if not os.path.exists(DISCO_CONF):
         DISCO_CONF = "/etc/disco"
 
-    sys.path.extend([DISCO_PATH, sys.path.pop(0)])
+    # disco.py and the disco package are ambiguous. Move the local directory
+    # to the end of the list, to make sure that the disco package is preferred
+    # over disco.py.
+    sys.path.append(sys.path.pop(0))
+    # Prefer local Disco over system-wide installation
+    sys.path.insert(0, DISCO_PATH)
+
     from disco.settings import DiscoSettings
 
     usage = """

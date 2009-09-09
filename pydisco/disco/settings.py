@@ -25,7 +25,7 @@ class DiscoSettings(dict):
         'DISCO_ERLANG':          "guess_erlang()",
         'DISCO_HTTPD':           "'lighttpd'",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
-        'PYTHONPATH':            "'%s:%s' % (os.getenv('PYTHONPATH', ''), DISCO_PATH)",
+        'PYTHONPATH':            "DISCO_PATH",
         'DISCO_SCHEDULER':       "'fair'",
         'DISCO_SCHEDULER_ALPHA': ".001",
         }
