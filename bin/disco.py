@@ -11,9 +11,9 @@ class server(object):
         self.disco_settings = disco_settings
         self.host = socket.gethostname()
         self.port = port
-   
+
     def setid(self):
-        user = self.disco_settings['DISCO_USER'] 
+        user = self.disco_settings['DISCO_USER']
         if user != os.getenv('LOGNAME'):
             if os.getuid() != 0:
                 raise DiscoError("Only root can change DISCO_USER")
@@ -63,7 +63,7 @@ class server(object):
         if process.wait():
             raise DiscoError("Failed to start %s" % self)
         yield '%s started' % self
-    
+
     def assert_status(self, status):
         if self._status != status:
             raise DiscoError("%s already %s" % (self, self._status))
@@ -108,7 +108,7 @@ class lighttpd(server):
                     'DISCO_HTTP_PID': self.pid_file,
                     'DISCO_HTTP_PORT': str(self.port)})
         return env
-        
+
 class master(server):
     def __init__(self, disco_settings):
         super(master, self).__init__(disco_settings, disco_settings['DISCO_SCGI_PORT'])
@@ -140,7 +140,7 @@ class master(server):
         env = self.disco_settings.env
         env.update({'DISCO_MASTER_PID': self.pid_file})
         return env
-    
+
     @property
     def lighttpd(self):
         return lighttpd(self.disco_settings,
@@ -164,7 +164,7 @@ class master(server):
         if command in ('nodaemon', 'remsh'):
             return getattr(self, command)()
         return chain(getattr(self, command)(), self.lighttpd.send(command))
-    
+
     def __str__(self):
         return 'disco master'
 
@@ -172,7 +172,7 @@ class worker(server):
     def __init__(self, disco_settings):
         super(worker, self).__init__(disco_settings)
         self.setid()
-    
+
     @property
     def lighttpd(self):
         return lighttpd(self.disco_settings,
@@ -214,7 +214,7 @@ class test(object):
         yield 'searching for names in sys.path:\n%s' % sys.path
         from disco.test import DiscoTestRunner
         DiscoTestRunner(self.disco_settings).run(*names)
-    
+
 def main():
     DISCO_BIN  = os.path.dirname(os.path.realpath(__file__))
     DISCO_HOME = os.path.dirname(DISCO_BIN)
@@ -224,13 +224,10 @@ def main():
     if not os.path.exists(DISCO_CONF):
         DISCO_CONF = "/etc/disco"
 
-    # Don't include the directory where this disco.py script is located.
-    # Otherwise it'llt be confused with the disco package.
-    del sys.path[0]
-    sys.path.insert(0, DISCO_PATH)
+    sys.path.extend([DISCO_PATH, sys.path.pop(0)])
     from disco.settings import DiscoSettings
 
-    usage = """            
+    usage = """
             %prog [options] [master|worker] [start|stop|restart|status]
             %prog [options] master nodaemon
             %prog [options] debug [hostname]
@@ -258,7 +255,7 @@ def main():
             """
             It seems that Disco is at {DISCO_HOME}
             Disco settings are at {0}
-            
+
             If this is not what you want, see the `--help` option
             """.format(options.settings, **disco_settings)) # python2.6+
 
@@ -266,10 +263,10 @@ def main():
         for item in sorted(disco_settings.env.iteritems()):
             print('%s = %s' % (item))
         sys.exit(0)
-    
+
     argdict      = dict(enumerate(sys.argv))
     disco_object = globals()[argdict.pop(0, 'master')](disco_settings)
-    
+
     for name in disco_settings.must_exist:
         path = disco_settings[name]
         if not os.path.exists(path):

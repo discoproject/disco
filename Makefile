@@ -23,25 +23,25 @@ TARGET = $(addsuffix .beam, $(basename \
 
 UNAME = $(shell uname)
 
-build: master
+build: master config
 
 master: $(TARGET)
 
 clean:
-	- rm -Rf master/ebin/*.beam 
+	- rm -Rf master/ebin/*.beam
 	- rm -Rf pydisco/build
 	- rm -Rf pydisco/disco.egg-info
 	- rm -Rf node/build
 	- rm -Rf node/disco_node.egg-info
 
-install: install-master install-pydisco install-node 
- 
+install: install-master install-pydisco install-node
+
 install-master: install-config install-bin master
 	install -d $(TARGETDIR)/ebin
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
 	install -m 0755 master/ebin/disco.app $(TARGETDIR)/ebin
 	install -m 0755 master/make-lighttpd-proxyconf.py $(TARGETDIR)
-	
+
 	cp -r master/www $(TARGETDIR)
 	chmod -R u=rwX,g=rX,o=rX $(TARGETDIR)/www
 
@@ -52,7 +52,7 @@ install-master: install-config install-bin master
 install-node: install-config install-bin master
 	install -d $(TARGETDIR)/ebin
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
-	
+
 	(cd node; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
 	$(if $(wildcard $(TARGETCFG)/lighttpd-worker.conf),\
 		$(info lighttpd-worker config already exists, skipping),\
@@ -75,3 +75,5 @@ install-config:
 $(EBIN)/%.beam: $(ESRC)/%.erl
 	$(CC) $(OPT) -o $(EBIN) $<
 
+config:
+	cp -n conf/settings.py.template conf/settings.py || true

@@ -32,14 +32,6 @@ The new startup script makes it even easier to get up and running with a Disco c
 
 .. hint::
 
-   In order to use the `disco` command, you will first need to create a settings file, e.g.::
-
-        cp $DISCO_HOME/conf/settings.py.template $DISCO_HOME/conf/settings.py
-
-   Copying the default configuration should just work as a starting point for most users.
-
-.. hint::
-
    The documentation assumes that the executable ``$DISCO_HOME/bin/disco`` is on your system path.
    If it is not on your path, you can add it::
 

@@ -3,7 +3,7 @@
 
 Disco settings
 ==============
- 
+
         *DISCO_DEBUG*
                 Sets the debugging level for Disco.
                 Default is 1.
@@ -30,10 +30,6 @@ Disco settings
         *DISCO_MASTER_HOST*
                 The hostname of the master.
                 Default obtained using ``socket.gethostname()``.
-
-        *DISCO_MASTER_PORT*
-                The port the master uses for `HTTP` communication.
-                Default comes from ``DISCO_PORT``.
 
         *DISCO_NAME*
                 A unique name for the Disco cluster.
