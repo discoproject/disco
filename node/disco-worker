@@ -8,6 +8,20 @@ from disconode.disco_worker import JOB_ROOT, OOB_FILE, PARAMS_FILE, CHDIR_PATH
 from disco.netstring import decode_netstring_fd
 from disco import util, comm
 
+
+def run(method, mode, part, jobpack):
+        if int(jobpack['profile']):
+                try:
+                        import cProfile as prof
+                except:
+                        import profile as prof
+
+                key = "profile-%s-%s" % (mode, part)
+                prof.run("method(m)", OOB_FILE % key)
+                dw.put(key, None) 
+        else:
+                method(jobpack)
+
 if __name__ == "__main__":
         if len(sys.argv) < 7:
                 util.err("Invalid command line. "\
@@ -21,9 +35,14 @@ if __name__ == "__main__":
         mode = sys.argv[1]
         name = sys.argv[2]
         master_url = sys.argv[4]
+        part = sys.argv[5]
 
-        ensure_path(OOB_FILE % "", False)
-        os.chdir(CHDIR_PATH)
+        try: 
+                ensure_path(OOB_FILE % "", False)
+                os.chdir(CHDIR_PATH)
+        except Exception, e:
+                util.data_err("Failed to initialize worker directories "\
+                                "(disk full?)", "")
         
         try:
                 if util.resultfs_enabled:
@@ -55,17 +74,12 @@ if __name__ == "__main__":
         method = getattr(dw, 'op_' + mode, None)
         if method is None:
                 util.err("Invalid operation: %s" % mode)
-        
-        if int(m['profile']):
-                try:
-                        import cProfile as prof
-                except:
-                        import profile as prof
 
-                key = "profile-%s-%s" % (mode, sys.argv[5])
-                prof.run("method(m)", OOB_FILE % key)
-                dw.put(key, None) 
-        else:
-                method(m)
+        try:
+                run(method, mode, part, m)
+        except comm.CommException, x:
+                util.data_err("HTTP error: %s" % x)
+        except IOError, x:
+                util.data_err("IO error: %s" % x)
         
         util.msg("Worker done", "END")
