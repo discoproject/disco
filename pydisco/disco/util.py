@@ -114,8 +114,9 @@ def load_oob(host, name, key):
                 fname = "%s/data/%s" % (ROOT, "/".join(loc.split("/")[3:]))
                 try:
                         return file(fname).read()
-                except DiscoError:
-                        raise CommException(404, "OOB key (%s) not found at %s" % (key, fname))
+                except Exception:
+                        raise DiscoError("OOB key (%s) not found at %s" %\
+                                 (key, fname))
         else:
                 return download(url, redir = True)
 

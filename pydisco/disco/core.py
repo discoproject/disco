@@ -60,21 +60,11 @@ class Disco(object):
                 return json.loads(self.request("/disco/ctrl/joblist"))
 
         def oob_get(self, name, key):
-                try:
-                        return util.load_oob(self.host, name, key)
-                except comm.CommException, x:
-                        if x.http_code == 404:
-                                raise DiscoError("Unknown key or job name")
-                        raise
+                return util.load_oob(self.host, name, key)
 
         def oob_list(self, name):
-                try:
-                        r = self.request("/disco/ctrl/oob_list?name=%s" % name,
-                                redir = True)
-                except comm.CommException, x:
-                        if x.http_code == 404:
-                                raise DiscoError("Unknown key or job name")
-                        raise
+                r = self.request("/disco/ctrl/oob_list?name=%s" % name,
+                        redir = True)
                 return json.loads(r)
 
         def profile_stats(self, name, mode = ""):

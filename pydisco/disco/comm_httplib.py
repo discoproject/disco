@@ -4,17 +4,16 @@ MAX_RETRIES = 10
 http_pool = {}
 
 class CommException(Exception):
-        def __init__(self, http_code, msg = None):
-                self.http_code = http_code
+        def __init__(self, msg, url = ""):
                 self.msg = msg
+                self.url = url
 
         def __str__(self):
-                if self.msg:
-                        return "HTTP exception (http status '%s'): %s" %\
-                                (self.http_code, self.msg)
+                if self.url:
+                        return "HTTP exception (%s): %s" %\
+                                (self.url, self.msg)
                 else:
-                        return "HTTP exception (http status '%s')" %\
-                                self.http_code
+                        return "HTTP exception: %s" % self.msg
 
 def download(url, data = None, redir = False, offset = 0):
         if redir:
@@ -24,7 +23,7 @@ def download(url, data = None, redir = False, offset = 0):
                 try:
                         c = urllib2.urlopen(req)
                 except urllib2.HTTPError, x:
-                        raise CommException(x.msg)
+                        raise CommException(x.msg, url)
                 r = c.read()
                 c.close()
                 return r
@@ -33,9 +32,10 @@ def download(url, data = None, redir = False, offset = 0):
                 return fd.read()
 
 
-def check_code(fd, expected):
+def check_code(fd, expected, url):
         if fd.status != expected:
-                raise CommException(fd.status)
+                raise CommException("Invalid HTTP reply (expected %s got %s)" %\
+                         (expected, fd.status), url)
 
 def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
         try:
@@ -63,11 +63,11 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
                 if data:
                         http.request("POST", ext_file, data, headers = h)
                         fd = http.getresponse()
-                        check_code(fd, expect)
+                        check_code(fd, expect, url)
                 else:
                         http.request("GET", ext_file, None, headers = h)
                         fd = http.getresponse()
-                        check_code(fd, expect)
+                        check_code(fd, expect, url)
 
                 sze = fd.getheader("content-length")
                 if sze:
@@ -78,7 +78,7 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
                 if not ttl:
                         raise CommException("Downloading %s failed "\
                                             "after %d attempts: %s" %\
-                                            (url, MAX_RETRIES, e))
+                                            (url, MAX_RETRIES, e), url)
                 http.close()
                 if ext_host in http_pool:
                         del http_pool[ext_host]
