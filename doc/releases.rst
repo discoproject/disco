@@ -2,6 +2,52 @@
 Release notes
 =============
 
+Disco 0.2.3 (September 9th 2009)
+--------------------------------
+
+New features
+''''''''''''
+
+ - The :ref:`disco` control script makes setting up and running Disco much easier than
+   before.
+ - Console output of job events (`screenshot
+   <http://discoproject.org/img/disco-events.png>`_). You can now follow progress of a job
+   on the console instead of the web UI by setting ``DISCO_EVENTS=1``. 
+   See :meth:`disco.core.Disco.events` and :meth:`disco.core.Disco.wait`.
+ - Automatic inference and distribution of dependent modules. See :mod:`disco.modutil`.
+ - *required_files* parameter added to :meth:`disco.core.Disco.new_job`.
+ - Combining the previous two features, a new easier way to use external C
+   libraries is provided, see :ref:`discoext`.
+ - Support for Python 2.6 and 2.7.
+ - Easier installation of a simple single-server cluster. Just run ``disco
+   master start`` on the disco directory. The ``DISCO_MASTER_PORT`` setting is deprecated.
+ - Improved support for OS X. The ``DISCO_SLAVE_OS`` setting is deprecated.
+ - Debian packages upgraded to use Erlang 13B.
+ - Several improvements related to fault-tolerance of the system
+ - Serialize job parameters using more efficient and compact binary format.
+ - Improved support for GlusterFS (2.0.6 and newer).
+
+Bugfixes
+''''''''
+
+ - **critical** External sort didn't work correctly with non-numeric keys (5ef88ad4)
+ - External sort didn't handle newlines correctly (61d6a597f)
+ - Regression fixed in :meth:`disco.core.Disco.jobspec`; the function works now
+   again (e5c20bbfec4)
+ - Filter fixed on the web UI (bug #4, e9c265b)
+ - Tracebacks are now shown correctly on the web UI (bug #3, ea26802ce)
+ - Fixed negative number of maps on the web UI (bug #28, 5b23327 and 3e079b7)
+ - The ``comm_curl`` module might return an insufficient number of bytes (761c28c4a)
+ - Temporary node failure (noconnection) shouldn't be a fatal error (bug #22, ad95935)
+ - *nr_maps* and *nr_reduces* limits were off by one (873d90a7)
+ - Fixed a Javascript bug on the config table (11bb933)
+ - Timeouts in starting a new worker shouldn't be fatal (f8dfcb94)
+ - The connection pool in ``comm_httplib`` didn't work correctly (bug #30, 5c9d7a88e9)
+ - Added timeouts to ``comm_curl`` to fix occasional issues with the connection
+   getting stuck (2f79c698)
+ - All `IOErrors` and `CommExceptions` are now non-fatal (f1d4a127c)
+
+
 Disco 0.2.2 (July 26th 2009)
 ----------------------------
 
