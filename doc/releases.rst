@@ -26,6 +26,7 @@ New features
  - Several improvements related to fault-tolerance of the system
  - Serialize job parameters using more efficient and compact binary format.
  - Improved support for GlusterFS (2.0.6 and newer).
+ - Support for the pre-0.1 ``disco`` module, ``disco.job`` call etc., removed.
 
 Bugfixes
 ''''''''
