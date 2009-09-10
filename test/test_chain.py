@@ -1,6 +1,6 @@
 
 import tserver, sys
-from disco import Disco, result_iterator
+from disco.core import Disco, result_iterator
 from disco.func import chain_reader
 from disco.util import jobname
 

@@ -1,7 +1,7 @@
-
-import re, os
-import sys, time, os, traceback
-from disco import comm
+import os
+import sys, time, traceback
+from disco.comm import CommException, download, open_remote
+from disco.error import DiscoError
 
 job_name = "none"
 resultfs_enabled =\
@@ -14,12 +14,12 @@ def msg(m, c = 'MSG', job_input = ""):
 
 def err(m):
         msg(m, 'MSG')
-        raise Exception(m)
+        raise DiscoError(m)
 
 def data_err(m, job_input):
         msg(m, 'DAT', job_input)
         if sys.exc_info() == (None, None, None):
-                raise Exception(m)
+                raise DiscoError(m)
         else:
                 print traceback.print_exc()
                 raise
@@ -42,15 +42,18 @@ def jobname(addr):
         elif addr.startswith("dir:"):
                 return addr.strip("/").split("/")[-2]
         else:
-                raise "Unknown address: %s" % addr
+                raise DiscoError("Unknown address: %s" % addr)
 
-
-def external(files):
-        msg = {"op": file(files[0]).read()}
-        for f in files[1:]:
+def pack_files(files):
+        msg = {}
+        for f in files:
                 msg[os.path.basename(f)] = file(f).read()
         return msg
 
+def external(files):
+        msg = pack_files(files[1:])
+        msg["op"] = file(files[0]).read()
+        return msg
 
 def disco_host(addr):
         if addr.startswith("disco:"):
@@ -65,7 +68,7 @@ def disco_host(addr):
         elif addr.startswith("http:"):
                 return addr
         else:
-                raise "Unknown host specifier: %s" % addr
+                raise DiscoError("Unknown host specifier: %s" % addr)
 
 def proxy_url(proxy, path, node = "x"):
         if not proxy:
@@ -77,7 +80,7 @@ def proxy_url(proxy, path, node = "x"):
         elif proxy.startswith("http://"):
                 host = proxy[7:]
         else:
-                raise Exception("Unknown proxy protocol: %s" % proxy)
+                raise DiscoError("Unknown proxy protocol: %s" % proxy)
         return "http://%s/disco/node/%s/%s" % (host, node, path)
 
 def parse_dir(dir_url, proxy = None, part_id = None):
@@ -87,16 +90,16 @@ def parse_dir(dir_url, proxy = None, part_id = None):
                 if resultfs_enabled:
                         r = file("%s/data/%s" % (ROOT, name)).readlines()
                 else:
-                        r = comm.download(url).splitlines()
+                        r = download(url).splitlines()
         else:
-                b, max = name.split("/")[-1].split(":")
-                fl = len(max)
+                b, mmax = name.split("/")[-1].split(":")
+                fl = len(mmax)
                 base = b[:len(b) - fl]
                 t = "%s%%.%dd" % (base, fl)
                 if part_id != None:
                         r = [t % part_id]
                 else:
-                        r = [t % i for i in range(int(max) + 1)]
+                        r = [t % i for i in range(int(mmax) + 1)]
 
         p = "/".join(name.split("/")[:-1])
         return ["disco://%s/%s/%s" % (host, p, x.strip()) for x in r]
@@ -106,17 +109,16 @@ def load_oob(host, name, key):
         url = "%s/disco/ctrl/oob_get?name=%s&key=%s&proxy=%d" %\
                 (host, name, key, use_proxy)
         if resultfs_enabled:
-                sze, fd = comm.open_remote(url, expect = 302)
+                sze, fd = open_remote(url, expect = 302)
                 loc = fd.getheader("location")
                 fname = "%s/data/%s" % (ROOT, "/".join(loc.split("/")[3:]))
                 try:
                         return file(fname).read()
-                except Exception, x:
-                        raise comm.CommException(404, 
-                                "OOB key (%s) not found at %s" %\
-                                (key, fname))
+                except Exception:
+                        raise DiscoError("OOB key (%s) not found at %s" %\
+                                 (key, fname))
         else:
-                return comm.download(url, redir = True)
+                return download(url, redir = True)
 
 
 MASTER_PORT, HTTP_PORT, ROOT = load_conf()

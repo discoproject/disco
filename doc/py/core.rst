@@ -25,6 +25,7 @@ All methods in :class:`Disco` that are related to individual jobs, namely
  - :meth:`Disco.wait`
  - :meth:`Disco.jobinfo`
  - :meth:`Disco.results`
+ - :meth:`Disco.events`
  - :meth:`Disco.jobspec`
  - :meth:`Disco.clean`
  - :meth:`Disco.purge`
@@ -101,6 +102,18 @@ anymore. You can delete the unneeded job files as follows::
 
    Returns the raw job request package, as constructed by
    :meth:`Disco.new_job`, for the job *name*.
+   
+   .. method:: Disco.events(name[, offset = 0])
+   
+   (*Added in version 0.2.3*) 
+
+   Returns an iterator that iterates over current events of the job, starting
+   from the oldest event. It is safe to call this function while the job is running.
+   
+   The iterator returns tuples ``(offset, event)``. You can pass an *offset* value
+   to this function, to make the iterator skip over the events before the specified
+   *offset*. This provides an efficient way to monitor job events continuously. 
+   For a built-in example, see the *show* parameter in :meth:`Disco.wait`.
 
    .. method:: Disco.results(jobspec[, timeout = 5000])
 
@@ -170,7 +183,7 @@ anymore. You can delete the unneeded job files as follows::
 
         job.profile_stats().print_stats()
 
-   .. method:: Disco.wait(name[, poll_interval, timeout, clean])
+   .. method:: Disco.wait(name[, poll_interval, timeout, clean, show])
 
    Block until the job *name* has finished. Returns a list URLs to the
    results files which is typically processed with :func:`result_iterator`.
@@ -192,6 +205,12 @@ anymore. You can delete the unneeded job files as follows::
 
    to delete the actual result files.
 
+   *show* (*Added in version 0.2.3*) enables console output of job events. If
+   you want to see output of the job only occasionally, you can control this
+   parameter also using the environment variable ``DISCO_EVENTS`` that is
+   used to set the value of *show* if it is not specified explicitely. See
+   ``DISCO_EVENTS`` in :ref:`settings` for more information.
+
    .. method:: Disco.new_job(...)
 
    Submits a new job request to the master. This method accepts the same
@@ -203,7 +222,7 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_modules, status_interval, profile])
+.. class:: Job(master, [name, input, map, map_reader, map_writer, reduce, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_files, required_modules, status_interval, profile])
 
    Starts a new Disco job. You seldom instantiate this class
    directly. Instead, the :meth:`Disco.new_job` is used to start a job
@@ -453,11 +472,11 @@ anymore. You can delete the unneeded job files as follows::
      * *mem_sort_limit* - sets the maximum size for the input that can be sorted
        in memory. The larger inputs are sorted on disk. By default 256MB.
 
-     * *chunked* - if the reduce function is specified, the worker saves
-       results from a single map instance to a single file that includes
-       key-value pairs for all partitions. When the reduce function is
-       executed, the worker knows how to retrieve pairs for each partition
-       from the files separately. This is called the chunked mode.
+     * *chunked* - (*Deprecated in version 0.2.2*) if the reduce function is 
+       specified, the worker saves results from a single map instance to a 
+       single file that includes key-value pairs for all partitions. When the 
+       reduce function is executed, the worker knows how to retrieve pairs for 
+       each partition from the files separately. This is called the chunked mode.
 
        If no reduce is specified, results for each partition are saved
        to a separate file. This produces *M \* P* files where *M* is the number
@@ -483,9 +502,27 @@ anymore. You can delete the unneeded job files as follows::
        
        For more information, see :ref:`discoext`.
 
-     * *required_modules* - is a list of additional modules (module names) which
-       are required by job functions. Modules listed here are imported to the
-       functions' namespace.
+     * *required_files* - (*Added in version 0.2.3*) is a list of additional 
+       files that are required by the job. You can either specify a list of
+       paths to files that should be included, or a dictionary which contains
+       file names as keys and file contents as the corresponding values. Note
+       that all files will be saved in a flat directory - no subdirectories 
+       are created.
+
+       You can use this parameter to include custom modules or shared libraries
+       in the job. Note that ``LD_LIBRARY_PATH`` is set so that you can include
+       a shared library ``foo.so`` in *required_files* and load it in the job
+       directly as ``ctypes.cdll.LoadLibrary("foo.so")``. For an example, see 
+       :ref:`discoext`.
+
+     * *required_modules* - (*Changed in version 0.2.3*) Disco tries to guess
+       which modules are needed by your job functions automatically. It sends
+       any local dependencies (i.e. modules not included in the Python standard
+       library) to nodes by default.
+
+       If the guessing fails, or you have other special requirements, see
+       :mod:`disco.modutil` for options. Note that a *required_modules* list 
+       specified for an earlier Disco version still works as intended.
 
      * *status_interval* - print out "K items mapped / reduced" for
        every Nth item. By default 100000. Setting the value to 0 disables

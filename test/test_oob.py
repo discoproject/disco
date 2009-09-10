@@ -1,6 +1,6 @@
 
 import tserver, sys, string
-from disco import Params, Disco, result_iterator
+from disco.core import Params, Disco, result_iterator
 
 def data_gen(path):
         return path[1:]

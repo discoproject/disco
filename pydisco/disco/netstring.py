@@ -24,11 +24,14 @@ import StringIO
 MAX_LEN_STRING = 10
 MAX_PACKET_LEN = 1024**3
 
+class NetStringError(Exception):
+        pass
+
 def _read_string(msg, i):
         j = msg.index(" ", i)
-        len = int(msg[i: j])
+        length = int(msg[i: j])
         j += 1
-        return (j + len + 1, msg[j: j + len])
+        return (j + length + 1, msg[j: j + length])
 
 
 def encode_netstring_str(d):
@@ -66,13 +69,13 @@ def decode_netstring_fd(fd):
                 lenstr += c
                 i += 1
                 if i > MAX_LEN_STRING:
-                        raise "Length string too long"
+                        raise NetStringError("Length string too long")
        
         if not lenstr:
                 raise EOFError()
        
-        llen = int(lenstr)
-        if llen > MAX_PACKET_LEN:
-                raise "Will not receive %d bytes" % llen
+        length = int(lenstr)
+        if length > MAX_PACKET_LEN:
+                raise NetStringError("Will not receive %d bytes" % length)
         
-        return decode_netstring_str(fd.read(llen))
+        return decode_netstring_str(fd.read(length))

@@ -1,12 +1,18 @@
-import os, subprocess, cStringIO, marshal, time, sys, cPickle, md5
+import os, subprocess, cStringIO, marshal, time, sys, cPickle
 import re, traceback, tempfile, struct, random
+
 from disco.util import\
     parse_dir, load_conf, err, data_err, msg, resultfs_enabled, load_oob
 from disco.func import re_reader, netstr_reader
-from disco.netstring import *
-from disconode.util import *
+from disconode.util import ensure_path, safe_append, write_files
 from disconode import external
 from disco import comm
+
+try:
+        import hashlib as md5
+except ImportError:
+        # Hashlib is not available in Python2.4
+        import md5
 
 oob_chars = re.compile("[^a-zA-Z_\-:0-9]")
 
@@ -61,7 +67,7 @@ def init():
                PART_SUFFIX, MAP_OUTPUT, REDUCE_DL,\
                REDUCE_SORTED, REDUCE_OUTPUT, OOB_FILE,\
                JOB_HOME, DISCO_ROOT, JOB_ROOT, PART_OUTPUT,\
-               MAP_INDEX, REDUCE_INDEX
+               MAP_INDEX, REDUCE_INDEX, REQ_FILES, CHDIR_PATH
 
         tmp, HTTP_PORT, DISCO_ROOT = load_conf()
         job_name = this_name()
@@ -75,7 +81,9 @@ def init():
         else:
                 pp = JOB_ROOT
 
+        CHDIR_PATH = pp
         PARAMS_FILE = pp + "params.dl"
+        REQ_FILES = pp + "lib"
         EXT_MAP = pp + "ext.map"
         EXT_REDUCE = pp + "ext.reduce"
         PART_SUFFIX = "-%.9d"
@@ -118,8 +126,8 @@ def open_remote(input, ext_host, ext_file):
         try:
                 return comm.open_remote("http://%s%s" % (ext_host, ext_file))
         except Exception, x:
-                data_err("Can't access an external input file (%s/%s): %s"\
-                                % (ext_host, ext_file, x), x)
+                data_err("Can't access an external input file (%s%s): %s"\
+                         % (ext_host, ext_file, x), x)
 
 def connect_input(input):
         
@@ -152,7 +160,7 @@ def connect_input(input):
         else:
                 return open_remote(input, ext_host, ext_file)
 
-class MapOutput:
+class MapOutput(object):
         def __init__(self, part, params, combiner = None):
                 self.combiner = combiner
                 self.params = params
@@ -185,7 +193,7 @@ class MapOutput:
                 os.rename(self.fname + ".partial", self.fname)
         
 
-class ReduceOutput:
+class ReduceOutput(object):
         def __init__(self, params):
                 self.fname = REDUCE_OUTPUT % this_partition()
                 self.params = params
@@ -208,7 +216,7 @@ def num_cmp(x, y):
                 pass
         return cmp(x, y)
 
-class ReduceReader:
+class ReduceReader(object):
         def __init__(self, input_files, do_sort, mem_sort_limit):
                 self.inputs = []
                 part = PART_SUFFIX % this_partition()
@@ -269,7 +277,7 @@ class ReduceReader:
                 msg("Starting external sort")
                 sortname = REDUCE_SORTED % this_partition()
                 ensure_path(sortname, False)
-                cmd = ["sort", "-n", "-s", "-k", "1,1", "-z",\
+                cmd = ["sort", "-n", "-k", "1,1", "-z",\
                         "-t", " ", "-o", sortname, dlname]
 
                 proc = subprocess.Popen(cmd)
@@ -281,7 +289,7 @@ class ReduceReader:
                 msg("External sort done: %s" % sortname)
                 return self.multi_file_iterator([sortname], reader =\
                         lambda fd, sze, fname:\
-                                re_reader("(.*?) (.*?)\000", fd, sze, fname))
+                                re_reader("(?s)(.*?) (.*?)\000", fd, sze, fname))
 
        
         def list_iterator(self, lst):
@@ -350,9 +358,13 @@ def op_map(job):
         fun_map_reader.func_code = marshal.loads(job['map_reader'])
         fun_map_writer.func_code = marshal.loads(job['map_writer'])
         fun_partition.func_code = marshal.loads(job['partition'])
-        
+
         if 'map_init' in job:
                 fun_init.func_code = marshal.loads(job['map_init'])
+        
+        if 'required_files' in job:
+                write_files(marshal.loads(job['required_files']), REQ_FILES)
+                sys.path.insert(0, REQ_FILES)
 
         req_mod = job['required_modules'].split()
         import_modules(req_mod, [fun_map_reader, fun_map_writer,
@@ -409,6 +421,11 @@ def op_reduce(job):
 
         fun_reduce_reader.func_code = marshal.loads(job['reduce_reader'])
         fun_reduce_writer.func_code = marshal.loads(job['reduce_writer'])
+        
+        if 'required_files' in job:
+                write_files(marshal.loads(job['required_files']), REQ_FILES)
+                sys.path.insert(0, REQ_FILES)
+        
         import_modules(req_mod, [fun_reduce_reader, fun_reduce_writer,\
             fun_reduce, fun_init])
          

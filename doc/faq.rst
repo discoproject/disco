@@ -18,11 +18,7 @@ Why not `Hadoop <http://hadoop.apache.org>`_?
 '''''''''''''''''''''''''''''''''''''''''''''
 
 Why `Vim <http://www.vim.org>`_ and not `Emacs
-<http://www.gnu.org/software/emacs/>`_? Currently Hadoop
-is probably faster, more scalable, and more featureful than
-Disco. It has a great development community and it is used by
-`major <http://www.yahoo.com>`_ `Internet <http://www.facebook.com>`_
-`companies <http://www.amazon.com>`_. 
+<http://www.gnu.org/software/emacs/>`_?
 
 We see that platforms for distributed computing will be of such high
 importance in the future that it is crucial to have a wide variety of

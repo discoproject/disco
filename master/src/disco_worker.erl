@@ -1,4 +1,3 @@
-
 -module(disco_worker).
 -behaviour(gen_server).
 
@@ -17,27 +16,33 @@
 -define(OOB_KEY_MAX, 256).
 
 -define(SLAVE_ARGS, "+K true").
--define(CMD, "nice -n 19 disco-worker '~s' '~s' '~s' '~s' '~w' ~s").
+-define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
 -define(PORT_OPT, [{line, 100000}, binary, exit_status,
-                   use_stdio, stderr_to_stdout]).
+                   use_stdio, stderr_to_stdout, 
+                   {env, [{"LD_LIBRARY_PATH", "lib"}]}]).
 
 get_env(Var) ->
-        get_env(Var, lists:flatten(io_lib:format(" -env ~s ~~s", [Var]))).
+        get_env(Var, lists:flatten(io_lib:format(" -env ~s '~~s'", [Var]))).
 
 get_env(Var, Fmt) ->
         case os:getenv(Var) of
                 false -> "";
+                "" -> "";
                 Val -> io_lib:format(Fmt, [Val])
         end.
 
 slave_env() ->
-        lists:flatten([?SLAVE_ARGS, 
-                get_env("DISCO_HOME", " -pa ~s/ebin"),
-                [get_env(X) || X <- ["DISCO_MASTER_PORT", "DISCO_ROOT",
-                        "DISCO_PORT", "DISCO_FLAGS", "PYTHONPATH", "PATH"]]]).
+    lists:flatten([?SLAVE_ARGS, 
+                   get_env("DISCO_MASTER_HOME", " -pa ~s/ebin"),
+                   [get_env(X) || X <- ["DISCO_MASTER_PORT",
+                                        "DISCO_ROOT",
+                                        "DISCO_PORT",
+                                        "DISCO_WORKER",
+                                        "DISCO_FLAGS",
+                                        "PYTHONPATH"]]]).
 
 slave_name(Node) ->
-        {ok, Name} = application:get_env(disco_name),
+        {ok, Name} = application:get_env(disco_name), %get_env("DISCO_NAME"),
         SName = lists:flatten([Name, "_slave"]),
         list_to_atom(SName ++ "@" ++ Node).
 
@@ -57,7 +62,7 @@ start_link_remote([Master, EventServ, From, JobName, PartID,
                         receive
                                 slave_started -> ok;
                                 {slave_failed, X} ->
-                                        event_server:event(JobName,
+                                        event_server:event(Node, JobName,
                                                 "WARN: Node failure: ~p", [X], []),
                                         exit({data_error, Input})
                         after 60000 ->
@@ -71,6 +76,11 @@ start_link_remote([Master, EventServ, From, JobName, PartID,
                 MasterUrl, EventServ, From, PartID, Mode, Node, Input]]),
         receive
                 ok -> ok;
+                timeout -> 
+                        event_server:event(Node, JobName,
+                                "WARN: Could not start a worker "
+                                "process in 5s (node busy?)", [], []),
+                        exit({data_error, Input});
                 {'EXIT', _, Reason} -> exit(Reason);
                 _ -> exit({error, invalid_reply})
         after 60000 ->
@@ -91,8 +101,13 @@ wait_for_exit() ->
 start_link([Parent|_] = Args) ->
         error_logger:info_report(["Worker starting at ", node(), Parent]),
         {ok, Worker} = gen_server:start_link(disco_worker, Args, []),
-        ok = gen_server:call(Worker, start_worker),
-        Parent ! ok.
+        case catch gen_server:call(Worker, start_worker) of
+                ok -> Parent ! ok;
+                E -> 
+                        error_logger:info_report(
+                                {"disco_worker:start_worker failed: ", E}),
+                        Parent ! timeout
+        end.
 
 init([Id, JobName, Master, MasterUrl, EventServ, From, PartID,
         Mode, Node, Input]) ->
@@ -113,9 +128,8 @@ handle_call(start_worker, _From, State) ->
         {reply, ok, State#state{port = Port}, 30000}.
 
 spawn_cmd(#state{jobname = JobName, node = Node, partid = PartID,
-                mode = Mode, input = Input, master_url = Url}) ->
-        lists:flatten(io_lib:fwrite(?CMD,
-                [Mode, JobName, Node, Url, PartID, Input])).
+                 mode = Mode, input = Input, master_url = Url}) ->
+        lists:flatten(io_lib:fwrite(?CMD, [Mode, JobName, Node, Url, PartID, Input])).
 
 strip_timestamp(Msg) when is_binary(Msg) ->
         strip_timestamp(binary_to_list(Msg));

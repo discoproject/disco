@@ -11,6 +11,7 @@ Disco client
    core
    func
    util
+   modutil
 
 Runtime environment for Disco jobs
 ----------------------------------
@@ -28,5 +29,12 @@ Utilities
 
    homedisco
 
+Support for distributed filesystems
+-----------------------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   gluster
 
 

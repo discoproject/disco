@@ -1,6 +1,6 @@
 
 import tserver, sys, disco, cStringIO
-from disco import Disco, result_iterator
+from disco.core import Disco, result_iterator
 
 def data_gen(path):
         return "Gutta cavat cavat capidem\n" * 100

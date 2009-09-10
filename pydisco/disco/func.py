@@ -2,6 +2,7 @@ import re, cPickle
 from disco.util import err, data_err, msg
 
 def netstr_reader(fd, content_len, fname):
+
         if content_len == None:
                 err("Content-length must be defined for netstr_reader")
         def read_netstr(idx, data, tot):

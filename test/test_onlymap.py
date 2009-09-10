@@ -1,5 +1,5 @@
 
-from disco import Disco, result_iterator
+from disco.core import Disco, result_iterator
 import tserver, disco, sys
 
 def data_gen(path):
@@ -35,5 +35,5 @@ for inp in inputs:
                 raise Exception("Unexpected result for key %s: %s != 10" %\
                         (inp, d[inp]))
 
-#job.purge()
+job.purge()
 print "ok"

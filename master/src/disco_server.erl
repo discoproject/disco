@@ -35,7 +35,7 @@ init(_Args) ->
         % disco_worker processes.
         ets:new(active_workers, [named_table, public]),
 
-        % node_laod records how many disco_workers there are
+        % node_load records how many disco_workers are
         % running on a node (could be found in active_workers
         % as well). This table exists mainly for convenience and
         % possibly for performance reasons.
@@ -216,6 +216,11 @@ handle_info({'EXIT', Pid, Reason}, State) ->
                         {data_error, Input} -> clean_worker(Pid, data_error, 
                                 {"Worker failure", Input});
                         kill_worker -> clean_worker(Pid, job_error, "");
+                        noconnection -> 
+                                event_server:event("[master]",
+                                        "WARN: Temporary node failure", [], []),
+                                clean_worker(Pid, data_error,
+                                        {"Temporary node failure", noinput});
                         _ -> clean_worker(Pid, error, Reason)
                 end,
                 {noreply, State}
@@ -311,22 +316,13 @@ start_worker(J, Node, Input) ->
 % through slave_master().
 slave_master(SlaveName) ->
         receive
-                {start, Pid, Node, Args} ->
-                        launch(case application:get_env(disco_slaves_os) of
-                                {ok, "osx"} ->
-                                        fun() -> 
-                                                slave:start(list_to_atom(Node),
-                                                SlaveName, Args, self(),
-                                                "/usr/libexec/StartupItemContext erl")
-                                        end;
-                                _ ->
-                                        fun() ->
-                                                slave:start_link(
-                                                        list_to_atom(Node),
-                                                        SlaveName, Args)
-                                        end
-                        end, Pid, Node),
-                        slave_master(SlaveName)
+            {start, Pid, Node, Args} -> 
+                launch(fun() ->
+                               slave:start(list_to_atom(Node),
+                                           SlaveName, Args, self(),
+                                           os:getenv("DISCO_ERLANG"))
+                       end, Pid, Node),
+                slave_master(SlaveName)
         end.
 
 launch(F, Pid, Node) ->

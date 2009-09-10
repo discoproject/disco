@@ -6,9 +6,9 @@ def ensure_path(path, check_exists = True):
                 err("File exists: %s" % path)
         if os.path.isfile(path):
                 os.remove(path)
-        dir, fname = os.path.split(path)
+        dirpath, fname = os.path.split(path)
         try:
-                os.makedirs(dir)
+                os.makedirs(dirpath)
         except OSError, x:
                 if x.errno == 17:
                         # File exists is ok, it may happen
@@ -82,3 +82,16 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
                                 data_err("Writing external file %s failed"\
                                         % fname, fname)
         data_err("Timeout in writing external file %s" % fname, fname)
+
+
+def write_files(ext_data, path):
+        path = os.path.abspath(path)
+        ensure_path(path + "/", False)
+        for fname, data in ext_data.iteritems():
+                # make sure that no files are written outside the given path
+                p = os.path.abspath(os.path.join(path, fname))
+                if os.path.dirname(p) == path:
+                        ensure_file(path + "/" + fname, data = data)
+                else:
+                        err("Unsafe filename %s" % fname)
+

@@ -1,39 +1,43 @@
-import httplib, urllib, cStringIO, struct
+import httplib, urllib2
 
+MAX_RETRIES = 10
 http_pool = {}
 
 class CommException(Exception):
-        def __init__(self, http_code, msg = None):
-                self.http_code = http_code
+        def __init__(self, msg, url = ""):
                 self.msg = msg
+                self.url = url
 
         def __str__(self):
-                if self.msg:
-                        return "HTTP exception (http status '%s'): %s" %\
-                                (self.http_code, self.msg)
+                if self.url:
+                        return "HTTP exception (%s): %s" %\
+                                (self.url, self.msg)
                 else:
-                        return "HTTP exception (http status '%s')" %\
-                                self.http_code
+                        return "HTTP exception: %s" % self.msg
 
-def download(url, data = None, redir = False):
+def download(url, data = None, redir = False, offset = 0):
         if redir:
-                c = urllib.urlopen(url, data)
+                req = urllib2.Request(url, data)
+                if offset:
+                        req.add_header("Range", "bytes=%d-" % offset)
+                try:
+                        c = urllib2.urlopen(req)
+                except urllib2.HTTPError, x:
+                        raise CommException(x.msg, url)
                 r = c.read()
                 c.close()
-                if "status" in c.headers and\
-                        not c.headers["status"].startswith("200"):
-                        raise CommException(c.headers["status"])
                 return r
         else:
-                sze, fd = open_remote(url, data = data)
+                sze, fd = open_remote(url, data = data, offset = offset)
                 return fd.read()
 
 
-def check_code(fd, expected):
+def check_code(fd, expected, url):
         if fd.status != expected:
-                raise CommException(fd.status)
+                raise CommException("Invalid HTTP reply (expected %s got %s)" %\
+                         (expected, fd.status), url)
 
-def open_remote(url, data = None, expect = 200):
+def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
         try:
                 ext_host, ext_file = url[7:].split("/", 1)
                 ext_file = "/" + ext_file
@@ -41,7 +45,7 @@ def open_remote(url, data = None, expect = 200):
                 # We can't open a new HTTP connection for each intermediate
                 # result -- this would result to M * R TCP connections where
                 # M is the number of maps and R the number of reduces. Instead,
-                # we pool connections and reuse them whenever possible. HTTP 
+                # we pool connections and reuse them whenever possible. HTTP
                 # 1.1 defaults to keep-alive anyway.
                 if ext_host in http_pool:
                         http = http_pool[ext_host]
@@ -51,25 +55,31 @@ def open_remote(url, data = None, expect = 200):
                         http = httplib.HTTPConnection(ext_host)
                         http_pool[ext_host] = http
 
+                h = {}
+                if offset:
+                        h = {"Range": "bytes=%d-" % offset}
+                        expect = 206
+
                 if data:
-                        http.request("POST", ext_file, data)
+                        http.request("POST", ext_file, data, headers = h)
                         fd = http.getresponse()
-                        check_code(fd, expect)
+                        check_code(fd, expect, url)
                 else:
-                        http.request("GET", ext_file, None)
+                        http.request("GET", ext_file, None, headers = h)
                         fd = http.getresponse()
-                        check_code(fd, expect)
-               
+                        check_code(fd, expect, url)
+
                 sze = fd.getheader("content-length")
                 if sze:
                         sze = int(sze)
                 return sze, fd
 
-        except httplib.BadStatusLine:
-                # BadStatusLine is caused by a closed connection. Re-open a new
-                # connection by deleting this connection from the pool and
-                # calling this function again. Note that this might result in
-                # endless recursion if something went seriously wrong.
+        except Exception, e:
+                if not ttl:
+                        raise CommException("Downloading %s failed "\
+                                            "after %d attempts: %s" %\
+                                            (url, MAX_RETRIES, e), url)
                 http.close()
-                del http_pool[ext_host]
-                return open_remote(url, data)
+                if ext_host in http_pool:
+                        del http_pool[ext_host]
+                return open_remote(url, data, ttl=ttl - 1)

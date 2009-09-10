@@ -1,6 +1,6 @@
 
 import tserver, sys
-from disco import Params, Disco, result_iterator
+from disco.core import Params, Disco, result_iterator
 
 def data_gen(path):
         return "skipthis\n" + "\n".join([path[1:]] * 10)

@@ -71,6 +71,8 @@ a simple mechanism based on local disks include
  * Transparent file distribution (no need for separate scripts),
  * Transparent file replication for high-availability and performance,
  * Easier data management with a global namespace.
+ * A convenient way to provide replication-aware lists of inputs
+   (:mod:`disco.dfs.gluster`).
 
 Downsides include added complexity and worse scalability -- local 
 disks share nothing, so they are optimally scalable. Typically a DFS
@@ -152,7 +154,8 @@ all nodes.
 
 Your DFS should provide a mechanism to find out where a file is physically
 stored, so you can construct ``dfs://`` addresses automatically. Disco comes
-with a Python module that can construct the addresses for GlusterFS.
+with a function :func:`disco.dfs.gluster.files` that can construct such
+addresses for GlusterFS.
 
 Resultfs
 ''''''''

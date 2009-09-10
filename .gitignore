@@ -1,0 +1,8 @@
+*.beam
+*.dump
+*.log
+*.pid
+*.pyc
+conf/settings.py
+doc/.build/
+root/

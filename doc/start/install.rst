@@ -39,7 +39,7 @@ for Disco.
 0. Prerequisites
 ----------------
 
-You need at least one Linux server. Any distribution should work.
+You need at least one Linux/Unix server. Any distribution should work (including Mac OS X).
 
 On each server the following applications / libraries are required:
 
@@ -47,9 +47,9 @@ On each server the following applications / libraries are required:
  * `Erlang/OTP R12B or newer <http://www.erlang.org>`_
  * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
  * `Python 2.4 or newer <http://www.python.org>`_
- * `Python setuptools <http://pypi.python.org/pypi/setuptools>`_
- * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_
- 
+ * `Python setuptools <http://pypi.python.org/pypi/setuptools>`_ (optional)
+ * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_ (for Python < 2.6)
+
 1. Install Disco
 ----------------
 
@@ -57,22 +57,24 @@ Download `the latest Disco package from discoproject.org
 <http://discoproject.org/download.html>`_. Alternatively you can download `the
 latest development snapshot from GitHub <http://github.com/tuulos/disco>`_.
 
-Extract the package and run make as root as follows::
+Extract the package (if necessary) and ``cd`` into it.
+We will refer to this directory as ``DISCO_HOME``.
+
+If you want to install Disco locally, just run make::
+
+        make
+
+This is often the easiest and the least intrusive way to get started with Disco.
+
+You should repeat the above command on all servers that belong to your
+Disco cluster. Note that Disco should be found on the same path on all the servers.
+
+To install system-wide, run make install as root::
 
         make install DESTDIR=/
 
 This will build and install Disco to your system (see ``Makefile`` for exact
 directories).
-
-If you don't want to install Disco to system-wide directories, you can
-run it locally as an ordinary user. In that case, just write::
-
-        make
-
-This is often the easiest and the least intrusive way to get started with Disco. 
-
-You should repeat the above command on all servers that belong to your
-Disco cluster.
 
 2. Prepare the runtime environment
 ----------------------------------
@@ -81,54 +83,30 @@ Next we need to perform the following tasks on all servers that belong
 to the Disco cluster:
 
  * Create ``disco`` user (optional).
- * Check that settings in ``disco.conf`` are correct.
- * Make sure that necessary directories exist for Disco.
- * Check that ``/etc/hosts/`` contains addresses of all nodes.
+ * Check that the settings in ``settings.py`` are correct.
 
-Note that if you didn't install Disco to system-wide directories,
-you can use the default config file at ``conf/disco.conf.dev-example``
-as is, without any modifications. This file is read by default by the
-``conf/start-master`` and ``conf/start-node`` startup scripts.
-
-Otherwise, let's go through the steps one by one.
-
-Often it is convenient to run Disco as a separate user, by default
-``disco``. Amongst other reasons, this allows setting user-specific
+Often it is convenient to run Disco as a separate user.
+Amongst other reasons, this allows setting user-specific
 resource utilization limits for the Disco user (through ``limits.conf``
 or similar mechanism). However, you can use any account for running
 Disco. In the following, we refer to the user that runs ``disco-master``
 as the Disco user.
 
-Open ``/etc/disco/disco.conf``. The file sets a number of environment
-variables that define the runtime environment for Disco. Make sure that
-``DISCO_USER`` corresponds to the actual disco user. Check that paths
-``DISCO_ROOT``, ``DISCO_LOG`` and ``DISCO_PID_DIR`` that are defined
-in the file exist and they are readable and writable by the Disco user.
+Open ``DISCO_HOME/conf/settings.py``. This file sets a number of environment
+variables that define the runtime environment for Disco.
+Most likely you do not need to modify this file right away.
 You can change the paths if the defaults are not suitable for your system.
-
-Note that if you run Disco on a single machine, you need to enable
-``DISCO_MASTER_PORT`` which defines an alternative port for the Disco
-master instead of the default ``DISCO_PORT``. This allows running a
-Disco node on the same server with the master.
-
-Disco uses a script, ``make-lighttpd-proxyconf.py`` to parse
-``/etc/hosts`` and produce parts of the configuration file for
-Lighttpd. The script requires that all nodes used in Disco are listed
-as simple address-hostname pairs, separated by whitespace. Make sure
-that your ``/etc/hosts`` includes also line ``127.0.0.1 localhost``.
+See :ref:`settings` for more information on the various settings and their default values.
 
 3. Start Disco
 --------------
 
-Two example scripts, ``conf/start-master`` and ``conf/start-node``,
-are included in the Disco sources. On the master node, start the Disco
-master by executing ``conf/start-master`` as the disco user. On all the
-other servers, execute ``conf/start-node``, again as the disco user. If
-you run Disco on a single server, execute both the scripts on your server.
+Disco now uses a streamlined command-line interface (see :ref:`disco`).
+On the master node, start the Disco master by executing ``disco master start``.
+On all the servers you want to utilize as workers, execute ``disco worker start``.
 
-The scripts do only the bare minimum to start up the system. You can
-easily integrate the scripts to your system's startup sequence. For
-instance, you can see how ``debian/disco-master.init`` and
+You can easily integrate ``disco`` into your system's startup sequence.
+For instance, you can see how ``debian/disco-master.init`` and
 ``debian/disco-node.init`` are implemented in the Disco's ``debian``
 branch.
 
@@ -136,9 +114,14 @@ If Disco has started up properly, you should see processes ``lighttpd``
 and ``beam.smp`` running on your master node, and ``lighttpd`` on the
 other servers.
 
+An easy way to test if Disco is starting up properly is to run ``disco master nodaemon``
+instead of ``disco master start``.
+This will start the master node and bring you right to its Erlang shell,
+without redirecting the log to a file.
+
 .. _configauth:
 
-4. Configure authentication 
+4. Configure authentication
 ---------------------------
 
 Next we need to enable passwordless login via ssh to all servers in
@@ -151,10 +134,10 @@ have valid ssh-keys already::
         ssh-keygen -N '' -f ~/.ssh/id_dsa
 
 If you have one server (or shared home directories), say::
-        
+
         cat ~/.ssh/id_dsa.pub >> ~/.ssh/authorized_keys
 
-Otherwise, repeat the following command for all the servers ``nodeX`` 
+Otherwise, repeat the following command for all the servers ``nodeX``
 in the cluster::
 
         ssh-copy-id nodeX
@@ -171,7 +154,7 @@ command as the Disco user on the master server::
         scp ~/.erlang.cookie nodeX:
 
 Repeat the command for all the servers ``nodeX``.
-        
+
 5. Add nodes to Disco
 ---------------------
 
@@ -179,12 +162,10 @@ At this point you should have Disco up and running. The final step
 before testing the system is to specify which servers are available for
 Disco. This is done on the Disco's web interface.
 
-Point your browser at ``http://master:<DISCO_PORT>`` or
-``http://master:<DISCO_MASTER_PORT>`` where ``master`` should be
+Point your browser at ``http://master:<DISCO_PORT>``, where ``master`` should be
 replaced with the actual hostname of your machine or ``localhost``
-if you run Disco locally or through a SSH tunnel. The port should be
-either ``DISCO_PORT`` or ``DISCO_MASTER_PORT`` depending what you have
-configured in ``/etc/disco/disco.conf``. The default port is ``8989``.
+if you run Disco locally or through an SSH tunnel.
+The default port is ``8989``.
 
 You should see the Disco main screen (see `a screenshot here
 <http://discoproject.org/screenshots.html>`_). Click ``configure`` on
@@ -225,7 +206,7 @@ to see that the system works correctly. Copy the following code to a
 file called ``count_words.py``::
 
         import sys
-        from disco import Disco, result_iterator
+        from disco.core import Disco, result_iterator
 
         def fun_map(e, params):
             return [(w, 1) for w in e.split()]
@@ -258,14 +239,8 @@ Replace the address above with the same address you used to
 configure Disco earlier. You must use the same version of Python for
 running Disco scripts as you use on the server side.
 
-If you used the default configuration provided in
-``disco.conf.dev-example``, the master is set to run at port ``7000``,
-so replace the address above with ``http://localhost:7000``.
-
 You can run the script on any machine that can access Disco on the
-specified address. Remember to include the ``disco/pydisco`` directory
-to your ``PYTHONPATH``, if you run the script on a machine that doesn't
-have the full Disco installed. The safest bet is to run the script on
+specified address. The safest bet is to run the script on
 the master node itself.
 
 If the machine where you run the script can access the master node but
@@ -279,5 +254,3 @@ working Disco setup! If you are new to Disco, you might want to read
 :ref:`tutorial` next.
 
 If the script fails, see the section about :ref:`troubleshooting`.
-
-

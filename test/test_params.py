@@ -1,6 +1,6 @@
 
 import tserver, sys
-from disco import Params, Disco, result_iterator
+from disco.core import Params, Disco, result_iterator
 
 def fun1(a, b):
         return a + b

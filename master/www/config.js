@@ -2,7 +2,7 @@
 $(document).ready(function(){
         $("#add_row").click(function(){
                 $("tbody").append(
-                        "<tr><td><a class='remove' href='#'>remove</a></td><td class='editable'>&nbsp;</td><td class='editable'>&nbsp;</td></tr>");
+                        "<tr class='node'><td><a class='remove' href='#'>remove</a></td><td class='editable'>&nbsp;</td><td class='editable'>&nbsp;</td></tr>");
                 $.uiTableEdit($("table"), {find: 'tbody > tr > td.editable', dataVerify: check_cell});
         });
         $("#save_table").click(send_table);
@@ -64,7 +64,7 @@ function add_to_blacklist(){
 }
 
 function send_table(){
-        var table = $("tbody > tr").map(function(){
+        var table = $(".node").map(function(){
                 var arr = $.makeArray($(this).children().map(function(){
                         return jQuery.trim($(this).text() || $(this).find('input').val());}));
                 arr.shift();  // throw away the first node - 'remove'

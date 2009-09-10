@@ -18,9 +18,9 @@ Here we assume that you have installed Disco locally with the following steps:
 
  * Downloaded the latest source package from `discoproject.org <http://discoproject.org/download.html>`_ or from the `GitHub repository <http://github.com/tuulos/disco>`_.
  * Extracted the package to your home directory, say ``~/disco/``.
- * Compiled the sources by writing ``make`` in ``~/disco/``. 
- * Started Disco with ``~/disco/conf/start-master`` and ``~/disco/conf/start-node``.
- * Tried to run the ``count_words.py`` example from :ref:`setup` as follows ``python count_words.py http://localhost:7000``.
+ * Compiled the sources by writing ``make`` in ``~/disco/``.
+ * Started Disco with ``disco master start`` and ``disco worker start``.
+ * Tried to run the ``count_words.py`` example from :ref:`setup` as follows ``python count_words.py http://localhost:8989``.
 
 but the script crashed and/or didn't produce any results.
 
@@ -29,7 +29,8 @@ Let's find out what goes wrong. Follow the next steps in order.
 0. Start Disco locally
 ----------------------
 
-If you have started Disco earlier, kill the previous processes with
+If you have started Disco earlier, try to stop the master using ``disco master stop``.
+If you cannot seem to stop Disco, kill the previous processes with
 ``killall -9 lighttpd`` and ``killall -9 beam`` (or ``killall -9
 beam.smp`` if you have a multi-core system). Note that this kills all
 Erlang and Lighttpd processes owned by the user, so don't do this if
@@ -38,8 +39,7 @@ you have some other Erlang / Lighttpd processes running besides Disco.
 Then, restart Disco by saying::
 
         cd ~/disco
-        conf/start-master
-        conf/start-node
+        disco master nodaemon
 
 Here we assume that you've extracted Disco under ``~/disco``. If you
 extracted Disco to some other directory, replace ``~/disco/`` with your
@@ -74,15 +74,22 @@ If you do see output like above, the master is running correctly and
 you can proceed to the next step.
 
 If not, the master didn't start up properly. See if you can find a log
-file at ``~/disco/disco_*.log``. If the file exists, see the last messages
-in the file: They often reveal what went wrong during the startup. A
-typical problem is a faulty configuration file, in which case the last
-message is something like ``Opening config file``. In this case remove
-the faulty config file at ``~/disco/root/disco_*config``.
+file at ``DISCO_LOG_DIR/*.log``.
+If you used the nodaemon command to startup the Disco master,
+the log should be printed to stdout.
+If the file exists, see the last messages in the file:
+They often reveal what went wrong during the startup.
+
+.. hint::
+   If you do not know what DISCO_LOG_DIR should be,
+   you can find out the environment Disco is using to run itself by running::
+
+       disco -p
+
 
 If you can't find the log file, the master didn't start at all. See
-if you can find master binaries at ``~/disco/master/ebin/*.ebin``. If
-no such files exist, run ``cd ~/disco; make`` again and see if the
+if you can find master binaries at ``DISCO_HOME/master/ebin/*.ebin``. If
+no such files exist, run ``cd DISCO_HOME; make`` again and see if the
 compilation fails for some reason.
 
 If the binaries exist but the master doesn't start, run::
@@ -90,6 +97,7 @@ If the binaries exist but the master doesn't start, run::
         cd ~/disco
         erl -boot master/disco
 
+This assumes ``DISCO_HOME`` is ``~/disco``.
 This command tries to start the Erlang virtual machine with the Disco
 application. The command should fail with the following message::
 
@@ -106,7 +114,7 @@ correctly and you should try to re-install it.
 
 Now that we know that the master process is running, we should
 be able to configure the system. Open your web browser and go to
-`http://localhost:7000/ <http://localhost:7000/>`_. The Disco status
+`http://localhost:8989/ <http://localhost:8989/>`_. The Disco status
 page should open.
 
 Do you see any boxes with black title bars on the status page (like `in
@@ -119,15 +127,16 @@ the following command initializes a configuration file with one node::
 
         echo '[["localhost", "1"]]' > ~/disco/root/disco_4441.config
 
-Remeber to restart the master after editing the config file by hand, as
-instructed in the step 0. above.
+Remember to restart the master after editing the config file by hand::
+
+         disco master restart
 
 3. Is worker supervisor running?
 --------------------------------
 
 Now is a good time to try to run a Disco job. Copy the ``count_words.py``
 example from :ref:`setup` and run it by saying ``python count_words.py
-http://localhost:7000``. You should see the job appear on the Disco
+http://localhost:8989``. You should see the job appear on the Disco
 status page. If the job succeeds, it should appear with a green box on
 the job list. If it turns up red, we need to continue debugging.
 
@@ -160,7 +169,7 @@ configure ssh properly as instructed in :ref:`setup` in section 4.
 If ssh seems to work correctly, you should check that the Erlang's
 ``slave`` module works correctly. You can check it as follows::
 
-        erl -rsh ssh -sname testmaster
+          disco debug
 
         Erlang (BEAM) emulator...
 
@@ -202,30 +211,30 @@ or Python installation.
 
 You can find out what exactly Disco tries to execute as follows::
 
-        grep "Spawn cmd" ~/disco/disco_*.log 
+        grep "Spawn cmd" DISCO_LOG_DIR/master*.log
 
-You should see lines starting with ``Spawn cmd: nice -19 disco-worker...``. You
-can copy-paste one of the lines and try to execute it by hand. This way you can
-easily see how ``disco-worker`` fails.
+In the log, you should see lines starting with ``Spawn cmd: nice -19 disco-worker...``.
+You can copy-paste one of the lines and try to execute it by hand.
+This way you can easily see how ``disco-worker`` fails.
 
 5. Are Lighttpd instances running?
 ----------------------------------
 
 If the Disco master, worker supervisors and ``disco-worker`` processes all
-seem to work properly, there are not many more places that could fail. 
+seem to work properly, there are not many more places that could fail.
 
 Disco uses HTTP for data transfer, so it needs a web server running
-on each node. The web server is started by the ``conf/start-node``
+on each node. The web server is started by the ``disco worker start``
 command. You can make sure that the server is actually running by pointing
-your browser at `http://localhost:8989/ <http://localhost:8989/>`_
-which should show a default directory listing provided by the server. 
+your browser at `http://localhost:8989/localhost <http://localhost:8989/localhost>`_
+which should show a default directory listing provided by the server.
 
 If the server doesn't respond, try to restart it by running
-``conf/start-node`` again.
+``disco worker restart``.
 
-Note that when using Disco on a single computer, you really need two
-separate web servers running, typically at ports 7000 (master) and 8989
-(node).
+.. note::
+   When using Disco on a single computer,
+   you need separate web servers running for the workers and the master.
 
 
 Still no success?

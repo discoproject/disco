@@ -1,5 +1,5 @@
-
-import tserver, disco, sys, thread
+import tserver, sys, thread
+from disco.core import Disco, result_iterator
 
 lock = thread.allocate_lock()
 fail = ["1", "2", "3"]
@@ -23,14 +23,14 @@ tserver.run_server(data_gen)
 
 inputs = ["X1", ["2_fail", "2_still_fail", "X200"], "X3", ["4_fail", "X400"]]
 
-job = disco.Disco(sys.argv[1]).new_job(
+job = Disco(sys.argv[1]).new_job(
         name = "test_redundant",
         input = tserver.makeurl(inputs),
         map = fun_map,
         reduce = fun_reduce,
         nr_reduces = 1)
 
-if disco.result_iterator(job.wait()).next()[0] != "6040":
+if result_iterator(job.wait()).next()[0] != "6040":
         raise Exception("Invalid result: Got %s, expected 6040" % res)
 
 job.purge()

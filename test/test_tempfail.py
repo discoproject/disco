@@ -1,5 +1,5 @@
-
-import tserver, disco, sys, thread
+import tserver, sys, thread
+from disco.core import Disco, result_iterator
 
 lock = thread.allocate_lock()
 fail = ["1", "2", "3"]
@@ -20,12 +20,12 @@ def fun_map(e, params):
 
 tserver.run_server(data_gen)
 
-job = disco.Disco(sys.argv[1]).new_job(
+job = Disco(sys.argv[1]).new_job(
         name = "test_tempfail",
         input = tserver.makeurl(map(str, range(10))),
         map = fun_map)
 
-res = sum(int(x) for x, y in disco.result_iterator(job.wait()))
+res = sum(int(x) for x, y in result_iterator(job.wait()))
 if res != 4500:
         raise Exception("Invalid result: Got %d, expected 4500" % res)
 

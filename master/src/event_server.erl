@@ -1,9 +1,11 @@
 -module(event_server).
 -behaviour(gen_server).
 
--define(EVENT_PAGE_SIZE, 1000).
+-define(EVENT_PAGE_SIZE, 100).
+-define(EVENT_BUFFER_SIZE, 1000).
+-define(EVENT_BUFFER_TIMEOUT, 2000).
 
--export([format_timestamp/1, event/4, event/5, event/6]).
+-export([event/4, event/5, event/6]).
 -export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, 
         handle_info/2, terminate/2, code_change/3]).
 
@@ -18,10 +20,14 @@ stop() ->
         gen_server:call(event_server, stop).
 
 init(_Args) ->
-        {ok, Root} = application:get_env(disco_root),
-        Pid = spawn_link(fun() -> log_flusher_process(Root) end),
-        register(event_flusher, Pid),
+        ets:new(event_files, [named_table]),
         {ok, {dict:new(), dict:new()}}.
+
+json_list([], _) -> [];
+json_list([X], L) ->
+        [<<"[">>, lists:reverse([X|L]), <<"]">>];
+json_list([X|R], L) ->
+        json_list(R, [<<X/binary, ",">>|L]).
 
 handle_call(get_jobnames, _From, {Events, _} = S) ->
         Lst = dict:fold(fun(JobName, {_, Nu, Pid}, L) ->
@@ -32,11 +38,15 @@ handle_call(get_jobnames, _From, {Events, _} = S) ->
 handle_call({get_job_events, JobName, Q, N0}, _From, {_, MsgBuf} = S) ->
         N = if N0 > 1000 -> 1000; true -> N0 end,
         case dict:find(JobName, MsgBuf) of
-                error -> {reply, {ok, tail_log(JobName, N)}, S};
-                {ok, {_, _, MsgLst}} when Q == "" ->
-                        {reply, {ok, lists:sublist(MsgLst, N)}, S};
-                {ok, D} ->
-                        {reply, {ok, grep_log(JobName, D, Q, N)}, S}
+                _ when Q =/= "" ->
+                        {reply, {ok, 
+                                json_list(grep_log(JobName, Q, N), [])}, S};
+                {ok, {_, _, MsgLst}} ->
+                        {reply, {ok,
+                                json_list(lists:sublist(MsgLst, N), [])}, S};
+                error ->
+                        {reply, {ok,
+                                json_list(tail_log(JobName, N), [])}, S}
         end;
 
 handle_call({get_results, JobName}, _From, {Events, _} = S) ->
@@ -52,7 +62,23 @@ handle_call({get_results, JobName}, _From, {Events, _} = S) ->
                                 {reply, {dead, Pid}, S}
                         end
         end;
+
+handle_call({new_job, JobName, Pid}, _From, {Events0, MsgBuf0} = S) ->
+        V = dict:is_key(JobName, Events0),
+        if V -> {reply, eexist, S};
+        true ->
+                Events = dict:store(JobName, {[], now(), Pid}, Events0),
+                MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
                 
+                {ok, Root} = application:get_env(disco_root),
+                FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
+                EventProc = spawn(fun() -> job_event_handler(FName) end),
+                ets:insert(event_files, {JobName, EventProc}),
+                
+                {reply, ok, add_event("master", JobName, list_to_binary("\"New job!\""),
+                        {start, Pid}, {Events, MsgBuf})}
+        end;
+
 handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->
         case dict:find(JobName, Events) of
                 error -> {reply, invalid_job, S};
@@ -61,26 +87,11 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->
                         Res = event_filter(ready, EvLst),
                         Ready = event_filter(task_ready, EvLst),
                         Failed = event_filter(task_failed, EvLst),
-                        TStamp = list_to_binary(format_timestamp(Nu)),
+                        TStamp = format_timestamp(Nu),
                         {reply, {ok, {TStamp, Pid, 
                                 JobNfo, Res, Ready, Failed}}, S}
         end.
 
-% There's a small catch with adding a job event: If a job's records have been
-% cleaned with clean_job already, we do not want a zombie worker to re-open
-% the job's records by adding a new event. Thus only an event with the atom
-% start is allowed to initialize records for a new job. Other events are 
-% silently ignored if there are no previous records for this job.
-handle_cast({add_job_event, Host, JobName, M, {start, Pid} = P},
-        {Events0, MsgBuf0} = S) ->
-        
-        V = dict:is_key(JobName, Events0),
-        if V -> {noreply, S};
-        true ->
-                Events = dict:store(JobName, {[], now(), Pid}, Events0),
-                MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
-                {noreply, add_event(Host, JobName, M, P, {Events, MsgBuf})}
-        end;
 
 handle_cast({add_job_event, Host, JobName, M, P}, {_, MsgBuf} = S) ->
         V = dict:is_key(JobName, MsgBuf),
@@ -88,17 +99,21 @@ handle_cast({add_job_event, Host, JobName, M, P}, {_, MsgBuf} = S) ->
         true -> {noreply, S}
         end;
 
-handle_cast({flush_events, JobName}, {Events, MsgBuf} = S) ->
+handle_cast({job_done, JobName}, {Events, MsgBuf} = S) ->
+        case ets:lookup(event_files, JobName) of
+                [] -> ok;
+                [{_, EventProc}] ->
+                        EventProc ! done,
+                        ets:delete(event_files, JobName)
+        end,
         case dict:find(JobName, MsgBuf) of
                 error -> {noreply, S};
-                {ok, {_, _, MsgLst}} ->
-                        flush_msgbuf(JobName, MsgLst),
-                        {noreply, {Events,
-                                dict:erase(JobName, MsgBuf)}}
+                {ok, _} ->
+                        {noreply, {Events, dict:erase(JobName, MsgBuf)}}
         end;
 
 handle_cast({clean_job, JobName}, {Events, _} = S) ->
-        {_, {_, MsgBufN}} = handle_cast({flush_events, JobName}, S),
+        {_, {_, MsgBufN}} = handle_cast({job_done, JobName}, S),
         {noreply, {dict:erase(JobName, Events), MsgBufN}}.
 
 handle_info(Msg, State) ->
@@ -112,18 +127,16 @@ tail_log(JobName, N)->
                 " ", FName, " 2>/dev/null"]), "\n"),
         lists:map(fun erlang:list_to_binary/1, lists:reverse(O)).
 
-grep_log(JobName, {_, _, MsgLst}, Q, N) ->
+grep_log(JobName, Q, N) ->
         {ok, Root} = application:get_env(disco_root),
         FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
-        M = lists:filter(fun(E) ->
-                 string:str(string:to_lower(binary_to_list(E)), Q) > 0
-        end, MsgLst),
+        
         % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
         % only whitelisted characters are allowed in the query
-        {ok, CQ, _} = regexp:gsub(Q, "[^a-z0-9:-_!@]", ""),
+        {ok, CQ, _} = regexp:gsub(Q, "[^a-zA-Z0-9:-_!@]", ""),
         O = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ", FName,
                 " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
-        M ++ lists:map(fun erlang:list_to_binary/1, lists:reverse(O)).
+        lists:map(fun erlang:list_to_binary/1, lists:reverse(O)).
 
 event_filter(Key, EvLst) ->
         {_, R} = lists:unzip(lists:filter(fun
@@ -131,37 +144,26 @@ event_filter(Key, EvLst) ->
                 (_) -> false
         end, EvLst)), R.
 
-flush_msgbuf(JobName, FlushBuf) ->
-        event_flusher ! {flush, JobName, FlushBuf}.
-
-log_flusher_process(Root) ->
-        receive 
-                {flush, JobName, FlushBuf} ->
-                        FName = filename:join([Root,
-                                disco_server:jobhome(JobName), "events"]),
-                        {ok, F} = file:open(FName, [raw, append]),
-                        file:write(F, lists:reverse(FlushBuf)),
-                        file:close(F),
-                        log_flusher_process(Root)
-        end.
-
 format_timestamp(Tstamp) ->
         {Date, Time} = calendar:now_to_local_time(Tstamp),
         DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
         TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
-        DateStr ++ TimeStr.
+        list_to_binary([DateStr, TimeStr]).
 
 add_event(Host, JobName, Msg, Params, {Events, MsgBuf}) ->
         {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
-        M = iolist_to_binary([format_timestamp(now()), $@, Host, $;, Msg]),
+        T = format_timestamp(now()),
+        H = list_to_binary(Host),
+        Line = <<"[\"", T/binary, "\",\"", H/binary, "\",", Msg/binary, "]", 10>>,
+
+        [{_, EventProc}] = ets:lookup(event_files, JobName),
+        EventProc ! {event, Line},
 
         if LstLen0 + 1 > ?EVENT_PAGE_SIZE * 2 ->
-                {MsgLst, FlushBuf} = lists:split(?EVENT_PAGE_SIZE,
-                        [<<M/binary, 10>>|MsgLst0]),
-                flush_msgbuf(JobName, FlushBuf),
+                MsgLst = lists:sublist([Line|MsgLst0], ?EVENT_PAGE_SIZE),
                 LstLen = ?EVENT_PAGE_SIZE;
         true ->
-                MsgLst = [<<M/binary, 10>>|MsgLst0],
+                MsgLst = [Line|MsgLst0],
                 LstLen = LstLen0 + 1
         end,
         MsgBufN = dict:store(JobName, {NMsg + 1, LstLen, MsgLst}, MsgBuf),
@@ -186,11 +188,46 @@ event(EventServ, Host, JobName, Format, Args, Params) ->
                 true -> X 
         end end, Args),
 
-        gen_server:cast(EventServ, {add_job_event, Host, JobName,
-                lists:flatten(io_lib:fwrite(Format, SArgs)), Params}).
+        M = list_to_binary(json:encode(
+                list_to_binary(io_lib:fwrite(Format, SArgs)))),
+        gen_server:cast(EventServ, {add_job_event, Host, JobName, M, Params}).
         
 % callback stubs
 terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+job_event_handler(FName) ->
+        {ok, F} = file:open(FName, [append, raw]),
+        timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
+        job_event_handler_do(F, [], 0). 
+
+job_event_handler_do(F, Buf, BufSize) when BufSize > ?EVENT_BUFFER_SIZE ->
+        flush_buffer(F, Buf),
+        job_event_handler_do(F, [], 0);
+
+job_event_handler_do(F, Buf, BufSize) ->
+        receive
+                {event, Line} ->
+                        job_event_handler_do(F, [Line|Buf], BufSize + 1);
+                flush ->
+                        flush_buffer(F, Buf),
+                        timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
+                        job_event_handler_do(F, [], 0);
+                done ->
+                        flush_buffer(F, Buf),
+                        file:close(F);
+                E ->
+                        error_logger:warning_report(
+                                {"Unknown message in job_event_handler", E}),
+                        file:close(F)
+        end.
+
+flush_buffer(_, []) -> ok;
+flush_buffer(F, Buf) ->
+        file:write(F, lists:reverse(Buf)).
+                        
+                        
+                
+        
+        
