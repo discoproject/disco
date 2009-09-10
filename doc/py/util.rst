@@ -25,9 +25,7 @@ external interface.
    The ``disco://`` specifier translates to ``http://address:DISCO_PORT``
    where ``DISCO_PORT`` is either specified as an environment variable
    or read from ``/etc/disco/disco.conf``. If neither is available,
-   the default value `8989` is used. If the configuration option
-   ``DISCO_MASTER_PORT`` is used to specify another port for the Disco
-   master, it is used instead of ``DISCO_PORT``.
+   the default value `8989` is used. 
 
    This function performs the above translation. It is given an address
    *addr*.  If the address starts with ``disco://``, a corresponding

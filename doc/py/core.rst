@@ -25,6 +25,7 @@ All methods in :class:`Disco` that are related to individual jobs, namely
  - :meth:`Disco.wait`
  - :meth:`Disco.jobinfo`
  - :meth:`Disco.results`
+ - :meth:`Disco.events`
  - :meth:`Disco.jobspec`
  - :meth:`Disco.clean`
  - :meth:`Disco.purge`
@@ -101,6 +102,18 @@ anymore. You can delete the unneeded job files as follows::
 
    Returns the raw job request package, as constructed by
    :meth:`Disco.new_job`, for the job *name*.
+   
+   .. method:: Disco.events(name[, offset = 0])
+   
+   (*Added in version 0.2.3*) 
+
+   Returns an iterator that iterates over current events of the job, starting
+   from the oldest event. It is safe to call this function while the job is running.
+   
+   The iterator returns tuples ``(offset, event)``. You can pass an *offset* value
+   to this function, to make the iterator skip over the events before the specified
+   *offset*. This provides an efficient way to monitor job events continuously. 
+   For a built-in example, see the *show* parameter in :meth:`Disco.wait`.
 
    .. method:: Disco.results(jobspec[, timeout = 5000])
 
@@ -170,7 +183,7 @@ anymore. You can delete the unneeded job files as follows::
 
         job.profile_stats().print_stats()
 
-   .. method:: Disco.wait(name[, poll_interval, timeout, clean])
+   .. method:: Disco.wait(name[, poll_interval, timeout, clean, show])
 
    Block until the job *name* has finished. Returns a list URLs to the
    results files which is typically processed with :func:`result_iterator`.
@@ -191,6 +204,12 @@ anymore. You can delete the unneeded job files as follows::
         disco.purge(disco.util.jobname(results[0]))
 
    to delete the actual result files.
+
+   *show* (*Added in version 0.2.3*) enables console output of job events. If
+   you want to see output of the job only occasionally, you can control this
+   parameter also using the environment variable ``DISCO_EVENTS`` that is
+   used to set the value of *show* if it is not specified explicitely. See
+   ``DISCO_EVENTS`` in :ref:`settings` for more information.
 
    .. method:: Disco.new_job(...)
 

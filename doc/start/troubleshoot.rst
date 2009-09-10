@@ -39,7 +39,6 @@ you have some other Erlang / Lighttpd processes running besides Disco.
 Then, restart Disco by saying::
 
         cd ~/disco
-        disco worker start
         disco master nodaemon
 
 Here we assume that you've extracted Disco under ``~/disco``. If you

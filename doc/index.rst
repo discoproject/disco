@@ -24,7 +24,6 @@ Getting started
    :maxdepth: 1
 
    start/install
-   disco command line interface <man/disco>
    start/tutorial
    start/ec2setup
    start/dfs
@@ -38,6 +37,7 @@ References
 
    py/index
    external
+   disco command line interface <man/disco>
    man/settings
 
 Indices and tables

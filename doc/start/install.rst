@@ -67,7 +67,7 @@ If you want to install Disco locally, just run make::
 This is often the easiest and the least intrusive way to get started with Disco.
 
 You should repeat the above command on all servers that belong to your
-Disco cluster.
+Disco cluster. Note that Disco should be found on the same path on all the servers.
 
 To install system-wide, run make install as root::
 
@@ -104,7 +104,6 @@ See :ref:`settings` for more information on the various settings and their defau
 Disco now uses a streamlined command-line interface (see :ref:`disco`).
 On the master node, start the Disco master by executing ``disco master start``.
 On all the servers you want to utilize as workers, execute ``disco worker start``.
-If you run Disco on a single server, execute both commands on your server.
 
 You can easily integrate ``disco`` into your system's startup sequence.
 For instance, you can see how ``debian/disco-master.init`` and

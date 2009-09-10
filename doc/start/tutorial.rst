@@ -212,8 +212,7 @@ Run the script as follows::
 
 If you run the Disco master in a non-standard port, replace
 ``disco://localhost`` with the correct address to the
-master. Alternatively, you can specify the ``DISCO_MASTER_PORT``
-environment variable, which specifies the port to the master.
+master.
 
 Amazon EC2
 ''''''''''
@@ -238,6 +237,8 @@ which was created earlier. Finally the outputs are written to
 browser at ``http://localhost:8989`` (or some other port where you run the
 Disco master) which lets you follow the progress of your job in real-time.
 
+You can also set the environment variable ``DISCO_EVENTS=1`` to see job 
+events on your console instead of the web UI. 
 
 What next?
 ----------
