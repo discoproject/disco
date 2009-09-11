@@ -1,0 +1,55 @@
+
+/* DiscoDB C API */
+
+/* Construct DiscoDB */
+
+ddb_cons_t *ddb_new();
+void ddb_add(ddb_cons_t *c, const ddb_entry_t *key, const ddb_entry_t *val);
+const char *ddb_finalize(ddb_cons_t *c, size_t *length);
+
+/* Use DiscoDB */
+
+const ddb_t *ddb_loads(const char *data, size_t length);
+const char *ddb_dumps(const ddb_t *db, size_t *length);
+ddb_cursor_t *ddb_keys(const ddb_t *db);
+ddb_cursor_t *ddb_values(const ddb_t *db);
+ddb_cursor_t *ddb_getitem(const ddb_t *db, const ddb_entry_t *key);
+ddb_cursor_t *ddb_query(const ddb_t *ddb, const ddb_term_t *terms, size_t length);
+size_t ddb_resultset_size(const ddb_cursor_t *cur); /* works only with ddb_getitem, ddb_keys and ddb_values cursors */
+ddb_entry_t *ddb_next(ddb_cursor_t *cur);
+
+typedef struct{
+        const char *data;
+        size_t length;
+} ddb_entry_t;
+
+typedef struct{
+        ddb_key_t *keys;
+        size_t length;
+} ddb_term_t;
+
+typedef struct{
+        ddb_entry_t key;
+        uint not;
+} ddb_key_t;
+
+
+/* DiscoDB Python API 
+
+class DiscoDB(object):
+        def __init__(self, kv_iterator)
+        @classmethod
+        def loads(self, buffer)
+        def dumps(self)
+        def __getitem__(self, k)
+        def __contains__(self, k)
+        def query(Q)
+
+*/
+
+
+
+
+
+
+
