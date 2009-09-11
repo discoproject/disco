@@ -4,7 +4,7 @@
 /* Construct DiscoDB */
 
 ddb_cons_t *ddb_new();
-void ddb_add(ddb_cons_t *c, const ddb_entry_t *key, const ddb_entry_t *val);
+void ddb_add(ddb_cons_t *c, const ddb_entry_t *key, const ddb_entry_t *values, size_t num_values);
 const char *ddb_finalize(ddb_cons_t *c, size_t *length);
 
 /* Use DiscoDB */
