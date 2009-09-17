@@ -30,6 +30,8 @@ def find_gluster_mountpoint(path):
 def load_hostname_map(hmap):
         try:
                 f = file(os.environ.get("DISCO_HOSTNAME_MAP", hmap))
+        except KeyboardInterrupt:
+                raise
         except:
                 raise DFSException("Hostname map not found at %s "\
                         "(you can specify another file in the "\

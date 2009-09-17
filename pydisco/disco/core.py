@@ -50,6 +50,8 @@ class Disco(object):
         def request(self, url, data = None, redir = False, offset = 0):
                 try:
                         return comm.download(self.host + url, data = data, redir = redir, offset = offset)
+                except KeyboardInterrupt:
+                        raise
                 except Exception, e:
                         raise DiscoError('Got %s, make sure disco master is running at %s' % (e, self.host))
 

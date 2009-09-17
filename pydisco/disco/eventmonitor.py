@@ -30,6 +30,8 @@ class OutputStream(object):
                         if self.handle.isatty():
                                 curses.setupterm()
                                 return curses.tigetnum('colors') > 2
+                except KeyboardInterrupt:
+                        raise
                 except:
                         pass
 

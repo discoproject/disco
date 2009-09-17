@@ -36,6 +36,8 @@ def download(url, data = None, redir = False, offset = 0):
                 try:
                         dl_handle.perform()
                         break
+                except KeyboardInterrupt:
+                        raise
                 except:
                         if retry == MAX_RETRIES:
                                 raise CommException("Downloading %s failed "\

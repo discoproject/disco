@@ -114,6 +114,8 @@ def load_oob(host, name, key):
                 fname = "%s/data/%s" % (ROOT, "/".join(loc.split("/")[3:]))
                 try:
                         return file(fname).read()
+                except KeyboardInterrupt:
+                        raise
                 except Exception:
                         raise DiscoError("OOB key (%s) not found at %s" %\
                                  (key, fname))

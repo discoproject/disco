@@ -75,6 +75,8 @@ def re_reader(item_re_str, fd, content_len, fname, output_tail = False, read_buf
                                 r = fd.read(read_buffer_size)
                         tot += len(r)
                         buf += r
+                except KeyboardInterrupt:
+                        raise
                 except:
                         data_err("Receiving data failed", fname)
 
