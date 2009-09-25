@@ -223,7 +223,7 @@ class Job(object):
                 if re.search("\W", kwargs["name"]):
                         raise DiscoError("Only characters in [a-zA-Z0-9_] "\
                               "are allowed in the job name")
-                self.name = "%s@%d" % (kwargs["name"], int(time.time()))
+                self.name = kwargs["name"]
                 self._run(**kwargs)
 
         def __getattr__(self, name):
