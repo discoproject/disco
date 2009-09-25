@@ -37,6 +37,24 @@ struct ddb_entry *read_file(const char *fname, struct ddb_entry *key, uint32_t *
         return values;
 }
 
+struct ddb_entry *gen_values(const char *fname, struct ddb_entry *key, uint32_t *num_values)
+{
+        static int size = 1024 * 1024 * 100;
+        key->data = fname;
+        key->length = strlen(fname);
+        int i = *num_values = 10;
+        struct ddb_entry *values = malloc(i * sizeof(struct ddb_entry));
+        while (i--){
+                char *p = malloc(size);
+                int j = size;
+                while (j--)
+                        p[j] = (char)rand();
+                values[i].length = size;
+                values[i].data = p;
+        }
+        return values;
+}
+
 int main(int argc, char **argv)
 {
         struct ddb_entry key = {NULL, 0};
@@ -46,19 +64,19 @@ int main(int argc, char **argv)
                 exit(1);
         }
         uint32_t n;
-        
+
         while (--argc){
                 struct ddb_entry *values = read_file(argv[argc], &key, &n);
-                //int i = 0;
-                //printf("VALUES (%u):\n", n);
-                //for (i = 0; i < n; i++)
-                //        printf("VAL (%s) LEN (%u)\n", values[i].data, values[i].len);
+                //struct ddb_entry *values = gen_values(argv[argc], &key, &n);
+                
                 if (ddb_add(db, &key, values, n)){
                         printf("ERROR!\n");
                         exit(1);
                 }
+                while (n--)
+                        free(values[n].data);
                 free(values);
-                free(key.data);
+                //free(key.data);
         }
 
         uint64_t size;
@@ -67,6 +85,7 @@ int main(int argc, char **argv)
                 printf("FINALIZATION failed\n");
                 exit(1);
         }
+        printf("SIZE %lu\n", size);
 
         //discodb_free(db);
 

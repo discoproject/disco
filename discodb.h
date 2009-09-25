@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 
+#define DDB_MIN_BLOB_SIZE (1024 * 1024)
 #define DDB_MAX_NUM_VALUES UINT_MAX
 #define DDB_MAX_NUM_KEYS UINT_MAX
 #define DDB_HASH_MIN_KEYS 25

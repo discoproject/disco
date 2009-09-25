@@ -1,8 +1,4 @@
 
-/* GNU_SOURCE for open_memstream() */
-#define _GNU_SOURCE
-
-#include <stdio.h>
 #include <string.h>
 
 #include <Judy.h>
@@ -11,10 +7,12 @@
 #include <discodb.h>
 #include <ddb_internal.h>
 
+#define BUF_INC (1024 * 1024 * 10)
+
 struct ddb_cons_sect{
-        FILE *f;
         char *ptr;
-        size_t size;
+        uint64_t size;
+        uint64_t offset;
 };
 
 struct ddb_cons{
@@ -32,8 +30,19 @@ struct ddb_cons{
         valueid_t next_id;
         valueid_t *idbuf;
         uint32_t idbuf_len;
-
 };
+
+static int ddb_write(struct ddb_cons_sect *d, const void *buf, uint64_t len)
+{
+        if (d->offset + len > d->size){
+                d->size += len + BUF_INC;
+                if (!(d->ptr = realloc(d->ptr, d->size)))
+                        return -1;
+        }
+        memcpy(&d->ptr[d->offset], buf, len);
+        d->offset += len;
+        return 0;
+}
 
 static int copy_to_buf(struct ddb_cons *db, const void *src, uint32_t len)
 {
@@ -78,16 +87,9 @@ static void ddb_free(struct ddb_cons *db)
 {
         Word_t tmp;
 
-        fclose(db->toc.f);
         free(db->toc.ptr);
-        
-        fclose(db->data.f);
         free(db->data.ptr);
-        
-        fclose(db->values.f);
         free(db->values.ptr);
-        
-        fclose(db->values_toc.f);
         free(db->values_toc.ptr);
 
         JHSFA(tmp, db->valmap);
@@ -129,19 +131,21 @@ static uint32_t encode_values(struct ddb_cons *db, uint32_t num_values)
         return size;
 }
 
-static void write_offset(struct ddb_cons_sect *d, struct ddb_cons_sect *toc)
+static int write_offset(const struct ddb_cons_sect *d, struct ddb_cons_sect *toc)
 {
-        uint64_t offs = ftello(d->f);
-        fwrite(&offs, 8, 1, toc->f);
+        return ddb_write(toc, &d->offset, 8);
 }
 
 static valueid_t new_value(struct ddb_cons *db, const struct ddb_entry *e)
 {
+        int err = 0;
         if (++db->next_id == DDB_MAX_NUM_VALUES)
                 return 0;
         
-        write_offset(&db->values, &db->values_toc);
-        fwrite(e->data, e->length, 1, db->values.f);
+        err |= write_offset(&db->values, &db->values_toc);
+        err |= ddb_write(&db->values, e->data, e->length);
+        if (err)
+                return 0;
         return db->next_id;
 }
 
@@ -155,12 +159,12 @@ static const char *pack(const struct ddb_cons *db, char *hash,
         int i, num_sect = sizeof(sect) / sizeof(struct ddb_cons_sect);
         *length = sizeof(struct ddb_header);
         for (i = 0; i < num_sect; i++)
-                *length += sect[i].size;
+                *length += sect[i].offset;
         
         char *p = NULL;
         if (!(p = malloc(*length)))
                 return NULL;
-        
+
         struct ddb_header *head = (struct ddb_header*)p;
         
         uint64_t *offsets[] = 
@@ -176,8 +180,8 @@ static const char *pack(const struct ddb_cons *db, char *hash,
         uint64_t offs = sizeof(struct ddb_header);
         for (i = 0; i < num_sect; i++){
                 *offsets[i] = offs;
-                memcpy(&p[offs], sect[i].ptr, sect[i].size);
-                offs += sect[i].size;
+                memcpy(&p[offs], sect[i].ptr, sect[i].offset);
+                offs += sect[i].offset;
         }
         
         return p;
@@ -252,24 +256,9 @@ static char *build_hash(const struct ddb_cons *db, uint32_t *size)
         return hash;
 }
 
-static void sect_new(struct ddb_cons_sect *sect)
-{
-        sect->f = open_memstream(&sect->ptr, &sect->size);
-}
-
 struct ddb_cons *ddb_new()
 {
-        struct ddb_cons *db = NULL;
-
-        if (!(db = calloc(1, sizeof(struct ddb_cons))))
-                return NULL;
-
-        sect_new(&db->toc);
-        sect_new(&db->data);
-        sect_new(&db->values);
-        sect_new(&db->values_toc);
-        
-        return db;
+        return (struct ddb_cons*)calloc(1, sizeof(struct ddb_cons));
 }
 
 int ddb_add(struct ddb_cons *db, const struct ddb_entry *key, 
@@ -286,18 +275,16 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
         /* find IDs for values */
         while (i--){
                 Word_t *id = NULL;
-                if (copy_to_buf(db, values[i].data, values[i].length))
-                        goto err;
-                JHSI(id, db->valmap, db->tmpbuf, values[i].length);
-                if (id == PJERR)
-                        goto err;
-                else if (*id)
-                        db->idbuf[i] = (uint32_t)*id;
-                else{
-                        if (!(*id = new_value(db, &values[i])))
+                Word_t tmp = 0;
+                if (values[i].length < DDB_MIN_BLOB_SIZE){
+                        if (copy_to_buf(db, values[i].data, values[i].length))
                                 goto err;
-                        db->idbuf[i] = *id;
-                }
+                        JHSI(id, db->valmap, db->tmpbuf, values[i].length);
+                }else
+                        id = &tmp;
+                if (!*id && !(*id = new_value(db, &values[i])))
+                        goto err;
+                db->idbuf[i] = *id;
         }
 
         /* sort by ascending IDs */
@@ -313,12 +300,15 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
            attribute entry:
            [ key_len | key | num_values | val_bits | delta-encoded values ] 
         */
-        write_offset(&db->data, &db->toc);
-        fwrite(&key->length, 4, 1, db->data.f);
-        fwrite(key->data, key->length, 1, db->data.f);
-        fwrite(&num_values, 4, 1, db->data.f);
-        fwrite(db->tmpbuf, size, 1, db->data.f);
-        
+        int r = 0;
+        r |= write_offset(&db->data, &db->toc);
+        r |= ddb_write(&db->data, &key->length, 4);
+        r |= ddb_write(&db->data, key->data, key->length);
+        r |= ddb_write(&db->data, &num_values, 4);
+        r |= ddb_write(&db->data, db->tmpbuf, size);
+        if (r)
+                goto err;
+
         if (++db->num_keys == DDB_MAX_NUM_KEYS)
                 goto err;
 
@@ -331,18 +321,17 @@ err:
 const char *ddb_finalize(struct ddb_cons *db, uint64_t *length)
 {
         static char pad[7];
+        const char *packed = NULL;
+        int err = 0;
 
         /* write final offsets to tocs */
-        write_offset(&db->data, &db->toc);
-        write_offset(&db->values, &db->values_toc);
+        err |= write_offset(&db->data, &db->toc);
+        err |= write_offset(&db->values, &db->values_toc);
 
         /* write zero padding to data, so read_bits is always safe */ 
-        fwrite(pad, 7, 1, db->data.f);
-
-        fclose(db->toc.f);
-        fclose(db->data.f);
-        fclose(db->values.f);
-        fclose(db->values_toc.f);
+        err |= ddb_write(&db->data, pad, 7);
+        if (err)
+                goto end;
 
         Word_t tmp;
         JHSFA(tmp, db->valmap);
@@ -356,7 +345,8 @@ const char *ddb_finalize(struct ddb_cons *db, uint64_t *length)
                         return NULL;
                 }
         
-        const char *packed = pack(db, hash, hash_size, length);
+        packed = pack(db, hash, hash_size, length);
+end:
         ddb_free(db);
         return packed;
 }
