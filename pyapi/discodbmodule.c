@@ -157,7 +157,7 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
       if (kbytes == NULL)
         goto Done;
 
-      chars = PyBytes_AsString(kbytes);
+      //chars = PyBytes_AsString(kbytes);
 
       /* Since values can be an iterator, we must count them. */
       itervalues = PyObject_GetIter(values);
@@ -172,7 +172,7 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
         if (vbytes == NULL)
           goto Done;
 
-        chars = PyBytes_AsString(vbytes);
+        //chars = PyBytes_AsString(vbytes);
         // copy bytes
         Py_CLEAR(vbytes);
         Py_CLEAR(value);
