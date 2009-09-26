@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <discodb.h>
@@ -17,19 +18,19 @@ struct ddb_entry *read_file(const char *fname, struct ddb_entry *key, uint32_t *
         
         struct ddb_entry *values = NULL;
         
-        printf("reading %s\n", fname);
+        //printf("reading %s\n", fname);
         while ((r = getline(&line, &len, f)) != -1) {
                 lc++;
                 free(line);
                 line = NULL;
         }
-        printf("%lu lines\n", lc);
+        //printf("%lu lines\n", lc);
         rewind(f);
-        key->length = getline((char**)&key->data, &len, f);
+        key->length = getline((char**)&key->data, &len, f) - 1;
         values = calloc(1, (lc - 1) * sizeof(struct ddb_entry));
         lc = 0;
         while ((r = getline((char**)&values[lc].data, &len, f)) != -1){
-                values[lc].length = r;
+                values[lc].length = r - 1;
                 ++lc;
         }
         *num_values = lc;
@@ -53,6 +54,38 @@ struct ddb_entry *gen_values(const char *fname, struct ddb_entry *key, uint32_t 
                 values[i].data = p;
         }
         return values;
+}
+
+void test_query(const char *data, uint64_t length)
+{
+        struct ddb *db = ddb_loads(data, length);
+        if (!db){
+                printf("loads failed\n");
+                exit(1);
+        }
+        
+        struct ddb_entry key;
+        key.data = getenv("KEY");
+        key.length = strlen(key.data);
+         
+        //struct ddb_cursor *cur = ddb_values(db);
+        struct ddb_cursor *cur = ddb_getitem(db, &key);
+        if (!cur){
+                printf("not found\n");
+                exit(1);
+        }
+
+        printf("NUM %u\n", ddb_resultset_size(cur));
+        const struct ddb_entry *e = NULL;
+        int i = 0;
+        while ((e = ddb_next(cur))){
+                printf("VAL %.*s\n", e->length, e->data);
+                ++i;
+        }
+        printf("TOT %u\n", i);
+
+
+
 }
 
 int main(int argc, char **argv)
@@ -86,6 +119,8 @@ int main(int argc, char **argv)
                 exit(1);
         }
         printf("SIZE %lu\n", size);
+
+        test_query(data, size);
 
         //discodb_free(db);
 
