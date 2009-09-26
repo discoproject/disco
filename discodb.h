@@ -2,59 +2,35 @@
 #ifndef __DISCODB_H__
 #define __DISCODB_H__
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 
-#include <Judy.h>
+#define DDB_MIN_BLOB_SIZE (1024 * 1024)
+#define DDB_MAX_NUM_VALUES UINT_MAX
+#define DDB_MAX_NUM_KEYS UINT_MAX
+#define DDB_HASH_MIN_KEYS 25
 
-typedef struct {
-        const uint8_t *data;
-        uint32_t len;
-        uint32_t id;
-} ddb_attr_t;
+struct ddb_cons;
+struct ddb;
 
-typedef struct {
-        FILE *toc_f;
-        FILE *data_f;
-        FILE *valmap_f;
-        FILE *valtoc_f;
-        
-        char *toc_name;
-        char *data_name;
-        char *valmap_name;
-        char *valtoc_name;
-        
-        uint32_t data_offs;
+struct ddb_entry{
+        const char *data;
+        uint32_t length;
+};
 
-        uint32_t num_keys;
-        Pvoid_t valmap;
+struct ddb_cons *ddb_new();
+int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
+        const struct ddb_entry *values, uint32_t num_values);
+const char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
 
-        /* It doesn't matter if these values oveflow.
-           If they do, the db grows necessarily over 4GB and 
-           discodb_build() fails. */
-        uint32_t next_id;
-        uint32_t valmap_offs;
+struct ddb *ddb_loads(const char *data, uint64_t length);
+const char *ddb_dumps(const struct ddb *db, uint64_t *length);
 
-        uint8_t *tmpbuf;
-        uint32_t tmpbuf_len;
+struct ddb_cursor *ddb_keys(const struct ddb *db);
+struct ddb_cursor *ddb_values(const struct ddb *db);
+struct ddb_cursor *ddb_getitem(const struct ddb *db, const struct ddb_entry *key);
 
-} discodb_t;
-
-discodb_t *discodb_new(const char *path_prefix);
-void discodb_free(discodb_t *db);
-int discodb_add(discodb_t *db, const ddb_attr_t *key,
-        ddb_attr_t *values, uint32_t num_values);
-int discodb_build(discodb_t *db, int outfd);
-
-/* util.c */
-
-uint32_t read_bits(const uint8_t *src, uint64_t offs, uint32_t bits);
-void write_bits(uint8_t *dst, uint64_t offs, uint32_t val);
-int copy_to_buf(discodb_t *db, const void *src, uint32_t len);
-uint32_t allocate_bits(discodb_t *db, uint32_t size_in_bits);
-uint32_t bits_needed(uint32_t max);
-int id_cmp(const void *p1, const void *p2);
+const struct ddb_entry *ddb_next(struct ddb_cursor *cur);
+uint32_t ddb_resultset_size(const struct ddb_cursor *cur);
 
 
 
