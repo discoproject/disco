@@ -12,7 +12,7 @@ uint32_t read_bits(const char *src, uint64_t offs, uint32_t bits)
 void write_bits(char *dst, uint64_t offs, uint32_t val)
 {
         uint64_t *dst_w = (uint64_t*)&dst[offs >> 3];
-        *dst_w |= val << (offs & 7);
+        *dst_w |= ((uint64_t)val) << (offs & 7);
 }
 
 uint32_t bits_needed(uint32_t max)

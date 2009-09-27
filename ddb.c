@@ -7,6 +7,26 @@
 #include <discodb.h>
 #include <ddb_internal.h>
 
+static const char *ERR_STR[] = {
+        "Ok",
+        "Out of memory",
+        "Queries are not supported on multisets"
+};
+
+void ddb_value_cursor_step(struct ddb_value_cursor *c)
+{
+        uint32_t v = read_bits(c->deltas, c->offset, c->bits);
+        c->cur_id += v;
+        c->num_left--;
+        c->offset += c->bits;
+}
+
+void ddb_resolve_valueid(const struct ddb *db, valueid_t id, struct ddb_entry *e)
+{
+        e->length = db->values_toc[id] - db->values_toc[id - 1];
+        e->data = &db->values[db->values_toc[id - 1]];
+}
+
 struct ddb *ddb_loads(const char *data, uint64_t length)
 {
         const struct ddb_header *head = (const struct ddb_header*)data;
@@ -26,7 +46,8 @@ struct ddb *ddb_loads(const char *data, uint64_t length)
         db->size = head->size;
         db->num_keys = head->num_keys;
         db->num_values = head->num_values;
-        db->hashash = head->hashash;
+        db->flags = head->flags;
+        db->errno = 0;
 
         db->toc = (const uint64_t*)&data[head->toc_offs];
         db->values_toc = (const uint64_t*)&data[head->values_toc_offs];
@@ -37,11 +58,13 @@ struct ddb *ddb_loads(const char *data, uint64_t length)
         return db;
 }
 
-const char *ddb_dumps(const struct ddb *db, uint64_t *length)
+const char *ddb_dumps(struct ddb *db, uint64_t *length)
 {
         char *d = NULL;
-        if (!(d = malloc(db->size)))
+        if (!(d = malloc(db->size))){
+                db->errno = DDB_ERR_OUT_OF_MEMORY;
                 return NULL;
+        }
         memcpy(d, db->buf, db->size);
         *length = db->size;
         return d;
@@ -59,11 +82,13 @@ static const struct ddb_entry *key_cursor_next(struct ddb_cursor *c)
         return &c->ent;
 }
 
-struct ddb_cursor *ddb_keys(const struct ddb *db)
+struct ddb_cursor *ddb_keys(struct ddb *db)
 {
         struct ddb_cursor *c = NULL;
-        if (!(c = malloc(sizeof(struct ddb_cursor))))
+        if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+                db->errno = DDB_ERR_OUT_OF_MEMORY;
                 return NULL;
+        }
         c->db = db;
         c->cursor.keys.i = 0;
         c->next = key_cursor_next;
@@ -79,15 +104,18 @@ static const struct ddb_entry *values_cursor_next(struct ddb_cursor *c)
                 ddb_fetch_item(c->cursor.values.i++, c->db->toc, c->db->data, 
                         &c->ent, &c->cursor.values.cur);
         }
-        ddb_fetch_nextval(&c->ent, c->db, &c->cursor.values.cur);
+        ddb_value_cursor_step(&c->cursor.values.cur);
+        ddb_resolve_valueid(c->db, c->cursor.values.cur.cur_id, &c->ent);
         return &c->ent;
 }
 
-struct ddb_cursor *ddb_values(const struct ddb *db)
+struct ddb_cursor *ddb_values(struct ddb *db)
 {
         struct ddb_cursor *c = NULL;
-        if (!(c = malloc(sizeof(struct ddb_cursor))))
+        if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+                db->errno = DDB_ERR_OUT_OF_MEMORY;
                 return NULL;
+        }
         c->db = db;
         c->cursor.values.i = 0;
         c->cursor.values.cur.num_left = 0;
@@ -99,13 +127,19 @@ struct ddb_cursor *ddb_values(const struct ddb *db)
 static const struct ddb_entry *value_cursor_next(struct ddb_cursor *c)
 {
         if (c->cursor.value.num_left){
-                ddb_fetch_nextval(&c->ent, c->db, &c->cursor.value);
+                ddb_value_cursor_step(&c->cursor.value);
+                ddb_resolve_valueid(c->db, c->cursor.value.cur_id, &c->ent);
                 return &c->ent;
         }else
                 return NULL;
 }
 
-struct ddb_cursor *ddb_getitem(const struct ddb *db, const struct ddb_entry *key)
+static const struct ddb_entry *empty_next(struct ddb_cursor *c)
+{
+        return NULL;
+}
+
+struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
 {
         int key_matches(const struct ddb_cursor *c)
         {
@@ -114,15 +148,24 @@ struct ddb_cursor *ddb_getitem(const struct ddb *db, const struct ddb_entry *key
         }
 
         struct ddb_cursor *c = NULL;
-        if (!(c = malloc(sizeof(struct ddb_cursor))))
+        if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+                db->errno = DDB_ERR_OUT_OF_MEMORY;
                 return NULL;
+        }
 
-        if (db->hashash){
-                uint32_t id = cmph_search_packed((void*)db->hash, key->data, key->length);
-                ddb_fetch_item(id, db->toc, db->data, &c->ent, &c->cursor.value);
-                if (!key_matches(c))
-                        return NULL;
+        if (HASFLAG(db, F_HASH)){
+                /* hash exists, perform O(1) lookup */
+                uint32_t id = cmph_search_packed((void*)db->hash,
+                        key->data, key->length);
+                ddb_fetch_item(id, db->toc, db->data,
+                        &c->ent, &c->cursor.value);
+                if (!key_matches(c)){
+                        c->cursor.value.num_left = 0;
+                        c->next = empty_next;
+                        return c;
+                }
         }else{
+                /* no hash, perform linear scan */
                 uint32_t i = db->num_keys;
                 while (i--){
                         ddb_fetch_item(i, db->toc, db->data,
@@ -130,13 +173,92 @@ struct ddb_cursor *ddb_getitem(const struct ddb *db, const struct ddb_entry *key
                         if (key_matches(c))
                                 goto found;
                 }
-                return NULL;
+                c->cursor.value.num_left = 0;
+                c->next = empty_next;
+                return c;
         }
 found:
         c->db = db;
         c->num_items = c->cursor.value.num_left;
         c->next = value_cursor_next;
         return c;
+}
+
+struct ddb_cursor *ddb_query(struct ddb *db,
+        const struct ddb_query_clause *clauses, uint32_t length)
+{
+        struct ddb_cursor *c = NULL;
+
+        /* CNF queries are not supported for multisets */
+        if (HASFLAG(db, F_MULTISET)){
+                db->errno = DDB_ERR_QUERY_NOT_SUPPORTED;
+                return NULL;
+        }
+
+        if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+                db->errno = DDB_ERR_OUT_OF_MEMORY;
+                return NULL;
+        }
+
+        uint32_t j, k, i = length;
+        uint32_t num_terms = 0;
+        while (i--)
+                num_terms += clauses[i].num_terms;
+        
+        c->db = db;
+        c->num_items = 0;
+        c->next = ddb_cnf_cursor_next;
+        
+        c->cursor.cnf.num_clauses = length;
+        c->cursor.cnf.num_terms = num_terms;
+        c->cursor.cnf.isect_offset = WINDOW_SIZE;
+        
+        if (!(c->cursor.cnf.clauses = 
+                        calloc(length, sizeof(struct ddb_cnf_clause))))
+                goto err;
+        if (!(c->cursor.cnf.terms =
+                        calloc(num_terms, sizeof(struct ddb_cnf_term))))
+                goto err;
+        if (!(c->cursor.cnf.isect = calloc(1, WINDOW_SIZE_BYTES)))
+                goto err;
+        
+        for (j = 0, i = 0; i < length; i++){
+                c->cursor.cnf.clauses[i].terms = &c->cursor.cnf.terms[j];
+                c->cursor.cnf.clauses[i].num_terms = clauses[i].num_terms;
+                
+                for (k = 0; k < clauses[i].num_terms; k++){
+                        struct ddb_cnf_term *term = &c->cursor.cnf.terms[j++];
+                        if (!(term->cursor = ddb_getitem(db, &clauses[i].terms[k].key)))
+                                goto err;
+
+                        if (clauses[i].terms[k].not)
+                                term->next = ddb_not_next;
+                        else
+                                term->next = ddb_val_next;
+
+                        term->next(term);
+                }
+        }
+        return c;
+err:
+        db->errno = DDB_ERR_OUT_OF_MEMORY;
+        ddb_free_cursor(c); 
+        return NULL;
+}
+
+void ddb_free_cursor(struct ddb_cursor *c)
+{
+        if (c->next == ddb_cnf_cursor_next){
+                if (c->cursor.cnf.terms){
+                        int i = c->cursor.cnf.num_terms;
+                        while (i--)
+                                free(c->cursor.cnf.terms[i].cursor);
+                }
+                free(c->cursor.cnf.clauses);
+                free(c->cursor.cnf.terms);
+                free(c->cursor.cnf.isect);
+        }
+        free(c);
 }
 
 uint32_t ddb_resultset_size(const struct ddb_cursor *c)
@@ -149,6 +271,15 @@ const struct ddb_entry *ddb_next(struct ddb_cursor *c)
         return c->next(c);
 }
 
+int ddb_error(struct ddb *db, const char **errstr)
+{
+        if (errstr)
+                *errstr = ERR_STR[db->errno];
+        int e = db->errno;
+        db->errno = 0;
+        return e;
+}
+
 void ddb_fetch_item(uint32_t i, const uint64_t *toc, const char *data,
         struct ddb_entry *key, struct ddb_value_cursor *val)
 {
@@ -159,19 +290,8 @@ void ddb_fetch_item(uint32_t i, const uint64_t *toc, const char *data,
 
         val->num_left = *(uint32_t*)&p[4 + key->length];
         val->deltas = &p[8 + key->length];
-        val->bits = read_bits(val->deltas, 0, 5);
+        val->bits = read_bits(val->deltas, 0, 5) + 1;
         val->offset = 5;
         val->cur_id = 0;
 }
 
-void ddb_fetch_nextval(struct ddb_entry *e, 
-        const struct ddb *db, struct ddb_value_cursor *c)
-{
-        uint32_t v = read_bits(c->deltas, c->offset, c->bits);
-        c->cur_id += v;
-        c->num_left--;
-        c->offset += c->bits;
-        
-        e->length = db->values_toc[c->cur_id] - db->values_toc[c->cur_id - 1];
-        e->data = &db->values[db->values_toc[c->cur_id - 1]];
-}

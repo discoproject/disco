@@ -21,6 +21,7 @@ struct ddb_cons{
         struct ddb_cons_sect values;
         struct ddb_cons_sect values_toc;
 
+        uint32_t is_multiset;
         uint32_t num_keys;
         Pvoid_t valmap;
 
@@ -106,6 +107,8 @@ static uint32_t encode_values(struct ddb_cons *db, uint32_t num_values)
         uint32_t i, max_diff = db->idbuf[0];
         for (i = 1; i < num_values; i++){
                 uint32_t d = db->idbuf[i] - db->idbuf[i - 1];
+                if (!d)
+                        db->is_multiset = 1;
                 if (d > max_diff)
                         max_diff = d;
         }
@@ -121,7 +124,7 @@ static uint32_t encode_values(struct ddb_cons *db, uint32_t num_values)
            [ bits_needed (5 bits) | delta-encoded values (bits * num_values) ]
         */
          
-        write_bits(db->tmpbuf, offs, bits);
+        write_bits(db->tmpbuf, offs, bits - 1);
         offs = 5;
         for (i = 0; i < num_values; i++){
                 write_bits(db->tmpbuf, offs, db->idbuf[i] - prev);
@@ -175,8 +178,15 @@ static const char *pack(const struct ddb_cons *db, char *hash,
         head->size = *length;
         head->num_keys = db->num_keys;
         head->num_values = db->next_id;
-        head->hashash = hash_size > 0 ? 1: 0;
-        
+        head->flags = 0;
+       
+        if (hash_size){
+                SETFLAG(head, F_HASH);
+        }
+        if (db->is_multiset){
+                SETFLAG(head, F_MULTISET);
+        }
+
         uint64_t offs = sizeof(struct ddb_header);
         for (i = 0; i < num_sect; i++){
                 *offsets[i] = offs;
@@ -200,7 +210,6 @@ static int reorder_items(struct ddb_cons *db, char *hash)
                 struct ddb_value_cursor val;
                 ddb_fetch_item(i, old_toc, db->data.ptr, &key, &val);
                 uint32_t id = cmph_search_packed(hash, key.data, key.length);
-                //printf("KEY %*s OLD %u NEW %u\n", key.length - 1, key.data, i, id);
                 new_toc[id] = old_toc[i];
         }
         free(db->toc.ptr);
@@ -297,13 +306,9 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
         /* find IDs for values */
         while (i--){
                 Word_t *id = NULL;
-                Word_t tmp = 0;
-                if (values[i].length < DDB_MIN_BLOB_SIZE){
-                        if (copy_to_buf(db, values[i].data, values[i].length))
-                                goto err;
-                        JHSI(id, db->valmap, db->tmpbuf, values[i].length);
-                }else
-                        id = &tmp;
+                if (copy_to_buf(db, values[i].data, values[i].length))
+                        goto err;
+                JHSI(id, db->valmap, db->tmpbuf, values[i].length);
                 if (!*id && !(*id = new_value(db, &values[i])))
                         goto err;
                 db->idbuf[i] = *id;
