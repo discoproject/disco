@@ -101,7 +101,7 @@ static struct ddb *open_discodb(const char *file)
         }
         struct ddb *db;
         if (!(db = ddb_new())){
-                fprintf(stderr, "Couldn't initialize DiscoDB: out of memory\n");
+                fprintf(stderr, "Couldn't initialize discodb: Out of memory\n");
                 exit(1);
         }
         if (ddb_loads(db, p, nfo.st_size)){
