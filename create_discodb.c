@@ -56,7 +56,7 @@ int main(int argc, char **argv)
                 exit(1);
         }
 
-        struct ddb_cons *db = ddb_new();
+        struct ddb_cons *db = ddb_cons_new();
         if (!db){
                 fprintf(stderr, "DB init failed\n");
                 exit(1);
