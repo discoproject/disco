@@ -30,7 +30,7 @@ struct ddb_query_clause{
         uint32_t num_terms;
 };
 
-struct ddb_cons *ddb_new();
+struct ddb_cons *ddb_new(void);
 int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
         const struct ddb_entry *values, uint32_t num_values);
 char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
