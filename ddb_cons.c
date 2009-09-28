@@ -57,7 +57,7 @@ static int id_cmp(const void *p1, const void *p2)
         return 0;
 }
 
-static void ddb_free(struct ddb_cons *db)
+static void ddb_cons_free(struct ddb_cons *db)
 {
         free(db->toc.ptr);
         free(db->data.ptr);
@@ -347,7 +347,7 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
 
         return 0;
 err:
-        ddb_free(db);
+        ddb_cons_free(db);
         return -1;
 }
 
@@ -380,7 +380,7 @@ const char *ddb_finalize(struct ddb_cons *db, uint64_t *length)
         packed = pack(db, hash, hash_size, length);
 end:
         free(hash);
-        ddb_free(db);
+        ddb_cons_free(db);
         return packed;
 }
 
