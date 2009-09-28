@@ -130,7 +130,7 @@ uint32_t bits_needed(uint32_t max);
 
 /* ddb_valuemap.c */
 
-void *ddb_valuemap_init();
+void *ddb_valuemap_init(void);
 void ddb_valuemap_free(void *valmap);
 valueid_t *ddb_valuemap_lookup(void *valmap, const struct ddb_entry *value,
         int (*eq)(const struct ddb_entry*, valueid_t));

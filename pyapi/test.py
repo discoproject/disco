@@ -5,7 +5,7 @@ from discodb import DiscoDB
 
 def k_vs_iter(N, max_values=100):
     for x in xrange(N):
-        yield x, (v for v in xrange(randint(0, max_values)))
+        yield '%s' % x, ('%s' % v for v in xrange(randint(0, max_values)))
 
 class TestConstructor(unittest.TestCase):
     def test_null_constructor(self):

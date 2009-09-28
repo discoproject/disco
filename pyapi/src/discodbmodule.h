@@ -1,12 +1,17 @@
+#include "discodb.h"
+
 typedef struct {
   PyObject_VAR_HEAD
-  // ddb_t *discodb;
+  PyObject   *obuffer;
+  char       *cbuffer;
+  struct ddb *discodb;
 } DiscoDB;
 
-#pragma mark Constructor / Destructor
+#pragma mark General Object Protocol
 
 static void       DiscoDB_dealloc (DiscoDB *);
 static PyObject * DiscoDB_new     (PyTypeObject *, PyObject *, PyObject *);
+static PyObject * DiscoDB_repr    (DiscoDB *);
 
 #pragma mark Mapping Formal / Informal Protocol
 
@@ -26,3 +31,10 @@ static PyObject * DiscoDB_dumps   (DiscoDB *);
 static PyObject * DiscoDB_dump    (DiscoDB *, PyObject *);
 static PyObject * DiscoDB_loads   (PyObject *);
 static PyObject * DiscoDB_load    (PyObject *);
+
+#pragma mark ddb helpers
+
+static struct ddb_cons  *ddb_cons_alloc (void);
+static struct ddb_entry *ddb_entry_alloc(size_t);
+
+#define DiscoDB_CLEAR(op) do { free(op); op = NULL; } while(0)
