@@ -29,12 +29,15 @@ static PyObject * DiscoDB_query   (DiscoDB *,      PyObject *);
 
 static PyObject * DiscoDB_dumps   (DiscoDB *);
 static PyObject * DiscoDB_dump    (DiscoDB *, PyObject *);
-static PyObject * DiscoDB_loads   (PyObject *);
+static PyObject * DiscoDB_loads   (PyTypeObject *, PyObject *);
 static PyObject * DiscoDB_load    (PyObject *);
 
 #pragma mark ddb helpers
 
-static struct ddb_cons  *ddb_cons_alloc (void);
-static struct ddb_entry *ddb_entry_alloc(size_t);
+static struct ddb       *ddb_alloc         (void);
+static struct ddb_cons  *ddb_cons_alloc    (void);
+static struct ddb_entry *ddb_entry_alloc   (size_t);
+static        void       ddb_cursor_dealloc(struct ddb_cursor *);
+static        int        ddb_has_error     (struct ddb *);
 
 #define DiscoDB_CLEAR(op) do { free(op); op = NULL; } while(0)

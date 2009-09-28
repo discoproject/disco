@@ -10,7 +10,10 @@
 static const char *ERR_STR[] = {
         "Ok",
         "Out of memory",
-        "Queries are not supported on multisets"
+        "Queries are not supported on multisets",
+        "Buffer too small",
+        "Buffer not discodb",
+        "Invalid buffer size"
 };
 
 void ddb_value_cursor_step(struct ddb_value_cursor *c)
@@ -27,20 +30,29 @@ void ddb_resolve_valueid(const struct ddb *db, valueid_t id, struct ddb_entry *e
         e->data = &db->values[db->values_toc[id - 1]];
 }
 
-struct ddb *ddb_loads(const char *data, uint64_t length)
+struct ddb *ddb_new()
+{
+        struct ddb *db = NULL;
+        if (!(db = calloc(1, sizeof(struct ddb))))
+                return NULL;
+        return db;
+}
+
+int ddb_loads(struct ddb *db, const char *data, uint64_t length)
 {
         const struct ddb_header *head = (const struct ddb_header*)data;
         
-        if (length < sizeof(struct ddb_header))
-                return NULL;
-        if (head->magic != DISCODB_MAGIC)
-                return NULL;
-        if (head->size != length)
-                return NULL;
-
-        struct ddb *db = NULL;
-        if (!(db = malloc(sizeof(struct ddb))))
-                return NULL;
+        if (length < sizeof(struct ddb_header)){
+                db->errno = DDB_ERR_BUFFER_TOO_SMALL;
+                return -1;
+        }if (head->magic != DISCODB_MAGIC){
+                db->errno = DDB_ERR_BUFFER_NOT_DISCODB;
+                return -1;
+        }
+        if (head->size != length){
+                db->errno = DDB_ERR_INVALID_BUFFER_SIZE;
+                return -1;
+        }
 
         db->buf = data;
         db->size = head->size;
@@ -55,7 +67,7 @@ struct ddb *ddb_loads(const char *data, uint64_t length)
         db->values = &data[head->values_offs];
         db->hash = &data[head->hash_offs];
         
-        return db;
+        return 0;
 }
 
 void ddb_free(struct ddb *db)

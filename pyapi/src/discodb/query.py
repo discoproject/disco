@@ -50,7 +50,7 @@ class Q(object):
     @classmethod
     def parse(cls, string):
         import re
-        return eval(re.sub(r'(\w+)', r'Q.wrap("\1")', string))
+        return eval(re.sub(r'(\w+)', r'Q.wrap("""\1""")', string))
 
     @classmethod
     def wrap(cls, proposition):

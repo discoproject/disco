@@ -10,10 +10,12 @@
 
 #include <discodb.h>
 
-static void print_cursor(struct ddb_cursor *cur)
+static void print_cursor(struct ddb *db, struct ddb_cursor *cur)
 {
         if (!cur){
-                fprintf(stderr, "Query failed\n");
+                const char *err;
+                ddb_error(db, &err);
+                fprintf(stderr, "Query failed: %s\n", err);
                 exit(1);
         }
 
@@ -98,8 +100,14 @@ static struct ddb *open_discodb(const char *file)
                 exit(1);
         }
         struct ddb *db;
-        if (!(db = ddb_loads(p, nfo.st_size))){
-                fprintf(stderr, "Invalid discodb %s\n", file);
+        if (!(db = ddb_new())){
+                fprintf(stderr, "Couldn't initialize DiscoDB: out of memory\n");
+                exit(1);
+        }
+        if (ddb_loads(db, p, nfo.st_size)){
+                const char *err;
+                ddb_error(db, &err);
+                fprintf(stderr, "Invalid discodb in %s: %s\n", file, err);
                 exit(1);
         }
         return db;
@@ -121,10 +129,10 @@ int main(int argc, char **argv)
         struct ddb *db = open_discodb(argv[1]);
         
         if (!strcmp(argv[2], "-keys"))
-                print_cursor(ddb_keys(db));
+                print_cursor(db, ddb_keys(db));
         
         else if (!strcmp(argv[2], "-values"))
-                print_cursor(ddb_values(db));
+                print_cursor(db, ddb_values(db));
         
         else if (!strcmp(argv[2], "-item")){
                 if (argc < 4){
@@ -134,7 +142,7 @@ int main(int argc, char **argv)
                 struct ddb_entry e;
                 e.data = argv[3];
                 e.length = strlen(argv[3]);
-                print_cursor(ddb_getitem(db, &e));
+                print_cursor(db, ddb_getitem(db, &e));
         }else if (!strcmp(argv[2], "-cnf")){
                 if (argc < 4){
                         fprintf(stderr, "Specify query\n");
@@ -142,7 +150,7 @@ int main(int argc, char **argv)
                 }
                 int num_q = 0;
                 struct ddb_query_clause *q = parse_cnf(&argv[3], argc - 3, &num_q);
-                print_cursor(ddb_query(db, q, num_q));
+                print_cursor(db, ddb_query(db, q, num_q));
                 free(q[0].terms);
                 free(q);
         }else

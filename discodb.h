@@ -10,6 +10,9 @@
 
 #define DDB_ERR_OUT_OF_MEMORY 1
 #define DDB_ERR_QUERY_NOT_SUPPORTED 2
+#define DDB_ERR_BUFFER_TOO_SMALL 3
+#define DDB_ERR_BUFFER_NOT_DISCODB 4
+#define DDB_ERR_INVALID_BUFFER_SIZE 5
 
 struct ddb_cons;
 struct ddb;
@@ -30,12 +33,14 @@ struct ddb_query_clause{
         uint32_t num_terms;
 };
 
-struct ddb_cons *ddb_new(void);
+struct ddb_cons *ddb_cons_new(void);
+
 int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
         const struct ddb_entry *values, uint32_t num_values);
 char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
 
-struct ddb *ddb_loads(const char *data, uint64_t length);
+struct ddb *ddb_new(void);
+int ddb_loads(struct ddb *db, const char *data, uint64_t length);
 const char *ddb_dumps(struct ddb *db, uint64_t *length);
 
 struct ddb_cursor *ddb_keys(struct ddb *db);
