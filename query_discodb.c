@@ -54,7 +54,7 @@ static struct ddb_query_clause *parse_cnf(char **tokens, int num, int *num_claus
                         k = t;
                         continue;
                 }
-                if (tokens[i][0] == '-'){
+                if (tokens[i][0] == '~'){
                         terms[t].not = 1;
                         terms[t].key.data = &tokens[i][1];
                         terms[t].key.length = strlen(&tokens[i][1]);
@@ -117,7 +117,7 @@ static void usage()
 {
         fprintf(stderr, "Usage:\n");
         fprintf(stderr, "query_discodb [discodb] [-keys|-values|-item|-cnf] [query]\n");
-        fprintf(stderr, "cnf format example: a b & -c d & e\n");
+        fprintf(stderr, "cnf format example: a b & ~c d & e\n");
         exit(1);
 }
 

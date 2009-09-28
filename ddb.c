@@ -265,7 +265,7 @@ err:
 
 void ddb_free_cursor(struct ddb_cursor *c)
 {
-        if (c->next == ddb_cnf_cursor_next){
+        if (c && c->next == ddb_cnf_cursor_next){
                 if (c->cursor.cnf.terms){
                         int i = c->cursor.cnf.num_terms;
                         while (i--)
