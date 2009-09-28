@@ -133,7 +133,6 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     *ventries = NULL;
   uint64_t n;
 
-
   if (self != NULL) {
     if (!PyArg_ParseTuple(args, "|O", &arg))
       goto Done;
@@ -151,12 +150,12 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     /* Ignores `kwds`, but could chain them to `iteritems`. */
 
     ddb_cons = ddb_cons_alloc();
-    if (!ddb_cons)
+    if (ddb_cons == NULL)
       goto Done;
 
     while ((item = PyIter_Next(iteritems))) {
       kentry = ddb_entry_alloc(1);
-      if (!kentry)
+      if (kentry == NULL)
         goto Done;
 
       if (!PyArg_ParseTuple(item, "s#O", &kentry->data, &kentry->length, &values))
@@ -176,7 +175,7 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
         goto Done;
 
       ventries = ddb_entry_alloc(PySequence_Length(valueseq));
-      if (!ventries)
+      if (ventries == NULL)
         goto Done;
 
       for (n = 0; (value = PyIter_Next(itervalues)); n++) {
@@ -204,7 +203,13 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 
   self->obuffer = NULL;
   self->cbuffer = ddb_finalize(ddb_cons, &n);
-  self->discodb = ddb_loads(self->cbuffer, n);
+  self->discodb = ddb_alloc();
+  if (self->discodb == NULL)
+    goto Done;
+
+  if (ddb_loads(self->discodb, self->cbuffer, n))
+      if (ddb_has_error(self->discodb))
+        goto Done;
 
  Done:
   Py_CLEAR(item);
@@ -254,7 +259,46 @@ DiscoDB_length(DiscoDB *self)
 static PyObject *
 DiscoDB_getitem(register DiscoDB *self, register PyObject *key)
 {
-  return NULL;
+  PyObject
+    *pack = NULL,
+    *value = NULL;
+  struct ddb_entry
+    *kentry = ddb_entry_alloc(1),
+    *ventry = NULL;
+  struct ddb_cursor *cursor = NULL;
+
+  if (kentry == NULL)
+    goto Done;
+
+  pack = Py_BuildValue("(O)", key);
+  if (pack == NULL)
+    goto Done;
+
+  if (!PyArg_ParseTuple(pack, "s#", &kentry->data, &kentry->length))
+    goto Done;
+
+  cursor = ddb_getitem(self->discodb, kentry);
+  if (cursor == NULL)
+    if (ddb_has_error(self->discodb))
+      goto Done;
+
+  while ((ventry = (struct ddb_entry *)ddb_next(cursor))) {
+    value = Py_BuildValue("s#", ventry->data, ventry->length);
+    if (value == NULL)
+      goto Done;
+
+    break;
+  }
+
+ Done:
+  Py_CLEAR(pack);
+  DiscoDB_CLEAR(kentry);
+
+  ddb_cursor_dealloc(cursor);
+
+  if (PyErr_Occurred())
+    return NULL;
+  return value;
 }
 
 static PyObject *
@@ -302,9 +346,42 @@ DiscoDB_dump(DiscoDB *self, PyObject *file)
 }
 
 static PyObject *
-DiscoDB_loads(PyObject *bytes)
+DiscoDB_loads(PyTypeObject *type, PyObject *bytes)
 {
-  return NULL;
+  DiscoDB *self = (DiscoDB *)type->tp_alloc(type, 0);
+  PyObject *pack = NULL;
+  const char *buffer;
+  uint64_t n;
+
+  if (self != NULL) {
+    pack = Py_BuildValue("(O)", bytes);
+    if (pack == NULL)
+      goto Done;
+
+    if (!PyArg_ParseTuple(pack, "s#", &buffer, &n))
+      goto Done;
+
+    Py_INCREF(bytes);
+    self->cbuffer = NULL;
+    self->obuffer = bytes;
+    self->discodb = ddb_alloc();
+    if (self->discodb == NULL)
+      goto Done;
+
+    if (ddb_loads(self->discodb, buffer, n))
+      if (ddb_has_error(self->discodb))
+        goto Done;
+  }
+
+ Done:
+  Py_CLEAR(pack);
+
+  if (PyErr_Occurred()) {
+    Py_CLEAR(self);
+    return NULL;
+  }
+
+  return (PyObject *)self;
 }
 
 static PyObject *
@@ -328,10 +405,19 @@ init_discodb(void)
 
 #pragma mark ddb helpers
 
+static struct ddb *
+ddb_alloc(void)
+{
+  struct ddb *ddb = ddb_new();
+  if (!ddb)
+    PyErr_NoMemory();
+  return ddb;
+}
+
 static struct ddb_cons *
 ddb_cons_alloc(void)
 {
-  struct ddb_cons *cons = ddb_new();
+  struct ddb_cons *cons = ddb_cons_new();
   if (!cons)
     PyErr_NoMemory();
   return cons;
@@ -344,4 +430,21 @@ ddb_entry_alloc(size_t count)
   if (!entry)
     PyErr_NoMemory();
   return entry;
+}
+
+static void
+ddb_cursor_dealloc(struct ddb_cursor *cursor)
+{
+  if (cursor)
+    ddb_free_cursor(cursor);
+}
+
+static int
+ddb_has_error(struct ddb *discodb)
+{
+  int errcode;
+  const char *errstr;
+  if ((errcode = ddb_error(discodb, &errstr)))
+    PyErr_SetString(PyExc_RuntimeError, errstr);
+  return errcode;
 }

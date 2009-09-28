@@ -34,7 +34,7 @@ class TestMappingProtocol(unittest.TestCase):
         pass
 
     def test_getitem(self):
-        pass
+        [self.discodb[str(x)] for x in xrange(100)]
 
     def test_iter(self):
         pass
@@ -63,7 +63,7 @@ class TestSerializationProtocol(unittest.TestCase):
         pass
 
     def test_loads(self):
-        pass
+        DiscoDB.loads("abcdef")
 
     def test_load(self):
         pass
