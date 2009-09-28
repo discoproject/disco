@@ -87,7 +87,7 @@ static int clause_unions(struct ddb_cnf_cursor *cnf)
                         }
                 }
 #ifdef DEBUG
-                printf("UNION[%u] ", i);
+                printf("dbg UNION[%u] ", i);
                 print_binary(clause->unionn, WINDOW_SIZE_BYTES);
 #endif
                 if (allempty)
@@ -107,7 +107,7 @@ static int intersect_clauses(struct ddb_cnf_cursor *cnf)
         for (i = 1; i < cnf->num_clauses; i++){
                 isect(cnf->isect, cnf->clauses[i].unionn, WINDOW_SIZE_BYTES);
 #ifdef DEBUG
-                printf("ISECT[%u] ", i);
+                printf("dbg ISECT[%u] ", i);
                 print_binary(cnf->isect, WINDOW_SIZE_BYTES);
 #endif
         }
@@ -136,13 +136,13 @@ const struct ddb_entry *ddb_cnf_cursor_next(struct ddb_cursor *c)
 
         while (1){
 #ifdef DEBUG
-                printf("NEXT WINDOW\n");
+                printf("dbg NEXT WINDOW\n");
 #endif
                 if (!find_max_clause(cnf))
                         return NULL;
 #ifdef DEBUG
                 ddb_resolve_valueid(c->db, cnf->base_id, &c->ent);
-                printf("MAX %.*s (%u)\n", c->ent.length, c->ent.data, cnf->base_id);
+                printf("dbg MAX %.*s (%u)\n", c->ent.length, c->ent.data, cnf->base_id);
 #endif
                 if (!clause_unions(cnf))
                         return NULL;

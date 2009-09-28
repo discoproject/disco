@@ -12,6 +12,11 @@
 
 static void print_cursor(struct ddb_cursor *cur)
 {
+        if (!cur){
+                fprintf(stderr, "Query failed\n");
+                exit(1);
+        }
+
         if (ddb_empty_cursor(cur)){
                 fprintf(stderr, "Not found\n");
                 exit(1);
@@ -60,14 +65,14 @@ static struct ddb_query_clause *parse_cnf(char **tokens, int num, int *num_claus
         clauses[j].num_terms = t - k;
 #ifdef DEBUG
         for (i = 0; i < *num_clauses; i++){
-                printf("Clause:\n");
+                printf("dbg Clause:\n");
                 for (j = 0; j < clauses[i].num_terms; j++){
                         if (clauses[i].terms[j].not)
-                                printf("NOT ");
-                        printf("%.*s\n", clauses[i].terms[j].key.length,
+                                printf("dbg NOT ");
+                        printf("dbg %.*s\n", clauses[i].terms[j].key.length,
                                 clauses[i].terms[j].key.data);
                 }
-                printf("---\n");
+                printf("dbg ---\n");
         }
 #endif
         return clauses;
