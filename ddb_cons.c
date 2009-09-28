@@ -1,7 +1,6 @@
 
 #include <string.h>
 
-#include <Judy.h>
 #include <cmph.h>
 
 #include <discodb.h>
@@ -21,8 +20,10 @@ struct ddb_cons{
         struct ddb_cons_sect values;
         struct ddb_cons_sect values_toc;
 
+        uint32_t is_multiset;
         uint32_t num_keys;
-        Pvoid_t valmap;
+        
+        void *valmap;
 
         char *tmpbuf;
         uint32_t tmpbuf_len;
@@ -44,17 +45,6 @@ static int ddb_write(struct ddb_cons_sect *d, const void *buf, uint64_t len)
         return 0;
 }
 
-static int copy_to_buf(struct ddb_cons *db, const void *src, uint32_t len)
-{
-        if (len > db->tmpbuf_len){
-                db->tmpbuf_len = len;
-                if (!(db->tmpbuf = realloc(db->tmpbuf, len)))
-                        return -1;
-        }
-        memcpy(db->tmpbuf, src, len);
-        return 0;
-}
-
 static int id_cmp(const void *p1, const void *p2)
 {
         const valueid_t x = *(const valueid_t*)p1;
@@ -67,16 +57,14 @@ static int id_cmp(const void *p1, const void *p2)
         return 0;
 }
 
-static void ddb_free(struct ddb_cons *db)
+static void ddb_cons_free(struct ddb_cons *db)
 {
-        Word_t tmp;
-
         free(db->toc.ptr);
         free(db->data.ptr);
         free(db->values.ptr);
         free(db->values_toc.ptr);
 
-        JHSFA(tmp, db->valmap);
+        ddb_valuemap_free(db->valmap);
 
         free(db->tmpbuf);
         free(db->idbuf);
@@ -106,6 +94,8 @@ static uint32_t encode_values(struct ddb_cons *db, uint32_t num_values)
         uint32_t i, max_diff = db->idbuf[0];
         for (i = 1; i < num_values; i++){
                 uint32_t d = db->idbuf[i] - db->idbuf[i - 1];
+                if (!d)
+                        db->is_multiset = 1;
                 if (d > max_diff)
                         max_diff = d;
         }
@@ -121,7 +111,7 @@ static uint32_t encode_values(struct ddb_cons *db, uint32_t num_values)
            [ bits_needed (5 bits) | delta-encoded values (bits * num_values) ]
         */
          
-        write_bits(db->tmpbuf, offs, bits);
+        write_bits(db->tmpbuf, offs, bits - 1);
         offs = 5;
         for (i = 0; i < num_values; i++){
                 write_bits(db->tmpbuf, offs, db->idbuf[i] - prev);
@@ -175,8 +165,15 @@ static const char *pack(const struct ddb_cons *db, char *hash,
         head->size = *length;
         head->num_keys = db->num_keys;
         head->num_values = db->next_id;
-        head->hashash = hash_size > 0 ? 1: 0;
-        
+        head->flags = 0;
+       
+        if (hash_size){
+                SETFLAG(head, F_HASH);
+        }
+        if (db->is_multiset){
+                SETFLAG(head, F_MULTISET);
+        }
+
         uint64_t offs = sizeof(struct ddb_header);
         for (i = 0; i < num_sect; i++){
                 *offsets[i] = offs;
@@ -200,7 +197,6 @@ static int reorder_items(struct ddb_cons *db, char *hash)
                 struct ddb_value_cursor val;
                 ddb_fetch_item(i, old_toc, db->data.ptr, &key, &val);
                 uint32_t id = cmph_search_packed(hash, key.data, key.length);
-                //printf("KEY %*s OLD %u NEW %u\n", key.length - 1, key.data, i, id);
                 new_toc[id] = old_toc[i];
         }
         free(db->toc.ptr);
@@ -280,12 +276,32 @@ static char *build_hash(const struct ddb_cons *db, uint32_t *size)
 
 struct ddb_cons *ddb_new()
 {
-        return (struct ddb_cons*)calloc(1, sizeof(struct ddb_cons));
+        struct ddb_cons* db;
+        if (!(db = calloc(1, sizeof(struct ddb_cons))))
+                return NULL;
+        db->valmap = ddb_valuemap_init();
+        return db;
 }
 
 int ddb_add(struct ddb_cons *db, const struct ddb_entry *key, 
         const struct ddb_entry *values, uint32_t num_values)
 {
+        int valeq(const struct ddb_entry *val, valueid_t id)
+        {
+                const uint64_t *toc = (const uint64_t*)db->values_toc.ptr;
+                uint64_t offset = toc[id - 1];
+                const char *p = &db->values.ptr[offset];
+                uint32_t size = 0;
+                if (id == db->next_id)
+                        size = db->values.offset - offset;
+                else
+                        size = toc[id] - offset;
+                if (size != val->length)
+                        return 0;
+                else
+                        return memcmp(p, val->data, size) == 0;
+        }
+
         uint32_t i = num_values; 
         
         if (num_values > db->idbuf_len){
@@ -296,14 +312,9 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
 
         /* find IDs for values */
         while (i--){
-                Word_t *id = NULL;
-                Word_t tmp = 0;
-                if (values[i].length < DDB_MIN_BLOB_SIZE){
-                        if (copy_to_buf(db, values[i].data, values[i].length))
-                                goto err;
-                        JHSI(id, db->valmap, db->tmpbuf, values[i].length);
-                }else
-                        id = &tmp;
+                valueid_t *id;
+                if (!(id = ddb_valuemap_lookup(db->valmap, &values[i], valeq)))
+                        goto err;
                 if (!*id && !(*id = new_value(db, &values[i])))
                         goto err;
                 db->idbuf[i] = *id;
@@ -336,7 +347,7 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
 
         return 0;
 err:
-        ddb_free(db);
+        ddb_cons_free(db);
         return -1;
 }
 
@@ -356,8 +367,7 @@ const char *ddb_finalize(struct ddb_cons *db, uint64_t *length)
         if (err)
                 goto end;
 
-        Word_t tmp;
-        JHSFA(tmp, db->valmap);
+        ddb_valuemap_free(db->valmap);
         db->valmap = NULL;
 
         uint32_t hash_size = 0;
@@ -370,7 +380,7 @@ const char *ddb_finalize(struct ddb_cons *db, uint64_t *length)
         packed = pack(db, hash, hash_size, length);
 end:
         free(hash);
-        ddb_free(db);
+        ddb_cons_free(db);
         return packed;
 }
 

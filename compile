@@ -1,1 +1,1 @@
-gcc -O3 -g -D_FILE_OFFSET_BITS=64 -Wall -I . ddb.c ddb_cons.c util.c test.c -lJudy -lcmph
+gcc -O3 -g -Wall -I . ddb.c ddb_cons.c ddb_valuemap.c ddb_cnf.c util.c test.c -lcmph

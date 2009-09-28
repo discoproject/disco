@@ -101,7 +101,7 @@ int main(int argc, char **argv)
         while (--argc){
                 struct ddb_entry *values = read_file(argv[argc], &key, &n);
                 //struct ddb_entry *values = gen_values(argv[argc], &key, &n);
-                
+                //
                 if (ddb_add(db, &key, values, n)){
                         printf("ERROR!\n");
                         exit(1);
