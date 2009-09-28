@@ -44,6 +44,7 @@ struct ddb_cursor *ddb_getitem(struct ddb *db,
 struct ddb_cursor *ddb_query(struct ddb *db,
         const struct ddb_query_clause *clauses, uint32_t num_clauses);
 
+void ddb_free(struct ddb *db);
 int ddb_error(struct ddb *db, const char **errstr);
 void ddb_free_cursor(struct ddb_cursor *cur);
 const struct ddb_entry *ddb_next(struct ddb_cursor *cur);

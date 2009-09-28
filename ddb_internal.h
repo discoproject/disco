@@ -125,4 +125,12 @@ uint32_t read_bits(const char *src, uint64_t offs, uint32_t bits);
 void write_bits(char *dst, uint64_t offs, uint32_t val);
 uint32_t bits_needed(uint32_t max);
 
+/* ddb_valuemap.c */
+
+void *ddb_valuemap_init();
+void ddb_valuemap_free(void *valmap);
+valueid_t *ddb_valuemap_lookup(void *valmap, const struct ddb_entry *value,
+        int (*eq)(const struct ddb_entry*, valueid_t));
+
+
 #endif /* __DDB_INTERNAL_H__ */

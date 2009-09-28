@@ -58,6 +58,11 @@ struct ddb *ddb_loads(const char *data, uint64_t length)
         return db;
 }
 
+void ddb_free(struct ddb *db)
+{
+        free(db);
+}
+
 const char *ddb_dumps(struct ddb *db, uint64_t *length)
 {
         char *d = NULL;
