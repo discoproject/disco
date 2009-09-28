@@ -283,7 +283,7 @@ uint32_t ddb_resultset_size(const struct ddb_cursor *c)
         return c->num_items;        
 }
 
-int ddb_empty_cursor(const struct ddb_cursor *c)
+int ddb_notfound(const struct ddb_cursor *c)
 {
         return c->next == empty_next; 
 }

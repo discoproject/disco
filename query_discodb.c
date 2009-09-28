@@ -19,7 +19,7 @@ static void print_cursor(struct ddb *db, struct ddb_cursor *cur)
                 exit(1);
         }
 
-        if (ddb_empty_cursor(cur)){
+        if (ddb_notfound(cur)){
                 fprintf(stderr, "Not found\n");
                 exit(1);
         }

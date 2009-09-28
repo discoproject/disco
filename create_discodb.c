@@ -49,7 +49,7 @@ static struct ddb_entry *read_file(const char *fname,
 
 int main(int argc, char **argv)
 {
-        if (argc < 3){
+        if (argc < 2){
                 fprintf(stderr, "Usage:\n");
                 fprintf(stderr, "create_discodb [discodb.out] [file_1] ... [file_N]\n");
                 fprintf(stderr, "where input files contain key on the first line and values on the next lines.\n");
