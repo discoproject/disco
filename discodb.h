@@ -40,7 +40,7 @@ char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
 
 struct ddb *ddb_new(void);
 int ddb_loads(struct ddb *db, const char *data, uint64_t length);
-const char *ddb_dumps(struct ddb *db, uint64_t *length);
+char *ddb_dumps(struct ddb *db, uint64_t *length);
 
 struct ddb_cursor *ddb_keys(struct ddb *db);
 struct ddb_cursor *ddb_values(struct ddb *db);
