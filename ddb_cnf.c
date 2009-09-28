@@ -1,5 +1,6 @@
 
 #include <string.h>
+#include <stdio.h>
 
 #include <discodb.h>
 #include <ddb_internal.h>
@@ -29,6 +30,19 @@ static inline int isempty(const char *b, uint32_t len)
                         return 0;
         return 1;
 }
+
+#ifdef DEBUG
+static void print_binary(const char *dst, uint32_t len)
+{
+        int i;
+        for (i = 0; i < (len << 3); i++)
+                if (test_bit(dst, i))
+                        printf("1");
+                else
+                        printf("0");
+        printf("\n");
+}
+#endif
 
 static int find_max_clause(struct ddb_cnf_cursor *cnf)
 {
@@ -72,6 +86,10 @@ static int clause_unions(struct ddb_cnf_cursor *cnf)
                                 }
                         }
                 }
+#ifdef DEBUG
+                printf("UNION[%u] ", i);
+                print_binary(clause->unionn, WINDOW_SIZE_BYTES);
+#endif
                 if (allempty)
                         return 0;
         }
@@ -80,12 +98,19 @@ static int clause_unions(struct ddb_cnf_cursor *cnf)
 
 static int intersect_clauses(struct ddb_cnf_cursor *cnf)
 {
-        memset(cnf->isect, 0, WINDOW_SIZE_BYTES);
+        if (!cnf->num_clauses)
+                return 1;
+
         cnf->isect_offset = 0;
-        
-        uint32_t i = cnf->num_clauses;
-        while (i--)
+        memcpy(cnf->isect, cnf->clauses[0].unionn, WINDOW_SIZE_BYTES);
+        int i;
+        for (i = 1; i < cnf->num_clauses; i++){
                 isect(cnf->isect, cnf->clauses[i].unionn, WINDOW_SIZE_BYTES);
+#ifdef DEBUG
+                printf("ISECT[%u] ", i);
+                print_binary(cnf->isect, WINDOW_SIZE_BYTES);
+#endif
+        }
         return isempty(cnf->isect, WINDOW_SIZE_BYTES);
 }
 
@@ -110,8 +135,15 @@ const struct ddb_entry *ddb_cnf_cursor_next(struct ddb_cursor *c)
                 return e;
 
         while (1){
+#ifdef DEBUG
+                printf("NEXT WINDOW\n");
+#endif
                 if (!find_max_clause(cnf))
                         return NULL;
+#ifdef DEBUG
+                ddb_resolve_valueid(c->db, cnf->base_id, &c->ent);
+                printf("MAX %.*s (%u)\n", c->ent.length, c->ent.data, cnf->base_id);
+#endif
                 if (!clause_unions(cnf))
                         return NULL;
                 if (!intersect_clauses(cnf))
@@ -132,7 +164,7 @@ valueid_t ddb_not_next(struct ddb_cnf_term *t)
                 if (v->num_left)
                         ddb_value_cursor_step(v);
         }
-        if (t->cur_id >= t->cursor->db->num_values){
+        if (t->cur_id >= t->cursor->db->num_values + 1){
                 t->empty = 1;
                 t->cur_id = 0;
         }

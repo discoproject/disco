@@ -64,10 +64,13 @@ struct ddb_values_cursor{
         struct ddb_value_cursor cur;
 };
 
-struct ddb_cursor;
-
+#ifdef DEBUG
+#define WINDOW_SIZE 64
+#else
 #define WINDOW_SIZE 1024 /* bits */
-#define WINDOW_SIZE_BYTES (1024 >> 3)
+#endif
+
+#define WINDOW_SIZE_BYTES (WINDOW_SIZE >> 3)
 
 struct ddb_cnf_term{
     struct ddb_cursor *cursor;

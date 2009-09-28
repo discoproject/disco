@@ -1,1 +1,3 @@
-gcc -O3 -g -Wall -I . ddb.c ddb_cons.c ddb_valuemap.c ddb_cnf.c util.c test.c -lcmph
+gcc -O3 -c -g -Wall -I . ddb.c ddb_cons.c ddb_valuemap.c ddb_cnf.c util.c 
+gcc -O3 -g -Wall -I . -o create_discodb create_discodb.c *.o -lcmph
+gcc -O3 -g -Wall -I . -o query_discodb query_discodb.c *.o -lcmph

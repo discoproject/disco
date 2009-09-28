@@ -139,7 +139,7 @@ static valueid_t new_value(struct ddb_cons *db, const struct ddb_entry *e)
         return db->next_id;
 }
 
-static const char *pack(const struct ddb_cons *db, char *hash, 
+static char *pack(const struct ddb_cons *db, char *hash, 
         uint32_t hash_size, uint64_t *length)
 {
         struct ddb_cons_sect hash_sect = {.ptr = hash, .offset = hash_size};
@@ -301,8 +301,7 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
                 else
                         return memcmp(p, val->data, size) == 0;
         }
-
-        uint32_t i = num_values; 
+        uint32_t i;
         
         if (num_values > db->idbuf_len){
                 db->idbuf_len = num_values;
@@ -311,7 +310,7 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
         }
 
         /* find IDs for values */
-        while (i--){
+        for (i = 0; i < num_values; i++){
                 valueid_t *id;
                 if (!(id = ddb_valuemap_lookup(db->valmap, &values[i], valeq)))
                         goto err;
@@ -351,10 +350,10 @@ err:
         return -1;
 }
 
-const char *ddb_finalize(struct ddb_cons *db, uint64_t *length)
+char *ddb_finalize(struct ddb_cons *db, uint64_t *length)
 {
         static char pad[7];
-        const char *packed = NULL;
+        char *packed = NULL;
         char *hash = NULL; 
         int err = 0;
 
