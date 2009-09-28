@@ -274,7 +274,7 @@ static char *build_hash(const struct ddb_cons *db, uint32_t *size)
         return hash;
 }
 
-struct ddb_cons *ddb_new()
+struct ddb_cons *ddb_cons_new()
 {
         struct ddb_cons* db;
         if (!(db = calloc(1, sizeof(struct ddb_cons))))
