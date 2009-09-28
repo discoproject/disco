@@ -169,6 +169,7 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
                 db->errno = DDB_ERR_OUT_OF_MEMORY;
                 return NULL;
         }
+        c->db = db;
 
         if (HASFLAG(db, F_HASH)){
                 /* hash exists, perform O(1) lookup */
@@ -195,7 +196,6 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
                 return c;
         }
 found:
-        c->db = db;
         c->num_items = c->cursor.value.num_left;
         c->next = value_cursor_next;
         return c;
