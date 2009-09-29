@@ -20,7 +20,8 @@ struct ddb_header{
         uint64_t size;
 
         uint32_t num_keys;
-        uint32_t num_values;
+        uint64_t num_values;
+        uint32_t num_uniq_values;
         uint32_t flags;
 
         uint64_t toc_offs;
@@ -35,7 +36,8 @@ struct ddb{
         uint64_t size;
 
         uint32_t num_keys;
-        uint32_t num_values;
+        uint64_t num_values;
+        uint32_t num_uniq_values;
         uint32_t flags;
 
         const uint64_t *toc;

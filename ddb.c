@@ -58,6 +58,7 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
         db->size = head->size;
         db->num_keys = head->num_keys;
         db->num_values = head->num_values;
+        db->num_uniq_values = head->num_uniq_values;
         db->flags = head->flags;
         db->errno = 0;
 
@@ -135,9 +136,9 @@ struct ddb_cursor *ddb_values(struct ddb *db)
         }
         c->db = db;
         c->cursor.values.i = 0;
-        c->cursor.values.cur.num_left = 0;
+        c->cursor.values.cur.num_left = 0; 
         c->next = values_cursor_next;
-        c->num_items = 0;
+        c->num_items = db->num_values;
         return c;
 }
 
@@ -278,7 +279,7 @@ void ddb_free_cursor(struct ddb_cursor *c)
         free(c);
 }
 
-uint32_t ddb_resultset_size(const struct ddb_cursor *c)
+uint64_t ddb_resultset_size(const struct ddb_cursor *c)
 {
         return c->num_items;        
 }

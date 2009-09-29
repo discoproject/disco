@@ -22,6 +22,7 @@ struct ddb_cons{
 
         uint32_t is_multiset;
         uint32_t num_keys;
+        uint64_t num_values;
         
         void *valmap;
 
@@ -164,7 +165,8 @@ static char *pack(const struct ddb_cons *db, char *hash,
         head->magic = DISCODB_MAGIC;
         head->size = *length;
         head->num_keys = db->num_keys;
-        head->num_values = db->next_id;
+        head->num_values = db->num_values;
+        head->num_uniq_values = db->next_id;
         head->flags = 0;
        
         if (hash_size){
@@ -341,6 +343,7 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
         if (r)
                 goto err;
 
+        db->num_values += num_values;
         if (++db->num_keys == DDB_MAX_NUM_KEYS)
                 goto err;
 

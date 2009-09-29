@@ -55,7 +55,7 @@ int ddb_error(struct ddb *db, const char **errstr);
 void ddb_free_cursor(struct ddb_cursor *cur);
 int ddb_empty_cursor(const struct ddb_cursor *c);
 const struct ddb_entry *ddb_next(struct ddb_cursor *cur);
-uint32_t ddb_resultset_size(const struct ddb_cursor *cur);
+uint64_t ddb_resultset_size(const struct ddb_cursor *cur);
 
 
 
