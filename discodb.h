@@ -34,6 +34,7 @@ struct ddb_query_clause{
 };
 
 struct ddb_cons *ddb_cons_new(void);
+
 int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
         const struct ddb_entry *values, uint32_t num_values);
 char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
@@ -54,7 +55,7 @@ int ddb_error(struct ddb *db, const char **errstr);
 void ddb_free_cursor(struct ddb_cursor *cur);
 int ddb_notfound(const struct ddb_cursor *c);
 const struct ddb_entry *ddb_next(struct ddb_cursor *cur);
-uint32_t ddb_resultset_size(const struct ddb_cursor *cur);
+uint64_t ddb_resultset_size(const struct ddb_cursor *cur);
 
 
 

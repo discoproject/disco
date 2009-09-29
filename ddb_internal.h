@@ -20,7 +20,8 @@ struct ddb_header{
         uint64_t size;
 
         uint32_t num_keys;
-        uint32_t num_values;
+        uint64_t num_values;
+        uint32_t num_uniq_values;
         uint32_t flags;
 
         uint64_t toc_offs;
@@ -35,7 +36,8 @@ struct ddb{
         uint64_t size;
 
         uint32_t num_keys;
-        uint32_t num_values;
+        uint64_t num_values;
+        uint32_t num_uniq_values;
         uint32_t flags;
 
         const uint64_t *toc;
@@ -130,7 +132,7 @@ uint32_t bits_needed(uint32_t max);
 
 /* ddb_valuemap.c */
 
-void *ddb_valuemap_init();
+void *ddb_valuemap_init(void);
 void ddb_valuemap_free(void *valmap);
 valueid_t *ddb_valuemap_lookup(void *valmap, const struct ddb_entry *value,
         int (*eq)(const struct ddb_entry*, valueid_t));
