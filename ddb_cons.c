@@ -326,7 +326,7 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
 
         /* delta-encode value ID list */
         uint32_t size = 0;
-        if (!(size = encode_values(db, num_values)))
+        if (num_values && !(size = encode_values(db, num_values)))
                 goto err;
         
         /* write data 
@@ -339,7 +339,8 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
         r |= ddb_write(&db->data, &key->length, 4);
         r |= ddb_write(&db->data, key->data, key->length);
         r |= ddb_write(&db->data, &num_values, 4);
-        r |= ddb_write(&db->data, db->tmpbuf, size);
+        if (size)
+                r |= ddb_write(&db->data, db->tmpbuf, size);
         if (r)
                 goto err;
 

@@ -29,9 +29,9 @@ static struct ddb_entry *read_file(const char *fname,
                 free(line);
                 line = NULL;
         }
-        if (lc < 2){
+        if (lc < 1){
                 fprintf(stderr, "Not enough lines in %s.\n", fname);
-                fprintf(stderr, "At least two lines (key & one value) are needed.\n");
+                fprintf(stderr, "At least one line (key) is needed. The next lines should contain values.\n");
                 exit(1);
         }
         rewind(f);
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
         uint64_t size;
         char *data;
         if (!(data = ddb_finalize(db, &size))){
-                fprintf(stderr, "Packing the index failed: out of memory\n");
+                fprintf(stderr, "Packing the index failed: duplicate keys or out of memory\n");
                 exit(1);
         }
         

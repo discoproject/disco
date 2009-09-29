@@ -116,7 +116,7 @@ struct ddb_cursor *ddb_keys(struct ddb *db)
 
 static const struct ddb_entry *values_cursor_next(struct ddb_cursor *c)
 {
-        if (!c->cursor.values.cur.num_left){
+        while (!c->cursor.values.cur.num_left){
                 if (c->cursor.values.i == c->db->num_keys)
                         return NULL;
                 ddb_fetch_item(c->cursor.values.i++, c->db->toc, c->db->data, 
@@ -312,9 +312,12 @@ void ddb_fetch_item(uint32_t i, const uint64_t *toc, const char *data,
         key->data = &p[4]; 
 
         val->num_left = *(uint32_t*)&p[4 + key->length];
-        val->deltas = &p[8 + key->length];
-        val->bits = read_bits(val->deltas, 0, 5) + 1;
-        val->offset = 5;
         val->cur_id = 0;
+
+        if (val->num_left){
+                val->deltas = &p[8 + key->length];
+                val->bits = read_bits(val->deltas, 0, 5) + 1;
+                val->offset = 5;
+        }
 }
 
