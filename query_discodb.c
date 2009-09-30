@@ -90,7 +90,7 @@ static struct ddb *open_discodb(const char *file)
                 fprintf(stderr, "Couldn't open discodb %s\n", file);
                 exit(1);
         }
-        if (ddb_open(db, fd)){
+        if (ddb_load(db, fd)){
                 const char *err;
                 ddb_error(db, &err);
                 fprintf(stderr, "Invalid discodb in %s: %s\n", file, err);
