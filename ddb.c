@@ -114,16 +114,18 @@ char *ddb_dumps(struct ddb *db, uint64_t *length)
 
 int ddb_dump(struct ddb *db, int fd)
 {
-        FILE *f;
-        if (!(f = fdopen(fd, "w"))){
-                db->errno = DDB_ERR_INVALIDFD;
-                return -1;
+        const int bsize = 8192;
+        uint64_t offs = 0;
+
+        while (offs < db->size){
+                size_t c = db->size - offs > bsize ? bsize: db->size - offs;
+                ssize_t n = write(fd, &db->buf[offs], c);
+                if (n == -1){
+                        db->errno = DDB_ERR_WRITEFAILED;
+                        return -1;
+                }
+                offs += n;
         }
-        if (!fwrite(db->buf, db->size, 1, f)){
-                db->errno = DDB_ERR_WRITEFAILED;
-                return -1;
-        }
-        fclose(f);
         return 0;
 }
 

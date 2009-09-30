@@ -15,8 +15,7 @@
 #define DDB_ERR_INVALID_BUFFER_SIZE 5
 #define DDB_ERR_STAT_FAILED 6
 #define DDB_ERR_MMAP_FAILED 7
-#define DDB_ERR_INVALIDFD 8
-#define DDB_ERR_WRITEFAILED 9
+#define DDB_ERR_WRITEFAILED 8
 
 struct ddb_cons;
 struct ddb;
