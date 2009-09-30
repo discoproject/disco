@@ -27,7 +27,8 @@ class TestMappingProtocol(unittest.TestCase):
         self.discodb = DiscoDB(k_vs_iter(self.numkeys))
 
     def test_contains(self):
-        pass
+        assert "200" in self.discodb
+        assert "key" not in self.discodb
 
     def test_length(self):
         assert len(self.discodb) == self.numkeys

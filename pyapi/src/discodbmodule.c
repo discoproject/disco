@@ -2,6 +2,7 @@
 
 #if PY_VERSION_HEX < 0x02060000
 #define PyVarObject_HEAD_INIT(type, size) PyObject_HEAD_INIT(type) size,
+#define Py_TYPE(ob)   (((PyObject*)(ob))->ob_type)
 #endif
 
 #include <Python.h>
@@ -73,7 +74,7 @@ static PyTypeObject DiscoDBType = {
   0,                             /* tp_getattr        */
   0,                             /* tp_setattr        */
   0,                             /* tp_compare        */
-  0, // (reprfunc)DiscoDB_repr   /* tp_repr           */
+  (reprfunc)DiscoDB_repr,        /* tp_repr           */
   0,                             /* tp_as_number      */
   &DiscoDB_as_sequence,          /* tp_as_sequence    */
   &DiscoDB_as_mapping,           /* tp_as_mapping     */
@@ -239,7 +240,7 @@ DiscoDB_dealloc(DiscoDB *self)
 static PyObject *
 DiscoDB_repr(DiscoDB *self)
 {
-  return NULL;
+  return PyString_FromFormat("<%s object at %p>", Py_TYPE(self)->tp_name, self);
 }
 
 
@@ -249,7 +250,36 @@ DiscoDB_repr(DiscoDB *self)
 static int
 DiscoDB_contains(register DiscoDB *self, register PyObject *key)
 {
-  return 0;
+  PyObject *pack = NULL;
+  struct ddb_entry *kentry = ddb_entry_alloc(1);
+  struct ddb_cursor *cursor = NULL;
+  int isfound = 1;
+
+  if (kentry == NULL)
+    goto Done;
+
+  pack = Py_BuildValue("(O)", key);
+  if (pack == NULL)
+    goto Done;
+
+  if (!PyArg_ParseTuple(pack, "s#", &kentry->data, &kentry->length))
+    goto Done;
+
+  cursor = ddb_getitem(self->discodb, kentry);
+  if (cursor == NULL)
+    if (ddb_has_error(self->discodb))
+      goto Done;
+
+  if (ddb_notfound(cursor))
+    isfound = 0;
+
+ Done:
+  Py_CLEAR(pack);
+  DiscoDB_CLEAR(kentry);
+
+  if (PyErr_Occurred())
+    return -1;
+  return isfound;
 }
 
 static Py_ssize_t
@@ -344,7 +374,9 @@ DiscoDB_query(register DiscoDB *self, PyObject *query)
     *term = NULL;
   struct ddb_query_clause *ddb_clauses = NULL;
   struct ddb_cursor *cursor = NULL;
-  uint32_t i, j;
+  uint32_t
+    i = 0,
+    j = 0;
 
   clauses = PyObject_GetAttrString(query, "clauses");
   if (clauses == NULL)
