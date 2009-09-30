@@ -33,7 +33,9 @@ static PyObject * DiscoDB_query   (DiscoDB *,      PyObject *);
 /* Serialization / Deserialization Informal Protocol */
 
 static PyObject * DiscoDB_dumps   (DiscoDB *);
+static PyObject * DiscoDB_dump    (DiscoDB *, PyObject *);
 static PyObject * DiscoDB_loads   (PyTypeObject *, PyObject *);
+static PyObject * DiscoDB_load    (PyTypeObject *, PyObject *);
 
 /* DiscoDB Iterator Types */
 

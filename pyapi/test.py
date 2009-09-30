@@ -66,9 +66,17 @@ class TestSerializationProtocol(unittest.TestCase):
     def setUp(self):
         self.discodb = DiscoDB(k_vs_iter(self.numkeys))
 
-    def test(self):
+    def test_dumps_loads(self):
         dbuffer = self.discodb.dumps()
         assert dbuffer == DiscoDB.loads(dbuffer).dumps()
+
+    def test_dump_load(self):
+        from tempfile import NamedTemporaryFile
+        with NamedTemporaryFile() as handle:
+            self.discodb.dump(handle)
+            handle.seek(0)
+            discodb = DiscoDB.load(handle)
+        assert discodb.dumps() == self.discodb.dumps()
 
 class TestLargeSerializationProtocol(TestSerializationProtocol):
     numkeys = 10000

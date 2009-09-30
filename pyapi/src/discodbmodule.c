@@ -55,8 +55,12 @@ static PyMethodDef DiscoDB_methods[] = {
    "d.query(q) -> an iterator over the values of d whose keys satisfy q."},
   {"dumps", (PyCFunction)DiscoDB_dumps, METH_NOARGS,
    "d.dumps() -> a serialization of d."},
+  {"dump", (PyCFunction)DiscoDB_dump, METH_O,
+   "d.dump(o) -> write serialization of d to file object o."},
   {"loads", (PyCFunction)DiscoDB_loads, METH_CLASS | METH_O,
    "D.loads(s) -> a deserialized instance of D from serialization s."},
+  {"load", (PyCFunction)DiscoDB_load, METH_CLASS | METH_O,
+   "D.load(o) -> a deserialized instance of D from file object o."},
   {NULL}                         /* Sentinel          */
 };
 
@@ -473,6 +477,14 @@ DiscoDB_dumps(DiscoDB *self)
 }
 
 static PyObject *
+DiscoDB_dump(DiscoDB *self, PyObject *file)
+{
+  if (PyFile_WriteObject(DiscoDB_dumps(self), file, Py_PRINT_RAW))
+    return NULL;
+  Py_RETURN_NONE;
+}
+
+static PyObject *
 DiscoDB_loads(PyTypeObject *type, PyObject *bytes)
 {
   DiscoDB *self = (DiscoDB *)type->tp_alloc(type, 0);
@@ -511,6 +523,43 @@ DiscoDB_loads(PyTypeObject *type, PyObject *bytes)
   return (PyObject *)self;
 }
 
+static PyObject *
+DiscoDB_load(PyTypeObject *type, PyObject *file)
+{
+  DiscoDB *self = (DiscoDB *)type->tp_alloc(type, 0);
+  PyObject *fileno = NULL;
+  int fd;
+
+  if (self != NULL) {
+    fileno = PyObject_CallMethod(file, "fileno", NULL);
+    if (fileno == NULL)
+      goto Done;
+
+    fd = PyInt_AsLong(fileno);
+    if (fd < 0)
+      goto Done;
+
+    self->cbuffer = NULL;
+    self->obuffer = NULL;
+    self->discodb = ddb_alloc();
+    if (self->discodb == NULL)
+      goto Done;
+
+    if (ddb_open(self->discodb, fd))
+      if (ddb_has_error(self->discodb))
+        goto Done;
+  }
+
+ Done:
+  Py_CLEAR(fileno);
+
+  if (PyErr_Occurred()) {
+    Py_CLEAR(self);
+    return NULL;
+  }
+
+  return (PyObject *)self;
+}
 
 
 /* Module Initialization */
