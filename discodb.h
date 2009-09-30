@@ -15,7 +15,8 @@
 #define DDB_ERR_INVALID_BUFFER_SIZE 5
 #define DDB_ERR_STAT_FAILED 6
 #define DDB_ERR_MMAP_FAILED 7
-
+#define DDB_ERR_INVALIDFD 8
+#define DDB_ERR_WRITEFAILED 9
 
 struct ddb_cons;
 struct ddb;
@@ -43,8 +44,9 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
 char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
 
 struct ddb *ddb_new(void);
-int ddb_open(struct ddb *db, int fd);
+int ddb_load(struct ddb *db, int fd);
 int ddb_loads(struct ddb *db, const char *data, uint64_t length);
+int ddb_dump(struct ddb *db, int fd);
 char *ddb_dumps(struct ddb *db, uint64_t *length);
 
 struct ddb_cursor *ddb_keys(struct ddb *db);

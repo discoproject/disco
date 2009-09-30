@@ -18,7 +18,9 @@ static const char *ERR_STR[] = {
         "Buffer not discodb",
         "Invalid buffer size",
         "Couldn't get the file size",
-        "Memory map failed"
+        "Memory map failed",
+        "Invalid file descriptor",
+        "Write failed"
 };
 
 void ddb_value_cursor_step(struct ddb_value_cursor *c)
@@ -43,7 +45,7 @@ struct ddb *ddb_new()
         return db;
 }
 
-int ddb_open(struct ddb *db, int fd)
+int ddb_load(struct ddb *db, int fd)
 {
         struct stat nfo;
         if (fstat(fd, &nfo)){
@@ -108,6 +110,21 @@ char *ddb_dumps(struct ddb *db, uint64_t *length)
         memcpy(d, db->buf, db->size);
         *length = db->size;
         return d;
+}
+
+int ddb_dump(struct ddb *db, int fd)
+{
+        FILE *f;
+        if (!(f = fdopen(fd, "w"))){
+                db->errno = DDB_ERR_INVALIDFD;
+                return -1;
+        }
+        if (!fwrite(db->buf, db->size, 1, f)){
+                db->errno = DDB_ERR_WRITEFAILED;
+                return -1;
+        }
+        fclose(f);
+        return 0;
 }
 
 static const struct ddb_entry *key_cursor_next(struct ddb_cursor *c)
