@@ -1,4 +1,11 @@
+import sys
+
 from distutils.core import setup, Extension
+
+if sys.platform == 'darwin':
+    extra_compile_args = ['-fnested-functions']
+else:
+    extra_compile_args = []
 
 discodb_module = Extension('discodb._discodb',
                            sources=['src/discodbmodule.c',
@@ -9,7 +16,7 @@ discodb_module = Extension('discodb._discodb',
                                     '../util.c'],
                            include_dirs=['..'],
                            libraries=['cmph'],
-                           extra_compile_args=['-fnested-functions'],)
+                           extra_compile_args=extra_compile_args,)
 
 setup(name='discodb',
       version='0.1',
