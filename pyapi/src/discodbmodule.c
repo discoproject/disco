@@ -3,6 +3,8 @@
 #if PY_VERSION_HEX < 0x02060000
 #define PyVarObject_HEAD_INIT(type, size) PyObject_HEAD_INIT(type) size,
 #define Py_TYPE(ob)   (((PyObject*)(ob))->ob_type)
+#define PyBytes_AsString PyString_AsString
+#define PyBytes_FromFormat PyString_FromFormat
 #endif
 
 #include <Python.h>
@@ -241,13 +243,13 @@ DiscoDB_dealloc(DiscoDB *self)
   Py_CLEAR(self->obuffer);
   free(self->cbuffer);
   ddb_free(self->discodb);
-  self->ob_type->tp_free((PyObject *)self);
+  Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static PyObject *
 DiscoDB_repr(DiscoDB *self)
 {
-  return PyString_FromFormat("<%s object at %p>", Py_TYPE(self)->tp_name, self);
+  return PyBytes_FromFormat("<%s object at %p>", Py_TYPE(self)->tp_name, self);
 }
 
 
@@ -318,7 +320,7 @@ DiscoDB_getitem(register DiscoDB *self, register PyObject *key)
       goto Done;
 
   if (ddb_notfound(cursor))
-    PyErr_Format(PyExc_KeyError, "%s", PyString_AsString(key));
+    PyErr_Format(PyExc_KeyError, "%s", PyBytes_AsString(key));
 
  Done:
   Py_CLEAR(pack);
@@ -489,7 +491,7 @@ DiscoDB_dump(DiscoDB *self, PyObject *file)
   if (fileno == NULL)
     goto Done;
 
-  fd = PyInt_AsLong(fileno);
+  fd = PyLong_AsLong(fileno);
   if (fd < 0)
     goto Done;
 
@@ -559,7 +561,7 @@ DiscoDB_load(PyTypeObject *type, PyObject *file)
     if (fileno == NULL)
       goto Done;
 
-    fd = PyInt_AsLong(fileno);
+    fd = PyLong_AsLong(fileno);
     if (fd < 0)
       goto Done;
 
