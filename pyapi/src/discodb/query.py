@@ -42,7 +42,7 @@ class Q(object):
         return self.clauses == other.clauses
 
     def __hash__(self):
-        return hash(self.literals)
+        return hash(self.clauses)
 
     def __str__(self):
         return ' & '.join('(%s)' % c for c in self.clauses)
