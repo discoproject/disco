@@ -72,10 +72,10 @@ class TestSerializationProtocol(unittest.TestCase):
 
     def test_dump_load(self):
         from tempfile import NamedTemporaryFile
-        with NamedTemporaryFile() as handle:
-            self.discodb.dump(handle)
-            handle.seek(0)
-            discodb = DiscoDB.load(handle)
+        handle = NamedTemporaryFile()
+        self.discodb.dump(handle)
+        handle.seek(0)
+        discodb = DiscoDB.load(handle)
         assert discodb.dumps() == self.discodb.dumps()
 
 class TestLargeSerializationProtocol(TestSerializationProtocol):
