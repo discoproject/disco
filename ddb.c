@@ -1,4 +1,7 @@
 
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -13,7 +16,9 @@ static const char *ERR_STR[] = {
         "Queries are not supported on multisets",
         "Buffer too small",
         "Buffer not discodb",
-        "Invalid buffer size"
+        "Invalid buffer size",
+        "Couldn't get the file size",
+        "Memory map failed"
 };
 
 void ddb_value_cursor_step(struct ddb_value_cursor *c)
@@ -36,6 +41,21 @@ struct ddb *ddb_new()
         if (!(db = calloc(1, sizeof(struct ddb))))
                 return NULL;
         return db;
+}
+
+int ddb_open(struct ddb *db, int fd)
+{
+        struct stat nfo;
+        if (fstat(fd, &nfo)){
+                db->errno = DDB_ERR_STAT_FAILED;
+                return -1;
+        }
+        db->mmap = mmap(0, nfo.st_size, PROT_READ, MAP_SHARED, fd, 0);
+        if (db->mmap == MAP_FAILED){
+                db->errno = DDB_ERR_MMAP_FAILED;
+                return -1;
+        }
+        return ddb_loads(db, db->mmap, nfo.st_size);
 }
 
 int ddb_loads(struct ddb *db, const char *data, uint64_t length)
@@ -73,6 +93,8 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
 
 void ddb_free(struct ddb *db)
 {
+        if (db->mmap)
+                munmap(db->mmap, db->size);
         free(db);
 }
 

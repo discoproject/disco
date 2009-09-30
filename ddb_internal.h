@@ -47,6 +47,7 @@ struct ddb{
         const char *values;
 
         int errno;
+        void *mmap;
 };
 
 struct ddb_value_cursor{

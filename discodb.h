@@ -13,6 +13,9 @@
 #define DDB_ERR_BUFFER_TOO_SMALL 3
 #define DDB_ERR_BUFFER_NOT_DISCODB 4
 #define DDB_ERR_INVALID_BUFFER_SIZE 5
+#define DDB_ERR_STAT_FAILED 6
+#define DDB_ERR_MMAP_FAILED 7
+
 
 struct ddb_cons;
 struct ddb;
@@ -40,6 +43,7 @@ int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
 char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
 
 struct ddb *ddb_new(void);
+int ddb_open(struct ddb *db, int fd);
 int ddb_loads(struct ddb *db, const char *data, uint64_t length);
 char *ddb_dumps(struct ddb *db, uint64_t *length);
 

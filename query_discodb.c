@@ -2,10 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <unistd.h>
+//#include <sys/types.h>
 #include <fcntl.h>
 
 #include <discodb.h>
@@ -82,29 +79,18 @@ static struct ddb_query_clause *parse_cnf(char **tokens, int num, int *num_claus
 
 static struct ddb *open_discodb(const char *file)
 {
-        struct stat nfo;
+        struct ddb *db;
         int fd;
         
-        if ((fd = open(file, O_RDONLY)) == -1){
-                fprintf(stderr, "Couldn't open discodb %s\n", file);
-                exit(1);
-        }
-        if (fstat(fd, &nfo)){
-                fprintf(stderr, "Couldn't get the file size for %s\n", file);
-                exit(1);
-        }
-        
-        const char *p = mmap(0, nfo.st_size, PROT_READ, MAP_SHARED, fd, 0);
-        if (p == MAP_FAILED){
-                fprintf(stderr, "Loading %s failed\n", file);
-                exit(1);
-        }
-        struct ddb *db;
         if (!(db = ddb_new())){
                 fprintf(stderr, "Couldn't initialize discodb: Out of memory\n");
                 exit(1);
         }
-        if (ddb_loads(db, p, nfo.st_size)){
+        if ((fd = open(file, O_RDONLY)) == -1){
+                fprintf(stderr, "Couldn't open discodb %s\n", file);
+                exit(1);
+        }
+        if (ddb_open(db, fd)){
                 const char *err;
                 ddb_error(db, &err);
                 fprintf(stderr, "Invalid discodb in %s: %s\n", file, err);
