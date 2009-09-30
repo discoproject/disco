@@ -95,7 +95,7 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
 
 void ddb_free(struct ddb *db)
 {
-        if (db->mmap)
+        if (db && db->mmap)
                 munmap(db->mmap, db->size);
         free(db);
 }
