@@ -13,6 +13,7 @@ typedef struct {
   struct ddb_cursor *cursor;
 } DiscoDBIter;
 
+
 /* General Object Protocol */
 
 static PyObject * DiscoDB_new     (PyTypeObject *, PyObject *, PyObject *);

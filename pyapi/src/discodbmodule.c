@@ -12,6 +12,9 @@
 #include "discodbmodule.h"
 
 
+static PyObject *DiscoDBError;
+
+
 
 /* discodb Module Methods */
 
@@ -479,8 +482,29 @@ DiscoDB_dumps(DiscoDB *self)
 static PyObject *
 DiscoDB_dump(DiscoDB *self, PyObject *file)
 {
-  if (PyFile_WriteObject(DiscoDB_dumps(self), file, Py_PRINT_RAW))
+  PyObject *fileno = NULL;
+  int fd;
+
+  fileno = PyObject_CallMethod(file, "fileno", NULL);
+  if (fileno == NULL)
+    goto Done;
+
+  fd = PyInt_AsLong(fileno);
+  if (fd < 0)
+    goto Done;
+
+  if (ddb_dump(self->discodb, fd))
+    if (ddb_has_error(self->discodb))
+      goto Done;
+
+ Done:
+  Py_CLEAR(fileno);
+
+  if (PyErr_Occurred()) {
+    Py_CLEAR(self);
     return NULL;
+  }
+
   Py_RETURN_NONE;
 }
 
@@ -545,7 +569,7 @@ DiscoDB_load(PyTypeObject *type, PyObject *file)
     if (self->discodb == NULL)
       goto Done;
 
-    if (ddb_open(self->discodb, fd))
+    if (ddb_load(self->discodb, fd))
       if (ddb_has_error(self->discodb))
         goto Done;
   }
@@ -573,6 +597,10 @@ init_discodb(void)
     return;
   Py_INCREF(&DiscoDBType);
   PyModule_AddObject(module, "DiscoDB", (PyObject *)&DiscoDBType);
+
+  DiscoDBError = PyErr_NewException("discodb.DiscoDBError", NULL, NULL);
+  Py_INCREF(DiscoDBError);
+  PyModule_AddObject(module, "DiscoDBError", DiscoDBError);
 }
 
 
@@ -778,6 +806,6 @@ ddb_has_error(struct ddb *discodb)
   int errcode;
   const char *errstr;
   if ((errcode = ddb_error(discodb, &errstr)))
-    PyErr_SetString(PyExc_RuntimeError, errstr);
+    PyErr_SetString(DiscoDBError, errstr);
   return errcode;
 }
