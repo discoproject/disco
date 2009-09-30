@@ -1,0 +1,103 @@
+/* Defaults */
+a {
+    color: #666699;
+    text-decoration: underline;
+}
+
+a:hover, a:active {
+    text-decoration: none;
+}
+
+a img {
+    border: 0px;
+}
+
+body {
+    padding: 40px 100px 0px 100px;
+}
+
+.default {
+    color: #000000;
+    font-family: Verdana;
+    font-size: 12px;
+    margin: 0px;
+}
+/* END Defaults */
+
+/* Container */
+.container {
+    position: relative;
+    width: 100%;
+}
+/* END Container */
+
+/* Header */
+.header {
+    background: #FFFFFF;
+    color: #000000;
+    height: 50px;
+    width: 100%;
+}
+
+.header a {
+    color: #000000;
+    text-decoration: none;
+}
+
+.header a:hover, .header a:active {
+    text-decoration: underline;
+}
+
+.site-name {
+    font-size: 28px;
+}
+
+/* END Header */
+
+/* Navigation */
+.nav-global {
+    border-bottom: 1px dotted #669966;
+    font-size: 13px;
+    padding: 5px 15px 6px 15px;
+    text-align: left;
+}
+
+.nav-global .nav-item {}
+/* END Navigation */
+
+/* Main */
+.main {
+    color: #669966;
+    padding: 10px 20px 0px 20px;
+}
+/* END main */
+
+/* Footer */
+.footer {
+    border-top: 1px dotted #669966;
+    color: #666699;
+    font-size: 9px;
+    height: 20px;
+    margin: 10px 0px 0px 0px;
+    padding: 5px 0px 0px 0px;
+    text-align: center;
+    width: 100%;
+}
+/* END Footer */
+
+/* Common classes */
+.code {
+    font-family: Courier;
+}
+
+.block {
+    background-color: lightgrey;
+    border: 1px dotted black;
+    padding: 4px;
+}
+
+.status {
+    font-weight: bold;
+    color: darkred;
+}
+/* END Common classes */
