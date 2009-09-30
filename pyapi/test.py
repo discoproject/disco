@@ -21,21 +21,23 @@ class TestConstructor(unittest.TestCase):
         discodb = DiscoDB(k_vs_iter(1000))
 
 class TestMappingProtocol(unittest.TestCase):
+    numkeys = 1000
+
     def setUp(self):
-        self.discodb = DiscoDB(k_vs_iter(1000))
+        self.discodb = DiscoDB(k_vs_iter(self.numkeys))
 
     def test_contains(self):
         pass
 
     def test_length(self):
-        assert len(self.discodb) == 1000
+        assert len(self.discodb) == self.numkeys
 
     def test_getitem(self):
-        for x in xrange(1000):
+        for x in xrange(self.numkeys):
             try:
                 list(self.discodb[str(x)])
             except KeyError:
-                assert x == 1000
+                assert x == self.numkeys
 
     def test_iter(self):
         assert list(self.discodb) == list(self.discodb.keys())
@@ -55,21 +57,20 @@ class TestMappingProtocol(unittest.TestCase):
         list(self.discodb.query(q))
 
 class TestLargeMappingProtocol(TestMappingProtocol):
-    def setUp(self):
-        self.discodb = DiscoDB(k_vs_iter(10000))
+    numkeys = 10000
 
 class TestSerializationProtocol(unittest.TestCase):
+    numkeys = 10000
+
     def setUp(self):
-        self.discodb = DiscoDB(k_vs_iter(10000))
+        self.discodb = DiscoDB(k_vs_iter(self.numkeys))
 
     def test(self):
         dbuffer = self.discodb.dumps()
         assert dbuffer == DiscoDB.loads(dbuffer).dumps()
 
 class TestLargeSerializationProtocol(TestSerializationProtocol):
-    def setUp(self):
-        self.discodb = DiscoDB(k_vs_iter(10000))
-
+    numkeys = 10000
 
 if __name__ == '__main__':
     unittest.main()

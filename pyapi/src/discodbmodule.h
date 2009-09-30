@@ -13,13 +13,13 @@ typedef struct {
   struct ddb_cursor *cursor;
 } DiscoDBIter;
 
-#pragma mark General Object Protocol
+/* General Object Protocol */
 
 static PyObject * DiscoDB_new     (PyTypeObject *, PyObject *, PyObject *);
 static void       DiscoDB_dealloc (DiscoDB *);
 static PyObject * DiscoDB_repr    (DiscoDB *);
 
-#pragma mark Mapping Formal / Informal Protocol
+/* Mapping Formal / Informal Protocol */
 
 static int        DiscoDB_contains(DiscoDB *,      PyObject *);
 static Py_ssize_t DiscoDB_length  (DiscoDB *);
@@ -30,12 +30,12 @@ static PyObject * DiscoDB_keys    (DiscoDB *);
 static PyObject * DiscoDB_values  (DiscoDB *);
 static PyObject * DiscoDB_query   (DiscoDB *,      PyObject *);
 
-#pragma mark Serialization / Deserialization Informal Protocol
+/* Serialization / Deserialization Informal Protocol */
 
 static PyObject * DiscoDB_dumps   (DiscoDB *);
 static PyObject * DiscoDB_loads   (PyTypeObject *, PyObject *);
 
-#pragma mark DiscoDB Iterator Types
+/* DiscoDB Iterator Types */
 
 static PyTypeObject DiscoDBIterEntryType;
 static PyTypeObject DiscoDBIterItemType;
@@ -46,7 +46,7 @@ static Py_ssize_t DiscoDBIter_length       (DiscoDBIter *);
 static PyObject * DiscoDBIter_iternextentry(DiscoDBIter *);
 static PyObject * DiscoDBIter_iternextitem (DiscoDBIter *);
 
-#pragma mark ddb helpers
+/* ddb helpers */
 
 static struct ddb              *ddb_alloc               (void);
 static struct ddb_cons         *ddb_cons_alloc          (void);

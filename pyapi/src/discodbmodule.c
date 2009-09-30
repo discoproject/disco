@@ -1,4 +1,9 @@
 #define PY_SSIZE_T_CLEAN
+
+#if PY_VERSION_HEX < 0x02060000
+#define PyVarObject_HEAD_INIT(type, size) PyObject_HEAD_INIT(type) size,
+#endif
+
 #include <Python.h>
 #include "structmember.h"
 
@@ -7,7 +12,7 @@
 
 
 
-#pragma mark discodb Module Methods
+/* discodb Module Methods */
 
 static PyMethodDef discodb_methods[] = {
   {NULL}                         /* Sentinel          */
@@ -15,7 +20,7 @@ static PyMethodDef discodb_methods[] = {
 
 
 
-#pragma mark DiscoDB Object Definition
+/* DiscoDB Object Definition */
 
 PyDoc_STRVAR(DiscoDB_doc, "DiscoDB(iter) -> new DiscoDB from k, v_list in iter");
 
@@ -103,7 +108,7 @@ static PyTypeObject DiscoDBType = {
 
 
 
-#pragma mark General Object Protocol
+/* General Object Protocol */
 
 static PyObject *
 DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
@@ -119,7 +124,7 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     *value = NULL,
     *values = NULL,
     *valueseq = NULL;
-  struct ddb_cons *ddb_cons;
+  struct ddb_cons *ddb_cons = NULL;
   struct ddb_entry
     *kentry = NULL,
     *ventries = NULL;
@@ -239,7 +244,7 @@ DiscoDB_repr(DiscoDB *self)
 
 
 
-#pragma mark Mapping Formal / Informal Protocol
+/* Mapping Formal / Informal Protocol */
 
 static int
 DiscoDB_contains(register DiscoDB *self, register PyObject *key)
@@ -425,7 +430,7 @@ DiscoDB_query(register DiscoDB *self, PyObject *query)
 
 
 
-#pragma mark Serialization / Deserialization Informal Protocol
+/* Serialization / Deserialization Informal Protocol */
 
 static PyObject *
 DiscoDB_dumps(DiscoDB *self)
@@ -476,7 +481,7 @@ DiscoDB_loads(PyTypeObject *type, PyObject *bytes)
 
 
 
-#pragma mark Module Initialization
+/* Module Initialization */
 
 PyMODINIT_FUNC
 init_discodb(void)
@@ -491,7 +496,7 @@ init_discodb(void)
 
 
 
-#pragma mark DiscoDB Iterator Types
+/* DiscoDB Iterator Types */
 
 static PySequenceMethods DiscoDBIter_as_sequence = {
   (lenfunc)DiscoDBIter_length,   /* sq_length         */
@@ -621,7 +626,7 @@ DiscoDBIter_iternextitem(DiscoDBIter *self)
 
 
 
-#pragma mark ddb helpers
+/* ddb helpers */
 
 static struct ddb *
 ddb_alloc(void)
