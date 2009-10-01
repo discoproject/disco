@@ -7,6 +7,8 @@ True
 True
 >>> Q.parse('A & (B | (D & E))') == Q.parse('A & (B | D) & (B | E)')
 True
+>>> Q.scan(Q.parse('a | b | c & d | e').format()) == Q.parse('a | b | c & d | e')
+True
 """
 
 class Q(object):
@@ -47,10 +49,21 @@ class Q(object):
     def __str__(self):
         return ' & '.join('(%s)' % c for c in self.clauses)
 
+    def format(self, and_op='&', or_op='|', not_op='~', encoding=str):
+        return and_op.join(c.format(or_op=or_op,
+                                    not_op=not_op,
+                                    encoding=encoding) for c in self.clauses)
+
+    @classmethod
+    def scan(cls, string, and_op='&', or_op='|', not_op='~', decoding=str):
+        return Q(Clause.scan(c, or_op=or_op,
+                             not_op=not_op,
+                             decoding=decoding) for c in string.split(and_op))
+
     @classmethod
     def parse(cls, string):
         import re
-        return eval(re.sub(r'(\w+)', r'Q.wrap("""\1""")', string))
+        return eval(re.sub(r'(\w+)', r'Q.wrap("""\1""")', string) or 'Q([])')
 
     @classmethod
     def wrap(cls, proposition):
@@ -102,6 +115,13 @@ class Clause(object):
     def __str__(self):
         return ' | '.join('%s' % l for l in self.literals)
 
+    def format(self, or_op='|', not_op='~', encoding=str):
+        return or_op.join(l.format(not_op=not_op, encoding=encoding) for l in self.literals)
+
+    @classmethod
+    def scan(cls, string, or_op='|', not_op='~', decoding=str):
+        return Clause(Literal.scan(l, not_op=not_op, decoding=decoding) for l in string.split(or_op))
+
 class Literal(object):
     """
     A potential key in a discodb (or its negation).
@@ -136,6 +156,14 @@ class Literal(object):
 
     def __str__(self):
         return '%s%s' % ('~' if self.negated else '', self.term)
+
+    def format(self, not_op='~', encoding=str):
+        return '%s%s' % (not_op if self.negated else '', encoding(self.term))
+
+    @classmethod
+    def scan(cls, string, or_op='|', not_op='~', decoding=str):
+        negated = string.startswith(not_op)
+        return Literal(decoding(string.lstrip(not_op)), negated=negated)
 
 if __name__ == '__main__':
     import doctest
