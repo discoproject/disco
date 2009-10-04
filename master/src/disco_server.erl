@@ -258,7 +258,7 @@ handle_info({'EXIT', Pid, normal}, S) ->
 handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
         {Node, T} = gb_trees:get(Pid, S#state.workers),
         event_server:event(Node, T#task.jobname, "WARN: [~s:~B] ~s",
-                [T#task.mode, T#task.taskid, Msg|Args], []),
+                [T#task.mode, T#task.taskid, io_lib:fwrite(Msg, Args)], []),
         gen_server:cast(self(), {exit_worker, Pid, {data_error, "worker_dies"}}),
         {noreply, S};
         
