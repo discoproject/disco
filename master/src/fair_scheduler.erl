@@ -32,7 +32,8 @@ handle_cast({update_nodes, NewNodes}, _) ->
         gen_server:cast(sched_policy, {update_nodes, NewNodes}),
         NNodes = [Name || {Name, _NumCores} <- NewNodes],
         Msg = {update_nodes, NNodes},
-        [gen_server:cast(JobPid, Msg) || {_, JobPid} <- ets:tab2list(jobs)],
+        [gen_server:cast(JobPid, Msg) ||
+                {_, {JobPid, _}} <- ets:tab2list(jobs)],
         {noreply, NNodes};
 
 handle_cast({job_done, JobName}, Nodes) ->
