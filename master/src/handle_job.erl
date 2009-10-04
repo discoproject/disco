@@ -8,8 +8,7 @@
                    "Status: 200 OK\n"
                    "Content-type: text/plain\n\n").
 
-
--record(failinfo, {inputs, taskblack}).
+-include("task.hrl").
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
@@ -151,25 +150,30 @@ handle(Socket, Msg) ->
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
-work([{PartID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
-        ok = gen_server:call(disco_server, {new_worker, 
-                {Name, PartID, Mode, [], Input}}),
+work([{TaskID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
+        Task = #task{jobname = Name,
+                     taskid = TaskID,
+                     mode = Mode,
+                     taskblack = [],
+                     input = Input,
+                     from = self()},
+        submit_task(Task),
         work(Inputs, Mode, Name, N + 1, Max, Res);
 
 % 2. Tasks to distribute but the maximum number of tasks are already running.
 % Wait for tasks to return. Note that wait_workers() may return with the same
 % number of tasks still running, i.e. N = M.
 work([_|_] = IArg, Mode, Name, N, Max, Res) when N >= Max ->
-        M = wait_workers(N, Res, Name, Mode),
-        work(IArg, Mode, Name, M, Max, Res);
+        {M, NRes} = wait_workers(N, Res, Name, Mode),
+        work(IArg, Mode, Name, M, Max, NRes);
 
 % 3. No more tasks to distribute. Wait for tasks to return.
 work([], Mode, Name, N, Max, Res) when N > 0 ->
-        M = wait_workers(N, Res, Name, Mode),
-        work([], Mode, Name, M, Max, Res);
+        {M, NRes} = wait_workers(N, Res, Name, Mode),
+        work([], Mode, Name, M, Max, NRes);
 
 % 4. No more tasks to distribute, no more tasks running. Done.
-work([], _Mode, _Name, 0, _Max, _Res) -> ok.
+work([], _Mode, _Name, 0, _Max, Res) -> {ok, Res}.
 
 % wait_workers receives messages from disco_server:clean_worker() that is
 % called when a worker exits. 
@@ -178,43 +182,49 @@ work([], _Mode, _Name, 0, _Max, _Res) -> ok.
 wait_workers(0, _Res, _Name, _Mode) ->
         throw("Nothing to wait");
 
-wait_workers(N, {Results, Failures}, Name, Mode) ->
-        M = N - 1,
+wait_workers(N, Results, Name, Mode) ->
         receive
-                {job_ok, {OobKeys, Result}, {Node, PartID}} -> 
+                {{job_ok, {OobKeys, Result}}, Task, Node} -> 
                         event_server:event(Name, 
                                 "Received results from ~s:~B @ ~s.",
-                                        [Mode, PartID, Node], {task_ready, Mode}),
+                                        [Task#task.mode, Task#task.taskid, Node],
+                                                {task_ready, Mode}),
                         gen_server:cast(oob_server,
                                 {store, Name, Node, OobKeys}),
-                        ets:insert(Results, {Result, ok}),
-                        M;
+                        % We may get a multiple instances of the same result
+                        % address but only one of them must be taken into
+                        % account. That's why we use gb_trees instead of a list.
+                        {N - 1, gb_trees:enter(Result, true, Results)};
 
-                {data_error, {_Msg, Input}, {Node, PartID}} ->
-                        handle_data_error(Name, Input,
-                          PartID, Mode, Node, Failures),
-                        N;
+                {{data_error, _Msg}, Task, Node} ->
+                        handle_data_error(Task, Node),
+                        {N, Results};
                         
-                {job_error, _Error, {_Node, _PartID}} ->
+                {{job_error, _Error}, _Task, _Node} ->
                         throw(logged_error);
                         
-                {error, Error, {Node, PartID}} ->
+                {{error, Error}, Task, Node} ->
                         event_server:event(Name, 
                                 "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
-                                        [Mode, PartID, Node, Error], []),
-
+                                        [Task#task.mode, Task#task.taskid,
+                                                Node, Error], []),
                         throw(logged_error);
 
-                {master_error, Error} ->
-                        event_server:event(Name, 
-                                "ERROR: Master terminated the job: ~s",
-                                        [Error], []),
-                        throw(logged_error);
-                        
                 Error ->
                         event_server:event(Name, 
                                 "ERROR: Received an unknown error: ~p",
                                         [Error], []),
+                        throw(logged_error)
+        end.
+
+submit_task(Task) ->
+        case catch gen_server:call(disco_server, {new_task, Task}) of
+                ok -> ok;
+                _ -> 
+                        event_server:event(Task#task.jobname, 
+                                "ERROR: ~s:~B scheduling failed. "
+                                "Try again later.",
+                                [Task#task.mode, Task#task.taskid]),
                         throw(logged_error)
         end.
 
@@ -223,33 +233,35 @@ wait_workers(N, {Results, Failures}, Name, Mode) ->
 % handle_data_error() schedules the failed task for a retry, with the
 % failing node in its blacklist. If a task fails too many times, as 
 % determined by check_failure_rate(), the whole job will be terminated.
-handle_data_error(Name, FailedInput, PartID, Mode, Node, Failures) ->
-        [{_, #failinfo{taskblack = Taskblack, inputs = Inputs}}] =
-                ets:lookup(Failures, PartID),
-        
-        ok = check_failure_rate(Name, PartID, Mode, length(Taskblack)),
+handle_data_error(Task, Node) ->
+        {ok, NumCores} = gen_server:call(disco_server, get_num_cores),
+        check_failure_rate(Task#task.jobname, Task#task.taskid, Task#task.mode,
+                length(Task#task.taskblack), NumCores),
+
+        Inputs = Task#task.input,
         NInputs = if length(Inputs) > 1 ->
-                [{X, N} || {X, N} <- Inputs, X =/= FailedInput];
+                [{X, N} || {X, N} <- Inputs, X =/= Task#task.chosen_input];
         true ->
                 Inputs
         end,
+        submit_task(Task#task{taskblack = [Node|Task#task.taskblack],
+                input = NInputs}).
 
-        NTaskblack = [Node|Taskblack],
-        ets:insert(Failures, {PartID,
-                #failinfo{taskblack = NTaskblack, inputs = NInputs}}),
-        
-        ok = gen_server:call(disco_server, {new_worker, 
-                {Name, PartID, Mode, NTaskblack, NInputs}}).
+check_failure_rate(Name, TaskID, Mode, L, NumCores) when NumCores =< L ->
+        event_server:event(Name, 
+                "ERROR: ~s:~B failed on all available cores (~B times in "
+                "total). Aborting the job.", [Mode, TaskID, L], []),
+        throw(logged_error);
 
-check_failure_rate(Name, PartID, Mode, L) ->
-        V = case application:get_env(max_failure_rate) of
-                undefined -> L > 3;
-                {ok, N} -> L > N
+check_failure_rate(Name, TaskID, Mode, L, _) ->
+        N = case application:get_env(max_failure_rate) of
+                undefined -> 3;
+                {ok, N0} -> N0
         end,
-        if V ->
+        if L > N ->
                 event_server:event(Name, 
-                        "ERROR: ~s:~B failed ~B times. Aborting job.",
-                                [Mode, PartID, L], []),
+                        "ERROR: ~s:~B failed ~B times. At most ~B failures "
+                        "are allowed. Aborting the job.", [Mode, TaskID, L, N], []),
                 throw(logged_error);
         true -> 
                 ok
@@ -291,14 +303,9 @@ move_to_resultfs(Name, R, _) ->
 % Its main function is to catch and report any errors that occur during
 % work() calls.
 run_task(Inputs, Mode, Name, MaxN) ->
-        Failures = ets:new(error_log, [set]),
-        Results = ets:new(results, [set]),
-        ets:insert(Failures, [{PartID,
-                #failinfo{taskblack = [], inputs = Input}} ||
-                        {PartID, Input} <- Inputs]),
-
-        case catch work(Inputs, Mode, Name, 0, MaxN, {Results, Failures}) of
-                ok -> ok;
+        Results = case catch work(Inputs, Mode, Name,
+                        0, MaxN, gb_trees:empty()) of
+                {ok, Res} -> Res;
                 logged_error ->
                         kill_job(Name, 
                         "ERROR: Job terminated due to the previous errors",
@@ -309,16 +316,23 @@ run_task(Inputs, Mode, Name, MaxN) ->
                                 [Error], unknown_error)
         end,
 
-        R = [list_to_binary(X) || {X, _} <- ets:tab2list(Results)],
+        R = [list_to_binary(X) || X <- gb_trees:keys(Results)],
         move_to_resultfs(Name, R, resultfs_enabled()),
-        ets:delete(Results),
-        ets:delete(Failures),
         R.
 
         
 job_coordinator({Name, Inputs, NMap, NRed, DoReduce}) ->
+        Started = now(), 
         event_server:event(Name, "Starting job", [], 
                 {job_data, {NMap, NRed, DoReduce, Inputs}}),
+
+        case catch gen_server:call(disco_server, {new_job, Name, self()}) of
+                ok -> ok;
+                R ->
+                        event_server:event(Name,
+                                "ERROR; Job initialization failed: ~p", [R]),
+                        exit(job_init_failed)
+        end,
 
         RedInputs = if NMap == 0 ->
                 Inputs;
@@ -340,9 +354,13 @@ job_coordinator({Name, Inputs, NMap, NRed, DoReduce}) ->
                 end,
                 
                 event_server:event(Name, "Reduce phase done", [], []),
-                event_server:event(Name, "READY", [], {ready, RedResults});
+                event_server:event(Name, "READY: Job finished in " ++
+                        disco_server:format_time(Started), 
+                                [], {ready, RedResults});
         true ->
-                event_server:event(Name, "READY", [], {ready, RedInputs})
+                event_server:event(Name, "READY: Job finished in " ++ 
+                        disco_server:format_time(Started), 
+                                [], {ready, RedInputs})
         end,
         gen_server:cast(event_server, {job_done, Name}).
 

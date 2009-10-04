@@ -74,7 +74,6 @@ handle_call({new_job, JobName, Pid}, _From, {Events0, MsgBuf0} = S) ->
                 FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
                 EventProc = spawn(fun() -> job_event_handler(FName) end),
                 ets:insert(event_files, {JobName, EventProc}),
-                
                 {reply, ok, add_event("master", JobName, list_to_binary("\"New job!\""),
                         {start, Pid}, {Events, MsgBuf})}
         end;
@@ -117,7 +116,7 @@ handle_cast({clean_job, JobName}, {Events, _} = S) ->
         {noreply, {dict:erase(JobName, Events), MsgBufN}}.
 
 handle_info(Msg, State) ->
-        error_logger:info_report(["Unknown message received: ", Msg]),
+        error_logger:warning_report(["Unknown message received: ", Msg]),
         {noreply, State}.
 
 tail_log(JobName, N)->

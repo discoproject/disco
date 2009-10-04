@@ -23,7 +23,7 @@ parse_row([NodeSpecB, InstancesB]) ->
         add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
 update_config_table(Json) ->
-        ok = gen_server:call(disco_server, {update_config_table, 
+        gen_server:cast(disco_server, {update_config_table, 
                 lists:flatten([parse_row(R) || R <- Json])}).
 
 get_config_table() ->
