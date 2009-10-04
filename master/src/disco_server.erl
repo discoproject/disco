@@ -293,8 +293,9 @@ toggle_blacklist(Node, Nodes, IsBlacklisted) ->
         M = gb_trees:get(Node, Nodes),
         UpdatedNodes = gb_trees:update(Node, 
                 M#dnode{blacklisted = IsBlacklisted}, Nodes),
-        Config = [{N#dnode.name, N#dnode.slots} ||
-                #dnode{blacklisted = false} = N <- UpdatedNodes],
+        Config = [{N#dnode.name, N#dnode.slots} || 
+                        #dnode{blacklisted = false} = N 
+                                <- gb_trees:values(UpdatedNodes)],
         gen_server:cast(scheduler, {update_nodes, Config}),
         gen_server:cast(self(), schedule_next),
         UpdatedNodes.
