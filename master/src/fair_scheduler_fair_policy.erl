@@ -6,6 +6,7 @@
         handle_info/2, terminate/2, code_change/3]).
 
 -define(FAIRY_INTERVAL, 1000).
+-define(FF_ALPHA_DEFAULT, 0.001).
 
 -record(job, {name, prio, cputime, bias, pid}).
 
@@ -125,8 +126,12 @@ fairness_fairy(NumCores) ->
                 {update, NewNumCores} ->
                         fairness_fairy(NewNumCores)
         after ?FAIRY_INTERVAL ->
-                {ok, Alpha} = application:get_env(fair_scheduler_alpha),
-                update_priorities(Alpha, NumCores),
+                case application:get_env(fair_scheduler_alpha) of
+                        {ok, Alpha} ->
+                                update_priorities(Alpha, NumCores);
+                        undefined ->
+                                update_priorities(?FF_ALPHA_DEFAULT, NumCores)
+                end, 
                 fairness_fairy(NumCores)
         end.
 
