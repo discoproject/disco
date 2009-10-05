@@ -91,6 +91,7 @@ next_task(AvailableNodes, Jobs, NotJobs) ->
 
 handle_info(_Msg, State) -> {noreply, State}. 
 
-terminate(_Reason, _State) -> {}.
+terminate(_Reason, _State) ->
+        [exit(JobPid, kill) || {_, {JobPid, _}} <- ets:tab2list(jobs)].
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
