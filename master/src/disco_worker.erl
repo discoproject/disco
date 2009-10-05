@@ -258,9 +258,7 @@ handle_info({_, {exit_status, _Status}}, S) ->
         {stop, worker_exit(S, {job_error, M}), S};
         
 handle_info({_, closed}, S) ->
-        M = "Worker killed. Last words:\n" ++ errlines(S),
-        event(S, "ERROR", M),
-        {stop, worker_exit(S, {job_error, M}), S};
+        {stop, worker_exit(S, {job_error, "Worker killed"}), S};
 
 handle_info(timeout, #state{linecount = 0} = S) ->
         M = "Worker didn't start in 30 seconds",
@@ -268,14 +266,10 @@ handle_info(timeout, #state{linecount = 0} = S) ->
         {stop, worker_exit(S, {data_error, M}), S};
 
 handle_info({'DOWN', _, _, _, _}, S) ->
-        M = "Worker killed. Last words:\n" ++ errlines(S),
-        event(S, "ERROR", M),
-        {stop, worker_exit(S, {job_error, M}), S}.
+        {stop, worker_exit(S, {job_error, "Worker killed"}), S}.
 
 handle_cast(kill_worker, S) -> 
-        M = "Worker killed. Last words:\n" ++ errlines(S),
-        event(S, "ERROR", M),
-        {stop, worker_exit(S, {job_error, M}), S}.
+        {stop, worker_exit(S, {job_error, "Worker killed"}), S}.
 
 terminate(_Reason, State) -> 
         % Possible bug: If we end up here before knowing child_pid, the
