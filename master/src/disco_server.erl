@@ -96,8 +96,9 @@ handle_cast({update_config_table, Config}, S) ->
         {noreply, S#state{nodes = NewNodes}};
 
 handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
-        AvailableNodes = [N || #dnode{slots = X, num_running = Y, name = N}
-                                <- gb_trees:values(Nodes), X > Y],
+        AvailableNodes = [N || #dnode{slots = X, num_running = Y, name = N,
+                                        blacklisted = false}
+                                        <- gb_trees:values(Nodes), X > Y],
         if AvailableNodes =/= [] ->
                 case gen_server:call(scheduler, {next_task, AvailableNodes}) of
                         {ok, {JobSchedPid, {Node, Task}}} -> 
