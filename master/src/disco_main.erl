@@ -51,8 +51,6 @@ init([ScgiPort]) ->
         {ok, {{one_for_one, ?MAX_R, ?MAX_T},
                  [{event_server, {event_server, start_link, []},
                         permanent, 10, worker, dynamic},
-                 {fair_scheduler, {fair_scheduler, start_link, []},
-                        permanent, 10, worker, dynamic},
                  {disco_server, {disco_server, start_link, []},
                         permanent, 10, worker, dynamic},
                  {oob_server, {oob_server, start_link, []},

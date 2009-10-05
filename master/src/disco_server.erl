@@ -60,7 +60,7 @@ format_time(T) ->
 
 init(_Args) ->
         process_flag(trap_exit, true),
-        link(whereis(scheduler)),
+        {ok, _} = fair_scheduler:start_link(),
         {ok, Name} = application:get_env(disco_name),
         register(slave_master, spawn_link(fun() ->
                 slave_master(lists:flatten([Name, "_slave"]))
