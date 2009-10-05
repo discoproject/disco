@@ -7,8 +7,9 @@
 
 -include("task.hrl").
 -record(state, {id, master, master_url, eventserv, port, task,
-                child_pid, node, linecount, errlines, results, 
-                last_msg, msg_counter, oob, oob_counter, start_time}).
+                child_pid, node, linecount, errlines, results,
+                debug, last_msg, msg_counter, oob, oob_counter,
+                start_time}).
 
 -define(MAX_MSG_LENGTH, 8192).
 -define(RATE_WINDOW, 100000). % 100ms
@@ -72,8 +73,9 @@ start_link_remote(Master, EventServ, Node, Task) ->
         {ok, MasterUrl0} = application:get_env(disco_url),
         MasterUrl = MasterUrl0 ++ disco_server:jobhome(JobName),
 
+        Debug = os:getenv("DISCO_DEBUG") =/= false,
         spawn_link(NodeAtom, disco_worker, remote_worker,
-                 [[self(), EventServ, Master, MasterUrl, Task, Node]]),
+                 [[self(), EventServ, Master, MasterUrl, Task, Node, Debug]]),
         
         receive
                 ok -> ok;
@@ -111,7 +113,7 @@ start_link([Parent|_] = Args) ->
                                 [Reason1]}})
         end.
 
-init([Id, EventServ, Master, MasterUrl, Task, Node]) ->
+init([Id, EventServ, Master, MasterUrl, Task, Node, Debug]) ->
         process_flag(trap_exit, true),
         erlang:monitor(process, Task#task.from),
         {ok, #state{id = Id, 
@@ -128,13 +130,16 @@ init([Id, EventServ, Master, MasterUrl, Task, Node]) ->
                     oob = [],
                     oob_counter = 0,
                     errlines = [],
+                    debug = Debug,
                     results = []}}.
 
-handle_call(start_worker, _From, State) ->
-        Cmd = spawn_cmd(State),
-        error_logger:info_report(["Spawn cmd: ", Cmd]),
+handle_call(start_worker, _From, S) ->
+        Cmd = spawn_cmd(S),
+        if S#state.debug ->
+                error_logger:info_report(["Spawn cmd: ", Cmd]);
+        true -> ok end,
         Port = open_port({spawn, Cmd}, ?PORT_OPT),
-        {reply, ok, State#state{port = Port}, 30000}.
+        {reply, ok, S#state{port = Port}, 30000}.
 
 spawn_cmd(#state{task = T, node = Node, master_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
