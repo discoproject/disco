@@ -250,7 +250,8 @@ handle_info({'EXIT', Pid, normal}, S) ->
                         {"Task failed to call exit_worker", Node, T}),
                 event_server:event(Node, T#task.jobname,
                         "WARN: [~s:~B] Died unexpectedly without a reason",
-                                [T#task.mode, T#task.taskid], []),
+                                [T#task.mode, T#task.taskid],
+                                        {task_failed, T#task.mode}),
                 gen_server:cast(self(), {exit_worker, Pid,
                         {data_error, "unexpected"}}),
                 {noreply, S}
@@ -259,7 +260,8 @@ handle_info({'EXIT', Pid, normal}, S) ->
 handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
         {Node, T} = gb_trees:get(Pid, S#state.workers),
         event_server:event(Node, T#task.jobname, "WARN: [~s:~B] ~s",
-                [T#task.mode, T#task.taskid, io_lib:fwrite(Msg, Args)], []),
+                [T#task.mode, T#task.taskid, io_lib:fwrite(Msg, Args)],
+                        {task_failed, T#task.mode}),
         gen_server:cast(self(), {exit_worker, Pid, {data_error, "worker_dies"}}),
         {noreply, S};
         
@@ -267,7 +269,7 @@ handle_info({'EXIT', Pid, noconnection}, S) ->
         {Node, T} = gb_trees:get(Pid, S#state.workers),
         event_server:event(Node, T#task.jobname,
                 "WARN: [~s:~B] Connection lost to the node (network busy?)",
-                        [T#task.mode, T#task.taskid], []),
+                [T#task.mode, T#task.taskid], {task_failed, T#task.mode}),
         gen_server:cast(self(), {exit_worker, Pid, {data_error, "noconnection"}}),
         {noreply, S};
 
@@ -281,7 +283,8 @@ handle_info({'EXIT', Pid, Reason}, S) ->
                 {_, {Node, T}} = Worker,
                 event_server:event(Node, T#task.jobname,
                         "WARN: [~s:~B] Worker died unexpectedly: ~p",
-                                [T#task.mode, T#task.taskid, Reason], []),
+                                [T#task.mode, T#task.taskid, Reason],
+                                        {task_failed, T#task.mode}),
                 gen_server:cast(self(), {exit_worker, Pid,
                         {data_error, "unexpected"}});
                 {noreply, S};
