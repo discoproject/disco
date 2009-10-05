@@ -14,6 +14,7 @@
 -define(MAX_MSG_LENGTH, 8192).
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 10).
+-define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 -define(OOB_KEY_MAX, 256).
 
@@ -169,6 +170,8 @@ worker_exit(#state{id = Id, master = Master}, Msg) ->
         gen_server:cast(Master, {exit_worker, Id, Msg}),
         normal.
 
+errlines(#state{errlines = L}) -> lists:flatten(lists:reverse(L)).
+
 handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
         {noreply, S#state{child_pid = binary_to_list(Line)}}; 
 
@@ -178,12 +181,10 @@ handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
         true ->
                 Line = Line0
         end,
-
+        event(S, "", strip_timestamp(Line)),
         T = now(),
         D = timer:now_diff(T, S#state.last_msg),
-        event(S, "", strip_timestamp(Line)),
         S1 = S#state{last_msg = T, linecount = S#state.linecount + 1},
-        
         if D > ?RATE_WINDOW ->
                 {noreply, S1#state{msg_counter = 1}};
         S1#state.msg_counter > ?RATE_LIMIT ->
@@ -201,7 +202,7 @@ handle_info({_, {data, {eol, <<"**<ERR>", Line/binary>>}}}, S) ->
 
 handle_info({_, {data, {eol, <<"**<DAT>", Line/binary>>}}}, S) ->
         M = strip_timestamp(Line),
-        event(S, "WARN", M ++ [10] ++ S#state.errlines),
+        event(S, "WARN", M ++ [10] ++ errlines(S)),
         {stop, worker_exit(S, {data_error, M}), S};
 
 handle_info({_, {data, {eol, <<"**<OUT>", Line/binary>>}}}, S) ->
@@ -231,55 +232,48 @@ handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
                 {noreply, S1}
         end;
 
-handle_info({_, {data, {eol, <<"**", _/binary>> = Line}}}, S) ->
-        event(S, "WARN", "Unknown line ID: " ++ binary_to_list(Line)),
-        {noreply, S};               
+handle_info({_, {data, {eol, _}}}, S) when
+                length(S#state.errlines) > ?ERRLINES_MAX ->
+        Err = "Worker failed (too much output on stdout):\n" ++
+                        errlines(S),
+        event(S, "ERROR", Err),
+        {stop, worker_exit(S, {job_error, Err}), S};
 
 handle_info({_, {data, {eol, Line}}}, S) ->
-        {noreply, S#state{errlines = S#state.errlines 
-                ++ binary_to_list(Line) ++ [10]}};
+        {noreply, S#state{errlines =
+                [[binary_to_list(Line), 10]|S#state.errlines]}};
 
 handle_info({_, {data, {noeol, Line}}}, S) ->
-        event(S, "WARN", "Truncated line: " ++ binary_to_list(Line)),
-        {noreply, S};
+        {noreply, S#state{errlines =
+                [[binary_to_list(Line), "...", 10]|S#state.errlines]}};
 
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
-        M =  "Worker didn't start:\n" ++ S#state.errlines,
+        M =  "Worker didn't start:\n" ++ errlines(S),
         event(S, "WARN", M),
-        %gen_server:cast(S#state.master, {exit_worker, S#state.task,
-        %        {data_error, {M, S#state.task}}}),
         {stop, worker_exit(S, {data_error, M}), S};
 
 handle_info({_, {exit_status, _Status}}, S) ->
-        M =  "Worker failed. Last words:\n" ++ S#state.errlines,
+        M =  "Worker failed. Last words:\n" ++ errlines(S),
         event(S, "ERROR", M),
-        %gen_server:cast(S#state.master,
-        %        {exit_worker, S#state.task, {job_error, M}}),
         {stop, worker_exit(S, {job_error, M}), S};
         
 handle_info({_, closed}, S) ->
-        M = "Worker killed. Last words:\n" ++ S#state.errlines,
+        M = "Worker killed. Last words:\n" ++ errlines(S),
         event(S, "ERROR", M),
-        %gen_server:cast(S#state.master, 
-        %        {exit_worker, S#state.task, {job_error, M}}),
         {stop, worker_exit(S, {job_error, M}), S};
 
 handle_info(timeout, #state{linecount = 0} = S) ->
         M = "Worker didn't start in 30 seconds",
         event(S, "WARN", M),
-        %gen_server:cast(S#state.master, {exit_worker, S#state.id,
-        %        {data_error, {M, S#state.task}}}),
         {stop, worker_exit(S, {data_error, M}), S};
 
 handle_info({'DOWN', _, _, _, _}, S) ->
-        M = "Worker killed. Last words:\n" ++ S#state.errlines,
+        M = "Worker killed. Last words:\n" ++ errlines(S),
         event(S, "ERROR", M),
-        %gen_server:cast(S#state.master, 
-        %        {exit_worker, S#state.task, {job_error, M}}),
         {stop, worker_exit(S, {job_error, M}), S}.
 
 handle_cast(kill_worker, S) -> 
-        M = "Worker killed. Last words:\n" ++ S#state.errlines,
+        M = "Worker killed. Last words:\n" ++ errlines(S),
         event(S, "ERROR", M),
         {stop, worker_exit(S, {job_error, M}), S}.
 

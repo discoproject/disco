@@ -6,6 +6,7 @@ def check_dead(job):
         if job.jobinfo()['active'] == "dead":
                 job.purge()
         else:
+                job.purge()
                 raise Exception("Rate limit failed")
 
 def data_gen(path):
@@ -16,6 +17,11 @@ def fun_map(e, params):
         return []
 
 def fun_map2(e, params):
+        return []
+
+def fun_map3(e, params):
+        for i in range(100000):
+            print "foobar"
         return []
 
 tserver.run_server(data_gen)
@@ -33,6 +39,12 @@ time.sleep(5)
 check_dead(job)
 
 job = Disco(sys.argv[1]).new_job(name = "test_ratelimit3",
+        input = inputs, map = fun_map3, status_interval = 1)
+
+time.sleep(5)
+check_dead(job)
+
+job = Disco(sys.argv[1]).new_job(name = "test_ratelimit4",
         input = inputs, map = fun_map2, status_interval = 0)
 job.wait()
 job.purge()
