@@ -182,8 +182,8 @@ event(Host, JobName, Format, Args, Params) ->
 
 event(EventServ, Host, JobName, Format, Args, Params) ->
         SArgs = lists:map(fun(X) ->
-                L = lists:flatlength(io_lib:fwrite("~p", [X])) > 1000,
-                if L -> trunc_io:fprint(X, 1000);
+                L = lists:flatlength(io_lib:fwrite("~p", [X])) > 10000,
+                if L -> trunc_io:fprint(X, 10000);
                 true -> X 
         end end, Args),
 
