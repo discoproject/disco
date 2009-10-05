@@ -118,24 +118,22 @@ op("get_results", _Query, Json) ->
         {ok, [[N, status_msg(M)] || {N, M} <- wait_jobs(S, Timeout)]};
 
 op("get_blacklist", _Query, _Json) ->
-        {ok, lists:map(fun({Node, _}) -> list_to_binary(Node)
-                end, ets:tab2list(blacklist))};
+        {ok, {A, _}} = gen_server:call(disco_server, {get_nodeinfo, all}),
+        {ok, [N0 || {N0, true} <- lists:map(fun({obj, L}) ->
+                {value, {_, N}} = lists:keysearch(node, 1, L),
+                {value, {_, B}} = lists:keysearch(blacklisted, 1, L),
+                {N, B}
+        end, A)]};
 
 op("blacklist", _Query, Json) ->
         Node = binary_to_list(Json),
-        case ets:lookup(config_table, Node) of
-                [] -> {ok, <<"Unknown node">>};
-                _ -> gen_server:call(disco_server, {blacklist, Node}),
-                     {ok, <<"Node blacklisted">>}
-        end;
+        gen_server:call(disco_server, {blacklist, Node}),
+        {ok, <<>>};
 
 op("whitelist", _Query, Json) ->
         Node = binary_to_list(Json),
-        case ets:lookup(blacklist, Node) of
-                [] -> {ok, <<"Node not on the blacklist">>};
-                _ -> gen_server:call(disco_server, {whitelist, Node}),
-                     {ok, <<"Node whitelisted">>}
-        end;
+        gen_server:call(disco_server, {whitelist, Node}),
+        {ok, <<>>};
 
 op("get_settings", _Query, _Json) ->
         L = [max_failure_rate],
