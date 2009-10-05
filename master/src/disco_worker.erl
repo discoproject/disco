@@ -21,7 +21,7 @@
 -define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
 -define(PORT_OPT, [{line, 100000}, binary, exit_status,
                    use_stdio, stderr_to_stdout, 
-                   {env, [{"LD_LIBRARY_PATH", "lib"}]}]).
+                   {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}]}]).
 
 get_env(Var) ->
         get_env(Var, lists:flatten(io_lib:format(" -env ~s '~~s'", [Var]))).
