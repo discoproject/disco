@@ -60,7 +60,7 @@ format_time(T) ->
 
 init(_Args) ->
         process_flag(trap_exit, true),
-
+        link(whereis(scheduler)),
         {ok, Name} = application:get_env(disco_name),
         register(slave_master, spawn_link(fun() ->
                 slave_master(lists:flatten([Name, "_slave"]))
@@ -291,15 +291,18 @@ handle_info({'EXIT', Pid, Reason}, S) ->
         end.
                 
 toggle_blacklist(Node, Nodes, IsBlacklisted) ->
-        M = gb_trees:get(Node, Nodes),
-        UpdatedNodes = gb_trees:update(Node, 
-                M#dnode{blacklisted = IsBlacklisted}, Nodes),
-        Config = [{N#dnode.name, N#dnode.slots} || 
-                        #dnode{blacklisted = false} = N 
-                                <- gb_trees:values(UpdatedNodes)],
-        gen_server:cast(scheduler, {update_nodes, Config}),
-        gen_server:cast(self(), schedule_next),
-        UpdatedNodes.
+        case gb_trees:lookup(Node, Nodes) of
+                none -> Nodes;
+                {value, M} ->
+                        UpdatedNodes = gb_trees:update(Node, 
+                                M#dnode{blacklisted = IsBlacklisted}, Nodes),
+                        Config = [{N#dnode.name, N#dnode.slots} || 
+                                #dnode{blacklisted = false} = N 
+                                        <- gb_trees:values(UpdatedNodes)],
+                        gen_server:cast(scheduler, {update_nodes, Config}),
+                        gen_server:cast(self(), schedule_next),
+                        UpdatedNodes
+        end.
 
 start_worker(Node, T) ->
         event_server:event(T#task.jobname, "~s:~B assigned to ~s",
@@ -351,7 +354,8 @@ blacklist_guard(Node) ->
         error_logger:info_report({"Quarantine ended for", Node}).
 
 % callback stubs
-terminate(_Reason, _State) -> {}.
+terminate(_Reason, _State) ->
+        error_logger:warning_report({"Disco server dies"}).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
