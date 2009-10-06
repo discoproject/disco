@@ -16,3 +16,9 @@ class Indices(list, JSONSerialized):
 
 class Index(dict, JSONSerialized):
     pass
+
+class Keys(list, JSONSerialized):
+    pass
+
+class Values(list, JSONSerialized):
+    pass

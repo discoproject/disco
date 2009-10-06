@@ -6,7 +6,8 @@ indices = r'indices/?'
 index   = r'%s/(?P<name>\w+)/?'         % (indices)
 keys    = r'%s/(?P<property>keys)/?'    % (index)
 values  = r'%s/(?P<property>values)/?'  % (index)
-query   = r'%s/(?P<query_path>.*)'      % (values)
+_query  = r'%s/(?P<property>query)/?'   % (index)
+query   = r'%s/(?P<query_path>.*)'      % (_query)
 
 urlpatterns = patterns('',
                        url(r'^%s$' % indices, views.indices, name='indices'),

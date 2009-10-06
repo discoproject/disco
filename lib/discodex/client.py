@@ -1,18 +1,18 @@
-import httplib, urlparse
+import httplib, urllib, urlparse
 
-from objects import Indices, Index, IndexMonitor
+from discodb import Q
 
-class DiscodexException(Exception):
+from core import DiscodexError
+from objects import DataSet, Indices, Index, Keys, Values
+
+class ResourceNotFound(DiscodexError):
     pass
 
-class ResourceNotFound(DiscodexException):
-    pass
-
-class DiscodexServiceUnavailable(DiscodexException):
+class DiscodexServiceUnavailable(DiscodexError):
     def __init__(self, retry_after):
         self.retry_after = int(retry_after)
 
-class DiscodexServerError(DiscodexException):
+class DiscodexServerError(DiscodexError):
     pass
 
 class DiscodexClient(object):
@@ -64,5 +64,27 @@ class DiscodexClient(object):
         index['origin'] = self.indexurl(indexaspec)
         self.put(indexbspec, index)
 
+    def keys(self, indexspec):
+        return Keys.loads(self.request('GET', '%s/keys' % self.indexurl(indexspec)).read())
+
+    def values(self, indexspec):
+        return Values.loads(self.request('GET', '%s/values' % self.indexurl(indexspec)).read())
+
     def query(self, indexspec, query):
-        pass
+        query_path = query.format(and_op='/', or_op=',', encoding=lambda q: urllib.quote(q, ':'))
+        return Values.loads(self.request('GET', '%s/query/%s' % (self.indexurl(indexspec), query_path)).read())
+
+class CommandLineClient(DiscodexClient):
+    def index(self, *args):
+        import fileinput
+        dataset = DataSet(ichunks=[line.strip() for line in fileinput.input(args)])
+        return super(CommandLineClient, self).index(dataset)
+
+    def query(self, indexspec, *args):
+        query = Q.scan(' '.join(args), and_op=' ', or_op=',')
+        return super(CommandLineClient, self).query(indexspec, query)
+
+    def send(self, command, *args):
+        result = getattr(self, command)(*args)
+        if result is not None:
+            yield result

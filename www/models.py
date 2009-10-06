@@ -11,10 +11,12 @@ from restapi.resource import (HttpResponseAccepted,
                               HttpResponseServiceUnavailable)
 
 from discodex import settings, parsers
-from discodex.objects import DataSet, Indices, Index
+from discodex.objects import DataSet, Indices, Index, Keys, Values
 
 from disco.core import Disco
 from disco.error import DiscoError
+
+from discodb import Q
 
 discodex_settings = settings.DiscodexSettings()
 disco_master      = discodex_settings['DISCODEX_DISCO_MASTER']
@@ -45,7 +47,7 @@ class IndexCollection(Collection):
         name    = ('%s%s' % (disco_prefix, uuid1())).replace('-', '')
         try:
             job = disco.new_job(name=name,
-                                input=['http://localhost:8080/'],
+                                input=dataset['ichunks'],
                                 map=parsers.map)
             # start job...
         except DiscoError, e:
@@ -63,6 +65,8 @@ class IndexResource(Collection):
         self.name = name
 
     def delegate(self, request, *args, **kwargs):
+        if self.status == NOT_FOUND:
+            raise Http404
         property = str(kwargs.pop('property'))
         return getattr(self, property)(request, *args, **kwargs)
 
@@ -85,11 +89,15 @@ class IndexResource(Collection):
 
     @property
     def keys(self):
-        return Keys(self)
+        return KeysResource(self)
 
     @property
     def values(self):
-        return Values(self)
+        return ValuesResource(self)
+
+    @property
+    def query(self):
+        return QueryCollection(self)
 
     @property
     def status(self):
@@ -140,27 +148,41 @@ class IndexResource(Collection):
             handle.write(index.dumps())
         os.rename(handle.name, self.path)
 
-class Keys(Resource):
+class KeysResource(Resource):
     def __init__(self, index):
         self.index = index
 
     def read(self, request, *args, **kwargs):
-        return HttpResponse('index %s keys' % self.index.name)
+        keys = ['index %s keys' % self.index.name]
+        return HttpResponse(Keys(keys).dumps())
 
-class Values(Collection):
+class ValuesResource(Resource):
+    def __init__(self, index):
+        self.index = index
+
+    def read(self, request, *args, **kwargs):
+        values = ['index %s values' % self.index.name]
+        return HttpResponse(Values(values).dumps())
+
+class QueryCollection(Collection):
     def __init__(self, index):
         self.index = index
 
     def delegate(self, request, *args, **kwargs):
         query_path = str(kwargs.pop('query_path'))
-        return QueryResult(query_path)(request, *args, **kwargs)
+        return QueryResource(query_path)(request, *args, **kwargs)
 
     def read(self, request, *args, **kwargs):
-        return HttpResponse('index %s values' % self.index.name)
+        return HttpResponse(Values().dumps())
 
-class QueryResult(Resource):
+class QueryResource(Resource):
     def __init__(self, query_path):
-        self.query_path = query_path
+        import urllib
+        self.query = Q.scan(query_path, and_op='/', or_op=',', decoding=urllib.unquote)
 
     def read(self, request, *args, **kwargs):
-        return HttpResponse('query')
+        # execute the query against the index
+        # get the list of results
+        # read each result
+        values = [str(self.query)]
+        return HttpResponse(Values(values).dumps())
