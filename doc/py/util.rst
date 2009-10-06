@@ -51,7 +51,7 @@ external interface.
    configuration file *cmap.conf*, as the map function::
 
         disco.new_job(input = ["disco://localhost/myjob/file1"],
-                      fun_map = disco.external(
+                      fun_map = disco.util.external(
                            ["/home/john/bin/cmap", "/home/john/cmap.conf"]))
 
    All files listed in *files* are copied to the same directory so any file

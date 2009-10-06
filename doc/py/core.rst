@@ -35,7 +35,7 @@ All methods in :class:`Disco` that are related to individual jobs, namely
  - :meth:`Disco.profile_stats`
 
 are also accessible through the :class:`Job` object, so you can say
-`job.wait()` instead of `disco.wait(job.name)`. However, the job methods
+`job.wait()` instead of `Disco.wait(job.name)`. However, the job methods
 in :class:`Disco` come in handy if you want to manipulate a job that is
 identified by a job name (:attr:`Job.name`) instead of a :class:`Job`
 object.
@@ -296,7 +296,7 @@ anymore. You can delete the unneeded job files as follows::
 
        This example takes a line of text as input in *e*, tokenizes it, and returns
        a list of words as the output. The argument *params* is the object
-       specified by *params* in :func:`disco.job`. It may be used to maintain state
+       specified by *params* in :func:`Disco.job`. It may be used to maintain state
        between several calls to the map function.
 
        The map task can also be an external program. For more information, see
@@ -445,8 +445,8 @@ anymore. You can delete the unneeded job files as follows::
        to prevent it from consuming too much memory, for instance, by
        calling *comb_buffer.clear()* after a block of results has been
        processed. *params* is an user-defined object as defined by the
-       *params* parameter in :func:`disco.job`.
-
+       *params* parameter in :func:`Disco.job`.
+       
        Combiner function may return an iterator of key-value pairs
        (tuples) or *None*.
 
@@ -522,12 +522,12 @@ anymore. You can delete the unneeded job files as follows::
        function as the second argument. The object is serialized using the
        *pickle* module, so it should be pickleable.
 
-       A convience class :class:`disco.Params` is provided that
+       A convience class :class:`disco.core.Params` is provided that
        provides an easy way to encapsulate a set of parameters for the
-       functions. As a special feature, :class:`disco.Params` allows
+       functions. As a special feature, :class:`disco.core.Params` allows
        including functions in the parameters by making them pickleable.
 
-       By default, *params* is an empty :class:`disco.Params` object.
+       By default, *params* is an empty :class:`disco.core.Params` object.
 
      * *mem_sort_limit* - sets the maximum size for the input that can be sorted
        in memory. The larger inputs are sorted on disk. By default 256MB.
@@ -547,7 +547,7 @@ anymore. You can delete the unneeded job files as follows::
        Usually there is no need to use this parameter.
 
      * *ext_params* - if either map or reduce function is an external program,
-       typically specified using the :func:`disco.external` function, this
+       typically specified using the :func:`disco.util.external` function, this
        parameter is used to deliver a parameter set to the program.
 
        The default C interface for external Disco functions uses
@@ -622,10 +622,11 @@ anymore. You can delete the unneeded job files as follows::
                 else:
                         return [(e, params.c)]
 
-        disco.job("disco://localhost:5000",
-                  ["disco://localhost/myjob/file1"],
-                  fun_map,
-                  params = disco.core.Params(c = 0, f = lambda x: x + "!"))
+        disco.new_job(
+                name = "disco://localhost:5000",
+                input = ["disco://localhost/myjob/file1"],
+                map = fun_map,
+                params = disco.core.Params(c = 0, f = lambda x: x + "!"))
 
    You can specify any number of key-value pairs to the :class:`Params`
    constructor.  The pairs will be delivered as-is to map and reduce
