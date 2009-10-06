@@ -2,6 +2,7 @@ import os, socket
 
 class DiscoSettings(dict):
     defaults = {
+        'DISCO_DEBUG':           "1",
         'DISCO_EVENTS':          "''",
         'DISCO_FLAGS':           "''",
         'DISCO_LOG_DIR':         "'/var/log/disco'",
