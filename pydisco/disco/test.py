@@ -74,7 +74,7 @@ class DiscoJobTestFixture(object):
         @property
         def disco_master_url(self):
                 return 'http://%s:%s' % (self.disco_settings['DISCO_MASTER_HOST'],
-                                         self.disco_settings['DISCO_MASTER_PORT'])
+                                         self.disco_settings['DISCO_PORT'])
 
         @property
         def test_server_address(self):
@@ -132,7 +132,8 @@ class DiscoTestLoader(TestLoader):
 
 class DiscoTestRunner(TextTestRunner):
         def __init__(self, disco_settings):
-                super(DiscoTestRunner, self).__init__(verbosity=disco_settings['DISCO_DEBUG'])
+                debug_levels = {'off': 0, 'log': 1, 'trace': 2}
+                super(DiscoTestRunner, self).__init__(verbosity=debug_levels[disco_settings['DISCO_DEBUG']])
                 self.disco_settings = disco_settings
 
         def run(self, *names):

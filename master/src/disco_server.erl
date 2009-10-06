@@ -3,11 +3,11 @@
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0, jobhome/1, debug_flags/1, format_time/1]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
         terminate/2, code_change/3]).
 
 -include("task.hrl").
--record(dnode, {name, blacklisted, slots, num_running, 
+-record(dnode, {name, blacklisted, slots, num_running,
                 stats_ok, stats_failed, stats_crashed}).
 
 -record(state, {workers, nodes}).
@@ -16,7 +16,7 @@
 
 start_link() ->
         error_logger:info_report([{"DISCO SERVER STARTS"}]),
-        case gen_server:start_link({local, disco_server}, 
+        case gen_server:start_link({local, disco_server},
                         disco_server, [], debug_flags("disco_server")) of
                 {ok, Server} ->
                         {ok, _} = disco_config:get_config_table(),
@@ -30,12 +30,12 @@ stop() ->
 
 debug_flags(Server) ->
         case os:getenv("DISCO_DEBUG") of
-                "trace" -> 
-                        {ok, Root} = application:get_env(disco_root),
-                        A = [{debug, [{log_to_file, filename:join(Root,
-                                Server ++ "_trace.log")}]}],
-                        A;
-                _ -> []
+            "trace" ->
+                {ok, Root} = application:get_env(disco_root),
+                A = [{debug, [{log_to_file, filename:join(Root,
+                                                          Server ++ "_trace.log")}]}],
+                A;
+            _ -> []
         end.
 
 jobhome(JobName) when is_list(JobName) -> jobhome(list_to_binary(JobName));
@@ -71,7 +71,7 @@ handle_cast({update_config_table, Config}, S) ->
         error_logger:info_report([{"Config table update"}]),
         NewNodes = lists:foldl(fun({Node, Slots}, NewNodes) ->
                 NewNode = case gb_trees:lookup(Node, S#state.nodes) of
-                        none -> 
+                        none ->
                                 #dnode{name = Node,
                                        slots = Slots,
                                        blacklisted = false,
@@ -101,8 +101,8 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
                                         <- gb_trees:values(Nodes), X > Y],
         if AvailableNodes =/= [] ->
                 case gen_server:call(scheduler, {next_task, AvailableNodes}) of
-                        {ok, {JobSchedPid, {Node, Task}}} -> 
-                                
+                        {ok, {JobSchedPid, {Node, Task}}} ->
+
                                 WorkerPid = start_worker(Node, Task),
                                 UWorkers = gb_trees:insert(
                                         WorkerPid, {Node, Task}, Workers),
@@ -110,8 +110,8 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
                                         {task_started, Node, WorkerPid}),
 
                                 M = gb_trees:get(Node, Nodes),
-                                UNodes = gb_trees:update(Node, 
-                                        M#dnode{num_running = 
+                                UNodes = gb_trees:update(Node,
+                                        M#dnode{num_running =
                                                 M#dnode.num_running + 1},
                                                          Nodes),
 
@@ -121,7 +121,7 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
                                 end,
                                 {noreply, S#state{nodes = UNodes,
                                         workers = UWorkers}};
-                        nojobs -> 
+                        nojobs ->
                                 {noreply, S}
                 end;
         true -> {noreply, S}
@@ -190,7 +190,7 @@ handle_call({new_task, Task}, _, State) ->
         case catch gen_server:call(scheduler, {new_task, Task}) of
                 ok ->
                         gen_server:cast(self(), schedule_next),
-                        event_server:event(Task#task.jobname, 
+                        event_server:event(Task#task.jobname,
                                 "~s:~B added to waitlist",
                                 [Task#task.mode, Task#task.taskid], []),
                         {reply, ok, State};
@@ -201,19 +201,19 @@ handle_call({new_task, Task}, _, State) ->
         end;
 
 handle_call({get_active, JobName}, _From, #state{workers = Workers} = S) ->
-        {Nodes, Tasks} = lists:unzip([{N, M} || 
+        {Nodes, Tasks} = lists:unzip([{N, M} ||
                 {N, #task{mode = M, jobname = X}} <- gb_trees:values(Workers),
                         X == JobName]),
         {reply, {ok, {Nodes, Tasks}}, S};
 
 handle_call({get_nodeinfo, all}, _From, S) ->
        Active = [{N, Name} || {N, #task{jobname = Name}}
-                <- gb_trees:values(S#state.workers)], 
+                <- gb_trees:values(S#state.workers)],
        Available = lists:map(fun(N) ->
                 {obj, [{node, list_to_binary(N#dnode.name)},
                        {job_ok, N#dnode.stats_ok},
                        {data_error, N#dnode.stats_failed},
-                       {error, N#dnode.stats_crashed}, 
+                       {error, N#dnode.stats_crashed},
                        {max_workers, N#dnode.slots},
                        {blacklisted, N#dnode.blacklisted}]}
         end, gb_trees:values(S#state.nodes)),
@@ -264,7 +264,7 @@ handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
                         {task_failed, T#task.mode}),
         gen_server:cast(self(), {exit_worker, Pid, {data_error, "worker_dies"}}),
         {noreply, S};
-        
+
 handle_info({'EXIT', Pid, noconnection}, S) ->
         {Node, T} = gb_trees:get(Pid, S#state.workers),
         event_server:event(Node, T#task.jobname,
@@ -292,15 +292,15 @@ handle_info({'EXIT', Pid, Reason}, S) ->
                 error_logger:warning_report({"Unknown exit signal", Pid, Reason}),
                 {noreply, S}
         end.
-                
+
 toggle_blacklist(Node, Nodes, IsBlacklisted) ->
         case gb_trees:lookup(Node, Nodes) of
                 none -> Nodes;
                 {value, M} ->
-                        UpdatedNodes = gb_trees:update(Node, 
+                        UpdatedNodes = gb_trees:update(Node,
                                 M#dnode{blacklisted = IsBlacklisted}, Nodes),
-                        Config = [{N#dnode.name, N#dnode.slots} || 
-                                #dnode{blacklisted = false} = N 
+                        Config = [{N#dnode.name, N#dnode.slots} ||
+                                #dnode{blacklisted = false} = N
                                         <- gb_trees:values(UpdatedNodes)],
                         gen_server:cast(scheduler, {update_nodes, Config}),
                         gen_server:cast(self(), schedule_next),
@@ -310,7 +310,7 @@ toggle_blacklist(Node, Nodes, IsBlacklisted) ->
 start_worker(Node, T) ->
         event_server:event(T#task.jobname, "~s:~B assigned to ~s",
                 [T#task.mode, T#task.taskid, Node], []),
-        spawn_link(disco_worker, start_link_remote, 
+        spawn_link(disco_worker, start_link_remote,
                 [self(), whereis(event_server), Node, T]).
 
 % slave:start() contains a race condition, thus it is not safe to call it
@@ -318,7 +318,7 @@ start_worker(Node, T) ->
 % through slave_master().
 slave_master(SlaveName) ->
         receive
-            {start, Pid, Node, Args} -> 
+            {start, Pid, Node, Args} ->
                 launch(fun() ->
                                slave:start(list_to_atom(Node),
                                            SlaveName, Args, self(),
@@ -329,7 +329,7 @@ slave_master(SlaveName) ->
 
 launch(F, Pid, Node) ->
         case catch F() of
-                {ok, _} -> 
+                {ok, _} ->
                         Pid ! slave_started;
                 {error, {already_running, _}} ->
                         Pid ! slave_started;
@@ -350,7 +350,7 @@ launch(F, Pid, Node) ->
 
 blacklist_guard(Node) ->
         error_logger:info_report({"Blacklisting", Node,
-                "for", ?BLACKLIST_PERIOD, "ms."}), 
+                "for", ?BLACKLIST_PERIOD, "ms."}),
         gen_server:call(disco_server, {blacklist, Node}),
         timer:sleep(?BLACKLIST_PERIOD),
         gen_server:call(disco_server, {whitelist, Node}),
