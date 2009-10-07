@@ -1,11 +1,33 @@
 import os
 import sys, time, traceback
+
+from collections import defaultdict
+from itertools import chain, repeat
+
 from disco.comm import CommException, download, open_remote
 from disco.error import DiscoError
 
 job_name = "none"
 resultfs_enabled =\
         "resultfs" in os.environ.get("DISCO_FLAGS", "").lower().split()
+
+class DefaultDict(defaultdict):
+        """Like a defaultdict, but calls the default_factory with the key argument."""
+        def __missing__(self, key):
+                return self.default_factory(key)
+
+def flatten(iterable):
+        for item in iterable:
+                if hasattr(item, '__iter__'):
+                        for subitem in flatten(item):
+                                yield subitem
+                else:
+                        yield item
+
+def iterify(object):
+        if hasattr(object, '__iter__'):
+                return object
+        return repeat(object, 1)
 
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
@@ -26,11 +48,11 @@ def data_err(m, job_input):
 
 def load_conf():
         port = root = master = None
-        
+
         port = (port and port.group(1)) or "8989"
         root = (root and root.group(1)) or "/srv/disco/"
         master = (master and master.group(1)) or port
-        
+
         return os.environ.get("DISCO_MASTER_PORT", master.strip()),\
                os.environ.get("DISCO_PORT", port.strip()),\
                os.environ.get("DISCO_ROOT", root.strip())
