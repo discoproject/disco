@@ -30,15 +30,16 @@ stop() ->
 
 debug_flags(Server) ->
         case os:getenv("DISCO_DEBUG") of
-            "trace" ->
-                {ok, Root} = application:get_env(disco_root),
-                A = [{debug, [{log_to_file, filename:join(Root,
-                                                          Server ++ "_trace.log")}]}],
-                A;
-            _ -> []
+                "trace" ->
+                        {ok, Root} = application:get_env(disco_root),
+                        A = [{debug, [{log_to_file, filename:join(Root,
+                                                                  Server ++ "_trace.log")}]}],
+                        A;
+                _ -> []
         end.
 
-jobhome(JobName) when is_list(JobName) -> jobhome(list_to_binary(JobName));
+jobhome(JobName) when is_list(JobName) ->
+        jobhome(list_to_binary(JobName));
 jobhome(JobName) ->
         <<D0:8, _/binary>> = erlang:md5(JobName),
         [D1] = io_lib:format("~.16b", [D0]),

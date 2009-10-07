@@ -58,7 +58,7 @@ def this_host():
 
 def this_partition():
         return int(sys.argv[5])
-        
+
 def this_inputs():
         return sys.argv[6:]
 
@@ -130,7 +130,7 @@ def open_remote(input, ext_host, ext_file):
                          % (ext_host, ext_file, x), x)
 
 def connect_input(input):
-        
+
         if input.startswith("disco://"):
                 host, fname = input[8:].split("/", 1)
                 local_file = "%s/data/%s" % (DISCO_ROOT, fname)
@@ -169,7 +169,7 @@ class MapOutput(object):
                 ensure_path(self.fname, False)
                 self.fd = file(self.fname + ".partial", "w")
                 self.part = part
-                
+
         def add(self, key, value):
                 if self.combiner:
                         ret = self.combiner(key, value, self.comb_buffer,\
@@ -191,7 +191,7 @@ class MapOutput(object):
                                                 self.params)
                 self.fd.close()
                 os.rename(self.fname + ".partial", self.fname)
-        
+
 
 class ReduceOutput(object):
         def __init__(self, params):
@@ -243,14 +243,14 @@ class ReduceReader(object):
 
                         if total_size > mem_sort_limit:
                                 self.iterator = self.download_and_sort()
-                        else: 
+                        else:
                                 msg("Sorting in memory")
                                 m = list(self.multi_file_iterator(self.inputs, False))
                                 m.sort(num_cmp)
                                 self.iterator = self.list_iterator(m)
                 else:
                         self.iterator = self.multi_file_iterator(self.inputs)
-                        
+
         def iter(self):
                 return self.iterator
 
@@ -285,13 +285,13 @@ class ReduceReader(object):
                 if ret:
                         err("Sorting %s to %s failed (%d)" %\
                                 (dlname, sortname, ret))
-                
+
                 msg("External sort done: %s" % sortname)
                 return self.multi_file_iterator([sortname], reader =\
                         lambda fd, sze, fname:\
                                 re_reader("(?s)(.*?) (.*?)\000", fd, sze, fname))
 
-       
+
         def list_iterator(self, lst):
                 i = 0
                 for x in lst:
@@ -323,7 +323,7 @@ def run_map(job_input, partitions, param):
         nr_reduces = len(partitions)
         reader = fun_map_reader(fd, sze, job_input)
         fun_init(reader, param)
-        
+
         for entry in reader:
                 for key, value in fun_map(entry, param):
                         p = fun_partition(key, nr_reduces, param)
@@ -348,9 +348,9 @@ def import_modules(modules, funcs):
 def op_map(job):
         job_input = this_inputs()
         msg("Received a new map job!")
-        
+
         if len(job_input) != 1:
-                err("Map can only handle one input. Got: %s" % 
+                err("Map can only handle one input. Got: %s" %
                         " ".join(job_input))
 
         nr_reduces = int(job['nr_reduces'])
@@ -361,7 +361,7 @@ def op_map(job):
 
         if 'map_init' in job:
                 fun_init.func_code = marshal.loads(job['map_init'])
-        
+
         if 'required_files' in job:
                 write_files(marshal.loads(job['required_files']), REQ_FILES)
                 sys.path.insert(0, REQ_FILES)
@@ -378,9 +378,9 @@ def op_map(job):
                 external.prepare(job['ext_map'], map_params, EXT_MAP)
                 fun_map.func_code = external.ext_map.func_code
         else:
-                map_params = cPickle.loads(job['params'])        
+                map_params = cPickle.loads(job['params'])
                 fun_map.func_code = marshal.loads(job['map'])
-        
+
 
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
@@ -388,10 +388,10 @@ def op_map(job):
                         for i in range(nr_part)]
         else:
                 partitions = [MapOutput(i, map_params) for i in range(nr_part)]
-        
+
         run_map(job_input[0], partitions, map_params)
         external.close_ext()
-        
+
         for p in partitions:
                 p.close()
 
@@ -411,24 +411,24 @@ def op_reduce(job):
         job_inputs = this_inputs()
 
         msg("Received a new reduce job!")
-        
+
         do_sort = int(job['sort'])
         mem_sort_limit = int(job['mem_sort_limit'])
         req_mod = job['required_modules'].split()
-        
+
         if 'reduce_init' in job:
                 fun_init.func_code = marshal.loads(job['reduce_init'])
 
         fun_reduce_reader.func_code = marshal.loads(job['reduce_reader'])
         fun_reduce_writer.func_code = marshal.loads(job['reduce_writer'])
-        
+
         if 'required_files' in job:
                 write_files(marshal.loads(job['required_files']), REQ_FILES)
                 sys.path.insert(0, REQ_FILES)
-        
+
         import_modules(req_mod, [fun_reduce_reader, fun_reduce_writer,\
             fun_reduce, fun_init])
-         
+
         if 'ext_reduce' in job:
                 if "ext_params" in job:
                         red_params = job['ext_params']
@@ -442,15 +442,15 @@ def op_reduce(job):
 
         red_in = ReduceReader(job_inputs, do_sort, mem_sort_limit).iter()
         red_out = ReduceOutput(red_params)
-        
+
         msg("Starting reduce")
         fun_init(red_in, red_params)
         fun_reduce(red_in, red_out, red_params)
         msg("Reduce done")
-        
+
         red_out.close()
         external.close_ext()
-        
+
         index = cStringIO.StringIO(os.path.basename(red_out.fname) + "\n")
         safe_append(index, REDUCE_INDEX)
         msg("dir://%s/%sreduce-index.txt" % (this_host(), JOB_HOME), "OUT")

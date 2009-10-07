@@ -216,14 +216,9 @@ class Job(object):
                     "required_modules": [],
                     "profile": False}
 
-        def __init__(self, master, **kwargs):
+        def __init__(self, master, name='', **kwargs):
                 self.master = master
-                if "name" not in kwargs:
-                        raise DiscoError("Argument name is required")
-                if re.search("\W", kwargs["name"]):
-                        raise DiscoError("Only characters in [a-zA-Z0-9_] "\
-                              "are allowed in the job name")
-                self.name = kwargs["name"]
+                self.name   = name
                 self._run(**kwargs)
 
         def __getattr__(self, name):
@@ -267,7 +262,7 @@ class Job(object):
 
                 # -- initialize request --
 
-                req = {"name": self.name,
+                req = {"prefix": self.name,
                        "version": ".".join(map(str, sys.version_info[:2])),
                        "params": cPickle.dumps(d("params"), cPickle.HIGHEST_PROTOCOL),
                        "sort": str(int(d("sort"))),
@@ -440,10 +435,9 @@ class Job(object):
                 self.msg = encode_netstring_fd(req)
                 reply = self.master.request("/disco/job/new", self.msg)
 
-                if reply != "job started":
+                if not reply.startswith('job started:'):
                         raise DiscoError("Failed to start a job. Server replied: " + reply)
-
-
+                self.name = reply.split(':', 1)[1]
 
 def result_iterator(results, notifier = None,\
         proxy = None, reader = func.netstr_reader):
