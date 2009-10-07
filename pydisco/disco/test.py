@@ -95,22 +95,26 @@ class DiscoJobTestFixture(object):
         def setUp(self):
                 self.test_server = TestServer.create(self.test_server_address, self.getdata)
                 self.test_server.start()
-                self.disco = Disco(self.disco_master_url)
-                jobargs = {'name':           self.__class__.__name__,
-                           'input':          self.input,
-                           'map':            self.map,
-                           'map_reader':     self.map_reader,
-                           'map_writer':     self.map_writer,
-                           'sort':           self.sort,
-                           'mem_sort_limit': self.mem_sort_limit}
+                try:
+                        self.disco = Disco(self.disco_master_url)
+                        jobargs = {'name':           self.__class__.__name__,
+                                   'input':          self.input,
+                                   'map':            self.map,
+                                   'map_reader':     self.map_reader,
+                                   'map_writer':     self.map_writer,
+                                   'sort':           self.sort,
+                                   'mem_sort_limit': self.mem_sort_limit}
 
-                if self.reduce:
-                        jobargs.update({'reduce':        self.reduce,
-                                        'reduce_reader': self.reduce_reader,
-                                        'reduce_writer': self.reduce_writer,
-                                        'nr_reduces':    self.nr_reduces})
+                        if self.reduce:
+                                jobargs.update({'reduce':        self.reduce,
+                                                'reduce_reader': self.reduce_reader,
+                                                'reduce_writer': self.reduce_writer,
+                                                'nr_reduces':    self.nr_reduces})
 
-                self.job = self.disco.new_job(**jobargs)
+                        self.job = self.disco.new_job(**jobargs)
+                except:
+                        self.test_server.stop()
+                        raise
 
         def tearDown(self):
                 self.test_server.stop()
