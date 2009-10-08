@@ -21,7 +21,7 @@ commands = {'client': set(('list',
             }
 
 def main():
-    DISCODEX_BIN  = os.path.realpath(os.path.dirname(__file__))
+    DISCODEX_BIN  = os.path.dirname(os.path.realpath(__file__))
     DISCODEX_HOME = os.path.dirname(DISCODEX_BIN)
 
     option_parser = optparse.OptionParser()

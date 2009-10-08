@@ -2,7 +2,7 @@ import os
 
 class DiscodexSettings(dict):
     defaults = {
-        'DISCODEX_MODULE':       "os.path.realpath(os.path.dirname(__file__))",
+        'DISCODEX_MODULE':       "os.path.dirname(os.path.realpath(__file__))",
         'DISCODEX_LIB':          "os.path.dirname(DISCODEX_MODULE)",
         'DISCODEX_HOME':         "os.path.dirname(DISCODEX_LIB)",
         'DISCODEX_ETC_DIR':      "os.path.join(DISCODEX_HOME, 'etc')",
