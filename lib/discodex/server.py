@@ -102,6 +102,7 @@ class djangoscgi(_server):
         settings = self.discodex_settings
         program  = os.path.join(settings['DISCODEX_WWW_ROOT'], 'manage.py')
         return [program, 'runfcgi', 'protocol=scgi',
+                '--pythonpath=%s' % settings['DISCODEX_LIB'],
                 'host=%s' % self.host,
                 'port=%s' % self.port,
                 'pidfile=%s' % self.pid_file,

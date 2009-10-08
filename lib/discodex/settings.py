@@ -19,7 +19,6 @@ class DiscodexSettings(dict):
         'DISCODEX_LIGHTTPD':     "'lighttpd'",
         'DISCODEX_DISCO_MASTER': "'disco://localhost'",
         'DISCODEX_DISCO_PREFIX': "'_discodex'",
-        'PYTHONPATH':            "'%s:%s' % (DISCODEX_LIB, os.getenv('PYTHONPATH', ''))",
         }
 
     def __init__(self, **kwargs):
