@@ -14,7 +14,7 @@ $(document).ready(function(){
         $('tbody').click(function(event) {	// event delegation - to hook event handlers for dynamic contents
                 var $real_target = $(event.target);
                 if ($real_target.is('a.remove')) {
-                    $real_target.parents("tr").remove();
+                  $real_target.parents("tr").remove();
                 }
         });
 });
@@ -50,17 +50,16 @@ function save_settings(){
 
 function update_settings(data){
         for (var k in data){
-                $("#" + k).val(data[k]);                
+                $("#" + k).val(data[k]);
         }
 }
 
 function add_to_blacklist(){
-        post_req("/disco/ctrl/blacklist", 
-                JSON.stringify($("#jobname").val()),
-                function(){
-                        $.getJSON("/disco/ctrl/get_blacklist",
-                                update_blacklist);
-        });
+        post_req("/disco/ctrl/blacklist",
+                 JSON.stringify($("#jobname").val()),
+                 function() {
+                   $.getJSON("/disco/ctrl/get_blacklist", update_blacklist);
+                 });
 }
 
 function send_table(){
@@ -80,9 +79,9 @@ function check_cell(val, orig, ev){
 
 function new_table(data){
         $("tbody").html($.map(data, function(item, i){
-                return $.create("tr", {}, $.map(item, function(item2, i){
-                        if (i % 2 == 0) 
-                                return [$.create("td", {}, [$.create("a", {'class':'remove','href':'#'}, ["remove"])]), 
+              return $.create("tr", {'class': 'node'}, $.map(item, function(item2, i){
+                        if (i % 2 == 0)
+                                return [$.create("td", {}, [$.create("a", {'class':'remove','href':'#'}, ["remove"])]),
                                         $.create("td", {'class':'editable'}, [item2])];
 			else
                                 return $.create("td", {'class':'editable'}, [item2]);
