@@ -1,4 +1,4 @@
-import json
+from django.utils import simplejson as json
 
 class JSONSerialized(object):
     @classmethod
