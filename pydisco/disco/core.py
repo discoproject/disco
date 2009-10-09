@@ -243,7 +243,7 @@ class Job(object):
                 if attr in self.proxy_functions:
                         from functools import partial
                         return partial(getattr(self.master, attr), self.name)
-                return super(Job, self).__getattr__(attr)
+                raise AttributeError("%r has no attribute %r" % (self, attr))
 
         def _run(self, **kwargs):
                 jobargs = util.DefaultDict(self.defaults.__getitem__, kwargs)
