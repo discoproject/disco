@@ -147,7 +147,7 @@ def map_input_stream(stream, size, url, params):
                 except Exception:
                         err("Unknown scheme %s in %s" % (scheme, url))
         else:
-                from disco.schemes import file as mod
+                from disco.schemes import scheme_file as mod
         mod.input_stream.func_globals.setdefault("Task", Task)
         return mod.input_stream(stream, size, url, params)
 

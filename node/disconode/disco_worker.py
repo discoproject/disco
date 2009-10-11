@@ -174,7 +174,7 @@ class ReduceReader(object):
                 for input in input_files:
                         if input.startswith("dir://"):
                                 try:
-                                        self.inputs += parse_dir(input)
+                                        self.inputs += parse_dir(input, partid = Task.id)
                                 except:
                                         data_err("Couldn't resolve address %s"\
                                                 % input, input)
@@ -355,9 +355,9 @@ def op_map(job):
         external.close_ext()
         
         urls = {}
-        for p in partitions:
+        for i, p in enumerate(partitions):
                 p.close()
-                urls[p.url()] = True
+                urls["%d %s" % (i, p.url())] = True
 
         index, index_url = Task.path("MAP_INDEX", scheme = "dir")
         safe_update(index, urls)
@@ -403,5 +403,5 @@ def op_reduce(job):
         external.close_ext()
         
         index, index_url = Task.path("REDUCE_INDEX", scheme = "dir")
-        safe_update(index, {red_out.url(): True})
+        safe_update(index, {"%d %s" % (Task.id, red_out.url()): True})
         msg(index_url, "OUT")

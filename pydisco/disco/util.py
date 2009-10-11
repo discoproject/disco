@@ -79,15 +79,23 @@ def proxy_url(proxy, path, node = "x"):
                 raise DiscoError("Unknown proxy protocol: %s" % proxy)
         return "http://%s/disco/node/%s/%s" % (host, node, path)
 
-def parse_dir(dir_url, proxy = None):
+def parse_dir(dir_url, proxy = None, partid = None):
+        def parse_index(f):
+                r = []
+                for l in f:
+                        id, url = l.strip().split()
+                        if partid and partid != int(id):
+                                continue
+                        r.append(url)
+                return r
         conf = DiscoSettings()
         x, x, host, name = dir_url.split("/", 3)
         if "resultfs" in conf["DISCO_FLAGS"]:
                 root = conf["DISCO_ROOT"]
-                return map(string.strip, file("%s/data/%s" % (root, name)))
+                return parse_index(file("%s/data/%s" % (root, name)))
         else:
                 url = proxy_url(proxy, name, host)
-                return download(url).splitlines()
+                return parse_index(download(url).splitlines())
 
 def load_oob(host, name, key):
         conf = DiscoSettings()
