@@ -6,6 +6,8 @@
                      "Status: 200 OK\n"
                      "Content-type: text/plain\n\n").
 
+-include("task.hrl").
+
 job_status(J) ->
         case gen_server:call(event_server, {get_results, J}) of
                 {active, _} -> <<"job_active">>;
@@ -198,9 +200,7 @@ count_maps(L) ->
         end, {0, 0}, L),
         {M, N - M}.
 
-render_jobinfo(Tstamp, JobPid, [{_NMap, NRed, DoRed, Inputs}],
-        Nodes, Res, Tasks, Ready, Failed) ->
-
+render_jobinfo(Tstamp, JobPid, JobInfo, Nodes, Res, Tasks, Ready, Failed) ->
         {NMapRun, NRedRun} = count_maps(Tasks),
         {NMapDone, NRedDone} = count_maps(Ready),
         {NMapFail, NRedFail} = count_maps(Failed),
@@ -210,15 +210,19 @@ render_jobinfo(Tstamp, JobPid, [{_NMap, NRed, DoRed, Inputs}],
                 {[], false} -> <<"dead">>;
                 {_, false} -> <<"ready">>
         end,
+        
+        RedI = if JobInfo#jobinfo.reduce ->
+                        JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
+               true -> 0 end,
+                
         {obj, [{timestamp, Tstamp}, 
                {active, R},
-               {mapi, [length(Inputs) - (NMapDone + NMapRun),
+               {mapi, [length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun),
                         NMapRun, NMapDone, NMapFail]},
-               {redi, [NRed - (NRedDone + NRedRun),
-                        NRedRun, NRedDone, NRedFail]},
-               {reduce, DoRed},
+               {redi, [RedI, NRedRun, NRedDone, NRedFail]},
+               {reduce, JobInfo#jobinfo.reduce},
                {results, lists:flatten(Res)},
-               {inputs, lists:sublist(Inputs, 100)},
+               {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
                {nodes, lists:map(fun erlang:list_to_binary/1, Nodes)}
         ]}.
 

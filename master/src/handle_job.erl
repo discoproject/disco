@@ -42,7 +42,7 @@ init_job_coordinator(Parent, PostData) ->
                         init_job_coordinator(Parent, Params, PostData)
         end.
 
-init_job_coordinator(Parent, {Name, _, _, _, _} = Params, PostData) ->
+init_job_coordinator(Parent, {Name, _} = Params, PostData) ->
         EnvStatus = (catch prepare_environment(Name)),
         case gen_server:call(event_server, {new_job, Name, self()}, 10000) of
                 eexist ->
@@ -89,6 +89,9 @@ save_params(Name, PostData) ->
         Home = disco_server:jobhome(Name),
         ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
+field_exists(Msg, Opt) ->
+        lists:keysearch(Opt, 1, Msg) =/= false.
+
 find_values(Msg) ->
         {value, {_, NameB}} = lists:keysearch(<<"name">>, 1, Msg),
         Name = binary_to_list(NameB),
@@ -100,17 +103,22 @@ find_values(Msg) ->
                                 Y -> [list_to_binary(X) || X <- Y]
                         end
         end, string:tokens(binary_to_list(InputStr), " ")),
-
-        {value, {_, NMapsStr}} = lists:keysearch(<<"nr_maps">>, 1, Msg),
-        NMap = list_to_integer(binary_to_list(NMapsStr)),
+        
+        {value, {_, MaxCStr}} = lists:keysearch(<<"sched_max_cores">>, 1, Msg),
+        MaxCores = list_to_integer(binary_to_list(MaxCStr)),
         
         {value, {_, NRedStr}} = lists:keysearch(<<"nr_reduces">>, 1, Msg),
-        NRed = list_to_integer(binary_to_list(NRedStr)),
-                
-        case lists:keysearch(<<"reduce">>, 1, Msg) of 
-                false -> {Name, Inputs, NMap, NRed, false};
-                _Else -> {Name, Inputs, NMap, NRed, true}
-        end.
+        NumRed = list_to_integer(binary_to_list(NRedStr)),
+        
+        {Name, #jobinfo{
+                nr_reduce = NumRed,
+                inputs = Inputs,
+                max_cores = MaxCores,
+                map = field_exists(Msg, <<"map">>) or field_exists(Msg, <<"ext_map">>),
+                reduce = field_exists(Msg, <<"reduce">>),
+                force_local = field_exists(Msg, <<"sched_force_local">>),
+                force_remote = field_exists(Msg, <<"sched_force_remote">>)
+        }}.
 
 gethostname() ->
         {ok, Hostname} = inet:gethostname(),
@@ -150,30 +158,35 @@ handle(Socket, Msg) ->
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
-work([{TaskID, Input}|Inputs], Mode, Name, N, Max, Res) when N < Max ->
+work([{TaskID, Input}|Inputs], Mode, Name, N, Job, Res)
+                when N < Job#jobinfo.max_cores ->
+
         Task = #task{jobname = Name,
                      taskid = TaskID,
                      mode = Mode,
                      taskblack = [],
                      input = Input,
-                     from = self()},
+                     from = self(),
+                     force_local = Job#jobinfo.force_local,
+                     force_remote = Job#jobinfo.force_remote
+                },
         submit_task(Task),
-        work(Inputs, Mode, Name, N + 1, Max, Res);
+        work(Inputs, Mode, Name, N + 1, Job, Res);
 
 % 2. Tasks to distribute but the maximum number of tasks are already running.
 % Wait for tasks to return. Note that wait_workers() may return with the same
 % number of tasks still running, i.e. N = M.
-work([_|_] = IArg, Mode, Name, N, Max, Res) when N >= Max ->
+work([_|_] = IArg, Mode, Name, N, Job, Res) when N >= Job#jobinfo.max_cores ->
         {M, NRes} = wait_workers(N, Res, Name, Mode),
-        work(IArg, Mode, Name, M, Max, NRes);
+        work(IArg, Mode, Name, M, Job, NRes);
 
 % 3. No more tasks to distribute. Wait for tasks to return.
-work([], Mode, Name, N, Max, Res) when N > 0 ->
+work([], Mode, Name, N, Job, Res) when N > 0 ->
         {M, NRes} = wait_workers(N, Res, Name, Mode),
-        work([], Mode, Name, M, Max, NRes);
+        work([], Mode, Name, M, Job, NRes);
 
 % 4. No more tasks to distribute, no more tasks running. Done.
-work([], _Mode, _Name, 0, _Max, Res) -> {ok, Res}.
+work([], _Mode, _Name, 0, _Job, Res) -> {ok, Res}.
 
 % wait_workers receives messages from disco_server:clean_worker() that is
 % called when a worker exits. 
@@ -236,8 +249,8 @@ submit_task(Task) ->
 handle_data_error(Task, Node) ->
         {ok, NumCores} = gen_server:call(disco_server, get_num_cores),
         check_failure_rate(Task#task.jobname, Task#task.taskid, Task#task.mode,
-                length(Task#task.taskblack), NumCores),
-
+                length(Task#task.taskblack) + 1, NumCores),
+        
         Inputs = Task#task.input,
         NInputs = if length(Inputs) > 1 ->
                 [{X, N} || {X, N} <- Inputs, X =/= Task#task.chosen_input];
@@ -269,7 +282,7 @@ check_failure_rate(Name, TaskID, Mode, L, _) ->
 
 kill_job(Name, Msg, P, Type) ->
         event_server:event(Name, Msg, P, []),
-        gen_server:call(disco_server, {kill_job, Name}),
+        %gen_server:call(disco_server, {kill_job, Name}),
         gen_server:cast(event_server, {job_done, Name}),
         exit(Type).
 
@@ -302,9 +315,9 @@ move_to_resultfs(Name, R, _) ->
 % run_task() is a common supervisor for both the map and reduce tasks.
 % Its main function is to catch and report any errors that occur during
 % work() calls.
-run_task(Inputs, Mode, Name, MaxN) ->
+run_task(Inputs, Mode, Name, Job) ->
         Results = case catch work(Inputs, Mode, Name,
-                        0, MaxN, gb_trees:empty()) of
+                        0, Job, gb_trees:empty()) of
                 {ok, Res} -> Res;
                 logged_error ->
                         kill_job(Name, 
@@ -321,35 +334,38 @@ run_task(Inputs, Mode, Name, MaxN) ->
         R.
 
         
-job_coordinator({Name, Inputs, NMap, NRed, DoReduce}) ->
+job_coordinator({Name, Job}) ->
         Started = now(), 
-        event_server:event(Name, "Starting job", [], 
-                {job_data, {NMap, NRed, DoReduce, Inputs}}),
+        event_server:event(Name, "Starting job", [], {job_data, Job}),
 
-        case catch gen_server:call(disco_server, {new_job, Name, self()}) of
+        case catch gen_server:call(disco_server, {new_job, Name, self()}) of 
                 ok -> ok;
                 R ->
                         event_server:event(Name,
-                                "ERROR; Job initialization failed: ~p", [R]),
+                                "ERROR: Job initialization failed: ~p", [R], {}),
                         exit(job_init_failed)
         end,
 
-        RedInputs = if NMap == 0 ->
-                Inputs;
-        true ->
+        RedInputs = if Job#jobinfo.map ->
                 event_server:event(Name, "Map phase", [], {}),
-                MapResults = run_task(map_input(Inputs), "map", Name, NMap),
+                MapResults = run_task(map_input(Job#jobinfo.inputs),
+                        "map", Name, Job),
                 event_server:event(Name, "Map phase done", [], []),
-                MapResults
+                MapResults;
+        true ->
+                Job#jobinfo.inputs
         end,
 
-        if DoReduce ->
+        if Job#jobinfo.reduce ->
                 event_server:event(Name, "Starting reduce phase", [], {}),
-                RedResults = run_task(reduce_input(Name, RedInputs, NRed),
-                        "reduce", Name, NRed),
-                
-                if NMap > 0 ->
-                        garbage_collect:remove_map_results(RedInputs);
+                RedResults = run_task(reduce_input(
+                                Name, RedInputs, Job#jobinfo.nr_reduce),
+                                "reduce", Name,
+                                Job#jobinfo{force_local = false, force_remote = false}),
+                if Job#jobinfo.map -> 
+                        %FIXME: Old code doesn't remove URLs correctly
+                        ok;
+                        %garbage_collect:remove_map_results(RedInputs);
                 true -> ok
                 end,
                 

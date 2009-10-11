@@ -82,7 +82,7 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->
         case dict:find(JobName, Events) of
                 error -> {reply, invalid_job, S};
                 {ok, {EvLst, Nu, Pid}} ->
-                        JobNfo = event_filter(job_data, EvLst),
+                        [JobNfo] = event_filter(job_data, EvLst),
                         Res = event_filter(ready, EvLst),
                         Ready = event_filter(task_ready, EvLst),
                         Failed = event_filter(task_failed, EvLst),
@@ -98,6 +98,9 @@ handle_cast({add_job_event, Host, JobName, M, P}, {_, MsgBuf} = S) ->
         true -> {noreply, S}
         end;
 
+% XXX: Some aux process could go through the jobs periodically and
+% check that the job coord is still alive - if not, call job_done for
+% the zombie job.
 handle_cast({job_done, JobName}, {Events, MsgBuf} = S) ->
         case ets:lookup(event_files, JobName) of
                 [] -> ok;

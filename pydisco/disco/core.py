@@ -206,6 +206,7 @@ class Job(object):
                     "partition": func.default_partition,
                     "combiner": None,
                     "nr_maps": None,
+                    "scheduler": {},
                     "nr_reduces": None,
                     "sort": False,
                     "params": Params(),
@@ -265,6 +266,14 @@ class Job(object):
                 if "chunked" in kw:
                         raise DiscoError("Argument 'chunked' is deprecated")
 
+                if "nr_maps" in kw:
+                        print >> sys.stderr, "Warning: nr_maps is deprecated. "\
+                                "Use scheduler = {'max_cores': N} instead."
+                        sched = d("scheduler").copy()
+                        if "max_cores" not in sched:
+                                sched["max_cores"] = int(kw["nr_maps"])
+                        kw["scheduler"] = sched
+                        
                 if not "input" in kw:
                         raise DiscoError("input is required")
 
@@ -329,6 +338,20 @@ class Job(object):
                 if rf:
                         req["required_files"] = marshal.dumps(rf)
 
+                # -- scheduler --
+                
+                sched = d("scheduler")
+                sched_keys = ["max_cores", "force_local", "force_remote"]
+
+                if "max_cores" not in sched:
+                        sched["max_cores"] = 2**31
+                elif sched["max_cores"] < 1:
+                        raise DiscoError("max_cores must be >= 1")
+
+                for k in sched_keys:
+                        if k in sched:
+                                req["sched_" + k] = str(sched[k])
+
                 # -- map --
 
                 if "map" in kw:
@@ -363,15 +386,9 @@ class Job(object):
                                         parsed_inputs.append(inp)
                         inputs = parsed_inputs
 
-                        if "nr_maps" not in kw or kw["nr_maps"] > len(inputs):
-                                nr_maps = len(inputs)
-                        else:
-                                nr_maps = kw["nr_maps"]
-
                 # -- only reduce --
 
                 else:
-                        nr_maps = 0
                         ext_inputs = []
                         red_inputs = []
                         for inp in inputs:
@@ -412,15 +429,7 @@ class Job(object):
                         else:
                                 inputs = ext_inputs
 
-                # shuffle fixes a pathological case in the fifo scheduler:
-                # if inputs for a node are consequent, data locality will be
-                # lost after K inputs where K is the number of cores.
-                # Randomizing the order of inputs makes this pathological case
-                # unlikely. This issue will be fixed in the new scheduler.
-                random.shuffle(inputs)
-
                 req["input"] = " ".join(inputs)
-                req["nr_maps"] = str(nr_maps)
 
                 if "ext_params" in kw:
                         if type(kw["ext_params"]) == dict:
