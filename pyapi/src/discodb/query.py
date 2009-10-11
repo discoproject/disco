@@ -9,6 +9,8 @@ True
 True
 >>> Q.scan(Q.parse('a | b | c & d | e').format()) == Q.parse('a | b | c & d | e')
 True
+>>> Q.urlscan(Q.parse('(a | b) & ~c').urlformat()) == Q.parse('~c & (a | b)')
+True
 """
 
 class Q(object):
@@ -59,6 +61,15 @@ class Q(object):
         return Q(Clause.scan(c, or_op=or_op,
                              not_op=not_op,
                              decoding=decoding) for c in string.split(and_op))
+
+    def urlformat(self, safe=':'):
+        from urllib import quote
+        return self.format(and_op='/', or_op=',', encoding=lambda q: quote(q, safe))
+
+    @classmethod
+    def urlscan(cls, string):
+        from urllib import unquote
+        return cls.scan(string, and_op='/', or_op=',', decoding=unquote)
 
     @classmethod
     def parse(cls, string):
