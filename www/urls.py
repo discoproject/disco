@@ -3,7 +3,7 @@ from django.conf.urls.defaults import *
 import views
 
 indices = r'indices/?'
-index   = r'%s/(?P<name>\w+)/?'         % (indices)
+index   = r'%s/(?P<name>[A-Za-z0-9_@:]+)/?'         % (indices)
 keys    = r'%s/(?P<property>keys)/?'    % (index)
 values  = r'%s/(?P<property>values)/?'  % (index)
 _query  = r'%s/(?P<property>query)/?'   % (index)

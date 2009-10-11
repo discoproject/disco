@@ -2,7 +2,6 @@ import errno, os
 
 from django.db import models
 from django.http import Http404, HttpResponse, HttpResponseServerError
-from django.utils import simplejson
 
 from restapi.resource import Resource, Collection
 from restapi.resource import (HttpResponseAccepted,
@@ -10,11 +9,13 @@ from restapi.resource import (HttpResponseAccepted,
                               HttpResponseNoContent,
                               HttpResponseServiceUnavailable)
 
-from discodex import settings, parsers
+from discodex import settings
+from discodex.mapreduce import Indexer, parsers
 from discodex.objects import DataSet, Indices, Index, Keys, Values
 
 from disco.core import Disco
 from disco.error import DiscoError
+from disco.util import parse_dir
 
 from discodb import Q
 
@@ -22,7 +23,7 @@ discodex_settings = settings.DiscodexSettings()
 disco_master      = discodex_settings['DISCODEX_DISCO_MASTER']
 disco_prefix      = discodex_settings['DISCODEX_DISCO_PREFIX']
 index_root        = discodex_settings.safedir('DISCODEX_INDEX_ROOT')
-disco             = Disco(disco_master)
+disco_master      = Disco(disco_master)
 
 NOT_FOUND, OK, ACTIVE, DEAD = 'unknown job', 'ready', 'active', 'dead'
 
@@ -42,18 +43,14 @@ class IndexCollection(Collection):
             yield IndexResource(name)
 
     def create(self, request, *args, **kwargs):
-        from uuid import uuid1
         dataset = DataSet.loads(request.raw_post_data)
-        name    = ('%s%s' % (disco_prefix, uuid1())).replace('-', '')
+        nr_ichunks = dataset.get('nr_ichunks', 10)
         try:
-            job = disco.new_job(name=name,
-                                input=dataset['ichunks'],
-                                map=parsers.map)
-            # start job...
+            job = Indexer(dataset['input'], parsers.parse, parsers.demux, parsers.balance, nr_ichunks)
+            job.run(disco_master, disco_prefix)
         except DiscoError, e:
-            # failed to submit job
-            return HttpResponseServerError('%s: %s' % (name, e))
-        return HttpResponseAccepted(name)
+            return HttpResponseServerError("Failed to run indexing job: %s" % e)
+        return HttpResponseAccepted(job.name)
 
     def read(self, request, *args, **kwargs):
         return HttpResponse(Indices(self.names).dumps())
@@ -88,6 +85,10 @@ class IndexResource(Collection):
         return 'index', (), {'name': self.name}
 
     @property
+    def ichunks(self):
+        return Index.loads(open(self.path).read())['ichunks']
+
+    @property
     def keys(self):
         return KeysResource(self)
 
@@ -105,13 +106,14 @@ class IndexResource(Collection):
             return OK
 
         if self.isdisco:
-            status, results = disco.results(self.name)
+            status, results = disco_master.results(self.name)
             if self.exists:
                 return OK
 
             if status == OK:
-                self.write(Index(ichunks=results))
-                disco.clean(self.name)
+                ichunks = parse_dir(results[0])
+                self.write(Index(ichunks=ichunks))
+                disco_master.clean(self.name)
             return status
         return NOT_FOUND
 
@@ -139,7 +141,7 @@ class IndexResource(Collection):
             raise
         else:
             if self.isdisco:
-                disco.purge(self.name)
+                disco_master.purge(self.name)
         return HttpResponseNoContent()
 
     def write(self, index):
@@ -170,17 +172,19 @@ class QueryCollection(Collection):
 
     def delegate(self, request, *args, **kwargs):
         query_path = str(kwargs.pop('query_path'))
-        return QueryResource(query_path)(request, *args, **kwargs)
+        return QueryResource(self.index, query_path)(request, *args, **kwargs)
 
     def read(self, request, *args, **kwargs):
         return HttpResponse(Values().dumps())
 
 class QueryResource(Resource):
-    def __init__(self, query_path):
+    def __init__(self, index, query_path):
         import urllib
+        self.index = index
         self.query = Q.scan(query_path, and_op='/', or_op=',', decoding=urllib.unquote)
 
     def read(self, request, *args, **kwargs):
+        self.index.ichunks
         # execute the query against the index
         # get the list of results
         # read each result

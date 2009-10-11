@@ -1,9 +1,9 @@
-import httplib, urllib, urlparse
+import fileinput, httplib, urllib, urlparse
 
 from discodb import Q
 
 from core import DiscodexError
-from objects import DataSet, Indices, Index, Keys, Values
+from objects import json, DataSet, Indices, Index, Keys, Values
 
 class ResourceNotFound(DiscodexError):
     pass
@@ -41,7 +41,7 @@ class DiscodexClient(object):
         if response.status == httplib.SERVICE_UNAVAILABLE:
             raise DiscodexServiceUnavailable(response.getheader('Retry-After'))
         if response.status == httplib.INTERNAL_SERVER_ERROR:
-            raise DiscodexServerError()
+            raise DiscodexServerError(response.read())
         return response
 
     def list(self):
@@ -75,9 +75,12 @@ class DiscodexClient(object):
         return Values.loads(self.request('GET', '%s/query/%s' % (self.indexurl(indexspec), query_path)).read())
 
 class CommandLineClient(DiscodexClient):
+    def put(self, indexspec, *args):
+        index = Index.loads(''.join(fileinput.input(args)))
+        return super(CommandLineClient, self).put(indexspec, index)
+
     def index(self, *args):
-        import fileinput
-        dataset = DataSet(ichunks=[line.strip() for line in fileinput.input(args)])
+        dataset = DataSet(input=[line.strip() for line in fileinput.input(args)])
         return super(CommandLineClient, self).index(dataset)
 
     def query(self, indexspec, *args):
@@ -87,4 +90,4 @@ class CommandLineClient(DiscodexClient):
     def send(self, command, *args):
         result = getattr(self, command)(*args)
         if result is not None:
-            yield result
+            yield json.dumps(result)
