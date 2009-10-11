@@ -3,6 +3,7 @@ from random import randint
 
 from discodb import DiscoDB, Q
 from discodb import query
+from discodb import tools
 
 def k_vs_iter(N, max_values=100):
     for x in xrange(N):
@@ -84,4 +85,5 @@ class TestLargeSerializationProtocol(TestSerializationProtocol):
 
 if __name__ == '__main__':
     unittest.TextTestRunner().run(doctest.DocTestSuite(query))
+    unittest.TextTestRunner().run(doctest.DocTestSuite(tools))
     unittest.main()
