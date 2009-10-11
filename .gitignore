@@ -1,4 +1,5 @@
 *.pyc
+etc/settings.py
 log/
 run/
 www/data/
