@@ -2,39 +2,33 @@ import os
 import sys, time, traceback
 from disco.comm import CommException, download, open_remote
 from disco.error import DiscoError
+from disco.settings import DiscoSettings
 
-job_name = "none"
-resultfs_enabled =\
-        "resultfs" in os.environ.get("DISCO_FLAGS", "").lower().split()
 
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")
-        print >> sys.stderr, "**<%s>[%s %s (%s)] %s" %\
-                (c, t, job_name, job_input, m)
+        if job_input:
+                print >> sys.stderr, "**<%s>[%s (%s)] %s" %\
+                        (c, t, job_input, m)
+        else:
+                print >> sys.stderr, "**<%s>[%s] %s" % (c, t, m)
 
 def err(m):
-        msg(m, 'MSG')
-        raise DiscoError(m)
-
-def data_err(m, job_input):
-        msg(m, 'DAT', job_input)
         if sys.exc_info() == (None, None, None):
+                msg(m, 'MSG')
                 raise DiscoError(m)
         else:
-                print traceback.print_exc()
+                msg(m, 'MSG')
                 raise
 
-def load_conf():
-        port = root = master = None
-        
-        port = (port and port.group(1)) or "8989"
-        root = (root and root.group(1)) or "/srv/disco/"
-        master = (master and master.group(1)) or port
-        
-        return os.environ.get("DISCO_MASTER_PORT", master.strip()),\
-               os.environ.get("DISCO_PORT", port.strip()),\
-               os.environ.get("DISCO_ROOT", root.strip())
-
+def data_err(m, job_input):
+        if sys.exc_info() == (None, None, None):
+                msg(m, 'DAT', job_input)
+                raise DiscoError(m)
+        else:
+                traceback.print_exc()
+                msg(m, 'DAT', job_input)
+                raise
 
 def jobname(addr):
         if addr.startswith("disco:") or addr.startswith("http:"):
@@ -64,54 +58,47 @@ def disco_host(addr):
                                 "is deprecated.\nUse disco://host instead, or "\
                                 "http://host:port if master doesn't run at "\
                                 "DISCO_PORT."
-                return "http://%s:%s" % (addr.split("/")[-1], MASTER_PORT)
+                return "http://%s:%d" % (addr.split("/")[-1],
+                                DiscoSettings()["DISCO_PORT"])
         elif addr.startswith("http:"):
                 return addr
         else:
                 raise DiscoError("Unknown host specifier: %s" % addr)
 
 def proxy_url(proxy, path, node = "x"):
+        port = DiscoSettings()["DISCO_PORT"]
         if not proxy:
-                proxy = os.environ.get("DISCO_PROXY", None)
+                proxy = DiscoSettings()["DISCO_PROXY"]
         if not proxy:
-                return "http://%s:%s/%s" % (node, HTTP_PORT, path)
+                return "http://%s:%s/%s" % (node, port, path)
         if proxy.startswith("disco://"):
-                host = "%s:%s" % (proxy[8:], MASTER_PORT)
+                host = "%s:%s" % (proxy[8:], port)
         elif proxy.startswith("http://"):
                 host = proxy[7:]
         else:
                 raise DiscoError("Unknown proxy protocol: %s" % proxy)
         return "http://%s/disco/node/%s/%s" % (host, node, path)
 
-def parse_dir(dir_url, proxy = None, part_id = None):
+def parse_dir(dir_url, proxy = None):
+        conf = DiscoSettings()
         x, x, host, name = dir_url.split("/", 3)
-        url = proxy_url(proxy, name, host)
-        if name.endswith(".txt"):
-                if resultfs_enabled:
-                        r = file("%s/data/%s" % (ROOT, name)).readlines()
-                else:
-                        r = download(url).splitlines()
+        if "resultfs" in conf["DISCO_FLAGS"]:
+                root = conf["DISCO_ROOT"]
+                return map(string.strip, file("%s/data/%s" % (root, name)))
         else:
-                b, mmax = name.split("/")[-1].split(":")
-                fl = len(mmax)
-                base = b[:len(b) - fl]
-                t = "%s%%.%dd" % (base, fl)
-                if part_id != None:
-                        r = [t % part_id]
-                else:
-                        r = [t % i for i in range(int(mmax) + 1)]
-
-        p = "/".join(name.split("/")[:-1])
-        return ["disco://%s/%s/%s" % (host, p, x.strip()) for x in r]
+                url = proxy_url(proxy, name, host)
+                return download(url).splitlines()
 
 def load_oob(host, name, key):
-        use_proxy = "DISCO_PROXY" in os.environ
+        conf = DiscoSettings()
+        use_proxy = conf["DISCO_PROXY"] != ""
         url = "%s/disco/ctrl/oob_get?name=%s&key=%s&proxy=%d" %\
                 (host, name, key, use_proxy)
         if resultfs_enabled:
+                root = conf["DISCO_ROOT"]
                 sze, fd = open_remote(url, expect = 302)
                 loc = fd.getheader("location")
-                fname = "%s/data/%s" % (ROOT, "/".join(loc.split("/")[3:]))
+                fname = "%s/data/%s" % (root, "/".join(loc.split("/")[3:]))
                 try:
                         return file(fname).read()
                 except KeyboardInterrupt:
@@ -123,4 +110,3 @@ def load_oob(host, name, key):
                 return download(url, redir = True)
 
 
-MASTER_PORT, HTTP_PORT, ROOT = load_conf()

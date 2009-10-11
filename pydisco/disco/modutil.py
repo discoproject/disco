@@ -48,10 +48,11 @@ def locate_modules(modules, recurse = True, include_sys = False):
         return found.items() + sys.items()
 
 
-def find_modules(funs, send_modules = True, recurse = True):
+def find_modules(funs, send_modules = True,
+                recurse = True, exclude = ["Task"]):
         mods = {}
         for fun in funs:
-                fmod = parse_function(fun)
+                fmod = [m for m in parse_function(fun) if m not in exclude]
                 if send_modules:
                         try:
                                 m = locate_modules(fmod, recurse,\

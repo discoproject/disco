@@ -36,26 +36,23 @@ def _read_string(msg, i):
 
 def encode_netstring_str(d):
         msg = StringIO.StringIO()
-        for k, v in d.iteritems():
+        for k, v in d:
                 msg.write("%d %s %d %s\n" %\
                         (len(k), k, len(v), v))
         return msg.getvalue()
 
-
 def encode_netstring_fd(d):
-        s = encode_netstring_str(d)
+        s = encode_netstring_str(d.iteritems())
         return "%d\n%s" % (len(s), s)
-
 
 def decode_netstring_str(msg):
         i = 0
-        d = {}
+        d = []
         while i < len(msg):
                 i, key = _read_string(msg, i)
                 i, val = _read_string(msg, i)
-                d[key] = val
+                d.append((key, val))
         return d
-
 
 def decode_netstring_fd(fd):
         i = 0
@@ -78,4 +75,4 @@ def decode_netstring_fd(fd):
         if length > MAX_PACKET_LEN:
                 raise NetStringError("Will not receive %d bytes" % length)
         
-        return decode_netstring_str(fd.read(length))
+        return dict(decode_netstring_str(fd.read(length)))

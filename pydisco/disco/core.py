@@ -1,9 +1,9 @@
 import sys, re, os, marshal, modutil, time, types, cPickle, cStringIO, random
-from disco import func, util, comm
+from disco import func, util, comm, settings
 from disco.comm import json
 from disco.error import DiscoError, JobException
 from disco.eventmonitor import EventMonitor
-from disco.netstring import encode_netstring_fd, decode_netstring_fd
+from disco.netstring import encode_netstring_fd, encode_netstring_str, decode_netstring_fd
 
 class Params(object):
         def __init__(self, **kwargs):
@@ -186,7 +186,8 @@ class Job(object):
 
         funs = ["map", "map_init", "reduce_init", "map_reader", "map_writer",\
                 "reduce_reader", "reduce_writer", "reduce", "partition",\
-                "combiner"]
+                "combiner", "reduce_input_stream", "reduce_output_stream",\
+                "map_input_stream", "map_output_stream"]
 
         defaults = {"name": None,
                     "map": None,
@@ -195,8 +196,12 @@ class Job(object):
                     "reduce_init": None,
                     "map_reader": func.map_line_reader,
                     "map_writer": func.netstr_writer,
+                    "map_input_stream": None,
+                    "map_output_stream": None,
                     "reduce_reader": func.netstr_reader,
                     "reduce_writer": func.netstr_writer,
+                    "reduce_input_stream": None,
+                    "reduce_output_stream": None,
                     "reduce": None,
                     "partition": func.default_partition,
                     "combiner": None,
@@ -232,7 +237,19 @@ class Job(object):
                         return r(getattr(self.master, name))
                 raise AttributeError("%s not found" % name)
 
+        def pack_stack(self, kw, req, stream):
+                if stream not in kw:
+                        return
+                v = kw[stream]
+                if type(v) == list:
+                        s = v
+                else:
+                        s = [v]
+                d = dict((f.func_name, marshal.dumps(f.func_code)) for f in s)
+                req[stream] = netstring_encode_str(d)
+
         def _run(self, **kw):
+                
                 d = lambda x: kw.get(x, Job.defaults[x])
 
                 # -- check parameters --
@@ -293,6 +310,13 @@ class Job(object):
 
                 req["required_modules"] = " ".join(imp_mod)
                 rf = util.pack_files(send_mod)
+                
+                # -- input & output streams --
+                
+                self.pack_stack(kw, req, "map_input_stream")
+                self.pack_stack(kw, req, "map_output_stream")
+                self.pack_stack(kw, req, "reduce_input_stream")
+                self.pack_stack(kw, req, "reduce_output_stream")
 
                 # -- required files --
 
@@ -440,8 +464,13 @@ class Job(object):
 
 
 
-def result_iterator(results, notifier = None,\
-        proxy = None, reader = func.netstr_reader):
+def result_iterator(results, notifier = None, proxy = None,
+        reader = func.netstr_reader, input_stream = [func.map_input_stream],
+        params = None):
+
+        Task = settings.TaskEnvironment(result_iterator = True)
+        for fun in input_stream:
+                fun.func_globals.setdefault("Task", Task)
 
         res = []
         for dir_url in results:
@@ -450,28 +479,14 @@ def result_iterator(results, notifier = None,\
                 else:
                         res.append(dir_url)
 
-        x, x, root = util.load_conf()
-
         for url in res:
-                if url.startswith("file://"):
-                        fname = url[7:]
-                        fd = file(fname)
-                        sze = os.stat(fname).st_size
-                elif url.startswith("disco://"):
-                        host, fname = url[8:].split("/", 1)
-                        url = util.proxy_url(proxy, fname, host)
-                        if util.resultfs_enabled:
-                                f = "%s/data/%s" % (root, fname)
-                                fd = file(f)
-                                sze = os.stat(f).st_size
-                        else:
-                                sze, fd = comm.open_remote(url)
-                else:
-                        raise JobException("Invalid result url: %s" % url)
+                fd = sze = None
+                for fun in input_stream:
+                        fd, sze, url = fun(fd, sze, url, params)
 
                 if notifier:
                         notifier(url)
 
-                for x in reader(fd, sze, fname):
+                for x in reader(fd, sze, url):
                         yield x
 

@@ -147,7 +147,7 @@ class CurlConn:
 def open_remote(url, expect = 200):
         c = Curl()
         conn = CurlConn(url, handle = c, expect = expect)
-        return conn.length, conn
+        return (conn, conn.length, url)
 
 
 

@@ -1,85 +1,92 @@
 #!/usr/bin/env python
 import os, sys
 
-from disconode import disco_worker as dw
-from disconode.util import ensure_path, ensure_file 
-
-from disconode.disco_worker import JOB_ROOT, OOB_FILE, PARAMS_FILE, CHDIR_PATH
+from disconode import disco_worker
+from disco.fileutils import ensure_path, ensure_file 
 from disco.netstring import decode_netstring_fd
-from disco import util, comm
+from disco.util import msg, err, data_err
+from disco import comm
 
 
-def run(method, mode, part, jobpack):
+def run(task, jobpack):
+        method = getattr(disco_worker, 'op_' + task.mode, None)
+        if method is None:
+                err("Invalid operation: %s" % task.mode)
+        
         if int(jobpack['profile']):
                 try:
                         import cProfile as prof
                 except:
                         import profile as prof
 
-                key = "profile-%s-%s" % (mode, part)
-                prof.run("method(m)", OOB_FILE % key)
-                dw.put(key, None) 
+                key = "profile-%s-%s" % (task.mode, task.id)
+                prof.run("method(m)", task.path(key)[0])
+                # value = None below because profiler produces the
+                # file 'key'.
+                disco_worker.put(key, None) 
         else:
                 method(jobpack)
 
 if __name__ == "__main__":
         if len(sys.argv) < 7:
-                util.err("Invalid command line. "\
-                         "Usage: disco_worker [map|reduce] "\
-                         "name hostname master_url partid inputs..")
+                err("Invalid command line. "\
+                     "Usage: disco_worker [map|reduce] "\
+                     "name hostname master_url partid inputs..")
 
-      
         # Announce my PID to the master
         print >> sys.stderr, "**<PID>%s" % os.getpid()
         
         mode = sys.argv[1]
         name = sys.argv[2]
-        master_url = sys.argv[4]
+        host = sys.argv[3]
+        master = sys.argv[4]
         part = sys.argv[5]
+        inputs = sys.argv[6:]
+
+        disco_worker.init(mode, host, master, name, part, inputs) 
+        task = disco_worker.Task
 
         try: 
-                ensure_path(OOB_FILE % "", False)
-                os.chdir(CHDIR_PATH)
+                ensure_path(task.path("OOB_FILE", "")[0], False)
+                os.chdir(task.path("CHDIR_PATH")[0])
         except Exception, e:
-                util.data_err("Failed to initialize worker directories "\
+                data_err("Failed to initialize worker directories "\
                                 "(disk full?)", "")
         
         try:
-                if util.resultfs_enabled:
-                        x, x, root = util.load_conf()
-                        url = "%s/data/%s/params" % (root, "/".join(\
-                                master_url.strip("/").split("/")[-3:]))
+                if task.has_flag("resultfs"):
+                        url = "%s/data/%s/params" % (task.root, "/".join(\
+                                master.strip("/").split("/")[-3:]))
                         fn = lambda: file(url).read()
                 else:
-                        url = "%s/params" % master_url
+                        url = "%s/params" % master
                         fn = lambda: comm.download(url)
-                ensure_file(PARAMS_FILE, fn, mode = 444)
+                ensure_file(task.path("PARAMS_FILE")[0], fn, mode = 444)
         except Exception, e:
-                util.data_err("Failed to get %s: %s" % (url, e), master_url)
+                data_err("Failed to get %s: %s" % (url, e), master)
 
         try:
-                m = decode_netstring_fd(file(PARAMS_FILE))
+                m = decode_netstring_fd(file(task.path("PARAMS_FILE")[0]))
         except Exception, e:
-                util.data_err("Decoding the job description failed", master_url)
+                data_err("Decoding the job description failed", master)
         
-        job_name = util.job_name = m['name']
-        dw.status_interval = int(m['status_interval']) 
-
         my_ver = ".".join(map(str, sys.version_info[:2]))
         if m["version"] != my_ver:
-                util.msg("Python version mismatch: client = %s vs. node = %s" %\
-                                (m["version"], my_ver), "DAT")
+                data_err("Python version mismatch: client = %s vs. node = %s" %\
+                                (m["version"], my_ver), "")
                 sys.exit(1)
 
-        method = getattr(dw, 'op_' + mode, None)
-        if method is None:
-                util.err("Invalid operation: %s" % mode)
-
         try:
-                run(method, mode, part, m)
+                run(task, m)
         except comm.CommException, x:
-                util.data_err("HTTP error: %s" % x)
+                # check the number of open file descriptors (under proc), warn
+                # if close to max
+                # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
+                data_err("HTTP error: %s" % x, "")
         except IOError, x:
-                util.data_err("IO error: %s" % x)
+                # check the number of open file descriptors (under proc)
+                # if close to max
+                # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
+                data_err("IO error: %s" % x, "")
         
-        util.msg("Worker done", "END")
+        msg("Worker done", "END")

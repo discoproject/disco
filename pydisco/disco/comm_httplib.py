@@ -28,7 +28,7 @@ def download(url, data = None, redir = False, offset = 0):
                 c.close()
                 return r
         else:
-                sze, fd = open_remote(url, data = data, offset = offset)
+                fd, sze, url = open_remote(url, data = data, offset = offset)
                 return fd.read()
 
 
@@ -72,7 +72,7 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
                 sze = fd.getheader("content-length")
                 if sze:
                         sze = int(sze)
-                return sze, fd
+                return (fd, sze, url)
 
         except KeyboardInterrupt:
                 raise

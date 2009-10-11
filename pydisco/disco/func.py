@@ -16,9 +16,9 @@ def netstr_reader(fd, content_len, fname):
 
                 i = data.find(" ", idx, idx + 11)
                 if i == -1:
-                        err("Corrupted input (%s). Could not "\
+                        data_err("Corrupted input (%s). Could not "\
                                "parse a value length at %d bytes."\
-                                        % (fname, tot))
+                                        % (fname, tot), fname)
                 else:
                         lenstr = data[idx:i + 1]
                         idx = i + 1
@@ -31,9 +31,9 @@ def netstr_reader(fd, content_len, fname):
                 try:
                         llen = int(lenstr)
                 except ValueError:
-                        err("Corrupted input (%s). Could not "\
+                        data_err("Corrupted input (%s). Could not "\
                                 "parse a value length at %d bytes."\
-                                        % (fname, tot))
+                                        % (fname, tot), fname)
 
                 tot += len(lenstr)
 
@@ -62,6 +62,7 @@ def netstr_reader(fd, content_len, fname):
                 idx, data, tot, val = read_netstr(idx, data, tot)
                 yield key, val
 
+chain_reader = netstr_reader
 
 def re_reader(item_re_str, fd, content_len, fname, output_tail = False, read_buffer_size=8192):
         item_re = re.compile(item_re_str)
@@ -136,8 +137,36 @@ def object_reader(fd, sze, fname):
         for k, v in netstr_reader(fd, sze, fname):
                 yield (cPickle.loads(k), cPickle.loads(v))
 
+def map_input_stream(stream, size, url, params):
+        m = re.match("(\w+)://", url)
+        if m:
+                scheme = m.group(1)
+                try:
+                        mod = __import__("disco.schemes.scheme_%s" % scheme,
+                                        fromlist = ["scheme_%s" % scheme])
+                except Exception:
+                        err("Unknown scheme %s in %s" % (scheme, url))
+        else:
+                from disco.schemes import file as mod
+        mod.input_stream.func_globals.setdefault("Task", Task)
+        return mod.input_stream(stream, size, url, params)
 
-chain_reader = netstr_reader
+reduce_input_stream = map_input_stream
+
+def map_output_stream(stream, partition, url, params):
+        mpath, murl = Task.path("MAP_OUTPUT", Task.id, partition)
+        if Task.num_partitions == 0:
+                return disco.fileutils.AtomicFile(mpath, "w"), murl
+        else:
+                ppath, purl = Task.path("PART_OUTPUT", partition)
+                return disco.fileutils.PartitionFile(ppath, mpath, "w"), purl
+
+def reduce_output_stream(stream, partition, url, params):
+        path, url = Task.path("REDUCE_OUTPUT", Task.id)
+        return disco.fileutils.AtomicFile(path, "w"), url
+        
+
+
 
 
 

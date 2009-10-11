@@ -1,5 +1,62 @@
 import os, socket
 
+try:
+        import hashlib as md5
+except ImportError:
+        # Hashlib is not available in Python2.4
+        import md5
+
+class TaskEnvironment(object):
+    default_paths = {
+        'CHDIR_PATH': "",
+        'PARAMS_FILE': "params.dl",
+        'REQ_FILES': "lib",
+        'EXT_MAP': "ext.map",
+        'EXT_REDUCE': "ext.reduce",
+        'MAP_OUTPUT': "map-disco-%d-%.9d",
+        'PART_OUTPUT': "part-disco-%.9d",
+        'REDUCE_DL': "reduce-in-%d.dl",
+        'REDUCE_SORTED': "reduce-in-%d.sorted",
+        'REDUCE_OUTPUT': "reduce-disco-%d",
+        'OOB_FILE': "oob/%s",
+        'MAP_INDEX': "map-index.txt",
+        'REDUCE_INDEX': "reduce-index.txt"
+    }
+
+    def __init__(self, mode = None, host = None, master = None,
+                job_name = "", id = -1, inputs = None,
+                result_iterator = False):
+        self.id = int(id)
+        self.mode = mode
+        self.host = host
+        self.master = master
+        self.inputs = inputs
+        self.name = job_name
+        self.result_iterator = result_iterator
+        self.home = "%s/%s/%s" % (host,
+            md5.md5(job_name).hexdigest()[:2], job_name)
+        
+        conf = DiscoSettings()
+        self.root = conf["DISCO_ROOT"]
+        self.port = conf["DISCO_PORT"]
+        self.flags = conf["DISCO_FLAGS"].lower().split()
+
+        if self.has_flag("resultfs"):
+            datadir = "temp"
+        else:
+            datadir = "data"
+        self.jobroot = os.path.join(self.root, datadir, self.home)
+
+    def has_flag(self, flag):
+        return flag.lower() in self.flags
+
+    def path(self, name, *args, **kw):
+        p = self.default_paths[name] % args
+        url = "%s://%s/%s/%s" %\
+            (kw.get("scheme", "disco"), self.host, self.home, p)
+        return os.path.join(self.jobroot, p), url
+
+
 class DiscoSettings(dict):
     defaults = {
         'DISCO_EVENTS':          "''",
@@ -10,6 +67,7 @@ class DiscoSettings(dict):
         'DISCO_NAME':            "'disco_%s' % DISCO_SCGI_PORT",
         'DISCO_PID_DIR':         "'/var/run'",
         'DISCO_PORT':            "8989",
+        'DISCO_PROXY':           "''",
         'DISCO_ROOT':            "'/srv/disco'",
         'DISCO_SCGI_PORT':       "4444",
         'DISCO_ULIMIT':          "16000000",
