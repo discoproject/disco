@@ -1,4 +1,4 @@
-from disco import func, modutil
+from disco import func
 from disco.core import result_iterator, Params
 
 class DiscodexJob(object):
