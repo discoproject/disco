@@ -146,8 +146,8 @@ class IndexResource(Collection):
 
     def write(self, index):
         from tempfile import NamedTemporaryFile
-        with NamedTemporaryFile(delete=False) as handle:
-            handle.write(index.dumps())
+        handle = NamedTemporaryFile(delete=False)
+        handle.write(index.dumps())
         os.rename(handle.name, self.path)
 
 class KeysResource(Resource):
