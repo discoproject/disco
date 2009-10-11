@@ -59,6 +59,7 @@ class TaskEnvironment(object):
 
 class DiscoSettings(dict):
     defaults = {
+        'DISCO_DEBUG':           "'off'",
         'DISCO_EVENTS':          "''",
         'DISCO_FLAGS':           "''",
         'DISCO_LOG_DIR':         "'/var/log/disco'",

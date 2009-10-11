@@ -1,9 +1,31 @@
 import os
 import sys, time, traceback
+
+from collections import defaultdict
+from itertools import chain, repeat
+
 from disco.comm import CommException, download, open_remote
 from disco.error import DiscoError
 from disco.settings import DiscoSettings
 
+
+class DefaultDict(defaultdict):
+        """Like a defaultdict, but calls the default_factory with the key argument."""
+        def __missing__(self, key):
+                return self.default_factory(key)
+
+def flatten(iterable):
+        for item in iterable:
+                if hasattr(item, '__iter__'):
+                        for subitem in flatten(item):
+                                yield subitem
+                else:
+                        yield item
+
+def iterify(object):
+        if hasattr(object, '__iter__'):
+                return object
+        return repeat(object, 1)
 
 def msg(m, c = 'MSG', job_input = ""):
         t = time.strftime("%y/%m/%d %H:%M:%S")

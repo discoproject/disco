@@ -59,7 +59,7 @@ def this_host():
 
 def this_partition():
         return Task.id
-        
+
 def this_inputs():
         return Task.inputs
 
@@ -143,7 +143,6 @@ class MapOutput(object):
                                         fun_writer(self.fd, key, value,\
                                                 self.params)
                 close_output(self.fd_list)
-        
 
 class ReduceOutput(object):
         def __init__(self, params):
@@ -233,13 +232,13 @@ class ReduceReader(object):
                 if ret:
                         err("Sorting %s to %s failed (%d)" %\
                                 (dlname, sortname, ret))
-                
+
                 msg("External sort done: %s" % sortname)
                 return self.multi_file_iterator([sortname], reader =\
                         lambda fd, sze, url:\
                                 re_reader("(?s)(.*?) (.*?)\000", fd, sze, url))
 
-       
+
         def list_iterator(self, lst):
                 i = 0
                 for x in lst:
@@ -271,7 +270,7 @@ def run_map(job_input, partitions, param):
         nr_reduces = Task.num_partitions
         reader = fun_reader(fd, sze, job_input)
         fun_init(reader, param)
-        
+
         for entry in reader:
                 for key, value in fun_map(entry, param):
                         p = fun_partition(key, nr_reduces, param)
@@ -338,12 +337,13 @@ def op_map(job):
                 external.prepare(job['ext_map'], map_params, path)
                 fun_map.func_code = external.ext_map.func_code
         else:
-                map_params = cPickle.loads(job['params'])        
+                map_params = cPickle.loads(job['params'])
                 fun_map.func_code = marshal.loads(job['map'])
         
         init_common(job)
         
         nr_part = max(1, Task.num_partitions)
+
         if 'combiner' in job:
                 fun_combiner.func_code = marshal.loads(job['combiner'])
                 partitions = [MapOutput(i, map_params, fun_combiner)\
@@ -365,7 +365,7 @@ def op_map(job):
 
 def op_reduce(job):
         msg("Received a new reduce job!")
-        
+
         do_sort = int(job['sort'])
         mem_sort_limit = int(job['mem_sort_limit'])
         
@@ -374,7 +374,7 @@ def op_reduce(job):
 
         fun_reader.func_code = marshal.loads(job['reduce_reader'])
         fun_writer.func_code = marshal.loads(job['reduce_writer'])
-        
+
         if 'ext_reduce' in job:
                 if "ext_params" in job:
                         red_params = job['ext_params']
@@ -393,12 +393,12 @@ def op_reduce(job):
         red_in = ReduceReader(Task.inputs, do_sort,
                         mem_sort_limit, red_params).iter()
         red_out = ReduceOutput(red_params)
-        
+
         msg("Starting reduce")
         fun_init(red_in, red_params)
         fun_reduce(red_in, red_out, red_params)
         msg("Reduce done")
-        
+
         red_out.close()
         external.close_ext()
         

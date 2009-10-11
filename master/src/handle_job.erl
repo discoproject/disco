@@ -12,7 +12,7 @@
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
-% Thus, the HTTP request spawns a new process, job_coordinator, that 
+% Thus, the HTTP request spawns a new process, job_coordinator, that
 % takes care of coordinating the whole map-reduce show, including
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
@@ -21,16 +21,16 @@ new_coordinator(PostData) ->
         S = self(),
         P = spawn(fun() -> init_job_coordinator(S, PostData) end),
         receive
-                {P, ok} -> ok;
-                {P, eexist} -> throw("job already exists");
+                {P, ok, JobName} -> {ok, JobName};
                 {P, env_failed} -> throw("creating job directories failed "
                                          "(disk full?)");
+                {P, invalid_prefix} -> throw("invalid prefix");
                 {P, invalid_jobdesc} -> throw("invalid job description");
                 {P, timeout} -> throw(TMsg);
                 _ -> throw("job coordinator failed")
-        after 20000 ->
+        after 10000 ->
                 throw(TMsg)
-        end.     
+        end.
 
 % job_coordinator() orchestrates map/reduce tasks for a job
 init_job_coordinator(Parent, PostData) ->
@@ -42,47 +42,20 @@ init_job_coordinator(Parent, PostData) ->
                         init_job_coordinator(Parent, Params, PostData)
         end.
 
-init_job_coordinator(Parent, {Name, _} = Params, PostData) ->
-        EnvStatus = (catch prepare_environment(Name)),
-        case gen_server:call(event_server, {new_job, Name, self()}, 10000) of
-                eexist ->
-                        Parent ! {self(), eexist};
-                _ when EnvStatus =/= ok ->
-                        Parent ! {self(), env_failed};
-                ok ->
-                        save_params(Name, PostData),
-                        Parent ! {self(), ok},
-                        job_coordinator(Params);
-                _ ->
-                        Parent ! {self(), timeout}
-        end.
-
-check_mkdir(ok) -> ok;
-check_mkdir({error, eexist}) -> ok;
-check_mkdir(_) -> throw("creating directory failed").
-
-make_local({_, true}, Root, Home) ->
-        {ok, LocalRoot} = application:get_env(disco_localdir),
-        [R, _] = filename:split(Home),
-        check_mkdir(file:make_dir(filename:join(LocalRoot, R))),
-        check_mkdir(file:make_dir(filename:join(LocalRoot, Home))),
-        Dst = filename:join([LocalRoot, Home, "events"]),
-        Src = filename:join([Root, Home, "events"]),
-        ok = file:make_symlink(Dst, Src);
-make_local(_, _, _) -> ok.
-
-prepare_environment(Name) ->
-        C = string:chr(Name, $/) + string:chr(Name, $.),
+init_job_coordinator(Parent, {Prefix, JobInfo}, PostData) ->
+        C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
         if C > 0 ->
-                throw("Invalid name");
-        true -> ok
-        end,
-        {ok, Root} = application:get_env(disco_root),
-        Home = disco_server:jobhome(Name),
-        [R, _] = filename:split(Home),
-        check_mkdir(file:make_dir(filename:join(Root, R))),
-        check_mkdir(file:make_dir(filename:join(Root, Home))),
-        make_local(application:get_env(resultfs_enabled), Root, Home).
+                Parent ! {self(), invalid_prefix};
+        true ->
+                case gen_server:call(event_server, {new_job, Prefix, self()}, 10000) of
+                        {ok, JobName} ->
+                                save_params(JobName, PostData),
+                                Parent ! {self(), ok, JobName},
+                                job_coordinator(JobName, JobInfo);
+                        _ ->
+                                Parent ! {self(), timeout}
+                end
+        end.
 
 save_params(Name, PostData) ->
         {ok, Root} = application:get_env(disco_root),
@@ -93,8 +66,8 @@ field_exists(Msg, Opt) ->
         lists:keysearch(Opt, 1, Msg) =/= false.
 
 find_values(Msg) ->
-        {value, {_, NameB}} = lists:keysearch(<<"name">>, 1, Msg),
-        Name = binary_to_list(NameB),
+        {value, {_, PrefixBinary}} = lists:keysearch(<<"prefix">>, 1, Msg),
+        Prefix = binary_to_list(PrefixBinary),
 
         {value, {_, InputStr}} = lists:keysearch(<<"input">>, 1, Msg),
         Inputs = lists:map(fun(Inp) ->
@@ -110,7 +83,7 @@ find_values(Msg) ->
         {value, {_, NRedStr}} = lists:keysearch(<<"nr_reduces">>, 1, Msg),
         NumRed = list_to_integer(binary_to_list(NRedStr)),
         
-        {Name, #jobinfo{
+        {Prefix, #jobinfo{
                 nr_reduce = NumRed,
                 inputs = Inputs,
                 max_cores = MaxCores,
@@ -139,16 +112,16 @@ set_disco_url(_, _) -> ok.
 handle(Socket, Msg) ->
         {value, {_, CLenStr}} = lists:keysearch(<<"CONTENT_LENGTH">>, 1, Msg),
         CLen = list_to_integer(binary_to_list(CLenStr)),
-        
+
         set_disco_url(application:get_env(disco_url), Msg),
 
         % scgi_recv_msg used instead of gen_tcp to work around gen_tcp:recv()'s
         % 16MB limit.
         {ok, PostData} = scgi:recv_msg(Socket, <<>>, CLen),
         Reply = case catch new_coordinator(PostData) of
-                ok -> ["job started"];
-                E -> ["ERROR: ", E]
-        end,    
+                        {ok, JobName} -> ["job started:", JobName];
+                        E -> ["ERROR: ", E]
+                end,
         gen_tcp:send(Socket, [?OK_HEADER, Reply]).
 
 
@@ -189,7 +162,7 @@ work([], Mode, Name, N, Job, Res) when N > 0 ->
 work([], _Mode, _Name, 0, _Job, Res) -> {ok, Res}.
 
 % wait_workers receives messages from disco_server:clean_worker() that is
-% called when a worker exits. 
+% called when a worker exits.
 
 % Error condition: should not happen.
 wait_workers(0, _Res, _Name, _Mode) ->
@@ -197,8 +170,8 @@ wait_workers(0, _Res, _Name, _Mode) ->
 
 wait_workers(N, Results, Name, Mode) ->
         receive
-                {{job_ok, {OobKeys, Result}}, Task, Node} -> 
-                        event_server:event(Name, 
+                {{job_ok, {OobKeys, Result}}, Task, Node} ->
+                        event_server:event(Name,
                                 "Received results from ~s:~B @ ~s.",
                                         [Task#task.mode, Task#task.taskid, Node],
                                                 {task_ready, Mode}),
@@ -212,19 +185,19 @@ wait_workers(N, Results, Name, Mode) ->
                 {{data_error, _Msg}, Task, Node} ->
                         handle_data_error(Task, Node),
                         {N, Results};
-                        
+
                 {{job_error, _Error}, _Task, _Node} ->
                         throw(logged_error);
-                        
+
                 {{error, Error}, Task, Node} ->
-                        event_server:event(Name, 
+                        event_server:event(Name,
                                 "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
                                         [Task#task.mode, Task#task.taskid,
                                                 Node, Error], []),
                         throw(logged_error);
 
                 Error ->
-                        event_server:event(Name, 
+                        event_server:event(Name,
                                 "ERROR: Received an unknown error: ~p",
                                         [Error], []),
                         throw(logged_error)
@@ -233,8 +206,8 @@ wait_workers(N, Results, Name, Mode) ->
 submit_task(Task) ->
         case catch gen_server:call(disco_server, {new_task, Task}) of
                 ok -> ok;
-                _ -> 
-                        event_server:event(Task#task.jobname, 
+                _ ->
+                        event_server:event(Task#task.jobname,
                                 "ERROR: ~s:~B scheduling failed. "
                                 "Try again later.",
                                 [Task#task.mode, Task#task.taskid]),
@@ -244,7 +217,7 @@ submit_task(Task) ->
 % data_error signals that a task failed on an error that is not likely
 % to repeat when the task is ran on another node. The function
 % handle_data_error() schedules the failed task for a retry, with the
-% failing node in its blacklist. If a task fails too many times, as 
+% failing node in its blacklist. If a task fails too many times, as
 % determined by check_failure_rate(), the whole job will be terminated.
 handle_data_error(Task, Node) ->
         {ok, NumCores} = gen_server:call(disco_server, get_num_cores),
@@ -261,7 +234,7 @@ handle_data_error(Task, Node) ->
                 input = NInputs}).
 
 check_failure_rate(Name, TaskID, Mode, L, NumCores) when NumCores =< L ->
-        event_server:event(Name, 
+        event_server:event(Name,
                 "ERROR: ~s:~B failed on all available cores (~B times in "
                 "total). Aborting the job.", [Mode, TaskID, L], []),
         throw(logged_error);
@@ -272,11 +245,11 @@ check_failure_rate(Name, TaskID, Mode, L, _) ->
                 {ok, N0} -> N0
         end,
         if L > N ->
-                event_server:event(Name, 
+                event_server:event(Name,
                         "ERROR: ~s:~B failed ~B times. At most ~B failures "
                         "are allowed. Aborting the job.", [Mode, TaskID, L, N], []),
                 throw(logged_error);
-        true -> 
+        true ->
                 ok
         end.
 
@@ -307,8 +280,8 @@ move_to_resultfs(Name, R, _) ->
                         "ERROR: Moving to resultfs failed (timeout)",
                                 [], logged_error);
                 Error ->
-                        kill_job(Name, 
-                        "ERROR: Moving to resultfs failed: ~p", 
+                        kill_job(Name,
+                        "ERROR: Moving to resultfs failed: ~p",
                                 [Error], unknown_error)
         end.
 
@@ -320,12 +293,12 @@ run_task(Inputs, Mode, Name, Job) ->
                         0, Job, gb_trees:empty()) of
                 {ok, Res} -> Res;
                 logged_error ->
-                        kill_job(Name, 
+                        kill_job(Name,
                         "ERROR: Job terminated due to the previous errors",
                                 [], logged_error);
                 Error ->
-                        kill_job(Name, 
-                        "ERROR: Job coordinator failed unexpectedly: ~p", 
+                        kill_job(Name,
+                        "ERROR: Job coordinator failed unexpectedly: ~p",
                                 [Error], unknown_error)
         end,
 
@@ -333,8 +306,7 @@ run_task(Inputs, Mode, Name, Job) ->
         move_to_resultfs(Name, R, resultfs_enabled()),
         R.
 
-        
-job_coordinator({Name, Job}) ->
+job_coordinator(Name, Job) ->
         Started = now(), 
         event_server:event(Name, "Starting job", [], {job_data, Job}),
 
@@ -368,14 +340,14 @@ job_coordinator({Name, Job}) ->
                         %garbage_collect:remove_map_results(RedInputs);
                 true -> ok
                 end,
-                
+
                 event_server:event(Name, "Reduce phase done", [], []),
                 event_server:event(Name, "READY: Job finished in " ++
-                        disco_server:format_time(Started), 
+                        disco_server:format_time(Started),
                                 [], {ready, RedResults});
         true ->
-                event_server:event(Name, "READY: Job finished in " ++ 
-                        disco_server:format_time(Started), 
+                event_server:event(Name, "READY: Job finished in " ++
+                        disco_server:format_time(Started),
                                 [], {ready, RedInputs})
         end,
         gen_server:cast(event_server, {job_done, Name}).

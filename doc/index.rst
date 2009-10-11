@@ -28,6 +28,7 @@ Getting started
    start/ec2setup
    start/dfs
    start/troubleshoot
+   man/disco
 
 References
 ----------

@@ -565,11 +565,12 @@ anymore. You can delete the unneeded job files as follows::
         disco.job("disco://localhost:5000",
                   ["disco://localhost/myjob/file1"],
                   fun_map,
-                  params = disco.Params(c = 0, f = lambda x: x + "!"))
+                  params = disco.core.Params(c = 0, f = lambda x: x + "!"))
 
    You can specify any number of key-value pairs to the :class:`Params`
    constructor.  The pairs will be delivered as-is to map and reduce
-   functions through the *params* argument. *Key* must be a valid Python
+   functions through the *params* argument. Each task receives its own copy
+   of the initial params object. *Key* must be a valid Python
    identifier but *value* can be any Python object. For instance, *value*
    can be an arbitrary :term:`pure function`, such as *params.f* in the
    previous example.

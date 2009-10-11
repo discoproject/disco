@@ -16,7 +16,7 @@ def run(task, jobpack):
         if int(jobpack['profile']):
                 try:
                         import cProfile as prof
-                except:
+                except ImportError:
                         import profile as prof
 
                 key = "profile-%s-%s" % (task.mode, task.id)
@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
         # Announce my PID to the master
         print >> sys.stderr, "**<PID>%s" % os.getpid()
-        
+
         mode = sys.argv[1]
         name = sys.argv[2]
         host = sys.argv[3]
@@ -52,7 +52,7 @@ if __name__ == "__main__":
         except Exception, e:
                 data_err("Failed to initialize worker directories "\
                                 "(disk full?)", "")
-        
+
         try:
                 if task.has_flag("resultfs"):
                         url = "%s/data/%s/params" % (task.root, "/".join(\

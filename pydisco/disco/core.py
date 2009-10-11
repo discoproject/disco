@@ -62,7 +62,12 @@ class Disco(object):
                 return json.loads(self.request("/disco/ctrl/joblist"))
 
         def oob_get(self, name, key):
-                return util.load_oob(self.host, name, key)
+                try:
+                        return util.load_oob(self.host, name, key)
+                except comm.CommException, x:
+                        if x.http_code == 404:
+                                raise DiscoError("Unknown key or job name")
+                        raise DiscoError(x)
 
         def oob_list(self, name):
                 r = self.request("/disco/ctrl/oob_list?name=%s" % name,
@@ -207,7 +212,7 @@ class Job(object):
                     "combiner": None,
                     "nr_maps": None,
                     "scheduler": {},
-                    "nr_reduces": None,
+                    "nr_reduces": 0,
                     "sort": False,
                     "params": Params(),
                     "mem_sort_limit": 256 * 1024**2,
@@ -217,26 +222,39 @@ class Job(object):
                     "required_modules": [],
                     "profile": False}
 
-        def __init__(self, master, **kwargs):
+        mapreduce_functions = ("map_init",
+                               "map_reader",
+                               "map",
+                               "map_writer",
+                               "partition",
+                               "combiner",
+                               "reduce_init",
+                               "reduce_reader",
+                               "reduce",
+                               "reduce_writer")
+
+        proxy_functions = ("kill",
+                           "clean",
+                           "purge",
+                           "jobspec",
+                           "results",
+                           "jobinfo",
+                           "wait",
+                           "oob_get",
+                           "oob_list",
+                           "profile_stats",
+                           "events")
+
+        def __init__(self, master, name='', **kwargs):
                 self.master = master
-                if "name" not in kwargs:
-                        raise DiscoError("Argument name is required")
-                if re.search("\W", kwargs["name"]):
-                        raise DiscoError("Only characters in [a-zA-Z0-9_] "\
-                              "are allowed in the job name")
-                self.name = "%s@%d" % (kwargs["name"], int(time.time()))
+                self.name   = name
                 self._run(**kwargs)
 
-        def __getattr__(self, name):
-                def r(f):
-                        def g(*args, **kw):
-                                return f(*tuple([self.name] + list(args)), **kw)
-                        return g
-                if name in ["kill", "clean", "purge", "jobspec", "results",
-                            "jobinfo", "wait", "oob_get", "oob_list",
-                            "profile_stats", "events"]:
-                        return r(getattr(self.master, name))
-                raise AttributeError("%s not found" % name)
+        def __getattr__(self, attr):
+                if attr in self.proxy_functions:
+                        from functools import partial
+                        return partial(getattr(self.master, attr), self.name)
+                raise AttributeError("%r has no attribute %r" % (self, attr))
 
         def pack_stack(self, kw, req, stream):
                 if stream not in kw:
@@ -249,24 +267,23 @@ class Job(object):
                 d = dict((f.func_name, marshal.dumps(f.func_code)) for f in s)
                 req[stream] = netstring_encode_str(d)
 
-        def _run(self, **kw):
-                
-                d = lambda x: kw.get(x, Job.defaults[x])
+        def _run(self, **kwargs):
+                jobargs = util.DefaultDict(self.defaults.__getitem__, kwargs)
 
                 # -- check parameters --
 
                 # Backwards compatibility
                 # (fun_map == map, input_files == input)
-                if "fun_map" in kw:
-                        kw["map"] = kw["fun_map"]
+                if "fun_map" in kwargs:
+                        kwargs["map"] = kwargs["fun_map"]
 
-                if "input_files" in kw:
-                        kw["input"] = kw["input_files"]
+                if "input_files" in kwargs:
+                        kwargs["input"] = kwargs["input_files"]
 
-                if "chunked" in kw:
-                        raise DiscoError("Argument 'chunked' is deprecated")
+                if "chunked" in kwargs:
+                        raise DeprecationWarning("Argument 'chunked' is deprecated")
 
-                if "nr_maps" in kw:
+                if "nr_maps" in kwargs:
                         print >> sys.stderr, "Warning: nr_maps is deprecated. "\
                                 "Use scheduler = {'max_cores': N} instead."
                         sched = d("scheduler").copy()
@@ -274,41 +291,37 @@ class Job(object):
                                 sched["max_cores"] = int(kw["nr_maps"])
                         kw["scheduler"] = sched
                         
-                if not "input" in kw:
-                        raise DiscoError("input is required")
+                if not "input" in kwargs:
+                        raise DiscoError("Argument input is required")
 
-                if not ("map" in kw or "reduce" in kw):
+                if not ("map" in kwargs or "reduce" in kwargs):
                         raise DiscoError("Specify map and/or reduce")
 
-                for p in kw:
+                for p in kwargs:
                         if p not in Job.defaults:
                                 raise DiscoError("Unknown argument: %s" % p)
 
-                inputs = kw["input"]
+                inputs = kwargs["input"]
 
                 # -- initialize request --
 
-                req = {"name": self.name,
-                       "version": ".".join(map(str, sys.version_info[:2])),
-                       "params": cPickle.dumps(d("params"), cPickle.HIGHEST_PROTOCOL),
-                       "sort": str(int(d("sort"))),
-                       "mem_sort_limit": str(d("mem_sort_limit")),
-                       "status_interval": str(d("status_interval")),
-                       "profile": str(int(d("profile")))}
+                request = {"prefix": self.name,
+                           "version": ".".join(map(str, sys.version_info[:2])),
+                           "params": cPickle.dumps(jobargs['params'], cPickle.HIGHEST_PROTOCOL),
+                           "sort": str(int(jobargs['sort'])),
+                           "mem_sort_limit": str(jobargs['mem_sort_limit']),
+                           "status_interval": str(jobargs['status_interval']),
+                           "profile": str(int(jobargs['profile']))}
 
                 # -- required modules --
 
-                if "required_modules" in kw:
-                        rm = kw["required_modules"]
+                if "required_modules" in kwargs:
+                        rm = kwargs["required_modules"]
                 else:
-                        funlist = []
-                        for f in Job.funs:
-                                df = d(f)
-                                if type(df) == types.FunctionType:
-                                        funlist.append(df)
-                                elif type(df) == list:
-                                        funlist += df
-                        rm = modutil.find_modules(funlist)
+                        functions = util.flatten(util.iterify(jobargs[f])
+                                                 for f in self.mapreduce_functions)
+                        rm = modutil.find_modules(filter(None, functions))
+
                 send_mod = []
                 imp_mod = []
                 for mod in rm:
@@ -317,30 +330,29 @@ class Job(object):
                                 mod = mod[0]
                         imp_mod.append(mod)
 
-                req["required_modules"] = " ".join(imp_mod)
+                request["required_modules"] = " ".join(imp_mod)
                 rf = util.pack_files(send_mod)
                 
                 # -- input & output streams --
                 
-                self.pack_stack(kw, req, "map_input_stream")
-                self.pack_stack(kw, req, "map_output_stream")
-                self.pack_stack(kw, req, "reduce_input_stream")
-                self.pack_stack(kw, req, "reduce_output_stream")
+                for stream in ["map_input_stream", "map_output_stream",
+                               "reduce_input_stream", "reduce_output_stream"]:
+                        self.pack_stack(kwargs, request, stream)
 
                 # -- required files --
 
-                if "required_files" in kw:
-                        if type(kw["required_files"]) == dict:
-                                rf.update(kw["required_files"])
+                if "required_files" in kwargs:
+                        if type(kwargs["required_files"]) == dict:
+                                rf.update(kwargs["required_files"])
                         else:
                                 rf.update(util.pack_files(\
-                                        kw["required_files"]))
+                                        kwargs["required_files"]))
                 if rf:
-                        req["required_files"] = marshal.dumps(rf)
+                        request["required_files"] = marshal.dumps(rf)
 
                 # -- scheduler --
                 
-                sched = d("scheduler")
+                sched = jobargs["scheduler"]
                 sched_keys = ["max_cores", "force_local", "force_remote"]
 
                 if "max_cores" not in sched:
@@ -350,36 +362,29 @@ class Job(object):
 
                 for k in sched_keys:
                         if k in sched:
-                                req["sched_" + k] = str(sched[k])
+                                request["sched_" + k] = str(sched[k])
 
                 # -- map --
 
-                if "map" in kw:
-                        if type(kw["map"]) == dict:
-                                req["ext_map"] = marshal.dumps(kw["map"])
+                if "map" in kwargs:
+                        if type(kwargs["map"]) == dict:
+                                request["ext_map"] = marshal.dumps(kwargs["map"])
                         else:
-                                req["map"] = marshal.dumps(kw["map"].func_code)
+                                request["map"] = marshal.dumps(kwargs["map"].func_code)
 
-                        if "map_init" in kw:
-                                req["map_init"] = marshal.dumps(\
-                                        kw["map_init"].func_code)
-
-                        req["map_reader"] =\
-                                marshal.dumps(d("map_reader").func_code)
-                        req["map_writer"] =\
-                                marshal.dumps(d("map_writer").func_code)
-                        req["partition"] =\
-                                marshal.dumps(d("partition").func_code)
-
-                        if "combiner" in kw:
-                                req["combiner"] =\
-                                        marshal.dumps(kw["combiner"].func_code)
+                        for function_name in ('map_init',
+                                              'map_reader',
+                                              'map_writer',
+                                              'partition',
+                                              'combiner'):
+                                function = jobargs[function_name]
+                                if function:
+                                        request[function_name] = marshal.dumps(function.func_code)
 
                         parsed_inputs = []
                         for inp in inputs:
                                 if type(inp) == list:
-                                        parsed_inputs.append(
-                                                "\n".join(reversed(inp)))
+                                        parsed_inputs.append("\n".join(reversed(inp)))
                                 elif inp.startswith("dir://"):
                                         parsed_inputs += util.parse_dir(inp)
                                 else:
@@ -393,8 +398,8 @@ class Job(object):
                         red_inputs = []
                         for inp in inputs:
                                 if type(inp) == list:
-                                        raise DiscoError("Reduce doesn't "\
-                                                "accept redundant inputs")
+                                        raise DiscoError("Reduce doesn't "
+                                                         "accept redundant inputs")
                                 elif inp.startswith("dir://"):
                                         if inp.endswith(".txt"):
                                                 ext_inputs.append(inp)
@@ -404,74 +409,64 @@ class Job(object):
                                         ext_inputs.append(inp)
 
                         if ext_inputs and red_inputs:
-                                raise DiscoError("Can't mix partitioned "\
-                                        "inputs with other inputs")
+                                raise DiscoError("Can't mix partitioned "
+                                                 "inputs with other inputs")
                         elif red_inputs:
                                 q = lambda x: int(x.split(":")[-1]) + 1
                                 nr_red = q(red_inputs[0])
                                 for x in red_inputs:
                                         if q(x) != nr_red:
-                                                raise DiscoError(\
-                                                "Number of partitions must "\
-                                                "match in all inputs")
-                                n = d("nr_reduces") or nr_red
+                                                raise DiscoError(
+                                                        "Number of partitions must "
+                                                        "match in all inputs")
+                                n = jobargs['nr_reduces'] or nr_red
                                 if n != nr_red:
                                         raise DiscoError(
-                                        "Specified nr_reduces = %d but "\
-                                        "number of partitions in the input "\
-                                        "is %d" % (n, nr_red))
-                                kw["nr_reduces"] = nr_red
+                                                "Specified nr_reduces = %d but "
+                                                "number of partitions in the input "
+                                                "is %d" % (n, nr_red))
+                                kwargs["nr_reduces"] = nr_red
                                 inputs = red_inputs
-                        elif d("nr_reduces") != 1:
-                                raise DiscoError("nr_reduces must be 1 when "\
-                                        "using non-partitioned inputs "\
-                                        "without the map phase")
+                        elif jobargs['nr_reduces'] != 1:
+                                raise DiscoError("nr_reduces must be 1 when "
+                                                 "using non-partitioned inputs "
+                                                 "without the map phase")
                         else:
                                 inputs = ext_inputs
 
-                req["input"] = " ".join(inputs)
+                request["input"] = " ".join(inputs)
 
-                if "ext_params" in kw:
-                        if type(kw["ext_params"]) == dict:
-                                req["ext_params"] =\
-                                        encode_netstring_fd(kw["ext_params"])
+                if "ext_params" in kwargs:
+                        if type(kwargs["ext_params"]) == dict:
+                                request["ext_params"] =\
+                                        encode_netstring_fd(kwargs["ext_params"])
                         else:
-                                req["ext_params"] = kw["ext_params"]
+                                request["ext_params"] = kwargs["ext_params"]
 
                 # -- reduce --
 
-                nr_reduces = d("nr_reduces")
-                if "reduce" in kw:
-                        if type(kw["reduce"]) == dict:
-                                req["ext_reduce"] = marshal.dumps(kw["reduce"])
-                                req["reduce"] = ""
+                nr_reduces = jobargs['nr_reduces']
+                if "reduce" in kwargs:
+                        if type(kwargs["reduce"]) == dict:
+                                request["ext_reduce"] = marshal.dumps(kwargs["reduce"])
                         else:
-                                req["reduce"] = marshal.dumps(
-                                        kw["reduce"].func_code)
+                                request["reduce"] = marshal.dumps(kwargs["reduce"].func_code)
                         nr_reduces = nr_reduces or min(max(nr_maps / 2, 1), 100)
 
-                        req["reduce_reader"] =\
-                                marshal.dumps(d("reduce_reader").func_code)
-                        req["reduce_writer"] =\
-                                marshal.dumps(d("reduce_writer").func_code)
+                        for function_name in ('reduce_reader', 'reduce_writer', 'reduce_init'):
+                                function = jobargs[function_name]
+                                if function:
+                                        request[function_name] = marshal.dumps(function.func_code)
 
-                        if "reduce_init" in kw:
-                                req["reduce_init"] = marshal.dumps(\
-                                        kw["reduce_init"].func_code)
-                else:
-                        nr_reduces = nr_reduces or 0
-
-                req["nr_reduces"] = str(nr_reduces)
+                request["nr_reduces"] = str(nr_reduces)
 
                 # -- encode and send the request --
 
-                self.msg = encode_netstring_fd(req)
-                reply = self.master.request("/disco/job/new", self.msg)
+                reply = self.master.request("/disco/job/new", encode_netstring_fd(request))
 
-                if reply != "job started":
+                if not reply.startswith('job started:'):
                         raise DiscoError("Failed to start a job. Server replied: " + reply)
-
-
+                self.name = reply.split(':', 1)[1]
 
 def result_iterator(results, notifier = None, proxy = None,
         reader = func.netstr_reader, input_stream = [func.map_input_stream],
