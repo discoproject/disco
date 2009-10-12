@@ -71,7 +71,7 @@ class DiscodexClient(object):
         return Values.loads(self.request('GET', '%s/values' % self.indexurl(indexspec)).read())
 
     def query(self, indexspec, query):
-        query_path = query.format(and_op='/', or_op=',', encoding=lambda q: urllib.quote(q, ':'))
+        query_path = query.urlformat()
         return Values.loads(self.request('GET', '%s/query/%s' % (self.indexurl(indexspec), query_path)).read())
 
 class CommandLineClient(DiscodexClient):

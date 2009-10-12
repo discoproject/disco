@@ -2,17 +2,19 @@ from disco import func
 from disco.core import result_iterator, Params
 
 class DiscodexJob(object):
-    map_reader       = staticmethod(func.map_line_reader)
-    map_writer       = staticmethod(func.netstr_writer)
-    params           = Params()
-    partition        = staticmethod(func.default_partition)
-    reduce           = None
-    reduce_reader    = staticmethod(func.netstr_reader)
-    reduce_writer    = staticmethod(func.netstr_writer)
-    result_reader    = staticmethod(func.netstr_reader)
-    required_modules = []
-    sort             = False
-    nr_reduces       = 1
+    map_reader           = staticmethod(func.map_line_reader)
+    map_writer           = staticmethod(func.netstr_writer)
+    params               = Params()
+    partition            = staticmethod(func.default_partition)
+    reduce               = None
+    reduce_reader        = staticmethod(func.netstr_reader)
+    reduce_writer        = staticmethod(func.netstr_writer)
+    reduce_output_stream = staticmethod(func.reduce_output_stream)
+    result_reader        = staticmethod(func.netstr_reader)
+    required_modules     = []
+    scheduler            = {}
+    sort                 = False
+    nr_reduces           = 1
 
     @staticmethod
     def map(*args, **kwargs):
@@ -35,12 +37,14 @@ class DiscodexJob(object):
                    'params':           self.params,
                    'partition':        self.partition,
                    'required_modules': self.required_modules,
+                   'scheduler':        self.scheduler,
                    'sort':             self.sort}
 
         if self.reduce:
             jobargs.update({'reduce':        self.reduce,
                             'reduce_reader': self.reduce_reader,
                             'reduce_writer': self.reduce_writer,
+                            'reduce_output_stream': self.reduce_output_stream,
                             'nr_reduces':    self.nr_reduces})
 
         self._job = disco_master.new_job(**jobargs)
@@ -58,15 +62,29 @@ class Indexer(DiscodexJob):
 
     @staticmethod
     def reduce(iterator, out, params):
+        # there should be a discodb writer of some sort
         from discodb import DiscoDB, kvgroup
         DiscoDB(kvgroup(iterator)).dump(out.fd)
-        # there should be a discodb writer of some sort
 
-class Queryer(DiscodexJob):
+    @staticmethod
+    def reduce_output_stream(stream, partition, url, params):
+        fd, url = TASK.reduce_output_stream(stream, partition, url, params)
+        return stream, 'discodb:%s' % url.split(':', 1)[1]
+
+class DiscoDBIterator(DiscodexJob):
+    scheduler = {'force_local': True}
+
+    def __init__(self, ichunks, method=''):
+        self.input = ['%s/%s/' % (ichunk, method) for ichunk in ichunks]
+
+    @staticmethod
+    def map(entry, params):
+        return [(None, entry)]
+
+class Queryer(DiscoDBIterator):
     def __init__(self, ichunks, query):
-        self.input = ichunks
-
-
+        query_path = query.urlformat()
+        self.input = ['%s/query/%s' % (ichunk, query_path) for ichunk in ichunks]
 
 class Record(object):
     __slots__ = ('fields', 'fieldnames')

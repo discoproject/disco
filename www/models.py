@@ -10,12 +10,12 @@ from restapi.resource import (HttpResponseAccepted,
                               HttpResponseServiceUnavailable)
 
 from discodex import settings
-from discodex.mapreduce import Indexer, parsers
+from discodex.mapreduce import Indexer, Queryer, DiscoDBIterator, parsers
 from discodex.objects import DataSet, Indices, Index, Keys, Values
 
 from disco.core import Disco
 from disco.error import DiscoError
-from disco.util import parse_dir
+from disco.util import flatten, parse_dir
 
 from discodb import Q
 
@@ -111,7 +111,7 @@ class IndexResource(Collection):
                 return OK
 
             if status == OK:
-                ichunks = parse_dir(results[0])
+                ichunks = list(flatten(parse_dir(result) for result in results))
                 self.write(Index(ichunks=ichunks))
                 disco_master.clean(self.name)
             return status
@@ -150,21 +150,39 @@ class IndexResource(Collection):
         handle.write(index.dumps())
         os.rename(handle.name, self.path)
 
-class KeysResource(Resource):
+class DiscoDBResource(Resource):
+    result_type = Keys
+    discodb_method = 'keys'
+
     def __init__(self, index):
         self.index = index
 
-    def read(self, request, *args, **kwargs):
-        keys = ['index %s keys' % self.index.name]
-        return HttpResponse(Keys(keys).dumps())
-
-class ValuesResource(Resource):
-    def __init__(self, index):
-        self.index = index
+    @property
+    def job(self):
+        return DiscoDBIterator(self.index.ichunks, self.discodb_method)
 
     def read(self, request, *args, **kwargs):
-        values = ['index %s values' % self.index.name]
-        return HttpResponse(Values(values).dumps())
+        try:
+            job = self.job
+            job.run(disco_master, disco_prefix)
+        except DiscoError, e:
+            return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
+
+        try:
+            results = self.result_type(v for k, v in job.results).dumps()
+        except DiscoError, e:
+            return HttpResponseServerError("DiscoDB job failed: %s" % e)
+        finally:
+            disco_master.purge(job.name)
+
+        return HttpResponse(results)
+
+class KeysResource(DiscoDBResource):
+    pass
+
+class ValuesResource(DiscoDBResource):
+    result_type = Values
+    discodb_method = 'values'
 
 class QueryCollection(Collection):
     def __init__(self, index):
@@ -177,16 +195,13 @@ class QueryCollection(Collection):
     def read(self, request, *args, **kwargs):
         return HttpResponse(Values().dumps())
 
-class QueryResource(Resource):
-    def __init__(self, index, query_path):
-        import urllib
-        self.index = index
-        self.query = Q.scan(query_path, and_op='/', or_op=',', decoding=urllib.unquote)
+class QueryResource(DiscoDBResource):
+    result_type = Values
 
-    def read(self, request, *args, **kwargs):
-        self.index.ichunks
-        # execute the query against the index
-        # get the list of results
-        # read each result
-        values = [str(self.query)]
-        return HttpResponse(Values(values).dumps())
+    def __init__(self, index, query_path):
+        self.index = index
+        self.query = Q.urlscan(query_path)
+
+    @property
+    def job(self):
+        return Queryer(self.index.ichunks, self.query)
