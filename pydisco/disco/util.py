@@ -106,7 +106,7 @@ def parse_dir(dir_url, proxy = None, partid = None):
                 r = []
                 for l in f:
                         id, url = l.strip().split()
-                        if partid and partid != int(id):
+                        if partid != None and partid != int(id):
                                 continue
                         r.append(url)
                 return r

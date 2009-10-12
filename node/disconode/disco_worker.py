@@ -3,7 +3,7 @@ import re, traceback, tempfile, struct, random
 from disco.util import parse_dir, err, data_err, msg, load_oob
 from disco.func import re_reader, netstr_reader
 from disco.netstring import decode_netstring_str
-from disco.fileutils import safe_update, write_files, ensure_path
+from disco.fileutils import safe_update, write_files, ensure_path, AtomicFile
 from disconode import external
 import disco.comm, disco.settings, disco.func
 
