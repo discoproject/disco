@@ -67,7 +67,7 @@ def put(key, value):
         if oob_chars.match(key):
                 err("OOB key contains invalid characters (%s)" % key)
         if value != None:
-                f = file(Task.path("OOB_FILE", key), "w")
+                f = file(Task.path("OOB_FILE", key)[0], "w")
                 f.write(value)
                 f.close()
         print >> sys.stderr, "**<OOB>%s %s/oob/%s" % (key, JOB_HOME, key)
@@ -234,7 +234,7 @@ class ReduceReader(object):
                                 (dlname, sortname, ret))
 
                 msg("External sort done: %s" % sortname)
-                return self.multi_file_iterator([sortname], reader =\
+                return self.multi_file_iterator([sortname], params, reader =\
                         lambda fd, sze, url:\
                                 re_reader("(?s)(.*?) (.*?)\000", fd, sze, url))
 
@@ -292,7 +292,7 @@ def load_stack(job, mode, inout):
         key = "%s_%s_stream" % (mode, inout)
         if key in job:
                 s = [(k, marshal.loads(v))
-                        for k, v in decode_netstring_str(job[key]).iteritems()]
+                        for k, v in decode_netstring_str(job[key])]
         else:
                 s = [("disco.func.%s" % key, getattr(disco.func, key).func_code)]
         return s

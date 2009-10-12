@@ -264,8 +264,8 @@ class Job(object):
                         s = v
                 else:
                         s = [v]
-                d = dict((f.func_name, marshal.dumps(f.func_code)) for f in s)
-                req[stream] = netstring_encode_str(d)
+                req[stream] = encode_netstring_str(
+                        (f.func_name, marshal.dumps(f.func_code)) for f in s)
 
         def _run(self, **kwargs):
                 jobargs = util.DefaultDict(self.defaults.__getitem__, kwargs)
@@ -320,7 +320,8 @@ class Job(object):
                 else:
                         functions = util.flatten(util.iterify(jobargs[f])
                                                  for f in self.mapreduce_functions)
-                        rm = modutil.find_modules(filter(None, functions))
+                        rm = modutil.find_modules(
+                                [f for f in functions if type(f) == types.FunctionType])
 
                 send_mod = []
                 imp_mod = []
@@ -398,41 +399,22 @@ class Job(object):
                         red_inputs = []
                         for inp in inputs:
                                 if type(inp) == list:
-                                        raise DiscoError("Reduce doesn't "
-                                                         "accept redundant inputs")
+                                        raise DiscoError("Reduce doesn't "\
+                                                "accept redundant inputs")
                                 elif inp.startswith("dir://"):
-                                        if inp.endswith(".txt"):
-                                                ext_inputs.append(inp)
-                                        else:
-                                                red_inputs.append(inp)
+                                        red_inputs.append(inp)
                                 else:
                                         ext_inputs.append(inp)
-
+                        
                         if ext_inputs and red_inputs:
-                                raise DiscoError("Can't mix partitioned "
-                                                 "inputs with other inputs")
-                        elif red_inputs:
-                                q = lambda x: int(x.split(":")[-1]) + 1
-                                nr_red = q(red_inputs[0])
-                                for x in red_inputs:
-                                        if q(x) != nr_red:
-                                                raise DiscoError(
-                                                        "Number of partitions must "
-                                                        "match in all inputs")
-                                n = jobargs['nr_reduces'] or nr_red
-                                if n != nr_red:
-                                        raise DiscoError(
-                                                "Specified nr_reduces = %d but "
-                                                "number of partitions in the input "
-                                                "is %d" % (n, nr_red))
-                                kwargs["nr_reduces"] = nr_red
-                                inputs = red_inputs
-                        elif jobargs['nr_reduces'] != 1:
-                                raise DiscoError("nr_reduces must be 1 when "
-                                                 "using non-partitioned inputs "
-                                                 "without the map phase")
+                                raise DiscoError("Can't mix partitioned "\
+                                        "inputs with other inputs")
+                        elif ext_inputs and kwargs["nr_reduces"] != 1:
+                                raise DiscoError("nr_reduces must be 1 when "\
+                                        "using non-partitioned inputs "\
+                                        "without the map phase")
                         else:
-                                inputs = ext_inputs
+                                inputs = ext_inputs or red_inputs
 
                 request["input"] = " ".join(inputs)
 
