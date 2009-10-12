@@ -11,7 +11,7 @@ def check_code(c, expected, url):
         code = c.getinfo(HTTP_CODE)
         if code != expected:
                 raise CommException("Invalid HTTP reply (expected %s got %s)" %\
-                         (expected, fd.status), url)
+                         (expected, code), url)
 
 def download(url, data = None, redir = False, offset = 0):
         dl_handle = Curl()

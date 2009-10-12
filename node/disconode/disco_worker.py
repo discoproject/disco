@@ -267,7 +267,7 @@ class ReduceReader(object):
 def run_map(job_input, partitions, param):
         i = 0
         fd, sze = connect_input(job_input, param)
-        nr_reduces = Task.num_partitions
+        nr_reduces = max(1, Task.num_partitions)
         reader = fun_reader(fd, sze, job_input)
         fun_init(reader, param)
 

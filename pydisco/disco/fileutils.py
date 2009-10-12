@@ -67,8 +67,11 @@ def safe_append(instream, outfile, timeout = 60):
 
 def safe_update(outfile, lines, timeout = 60):
         def update(outstream):
+                outstream.seek(0)
                 d = dict((x.strip(), True) for x in outstream)
-                outstream.write("\n".join(x for x in lines if x not in d))
+                for x in lines:
+                        if x not in d:
+                                outstream.write("%s\n" % x)
         return _safe_fileop(update, "a+", outfile, timeout = timeout)
 
 def _safe_fileop(op, mode, outfile, timeout):
