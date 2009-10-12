@@ -124,7 +124,7 @@ def load_oob(host, name, key):
         use_proxy = conf["DISCO_PROXY"] != ""
         url = "%s/disco/ctrl/oob_get?name=%s&key=%s&proxy=%d" %\
                 (host, name, key, use_proxy)
-        if resultfs_enabled:
+        if "resultfs" in conf["DISCO_FLAGS"]:
                 root = conf["DISCO_ROOT"]
                 sze, fd = open_remote(url, expect = 302)
                 loc = fd.getheader("location")

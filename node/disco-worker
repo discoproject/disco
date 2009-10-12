@@ -20,7 +20,13 @@ def run(task, jobpack):
                         import profile as prof
 
                 key = "profile-%s-%s" % (task.mode, task.id)
-                prof.run("method(m)", task.path(key)[0])
+
+                # prof.run() doesn't seem to work with local names
+                global gmethod, gjobpack
+                gmethod = method
+                gjobpack = jobpack
+                prof.run("gmethod(gjobpack)", task.path("OOB_FILE", key)[0])
+
                 # value = None below because profiler produces the
                 # file 'key'.
                 disco_worker.put(key, None) 
@@ -39,7 +45,8 @@ if __name__ == "__main__":
         mode = sys.argv[1]
         name = sys.argv[2]
         host = sys.argv[3]
-        master = sys.argv[4]
+        master_job = sys.argv[4]
+        master = master_job.split("/")[2]
         part = sys.argv[5]
         inputs = sys.argv[6:]
 
@@ -56,19 +63,19 @@ if __name__ == "__main__":
         try:
                 if task.has_flag("resultfs"):
                         url = "%s/data/%s/params" % (task.root, "/".join(\
-                                master.strip("/").split("/")[-3:]))
+                                master_job.strip("/").split("/")[-3:]))
                         fn = lambda: file(url).read()
                 else:
-                        url = "%s/params" % master
+                        url = "%s/params" % master_job
                         fn = lambda: comm.download(url)
                 ensure_file(task.path("PARAMS_FILE")[0], fn, mode = 444)
         except Exception, e:
-                data_err("Failed to get %s: %s" % (url, e), master)
+                data_err("Failed to get %s: %s" % (url, e), master_job)
 
         try:
                 m = decode_netstring_fd(file(task.path("PARAMS_FILE")[0]))
         except Exception, e:
-                data_err("Decoding the job description failed", master)
+                data_err("Decoding the job description failed", master_job)
         
         my_ver = ".".join(map(str, sys.version_info[:2]))
         if m["version"] != my_ver:

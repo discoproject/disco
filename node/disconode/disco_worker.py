@@ -70,7 +70,7 @@ def put(key, value):
                 f = file(Task.path("OOB_FILE", key)[0], "w")
                 f.write(value)
                 f.close()
-        print >> sys.stderr, "**<OOB>%s %s/oob/%s" % (key, JOB_HOME, key)
+        print >> sys.stderr, "**<OOB>%s %s/oob/%s" % (key, Task.home, key)
 
 def get(key, job = None):
         try:

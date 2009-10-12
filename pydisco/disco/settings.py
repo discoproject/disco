@@ -1,10 +1,4 @@
-import os, socket
-
-try:
-        import hashlib as md5
-except ImportError:
-        # Hashlib is not available in Python2.4
-        import md5
+import os, socket, hashlib
 
 class TaskEnvironment(object):
     default_paths = {
@@ -34,7 +28,7 @@ class TaskEnvironment(object):
         self.name = job_name
         self.result_iterator = result_iterator
         self.home = "%s/%s/%s" % (host,
-            md5.md5(job_name).hexdigest()[:2], job_name)
+            hashlib.md5(job_name).hexdigest()[:2], job_name)
         
         conf = DiscoSettings()
         self.root = conf["DISCO_ROOT"]
