@@ -45,10 +45,8 @@ class IndexCollection(Collection):
 
     def create(self, request, *args, **kwargs):
         dataset = DataSet.loads(request.raw_post_data)
-        nr_ichunks = dataset.get('nr_ichunks', 10)
-        data = [str(input) for input in dataset['input']]
         try:
-            job = Indexer(data, parsers.parse, parsers.demux, parsers.balance, nr_ichunks)
+            job = Indexer(dataset.input, parsers.parse, parsers.demux, parsers.balance, dataset.nr_ichunks)
             job.run(disco_master, disco_prefix)
         except DiscoError, e:
             return HttpResponseServerError("Failed to run indexing job: %s" % e)
@@ -88,7 +86,7 @@ class IndexResource(Collection):
 
     @property
     def ichunks(self):
-        return Index.loads(open(self.path).read())['ichunks']
+        return Index.loads(open(self.path).read()).ichunks
 
     @property
     def keys(self):

@@ -9,13 +9,21 @@ class JSONSerialized(object):
         return json.dumps(self)
 
 class DataSet(dict, JSONSerialized):
-    pass
+    @property
+    def nr_ichunks(self):
+        return self.get('nr_ichunks', 10)
+
+    @property
+    def input(self):
+        return [str(input) for input in self['input']]
 
 class Indices(list, JSONSerialized):
     pass
 
 class Index(dict, JSONSerialized):
-    pass
+    @property
+    def ichunks(self):
+        return [str(ichunk) for ichunk in self['ichunks']]
 
 class Keys(list, JSONSerialized):
     pass
