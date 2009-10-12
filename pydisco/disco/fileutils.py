@@ -6,24 +6,30 @@ class AtomicFile(file):
         def __init__(self, fname, *args, **kw):
                 ensure_path(fname, False)
                 self.fname = fname
+                self.isopen = True
                 super(AtomicFile, self).__init__(
                         fname + ".partial", *args, **kw)
 
         def close(self):
-                super(AtomicFile, self).close()
-                os.rename(self.fname + ".partial", self.fname)
+                if self.isopen:
+                        super(AtomicFile, self).close()
+                        os.rename(self.fname + ".partial", self.fname)
+                        self.isopen = False
         
 class PartitionFile(AtomicFile):
         def __init__(self, partfile, tmpname, *args, **kw):
                 self.partfile = partfile
                 self.tmpname = tmpname
+                self.isopen = True
                 super(PartitionFile, self).__init__(
                         tmpname, *args, **kw)
 
         def close(self):
-                super(PartitionFile, self).close()
-                safe_append(file(self.tmpname), self.partfile)
-                os.remove(self.tmpname)
+                if self.isopen:
+                        super(PartitionFile, self).close()
+                        safe_append(file(self.tmpname), self.partfile)
+                        os.remove(self.tmpname)
+                        self.isopen = False
 
 def ensure_path(path, check_exists = True):
         if check_exists and os.path.exists(path):
