@@ -12,6 +12,7 @@ class DiscodexSettings(dict):
         'DISCODEX_SETTINGS':     "os.path.join(DISCODEX_ETC_DIR, 'settings.py')",
         'DISCODEX_DATA_ROOT':    "os.path.join(DISCODEX_WWW_ROOT, 'data')",
         'DISCODEX_INDEX_ROOT':   "os.path.join(DISCODEX_DATA_ROOT, 'indices')",
+        'DISCODEX_INDEX_TEMP':   "os.path.join(DISCODEX_DATA_ROOT, 'tmp')",
         'DISCODEX_HTTP_HOST':    "'localhost'",
         'DISCODEX_HTTP_PORT':    "8080",
         'DISCODEX_SCGI_HOST':    "'localhost'",

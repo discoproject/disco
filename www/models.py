@@ -23,6 +23,7 @@ discodex_settings = settings.DiscodexSettings()
 disco_master      = discodex_settings['DISCODEX_DISCO_MASTER']
 disco_prefix      = discodex_settings['DISCODEX_DISCO_PREFIX']
 index_root        = discodex_settings.safedir('DISCODEX_INDEX_ROOT')
+index_temp        = discodex_settings.safedir('DISCODEX_INDEX_TEMP')
 disco_master      = Disco(disco_master)
 
 NOT_FOUND, OK, ACTIVE, DEAD = 'unknown job', 'ready', 'active', 'dead'
@@ -45,8 +46,9 @@ class IndexCollection(Collection):
     def create(self, request, *args, **kwargs):
         dataset = DataSet.loads(request.raw_post_data)
         nr_ichunks = dataset.get('nr_ichunks', 10)
+        data = [str(input) for input in dataset['input']]
         try:
-            job = Indexer(dataset['input'], parsers.parse, parsers.demux, parsers.balance, nr_ichunks)
+            job = Indexer(data, parsers.parse, parsers.demux, parsers.balance, nr_ichunks)
             job.run(disco_master, disco_prefix)
         except DiscoError, e:
             return HttpResponseServerError("Failed to run indexing job: %s" % e)
@@ -145,10 +147,10 @@ class IndexResource(Collection):
         return HttpResponseNoContent()
 
     def write(self, index):
-        from tempfile import NamedTemporaryFile
-        handle = NamedTemporaryFile(delete=False)
-        handle.write(index.dumps())
-        os.rename(handle.name, self.path)
+        from tempfile import mkstemp
+        fd, filename = mkstemp(dir=index_temp)
+        os.write(fd, index.dumps())
+        os.rename(filename, self.path)
 
 class DiscoDBResource(Resource):
     result_type = Keys
