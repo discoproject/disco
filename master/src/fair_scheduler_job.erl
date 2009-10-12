@@ -252,9 +252,11 @@ filter_nodes(Tasks, AvailableNodes, Local) ->
 error(T, M) ->
         event_server:event(get(jobname),
                 lists:flatten(["ERROR: ~s:~B Task is forced to be ", M,
-                        " but there are no nodes where it could be run."]),
-                                [T#task.mode, T#task.taskid]),
-        exit(task_assignment_failed).
+                        " but there are no nodes where it could be run (inputs:~s)."]),
+                                [T#task.mode, T#task.taskid,
+                                        [binary_to_list(<<" ", Url/binary>>) || {Url, _}
+                                                <- T#task.input]], {}),
+        exit(normal).
 
 % Assign a new task to a node which hostname match with the hostname
 % of the task's input file, if the node is not in the task's blacklist.
