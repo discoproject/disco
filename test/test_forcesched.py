@@ -3,7 +3,7 @@ from disco.core import Disco, result_iterator, Params
 from disco.error import JobException
 
 def map_input_stream(stream, size, url, params):
-        host, fname = url[8:].split("/", 1)
+        host, fname = url[9:].split("/", 1)
         if (host == Task.host) != params.islocal:
                 err("Input is at %s but the node is %s "
                     "when locality was forced to be %s" %
@@ -63,7 +63,7 @@ nodes = dict((n['node'], n['max_workers'])
 
 inputs = []
 for n, m in nodes.iteritems():
-        inputs += ["disco://%s/" % n] * m * 2
+        inputs += ["foobar://%s/" % n] * m * 2
 
 check_results(run(True, inputs, "forcelocal"), nodes)
 check_results(run(False, inputs, "forceremote"), nodes)

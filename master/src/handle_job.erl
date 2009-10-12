@@ -381,10 +381,10 @@ reduce_input(Name, Inputs, NRed) ->
 % pref_node() suggests a preferred node for a task (one preserving locality)
 % given the url of its input.
 
-pref_node(X) when is_binary(X) -> pref_node(binary_to_list(X));
-pref_node("disco://" ++ _ = Uri) -> remote_uri(Uri);
-pref_node("dir://" ++ _ = Uri) -> remote_uri(Uri);
-pref_node("http://" ++ _ = Uri) -> remote_uri(Uri);
-pref_node("dfs://" ++ _ = Uri) -> remote_uri(Uri);
-pref_node(_) -> false.
-remote_uri(Uri) -> string:sub_word(Uri, 2, $/).
+pref_node(Url) when is_binary(Url) -> pref_node(binary_to_list(Url));
+pref_node(Url) ->
+        case re:run(Url ++ "/", "[a-zA-Z0-9]+://(.*?)[/:]",
+                        [{capture, all_but_first}]) of
+                nomatch -> false;
+                {match, [{S, L}]} -> string:sub_string(Url, S + 1, S + L)
+        end.
