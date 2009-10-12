@@ -91,7 +91,7 @@ def connect_input(url, params):
                         if url:
                                 suffix = " when opening %s" % url
                         data_err("Input stream %s failed%s" % (name, suffix), url)
-        return fd, sze
+        return fd, sze, url
 
 def connect_output(params, part = 0):
         fd = url = None
@@ -184,7 +184,7 @@ class ReduceReader(object):
                 if do_sort:
                         total_size = 0
                         for input in self.inputs:
-                                fd, sze = connect_input(input, params)
+                                fd, sze, url = connect_input(input, params)
                                 total_size += sze
 
                         msg("Reduce[%d] input is %.2fMB" %\
@@ -208,7 +208,7 @@ class ReduceReader(object):
                 msg("Reduce will be downloaded to %s" % dlname)
                 out_fd = AtomicFile(dlname, "w")
                 for url in self.inputs:
-                        fd, sze = connect_input(url, params)
+                        fd, sze, url = connect_input(url, params)
                         for k, v in fun_reader(fd, sze, url):
                                 if " " in k:
                                         err("Spaces are not allowed in keys "\
@@ -252,7 +252,7 @@ class ReduceReader(object):
                                 reader = fun_reader):
                 i = 0
                 for url in inputs:
-                        fd, sze = connect_input(url, params)
+                        fd, sze, url = connect_input(url, params)
                         for x in reader(fd, sze, url):
                                 yield x
                                 i += 1
@@ -266,9 +266,9 @@ class ReduceReader(object):
 
 def run_map(job_input, partitions, param):
         i = 0
-        fd, sze = connect_input(job_input, param)
+        fd, sze, url = connect_input(job_input, param)
         nr_reduces = max(1, Task.num_partitions)
-        reader = fun_reader(fd, sze, job_input)
+        reader = fun_reader(fd, sze, url)
         fun_init(reader, param)
 
         for entry in reader:
