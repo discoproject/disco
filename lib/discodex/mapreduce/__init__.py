@@ -66,25 +66,46 @@ class Indexer(DiscodexJob):
         from discodb import DiscoDB, kvgroup
         DiscoDB(kvgroup(iterator)).dump(out.fd)
 
-    @staticmethod
     def reduce_output_stream(stream, partition, url, params):
-        fd, url = TASK.reduce_output_stream(stream, partition, url, params)
         return stream, 'discodb:%s' % url.split(':', 1)[1]
+    reduce_output_stream = [func.reduce_output_stream, reduce_output_stream]
 
 class DiscoDBIterator(DiscodexJob):
     scheduler = {'force_local': True}
+    method    = 'keys'
 
-    def __init__(self, ichunks, method=''):
-        self.input = ['%s/%s/' % (ichunk, method) for ichunk in ichunks]
+    def __init__(self, ichunks):
+        self.ichunks = ichunks
+
+    @property
+    def input(self):
+        return ['%s/%s/' % (ichunk, self.method) for ichunk in self.ichunks]
+
+    @staticmethod
+    def map_reader(fd, size, fname):
+        return fd
 
     @staticmethod
     def map(entry, params):
         return [(None, entry)]
 
+class KeyIterator(DiscoDBIterator):
+    @staticmethod
+    def reduce(iterator, out, params):
+        for v in set(v for k, v in iterator):
+            out.add(None, v)
+
+class ValuesIterator(DiscoDBIterator):
+    method = 'values'
+
 class Queryer(DiscoDBIterator):
     def __init__(self, ichunks, query):
-        query_path = query.urlformat()
-        self.input = ['%s/query/%s' % (ichunk, query_path) for ichunk in ichunks]
+        super(Queryer, self).__init__(ichunks)
+        self.query_path = query.urlformat()
+
+    @property
+    def input(self):
+        return ['%s/query/%s' % (ichunk, self.query_path) for ichunk in self.ichunks]
 
 class Record(object):
     __slots__ = ('fields', 'fieldnames')

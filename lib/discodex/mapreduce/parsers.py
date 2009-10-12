@@ -9,4 +9,4 @@ def demux(record, params):
 
 def balance(key, nr_reduces, params):
     params.n += 1
-    return nr_reduces % params.n
+    return params.n % nr_reduces

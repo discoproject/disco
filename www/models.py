@@ -10,7 +10,7 @@ from restapi.resource import (HttpResponseAccepted,
                               HttpResponseServiceUnavailable)
 
 from discodex import settings
-from discodex.mapreduce import Indexer, Queryer, DiscoDBIterator, parsers
+from discodex.mapreduce import Indexer, Queryer, KeyIterator, ValuesIterator, parsers
 from discodex.objects import DataSet, Indices, Index, Keys, Values
 
 from disco.core import Disco
@@ -152,14 +152,13 @@ class IndexResource(Collection):
 
 class DiscoDBResource(Resource):
     result_type = Keys
-    discodb_method = 'keys'
 
     def __init__(self, index):
         self.index = index
 
     @property
     def job(self):
-        return DiscoDBIterator(self.index.ichunks, self.discodb_method)
+        return KeyIterator(self.index.ichunks)
 
     def read(self, request, *args, **kwargs):
         try:
@@ -182,7 +181,10 @@ class KeysResource(DiscoDBResource):
 
 class ValuesResource(DiscoDBResource):
     result_type = Values
-    discodb_method = 'values'
+
+    @property
+    def job(self):
+        return ValuesIterator(self.index.ichunks)
 
 class QueryCollection(Collection):
     def __init__(self, index):
