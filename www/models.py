@@ -113,7 +113,7 @@ class IndexResource(Collection):
 
             if status == OK:
                 ichunks = list(flatten(parse_dir(result) for result in results))
-                self.write(Index(ichunks=ichunks))
+                self.write(Index(id=self.name, ichunks=ichunks))
                 disco_master.clean(self.name)
             return status
         return NOT_FOUND

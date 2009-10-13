@@ -41,7 +41,7 @@ def main():
                              default='rawparse',
                              help='parser object to use for indexing')
     option_parser.add_option('--demuxer',
-                             default='namedfielddemux',
+                             default='nodemux',
                              help='demuxer object to user for indexing')
     option_parser.add_option('--balancer',
                              default='nchunksbalance',
@@ -80,7 +80,7 @@ def main():
         from discodex.server import djangoscgi
         receiver = djangoscgi(discodex_settings)
     else:
-        raise Exception('Unrecognized command: %s' % command)
+        raise NameError('Unrecognized command: %s' % command)
 
     for message in receiver.send(command, *sys.argv[1:]):
         print(message)

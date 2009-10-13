@@ -1,5 +1,36 @@
 from .. import module
 
-@module(__name__)
+demuxer = module(__name__)
+
+@demuxer
+def nodemux(kvrecord, params):
+    yield kvrecord
+
+@demuxer
 def namedfielddemux(record, params):
-    return zip(record.fieldnames, record.fields)
+    """
+    Produce (fieldname, value) pairs for a record.
+
+    Can be used to produce an index of all the possible values of each namedfield.
+    """
+    return iter(record)
+
+@demuxer
+def inverteddemux(record, params):
+    """
+    Produce ('fieldname:value', record) pairs for a record.
+
+    Can be used to produce an inverted index.
+    """
+    for item in record:
+        yield '%s:%s' % item, record
+
+@demuxer
+def invertediddemux(record, params):
+    """
+    Produce ('fieldname:value', id) pairs for a record.
+
+    Can be used to produce an inverted index when records contain a field named 'id'.
+    """
+    for item in record:
+        yield '%s:%s' % item, record.id

@@ -97,16 +97,19 @@ class DiscoDBIterator(DiscodexJob):
     def map(entry, params):
         return [(None, entry)]
 
-class KeyIterator(DiscoDBIterator):
+class DiscoDBSetIterator(DiscoDBIterator):
     @staticmethod
     def reduce(iterator, out, params):
         for v in set(v for k, v in iterator):
             out.add(None, v)
 
+class KeyIterator(DiscoDBSetIterator):
+    pass
+
 class ValuesIterator(DiscoDBIterator):
     method = 'values'
 
-class Queryer(DiscoDBIterator):
+class Queryer(DiscoDBSetIterator):
     def __init__(self, ichunks, query):
         super(Queryer, self).__init__(ichunks)
         self.query_path = query.urlformat()
@@ -133,6 +136,10 @@ class Record(object):
 
     def __getitem__(self, index):
         return self.fields[index]
+
+    def __iter__(self):
+        from itertools import izip
+        return izip(self.fieldnames, self.fields)
 
     def __repr__(self):
         return 'Record(%s)' % ', '.join('%s=%r' % (n, f) if n else '%r' % f
