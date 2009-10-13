@@ -1,6 +1,6 @@
 from .. import module
 
-@module(__package__)
+@module(__name__)
 def rawparse(iterable, size, fname):
     from discodex.mapreduce import Record
     for line in iterable:

@@ -47,6 +47,8 @@ class IndexCollection(Collection):
         dataset = DataSet.loads(request.raw_post_data)
         try:
             job = Indexer(dataset).run(disco_master, disco_prefix)
+        except ImportError, e:
+            return HttpResponseServerError("Callable object not found: %s" % e)
         except DiscoError, e:
             return HttpResponseServerError("Failed to run indexing job: %s" % e)
         return HttpResponseAccepted(job.name)

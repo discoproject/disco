@@ -1,5 +1,5 @@
 from .. import module
 
-@module(__package__)
+@module(__name__)
 def namedfielddemux(record, params):
     return zip(record.fieldnames, record.fields)
