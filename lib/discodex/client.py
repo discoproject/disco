@@ -16,7 +16,8 @@ class DiscodexServerError(DiscodexError):
     pass
 
 class DiscodexClient(object):
-    def __init__(self, host, port):
+    def __init__(self, options, host, port):
+        self.options = options
         self.host = host
         self.port = port
 
@@ -80,7 +81,10 @@ class CommandLineClient(DiscodexClient):
         return super(CommandLineClient, self).put(indexspec, index)
 
     def index(self, *args):
-        dataset = DataSet(input=[line.strip() for line in fileinput.input(args)])
+        dataset = DataSet(parser=self.options.parser,
+                          demuxer=self.options.demuxer,
+                          balancer=self.options.balancer,
+                          input=[line.strip() for line in fileinput.input(args)])
         return super(CommandLineClient, self).index(dataset)
 
     def query(self, indexspec, *args):

@@ -37,6 +37,15 @@ def main():
                              help='host that the client should connect to')
     option_parser.add_option('-P', '--port',
                              help='port that the client should connect to')
+    option_parser.add_option('--parser',
+                             default='discodex.mapreduce.parsers.rawparse',
+                             help='parser object to use for indexing')
+    option_parser.add_option('--demuxer',
+                             default='discodex.mapreduce.demuxers.namedfielddemux',
+                             help='demuxer object to user for indexing')
+    option_parser.add_option('--balancer',
+                             default='discodex.mapreduce.balancers.nchunksbalance',
+                             help='balancer to use for indexing')
     options, sys.argv = option_parser.parse_args()
 
     if options.settings:
@@ -64,7 +73,8 @@ def main():
 
     if command in commands['client']:
         from discodex.client import CommandLineClient
-        receiver = CommandLineClient(options.host or discodex_settings['DISCODEX_HTTP_HOST'],
+        receiver = CommandLineClient(options,
+                                     options.host or discodex_settings['DISCODEX_HTTP_HOST'],
                                      options.port or discodex_settings['DISCODEX_HTTP_PORT'])
     elif command in commands['server']:
         from discodex.server import djangoscgi

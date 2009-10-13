@@ -10,7 +10,7 @@ from restapi.resource import (HttpResponseAccepted,
                               HttpResponseServiceUnavailable)
 
 from discodex import settings
-from discodex.mapreduce import Indexer, Queryer, KeyIterator, ValuesIterator, parsers
+from discodex.mapreduce import Indexer, Queryer, KeyIterator, ValuesIterator
 from discodex.objects import DataSet, Indices, Index, Keys, Values
 
 from disco.core import Disco
@@ -46,8 +46,7 @@ class IndexCollection(Collection):
     def create(self, request, *args, **kwargs):
         dataset = DataSet.loads(request.raw_post_data)
         try:
-            job = Indexer(dataset.input, parsers.parse, parsers.demux, parsers.balance, dataset.nr_ichunks)
-            job.run(disco_master, disco_prefix)
+            job = Indexer(dataset).run(disco_master, disco_prefix)
         except DiscoError, e:
             return HttpResponseServerError("Failed to run indexing job: %s" % e)
         return HttpResponseAccepted(job.name)
@@ -129,6 +128,8 @@ class IndexResource(Collection):
 
     def update(self, request, *args, **kwargs):
         index = Index.loads(request.raw_post_data)
+        if self.isdisco:
+            disco_master.purge(self.name)
         self.write(index)
         return HttpResponseCreated(self.url)
 
@@ -162,8 +163,7 @@ class DiscoDBResource(Resource):
 
     def read(self, request, *args, **kwargs):
         try:
-            job = self.job
-            job.run(disco_master, disco_prefix)
+            job = self.job.run(disco_master, disco_prefix)
         except DiscoError, e:
             return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
 

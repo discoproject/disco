@@ -1,4 +1,7 @@
+import sys
+
 from django.utils import simplejson as json
+from discodex.mapreduce import parsers, demuxers, balancers
 
 class JSONSerialized(object):
     @classmethod
@@ -16,6 +19,21 @@ class DataSet(dict, JSONSerialized):
     @property
     def input(self):
         return [str(input) for input in self['input']]
+
+    @property
+    def parser(self):
+        __import__(self['parser'])
+        return sys.modules[self['parser']]
+
+    @property
+    def demuxer(self):
+        __import__(self['demuxer'])
+        return sys.modules[self['demuxer']]
+
+    @property
+    def balancer(self):
+        __import__(self['balancer'])
+        return sys.modules[self['balancer']]
 
 class Indices(list, JSONSerialized):
     pass

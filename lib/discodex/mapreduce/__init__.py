@@ -1,6 +1,13 @@
 from disco import func
 from disco.core import result_iterator, Params
 
+def module(package):
+    def module(object):
+        import sys
+        sys.modules['%s.%s' % (package, object.__name__)] = object
+        return object
+    return module
+
 class DiscodexJob(object):
     map_reader           = staticmethod(func.map_line_reader)
     map_writer           = staticmethod(func.netstr_writer)
@@ -48,17 +55,18 @@ class DiscodexJob(object):
                             'nr_reduces':    self.nr_reduces})
 
         self._job = disco_master.new_job(**jobargs)
+        return self
 
 class Indexer(DiscodexJob):
     sort = True
 
-    def __init__(self, data, parser, demuxer, balancer, nr_ichunks):
-        self.input = data
-        self.map_reader = parser
-        self.map = demuxer
-        self.partition = balancer
-        self.nr_reduces = nr_ichunks
-        self.params = Params(n=0)
+    def __init__(self, dataset):
+        self.input      = dataset.input
+        self.map_reader = dataset.parser
+        self.map        = dataset.demuxer
+        self.partition  = dataset.balancer
+        self.nr_reduces = dataset.nr_ichunks
+        self.params     = Params(n=0)
 
     @staticmethod
     def reduce(iterator, out, params):
