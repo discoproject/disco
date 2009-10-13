@@ -38,13 +38,13 @@ def main():
     option_parser.add_option('-P', '--port',
                              help='port that the client should connect to')
     option_parser.add_option('--parser',
-                             default='discodex.mapreduce.parsers.rawparse',
+                             default='rawparse',
                              help='parser object to use for indexing')
     option_parser.add_option('--demuxer',
-                             default='discodex.mapreduce.demuxers.namedfielddemux',
+                             default='namedfielddemux',
                              help='demuxer object to user for indexing')
     option_parser.add_option('--balancer',
-                             default='discodex.mapreduce.balancers.nchunksbalance',
+                             default='nchunksbalance',
                              help='balancer to use for indexing')
     options, sys.argv = option_parser.parse_args()
 

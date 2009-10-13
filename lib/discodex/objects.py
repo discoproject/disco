@@ -22,18 +22,21 @@ class DataSet(dict, JSONSerialized):
 
     @property
     def parser(self):
-        __import__(self['parser'])
-        return sys.modules[self['parser']]
+        return self.__getcallable__(parsers, self['parser'])
 
     @property
     def demuxer(self):
-        __import__(self['demuxer'])
-        return sys.modules[self['demuxer']]
+        return self.__getcallable__(demuxers, self['demuxer'])
 
     @property
     def balancer(self):
-        __import__(self['balancer'])
-        return sys.modules[self['balancer']]
+        return self.__getcallable__(balancers, self['balancer'])
+
+    def __getcallable__(self, module, name):
+        if hasattr(module, name):
+            return getattr(module, name)
+        __import__(name)
+        return sys.modules[name]
 
 class Indices(list, JSONSerialized):
     pass
