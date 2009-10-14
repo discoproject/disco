@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+
+import sys
+from disco import util
+
+if len(sys.argv) < 3:
+        print "Usage: disco_testset [result-address-file] [n]"
+        sys.exit(1)
+
+n = int(sys.argv[2])
+
+num = 0
+inputs = []
+for l in file(sys.argv[1]):
+        m = util.parse_dir(l.strip())
+        num += len(m)
+        inputs.append(m)
+
+n = min(n, num)
+
+r = []
+while len(r) < n:
+        for m in inputs:
+                if m:
+                        r.append(m.pop())
+                        if len(r) == n:
+                                break
+
+print "\n".join(r)
+
