@@ -73,9 +73,9 @@ def main():
 
     if command in commands['client']:
         from discodex.client import CommandLineClient
-        receiver = CommandLineClient(options,
-                                     options.host or discodex_settings['DISCODEX_HTTP_HOST'],
-                                     options.port or discodex_settings['DISCODEX_HTTP_PORT'])
+        receiver = CommandLineClient(options.host or discodex_settings['DISCODEX_HTTP_HOST'],
+                                     options.port or discodex_settings['DISCODEX_HTTP_PORT'],
+                                     options)
     elif command in commands['server']:
         from discodex.server import djangoscgi
         receiver = djangoscgi(discodex_settings)

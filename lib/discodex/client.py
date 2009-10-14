@@ -16,10 +16,10 @@ class DiscodexServerError(DiscodexError):
     pass
 
 class DiscodexClient(object):
-    def __init__(self, options, host, port):
-        self.options = options
+    def __init__(self, host, port, options=None):
         self.host = host
         self.port = port
+        self.options = options
 
     @property
     def netloc(self):
@@ -86,6 +86,11 @@ class CommandLineClient(DiscodexClient):
                           balancer=self.options.balancer,
                           input=[line.strip() for line in fileinput.input(args)])
         return super(CommandLineClient, self).index(dataset)
+
+    def clone(self, indexaspec, indexbspec):
+        index = self.get(indexaspec)
+        index['origin'] = self.indexurl(indexaspec)
+        super(CommandLineClient, self).put(indexbspec, index)
 
     def query(self, indexspec, *args):
         query = Q.scan(' '.join(args), and_op=' ', or_op=',')
