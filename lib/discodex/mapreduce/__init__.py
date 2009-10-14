@@ -9,6 +9,7 @@ def module(package):
     return module
 
 class DiscodexJob(object):
+    map_input_stream     = staticmethod(func.map_input_stream)
     map_reader           = staticmethod(func.map_line_reader)
     map_writer           = staticmethod(func.netstr_writer)
     params               = Params()
@@ -39,6 +40,7 @@ class DiscodexJob(object):
         jobargs = {'name':             disco_prefix,
                    'input':            self.input,
                    'map':              self.map,
+                   'map_input_stream': self.map_input_stream,
                    'map_reader':       self.map_reader,
                    'map_writer':       self.map_writer,
                    'params':           self.params,
@@ -67,6 +69,12 @@ class Indexer(DiscodexJob):
         self.partition  = dataset.balancer
         self.nr_reduces = dataset.nr_ichunks
         self.params     = Params(n=0)
+
+
+    def map_input_stream(stream, size, url, params):
+        from disco import func
+        return func.map_line_reader(stream, size, url), size, url
+    map_input_stream = [func.map_input_stream, map_input_stream]
 
     @staticmethod
     def reduce(iterator, out, params):
