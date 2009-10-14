@@ -10,13 +10,25 @@ def rawparse(iterable, size, fname):
                 yield kv.split(':', 1)
 
 @parser
+def netstrparse(iterable, size, fname):
+    from disco import func
+    return func.netstr_reader(iterable, size, fname)
+
+@parser
 def recordparse(iterable, size, fname):
     from discodex.mapreduce import Record
     for line in iterable:
         yield Record(*line.split())
 
 @parser
+def csvrecordparse(iterable, size, fname):
+    from discodex.mapreduce import Record
+    for line in iterable:
+        yield Record(*line.split(','))
+
+@parser
 def enumfieldparse(iterable, size, fname):
     from discodex.mapreduce import Record
     for line in iterable:
         yield Record(**dict((str(n), f) for n, f in enumerate(line.split())))
+
