@@ -70,12 +70,6 @@ class Indexer(DiscodexJob):
         self.nr_reduces = dataset.nr_ichunks
         self.params     = Params(n=0)
 
-
-    def map_input_stream(stream, size, url, params):
-        from disco import func
-        return func.map_line_reader(stream, size, url), size, url
-    map_input_stream = [func.map_input_stream, map_input_stream]
-
     @staticmethod
     def reduce(iterator, out, params):
         # there should be a discodb writer of some sort

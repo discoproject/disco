@@ -2,6 +2,15 @@ from .. import module
 
 parser = module(__name__)
 
+# XXX: map_reader / map_input_stream interface changes will affect this code
+#
+# map_input_stream needs to guarantee iterables for these to work, thus something like:
+#
+#     def map_input_stream(stream, size, url, params):
+#         from disco import func
+#         return func.map_line_reader(stream, size, url), size, url
+#     map_input_stream = [func.map_input_stream, map_input_stream]
+
 @parser
 def rawparse(iterable, size, fname):
     for line in iterable:
@@ -10,9 +19,9 @@ def rawparse(iterable, size, fname):
                 yield kv.split(':', 1)
 
 @parser
-def netstrparse(iterable, size, fname):
+def netstrparse(fd, size, fname):
     from disco import func
-    return func.netstr_reader(iterable, size, fname)
+    return func.netstr_reader(fd, size, fname)
 
 @parser
 def recordparse(iterable, size, fname):
