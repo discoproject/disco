@@ -91,7 +91,9 @@ class DiscoDBIterator(DiscodexJob):
 
     @staticmethod
     def map_reader(fd, size, fname):
-        return fd
+        if hasattr(fd, '__iter__'):
+            return fd
+        return func.map_line_reader(fd, size, fname)
 
     @staticmethod
     def map(entry, params):
