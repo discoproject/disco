@@ -40,6 +40,10 @@ class DataSet(dict, JSONSerialized):
         return self.__getcallable__(balancers, self['options']['balancer'])
 
     @property
+    def profile(self):
+        return not bool(self['options']['profile'])
+
+    @property
     def sort(self):
         return not bool(self['options']['no_sort'])
 

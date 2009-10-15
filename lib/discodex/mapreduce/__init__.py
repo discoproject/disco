@@ -14,6 +14,7 @@ class DiscodexJob(object):
     map_writer           = staticmethod(func.netstr_writer)
     params               = Params()
     partition            = staticmethod(func.default_partition)
+    profile              = False
     reduce               = None
     reduce_reader        = staticmethod(func.netstr_reader)
     reduce_writer        = staticmethod(func.netstr_writer)
@@ -45,6 +46,7 @@ class DiscodexJob(object):
                    'map_writer':       self.map_writer,
                    'params':           self.params,
                    'partition':        self.partition,
+                   'profile':          self.profile,
                    'required_modules': self.required_modules,
                    'scheduler':        self.scheduler,
                    'sort':             self.sort}
@@ -65,6 +67,7 @@ class Indexer(DiscodexJob):
         self.map_reader = dataset.parser
         self.map        = dataset.demuxer
         self.partition  = dataset.balancer
+        self.profile    = dataset.profile
         self.nr_reduces = dataset.nr_ichunks
         self.sort       = dataset.sort
         self.params     = Params(n=0)

@@ -70,6 +70,9 @@ def main():
     option_parser.add_option('--balancer',
                              default='nchunksbalance',
                              help='balancer to use for indexing')
+    option_parser.add_option('--profile',
+                             action='store_true',
+                             help='turn on job profiling')
     option_parser.add_option('--nr-ichunks',
                              default='8',
                              help='the number of ichunks to create')
