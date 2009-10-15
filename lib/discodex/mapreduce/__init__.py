@@ -101,19 +101,13 @@ class DiscoDBIterator(DiscodexJob):
     def map(entry, params):
         return [(None, entry)]
 
-class DiscoDBSetIterator(DiscoDBIterator):
-    @staticmethod
-    def reduce(iterator, out, params):
-        for v in set(v for k, v in iterator):
-            out.add(None, v)
-
-class KeyIterator(DiscoDBSetIterator):
+class KeyIterator(DiscoDBIterator):
     pass
 
 class ValuesIterator(DiscoDBIterator):
     method = 'values'
 
-class Queryer(DiscoDBSetIterator):
+class Queryer(DiscoDBIterator):
     def __init__(self, ichunks, query):
         super(Queryer, self).__init__(ichunks)
         self.query_path = query.urlformat()
