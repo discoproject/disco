@@ -60,15 +60,19 @@ class DiscodexJob(object):
         return self
 
 class Indexer(DiscodexJob):
-    sort = True
-
     def __init__(self, dataset):
         self.input      = dataset.input
         self.map_reader = dataset.parser
         self.map        = dataset.demuxer
         self.partition  = dataset.balancer
         self.nr_reduces = dataset.nr_ichunks
+        self.sort       = dataset.sort
         self.params     = Params(n=0)
+
+        if dataset.k_viter:
+            from discodex.mapreduce import demuxers
+            self.sort = False
+            self.map  = demuxers.iterdemux
 
     @staticmethod
     def reduce(iterator, out, params):

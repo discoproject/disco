@@ -46,6 +46,12 @@ def main():
     option_parser.add_option('--balancer',
                              default='nchunksbalance',
                              help='balancer to use for indexing')
+    option_parser.add_option('--no-sort',
+                             action='store_true',
+                             help='whether or not to sort before writing discodbs')
+    option_parser.add_option('--k-viter',
+                             action='store_true',
+                             help='treat the dataset as a precomputed k-viter list')
     options, sys.argv = option_parser.parse_args()
 
     if options.settings:

@@ -7,6 +7,12 @@ def nodemux(kvrecord, params):
     yield kvrecord
 
 @demuxer
+def iterdemux(k_viter, params):
+    k, viter = k_viter
+    for v in viter:
+        yield k, v
+
+@demuxer
 def namedfielddemux(record, params):
     """
     Produce (fieldname, value) pairs for a record.
