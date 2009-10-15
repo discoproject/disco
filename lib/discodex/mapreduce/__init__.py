@@ -119,7 +119,7 @@ class Queryer(DiscoDBIterator):
 
     def __init__(self, ichunks, query):
         super(Queryer, self).__init__(ichunks)
-        self.params = Params(discodb_query=query.urlformat())
+        self.params = Params(discodb_query=query)
 
 class Record(object):
     __slots__ = ('fields', 'fieldnames')
