@@ -24,7 +24,31 @@ def main():
     DISCODEX_BIN  = os.path.dirname(os.path.realpath(__file__))
     DISCODEX_HOME = os.path.dirname(DISCODEX_BIN)
 
-    option_parser = optparse.OptionParser()
+    option_parser = optparse.OptionParser(usage="""
+    client commands:
+    ----------------
+    discodex list
+    discodex get <indexspec>
+    discodex put <indexspec> [index]
+    discodex delete <indexspec>
+    discodex index [options] <indexspec> [dataset]
+    discodex clone <indexspec> <indexspec>
+    discodex keys <indexspec>
+    discodex values <indexspec>
+    discodex query <indexspec> [query]
+
+    <indexspec> is the full URI to an index, or the name of an index on --host and --port.
+    [index] is a file or list of files containing a list of ichunk URIs, or read from stdin
+    [dataset] is a file or list of list of files containing data input URIs, or read from stdin
+    [query] is a query in CNF form: ','-separated literals, ' '-separated clauses a,b c == (a or b) and c
+
+    server commands:
+    ----------------
+    discodex status
+    discodex stop
+    discodex start
+    discodex restart
+    """)
     option_parser.add_option('-s', '--settings',
                              help='use settings file settings')
     option_parser.add_option('-v', '--verbose',
