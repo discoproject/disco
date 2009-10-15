@@ -3,7 +3,7 @@ import fileinput, httplib, urllib, urlparse
 from discodb import Q
 
 from core import DiscodexError
-from objects import json, DataSet, Indices, Index, Keys, Values
+from objects import json, DataSet, Indices, Index, Keys, Values, Query
 
 class ResourceNotFound(DiscodexError):
     pass
@@ -72,8 +72,8 @@ class DiscodexClient(object):
         return Values.loads(self.request('GET', '%s/values' % self.indexurl(indexspec)).read())
 
     def query(self, indexspec, query):
-        query_path = query.urlformat()
-        return Values.loads(self.request('GET', '%s/query/%s' % (self.indexurl(indexspec), query_path)).read())
+        query = Query(query_path=query.urlformat())
+        return Values.loads(self.request('POST', '%s/query/' % self.indexurl(indexspec), query.dumps()).read())
 
 class CommandLineClient(DiscodexClient):
     def put(self, indexspec, *args):

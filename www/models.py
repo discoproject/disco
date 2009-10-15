@@ -11,7 +11,7 @@ from restapi.resource import (HttpResponseAccepted,
 
 from discodex import settings
 from discodex.mapreduce import Indexer, Queryer, KeyIterator, ValuesIterator
-from discodex.objects import DataSet, Indices, Index, Keys, Values
+from discodex.objects import DataSet, Indices, Index, Keys, Values, Query
 
 from disco.core import Disco
 from disco.error import DiscoError
@@ -189,6 +189,8 @@ class ValuesResource(DiscoDBResource):
         return ValuesIterator(self.index.ichunks)
 
 class QueryCollection(Collection):
+    allowed_methods = ('GET', 'POST')
+
     def __init__(self, index):
         self.index = index
 
@@ -198,6 +200,10 @@ class QueryCollection(Collection):
 
     def read(self, request, *args, **kwargs):
         return HttpResponse(Values().dumps())
+
+    def create(self, request, *args, **kwargs):
+        query = Query.loads(request.raw_post_data)
+        return QueryResource(self.index, query['query_path']).read(request, *args, **kwargs)
 
 class QueryResource(DiscoDBResource):
     result_type = Values
