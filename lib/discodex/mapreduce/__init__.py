@@ -112,13 +112,11 @@ class ValuesIterator(DiscoDBIterator):
     method = 'values'
 
 class Queryer(DiscoDBIterator):
+    method = 'query'
+
     def __init__(self, ichunks, query):
         super(Queryer, self).__init__(ichunks)
-        self.query_path = query.urlformat()
-
-    @property
-    def input(self):
-        return ['%s/query/%s' % (ichunk, self.query_path) for ichunk in self.ichunks]
+        self.params = Params(discodb_query=query.urlformat())
 
 class Record(object):
     __slots__ = ('fields', 'fieldnames')

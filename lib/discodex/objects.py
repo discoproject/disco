@@ -6,7 +6,7 @@ except ImportError:
     try:
         from django.utils import simplejson as json
     except ImportError:
-        from disco.util import json
+        from disco.comm import json
 
 from discodex.mapreduce import parsers, demuxers, balancers
 
