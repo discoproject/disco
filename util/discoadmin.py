@@ -1,6 +1,6 @@
 
 import sys
-from disco import Disco
+from disco.core import Disco
 
 OK_STATUS = ['job_ready', 'job_died']
 
