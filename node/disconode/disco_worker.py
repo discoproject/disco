@@ -230,6 +230,8 @@ class ReduceReader(object):
                                                 % input, input)
                         else:
                                 self.inputs.append(input)
+                
+                random.shuffle(self.inputs)
 
                 self.line_count = 0
                 if do_sort:
