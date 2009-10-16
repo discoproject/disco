@@ -254,8 +254,8 @@ handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
 
 handle_info({_, {exit_status, _Status}}, S) ->
         M =  "Worker failed. Last words:\n" ++ errlines(S),
-        event(S, "ERROR", M),
-        {stop, worker_exit(S, {job_error, M}), S};
+        event(S, "WARN", M),
+        {stop, worker_exit(S, {data_error, M}), S};
         
 handle_info({_, closed}, S) ->
         {stop, worker_exit(S, {job_error, "Worker killed"}), S};
