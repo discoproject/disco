@@ -87,8 +87,10 @@ find_values(Msg) ->
                 nr_reduce = NumRed,
                 inputs = Inputs,
                 max_cores = MaxCores,
-                map = field_exists(Msg, <<"map">>) or field_exists(Msg, <<"ext_map">>),
-                reduce = field_exists(Msg, <<"reduce">>),
+                map = field_exists(Msg, <<"map">>)
+                        or field_exists(Msg, <<"ext_map">>),
+                reduce = field_exists(Msg, <<"reduce">>)
+                        or field_exists(Msg, <<"ext_reduce">>),
                 force_local = field_exists(Msg, <<"sched_force_local">>),
                 force_remote = field_exists(Msg, <<"sched_force_remote">>)
         }}.
