@@ -78,8 +78,8 @@ if __name__ == "__main__":
         try:
                 run(method, mode, part, m)
         except comm.CommException, x:
-                util.data_err("HTTP error: %s" % x)
+                util.data_err("HTTP error: %s" % x, "")
         except IOError, x:
-                util.data_err("IO error: %s" % x)
+                util.data_err("IO error: %s" % x, "")
         
         util.msg("Worker done", "END")

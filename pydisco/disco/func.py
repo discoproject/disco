@@ -16,9 +16,9 @@ def netstr_reader(fd, content_len, fname):
 
                 i = data.find(" ", idx, idx + 11)
                 if i == -1:
-                        err("Corrupted input (%s). Could not "\
+                        data_err("Corrupted input (%s). Could not "\
                                "parse a value length at %d bytes."\
-                                        % (fname, tot))
+                                        % (fname, tot), fname)
                 else:
                         lenstr = data[idx:i + 1]
                         idx = i + 1
@@ -31,9 +31,9 @@ def netstr_reader(fd, content_len, fname):
                 try:
                         llen = int(lenstr)
                 except ValueError:
-                        err("Corrupted input (%s). Could not "\
+                        data_err("Corrupted input (%s). Could not "\
                                 "parse a value length at %d bytes."\
-                                        % (fname, tot))
+                                        % (fname, tot), fname)
 
                 tot += len(lenstr)
 
