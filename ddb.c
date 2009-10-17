@@ -217,9 +217,13 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
                 /* hash exists, perform O(1) lookup */
                 uint32_t id = cmph_search_packed((void*)db->hash,
                         key->data, key->length);
-                ddb_fetch_item(id, db->toc, db->data,
+                /* XXX Bug in cmph? It seems to sometimes return 
+                 * IDs that were never hashed with it if given an 
+                 * unknown key. This shouldn't happen. */
+                if (id < db->num_keys)
+                    ddb_fetch_item(id, db->toc, db->data,
                         &c->ent, &c->cursor.value);
-                if (!key_matches(c)){
+                if (id >= db->num_keys || !key_matches(c)){
                         c->cursor.value.num_left = 0;
                         c->next = empty_next;
                         return c;
