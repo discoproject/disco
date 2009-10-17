@@ -260,8 +260,13 @@ process_exit1({_, {Node, T}}, Pid, Msg, Code, S) ->
         {noreply, S}.
 
 handle_info({'EXIT', Pid, normal}, S) ->
-        error_logger:warning_report({"Task failed to call exit_worker", Pid}),
-        process_exit(Pid, "Died unexpectedly without a reason", "unexpected", S);
+        case gb_trees:lookup(Pid, S#state.workers) of
+                none -> {noreply, S};
+                _ -> error_logger:warning_report(
+                        {"Task failed to call exit_worker", Pid}),
+                     process_exit(Pid, "Died unexpectedly without a reason",
+                        "unexpected", S);
+        end;
         
 handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
         process_exit(Pid, io_lib:fwrite(Msg, Args), "worker_dies", S);
@@ -275,7 +280,7 @@ handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
         {stop, stop_requested, S};
 
 handle_info({'EXIT', Pid, Reason}, S) ->
-        process_exit(Pid, io_lib:fwrite("Worked dired unexpectedly: ~p",
+        process_exit(Pid, io_lib:fwrite("Worked died unexpectedly: ~p",
                 [Reason]), "unexpected", S).
                 
 toggle_blacklist(Node, Nodes, IsBlacklisted) ->
