@@ -212,7 +212,7 @@ submit_task(Task) ->
                         event_server:event(Task#task.jobname,
                                 "ERROR: ~s:~B scheduling failed. "
                                 "Try again later.",
-                                [Task#task.mode, Task#task.taskid]),
+                                [Task#task.mode, Task#task.taskid], []),
                         throw(logged_error)
         end.
 
@@ -367,7 +367,7 @@ reduce_input(Name, Inputs, NRed) ->
         V = lists:any(fun erlang:is_list/1, Inputs),
         if V ->
                 event_server:event(Name,
-                        "ERROR: Reduce doesn't support redundant inputs"),
+                        "ERROR: Reduce doesn't support redundant inputs", [], []),
                 throw({error, "redundant inputs in reduce"});
         true -> ok
         end,
