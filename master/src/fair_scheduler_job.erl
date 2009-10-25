@@ -118,8 +118,8 @@ handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
 
 % Secondary task scheduling policy:
 % No local or remote tasks were found. Free nodes are available that have
-% no tasks assigned to them by any job. Pick a task from the longest queue
-% and assign it to a random free node. If ForceLocal, always fail.
+% no tasks assigned to them by any job. Pick a task from 
+% If ForceLocal, always fail.
 handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
         {Reply, UpdatedTasks} = pop_and_switch_node(Tasks, 
                 datalocal_nodes(Tasks, gb_trees:keys(Tasks)),
@@ -156,8 +156,11 @@ schedule_local(Tasks, AvailableNodes) ->
                                         AvailableNodes)
                         end;
                 % Local tasks found. Choose an AvailableNode that has the
-                % longest queue of tasks waiting. Pick the first task from it.
-                Nodes -> pop_busiest_node(Tasks, Nodes)
+                % least number of tasks already running, that is, the first 
+                % item in the list. Pick the first task from the chosen node.
+                [Node|_] ->
+                        {N, [Task|R]} = gb_trees:get(Node, Tasks),
+                        {{run, Node, Task}, gb_trees:update(Node, {N - 1, R}, Tasks)}
         end.
 
 pop_and_switch_node(Tasks, _, []) -> {nonodes, Tasks};
@@ -190,10 +193,6 @@ pop_busiest_node(Tasks, Nodes) ->
                 [{gb_trees:get(Node, Tasks), Node} || Node <- Nodes]),
         {{run, MaxNode, Task}, gb_trees:update(MaxNode, {N - 1, R}, Tasks)}.
 
-% Pick a target node randomly from the list of available nodes
-random_node(Nodes) ->
-        lists:nth(random:uniform(length(Nodes)), Nodes).
-
 % Given a task, choose a node from AvailableNodes
 % 1) that is not in the taskblack list
 % 2) that doesn't contain any input of the task, if force_remote == true
@@ -205,9 +204,9 @@ choose_node(Task, AvailableNodes) ->
                 NB when Task#task.force_remote ->
                         case NB -- [N || {_, N} <- Task#task.input] of
                                 [] -> false;
-                                Nodes -> {ok, random_node(Nodes)}
+                                [Node|_] -> {ok, Node}
                         end;
-                Nodes -> {ok, random_node(Nodes)}
+                [Node|_] -> {ok, Node}
         end.
 
 % Pop the first task in Nodes that can be run
