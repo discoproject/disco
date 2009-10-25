@@ -372,13 +372,10 @@ reduce_input(Name, Inputs, NRed) ->
         true -> ok
         end,
         B = << <<"'", X/binary, "' ">> || X <- Inputs >>,
-
-        % TODO: We could prioritize preferences according to partition sizes.
-        N = length(Inputs),
-        D = dict:from_list(lists:zip(lists:seq(1, N),
-                [pref_node(X) || X <- Inputs])),
-        [{X, [{B, dict:fetch(random:uniform(N), D)}]} ||
-                X <- lists:seq(0, NRed - 1)].
+        U = lists:usort([pref_node(X) || X <- Inputs]),
+        N = length(U),
+        D = dict:from_list(lists:zip(lists:seq(0, N - 1), U)),
+        [{X, [{B, dict:fetch(X rem N, D)}]} || X <- lists:seq(0, NRed - 1)].
 
 % pref_node() suggests a preferred node for a task (one preserving locality)
 % given the url of its input.
