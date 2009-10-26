@@ -265,7 +265,7 @@ handle_info({'EXIT', Pid, normal}, S) ->
                 _ -> error_logger:warning_report(
                         {"Task failed to call exit_worker", Pid}),
                      process_exit(Pid, "Died unexpectedly without a reason",
-                        "unexpected", S);
+                        "unexpected", S)
         end;
         
 handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->

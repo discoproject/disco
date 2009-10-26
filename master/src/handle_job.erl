@@ -218,13 +218,13 @@ wait_workers(N, Results, Name, Mode) ->
         end.
 
 submit_task(Task) ->
-        case catch gen_server:call(disco_server, {new_task, Task}) of
+        case catch gen_server:call(disco_server, {new_task, Task}, 30000) of
                 ok -> ok;
                 _ -> 
                         event_server:event(Task#task.jobname, 
                                 "ERROR: ~s:~B scheduling failed. "
                                 "Try again later.",
-                                [Task#task.mode, Task#task.taskid]),
+                                [Task#task.mode, Task#task.taskid], []),
                         throw(logged_error)
         end.
 
@@ -234,7 +234,7 @@ submit_task(Task) ->
 % failing node in its blacklist. If a task fails too many times, as 
 % determined by check_failure_rate(), the whole job will be terminated.
 handle_data_error(Task, Node) ->
-        {ok, NumCores} = gen_server:call(disco_server, get_num_cores),
+        {ok, NumCores} = gen_server:call(disco_server, get_num_cores, 30000),
         check_failure_rate(Task#task.jobname, Task#task.taskid, Task#task.mode,
                 length(Task#task.taskblack), NumCores),
 
@@ -269,7 +269,7 @@ check_failure_rate(Name, TaskID, Mode, L, _) ->
 
 kill_job(Name, Msg, P, Type) ->
         event_server:event(Name, Msg, P, []),
-        gen_server:call(disco_server, {kill_job, Name}),
+        gen_server:call(disco_server, {kill_job, Name}, 30000),
         gen_server:cast(event_server, {job_done, Name}),
         exit(Type).
 
@@ -326,7 +326,7 @@ job_coordinator({Name, Inputs, NMap, NRed, DoReduce}) ->
         event_server:event(Name, "Starting job", [], 
                 {job_data, {NMap, NRed, DoReduce, Inputs}}),
 
-        case catch gen_server:call(disco_server, {new_job, Name, self()}) of
+        case catch gen_server:call(disco_server, {new_job, Name, self()}, 30000) of
                 ok -> ok;
                 R ->
                         event_server:event(Name,
