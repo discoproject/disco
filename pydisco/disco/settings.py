@@ -29,7 +29,7 @@ class TaskEnvironment(object):
         self.result_iterator = result_iterator
         self.home = "%s/%s/%s" % (host,
             hashlib.md5(job_name).hexdigest()[:2], job_name)
-        
+
         conf = DiscoSettings()
         self.root = conf["DISCO_ROOT"]
         self.port = conf["DISCO_PORT"]

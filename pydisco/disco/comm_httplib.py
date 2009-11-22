@@ -1,19 +1,9 @@
 import httplib, urllib2
 
+from disco.error import CommException
+
 MAX_RETRIES = 10
 http_pool = {}
-
-class CommException(Exception):
-        def __init__(self, msg, url = ""):
-                self.msg = msg
-                self.url = url
-
-        def __str__(self):
-                if self.url:
-                        return "HTTP exception (%s): %s" %\
-                                (self.url, self.msg)
-                else:
-                        return "HTTP exception: %s" % self.msg
 
 def download(url, data = None, redir = False, offset = 0):
         if redir:
@@ -27,9 +17,8 @@ def download(url, data = None, redir = False, offset = 0):
                 r = c.read()
                 c.close()
                 return r
-        else:
-                fd, sze, url = open_remote(url, data = data, offset = offset)
-                return fd.read()
+        fd, sze, url = open_remote(url, data = data, offset = offset)
+        return fd.read()
 
 
 def check_code(fd, expected, url):
