@@ -59,6 +59,7 @@ class DiscoTestCase(TestCase):
 class DiscoJobTestFixture(object):
         map_reader     = staticmethod(disco.func.map_line_reader)
         map_writer     = staticmethod(disco.func.netstr_writer)
+        profile        = False
         sort           = False
         mem_sort_limit = 256
         reduce         = None
@@ -73,8 +74,7 @@ class DiscoJobTestFixture(object):
 
         @property
         def disco_master_url(self):
-                return 'http://%s:%s' % (self.disco_settings['DISCO_MASTER_HOST'],
-                                         self.disco_settings['DISCO_PORT'])
+                return 'disco://%s' % self.disco_settings['DISCO_MASTER_HOST']
 
         @property
         def test_server_address(self):
@@ -102,6 +102,7 @@ class DiscoJobTestFixture(object):
                                    'map':            self.map,
                                    'map_reader':     self.map_reader,
                                    'map_writer':     self.map_writer,
+                                   'profile':        self.profile,
                                    'sort':           self.sort,
                                    'mem_sort_limit': self.mem_sort_limit}
 
