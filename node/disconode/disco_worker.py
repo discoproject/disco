@@ -8,7 +8,7 @@ from disconode import external
 import disco.comm, disco.settings, disco.func
 
 Task = None
-oob_chars = re.compile("[^a-zA-Z_\-:0-9]")
+oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
 status_interval = 0
 input_stream_stack = []
@@ -16,8 +16,7 @@ output_stream_stack = []
 
 def init(mode, host, master, job_name, id, inputs):
         global Task
-        Task = disco.settings.TaskEnvironment(\
-                mode, host, master, job_name, id, inputs)
+        Task = disco.settings.TaskEnvironment(mode, host, master, job_name, id, inputs)
 
 # Function stubs
 
@@ -69,16 +68,10 @@ def put(key, value):
         if value != None:
                 f = file(Task.path("OOB_FILE", key)[0], "w")
                 f.write(value)
-                f.close()
         print >> sys.stderr, "**<OOB>%s %s/oob/%s" % (key, Task.home, key)
 
-def get(key, job = None):
-        try:
-                job = job or Task.name
-                return load_oob("http://" + Task.master, job, key)
-        except disco.comm.CommException, x:
-                data_err("OOB key (%s) not found at %s: HTTP status '%s'" %\
-                        (key, url, x.http_code), key)
+def get(key, job=None):
+        return load_oob('http://%s' % Task.master, job or Task.name, key)
 
 def connect_input(url, params):
         fd = sze = None

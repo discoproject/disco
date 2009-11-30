@@ -184,7 +184,7 @@ class Job(object):
                     "combiner": None,
                     "nr_maps": None,
                     "scheduler": {},
-                    "nr_reduces": 0,
+                    "nr_reduces": 1,
                     "sort": False,
                     "params": Params(),
                     "mem_sort_limit": 256 * 1024**2,
@@ -368,8 +368,6 @@ class Job(object):
                 if 'reduce' in kwargs:
                         k = 'ext_reduce' if isinstance(kwargs['reduce'], dict) else 'reduce'
                         request[k] = util.pack(kwargs['reduce'])
-
-                        nr_reduces = nr_reduces or min(max(nr_maps / 2, 1), 100)
 
                         for function_name in ('reduce_reader', 'reduce_writer', 'reduce_init'):
                                 function = jobargs[function_name]
