@@ -30,6 +30,11 @@ class OOBTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
                 put(x, 'value:%s' % x)
                 out.add('all', 'ok')
 
+        @property
+        def input_2(self):
+                self.job_1.wait()
+                return self.inputs_2
+
         @staticmethod
         def map_2(e, params):
                 x = get(e, params.job)
