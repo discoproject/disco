@@ -2,8 +2,6 @@ from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.core import JobException
 from disco.util import urlsplit
 
-from unittest import expectedFailure
-
 class ForceLocalTestCase(DiscoJobTestFixture, DiscoTestCase):
         scheduler = {'force_local': True}
 
@@ -41,9 +39,11 @@ class ForceLocalTestCase(DiscoJobTestFixture, DiscoTestCase):
                 for result, answer in zip(sorted(self.answers), sorted(self.results)):
                         self.assertEquals(result, answer)
 
-@expectedFailure
 class ForceLocalNoNodeTestCase(ForceLocalTestCase):
         input = ['foobar://nonodenamedthishopefully_ifnotthistestwillfail']
+
+        def runTest(self):
+                self.assertRaises(JobException, self.job.wait)
 
 class ForceRemoteNoNodeTestCase(ForceLocalTestCase):
         input     = ['foobar://nonodenamedthishopefully_ifnotthistestwillfail']
