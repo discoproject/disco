@@ -87,6 +87,10 @@ class DiscoJobTestFixture(object):
                 return 'disco://%s' % self.disco_settings['DISCO_MASTER_HOST']
 
         @property
+        def disco(self):
+                return Disco(self.disco_master_url)
+
+        @property
         def test_server_address(self):
                 return (str(self.disco_settings['DISCO_TEST_HOST']),
                         int(self.disco_settings['DISCO_TEST_PORT']))
@@ -106,7 +110,6 @@ class DiscoJobTestFixture(object):
                 self.test_server = TestServer.create(self.test_server_address, self.getdata)
                 self.test_server.start()
                 try:
-                        self.disco = Disco(self.disco_master_url)
                         jobargs = {'name': self.__class__.__name__}
                         for jobarg in self.jobargs:
                                 if hasattr(self, jobarg):
@@ -156,7 +159,6 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
                                 setattr(self, 'input_%d' % n, self.input(m))
 
                         try:
-                                self.disco = Disco(self.disco_master_url)
                                 jobargs = {'name': '%s_%d' % (self.__class__.__name__, n)}
                                 for jobarg in self.jobargs:
                                         jobargname = '%s_%d' % (jobarg, n)

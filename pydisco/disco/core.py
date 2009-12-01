@@ -34,6 +34,16 @@ class Disco(object):
                 except CommException, e:
                         raise DiscoError("Got %s, make sure disco master is running at %s" % (e, self.host))
 
+        def get_config(self):
+                return json.loads(self.request('/disco/ctrl/load_config_table'))
+
+        def set_config(self, config):
+                response = json.loads(self.request('/disco/ctrl/save_config_table', json.dumps(config)))
+                if response != 'table saved!':
+                        raise DiscoError(response)
+
+        config = property(get_config, set_config)
+
         def nodeinfo(self):
                 return json.loads(self.request('/disco/ctrl/nodeinfo'))
 
