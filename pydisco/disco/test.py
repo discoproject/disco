@@ -59,16 +59,22 @@ class DiscoTestCase(TestCase):
 class DiscoJobTestFixture(object):
         jobargs = ('input',
                    'map',
+                   'map_input_stream',
+                   'map_output_stream',
                    'map_reader',
                    'map_writer',
                    'mem_sort_limit',
                    'params',
                    'partition',
                    'profile',
+                   'scheduler',
                    'sort',
                    'reduce',
+                   'reduce_input_stream',
+                   'reduce_output_stream',
                    'reduce_reader',
                    'reduce_writer',
+                   'nr_maps',
                    'nr_reduces')
         result_reader = staticmethod(disco.func.netstr_reader)
 
