@@ -59,6 +59,7 @@ class DiscoTestCase(TestCase):
 class DiscoJobTestFixture(object):
         jobargs = ('input',
                    'map',
+                   'map_init',
                    'map_input_stream',
                    'map_output_stream',
                    'map_reader',
@@ -70,6 +71,7 @@ class DiscoJobTestFixture(object):
                    'scheduler',
                    'sort',
                    'reduce',
+                   'reduce_init',
                    'reduce_input_stream',
                    'reduce_output_stream',
                    'reduce_reader',
