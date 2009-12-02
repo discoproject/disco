@@ -34,10 +34,11 @@ def pack(object):
                 return marshal.dumps(object.func_code)
         return marshal.dumps(object)
 
-def unpack(object):
+def unpack(string):
+        object = marshal.loads(string)
         if isinstance(object, CodeType):
-                return FunctionType(marshal.loads(object), {})
-        return marshal.loads(object)
+                return FunctionType(object, {})
+        return object
 
 def urlsplit(url):
         scheme, rest = url.split('://', 1) if '://' in url  else ('file', url)
