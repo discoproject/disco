@@ -1,76 +1,52 @@
-import re, struct, os, imp, modulefinder
+import re, struct, sys, os, imp, modulefinder
 from os.path import abspath, dirname
 from opcode import opname
 
+from disco.error import ModUtilImportError
 
-def parse_function(fun):
-        code = fun.func_code
-        mod = re.compile("\\x%.2x(..)\\x%.2x" % (opname.index("LOAD_GLOBAL"),\
-                opname.index("LOAD_ATTR")), re.DOTALL)
-        modules = []
-        for x in mod.findall(code.co_code):
-                modules.append(code.co_names[struct.unpack("<H", x)[0]])
-        return modules
+def local_paths():
+        return set(sys.path) - system_paths()
 
-def recurse_module(mod, path):
-        LOCALDIRS = [abspath(x)\
-                for x in os.environ.get("PYTHONPATH", "").split(":") + [""]]
-        found = {}
-        finder = modulefinder.ModuleFinder(path = LOCALDIRS)
+def system_paths():
+        return set(path for path in sys.path if path.startswith('%s/lib/python' % sys.prefix))
+
+def parse_function(function):
+        code = function.func_code
+        mod = re.compile(r'\x%.2x(..)\x%.2x' % (opname.index('LOAD_GLOBAL'),
+                                                opname.index('LOAD_ATTR')), re.DOTALL)
+        return [code.co_names[struct.unpack('<H', x)[0]] for x in mod.findall(code.co_code)]
+
+def recurse_module(module, path):
+        LOCALDIRS = list(local_paths())
+        finder = modulefinder.ModuleFinder(path=LOCALDIRS)
         finder.run_script(path)
-        for p in finder.modules.values():
-                if p.__file__ and p.__name__ != "__main__" and\
-                        dirname(p.__file__) in LOCALDIRS:
-                        found[p.__name__] = p.__file__
-        return found 
+        return dict((name, module.__file__) for name, module in finder.modules.iteritems()
+                     if name != '__main__' and module.__file__)
 
-def locate_modules(modules, recurse = True, include_sys = False):
-        LOCALDIRS = [abspath(x)\
-                for x in os.environ.get("PYTHONPATH", "").split(":") + [""]]
-        sys = {}
+def locate_modules(modules, recurse=True, include_sys=False):
+        LOCALDIRS = local_paths()
         found = {}
-        for mod in modules:
-                try:
-                        mode, path, x = imp.find_module(mod)
-                except ImportError, x:
-                        x.module = mod
-                        raise x
-                if not mode:
-                        continue
+        for module in modules:
+                file, path, x = imp.find_module(module)
                 if dirname(path) in LOCALDIRS:
-                        found[mod] = path
+                        found[module] = path
                         if recurse:
-                                e = recurse_module(mod, path)
-                                found.update(e)
+                                found.update(recurse_module(module, path))
                 elif include_sys:
-                        sys[mod] = None
+                        found[module] = None
+        return found.items()
 
-        return found.items() + sys.items()
 
-
-def find_modules(funs, send_modules = True,
-                recurse = True, exclude = ["Task"]):
-        mods = {}
-        for fun in funs:
-                fmod = [m for m in parse_function(fun) if m not in exclude]
+def find_modules(functions, send_modules=True, recurse=True, exclude=['Task']):
+        modules = set()
+        for function in functions:
+                fmod = [m for m in parse_function(function) if m not in exclude]
                 if send_modules:
                         try:
-                                m = locate_modules(fmod, recurse,\
-                                        include_sys = True)
-                                mods.update(m)
-                        except ImportError, x:
-                                raise ImportError("Could not find module %s "\
-                                "defined in %s. Maybe it is a typo. If it is "\
-                                "a valid module, see documetation of the "\
-                                "required_modules parameter for instructions "\
-                                "on how to include it properly." %\
-                                        (x.module, fun.func_name))
+                                m = locate_modules(fmod, recurse, include_sys=True)
+                        except ImportError, e:
+                                raise ModUtilImportError(e, function)
+                        modules.update((k, v) if v else k for k, v in m)
                 else:
-                        mods.update((m, None) for m in fmod)
-        if send_modules:
-                return [(k, v) for k, v in mods.iteritems() if v] +\
-                       [k for k, v in mods.iteritems() if not v]
-        else:
-                return mods.keys()
-        
-
+                        modules.update(fmod)
+        return list(modules)

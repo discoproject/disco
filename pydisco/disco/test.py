@@ -76,6 +76,8 @@ class DiscoJobTestFixture(object):
                    'reduce_output_stream',
                    'reduce_reader',
                    'reduce_writer',
+                   'required_files',
+                   'required_modules',
                    'nr_maps',
                    'nr_reduces')
         result_reader = staticmethod(disco.func.netstr_reader)
@@ -205,4 +207,3 @@ class DiscoTestRunner(TextTestRunner):
         def run(self, *names):
                 suite = DiscoTestLoader(self.disco_settings).loadTestsFromNames(names)
                 return super(DiscoTestRunner, self).run(suite)
-

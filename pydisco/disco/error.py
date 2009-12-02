@@ -17,3 +17,13 @@ class CommException(DiscoError):
 
     def __str__(self):
         return "HTTP exception (%s): %s" % (self.url, self.msg)
+
+class ModUtilImportError(DiscoError, ImportError):
+    def __init__(self, error, function):
+        self.error    = error
+        self.function = function
+
+    def __str__(self):
+        return ("%s: Could not find module defined in %s. Maybe it is a typo. "
+                "See documetation of the required_modules parameter for details "
+                "on how to include modules." % (self.error, self.function.func_name))
