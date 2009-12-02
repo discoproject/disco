@@ -29,6 +29,13 @@ def iterify(object):
                 return object
         return repeat(object, 1)
 
+def rapply(iterable, fn):
+        for item in iterable:
+                if hasattr(item, '__iter__'):
+                        yield rapply(item, fn)
+                else:
+                        yield fn(item)
+
 def pack(object):
         if hasattr(object, 'func_code'):
                 return marshal.dumps(object.func_code)

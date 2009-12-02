@@ -356,8 +356,8 @@ class Job(object):
                                         request[function_name] = util.pack(function)
 
                         def inputlist(input):
-                                if isinstance(input, list):
-                                        return ['\n'.join(reversed(input))]
+                                if hasattr(input, '__iter__'):
+                                        return ['\n'.join(reversed(list(input)))]
                                 return util.urllist(input)
                         input = [e for i in input for e in inputlist(i)]
 

@@ -8,6 +8,7 @@ from unittest import TestCase, TestLoader, TextTestRunner
 import disco
 from disco.core import Disco, result_iterator
 from disco.settings import DiscoSettings
+from disco.util import rapply
 
 class TestServer(ThreadingMixIn, HTTPServer):
         allow_reuse_address = True
@@ -29,7 +30,9 @@ class TestServer(ThreadingMixIn, HTTPServer):
                 self.socket.close()
 
         def urls(self, inputs):
-                return ['%s/%s' % (self.address, input) for input in inputs]
+                def serverify(input):
+                        return '%s/%s' % (self.address, input)
+                return rapply(inputs, serverify)
 
 class FailedReply(Exception):
         pass
