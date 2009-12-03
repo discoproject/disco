@@ -161,11 +161,10 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
                         self.test_servers[m] = TestServer.create((host, port + m),
                                                                  getattr(self, 'getdata_%d' % n, self.getdata))
                         self.test_servers[m].start()
-
-                        if not hasattr(self, 'input_%d' % n):
-                                setattr(self, 'input_%d' % n, self.input(m))
-
                         try:
+                                if not hasattr(self, 'input_%d' % n):
+                                        setattr(self, 'input_%d' % n, self.input(m))
+
                                 jobargs = {'name': '%s_%d' % (self.__class__.__name__, n)}
                                 for jobarg in self.jobargs:
                                         jobargname = '%s_%d' % (jobarg, n)
