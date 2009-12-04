@@ -1,5 +1,6 @@
 
-import sys, time, os, fcntl
+import sys, time, os
+import errno, fcntl
 from disco.util import msg, data_err, err
 
 class AtomicFile(file):
@@ -95,9 +96,8 @@ def _safe_fileop(op, mode, outfile, timeout):
                                 err("Updating file %s failed: %s" %\
                                         (outfile, x))
                 except IOError, x:
-                        # Python doc guides us to check both the
-                        # EWOULDBLOCK (11) and EACCES (13) errors
-                        if x.errno == 11 or x.errno == 13:
+                        # Python / BSD doc guides us to check for these errors
+                        if x.errno in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
                                 time.sleep(0.1)
                                 timeout -= 0.1
                         else:
