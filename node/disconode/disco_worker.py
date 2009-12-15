@@ -1,5 +1,6 @@
-import os, subprocess, cStringIO, marshal, time, sys, cPickle
+import os, subprocess, cStringIO, time, sys
 import re, traceback, tempfile, struct, random
+from disco import util
 from disco.util import parse_dir, err, data_err, msg, load_oob
 from disco.func import re_reader, netstr_reader
 from disco.netstring import decode_netstring_str
@@ -113,10 +114,10 @@ class MapOutput(object):
                 self.comb_buffer = {}
                 self.fd, self._url, self.fd_list = connect_output(params, part)
                 self.part = part
-        
+
         def url(self):
                 return self._url
-                
+
         def add(self, key, value):
                 if self.combiner:
                         ret = self.combiner(key, value, self.comb_buffer,\
@@ -141,13 +142,13 @@ class ReduceOutput(object):
         def __init__(self, params):
                 self.params = params
                 self.fd, self._url, self.fd_list = connect_output(params)
-        
+
         def url(self):
                 return self._url
 
         def add(self, key, value):
                 fun_writer(self.fd, key, value, self.params)
-        
+
         def close(self):
                 close_output(self.fd_list)
 
@@ -185,14 +186,14 @@ class ReduceReader(object):
 
                         if total_size > mem_sort_limit:
                                 self.iterator = self.download_and_sort(params)
-                        else: 
+                        else:
                                 msg("Sorting in memory")
                                 m = list(self.multi_file_iterator(self.inputs, False))
                                 m.sort(num_cmp)
                                 self.iterator = self.list_iterator(m)
                 else:
                         self.iterator = self.multi_file_iterator(self.inputs, params)
-                        
+
         def iter(self):
                 return self.iterator
 
@@ -277,14 +278,14 @@ def run_map(job_input, partitions, param):
 def import_modules(modules):
         funcs = [f for n, f in globals().items() if n.startswith("fun_")]
         mod = [(m, __import__(m, fromlist = [m])) for m in modules]
-        for n, m in mod: 
+        for n, m in mod:
                 for fun in funcs:
                         fun.func_globals.setdefault(n.split(".")[-1], m)
 
 def load_stack(job, mode, inout):
         key = "%s_%s_stream" % (mode, inout)
         if key in job:
-                s = [(k, marshal.loads(v))
+                s = [(k, util.unpack(v))
                         for k, v in decode_netstring_str(job[key])]
         else:
                 s = [("disco.func.%s" % key, getattr(disco.func, key).func_code)]
@@ -294,59 +295,59 @@ def init_common(job):
         global status_interval, input_stream_stack, output_stream_stack
         if 'required_files' in job:
                 path = Task.path("REQ_FILES")[0]
-                write_files(marshal.loads(job['required_files']), path)
+                write_files(util.unpack(job['required_files']), path)
                 sys.path.insert(0, path)
-        
+
         Task.num_partitions = int(job['nr_reduces'])
-        status_interval = int(job['status_interval']) 
-        
+        status_interval = int(job['status_interval'])
+
         input_stream_stack = load_stack(job, Task.mode, "input")
         output_stream_stack = load_stack(job, Task.mode, "output")
-        
+
         req_mod = job['required_modules'].split()
         import_modules(req_mod)
 
 def op_map(job):
         msg("Received a new map job!")
-        
+
         if len(Task.inputs) != 1:
-                err("Map can only handle one input. Got: %s" % 
+                err("Map can only handle one input. Got: %s" %
                         " ".join(Task.inputs))
 
-        fun_reader.func_code = marshal.loads(job['map_reader'])
-        fun_writer.func_code = marshal.loads(job['map_writer'])
-        fun_partition.func_code = marshal.loads(job['partition'])
+        fun_reader.func_code = util.unpack(job['map_reader']).func_code
+        fun_writer.func_code = util.unpack(job['map_writer']).func_code
+        fun_partition.func_code = util.unpack(job['partition']).func_code
 
         if 'map_init' in job:
-                fun_init.func_code = marshal.loads(job['map_init'])
-        
+                fun_init.func_code = util.unpack(job['map_init']).func_code
+
         if 'ext_map' in job:
                 if 'ext_params' in job:
                         map_params = job['ext_params']
                 else:
                         map_params = "0\n"
-                
+
                 path = Task.path("EXT_MAP")[0]
                 external.prepare(job['ext_map'], map_params, path)
                 fun_map.func_code = external.ext_map.func_code
         else:
-                map_params = cPickle.loads(job['params'])
-                fun_map.func_code = marshal.loads(job['map'])
-        
+                map_params = util.unpack(job['params'])
+                fun_map.func_code = util.unpack(job['map']).func_code
+
         init_common(job)
-        
+
         nr_part = max(1, Task.num_partitions)
 
         if 'combiner' in job:
-                fun_combiner.func_code = marshal.loads(job['combiner'])
+                fun_combiner.func_code = util.unpack(job['combiner']).func_code
                 partitions = [MapOutput(i, map_params, fun_combiner)\
                         for i in range(nr_part)]
         else:
                 partitions = [MapOutput(i, map_params) for i in range(nr_part)]
-        
+
         run_map(Task.inputs[0], partitions, map_params)
         external.close_ext()
-        
+
         urls = {}
         for i, p in enumerate(partitions):
                 p.close()
@@ -361,12 +362,12 @@ def op_reduce(job):
 
         do_sort = int(job['sort'])
         mem_sort_limit = int(job['mem_sort_limit'])
-        
-        if 'reduce_init' in job:
-                fun_init.func_code = marshal.loads(job['reduce_init'])
 
-        fun_reader.func_code = marshal.loads(job['reduce_reader'])
-        fun_writer.func_code = marshal.loads(job['reduce_writer'])
+        if 'reduce_init' in job:
+                fun_init.func_code = util.unpack(job['reduce_init']).func_code
+
+        fun_reader.func_code = util.unpack(job['reduce_reader']).func_code
+        fun_writer.func_code = util.unpack(job['reduce_writer']).func_code
 
         if 'ext_reduce' in job:
                 if "ext_params" in job:
@@ -378,9 +379,9 @@ def op_reduce(job):
                 external.prepare(job['ext_reduce'], red_params, path)
                 fun_reduce.func_code = external.ext_reduce.func_code
         else:
-                fun_reduce.func_code = marshal.loads(job['reduce'])
-                red_params = cPickle.loads(job['params'])
-        
+                fun_reduce.func_code = util.unpack(job['reduce']).func_code
+                red_params = util.unpack(job['params'])
+
         init_common(job)
 
         red_in = ReduceReader(Task.inputs, do_sort,
@@ -394,7 +395,7 @@ def op_reduce(job):
 
         red_out.close()
         external.close_ext()
-        
+
         index, index_url = Task.path("REDUCE_INDEX", scheme = "dir")
         safe_update(index, {"%d %s" % (Task.id, red_out.url()): True})
         msg(index_url, "OUT")

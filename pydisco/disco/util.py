@@ -1,5 +1,5 @@
 import os
-import marshal, sys, time, traceback
+import cPickle, marshal, sys, time, traceback
 
 from collections import defaultdict
 from itertools import chain, repeat
@@ -39,13 +39,13 @@ def rapply(iterable, fn):
 def pack(object):
         if hasattr(object, 'func_code'):
                 return marshal.dumps(object.func_code)
-        return marshal.dumps(object)
+        return cPickle.dumps(object)
 
 def unpack(string):
-        object = marshal.loads(string)
-        if isinstance(object, CodeType):
-                return FunctionType(object, {})
-        return object
+        try:
+                return cPickle.loads(string)
+        except Exception:
+                return FunctionType(marshal.loads(string), {})
 
 def urlsplit(url):
         scheme, rest = url.split('://', 1) if '://' in url  else ('file', url)
