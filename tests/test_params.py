@@ -1,6 +1,8 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.core import Params
 
+from datetime import datetime
+
 def fun1(a, b):
         return a + b
 
@@ -11,7 +13,7 @@ def fun2(x):
 
 class ParamsTestCase(DiscoJobTestFixture, DiscoTestCase):
         inputs = range(10)
-        params = Params(x=5, f1=fun1, f2=fun2)
+        params = Params(x=5, f1=fun1, f2=fun2, now=datetime.now())
         sort   = False
 
         def getdata(self, path):
