@@ -1,3 +1,7 @@
+import sys
+
+from disco.events import Event, Message, DataUnavailable
+
 class DiscoError(Exception):
     pass
 
@@ -27,3 +31,25 @@ class ModUtilImportError(DiscoError, ImportError):
         return ("%s: Could not find module defined in %s. Maybe it is a typo. "
                 "See documetation of the required_modules parameter for details "
                 "on how to include modules." % (self.error, self.function.func_name))
+
+class JobError(DiscoError):
+    def __init__(self, msg, cause=None):
+        self.msg   = msg
+        self.cause = cause
+        self.log_event()
+
+    def log_event(self):
+        return Message(str(self))
+
+    def __str__(self):
+        if not self.cause:
+            return self.msg
+        return '%s: %s' % (self.msg, self.cause)
+
+class DataError(JobError):
+    def __init__(self, msg, data_url, cause=None):
+        self.data_url = data_url
+        super(DataError, self).__init__('%s (%s)' % (msg, data_url), cause=cause)
+
+    def log_event(self):
+        return DataUnavailable(self.data_url)

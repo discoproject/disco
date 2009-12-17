@@ -214,7 +214,8 @@ handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
                 disco_server:format_time(S#state.start_time)),
         {stop, worker_exit(S, {job_ok, {S#state.oob, S#state.results}}), S};
 
-handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
+handle_info({_, {data, {eol, <<"**<OOB>", Line0/binary>>}}}, S) ->
+        Line = list_to_binary(strip_timestamp(Line0)),
         [Key|Path] = string:tokens(binary_to_list(Line), " "),
 
         S1 = S#state{oob = [{Key, Path}|S#state.oob],

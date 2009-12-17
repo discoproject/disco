@@ -18,7 +18,7 @@ class TaskEnvironment(object):
     }
 
     def __init__(self, mode = None, host = None, master = None,
-                job_name = "", id = -1, inputs = None,
+                job_name = '', id = -1, inputs = None,
                 result_iterator = False):
         self.id = int(id)
         self.mode = mode
@@ -27,8 +27,7 @@ class TaskEnvironment(object):
         self.inputs = inputs
         self.name = job_name
         self.result_iterator = result_iterator
-        self.home = "%s/%s/%s" % (host,
-            hashlib.md5(job_name).hexdigest()[:2], job_name)
+        self.home = os.path.join(str(host), hashlib.md5(job_name).hexdigest()[:2], job_name)
 
         conf = DiscoSettings()
         self.root = conf["DISCO_ROOT"]

@@ -7,9 +7,9 @@ from types import CodeType, FunctionType
 from urllib import urlencode
 
 from disco.comm import CommException, download, open_remote
-from disco.error import DiscoError
+from disco.error import DiscoError, JobError, DataError
+from disco.events import Message
 from disco.settings import DiscoSettings
-
 
 class DefaultDict(defaultdict):
         """Like a defaultdict, but calls the default_factory with the key argument."""
@@ -61,30 +61,14 @@ def urllist(url):
                 return parse_dir(url)
         return [url]
 
-def msg(m, c = 'MSG', job_input = ""):
-        t = time.strftime("%y/%m/%d %H:%M:%S")
-        if job_input:
-                print >> sys.stderr, "**<%s>[%s (%s)] %s" %\
-                        (c, t, job_input, m)
-        else:
-                print >> sys.stderr, "**<%s>[%s] %s" % (c, t, m)
+def msg(message):
+        return Message(message)
 
-def err(m):
-        if sys.exc_info() == (None, None, None):
-                msg(m, 'MSG')
-                raise DiscoError(m)
-        else:
-                msg(m, 'MSG')
-                raise
+def err(message, cause=None):
+        raise JobError(message, cause=cause)
 
-def data_err(m, job_input):
-        if sys.exc_info() == (None, None, None):
-                msg(m, 'DAT', job_input)
-                raise DiscoError(m)
-        else:
-                traceback.print_exc()
-                msg(m, 'DAT', job_input)
-                raise
+def data_err(message, data_url, cause=None):
+        raise DataError(message, data_url, cause=cause)
 
 def jobname(address):
         scheme, x, path = urlsplit(address)
