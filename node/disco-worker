@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os, sys
 
-from disconode import disco_worker
+from disco.node import worker
 from disco.fileutils import ensure_path, ensure_file 
 from disco.netstring import decode_netstring_fd
 from disco.util import msg, err, data_err
@@ -9,7 +9,7 @@ from disco import comm
 
 
 def run(task, jobpack):
-        method = getattr(disco_worker, 'op_' + task.mode, None)
+        method = getattr(worker, 'op_' + task.mode, None)
         if method is None:
                 err("Invalid operation: %s" % task.mode)
         
@@ -29,14 +29,14 @@ def run(task, jobpack):
 
                 # value = None below because profiler produces the
                 # file 'key'.
-                disco_worker.put(key, None) 
+                worker.put(key, None) 
         else:
                 method(jobpack)
 
 if __name__ == "__main__":
         if len(sys.argv) < 7:
                 err("Invalid command line. "\
-                     "Usage: disco_worker [map|reduce] "\
+                     "Usage: worker [map|reduce] "\
                      "name hostname master_url partid inputs..")
 
         # Announce my PID to the master
@@ -50,8 +50,8 @@ if __name__ == "__main__":
         part = sys.argv[5]
         inputs = sys.argv[6:]
 
-        disco_worker.init(mode, host, master, name, part, inputs) 
-        task = disco_worker.Task
+        worker.init(mode, host, master, name, part, inputs) 
+        task = worker.Task
 
         try: 
                 ensure_path(task.path("OOB_FILE", "")[0], False)

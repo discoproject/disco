@@ -5,8 +5,11 @@ from disco.util import parse_dir, err, data_err, msg, load_oob
 from disco.func import re_reader, netstr_reader
 from disco.netstring import decode_netstring_str
 from disco.fileutils import safe_update, write_files, ensure_path, AtomicFile
-from disconode import external
-import disco.comm, disco.settings, disco.func
+from disco.node import external
+from disco.error import JobError
+from disco.events import OutputURL, OOBData
+from disco.settings import TaskEnvironment
+import disco.func
 
 Task = None
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
@@ -17,7 +20,7 @@ output_stream_stack = []
 
 def init(mode, host, master, job_name, id, inputs):
         global Task
-        Task = disco.settings.TaskEnvironment(mode, host, master, job_name, id, inputs)
+        Task = TaskEnvironment(mode, host, master, job_name, id, inputs)
 
 # Function stubs
 
@@ -65,11 +68,10 @@ def this_inputs():
 
 def put(key, value):
         if oob_chars.match(key):
-                err("OOB key contains invalid characters (%s)" % key)
-        if value != None:
-                f = file(Task.path("OOB_FILE", key)[0], "w")
-                f.write(value)
-        print >> sys.stderr, "**<OOB>%s %s/oob/%s" % (key, Task.home, key)
+                raise JobError("OOB key contains invalid characters (%s)" % key)
+        if value is not None:
+                file(Task.path('OOB_FILE', key)[0], 'w').write(value)
+        OOBData(key, Task)
 
 def get(key, job=None):
         return load_oob('http://%s' % Task.master, job or Task.name, key)
@@ -355,7 +357,7 @@ def op_map(job):
 
         index, index_url = Task.path("MAP_INDEX", scheme = "dir")
         safe_update(index, urls)
-        msg(index_url, "OUT")
+        OutputURL(index_url)
 
 def op_reduce(job):
         msg("Received a new reduce job!")
@@ -398,4 +400,4 @@ def op_reduce(job):
 
         index, index_url = Task.path("REDUCE_INDEX", scheme = "dir")
         safe_update(index, {"%d %s" % (Task.id, red_out.url()): True})
-        msg(index_url, "OUT")
+        OutputURL(index_url)
