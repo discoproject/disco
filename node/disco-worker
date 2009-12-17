@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os, sys
 
-from disco.events import EndOfJob
+from disco.events import AnnouncePID, EndOfJob
 from disco.fileutils import ensure_path, ensure_file
 from disco.netstring import decode_netstring_fd
 from disco.node import worker
@@ -40,8 +40,7 @@ if __name__ == "__main__":
                      "Usage: worker [map|reduce] "\
                      "name hostname master_url partid inputs..")
 
-        # Announce my PID to the master
-        print >> sys.stderr, "**<PID>%s" % os.getpid()
+        AnnouncePID(os.getpid())
 
         mode = sys.argv[1]
         name = sys.argv[2]

@@ -172,7 +172,8 @@ worker_exit(#state{id = Id, master = Master}, Msg) ->
 
 errlines(#state{errlines = L}) -> lists:flatten(lists:reverse(L)).
 
-handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
+handle_info({_, {data, {eol, <<"**<PID>", Line0/binary>>}}}, S) ->
+        Line = list_to_binary(strip_timestamp(Line0)),
         {noreply, S#state{child_pid = binary_to_list(Line)}};
 
 handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->

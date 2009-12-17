@@ -29,6 +29,9 @@ class Message(Event):
 class Signal(Event):
     pass
 
+class AnnouncePID(Signal):
+    type = 'PID'
+
 class DataUnavailable(Signal):
     type = 'DAT'
 

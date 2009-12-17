@@ -1,5 +1,5 @@
 from disco.test import DiscoTestCase
-from disco.events import Event, Message, DataUnavailable, OutputURL, OOBData, EventRecord
+from disco.events import Event, Message, AnnouncePID, DataUnavailable, OutputURL, OOBData, EventRecord
 
 from datetime import datetime
 
@@ -17,6 +17,11 @@ class EventsTestCase(DiscoTestCase):
                 self.assert_(event_record.time < datetime.now())
                 self.assertEquals([], event_record.tags)
                 self.assertEquals('message\n $#!%', event_record.message)
+
+        def test_announce_pid(self):
+                event_record = EventRecord(str(AnnouncePID(666)))
+                self.assertEquals('PID', event_record.type)
+                self.assertEquals('666', event_record.message)
 
         def test_data_unavailable(self):
                 event_record = EventRecord(str(DataUnavailable('http://localhost:8989/path')))
