@@ -1,10 +1,11 @@
 import sys, re, os, modutil, time, types, cPickle, cStringIO, random
 
-from disco import func, util, settings
+from disco import func, util
 from disco.comm import download, json
-from disco.error import DiscoError, JobException, CommException
+from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
 from disco.netstring import encode_netstring_fd, encode_netstring_str, decode_netstring_fd
+from disco.task import Task
 
 class Params(object):
         def __init__(self, **kwargs):
@@ -19,7 +20,8 @@ class Params(object):
 
 class Stats(object):
         def __init__(self, prof_data):
-                self.stats = util.unpack(prof_data)
+                import marshal
+                self.stats = marshal.loads(prof_data)
 
         def create_stats(self):
                 pass
@@ -31,7 +33,7 @@ class Disco(object):
         def request(self, url, data = None, redir = False, offset = 0):
                 try:
                         return download(self.host + url, data = data, redir = redir, offset = offset)
-                except CommException, e:
+                except CommError, e:
                         raise DiscoError("Got %s, make sure disco master is running at %s" % (e, self.host))
 
         def get_config(self):
@@ -53,7 +55,7 @@ class Disco(object):
         def oob_get(self, name, key):
                 try:
                         return util.load_oob(self.host, name, key)
-                except CommException, e:
+                except CommError, e:
                         if e.http_code == 404:
                                 raise DiscoError("Unknown key or job name")
                         raise
@@ -66,7 +68,7 @@ class Disco(object):
                 prefix = 'profile-%s' % mode
                 f = [s for s in self.oob_list(name) if s.startswith(prefix)]
                 if not f:
-                        raise JobException("No profile data", self.host, name)
+                        raise JobError("No profile data", self.host, name)
 
                 import pstats
                 stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
@@ -147,9 +149,9 @@ class Disco(object):
                                         self.clean(name)
                                 return results
                         if status != 'active':
-                                raise JobException("Job status %s" % status, self.host, name)
+                                raise JobError("Job status %s" % status, self.host, name)
                         if timeout and time.time() - start_time > timeout:
-                                raise JobException("Timeout", self.host, name)
+                                raise JobError("Timeout", self.host, name)
 
 class JobSpecifier(list):
         def __init__(self, jobspec):
@@ -400,9 +402,9 @@ def result_iterator(results,
                     input_stream = [func.map_input_stream],
                     params = None):
 
-        Task = settings.TaskEnvironment(result_iterator = True)
+        task = Task(result_iterator = True)
         for fun in input_stream:
-                fun.func_globals.setdefault("Task", Task)
+                fun.func_globals.setdefault("Task", task)
 
         res = []
         res = [url for r in results for url in util.urllist(r)]

@@ -41,8 +41,8 @@ class EventsTestCase(DiscoTestCase):
 
         def test_oob_data(self):
                 import os
-                from disco.settings import TaskEnvironment
-                task = TaskEnvironment()
+                from disco.task import Task
+                task = Task()
                 event_record = EventRecord(str(OOBData('key', task)))
                 self.assertEquals('OOB', event_record.type)
                 self.assert_(event_record.time < datetime.now())

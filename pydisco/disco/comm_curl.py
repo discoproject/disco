@@ -1,7 +1,7 @@
 import cStringIO, struct, time, sys, os
 from pycurl import *
 
-from disco.error import CommException
+from disco.error import CommError
 
 MAX_BUF = 1024**2
 MAX_RETRIES = 10
@@ -11,7 +11,7 @@ TRANSFER_TIMEOUT = 10 * 60
 def check_code(c, expected, url):
         code = c.getinfo(HTTP_CODE)
         if code != expected:
-                raise CommException("Invalid HTTP reply (expected %s got %s)" %
+                raise CommError("Invalid HTTP reply (expected %s got %s)" %
                                     (expected, code), url)
 
 def download(url, data = None, redir = False, offset = 0):
@@ -41,7 +41,7 @@ def download(url, data = None, redir = False, offset = 0):
                         raise
                 except:
                         if retry == MAX_RETRIES:
-                                raise CommException("Downloading %s failed "
+                                raise CommError("Downloading %s failed "
                                                     "after %d attempts: %s" %
                                                     (url, MAX_RETRIES,\
                                                      dl_handle.errstr()), url)
@@ -72,7 +72,7 @@ class CurlConn:
                         self.handle = Curl()
                         time.sleep(1.0)
                 else:
-                        raise CommException("Couldn't connect after %d attempts: %s" %
+                        raise CommError("Couldn't connect after %d attempts: %s" %
                                             (MAX_RETRIES, fail[0][2]), url)
 
                 # make sure all headers are read
@@ -81,7 +81,7 @@ class CurlConn:
 
                 code = self.handle.getinfo(HTTP_CODE)
                 if code == 0:
-                        raise CommException("Couldn't receive http response", url)
+                        raise CommError("Couldn't receive http response", url)
                 check_code(self.handle, expect, url)
 
         def init_handle(self, url):
@@ -107,7 +107,7 @@ class CurlConn:
                         r = self.multi.select(1.0)
                         timeout -= 1
                 if timeout == 0:
-                        raise CommException("Connection timeout (1)", self.url)
+                        raise CommError("Connection timeout (1)", self.url)
 
                 timeout = CONNECT_TIMEOUT
                 ret = E_CALL_MULTI_PERFORM
@@ -116,7 +116,7 @@ class CurlConn:
                         self.cont = num_handles
                         timeout -= 1
                 if timeout == 0:
-                        raise CommException("Connection timeout (2)", self.url)
+                        raise CommError("Connection timeout (2)", self.url)
         
         def head(self, buf):
                 buf = buf.lower()

@@ -1,5 +1,5 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.core import JobException
+from disco.core import JobError
 from disco.util import urlsplit
 
 class ForceLocalTestCase(DiscoJobTestFixture, DiscoTestCase):
@@ -43,7 +43,7 @@ class ForceLocalNoNodeTestCase(ForceLocalTestCase):
         input = ['foobar://nonodenamedthishopefully_ifnotthistestwillfail']
 
         def runTest(self):
-                self.assertRaises(JobException, self.job.wait)
+                self.assertRaises(JobError, self.job.wait)
 
 class ForceRemoteNoNodeTestCase(ForceLocalTestCase):
         input     = ['foobar://nonodenamedthishopefully_ifnotthistestwillfail']

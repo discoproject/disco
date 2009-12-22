@@ -6,9 +6,9 @@ from disco.func import re_reader, netstr_reader
 from disco.netstring import decode_netstring_str
 from disco.fileutils import safe_update, write_files, ensure_path, AtomicFile
 from disco.node import external
-from disco.error import JobError
+from disco.error import DiscoError
 from disco.events import OutputURL, OOBData
-from disco.settings import TaskEnvironment
+from disco.task import Task as TaskEnvironment
 import disco.func
 
 Task = None
@@ -68,9 +68,9 @@ def this_inputs():
 
 def put(key, value):
         if oob_chars.match(key):
-                raise JobError("OOB key contains invalid characters (%s)" % key)
+                raise DiscoError("OOB key contains invalid characters (%s)" % key)
         if value is not None:
-                file(Task.path('OOB_FILE', key)[0], 'w').write(value)
+                file(Task.path('OOB_FILE', key), 'w').write(value)
         OOBData(key, Task)
 
 def get(key, job=None):
@@ -78,30 +78,16 @@ def get(key, job=None):
 
 def connect_input(url, params):
         fd = sze = None
-        for name, fun_code in input_stream_stack:
-                try:
-                        fun_input_stream.func_code = fun_code
-                        fd, sze, url = fun_input_stream(fd, sze, url, params)
-                except Exception, x:
-                        suffix = ""
-                        if url:
-                                suffix = " when opening %s" % url
-                        data_err("Input stream %s failed%s" % (name, suffix), url)
+        for name, fun_input_stream in input_stream_stack:
+                fd, sze, url = fun_input_stream(fd, sze, url, params)
         return fd, sze, url
 
 def connect_output(params, part = 0):
         fd = url = None
         fd_list = []
-        for name, fun_code in output_stream_stack:
-                try:
-                        fun_output_stream.func_code = fun_code
-                        fd, url = fun_output_stream(fd, part, url, params)
-                        fd_list.append(fd)
-                except Exception, x:
-                        suffix = ""
-                        if url:
-                                suffix = " when opening %s " % url
-                        data_err("Output stream %s failed%s" % (name, suffix), url)
+        for name, fun_output_stream in output_stream_stack:
+                fd, url = fun_output_stream(fd, part, url, params)
+                fd_list.append(fd)
         return fd, url, fd_list
 
 def close_output(fd_list):
@@ -200,7 +186,7 @@ class ReduceReader(object):
                 return self.iterator
 
         def download_and_sort(self, params):
-                dlname = Task.path("REDUCE_DL", Task.id)[0]
+                dlname = Task.path("REDUCE_DL", Task.id)
                 msg("Reduce will be downloaded to %s" % dlname)
                 out_fd = AtomicFile(dlname, "w")
                 for url in self.inputs:
@@ -218,7 +204,7 @@ class ReduceReader(object):
                 msg("Reduce input downloaded ok")
 
                 msg("Starting external sort")
-                sortname = Task.path("REDUCE_SORTED", Task.id)[0]
+                sortname = Task.path("REDUCE_SORTED", Task.id)
                 ensure_path(sortname, False)
                 cmd = ["sort", "-n", "-k", "1,1", "-z",\
                         "-t", " ", "-o", sortname, dlname]
@@ -286,17 +272,17 @@ def import_modules(modules):
 
 def load_stack(job, mode, inout):
         key = "%s_%s_stream" % (mode, inout)
+        stack = [("disco.func.%s" % key, getattr(disco.func, key))]
         if key in job:
-                s = [(k, util.unpack(v))
-                        for k, v in decode_netstring_str(job[key])]
-        else:
-                s = [("disco.func.%s" % key, getattr(disco.func, key).func_code)]
-        return s
+                stack = [(k, util.unpack(v)) for k, v in decode_netstring_str(job[key])]
+        for k, fn in stack:
+                fn.func_globals.update(globals())
+        return stack
 
 def init_common(job):
         global status_interval, input_stream_stack, output_stream_stack
         if 'required_files' in job:
-                path = Task.path("REQ_FILES")[0]
+                path = Task.path("REQ_FILES")
                 write_files(util.unpack(job['required_files']), path)
                 sys.path.insert(0, path)
 
@@ -329,7 +315,7 @@ def op_map(job):
                 else:
                         map_params = "0\n"
 
-                path = Task.path("EXT_MAP")[0]
+                path = Task.path("EXT_MAP")
                 external.prepare(job['ext_map'], map_params, path)
                 fun_map.func_code = external.ext_map.func_code
         else:
@@ -355,7 +341,7 @@ def op_map(job):
                 p.close()
                 urls["%d %s" % (i, p.url())] = True
 
-        index, index_url = Task.path("MAP_INDEX", scheme = "dir")
+        index, index_url = Task.map_index
         safe_update(index, urls)
         OutputURL(index_url)
 
@@ -377,7 +363,7 @@ def op_reduce(job):
                 else:
                         red_params = "0\n"
 
-                path = Task.path("EXT_MAP")[0]
+                path = Task.path("EXT_MAP")
                 external.prepare(job['ext_reduce'], red_params, path)
                 fun_reduce.func_code = external.ext_reduce.func_code
         else:
@@ -398,6 +384,6 @@ def op_reduce(job):
         red_out.close()
         external.close_ext()
 
-        index, index_url = Task.path("REDUCE_INDEX", scheme = "dir")
+        index, index_url = Task.reduce_index
         safe_update(index, {"%d %s" % (Task.id, red_out.url()): True})
         OutputURL(index_url)

@@ -1,7 +1,7 @@
 import os
 
 import disco.settings
-from disco.error import CommException
+from disco.error import CommError
 
 settings = disco.settings.DiscoSettings()
 nocurl = "nocurl" in settings["DISCO_FLAGS"].lower().split()
@@ -22,7 +22,7 @@ def open_local(path, url):
                 sze = os.stat(path).st_size
                 return (fd, sze, "file://" + path)
         except:
-                raise CommException("Can't access a local input file %s "
+                raise CommError("Can't access a local input file %s "
                                     "(url %s)" % (path, url), url)
 
 # get rid of this for python2.6+

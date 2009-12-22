@@ -31,7 +31,7 @@ def reduce_output2(stream, size, url, params):
         if stream != "fd" or url != "url:%d" % Task.num_partitions:
                 err("Incorrect stream (%s) and url (%s) in output_stream2" %\
                         (stream, url))
-        path, url = Task.path("REDUCE_OUTPUT", Task.id)
+        path, url = Task.reduce_output()
         return disco.fileutils.AtomicFile(path, "w"),\
                 url.replace("disco://", "foobar://")
 

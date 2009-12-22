@@ -189,7 +189,7 @@ anymore. You can delete the unneeded job files as follows::
    results files which is typically processed with :func:`result_iterator`.
    
    :meth:`Disco.wait` polls the server for the job status every
-   *poll_interval* seconds. It raises a :class:`disco.JobException` if the
+   *poll_interval* seconds. It raises a :class:`disco.JobError` if the
    job hasn't finished in *timeout* seconds, if specified.
    
    *clean* is a convenience parameter which, if set to `True`,
@@ -241,7 +241,7 @@ anymore. You can delete the unneeded job files as follows::
    accessible through the :class:`Job` object, such as :meth:`Disco.wait`
    above.
 
-   The constructor raises a :class:`JobException` if an error occurs
+   The constructor raises a :class:`JobError` if an error occurs
    when the job is started.
 
    All arguments that are required are marked as such. All other arguments
@@ -588,7 +588,7 @@ anymore. You can delete the unneeded job files as follows::
    with a custom *map_writer* or *reduce_writer*. By default, *reader*
    is :func:`disco.func.netstr_reader`.
 
-.. class:: JobException
+.. class:: JobError
 
    Raised when job fails on Disco master.
 
@@ -596,11 +596,11 @@ anymore. You can delete the unneeded job files as follows::
  
    Error message.
 
-   .. attribute:: JobException.name
+   .. attribute:: JobError.name
 
    Name of the failed job.
 
-   .. attribute:: JobException.master
+   .. attribute:: JobError.master
    
    Address of the Disco master that produced the error.
 

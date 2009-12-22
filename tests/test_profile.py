@@ -1,5 +1,4 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.error import JobException
 
 from cStringIO import StringIO
 

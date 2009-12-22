@@ -1,6 +1,6 @@
 import sys
 from disco.core import Disco, result_iterator, Params
-from disco.error import JobException
+from disco.error import JobError
 
 def map_input_stream(stream, size, url, params):
         host, fname = url[9:].split("/", 1)
@@ -49,7 +49,7 @@ def check_fail(job, mode):
                               "not work when force_local = True"
                 else:
                         job.purge()
-        except JobException:
+        except JobError:
                 if mode:
                         job.purge()
                 else:

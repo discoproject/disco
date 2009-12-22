@@ -1,6 +1,7 @@
 
 import sys, time, os
 import errno, fcntl
+
 from disco.util import msg, data_err, err
 
 class AtomicFile(file):
@@ -16,7 +17,7 @@ class AtomicFile(file):
                         super(AtomicFile, self).close()
                         os.rename(self.fname + ".partial", self.fname)
                         self.isopen = False
-        
+
 class PartitionFile(AtomicFile):
         def __init__(self, partfile, tmpname, *args, **kw):
                 self.partfile = partfile
@@ -41,16 +42,16 @@ def ensure_path(path, check_exists = True):
         try:
                 os.makedirs(dirpath)
         except OSError, x:
-                if x.errno == 17:
+                if x.errno == errno.EEXIST:
                         # File exists is ok, it may happen
                         # if two tasks are racing to create
                         # the directory
                         pass
                 else:
-                        raise x
+                        raise
 
 
-# About concurrent append operations: 
+# About concurrent append operations:
 #
 # Posix spec says:
 #
@@ -59,7 +60,7 @@ def ensure_path(path, check_exists = True):
 # intervening file modification operation shall occur between changing the
 # file offset and the write operation.
 #
-# See also 
+# See also
 # http://www.perlmonks.org/?node_id=486488
 #
 def safe_append(instream, outfile, timeout = 60):
@@ -112,21 +113,19 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
                 try:
                         fd = os.open(fname + ".partial",
                                 os.O_CREAT | os.O_EXCL | os.O_WRONLY, mode)
-                        if type(data) == str:
-                               os.write(fd, data)
-                        else:
-                               os.write(fd, data())
+                        if callable(data):
+                                data = data()
+                        os.write(fd, data)
                         os.close(fd)
                         os.rename(fname + ".partial", fname)
                         return True
                 except OSError, x:
-                        # File exists
-                        if x.errno == 17:
+                        if x.errno == errno.EEXIST:
                                 time.sleep(1)
                                 timeout -= 1
                         else:
                                 data_err("Writing external file %s failed"\
-                                        % fname, fname)
+                                         % fname, fname)
         data_err("Timeout in writing external file %s" % fname, fname)
 
 

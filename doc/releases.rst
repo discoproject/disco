@@ -46,7 +46,7 @@ Bugfixes
  - The connection pool in ``comm_httplib`` didn't work correctly (bug #30, 5c9d7a88e9)
  - Added timeouts to ``comm_curl`` to fix occasional issues with the connection
    getting stuck (2f79c698)
- - All `IOErrors` and `CommExceptions` are now non-fatal (f1d4a127c)
+ - All `IOErrors` and `CommErrors` are now non-fatal (f1d4a127c)
 
 
 Disco 0.2.2 (July 26th 2009)

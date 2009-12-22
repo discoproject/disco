@@ -27,7 +27,7 @@ def netstr_reader(fd, content_len, fname):
                         data_err("Truncated input (%s). "\
                                 "Expected %d bytes, got %d" %\
                                 (fname, content_len, tot), fname)
-                
+
                 try:
                         llen = int(lenstr)
                 except ValueError:
@@ -43,7 +43,7 @@ def netstr_reader(fd, content_len, fname):
                         idx = 0
 
                 msg = data[idx:idx + llen]
-                
+
                 if idx + llen + 1 > ldata:
                         data_err("Truncated input (%s). "\
                                 "Expected a value of %d bytes "\
@@ -53,7 +53,7 @@ def netstr_reader(fd, content_len, fname):
                 tot += llen + 1
                 idx += llen + 1
                 return idx, data, tot, msg
-        
+
         data = fd.read(8192)
         tot = idx = 0
         while tot < content_len:
@@ -155,42 +155,13 @@ def map_input_stream(stream, size, url, params):
 reduce_input_stream = map_input_stream
 
 def map_output_stream(stream, partition, url, params):
-        mpath, murl = Task.path("MAP_OUTPUT", Task.id, partition)
+        mpath, murl = Task.map_output(partition)
         if Task.num_partitions == 0:
                 return disco.fileutils.AtomicFile(mpath, "w"), murl
         else:
-                ppath, purl = Task.path("PART_OUTPUT", partition)
+                ppath, purl = Task.partition_output(partition)
                 return disco.fileutils.PartitionFile(ppath, mpath, "w"), purl
 
 def reduce_output_stream(stream, partition, url, params):
-        path, url = Task.path("REDUCE_OUTPUT", Task.id)
+        path, url = Task.reduce_output()
         return disco.fileutils.AtomicFile(path, "w"), url
-        
-
-
-
-
-
-
-
-
-
-
-
-                
-
-
-        
-
-
-        
-
-
-
-
-
-        
-
-
-
-

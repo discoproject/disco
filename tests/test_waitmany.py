@@ -1,5 +1,5 @@
 from disco.test import DiscoMultiJobTestFixture, DiscoTestCase
-from disco.core import JobException
+from disco.core import JobError
 
 class WaitManyTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
         njobs  = 3
@@ -27,5 +27,5 @@ class WaitManyTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
                 while jobs:
                         ready, jobs = self.disco.results(jobs)
                         res += ready
-                self.assertRaises(JobException, self.job_3.wait)
+                self.assertRaises(JobError, self.job_3.wait)
                 self.assertEquals(len(res), 3)

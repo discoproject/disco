@@ -6,8 +6,8 @@ from itertools import chain, repeat
 from types import CodeType, FunctionType
 from urllib import urlencode
 
-from disco.comm import CommException, download, open_remote
-from disco.error import DiscoError, JobError, DataError
+from disco.comm import download, open_remote
+from disco.error import DiscoError, DataError
 from disco.events import Message
 from disco.settings import DiscoSettings
 
@@ -15,6 +15,11 @@ class DefaultDict(defaultdict):
         """Like a defaultdict, but calls the default_factory with the key argument."""
         def __missing__(self, key):
                 return self.default_factory(key)
+
+class MessageWriter(object):
+        def write(self, string):
+                for line in string.splitlines():
+                        Message(line)
 
 def flatten(iterable):
         for item in iterable:
@@ -64,11 +69,11 @@ def urllist(url):
 def msg(message):
         return Message(message)
 
-def err(message, cause=None):
-        raise JobError(message, cause=cause)
+def err(message):
+        raise DiscoError(message)
 
-def data_err(message, data_url, cause=None):
-        raise DataError(message, data_url, cause=cause)
+def data_err(message, url):
+        raise DataError(message, url)
 
 def jobname(address):
         scheme, x, path = urlsplit(address)

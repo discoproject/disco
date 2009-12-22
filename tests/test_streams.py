@@ -17,7 +17,7 @@ def reduce_output_stream1(stream, size, url, params):
 
 def reduce_output_stream2(stream, size, url, params):
         assert stream == 'fd' and url == 'url:%d' % Task.num_partitions
-        path, url = Task.path('REDUCE_OUTPUT', Task.id)
+        path, url = Task.reduce_output()
         return disco.fileutils.AtomicFile(path, 'w'), url.replace('disco://', 'foobar://')
 
 class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):

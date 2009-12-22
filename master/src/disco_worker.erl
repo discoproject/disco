@@ -13,7 +13,7 @@
 
 -define(MAX_MSG_LENGTH, 8192).
 -define(RATE_WINDOW, 100000). % 100ms
--define(RATE_LIMIT, 10).
+-define(RATE_LIMIT, 20).
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 -define(OOB_KEY_MAX, 256).

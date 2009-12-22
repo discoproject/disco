@@ -1,5 +1,5 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.error import JobException
+from disco.error import JobError
 
 class RateLimitTestCase(DiscoJobTestFixture, DiscoTestCase):
         inputs = [1]
@@ -13,7 +13,7 @@ class RateLimitTestCase(DiscoJobTestFixture, DiscoTestCase):
                 return []
 
         def runTest(self):
-                self.assertRaises(JobException, self.job.wait)
+                self.assertRaises(JobError, self.job.wait)
                 self.assertEquals(self.job.jobinfo()['active'], 'dead')
 
 class AnotherRateLimitTestCase(RateLimitTestCase):

@@ -6,7 +6,7 @@ class Event(object):
     tag_re           = re.compile(r'^\w+$')
     timestamp_format = '%y/%m/%d %H:%M:%S'
 
-    def __init__(self, message, tags=()):
+    def __init__(self, message='', tags=()):
         self.message = message
         self.tags    = tags
         self.time    = datetime.now()
@@ -37,6 +37,9 @@ class DataUnavailable(Signal):
 
 class EndOfJob(Signal):
     type = 'END'
+
+class TaskFailed(Signal):
+    type = 'ERR'
 
 class OutputURL(Signal):
     type = 'OUT'
