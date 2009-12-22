@@ -2,11 +2,11 @@
 import sys, time, os
 import errno, fcntl
 
-from disco.util import msg, data_err, err
+from disco.util import data_err, err
 
 class AtomicFile(file):
         def __init__(self, fname, *args, **kw):
-                ensure_path(fname, False)
+                ensure_path(os.path.dirname(fname))
                 self.fname = fname
                 self.isopen = True
                 super(AtomicFile, self).__init__(
@@ -33,21 +33,13 @@ class PartitionFile(AtomicFile):
                         os.remove(self.tmpname)
                         self.isopen = False
 
-def ensure_path(path, check_exists = True):
-        if check_exists and os.path.exists(path):
-                err("File exists: %s" % path)
-        if os.path.isfile(path):
-                os.remove(path)
-        dirpath, fname = os.path.split(path)
+def ensure_path(path):
         try:
-                os.makedirs(dirpath)
+                os.makedirs(path)
         except OSError, x:
-                if x.errno == errno.EEXIST:
-                        # File exists is ok, it may happen
-                        # if two tasks are racing to create
-                        # the directory
-                        pass
-                else:
+                # File exists is ok.
+                # It may happen if two tasks are racing to create the directory
+                if x.errno != errno.EEXIST:
                         raise
 
 
@@ -131,7 +123,7 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
 
 def write_files(ext_data, path):
         path = os.path.abspath(path)
-        ensure_path(path + "/", False)
+        ensure_path(path)
         for fname, data in ext_data.iteritems():
                 # make sure that no files are written outside the given path
                 p = os.path.abspath(os.path.join(path, fname))

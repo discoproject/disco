@@ -21,6 +21,9 @@ output_stream_stack = []
 def init(mode, host, master, job_name, id, inputs):
         global Task
         Task = TaskEnvironment(mode, host, master, job_name, id, inputs)
+        ensure_path(os.path.dirname(Task.oob_file('')))
+        os.chdir(Task.path('CHDIR_PATH'))
+
 
 # Function stubs
 
@@ -70,7 +73,7 @@ def put(key, value):
         if oob_chars.match(key):
                 raise DiscoError("OOB key contains invalid characters (%s)" % key)
         if value is not None:
-                file(Task.path('OOB_FILE', key), 'w').write(value)
+                file(Task.oob_file(key), 'w').write(value)
         OOBData(key, Task)
 
 def get(key, job=None):
@@ -205,7 +208,7 @@ class ReduceReader(object):
 
                 msg("Starting external sort")
                 sortname = Task.path("REDUCE_SORTED", Task.id)
-                ensure_path(sortname, False)
+                ensure_path(os.path.dirname(sortname))
                 cmd = ["sort", "-n", "-k", "1,1", "-z",\
                         "-t", " ", "-o", sortname, dlname]
 

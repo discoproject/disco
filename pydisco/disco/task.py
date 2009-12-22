@@ -86,3 +86,6 @@ class Task(object):
     def reduce_output(self):
         return (self.path('REDUCE_OUTPUT', self.id),
                 self.url('REDUCE_OUTPUT', self.id))
+
+    def oob_file(self, key):
+        return self.path('OOB_FILE', key)

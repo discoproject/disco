@@ -3,7 +3,7 @@ import os, sys
 
 from disco.error import CommError, DiscoError, DataError
 from disco.events import AnnouncePID, DataUnavailable, EndOfJob, TaskFailed
-from disco.fileutils import ensure_path, ensure_file
+from disco.fileutils import ensure_file
 from disco.netstring import decode_netstring_fd
 from disco.node import worker
 from disco.comm import download
@@ -31,12 +31,6 @@ def main(inputs, mode, name, host, master_job, part):
         master = master_job.split('/')[2]
         worker.init(mode, host, master, name, part, inputs)
         task = worker.Task
-
-        try:
-                ensure_path(task.path('OOB_FILE', ''), False)
-                os.chdir(task.path('CHDIR_PATH'))
-        except Exception, e:
-                raise NodeError("Failed to initialize worker directories (disk full?): %s" % e)
 
         try:
                 if task.has_flag('resultfs'):
@@ -67,6 +61,7 @@ if __name__ == '__main__':
                 # check the number of open file descriptors (under proc), warn
                 # if close to max
                 # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
+                # also check for other known reasons for error, such as if disk is full
                 import traceback
                 print traceback.format_exc()
                 DataUnavailable(e)
