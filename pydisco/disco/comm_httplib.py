@@ -62,9 +62,6 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
                 if sze:
                         sze = int(sze)
                 return (fd, sze, url)
-
-        except KeyboardInterrupt:
-                raise
         except Exception, e:
                 if not ttl:
                         raise CommError("Downloading %s failed "

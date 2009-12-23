@@ -72,7 +72,6 @@ class Disco(object):
 
                 import pstats
                 stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
-                print prefix
                 for s in f[1:]:
                         stats.add(Stats(self.oob_get(name, s)))
                 return stats

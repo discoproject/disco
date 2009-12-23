@@ -69,17 +69,12 @@ def re_reader(item_re_str, fd, content_len, fname, output_tail = False, read_buf
         buf = ""
         tot = 0
         while True:
-                try:
-                        if content_len:
-                                r = fd.read(min(read_buffer_size, content_len - tot))
-                        else:
-                                r = fd.read(read_buffer_size)
-                        tot += len(r)
-                        buf += r
-                except KeyboardInterrupt:
-                        raise
-                except:
-                        data_err("Receiving data failed", fname)
+                if content_len:
+                        r = fd.read(min(read_buffer_size, content_len - tot))
+                else:
+                        r = fd.read(read_buffer_size)
+                tot += len(r)
+                buf += r
 
                 m = item_re.match(buf)
                 while m:

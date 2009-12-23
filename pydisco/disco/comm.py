@@ -1,7 +1,6 @@
 import os
 
 import disco.settings
-from disco.error import CommError
 
 settings = disco.settings.DiscoSettings()
 nocurl = "nocurl" in settings["DISCO_FLAGS"].lower().split()
@@ -17,13 +16,9 @@ else:
         from disco.comm_curl import *
 
 def open_local(path, url):
-        try:
-                fd = file(path)
-                sze = os.stat(path).st_size
-                return (fd, sze, "file://" + path)
-        except:
-                raise CommError("Can't access a local input file %s "
-                                    "(url %s)" % (path, url), url)
+        fd = file(path)
+        sze = os.stat(path).st_size
+        return (fd, sze, "file://" + path)
 
 # get rid of this for python2.6+
 try:

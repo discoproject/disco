@@ -154,17 +154,7 @@ def num_cmp(x, y):
 
 class ReduceReader(object):
         def __init__(self, input_files, do_sort, mem_sort_limit, params):
-                self.inputs = []
-                for input in input_files:
-                        if input.startswith("dir://"):
-                                try:
-                                        self.inputs += parse_dir(input, partid = Task.id)
-                                except:
-                                        data_err("Couldn't resolve address %s"\
-                                                % input, input)
-                        else:
-                                self.inputs.append(input)
-
+                self.inputs = [url for input in input_files for url in util.urllist(input)]
                 self.line_count = 0
                 if do_sort:
                         total_size = 0

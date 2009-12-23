@@ -37,14 +37,11 @@ def download(url, data = None, redir = False, offset = 0):
                 try:
                         dl_handle.perform()
                         break
-                except KeyboardInterrupt:
-                        raise
-                except:
+                except Exception, e:
                         if retry == MAX_RETRIES:
-                                raise CommError("Downloading %s failed "
-                                                    "after %d attempts: %s" %
-                                                    (url, MAX_RETRIES,\
-                                                     dl_handle.errstr()), url)
+                                raise CommError("Download failed "
+                                                "after %d attempts: %s" %
+                                                (MAX_RETRIES, dl_handle.errstr()), url)
                         dl_handle.setopt(FRESH_CONNECT, 1)
                         retry += 1
 
