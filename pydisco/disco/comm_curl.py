@@ -1,5 +1,6 @@
 import cStringIO, struct, time, sys, os
 from pycurl import *
+from pycurl import error as PyCurlError
 
 from disco.error import CommError
 
@@ -37,7 +38,7 @@ def download(url, data = None, redir = False, offset = 0):
                 try:
                         dl_handle.perform()
                         break
-                except Exception, e:
+                except PyCurlError, e:
                         if retry == MAX_RETRIES:
                                 raise CommError("Download failed "
                                                 "after %d attempts: %s" %

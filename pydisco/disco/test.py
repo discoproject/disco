@@ -1,9 +1,9 @@
-import os
+import os, signal
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
 from httplib import OK, INTERNAL_SERVER_ERROR
 from threading import Thread
-from unittest import TestCase, TestLoader, TextTestRunner
+from unittest import SkipTest, TestCase, TestLoader, TextTestRunner
 
 import disco
 from disco.core import Disco, result_iterator
@@ -56,8 +56,24 @@ def handler(data_generator):
 
         return Handler
 
+class InterruptTest(KeyboardInterrupt, SkipTest):
+        def __init__(self, test):
+                super(InterruptTest, self).__init__("Test interrupted: May not have finished cleaning up")
+                self.test = test
+
+        def __call__(self, signum, frame):
+                if self.test.is_running:
+                        self.test.is_running = False
+                        raise self
+
 class DiscoTestCase(TestCase):
         disco_settings = DiscoSettings()
+
+        def run(self, result=None):
+                self.is_running = True
+                signal.signal(signal.SIGINT, InterruptTest(self))
+                super(DiscoTestCase, self).run(result)
+                self.is_running = False
 
 class DiscoJobTestFixture(object):
         jobargs = ('input',

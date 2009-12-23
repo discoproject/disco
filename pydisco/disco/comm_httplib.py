@@ -62,7 +62,7 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
                 if sze:
                         sze = int(sze)
                 return (fd, sze, url)
-        except Exception, e:
+        except httplib.HTTPException, e:
                 if not ttl:
                         raise CommError("Downloading %s failed "
                                         "after %d attempts: %s" %

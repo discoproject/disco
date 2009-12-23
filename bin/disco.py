@@ -291,8 +291,6 @@ def main():
         if options.verbose or command == 'status':
             print(message)
 
-signal.signal(signal.SIGINT, signal.SIG_IGN)
-
 if __name__ == '__main__':
     try:
         main()
@@ -300,4 +298,4 @@ if __name__ == '__main__':
         sys.exit(e)
     except Exception, e:
         print('Disco encountered a fatal system error:')
-        sys.exit(e)
+        raise
