@@ -1,10 +1,12 @@
 
-import sys, time, os, fcntl
-from disco.util import msg, data_err, err
+import sys, time, os
+import errno, fcntl
+
+from disco.util import data_err, err
 
 class AtomicFile(file):
         def __init__(self, fname, *args, **kw):
-                ensure_path(fname, False)
+                ensure_path(os.path.dirname(fname))
                 self.fname = fname
                 self.isopen = True
                 super(AtomicFile, self).__init__(
@@ -15,7 +17,7 @@ class AtomicFile(file):
                         super(AtomicFile, self).close()
                         os.rename(self.fname + ".partial", self.fname)
                         self.isopen = False
-        
+
 class PartitionFile(AtomicFile):
         def __init__(self, partfile, tmpname, *args, **kw):
                 self.partfile = partfile
@@ -31,25 +33,17 @@ class PartitionFile(AtomicFile):
                         os.remove(self.tmpname)
                         self.isopen = False
 
-def ensure_path(path, check_exists = True):
-        if check_exists and os.path.exists(path):
-                err("File exists: %s" % path)
-        if os.path.isfile(path):
-                os.remove(path)
-        dirpath, fname = os.path.split(path)
+def ensure_path(path):
         try:
-                os.makedirs(dirpath)
+                os.makedirs(path)
         except OSError, x:
-                if x.errno == 17:
-                        # File exists is ok, it may happen
-                        # if two tasks are racing to create
-                        # the directory
-                        pass
-                else:
-                        raise x
+                # File exists is ok.
+                # It may happen if two tasks are racing to create the directory
+                if x.errno != errno.EEXIST:
+                        raise
 
 
-# About concurrent append operations: 
+# About concurrent append operations:
 #
 # Posix spec says:
 #
@@ -58,7 +52,7 @@ def ensure_path(path, check_exists = True):
 # intervening file modification operation shall occur between changing the
 # file offset and the write operation.
 #
-# See also 
+# See also
 # http://www.perlmonks.org/?node_id=486488
 #
 def safe_append(instream, outfile, timeout = 60):
@@ -95,9 +89,8 @@ def _safe_fileop(op, mode, outfile, timeout):
                                 err("Updating file %s failed: %s" %\
                                         (outfile, x))
                 except IOError, x:
-                        # Python doc guides us to check both the
-                        # EWOULDBLOCK (11) and EACCES (13) errors
-                        if x.errno == 11 or x.errno == 13:
+                        # Python / BSD doc guides us to check for these errors
+                        if x.errno in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
                                 time.sleep(0.1)
                                 timeout -= 0.1
                         else:
@@ -112,27 +105,25 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
                 try:
                         fd = os.open(fname + ".partial",
                                 os.O_CREAT | os.O_EXCL | os.O_WRONLY, mode)
-                        if type(data) == str:
-                               os.write(fd, data)
-                        else:
-                               os.write(fd, data())
+                        if callable(data):
+                                data = data()
+                        os.write(fd, data)
                         os.close(fd)
                         os.rename(fname + ".partial", fname)
                         return True
                 except OSError, x:
-                        # File exists
-                        if x.errno == 17:
+                        if x.errno == errno.EEXIST:
                                 time.sleep(1)
                                 timeout -= 1
                         else:
                                 data_err("Writing external file %s failed"\
-                                        % fname, fname)
+                                         % fname, fname)
         data_err("Timeout in writing external file %s" % fname, fname)
 
 
 def write_files(ext_data, path):
         path = os.path.abspath(path)
-        ensure_path(path + "/", False)
+        ensure_path(path)
         for fname, data in ext_data.iteritems():
                 # make sure that no files are written outside the given path
                 p = os.path.abspath(os.path.join(path, fname))

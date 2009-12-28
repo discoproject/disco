@@ -1,62 +1,55 @@
-import sys, re, os, marshal, modutil, time, types, cPickle, cStringIO, random
-from disco import func, util, comm, settings
-from disco.comm import json
-from disco.error import DiscoError, JobException
+import sys, re, os, modutil, time, types, cPickle, cStringIO, random
+
+from disco import func, util
+from disco.comm import download, json
+from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
 from disco.netstring import encode_netstring_fd, encode_netstring_str, decode_netstring_fd
+from disco.task import Task
 
 class Params(object):
         def __init__(self, **kwargs):
-                self._state = {}
-                for k, v in kwargs.iteritems():
-                        setattr(self, k, v)
-
-        def __setattr__(self, k, v):
-                if k[0] == '_':
-                        self.__dict__[k] = v
-                        return
-                st_v = v
-                st_k = "n_" + k
-                try:
-                        st_v = marshal.dumps(v.func_code)
-                        st_k = "f_" + k
-                except AttributeError:
-                        pass
-                self._state[st_k] = st_v
-                self.__dict__[k] = v
+                self.__dict__.update(kwargs)
 
         def __getstate__(self):
-                return self._state
+                return dict((k, util.pack(v))
+                        for k, v in self.__dict__.iteritems()
+                                if not k.startswith('_'))
 
         def __setstate__(self, state):
-                self._state = {}
                 for k, v in state.iteritems():
-                        if k.startswith('f_'):
-                                t = lambda x: x
-                                t.func_code = marshal.loads(v)
-                                v = t
-                        self.__dict__[k[2:]] = v
+                        self.__dict__[k] = util.unpack(v)
 
 class Stats(object):
         def __init__(self, prof_data):
+                import marshal
                 self.stats = marshal.loads(prof_data)
+
         def create_stats(self):
                 pass
 
 class Disco(object):
         def __init__(self, host):
-                self.host = "http://" + util.disco_host(host)[7:]
+                self.host = util.disco_host(host)
 
         def request(self, url, data = None, redir = False, offset = 0):
                 try:
-                        return comm.download(self.host + url, data = data, redir = redir, offset = offset)
-                except KeyboardInterrupt:
-                        raise
-                except Exception, e:
-                        raise DiscoError('Got %s, make sure disco master is running at %s' % (e, self.host))
+                        return download(self.host + url, data = data, redir = redir, offset = offset)
+                except CommError, e:
+                        raise DiscoError("Got %s, make sure disco master is running at %s" % (e, self.host))
+
+        def get_config(self):
+                return json.loads(self.request('/disco/ctrl/load_config_table'))
+
+        def set_config(self, config):
+                response = json.loads(self.request('/disco/ctrl/save_config_table', json.dumps(config)))
+                if response != 'table saved!':
+                        raise DiscoError(response)
+
+        config = property(get_config, set_config)
 
         def nodeinfo(self):
-                return json.loads(self.request("/disco/ctrl/nodeinfo"))
+                return json.loads(self.request('/disco/ctrl/nodeinfo'))
 
         def joblist(self):
                 return json.loads(self.request("/disco/ctrl/joblist"))
@@ -64,26 +57,22 @@ class Disco(object):
         def oob_get(self, name, key):
                 try:
                         return util.load_oob(self.host, name, key)
-                except comm.CommException, x:
-                        if x.http_code == 404:
+                except CommError, e:
+                        if e.http_code == 404:
                                 raise DiscoError("Unknown key or job name")
-                        raise DiscoError(x)
+                        raise
 
         def oob_list(self, name):
-                r = self.request("/disco/ctrl/oob_list?name=%s" % name,
-                        redir = True)
+                r = self.request("/disco/ctrl/oob_list?name=%s" % name, redir=True)
                 return json.loads(r)
 
-        def profile_stats(self, name, mode = ""):
-                import pstats
-                if mode:
-                        prefix = "profile-%s-" % mode
-                else:
-                        prefix = "profile-"
+        def profile_stats(self, name, mode=''):
+                prefix = 'profile-%s' % mode
                 f = [s for s in self.oob_list(name) if s.startswith(prefix)]
                 if not f:
-                        raise JobException("No profile data", self.host, name)
+                        raise JobError("No profile data", self.host, name)
 
+                import pstats
                 stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
                 for s in f[1:]:
                         stats.add(Stats(self.oob_get(name, s)))
@@ -93,45 +82,43 @@ class Disco(object):
                 return Job(self, **kwargs)
 
         def kill(self, name):
-                self.request("/disco/ctrl/kill_job", '"%s"' % name)
+                self.request('/disco/ctrl/kill_job', '"%s"' % name)
 
         def clean(self, name):
-                self.request("/disco/ctrl/clean_job", '"%s"' % name)
+                self.request('/disco/ctrl/clean_job', '"%s"' % name)
 
         def purge(self, name):
-                self.request("/disco/ctrl/purge_job", '"%s"' % name)
+                self.request('/disco/ctrl/purge_job', '"%s"' % name)
 
         def jobspec(self, name):
-                r = self.request("/disco/ctrl/parameters?name=%s" % name,
-                                 redir = True)
+                r = self.request('/disco/ctrl/parameters?name=%s' % name, redir=True)
                 return decode_netstring_fd(cStringIO.StringIO(r))
 
         def events(self, name, offset = 0):
                 def event_iter(events):
                         offs = offset
                         lines = events.splitlines()
-                        for i, l in enumerate(lines):
-                                offs += len(l) + 1
-                                if not len(l):
-                                        continue
-                                try:
-                                        ent = tuple(json.loads(l))
-                                except ValueError:
-                                        break
-                                # HTTP range request doesn't like empty ranges:
-                                # Let's ensure that at least the last newline
-                                # is always retrieved.
-                                if i == len(lines) - 1:
-                                        offs -= 1
-                                yield offs, ent
+                        for i, line in enumerate(lines):
+                                if len(line):
+                                        offs += len(line) + 1
+                                        try:
+                                                event = tuple(json.loads(line))
+                                        except ValueError:
+                                                break
+                                        # HTTP range request doesn't like empty ranges:
+                                        # Let's ensure that at least the last newline
+                                        # is always retrieved.
+                                        if i == len(lines) - 1:
+                                                offs -= 1
+                                        yield offs, event
 
                 r = self.request("/disco/ctrl/rawevents?name=%s" % name,
-                                 redir = True, offset = offset)
+                                 redir = True,
+                                 offset = offset)
 
                 if len(r) < 2:
                         return []
-                else:
-                        return event_iter(r)
+                return event_iter(r)
 
         def results(self, jobspec, timeout = 2000):
                 jobspecifier = JobSpecifier(jobspec)
@@ -150,9 +137,7 @@ class Disco(object):
                 return others, active
 
         def jobinfo(self, name):
-                jobinfo = self.request("/disco/ctrl/jobinfo?name=%s" % name)
-                if jobinfo:
-                        return json.loads(jobinfo)
+                return json.loads(self.request("/disco/ctrl/jobinfo?name=%s" % name))
 
         def wait(self, name, show = None, poll_interval = 2, timeout = None, clean = False):
                 event_monitor = EventMonitor(show, disco=self, name=name)
@@ -165,9 +150,9 @@ class Disco(object):
                                         self.clean(name)
                                 return results
                         if status != 'active':
-                                raise JobException("Job status %s" % status, self.host, name)
+                                raise JobError("Job status %s" % status, self.host, name)
                         if timeout and time.time() - start_time > timeout:
-                                raise JobException("Timeout", self.host, name)
+                                raise JobError("Timeout", self.host, name)
 
 class JobSpecifier(list):
         def __init__(self, jobspec):
@@ -212,7 +197,8 @@ class Job(object):
                     "combiner": None,
                     "nr_maps": None,
                     "scheduler": {},
-                    "nr_reduces": 0,
+#XXX: nr_reduces default has changed!
+                    "nr_reduces": 1,
                     "sort": False,
                     "params": Params(),
                     "mem_sort_limit": 256 * 1024**2,
@@ -257,15 +243,9 @@ class Job(object):
                 raise AttributeError("%r has no attribute %r" % (self, attr))
 
         def pack_stack(self, kw, req, stream):
-                if stream not in kw:
-                        return
-                v = kw[stream]
-                if type(v) == list:
-                        s = v
-                else:
-                        s = [v]
-                req[stream] = encode_netstring_str(
-                        (f.func_name, marshal.dumps(f.func_code)) for f in s)
+                if stream in kw:
+                        req[stream] = encode_netstring_str((f.func_name, util.pack(f))
+                                                           for f in util.iterify(kw[stream]))
 
         def _run(self, **kwargs):
                 jobargs = util.DefaultDict(self.defaults.__getitem__, kwargs)
@@ -284,13 +264,13 @@ class Job(object):
                         raise DeprecationWarning("Argument 'chunked' is deprecated")
 
                 if "nr_maps" in kwargs:
-                        print >> sys.stderr, "Warning: nr_maps is deprecated. "\
-                                "Use scheduler = {'max_cores': N} instead."
+                        sys.stderr.write("Warning: nr_maps is deprecated. "
+                                         "Use scheduler = {'max_cores': N} instead.\n")
                         sched = d("scheduler").copy()
                         if "max_cores" not in sched:
                                 sched["max_cores"] = int(kw["nr_maps"])
                         kw["scheduler"] = sched
-                        
+
                 if not "input" in kwargs:
                         raise DiscoError("Argument input is required")
 
@@ -301,7 +281,7 @@ class Job(object):
                         if p not in Job.defaults:
                                 raise DiscoError("Unknown argument: %s" % p)
 
-                inputs = kwargs["input"]
+                input = kwargs["input"]
 
                 # -- initialize request --
 
@@ -315,13 +295,13 @@ class Job(object):
 
                 # -- required modules --
 
-                if "required_modules" in kwargs:
-                        rm = kwargs["required_modules"]
+                if 'required_modules' in kwargs:
+                        rm = kwargs['required_modules']
                 else:
                         functions = util.flatten(util.iterify(jobargs[f])
                                                  for f in self.mapreduce_functions)
-                        rm = modutil.find_modules(
-                                [f for f in functions if type(f) == types.FunctionType])
+                        rm = modutil.find_modules([f for f in functions
+                                if isinstance(f, types.FunctionType)])
 
                 send_mod = []
                 imp_mod = []
@@ -333,9 +313,9 @@ class Job(object):
 
                 request["required_modules"] = " ".join(imp_mod)
                 rf = util.pack_files(send_mod)
-                
+
                 # -- input & output streams --
-                
+
                 for stream in ["map_input_stream", "map_output_stream",
                                "reduce_input_stream", "reduce_output_stream"]:
                         self.pack_stack(kwargs, request, stream)
@@ -343,16 +323,16 @@ class Job(object):
                 # -- required files --
 
                 if "required_files" in kwargs:
-                        if type(kwargs["required_files"]) == dict:
+                        if isinstance(kwargs["required_files"], dict):
                                 rf.update(kwargs["required_files"])
                         else:
                                 rf.update(util.pack_files(\
                                         kwargs["required_files"]))
                 if rf:
-                        request["required_files"] = marshal.dumps(rf)
+                        request["required_files"] = util.pack(rf)
 
                 # -- scheduler --
-                
+
                 sched = jobargs["scheduler"]
                 sched_keys = ["max_cores", "force_local", "force_remote"]
 
@@ -367,11 +347,9 @@ class Job(object):
 
                 # -- map --
 
-                if "map" in kwargs:
-                        if type(kwargs["map"]) == dict:
-                                request["ext_map"] = marshal.dumps(kwargs["map"])
-                        else:
-                                request["map"] = marshal.dumps(kwargs["map"].func_code)
+                if 'map' in kwargs:
+                        k = 'ext_map' if isinstance(kwargs['map'], dict) else 'map'
+                        request[k] = util.pack(kwargs['map'])
 
                         for function_name in ('map_init',
                                               'map_reader',
@@ -380,67 +358,41 @@ class Job(object):
                                               'combiner'):
                                 function = jobargs[function_name]
                                 if function:
-                                        request[function_name] = marshal.dumps(function.func_code)
+                                        request[function_name] = util.pack(function)
 
-                        parsed_inputs = []
-                        for inp in inputs:
-                                if type(inp) == list:
-                                        parsed_inputs.append("\n".join(reversed(inp)))
-                                elif inp.startswith("dir://"):
-                                        parsed_inputs += util.parse_dir(inp)
-                                else:
-                                        parsed_inputs.append(inp)
-                        inputs = parsed_inputs
+                        def inputlist(input):
+                                if hasattr(input, '__iter__'):
+                                        return ['\n'.join(reversed(list(input)))]
+                                return util.urllist(input)
+                        input = [e for i in input for e in inputlist(i)]
 
                 # -- only reduce --
 
                 else:
-                        ext_inputs = []
-                        red_inputs = []
-                        for inp in inputs:
-                                if type(inp) == list:
-                                        raise DiscoError("Reduce doesn't "\
-                                                "accept redundant inputs")
-                                elif inp.startswith("dir://"):
-                                        red_inputs.append(inp)
-                                else:
-                                        ext_inputs.append(inp)
-                        
-                        if ext_inputs and red_inputs:
-                                raise DiscoError("Can't mix partitioned "\
-                                        "inputs with other inputs")
-                        elif ext_inputs and kwargs["nr_reduces"] != 1:
-                                raise DiscoError("nr_reduces must be 1 when "\
-                                        "using non-partitioned inputs "\
-                                        "without the map phase")
-                        else:
-                                inputs = ext_inputs or red_inputs
+                        # XXX: Check for redundant inputs, external &
+                        # partitioned inputs
+                        input = [url for i in input for url in util.urllist(i)]
 
-                request["input"] = " ".join(inputs)
+                request['input'] = ' '.join(input)
 
-                if "ext_params" in kwargs:
-                        if type(kwargs["ext_params"]) == dict:
-                                request["ext_params"] =\
-                                        encode_netstring_fd(kwargs["ext_params"])
-                        else:
-                                request["ext_params"] = kwargs["ext_params"]
+                if 'ext_params' in kwargs:
+                        e = kwargs['ext_params']
+                        request['ext_params'] = encode_netstring_fd(e)
+                                if isinstance(e, dict) else e
 
                 # -- reduce --
 
                 nr_reduces = jobargs['nr_reduces']
-                if "reduce" in kwargs:
-                        if type(kwargs["reduce"]) == dict:
-                                request["ext_reduce"] = marshal.dumps(kwargs["reduce"])
-                        else:
-                                request["reduce"] = marshal.dumps(kwargs["reduce"].func_code)
-                        nr_reduces = nr_reduces or min(max(nr_maps / 2, 1), 100)
+                if 'reduce' in kwargs:
+                        k = 'ext_reduce' if isinstance(kwargs['reduce'], dict) else 'reduce'
+                        request[k] = util.pack(kwargs['reduce'])
 
                         for function_name in ('reduce_reader', 'reduce_writer', 'reduce_init'):
                                 function = jobargs[function_name]
                                 if function:
-                                        request[function_name] = marshal.dumps(function.func_code)
+                                        request[function_name] = util.pack(function)
 
-                request["nr_reduces"] = str(nr_reduces)
+                request['nr_reduces'] = str(nr_reduces)
 
                 # -- encode and send the request --
 
@@ -450,20 +402,18 @@ class Job(object):
                         raise DiscoError("Failed to start a job. Server replied: " + reply)
                 self.name = reply.split(':', 1)[1]
 
-def result_iterator(results, notifier = None, proxy = None,
-        reader = func.netstr_reader, input_stream = [func.map_input_stream],
-        params = None):
+def result_iterator(results,
+                    notifier = None,
+                    reader = func.netstr_reader,
+                    input_stream = [func.map_input_stream],
+                    params = None):
 
-        Task = settings.TaskEnvironment(result_iterator = True)
+        task = Task(result_iterator = True)
         for fun in input_stream:
-                fun.func_globals.setdefault("Task", Task)
+                fun.func_globals.setdefault("Task", task)
 
         res = []
-        for dir_url in results:
-                if dir_url.startswith("dir://"):
-                        res += util.parse_dir(dir_url, proxy)
-                else:
-                        res.append(dir_url)
+        res = [url for r in results for url in util.urllist(r)]
 
         for url in res:
                 fd = sze = None

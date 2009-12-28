@@ -13,7 +13,7 @@
 
 -define(MAX_MSG_LENGTH, 8192).
 -define(RATE_WINDOW, 100000). % 100ms
--define(RATE_LIMIT, 10).
+-define(RATE_LIMIT, 20).
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 -define(OOB_KEY_MAX, 256).
@@ -172,7 +172,8 @@ worker_exit(#state{id = Id, master = Master}, Msg) ->
 
 errlines(#state{errlines = L}) -> lists:flatten(lists:reverse(L)).
 
-handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
+handle_info({_, {data, {eol, <<"**<PID>", Line0/binary>>}}}, S) ->
+        Line = list_to_binary(strip_timestamp(Line0)),
         {noreply, S#state{child_pid = binary_to_list(Line)}};
 
 handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
@@ -214,7 +215,8 @@ handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
                 disco_server:format_time(S#state.start_time)),
         {stop, worker_exit(S, {job_ok, {S#state.oob, S#state.results}}), S};
 
-handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
+handle_info({_, {data, {eol, <<"**<OOB>", Line0/binary>>}}}, S) ->
+        Line = list_to_binary(strip_timestamp(Line0)),
         [Key|Path] = string:tokens(binary_to_list(Line), " "),
 
         S1 = S#state{oob = [{Key, Path}|S#state.oob],

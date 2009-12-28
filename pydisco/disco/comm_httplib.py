@@ -1,19 +1,9 @@
 import httplib, urllib2
 
+from disco.error import CommError
+
 MAX_RETRIES = 10
 http_pool = {}
-
-class CommException(Exception):
-        def __init__(self, msg, url = ""):
-                self.msg = msg
-                self.url = url
-
-        def __str__(self):
-                if self.url:
-                        return "HTTP exception (%s): %s" %\
-                                (self.url, self.msg)
-                else:
-                        return "HTTP exception: %s" % self.msg
 
 def download(url, data = None, redir = False, offset = 0):
         if redir:
@@ -23,19 +13,18 @@ def download(url, data = None, redir = False, offset = 0):
                 try:
                         c = urllib2.urlopen(req)
                 except urllib2.HTTPError, x:
-                        raise CommException(x.msg, url)
+                        raise CommError(x.msg, url)
                 r = c.read()
                 c.close()
                 return r
-        else:
-                fd, sze, url = open_remote(url, data = data, offset = offset)
-                return fd.read()
+        fd, sze, url = open_remote(url, data = data, offset = offset)
+        return fd.read()
 
 
 def check_code(fd, expected, url):
         if fd.status != expected:
-                raise CommException("Invalid HTTP reply (expected %s got %s)" %\
-                         (expected, fd.status), url)
+                raise CommError("Invalid HTTP reply (expected %s got %s)" %\
+                                (expected, fd.status), url)
 
 def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
         try:
@@ -73,14 +62,11 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
                 if sze:
                         sze = int(sze)
                 return (fd, sze, url)
-
-        except KeyboardInterrupt:
-                raise
-        except Exception, e:
+        except httplib.HTTPException, e:
                 if not ttl:
-                        raise CommException("Downloading %s failed "\
-                                            "after %d attempts: %s" %\
-                                            (url, MAX_RETRIES, e), url)
+                        raise CommError("Downloading %s failed "
+                                        "after %d attempts: %s" %
+                                        (url, MAX_RETRIES, e), url)
                 http.close()
                 if ext_host in http_pool:
                         del http_pool[ext_host]

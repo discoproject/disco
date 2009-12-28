@@ -4,19 +4,11 @@ import sys
 from disco import util
 from disco.comm import download
 
-for f in sys.argv[1:]:
-        if f.startswith("dir://"):
-                urls = util.parse_dir(f)
-        else:
-                urls = [f]
-        for u in urls:
-                if u.startswith("http://"):
-                        url = u
-                elif u.startswith("disco://"):
+for url in sys.argv[1:]:
+        for u in util.urllist(url):
+                if u.startswith("disco://"):
                         host, fname = u[8:].split("/", 1)
-                        url = util.proxy_url(None, fname, host)
-                else:
-                        raise Exception("Unknown protocol %s" % u)
-                print download(url),
+                        u = util.proxy_url(fname, host)
+                print download(u)
 
 
