@@ -11,7 +11,7 @@ def check_code(c, expected, url):
         code = c.getinfo(HTTP_CODE)
         if code != expected:
                 raise CommException("Invalid HTTP reply (expected %s got %s)" %\
-                         (expected, fd.status), url)
+                         (expected, code), url)
 
 def download(url, data = None, redir = False, offset = 0):
         dl_handle = Curl()
@@ -147,7 +147,7 @@ class CurlConn:
 def open_remote(url, expect = 200):
         c = Curl()
         conn = CurlConn(url, handle = c, expect = expect)
-        return conn.length, conn
+        return (conn, conn.length, url)
 
 
 

@@ -1,5 +1,35 @@
-import sys, time, os, traceback, fcntl
+
+import sys, time, os, fcntl
 from disco.util import msg, data_err, err
+
+class AtomicFile(file):
+        def __init__(self, fname, *args, **kw):
+                ensure_path(fname, False)
+                self.fname = fname
+                self.isopen = True
+                super(AtomicFile, self).__init__(
+                        fname + ".partial", *args, **kw)
+
+        def close(self):
+                if self.isopen:
+                        super(AtomicFile, self).close()
+                        os.rename(self.fname + ".partial", self.fname)
+                        self.isopen = False
+        
+class PartitionFile(AtomicFile):
+        def __init__(self, partfile, tmpname, *args, **kw):
+                self.partfile = partfile
+                self.tmpname = tmpname
+                self.isopen = True
+                super(PartitionFile, self).__init__(
+                        tmpname, *args, **kw)
+
+        def close(self):
+                if self.isopen:
+                        super(PartitionFile, self).close()
+                        safe_append(file(self.tmpname), self.partfile)
+                        os.remove(self.tmpname)
+                        self.isopen = False
 
 def ensure_path(path, check_exists = True):
         if check_exists and os.path.exists(path):
@@ -18,6 +48,7 @@ def ensure_path(path, check_exists = True):
                 else:
                         raise x
 
+
 # About concurrent append operations: 
 #
 # Posix spec says:
@@ -31,18 +62,33 @@ def ensure_path(path, check_exists = True):
 # http://www.perlmonks.org/?node_id=486488
 #
 def safe_append(instream, outfile, timeout = 60):
-        outstream = file(outfile, "a")
+        def append(outstream):
+                while True:
+                        buf = instream.read(8192)
+                        if not buf:
+                                instream.close()
+                                return
+                        outstream.write(buf)
+        return _safe_fileop(append, "a", outfile, timeout = timeout)
+
+def safe_update(outfile, lines, timeout = 60):
+        def update(outstream):
+                outstream.seek(0)
+                d = dict((x.strip(), True) for x in outstream)
+                for x in lines:
+                        if x not in d:
+                                outstream.write("%s\n" % x)
+        return _safe_fileop(update, "a+", outfile, timeout = timeout)
+
+def _safe_fileop(op, mode, outfile, timeout):
+        outstream = file(outfile, mode)
         while timeout > 0:
                 try:
                         fcntl.flock(outstream, fcntl.LOCK_EX | fcntl.LOCK_NB)
                         try:
-                                while True:
-                                        buf = instream.read(8192)
-                                        if not buf:
-                                                instream.close()
-                                                outstream.close()
-                                                return
-                                        outstream.write(buf)
+                                r = op(outstream)
+                                outstream.close()
+                                return r
                         except Exception, x:
                                 # output file is inconsistent state
                                 # we must crash the job
@@ -52,8 +98,8 @@ def safe_append(instream, outfile, timeout = 60):
                         # Python doc guides us to check both the
                         # EWOULDBLOCK (11) and EACCES (13) errors
                         if x.errno == 11 or x.errno == 13:
-                                time.sleep(1)
-                                timeout -= 1
+                                time.sleep(0.1)
+                                timeout -= 0.1
                         else:
                                 raise
         data_err("Timeout when updating file %s" % outfile, outfile)

@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 -export([start_link/1, start_link_remote/4, remote_worker/1]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, 
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
         terminate/2, code_change/3, slave_name/1]).
 
 -include("task.hrl").
@@ -21,7 +21,7 @@
 -define(SLAVE_ARGS, "+K true").
 -define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
 -define(PORT_OPT, [{line, 100000}, binary, exit_status,
-                   use_stdio, stderr_to_stdout, 
+                   use_stdio, stderr_to_stdout,
                    {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}]}]).
 
 get_env(Var) ->
@@ -35,7 +35,7 @@ get_env(Var, Fmt) ->
         end.
 
 slave_env() ->
-    lists:flatten([?SLAVE_ARGS, 
+    lists:flatten([?SLAVE_ARGS,
                    get_env("DISCO_MASTER_HOME", " -pa ~s/ebin"),
                    [get_env(X) || X <- ["DISCO_MASTER_PORT",
                                         "DISCO_ROOT",
@@ -55,7 +55,7 @@ start_link_remote(Master, EventServ, Node, Task) ->
 
         case net_adm:ping(NodeAtom) of
                 pong -> ok;
-                pang -> 
+                pang ->
                         slave_master ! {start, self(), Node, slave_env()},
                         receive
                                 slave_started -> ok;
@@ -74,10 +74,10 @@ start_link_remote(Master, EventServ, Node, Task) ->
         {ok, MasterUrl0} = application:get_env(disco_url),
         MasterUrl = MasterUrl0 ++ disco_server:jobhome(JobName),
 
-        Debug = os:getenv("DISCO_DEBUG") =/= false,
+        Debug = os:getenv("DISCO_DEBUG") =/= "off",
         spawn_link(NodeAtom, disco_worker, remote_worker,
                  [[self(), EventServ, Master, MasterUrl, Task, Node, Debug]]),
-        
+
         receive
                 ok -> ok;
                 {'EXIT', _, Reason} -> exit(Reason);
@@ -117,12 +117,12 @@ start_link([Parent|_] = Args) ->
 init([Id, EventServ, Master, MasterUrl, Task, Node, Debug]) ->
         process_flag(trap_exit, true),
         erlang:monitor(process, Task#task.from),
-        {ok, #state{id = Id, 
+        {ok, #state{id = Id,
                     master = Master,
                     master_url = MasterUrl,
                     task = Task,
                     node = Node,
-                    child_pid = none, 
+                    child_pid = none,
                     eventserv = EventServ,
                     linecount = 0,
                     start_time = now(),
@@ -144,7 +144,7 @@ handle_call(start_worker, _From, S) ->
 
 spawn_cmd(#state{task = T, node = Node, master_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
-                [T#task.mode, T#task.jobname, Node, Url, 
+                [T#task.mode, T#task.jobname, Node, Url,
                         T#task.taskid, T#task.chosen_input])).
 
 strip_timestamp(Msg) when is_binary(Msg) ->
@@ -173,7 +173,7 @@ worker_exit(#state{id = Id, master = Master}, Msg) ->
 errlines(#state{errlines = L}) -> lists:flatten(lists:reverse(L)).
 
 handle_info({_, {data, {eol, <<"**<PID>", Line/binary>>}}}, S) ->
-        {noreply, S#state{child_pid = binary_to_list(Line)}}; 
+        {noreply, S#state{child_pid = binary_to_list(Line)}};
 
 handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
         if size(Line0) > ?MAX_MSG_LENGTH ->
@@ -210,7 +210,7 @@ handle_info({_, {data, {eol, <<"**<OUT>", Line/binary>>}}}, S) ->
 
 handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
         event(S, "", strip_timestamp(Line)),
-        event(S, "", "Task finished in " ++ 
+        event(S, "", "Task finished in " ++
                 disco_server:format_time(S#state.start_time)),
         {stop, worker_exit(S, {job_ok, {S#state.oob, S#state.results}}), S};
 
@@ -222,11 +222,11 @@ handle_info({_, {data, {eol, <<"**<OOB>", Line/binary>>}}}, S) ->
 
         if length(Key) > ?OOB_KEY_MAX ->
                 Err = "OOB key too long: Max 256 characters",
-                event(S, "ERROR", Err), 
+                event(S, "ERROR", Err),
                 {stop, worker_exit(S1, {job_error, Err}), S1};
         S#state.oob_counter > ?OOB_MAX ->
                 Err = "OOB message limit exceeded. Too many put() calls.",
-                event(S, "ERROR", Err), 
+                event(S, "ERROR", Err),
                 {stop, worker_exit(S1, {job_error, Err}), S1};
         true ->
                 {noreply, S1}
@@ -254,9 +254,9 @@ handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
 
 handle_info({_, {exit_status, _Status}}, S) ->
         M =  "Worker failed. Last words:\n" ++ errlines(S),
-        event(S, "WARN", M),
-        {stop, worker_exit(S, {data_error, M}), S};
-        
+        event(S, "ERROR", M),
+        {stop, worker_exit(S, {job_error, M}), S};
+
 handle_info({_, closed}, S) ->
         {stop, worker_exit(S, {job_error, "Worker killed"}), S};
 
@@ -268,10 +268,10 @@ handle_info(timeout, #state{linecount = 0} = S) ->
 handle_info({'DOWN', _, _, _, _}, S) ->
         {stop, worker_exit(S, {job_error, "Worker killed"}), S}.
 
-handle_cast(kill_worker, S) -> 
+handle_cast(kill_worker, S) ->
         {stop, worker_exit(S, {job_error, "Worker killed"}), S}.
 
-terminate(_Reason, State) -> 
+terminate(_Reason, State) ->
         % Possible bug: If we end up here before knowing child_pid, the
         % child may stay running. However, it may die by itself due to
         % SIGPIPE anyway.
@@ -284,5 +284,5 @@ terminate(_Reason, State) ->
         true -> ok
         end.
 
-code_change(_OldVsn, State, _Extra) -> {ok, State}.              
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
 

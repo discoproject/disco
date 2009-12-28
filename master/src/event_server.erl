@@ -6,7 +6,7 @@
 -define(EVENT_BUFFER_TIMEOUT, 2000).
 
 -export([event/4, event/5, event/6]).
--export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
@@ -29,6 +29,16 @@ json_list([X], L) ->
 json_list([X|R], L) ->
         json_list(R, [<<X/binary, ",">>|L]).
 
+unique_key(Prefix, Dict) ->
+        {MegaSecs, Secs, MicroSecs} = now(),
+        Key = lists:flatten(io_lib:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs])),
+        case dict:is_key(Key, Dict) of
+                true ->
+                        unique_key(Prefix, Dict);
+                false ->
+                        Key
+        end.
+
 handle_call(get_jobnames, _From, {Events, _} = S) ->
         Lst = dict:fold(fun(JobName, {_, Nu, Pid}, L) ->
                 [{JobName, Nu, Pid}|L]
@@ -39,7 +49,7 @@ handle_call({get_job_events, JobName, Q, N0}, _From, {_, MsgBuf} = S) ->
         N = if N0 > 1000 -> 1000; true -> N0 end,
         case dict:find(JobName, MsgBuf) of
                 _ when Q =/= "" ->
-                        {reply, {ok, 
+                        {reply, {ok,
                                 json_list(grep_log(JobName, Q, N), [])}, S};
                 {ok, {_, _, MsgLst}} ->
                         {reply, {ok,
@@ -63,31 +73,27 @@ handle_call({get_results, JobName}, _From, {Events, _} = S) ->
                         end
         end;
 
-handle_call({new_job, JobName, Pid}, _From, {Events0, MsgBuf0} = S) ->
-        V = dict:is_key(JobName, Events0),
-        if V -> {reply, eexist, S};
-        true ->
-                Events = dict:store(JobName, {[], now(), Pid}, Events0),
-                MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
-                
-                {ok, Root} = application:get_env(disco_root),
-                FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
-                EventProc = spawn(fun() -> job_event_handler(FName) end),
-                ets:insert(event_files, {JobName, EventProc}),
-                {reply, ok, add_event("master", JobName, list_to_binary("\"New job!\""),
-                        {start, Pid}, {Events, MsgBuf})}
-        end;
+handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0}) ->
+        JobName = unique_key(JobPrefix, Events0),
+        Events = dict:store(JobName, {[], now(), Pid}, Events0),
+        MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
+        spawn(fun() -> job_event_handler(JobName, From) end),
+        {noreply, {Events, MsgBuf}};
+
+handle_call({job_initialized, JobName, JobEventHandler}, _From, S) ->
+        ets:insert(event_files, {JobName, JobEventHandler}),
+        {reply, add_event("master", JobName, list_to_binary("\"New job initialized!\""), {}, S), S};
 
 handle_call({get_jobinfo, JobName}, _From, {Events, _} = S) ->
         case dict:find(JobName, Events) of
                 error -> {reply, invalid_job, S};
                 {ok, {EvLst, Nu, Pid}} ->
-                        JobNfo = event_filter(job_data, EvLst),
+                        [JobNfo] = event_filter(job_data, EvLst),
                         Res = event_filter(ready, EvLst),
                         Ready = event_filter(task_ready, EvLst),
                         Failed = event_filter(task_failed, EvLst),
                         TStamp = format_timestamp(Nu),
-                        {reply, {ok, {TStamp, Pid, 
+                        {reply, {ok, {TStamp, Pid,
                                 JobNfo, Res, Ready, Failed}}, S}
         end.
 
@@ -98,6 +104,9 @@ handle_cast({add_job_event, Host, JobName, M, P}, {_, MsgBuf} = S) ->
         true -> {noreply, S}
         end;
 
+% XXX: Some aux process could go through the jobs periodically and
+% check that the job coord is still alive - if not, call job_done for
+% the zombie job.
 handle_cast({job_done, JobName}, {Events, MsgBuf} = S) ->
         case ets:lookup(event_files, JobName) of
                 [] -> ok;
@@ -129,7 +138,7 @@ tail_log(JobName, N)->
 grep_log(JobName, Q, N) ->
         {ok, Root} = application:get_env(disco_root),
         FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
-        
+
         % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
         % only whitelisted characters are allowed in the query
         {ok, CQ, _} = regexp:gsub(Q, "[^a-zA-Z0-9:-_!@]", ""),
@@ -166,7 +175,7 @@ add_event(Host, JobName, Msg, Params, {Events, MsgBuf}) ->
                 LstLen = LstLen0 + 1
         end,
         MsgBufN = dict:store(JobName, {NMsg + 1, LstLen, MsgLst}, MsgBuf),
-        if Params == [] -> 
+        if Params == [] ->
                 {Events, MsgBufN};
         true ->
                 {ok, {EvLst0, Nu, Pid}} = dict:find(JobName, Events),
@@ -184,22 +193,49 @@ event(EventServ, Host, JobName, Format, Args, Params) ->
         SArgs = lists:map(fun(X) ->
                 L = lists:flatlength(io_lib:fwrite("~p", [X])) > 10000,
                 if L -> trunc_io:fprint(X, 10000);
-                true -> X 
+                true -> X
         end end, Args),
 
         M = list_to_binary(json:encode(
                 list_to_binary(io_lib:fwrite(Format, SArgs)))),
         gen_server:cast(EventServ, {add_job_event, Host, JobName, M, Params}).
-        
+
 % callback stubs
 terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-job_event_handler(FName) ->
+check_mkdir(ok) -> ok;
+check_mkdir({error, eexist}) -> ok;
+check_mkdir(_) -> throw("creating directory failed").
+
+make_local({_, true}, Root, Home) ->
+        {ok, LocalRoot} = application:get_env(disco_localdir),
+        [R, _] = filename:split(Home),
+        check_mkdir(file:make_dir(filename:join(LocalRoot, R))),
+        check_mkdir(file:make_dir(filename:join(LocalRoot, Home))),
+        Dst = filename:join([LocalRoot, Home, "events"]),
+        Src = filename:join([Root, Home, "events"]),
+        ok = file:make_symlink(Dst, Src);
+make_local(_, _, _) -> ok.
+
+prepare_environment(Name) ->
+        {ok, Root} = application:get_env(disco_root),
+        Home = disco_server:jobhome(Name),
+        [R, _] = filename:split(Home),
+        check_mkdir(file:make_dir(filename:join(Root, R))),
+        check_mkdir(file:make_dir(filename:join(Root, Home))),
+        make_local(application:get_env(resultfs_enabled), Root, Home).
+
+job_event_handler(JobName, JobCoordinator) ->
+        prepare_environment(JobName),
+        {ok, Root} = application:get_env(disco_root),
+        FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
         {ok, F} = file:open(FName, [append, raw]),
+        gen_server:call(event_server, {job_initialized, JobName, self()}),
+        gen_server:reply(JobCoordinator, {ok, JobName}),
         timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
-        job_event_handler_do(F, [], 0). 
+        job_event_handler_do(F, [], 0).
 
 job_event_handler_do(F, Buf, BufSize) when BufSize > ?EVENT_BUFFER_SIZE ->
         flush_buffer(F, Buf),
@@ -225,8 +261,3 @@ job_event_handler_do(F, Buf, BufSize) ->
 flush_buffer(_, []) -> ok;
 flush_buffer(F, Buf) ->
         file:write(F, lists:reverse(Buf)).
-                        
-                        
-                
-        
-        

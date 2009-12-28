@@ -16,7 +16,7 @@ r = list(result_iterator(job.wait()))
 if [("discoapi", "")] != r:
         raise Exception("Invalid result: <%s> " % r)
 
-n = job.jobspec()["name"]
+n = job.jobspec()["prefix"]
 if not n.startswith("test_discoapi"):
         raise Exception("Invalid jobspec: Expected name prefix test_discoapi, "\
                         "got %s" % n)

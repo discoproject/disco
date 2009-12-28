@@ -6,6 +6,8 @@
                      "Status: 200 OK\n"
                      "Content-type: text/plain\n\n").
 
+-include("task.hrl").
+
 job_status(J) ->
         case gen_server:call(event_server, {get_results, J}) of
                 {active, _} -> <<"job_active">>;
@@ -16,7 +18,7 @@ job_status(J) ->
 op("save_config_table", _Query, Json) ->
         disco_config:save_config_table(Json);
 
-op("load_config_table", _Query, _Json) -> 
+op("load_config_table", _Query, _Json) ->
         disco_config:get_config_table();
 
 op("joblist", _Query, _Json) ->
@@ -37,7 +39,7 @@ op("jobinfo", Query, _Json) ->
                 gen_server:call(disco_server, {get_active, Name}),
         {ok, {TStamp, Pid, JobNfo, Res, Ready, Failed}} =
                 gen_server:call(event_server, {get_jobinfo, Name}),
-        {ok, render_jobinfo(TStamp, Pid, JobNfo, Nodes, 
+        {ok, render_jobinfo(TStamp, Pid, JobNfo, Nodes,
                 Res, Tasks, Ready, Failed)};
 
 op("parameters", Query, _Json) ->
@@ -54,11 +56,11 @@ op("oob_get", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {value, {_, Key}} = lists:keysearch("key", 1, Query),
         Proxy = lists:keysearch("proxy", 1, Query),
-        case {Proxy, gen_server:call(oob_server, {fetch, 
+        case {Proxy, gen_server:call(oob_server, {fetch,
                         list_to_binary(Name), list_to_binary(Key)})} of
                 {P, {ok, {Node, Path}}} when P == false;
-                                P == {value, {"proxy", "0"}} -> 
-                        {relo, ["http://", Node, ":", 
+                                P == {value, {"proxy", "0"}} ->
+                        {relo, ["http://", Node, ":",
                                 os:getenv("DISCO_PORT"), "/", Path]};
                 {_, {ok, {Node, Path}}} ->
                         {ok, MasterUrl} = application:get_env(disco_url),
@@ -74,7 +76,7 @@ op("oob_list", Query, _Json) ->
                 {ok, Keys} -> {ok, Keys};
                 error -> not_found
         end;
-        
+
 op("jobevents", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
         {value, {_, NumS}} = lists:keysearch("num", 1, Query),
@@ -88,7 +90,7 @@ op("jobevents", Query, _Json) ->
         {raw, Ev};
 
 op("nodeinfo", _Query, _Json) ->
-        {ok, {Available, Active}} = 
+        {ok, {Available, Active}} =
                 gen_server:call(disco_server, {get_nodeinfo, all}),
         ActiveB = lists:map(fun({Node, JobName}) ->
                 {obj, [{node, list_to_binary(Node)},
@@ -137,7 +139,7 @@ op("whitelist", _Query, Json) ->
 
 op("get_settings", _Query, _Json) ->
         L = [max_failure_rate],
-        {ok, {obj, lists:filter(fun(X) -> is_tuple(X) end, 
+        {ok, {obj, lists:filter(fun(X) -> is_tuple(X) end,
                 lists:map(fun(S) ->
                         case application:get_env(disco, S) of
                                 {ok, V} -> {S, V};
@@ -156,7 +158,7 @@ op("save_settings", _Query, Json) ->
 update_setting("max_failure_rate", Val, App) ->
         ok = application:set_env(App, max_failure_rate,
                 list_to_integer(binary_to_list(Val)));
-        
+
 update_setting(Key, Val, _) ->
         error_logger:info_report([{"Unknown setting", Key, Val}]).
 
@@ -171,9 +173,9 @@ handle(Socket, Msg) ->
         true ->
                 Json = none
         end,
-        
+
         handle_job:set_disco_url(application:get_env(disco_url), Msg),
-        
+
         Op = lists:last(string:tokens(binary_to_list(Script), "/")),
         Reply = case catch op(Op,
                         httpd:parse_query(binary_to_list(Query)), Json) of
@@ -198,27 +200,31 @@ count_maps(L) ->
         end, {0, 0}, L),
         {M, N - M}.
 
-render_jobinfo(Tstamp, JobPid, [{_NMap, NRed, DoRed, Inputs}],
-        Nodes, Res, Tasks, Ready, Failed) ->
-
+render_jobinfo(Tstamp, JobPid, JobInfo, Nodes, Res, Tasks, Ready, Failed) ->
         {NMapRun, NRedRun} = count_maps(Tasks),
         {NMapDone, NRedDone} = count_maps(Ready),
         {NMapFail, NRedFail} = count_maps(Failed),
-        
+
         R = case {Res, is_process_alive(JobPid)} of
                 {_, true} -> <<"active">>;
                 {[], false} -> <<"dead">>;
                 {_, false} -> <<"ready">>
         end,
+        
+        MapI = if JobInfo#jobinfo.map ->
+                        length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun);
+                true -> 0 end,
+        RedI = if JobInfo#jobinfo.reduce ->
+                        JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
+               true -> 0 end,
+                
         {obj, [{timestamp, Tstamp}, 
                {active, R},
-               {mapi, [length(Inputs) - (NMapDone + NMapRun),
-                        NMapRun, NMapDone, NMapFail]},
-               {redi, [NRed - (NRedDone + NRedRun),
-                        NRedRun, NRedDone, NRedFail]},
-               {reduce, DoRed},
+               {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
+               {redi, [RedI, NRedRun, NRedDone, NRedFail]},
+               {reduce, JobInfo#jobinfo.reduce},
                {results, lists:flatten(Res)},
-               {inputs, lists:sublist(Inputs, 100)},
+               {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
                {nodes, lists:map(fun erlang:list_to_binary/1, Nodes)}
         ]}.
 
@@ -230,7 +236,7 @@ status_msg({dead, _}) -> [<<"dead">>, []].
 wait_jobs(Jobs, Timeout) ->
         case [erlang:monitor(process, Pid) || {_, {active, Pid}} <- Jobs] of
                 [] -> Jobs;
-                _ -> 
+                _ ->
                         receive
                                 {'DOWN', _, _, _, _} -> ok
                         after Timeout -> ok

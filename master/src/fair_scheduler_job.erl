@@ -8,7 +8,7 @@
 -include("task.hrl").
 
 start(JobName, JobCoord) ->
-        case gen_server:start(fair_scheduler_job, JobCoord, 
+        case gen_server:start(fair_scheduler_job, {JobName, JobCoord}, 
                 disco_server:debug_flags("fair_scheduler_job-" ++ JobName)) of
                 {ok, Server} -> {ok, Server};
                 Error ->
@@ -27,8 +27,9 @@ start(JobName, JobCoord) ->
                         end
         end.
 
-init(JobCoord) ->
+init({JobName, JobCoord}) ->
         process_flag(trap_exit, true),
+        put(jobname, JobName),
         case catch link(JobCoord) of
                 true -> 
                         {ok, {gb_trees:insert(nopref, {0, []},
@@ -117,8 +118,8 @@ handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
 
 % Secondary task scheduling policy:
 % No local or remote tasks were found. Free nodes are available that have
-% no tasks assigned to them by any job. Pick a task from the longest queue
-% and assign it to a random free node.
+% no tasks assigned to them by any job. Pick a task from 
+% If ForceLocal, always fail.
 handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
         {Reply, UpdatedTasks} = pop_and_switch_node(Tasks, 
                 datalocal_nodes(Tasks, gb_trees:keys(Tasks)),
@@ -155,21 +156,33 @@ schedule_local(Tasks, AvailableNodes) ->
                                         AvailableNodes)
                         end;
                 % Local tasks found. Choose an AvailableNode that has the
-                % longest queue of tasks waiting. Pick the first task from it.
-                Nodes -> pop_busiest_node(Tasks, Nodes)
+                % least number of tasks already running, that is, the first 
+                % item in the list. Pick the first task from the chosen node.
+                [Node|_] ->
+                        {N, [Task|R]} = gb_trees:get(Node, Tasks),
+                        {{run, Node, Task}, gb_trees:update(Node, {N - 1, R}, Tasks)}
         end.
 
 pop_and_switch_node(Tasks, _, []) -> {nonodes, Tasks};
 pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
-        % Pick a target node randomly from the list of available nodes
-        Target = lists:nth(random:uniform(length(AvailableNodes)),
-                AvailableNodes),
         case pop_busiest_node(Tasks, Nodes) of
                 % No tasks left. However, the last currently running task
                 % might fail, so we must stay alive.
                 {nonodes, UTasks} -> {nonodes, UTasks};
                 % Move Task from its local node to the Target node
-                {{run, _, Task}, UTasks} -> {{run, Target, Task}, UTasks}
+                {{run, _, Task}, UTasks} ->
+                        % Make sure that our choice is ok:
+                        % All AvailableNodes must not be in taskblacklist,
+                        % task must not be force_local, nor force_remote if
+                        % all its inputs are in AvailableNodes.
+                        case choose_node(Task, AvailableNodes) of
+                                {ok, Target} ->
+                                        {{run, Target, Task}, UTasks};
+                                false ->
+                                        % The primary choice isn't ok. Find any
+                                        % other task that is ok.
+                                        pop_suitable(Tasks, Nodes, AvailableNodes)
+                        end
         end.    
 
 % pop_busiest_node defines the policy for choosing the next task from a chosen
@@ -179,6 +192,44 @@ pop_busiest_node(Tasks, Nodes) ->
         {{N, [Task|R]}, MaxNode} = lists:max(
                 [{gb_trees:get(Node, Tasks), Node} || Node <- Nodes]),
         {{run, MaxNode, Task}, gb_trees:update(MaxNode, {N - 1, R}, Tasks)}.
+
+% Given a task, choose a node from AvailableNodes
+% 1) that is not in the taskblack list
+% 2) that doesn't contain any input of the task, if force_remote == true
+% unless force_local == true. Otherwise return false.
+choose_node(Task, _) when Task#task.force_local -> false;
+choose_node(Task, AvailableNodes) ->
+        case AvailableNodes -- Task#task.taskblack of
+                [] -> false;
+                NB when Task#task.force_remote ->
+                        case NB -- [N || {_, N} <- Task#task.input] of
+                                [] -> false;
+                                [Node|_] -> {ok, Node}
+                        end;
+                [Node|_] -> {ok, Node}
+        end.
+
+% Pop the first task in Nodes that can be run
+pop_suitable(Tasks, Nodes, AvailableNodes) ->
+        case find_suitable([], none, Nodes, Tasks, AvailableNodes) of
+                false -> {nonodes, Tasks};
+                {ok, Task, Node, Target} ->
+                        {N, L} = gb_trees:get(Node, Tasks),
+                        UTasks = gb_trees:update(Node, {N - 1, L -- [Task]}, Tasks),
+                        {{run, Target, Task}, UTasks}
+        end.
+
+% Find first task from any node in Nodes that can be run, 
+% i.e. choose_node() =/= false
+find_suitable([], _, [], _, _) -> false;
+find_suitable([], _, [Node|R], Tasks, AvailableNodes) ->
+        {_, L} = gb_trees:get(Node, Tasks),
+        find_suitable(L, Node, R, Tasks, AvailableNodes);
+find_suitable([T|R], Node, RestNodes, Tasks, AvailableNodes) ->
+        case choose_node(T, AvailableNodes) of
+                false -> find_suitable(R, Node, RestNodes, Tasks, AvailableNodes);
+                {ok, Target} -> {ok, T, Node, Target}
+        end.
 
 % return nodes that don't have any local tasks assigned to them
 empty_nodes(Tasks, AvailableNodes) ->
@@ -197,13 +248,32 @@ filter_nodes(Tasks, AvailableNodes, Local) ->
                 end
         end, AvailableNodes).
 
+error(T, M) ->
+        event_server:event(get(jobname),
+                lists:flatten(["ERROR: ~s:~B Task is forced to be ", M,
+                        " but there are no nodes where it could be run (inputs:~s)."]),
+                                [T#task.mode, T#task.taskid,
+                                        [binary_to_list(<<" ", Url/binary>>) || {Url, _}
+                                                <- T#task.input]], {}),
+        exit(normal).
+
 % Assign a new task to a node which hostname match with the hostname
 % of the task's input file, if the node is not in the task's blacklist.
 % The task may have several redundant inputs, so we need to find the
 % first one that matchs.
+assign_task(Task, Tasks, Nodes) when Task#task.force_remote ->
+        case Nodes -- (Task#task.taskblack ++ 
+                        [N || {_, N} <- Task#task.input]) of
+                [] -> error(Task, "remote");
+                _ -> findpref([], Task, Tasks, Nodes)
+        end;
+
 assign_task(Task, Tasks, Nodes) ->
         findpref(Task#task.input, Task, Tasks, Nodes).
 
+findpref([], Task, _, _) when Task#task.force_local ->
+        error(Task, "local");
+        
 findpref([], Task, Tasks, _) ->
         {N, L} = gb_trees:get(nopref, Tasks),
         [{Input, _}|_] = Task#task.input,
