@@ -7,6 +7,9 @@ from disco.error import ModUtilImportError
 def local_paths():
         return set(sys.path) - system_paths()
 
+def user_paths():
+        return set(os.getenv('PYTHONPATH', '').split(':') + [''])
+
 def system_paths():
         return set(path for path in sys.path if path.startswith('%s/lib/python' % sys.prefix))
 
@@ -17,14 +20,13 @@ def parse_function(function):
         return [code.co_names[struct.unpack('<H', x)[0]] for x in mod.findall(code.co_code)]
 
 def recurse_module(module, path):
-        LOCALDIRS = list(local_paths())
-        finder = modulefinder.ModuleFinder(path=LOCALDIRS)
+        finder = modulefinder.ModuleFinder(path=list(user_paths()))
         finder.run_script(path)
         return dict((name, module.__file__) for name, module in finder.modules.iteritems()
                      if name != '__main__' and module.__file__)
 
 def locate_modules(modules, recurse=True, include_sys=False):
-        LOCALDIRS = local_paths()
+        LOCALDIRS = user_paths()
         found = {}
         for module in modules:
                 file, path, x = imp.find_module(module)
