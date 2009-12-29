@@ -212,7 +212,7 @@ class DiscoTestLoader(TestLoader):
                 self.disco_settings = disco_settings
 
         def loadTestsFromTestCase(self, testCaseClass):
-                if issubclass(DiscoTestCase, testCaseClass):
+                if issubclass(testCaseClass, DiscoTestCase):
                         testCaseClass.disco_settings = self.disco_settings
                 return super(DiscoTestLoader, self).loadTestsFromTestCase(testCaseClass)
 

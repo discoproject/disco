@@ -216,11 +216,25 @@ class test(object):
     def __init__(self, disco_settings):
         self.disco_settings = disco_settings
 
+    @property
+    def tests_path(self):
+        return os.path.join(self.disco_settings['DISCO_HOME'], 'tests')
+
+    @property
+    def all_tests(self):
+        for name in os.listdir(self.tests_path):
+            if name.startswith('test_'):
+                test, ext = os.path.splitext(name)
+                if ext == '.py':
+                    yield test
+
     def send(self, *names):
         from disco.test import DiscoTestRunner
         os.environ.update(self.disco_settings.env)
-        sys.path.insert(0, os.path.join(self.disco_settings['DISCO_HOME'], 'tests'))
+        sys.path.insert(0, self.tests_path)
         yield 'searching for names in sys.path:\n%s' % sys.path
+        if names == ('status', ):
+            names = list(self.all_tests)
         DiscoTestRunner(self.disco_settings).run(*names)
 
 def main():
