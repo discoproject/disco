@@ -135,10 +135,6 @@ class master(server):
                 '-connect_all', 'false',
                 '-pa', os.path.join(settings['DISCO_MASTER_HOME'], 'ebin'),
                 '-sname', self.name,
-                '-disco', 'disco_name', '"%s"' % settings['DISCO_NAME'],
-                '-disco', 'disco_root', '"%s"' % settings['DISCO_MASTER_ROOT'],
-                '-disco', 'scgi_port', '%s' % settings['DISCO_SCGI_PORT'],
-                '-disco', 'disco_localdir', '"%s"' % settings['DISCO_LOCAL_DIR'],
                 '-eval', '[handle_job, handle_ctrl]',
                 '-eval', 'application:start(disco)']
 

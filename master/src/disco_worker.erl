@@ -6,7 +6,7 @@
         terminate/2, code_change/3, slave_name/1]).
 
 -include("task.hrl").
--record(state, {id, master, master_url, eventserv, port, task,
+-record(state, {id, master, job_url, eventserv, port, task,
                 child_pid, node, linecount, errlines, results,
                 debug, last_msg, msg_counter, oob, oob_counter,
                 start_time}).
@@ -24,29 +24,27 @@
                    use_stdio, stderr_to_stdout,
                    {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}]}]).
 
-get_env(Var) ->
-        get_env(Var, lists:flatten(io_lib:format(" -env ~s '~~s'", [Var]))).
+format_env(Var) ->
+        format_env(Var, lists:flatten(io_lib:format(" -env ~s '~~s'", [Var]))).
 
-get_env(Var, Fmt) ->
-        case os:getenv(Var) of
-                false -> "";
+format_env(Var, Fmt) ->
+        case disco:get_setting(Var) of
                 "" -> "";
                 Val -> io_lib:format(Fmt, [Val])
         end.
 
 slave_env() ->
     lists:flatten([?SLAVE_ARGS,
-                   get_env("DISCO_MASTER_HOME", " -pa ~s/ebin"),
-                   [get_env(X) || X <- ["DISCO_MASTER_PORT",
-                                        "DISCO_ROOT",
-                                        "DISCO_PORT",
-                                        "DISCO_WORKER",
-                                        "DISCO_FLAGS",
-                                        "PYTHONPATH"]]]).
+                   format_env("DISCO_MASTER_HOME", " -pa ~s/ebin"),
+                   [format_env(X) || X <- ["DISCO_FLAGS",
+                                           "DISCO_PORT",
+                                           "DISCO_PROXY",
+                                           "DISCO_ROOT",
+                                           "DISCO_WORKER",
+                                           "PYTHONPATH"]]]).
 
 slave_name(Node) ->
-        {ok, Name} = application:get_env(disco_name), %get_env("DISCO_NAME"),
-        SName = lists:flatten([Name, "_slave"]),
+        SName = lists:flatten([disco:get_setting("DISCO_NAME"), "_slave"]),
         list_to_atom(SName ++ "@" ++ Node).
 
 start_link_remote(Master, EventServ, Node, Task) ->
@@ -61,29 +59,31 @@ start_link_remote(Master, EventServ, Node, Task) ->
                                 slave_started -> ok;
                                 {slave_failed, X} ->
                                         exit({worker_dies,
-                                                {"Node failure: ~p", [X]}});
+                                              {"Node failure: ~p", [X]}});
                                 X ->
                                         exit({worker_dies,
-                                                {"Unknown node failure: ~p", [X]}})
+                                              {"Unknown node failure: ~p", [X]}})
                         after 60000 ->
-                                exit({worker_dies, {"Node timeout", []}})
+                                        exit({worker_dies, {"Node timeout", []}})
                         end
         end,
         process_flag(trap_exit, true),
 
-        {ok, MasterUrl0} = application:get_env(disco_url),
-        MasterUrl = MasterUrl0 ++ disco_server:jobhome(JobName),
+        {ok, JobUrl0} = application:get_env(disco_url),
+        JobUrl = JobUrl0 ++ disco_server:jobhome(JobName),
 
-        Debug = os:getenv("DISCO_DEBUG") =/= "off",
+        Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
         spawn_link(NodeAtom, disco_worker, remote_worker,
-                 [[self(), EventServ, Master, MasterUrl, Task, Node, Debug]]),
+                   [[self(), EventServ, Master, JobUrl, Task, Node, Debug]]),
 
         receive
                 ok -> ok;
-                {'EXIT', _, Reason} -> exit(Reason);
-                _ -> exit({error, invalid_reply})
+                {'EXIT', _, Reason} ->
+                        exit(Reason);
+                _ ->
+                        exit({error, invalid_reply})
         after 60000 ->
-                exit({worker_dies, {"Worker did not start in 60s", []}})
+                        exit({worker_dies, {"Worker did not start in 60s", []}})
         end,
         wait_for_exit().
 
@@ -94,16 +94,18 @@ remote_worker(Args) ->
 
 wait_for_exit() ->
         receive
-                {'EXIT', _, Reason} -> exit(Reason)
+                {'EXIT', _, Reason} ->
+                        exit(Reason)
         end.
 
 start_link([Parent|_] = Args) ->
         Worker = case catch gen_server:start_link(disco_worker, Args, []) of
-                {ok, Server} -> Server;
-                Reason ->
-                        exit({worker_dies, {"Worker initialization failed: ~p",
-                                [Reason]}})
-        end,
+                         {ok, Server} ->
+                                 Server;
+                         Reason ->
+                                 exit({worker_dies, {"Worker initialization failed: ~p",
+                                                     [Reason]}})
+                 end,
         % NB: start_worker call is known to timeout if the node is really
         % busy - it should not be a fatal problem
         case catch gen_server:call(Worker, start_worker, 30000) of
@@ -111,15 +113,15 @@ start_link([Parent|_] = Args) ->
                         Parent ! ok;
                 Reason1 ->
                         exit({worker_dies, {"Worker startup failed: ~p",
-                                [Reason1]}})
+                                            [Reason1]}})
         end.
 
-init([Id, EventServ, Master, MasterUrl, Task, Node, Debug]) ->
+init([Id, EventServ, Master, JobUrl, Task, Node, Debug]) ->
         process_flag(trap_exit, true),
         erlang:monitor(process, Task#task.from),
         {ok, #state{id = Id,
                     master = Master,
-                    master_url = MasterUrl,
+                    job_url = JobUrl,
                     task = Task,
                     node = Node,
                     child_pid = none,
@@ -142,7 +144,7 @@ handle_call(start_worker, _From, S) ->
         Port = open_port({spawn, Cmd}, ?PORT_OPT),
         {reply, ok, S#state{port = Port}, 30000}.
 
-spawn_cmd(#state{task = T, node = Node, master_url = Url}) ->
+spawn_cmd(#state{task = T, node = Node, job_url = Url}) ->
         lists:flatten(io_lib:fwrite(?CMD,
                 [T#task.mode, T#task.jobname, Node, Url,
                         T#task.taskid, T#task.chosen_input])).

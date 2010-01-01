@@ -8,8 +8,8 @@
 
 -include("task.hrl").
 
-job_status(J) ->
-        case gen_server:call(event_server, {get_results, J}) of
+job_status(JobName) ->
+        case gen_server:call(event_server, {get_results, JobName}) of
                 {active, _} -> <<"job_active">>;
                 {dead, _} -> <<"job_died">>;
                 {ready, _, _} -> <<"job_ready">>
@@ -22,16 +22,20 @@ op("load_config_table", _Query, _Json) ->
         disco_config:get_config_table();
 
 op("joblist", _Query, _Json) ->
-        {ok, Lst} = gen_server:call(event_server, get_jobnames),
-        {ok, Prios} = gen_server:call(sched_policy, current_priorities),
+        {ok, JobNames}   = gen_server:call(event_server, get_jobnames),
+        {ok, Priorities} = gen_server:call(sched_policy, current_priorities),
 
-        TLst = lists:map(fun({J, _, _}) ->
-                {case lists:keysearch(J, 1, Prios) of
-                        false -> 1.0;
-                        {value, {_, Prio}} -> Prio
-                 end, job_status(J), list_to_binary(J)}
-        end, Lst),
-        {ok, lists:keysort(1, TLst)};
+        JobTuples = lists:map(fun({JobName, _, _}) ->
+                                              {case lists:keysearch(JobName, 1, Priorities) of
+                                                       false ->
+                                                               1.0;
+                                                       {value, {_, Priority}} ->
+                                                               Priority
+                                               end,
+                                               job_status(JobName),
+                                               list_to_binary(JobName)}
+                              end, JobNames),
+        {ok, lists:keysort(1, JobTuples)};
 
 op("jobinfo", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
