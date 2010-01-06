@@ -18,8 +18,7 @@ class DefaultDict(defaultdict):
 
 class MessageWriter(object):
         def write(self, string):
-                for line in string.splitlines():
-                        Message(line)
+                Message(string)
 
 def flatten(iterable):
         for item in iterable:

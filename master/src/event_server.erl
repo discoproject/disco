@@ -201,7 +201,7 @@ event(JobName, Format, Args, Params) ->
 event(Host, JobName, Format, Args, Params) ->
         event(event_server, Host, JobName, Format, Args, Params).
 
-event(EventServ, Host, JobName, Format, Args, Params) ->
+event(EventServer, Host, JobName, Format, Args, Params) ->
         SArgs = lists:map(fun(Arg) ->
                                           L = lists:flatlength(io_lib:fwrite("~p", [Arg])),
                                           if
@@ -211,7 +211,7 @@ event(EventServ, Host, JobName, Format, Args, Params) ->
                           end, Args),
 
         Msg = list_to_binary(json:encode(list_to_binary(io_lib:fwrite(Format, SArgs)))),
-        gen_server:cast(EventServ, {add_job_event, Host, JobName, Msg, Params}).
+        gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
 
 % callback stubs
 terminate(_Reason, _State) -> {}.

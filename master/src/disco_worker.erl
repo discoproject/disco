@@ -6,17 +6,15 @@
         terminate/2, code_change/3, slave_name/1]).
 
 -include("task.hrl").
--record(state, {id, master, job_url, eventserv, port, task,
-                child_pid, node, linecount, errlines, results,
-                debug, last_msg, msg_counter, oob, oob_counter,
+-record(state, {id, master, job_url, eventserver, eventstream,
+                port, task, child_pid, node, linecount, errlines,
+                results, debug, last_event, event_counter, oob, oob_counter,
                 start_time}).
 
--define(MAX_MSG_LENGTH, 8192).
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
--define(OOB_KEY_MAX, 256).
 
 -define(SLAVE_ARGS, "+K true").
 -define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
@@ -47,7 +45,7 @@ slave_name(Node) ->
         SName = lists:flatten([disco:get_setting("DISCO_NAME"), "_slave"]),
         list_to_atom(SName ++ "@" ++ Node).
 
-start_link_remote(Master, EventServ, Node, Task) ->
+start_link_remote(Master, Eventserver, Node, Task) ->
         NodeAtom = slave_name(Node),
         JobName = Task#task.jobname,
 
@@ -74,7 +72,7 @@ start_link_remote(Master, EventServ, Node, Task) ->
 
         Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
         spawn_link(NodeAtom, disco_worker, remote_worker,
-                   [[self(), EventServ, Master, JobUrl, Task, Node, Debug]]),
+                   [[self(), Eventserver, Master, JobUrl, Task, Node, Debug]]),
 
         receive
                 ok -> ok;
@@ -116,164 +114,143 @@ start_link([Parent|_] = Args) ->
                                             [Reason1]}})
         end.
 
-init([Id, EventServ, Master, JobUrl, Task, Node, Debug]) ->
+init([Id, EventServer, Master, JobUrl, Task, Node, Debug]) ->
         process_flag(trap_exit, true),
         erlang:monitor(process, Task#task.from),
+        {ok, EventStream} = event_stream:start_link(self()),
         {ok, #state{id = Id,
                     master = Master,
                     job_url = JobUrl,
                     task = Task,
                     node = Node,
                     child_pid = none,
-                    eventserv = EventServ,
+                    eventserver = EventServer,
+                    eventstream = EventStream,
                     linecount = 0,
                     start_time = now(),
-                    last_msg = now(),
-                    msg_counter = 0,
+                    last_event = now(),
+                    event_counter = 0,
                     oob = [],
                     oob_counter = 0,
-                    errlines = [],
+                    errlines = message_buffer:new(?ERRLINES_MAX),
                     debug = Debug,
                     results = []}}.
 
-handle_call(start_worker, _From, S) ->
-        Cmd = spawn_cmd(S),
-        if S#state.debug ->
-                error_logger:info_report(["Spawn cmd: ", Cmd]);
-        true -> ok end,
-        Port = open_port({spawn, Cmd}, ?PORT_OPT),
-        {reply, ok, S#state{port = Port}, 30000}.
-
-spawn_cmd(#state{task = T, node = Node, job_url = Url}) ->
-        lists:flatten(io_lib:fwrite(?CMD,
-                [T#task.mode, T#task.jobname, Node, Url,
-                        T#task.taskid, T#task.chosen_input])).
-
-strip_timestamp(Msg) when is_binary(Msg) ->
-        strip_timestamp(binary_to_list(Msg));
-strip_timestamp(Msg) ->
-        P = string:chr(Msg, $]),
-        if P == 0 ->
-                Msg;
-        true ->
-                string:substr(Msg, P + 2)
-        end.
-
-event(#state{task = T, eventserv = EvServ, node = Node}, "WARN", Msg) ->
-        event_server:event(EvServ, Node, T#task.jobname,
-                "~s [~s:~B] ~s", ["WARN", T#task.mode, T#task.taskid, Msg],
-                        {task_failed, T#task.mode});
-
-event(#state{task = T, eventserv = EvServ, node = Node}, Type, Msg) ->
-        event_server:event(EvServ, Node, T#task.jobname,
-                "~s [~s:~B] ~s", [Type, T#task.mode, T#task.taskid, Msg], []).
+spawn_cmd(#state{task = T, node = Node, job_url = JobUrl}) ->
+        Args = [T#task.mode, T#task.jobname, Node, JobUrl, T#task.taskid, T#task.chosen_input],
+        lists:flatten(io_lib:fwrite(?CMD, Args)).
 
 worker_exit(#state{id = Id, master = Master}, Msg) ->
         gen_server:cast(Master, {exit_worker, Id, Msg}),
         normal.
 
-errlines(#state{errlines = L}) -> lists:flatten(lists:reverse(L)).
+event(Event, S) ->
+        event(Event, S, []).
 
-handle_info({_, {data, {eol, <<"**<PID>", Line0/binary>>}}}, S) ->
-        Line = list_to_binary(strip_timestamp(Line0)),
-        {noreply, S#state{child_pid = binary_to_list(Line)}};
+event({Type, Message}, #state{task = T, eventserver = EventServer, node = Node}, Params) ->
+        event_server:event(EventServer, Node, T#task.jobname,
+                           "~s [~s:~B] ~s", [Type, T#task.mode, T#task.taskid, Message], Params).
 
-handle_info({_, {data, {eol, <<"**<MSG>", Line0/binary>>}}}, S) ->
-        if size(Line0) > ?MAX_MSG_LENGTH ->
-                <<Line:?MAX_MSG_LENGTH/binary, _/binary>> = Line0;
-        true ->
-                Line = Line0
+error(Reason, State) ->
+        error(nonrecoverable, Reason, State).
+
+error(recoverable, Reason, State) ->
+        Task = State#state.task,
+        event({"WARN", Reason}, State, {task_failed, Task#task.mode}),
+        {stop, worker_exit(State, {data_error, Reason}), State};
+error(nonrecoverable, Reason, State) ->
+        event({"ERROR", Reason}, State),
+        {stop, worker_exit(State, {job_error, Reason}), State}.
+
+handle_call(start_worker, _From, S) ->
+        Cmd = spawn_cmd(S),
+        if
+                S#state.debug ->
+                        error_logger:info_report(["Spawn cmd: ", Cmd]);
+                true ->
+                        ok
         end,
-        event(S, "", strip_timestamp(Line)),
-        T = now(),
-        D = timer:now_diff(T, S#state.last_msg),
-        S1 = S#state{last_msg = T, linecount = S#state.linecount + 1},
-        if D > ?RATE_WINDOW ->
-                {noreply, S1#state{msg_counter = 1}};
-        S1#state.msg_counter > ?RATE_LIMIT ->
-                Err = "Message rate limit exceeded. Too many msg() calls.",
-                event(S, "ERROR", Err),
-                {stop, worker_exit(S1, {job_error, Err}), S1};
-        true ->
-                {noreply, S1#state{msg_counter = S1#state.msg_counter + 1}}
-        end;
+        Port = open_port({spawn, Cmd}, ?PORT_OPT),
+        {reply, ok, S#state{port = Port}, 30000}.
 
-handle_info({_, {data, {eol, <<"**<ERR>", Line/binary>>}}}, S) ->
-        M = strip_timestamp(Line),
-        event(S, "ERROR", M),
-        {stop, worker_exit(S, {job_error, M}), S};
+handle_cast({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
+        error(recoverable, Message, S);
 
-handle_info({_, {data, {eol, <<"**<DAT>", Line/binary>>}}}, S) ->
-        M = strip_timestamp(Line),
-        event(S, "WARN", M ++ [10] ++ errlines(S)),
-        {stop, worker_exit(S, {data_error, M}), S};
-
-handle_info({_, {data, {eol, <<"**<OUT>", Line/binary>>}}}, S) ->
-        {noreply, S#state{results = strip_timestamp(Line)}};
-
-handle_info({_, {data, {eol, <<"**<END>", Line/binary>>}}}, S) ->
-        event(S, "", strip_timestamp(Line)),
-        event(S, "", "Task finished in " ++
-                disco_server:format_time(S#state.start_time)),
+handle_cast({event, {<<"END">>, _Time, _Tags, _Message}}, S) ->
+        event({"END", "Task finished in " ++ disco_server:format_time(S#state.start_time)}, S),
         {stop, worker_exit(S, {job_ok, {S#state.oob, S#state.results}}), S};
 
-handle_info({_, {data, {eol, <<"**<OOB>", Line0/binary>>}}}, S) ->
-        Line = list_to_binary(strip_timestamp(Line0)),
-        [Key|Path] = string:tokens(binary_to_list(Line), " "),
+handle_cast({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
+        error(Message, S);
 
-        S1 = S#state{oob = [{Key, Path}|S#state.oob],
-                     oob_counter = S#state.oob_counter + 1},
+handle_cast({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
+        event({"PID", "Child PID is " ++ ChildPID}, S),
+        {noreply, S#state{child_pid = ChildPID}};
 
-        if length(Key) > ?OOB_KEY_MAX ->
-                Err = "OOB key too long: Max 256 characters",
-                event(S, "ERROR", Err),
-                {stop, worker_exit(S1, {job_error, Err}), S1};
-        S#state.oob_counter > ?OOB_MAX ->
-                Err = "OOB message limit exceeded. Too many put() calls.",
-                event(S, "ERROR", Err),
-                {stop, worker_exit(S1, {job_error, Err}), S1};
-        true ->
-                {noreply, S1}
+handle_cast({event, {<<"OOB">>, _Time, _Tags, {_Key, _Path}}}, S) when S#state.oob_counter >= ?OOB_MAX ->
+        Reason = "OOB message limit exceeded. Too many put() calls.",
+        error(Reason, S);
+
+handle_cast({event, {<<"OOB">>, _Time, _Tags, {Key, Path}}}, S) ->
+        event({"OOB", "OOB put " ++ Key ++ " at " ++ Path}, S),
+        {noreply, S#state{oob = [{Key, Path}|S#state.oob],
+                          oob_counter = S#state.oob_counter + 1}};
+
+handle_cast({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
+        event({"OUT", "Results at " ++ Results}, S),
+        {noreply, S#state{results = Results}};
+
+handle_cast({event, {Type, _Time, _Tags, Payload}}, S) ->
+        gen_server:cast(self(), {rate_limited_event, {Type, Payload}}),
+        {noreply, S};
+
+handle_cast({rate_limited_event, Event}, S) ->
+        Now = now(),
+        EventGap = timer:now_diff(Now, S#state.last_event),
+        if
+                EventGap > ?RATE_WINDOW ->
+                        event(Event, S),
+                        {noreply, S#state{last_event = Now, event_counter = 1}};
+                S#state.event_counter > ?RATE_LIMIT ->
+                        error("Event rate limit exceeded. Too many msg() calls?", S);
+                true ->
+                        event(Event, S),
+                        {noreply, S#state{event_counter = S#state.event_counter + 1}}
         end;
 
-handle_info({_, {data, {eol, _}}}, S) when
-                length(S#state.errlines) > ?ERRLINES_MAX ->
-        Err = "Worker failed (too much output on stdout):\n" ++
-                        errlines(S),
-        event(S, "ERROR", Err),
-        {stop, worker_exit(S, {job_error, Err}), S};
+handle_cast({errline, _Line}, #state{errlines = {_Q, overflow, _Max}} = S) ->
+        Garbage = message_buffer:to_string(S#state.errlines),
+        error("Worker failed (too much garbage on stderr):\n" ++ Garbage, S);
 
-handle_info({_, {data, {eol, Line}}}, S) ->
-        {noreply, S#state{errlines =
-                [[binary_to_list(Line), 10]|S#state.errlines]}};
+handle_cast({errline, Line}, S) ->
+        {noreply, S#state{errlines = message_buffer:append(Line, S#state.errlines)}};
 
-handle_info({_, {data, {noeol, Line}}}, S) ->
-        {noreply, S#state{errlines =
-                [[binary_to_list(Line), "...", 10]|S#state.errlines]}};
-
-handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
-        M =  "Worker didn't start:\n" ++ errlines(S),
-        event(S, "WARN", M),
-        {stop, worker_exit(S, {data_error, M}), S};
-
-handle_info({_, {exit_status, _Status}}, S) ->
-        M =  "Worker failed. Last words:\n" ++ errlines(S),
-        event(S, "ERROR", M),
-        {stop, worker_exit(S, {job_error, M}), S};
-
-handle_info({_, closed}, S) ->
-        {stop, worker_exit(S, {job_error, "Worker killed"}), S};
-
-handle_info(timeout, #state{linecount = 0} = S) ->
-        M = "Worker didn't start in 30 seconds",
-        event(S, "WARN", M),
-        {stop, worker_exit(S, {data_error, M}), S};
-
-handle_info({'DOWN', _, _, _, _}, S) ->
-        {stop, worker_exit(S, {job_error, "Worker killed"}), S}.
+handle_cast({malformed_event, Reason}, S) ->
+        error(Reason, S);
 
 handle_cast(kill_worker, S) ->
-        {stop, worker_exit(S, {job_error, "Worker killed"}), S}.
+        error("Worker killed", S).
+
+handle_info({_Port, {data, Data}}, State) ->
+        event_stream:feed(State#state.eventstream, Data),
+        {noreply, State#state{linecount = State#state.linecount + 1}};
+
+handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
+        Reason =  "Worker didn't start:\n" ++ message_buffer:to_string(S#state.errlines),
+        error(recoverable, Reason, S);
+
+handle_info({_, {exit_status, _Status}}, S) ->
+        Reason =  "Worker failed. Last words:\n" ++ message_buffer:to_string(S#state.errlines),
+        error(Reason, S);
+
+handle_info({_, closed}, S) ->
+        error("Worker killed", S);
+
+handle_info(timeout, #state{linecount = 0} = S) ->
+        error(recoverable, "Worker didn't start in 30 seconds", S);
+
+handle_info({'DOWN', _, _, _, _}, S) ->
+        error("Worker killed", S).
 
 terminate(_Reason, State) ->
         % Possible bug: If we end up here before knowing child_pid, the
@@ -289,4 +266,3 @@ terminate(_Reason, State) ->
         end.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
