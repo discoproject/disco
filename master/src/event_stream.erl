@@ -1,12 +1,6 @@
 -module(event_stream).
--behaviour(gen_fsm).
 
--export([start_link/1]).
--export([init/1, code_change/4,
-         handle_event/3, handle_info/3, handle_sync_event/4,
-         terminate/3]).
--export([feed/2]).
--export([outside_event/2, inside_event/2]).
+-export([new/0, feed/2]).
 
 -define(MESSAGES_MAX, 100).
 -define(OOB_KEY_MAX, 256).
@@ -16,51 +10,47 @@
         Year:2/binary, "/", Month:2/binary, "/",  Day:2/binary, " ",
         Hour:2/binary, ":", Minute:2/binary, ":", Second:2/binary).
 
+new() ->
+        {next_stream, {outside_event, {}}}.
 
-start_link(Worker) ->
-        gen_fsm:start_link(event_stream, {Worker}, []).
+feed(Data, {next_stream, State}) -> handle_state(State, Data).
 
-feed(EventStream, Data) ->
-        gen_fsm:send_event(EventStream, Data).
-
-outside_event(Data, {Worker} = _StateData) ->
+handle_state({outside_event, _StateData}, Data) ->
         case Data of
-                {eol, <<?EVENT_OPEN, " ", ?TIMESTAMP, " ", TagBin/binary>>} ->
+                {eol, <<?EVENT_OPEN, " ", ?TIMESTAMP, TagBin/binary>>} ->
                         Tags = string:tokens(binary_to_list(TagBin), " "),
-                        {next_state, inside_event,
-                         {EventType,
-                          {Year, Month, Day, Hour, Minute, Second},
-                          Tags,
-                          message_buffer:new(?MESSAGES_MAX),
-                         Worker}};
+                        {next_stream, {inside_event,
+                                       {EventType,
+                                        {Year, Month, Day, Hour, Minute, Second},
+                                        Tags,
+                                        message_buffer:new(?MESSAGES_MAX)}}};
                 {_IsEOL, <<BadMessage/binary>>} ->
-                        gen_server:cast(Worker, {errline,
-                                                 binary_to_list(BadMessage) ++ case _IsEOL of
-                                                                                       true -> "";
-                                                                                       false -> "..."
-                                                                               end}),
-                        {next_state, outside_event, {Worker}}
-        end.
+                        {next_stream, {outside_event,
+                                       {errline, binary_to_list(BadMessage) ++
+                                        case _IsEOL of
+                                                true -> "";
+                                                false -> "..."
+                                        end}}}
+        end;
 
-inside_event(Data, {EventType, Time, Tags, Messages, Worker} = _StateData) ->
+handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData}, Data) ->
         case Data of
                 {eol, <<?EVENT_CLOSE>>} ->
-                        case catch finalize_event(EventType, Messages) of
-                                {ok, Payload} ->
-                                        gen_server:cast(Worker, {event, {EventType, Time, Tags, Payload}});
-                                {error, Reason} ->
-                                        gen_server:cast(Worker, {malformed_event, Reason});
-                                _Else ->
-                                        gen_server:cast(Worker, {malformed_event,
-                                                                 "Invalid " ++ EventType ++ ": " ++
-                                                                 message_buffer:to_string(Messages)})
-                        end,
-                        {next_state, outside_event, {Worker}};
+                        {next_stream, {outside_event,
+                         case catch finalize_event(EventType, Messages) of
+                                 {ok, Payload} ->
+                                         {event, {EventType, Time, Tags, Payload}};
+                                 {error, Reason} ->
+                                         {malformed_event, Reason};
+                                 _Else ->
+                                         {malformed_event,
+                                          "Invalid " ++ EventType ++ ": " ++
+                                          message_buffer:to_string(Messages)}
+                         end}};
                 {_IsEOL, <<Message/binary>>} ->
-                        {next_state, inside_event,
-                         {EventType, Time, Tags,
-                          message_buffer:append(binary_to_list(Message), Messages),
-                          Worker}}
+                        {next_stream, {inside_event,
+                                      {EventType, Time, Tags,
+                                       message_buffer:append(binary_to_list(Message), Messages)}}}
         end.
 
 finalize_event(<<"PID">>, Messages) ->
@@ -84,25 +74,3 @@ finalize_event(<<"OUT">>, Messages) ->
 
 finalize_event(_EventType, Messages) ->
         {ok, message_buffer:to_string(Messages)}.
-
-%%%%%%%%%%%%%%%%%%%
-% gen_fsm callbacks
-%%%%%%%%%%%%%%%%%%%
-
-init(Args) ->
-        {ok, outside_event, Args}.
-
-code_change(_OldVsn, StateName, StateData, _Extra) ->
-        {ok, StateName, StateData}.
-
-handle_event(_Event, _StateName, _StateData) ->
-        {stop, reject, []}.
-
-handle_info(_Info, _StateName, _StateData) ->
-        {stop, reject, []}.
-
-handle_sync_event(_Event, _From, _StateName, _StateData) ->
-        {stop, reject, fail, []}.
-
-terminate(_Reason, _StateName, _StateData) ->
-        ok.
