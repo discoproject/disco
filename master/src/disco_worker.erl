@@ -28,24 +28,19 @@
                    use_stdio, stderr_to_stdout,
                    {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}]}]).
 
-format_env(Var) ->
-        format_env(Var, lists:flatten(io_lib:format(" -env ~s '~~s'", [Var]))).
-
-format_env(Var, Fmt) ->
-        case disco:get_setting(Var) of
-                "" -> "";
-                Val -> io_lib:format(Fmt, [Val])
-        end.
-
 slave_env() ->
     lists:flatten([?SLAVE_ARGS,
-                   format_env("DISCO_MASTER_HOME", " -pa ~s/ebin"),
-                   [format_env(X) || X <- ["DISCO_FLAGS",
-                                           "DISCO_PORT",
-                                           "DISCO_PROXY",
-                                           "DISCO_ROOT",
-                                           "DISCO_WORKER",
-                                           "PYTHONPATH"]]]).
+                   io_lib:format(" -pa ~s/ebin", [disco:get_setting("DISCO_MASTER_HOME")]),
+                   [case disco:get_setting(Setting) of
+                            ""  -> "";
+                            Val -> io_lib:format(" -env ~s '~s'", [Setting, Val])
+                    end
+                    || Setting <- ["DISCO_FLAGS",
+                                   "DISCO_PORT",
+                                   "DISCO_PROXY",
+                                   "DISCO_ROOT",
+                                   "DISCO_WORKER",
+                                   "PYTHONPATH"]]]).
 
 slave_name(Node) ->
         SName = lists:flatten([disco:get_setting("DISCO_NAME"), "_slave"]),
@@ -73,8 +68,8 @@ start_link_remote(Master, Eventserver, Node, Task) ->
         end,
         process_flag(trap_exit, true),
 
-        {ok, JobUrl0} = application:get_env(disco_url),
-        JobUrl = JobUrl0 ++ disco_server:jobhome(JobName),
+        {ok, JobUrl_} = application:get_env(disco_url),
+        JobUrl = JobUrl_ ++ disco_server:jobhome(JobName),
 
         Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
         spawn_link(NodeAtom, disco_worker, remote_worker,
