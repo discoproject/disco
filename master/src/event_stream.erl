@@ -24,6 +24,14 @@ handle_state({outside_event, _StateData}, Data) ->
                                         {Year, Month, Day, Hour, Minute, Second},
                                         Tags,
                                         message_buffer:new(?MESSAGES_MAX)}}};
+                {eol, <<?EVENT_OPEN, " ", Message/binary>>} ->
+                        {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_local_time(now()),
+                        Messages = message_buffer:new(?MESSAGES_MAX),
+                        {next_stream, {outside_event,
+                                       event({EventType,
+                                              {Year, Month, Day, Hour, Minute, Second},
+                                              [],
+                                             message_buffer:append(binary_to_list(Message), Messages)})}};
                 {_IsEOL, <<BadMessage/binary>>} ->
                         {next_stream, {outside_event,
                                        {errline, binary_to_list(BadMessage) ++
@@ -37,27 +45,30 @@ handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData}, Dat
         case Data of
                 {eol, <<?EVENT_CLOSE>>} ->
                         {next_stream, {outside_event,
-                         case catch finalize_event(EventType, Messages) of
-                                 {ok, Payload} ->
-                                         {event, {EventType, Time, Tags, Payload}};
-                                 {error, Reason} ->
-                                         {malformed_event, Reason};
-                                 _Else ->
-                                         {malformed_event,
-                                          "Invalid " ++ EventType ++ ": " ++
-                                          message_buffer:to_string(Messages)}
-                         end}};
+                                       event({EventType, Time, Tags, Messages})}};
                 {_IsEOL, <<Message/binary>>} ->
                         {next_stream, {inside_event,
                                       {EventType, Time, Tags,
                                        message_buffer:append(binary_to_list(Message), Messages)}}}
         end.
 
-finalize_event(<<"PID">>, Messages) ->
+event({EventType, Time, Tags, Messages}) ->
+        case catch finalize_event({EventType, Time, Tags, Messages}) of
+                {ok, Payload} ->
+                        {event, {EventType, Time, Tags, Payload}};
+                {error, Reason} ->
+                        {malformed_event, Reason};
+                _Else ->
+                        {malformed_event,
+                         "Invalid " ++ EventType ++ ": " ++
+                         message_buffer:to_string(Messages)}
+        end.
+
+finalize_event({<<"PID">>, _Time, _Tags, Messages}) ->
         [ChildPID] = message_buffer:to_list(Messages),
         {ok, ChildPID};
 
-finalize_event(<<"OOB">>, Messages) ->
+finalize_event({<<"OOB">>, _Time, _Tags, Messages}) ->
         [Message] = message_buffer:to_list(Messages),
         [Key|Path] = string:tokens(Message, " "),
         case length(Key) > ?OOB_KEY_MAX of
@@ -68,9 +79,9 @@ finalize_event(<<"OOB">>, Messages) ->
                         {ok, {Key, Path}}
         end;
 
-finalize_event(<<"OUT">>, Messages) ->
+finalize_event({<<"OUT">>, _Time, _Tags, Messages}) ->
         [Results] = message_buffer:to_list(Messages),
         {ok, Results};
 
-finalize_event(_EventType, Messages) ->
+finalize_event({_EventType, _Time, _Tags, Messages}) ->
         {ok, message_buffer:to_string(Messages)}.

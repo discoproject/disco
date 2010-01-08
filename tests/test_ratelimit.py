@@ -5,7 +5,7 @@ class RateLimitTestCase(DiscoJobTestFixture, DiscoTestCase):
         inputs = [1]
 
         def getdata(self, path):
-                return 'badger\n' *  1000
+                return 'badger\n' * 1000
 
         @staticmethod
         def map(e, params):

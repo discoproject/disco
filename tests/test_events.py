@@ -1,9 +1,10 @@
-from disco.test import DiscoTestCase
+from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.events import Event, Message, AnnouncePID, DataUnavailable, OutputURL, OOBData, EventRecord
+from disco.error import JobError
 
 from datetime import datetime
 
-class EventsTestCase(DiscoTestCase):
+class EventFormatTestCase(DiscoTestCase):
         def test_event(self):
                 event_record = EventRecord(str(Event('message', tags=['mem', 'cpu'])))
                 self.assertEquals('EV', event_record.type)
@@ -52,3 +53,29 @@ class EventsTestCase(DiscoTestCase):
         def test_bad_tags(self):
                 self.assertRaises(TypeError, EventRecord(str(Event('', tags=['bad-']))))
                 self.assertRaises(TypeError, EventRecord(str(Event('', tags=['bad ']))))
+
+class SingleLineMessageTestCase(DiscoJobTestFixture, DiscoTestCase):
+        inputs = [1]
+
+        def getdata(self, path):
+                return 'data\n' * 10
+
+        @staticmethod
+        def map(e, params):
+                import sys
+                sys.stderr.write('**<MSG> Singe line message\n')
+                return []
+
+        @property
+        def answers(self):
+                return []
+
+class SingleLineErrorTestCase(SingleLineMessageTestCase):
+        @staticmethod
+        def map(e, params):
+                import sys
+                sys.stderr.write('**<ERR> Singe line error!\n')
+                return []
+
+        def runTest(self):
+                self.assertRaises(JobError, self.job.wait)
