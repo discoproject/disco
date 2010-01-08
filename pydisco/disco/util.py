@@ -18,8 +18,7 @@ class DefaultDict(defaultdict):
 
 class MessageWriter(object):
         def write(self, string):
-                for line in string.splitlines():
-                        Message(line)
+                Message(string)
 
 def flatten(iterable):
         for item in iterable:
@@ -60,10 +59,10 @@ def urlsplit(url):
                 netloc = '%s:%s' % (netloc, DiscoSettings()['DISCO_PORT'])
         return scheme, netloc, path
 
-def urllist(url):
+def urllist(url, partid=None):
         scheme, netloc, path = urlsplit(url)
         if scheme == 'dir':
-                return parse_dir(url)
+                return parse_dir(url, partid=partid)
         return [url]
 
 def msg(message):

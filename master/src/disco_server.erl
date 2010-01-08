@@ -31,9 +31,9 @@ stop() ->
 debug_flags(Server) ->
         case os:getenv("DISCO_DEBUG") of
                 "trace" ->
-                        {ok, Root} = application:get_env(disco_root),
-                        A = [{debug, [{log_to_file, filename:join(Root,
-                                                                  Server ++ "_trace.log")}]}],
+                        Root = disco:get_setting("DISCO_MASTER_ROOT"),
+                        A = [{debug, [{log_to_file,
+                                       filename:join(Root, Server ++ "_trace.log")}]}],
                         A;
                 _ -> []
         end.
@@ -62,7 +62,7 @@ format_time(T) ->
 init(_Args) ->
         process_flag(trap_exit, true),
         {ok, _} = fair_scheduler:start_link(),
-        {ok, Name} = application:get_env(disco_name),
+        Name = disco:get_setting("DISCO_NAME"),
         register(slave_master, spawn_link(fun() ->
                 slave_master(lists:flatten([Name, "_slave"]))
         end)),
@@ -177,11 +177,10 @@ handle_cast({purge_job, JobName}, S) ->
                         {"Tried to purge an invalid job", JobName});
         true ->
                 spawn_link(fun() ->
-                        {ok, Root} = application:get_env(disco_root),
+                        Root = disco:get_setting("DISCO_MASTER_ROOT"),
                         handle_call({clean_job, JobName}, none, S),
                         Nodes = [lists:flatten(["dir://", Node, "/", Node, "/",
-                                jobhome(JobName), "/null"]) ||
-                                        #dnode{name = Node}
+                                jobhome(JobName), "/null"]) || #dnode{name = Node}
                                         <- gb_trees:values(S#state.nodes)],
                         garbage_collect:remove_job(Nodes),
                         garbage_collect:remove_dir(

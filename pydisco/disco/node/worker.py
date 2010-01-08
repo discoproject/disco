@@ -164,8 +164,8 @@ class ReduceReader(object):
                         else:
                                 self.inputs.append(input)
 
-# XXX: Jared's original line is missing partid
-# self.inputs = [url for input in input_files for url in util.urllist(input)]
+                self.inputs = [url for input in input_files
+                               for url in util.urllist(input, partid=Task.id)]
                 random.shuffle(self.inputs)
                 self.line_count = 0
                 if do_sort:

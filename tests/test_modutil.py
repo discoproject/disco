@@ -23,6 +23,7 @@ class ModUtilLocalTestCase(DiscoTestCase):
                 self.sys_path = sys.path
                 self.support  = os.path.join(self.disco_settings['DISCO_HOME'], 'tests', 'support')
                 sys.path.append(self.support)
+                os.environ['PYTHONPATH'] += ':%s' % self.support
 
         def tearDown(self):
                 sys.path = self.sys_path
@@ -80,6 +81,7 @@ class ModUtilTestCase(DiscoJobTestFixture, DiscoTestCase):
                 self.sys_path = sys.path
                 self.support  = os.path.join(self.disco_settings['DISCO_HOME'], 'tests', 'support')
                 sys.path.append(self.support)
+                os.environ['PYTHONPATH'] += ':%s' % self.support
                 super(ModUtilTestCase, self).setUp()
 
         def tearDown(self):

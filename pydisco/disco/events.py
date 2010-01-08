@@ -17,11 +17,11 @@ class Event(object):
         return self.time.strftime(self.timestamp_format)
 
     def log(self):
-        sys.stderr.write('%s\n' % self)
+        sys.stderr.write('%s' % self)
 
     def __str__(self):
         tags = ' '.join(tag for tag in self.tags if self.tag_re.match(tag))
-        return '**<%s><%s>[%s] %s' % (self.type, self.timestamp, tags, self.message)
+        return '**<%s> %s %s\n%s\n<>**\n' % (self.type, self.timestamp, tags, self.message)
 
 class Message(Event):
     type = 'MSG'
@@ -54,10 +54,10 @@ class OOBData(Signal):
 
 class EventRecord(object):
     type_raw      = r'\*\*<(?P<type>\w+)>'
-    timestamp_raw = r'<(?P<timestamp>.+?)>'
-    tags_raw      = r'\[(?P<tags>.*?)\]'
+    timestamp_raw = r'(?P<timestamp>\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})'
+    tags_raw      = r'(?P<tags>[^\n]*)'
     message_raw   = r'(?P<message>.*)'
-    event_re = re.compile(r'^%s%s%s %s$' % (type_raw, timestamp_raw, tags_raw, message_raw),
+    event_re = re.compile(r'^%s %s %s\n%s\n<>\*\*\n$' % (type_raw, timestamp_raw, tags_raw, message_raw),
                           re.MULTILINE | re.S)
 
     def __init__(self, string):

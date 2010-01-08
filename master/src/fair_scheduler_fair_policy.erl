@@ -2,7 +2,7 @@
 -module(fair_scheduler_fair_policy).
 -behaviour(gen_server).
 
--export([start_link/0, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/0, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
 -define(FAIRY_INTERVAL, 1000).
@@ -12,12 +12,14 @@
 
 start_link() ->
         error_logger:info_report([{"Fair scheduler: Fair policy"}]),
-        case gen_server:start_link({local, sched_policy}, 
-                        fair_scheduler_fair_policy, [], 
-                        disco_server:debug_flags(
-                                "fair_scheduler_fair_policy")) of
-                {ok, Server} -> {ok, Server};
-                {error, {already_started, Server}} -> {ok, Server}
+        case gen_server:start_link({local, sched_policy},
+                                   fair_scheduler_fair_policy, [],
+                                   disco_server:debug_flags
+                                        ("fair_scheduler_fair_policy")) of
+                {ok, Server} ->
+                        {ok, Server};
+                {error, {already_started, Server}} ->
+                        {ok, Server}
         end.
 
 init(_) ->
@@ -38,7 +40,7 @@ handle_cast({priv_update_priorities, Priorities}, {Jobs, _, NC}) ->
                 end
         end, Jobs, Priorities),
         % Include all known jobs in the priority queue.
-        NewPrioQ = [{Prio, Pid, N} || #job{name = N, pid = Pid, prio = Prio} 
+        NewPrioQ = [{Prio, Pid, N} || #job{name = N, pid = Pid, prio = Prio}
                         <- gb_trees:values(NewJobs)],
         {noreply, {NewJobs, lists:keysort(1, NewPrioQ), NC}};
 
@@ -51,7 +53,7 @@ handle_cast({update_nodes, Nodes}, {Jobs, PrioQ, _}) ->
 
 handle_cast({new_job, JobPid, JobName}, {Jobs, PrioQ, NC}) ->
         InitialPrio = -1.0 / lists:max([gb_trees:size(Jobs), 1.0]),
-        
+
         Job = #job{name = JobName, cputime = 0, prio = InitialPrio,
                 bias = 0.0, pid = JobPid},
 
@@ -100,8 +102,8 @@ dropwhile([{_, JobPid, _} = E|R], H, NotJobs) ->
 % Bias priority is a cheap trick to estimate a new priority for a job that
 % has been just scheduled for running. It is based on the assumption that
 % the job actually starts a new task (1 / NumCores increase in its share)
-% which might not be always true. Fairness fairy will eventually fix the 
-% bias. 
+% which might not be always true. Fairness fairy will eventually fix the
+% bias.
 bias_priority(Job, PrioQ, Jobs, NumCores) ->
         JobPid = Job#job.pid,
         Bias = Job#job.bias + 1 / NumCores,
@@ -131,7 +133,7 @@ fairness_fairy(NumCores) ->
                                 update_priorities(Alpha, NumCores);
                         undefined ->
                                 update_priorities(?FF_ALPHA_DEFAULT, NumCores)
-                end, 
+                end,
                 fairness_fairy(NumCores)
         end.
 
@@ -141,22 +143,22 @@ update_priorities(Alpha, NumCores) ->
         NumJobs = gb_trees:size(Jobs),
 
         % Get the status of each running job
-        Stats = [{Job, X} || {Job, {ok, X}} <- 
+        Stats = [{Job, X} || {Job, {ok, X}} <-
                    [{Job, catch gen_server:call(Job#job.pid, get_stats, 100)} ||
                         Job <- gb_trees:values(Jobs)]],
-        
+
         % Each job gets a 1/Nth share of resources by default
         Share = NumCores / lists:max([1, NumJobs]),
         % If a job has fewer tasks than its share would allow, it donates
         % its extra resources to other needy jobs.
         Extra = [Share - NumTasks ||
                         {_, {NumTasks, _}} <- Stats, NumTasks < Share],
-        % Extra resources are shared equally among the needy 
+        % Extra resources are shared equally among the needy
         ExtraShare = lists:sum(Extra) / lists:max([1, NumJobs - length(Extra)]),
 
         gen_server:cast(sched_policy, {priv_update_priorities, lists:map(fun
                 ({Job, {NumTasks, NumRunning}}) ->
-                        MyShare = 
+                        MyShare =
                                 if NumTasks < Share ->
                                         NumTasks;
                                 true ->

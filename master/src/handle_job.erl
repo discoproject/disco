@@ -58,7 +58,7 @@ init_job_coordinator(Parent, {Prefix, JobInfo}, PostData) ->
         end.
 
 save_params(Name, PostData) ->
-        {ok, Root} = application:get_env(disco_root),
+        Root = disco:get_setting("DISCO_MASTER_ROOT"),
         Home = disco_server:jobhome(Name),
         ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
@@ -76,13 +76,13 @@ find_values(Msg) ->
                                 Y -> [list_to_binary(X) || X <- Y]
                         end
         end, string:tokens(binary_to_list(InputStr), " ")),
-        
+
         {value, {_, MaxCStr}} = lists:keysearch(<<"sched_max_cores">>, 1, Msg),
         MaxCores = list_to_integer(binary_to_list(MaxCStr)),
-        
+
         {value, {_, NRedStr}} = lists:keysearch(<<"nr_reduces">>, 1, Msg),
         NumRed = list_to_integer(binary_to_list(NRedStr)),
-        
+
         {Prefix, #jobinfo{
                 nr_reduce = NumRed,
                 inputs = Inputs,
@@ -103,7 +103,7 @@ gethostname() ->
 set_disco_url(undefined, Msg) ->
         {value, {_, SPort}} =
                 lists:keysearch(<<"SERVER_PORT">>, 1, Msg),
-        {ok, Name} = application:get_env(disco_name),
+        Name = disco:get_setting("DISCO_NAME"),
         Hostname = gethostname(),
         DiscoUrl = lists:flatten(["http://", Hostname, ":",
                                   binary_to_list(SPort), "/_", Name, "/"]),
@@ -225,7 +225,7 @@ handle_data_error(Task, Node) ->
         {ok, NumCores} = gen_server:call(disco_server, get_num_cores, 30000),
         check_failure_rate(Task#task.jobname, Task#task.taskid, Task#task.mode,
                 length(Task#task.taskblack) + 1, NumCores),
-        
+
         Inputs = Task#task.input,
         NInputs = if length(Inputs) > 1 ->
                 [{X, N} || {X, N} <- Inputs, X =/= Task#task.chosen_input];
@@ -260,13 +260,6 @@ kill_job(Name, Msg, P, Type) ->
         gen_server:call(disco_server, {kill_job, Name}, 30000),
         gen_server:cast(event_server, {job_done, Name}),
         exit(Type).
-
-resultfs_enabled() ->
-    S = case os:getenv("DISCO_FLAGS") of
-            false -> [];
-            X -> string:tokens(string:to_lower(X), " ")
-    end,
-    [ 1 || "resultfs" <- S] =/= [].
 
 move_to_resultfs(_, _, false) -> ok;
 move_to_resultfs(Name, R, _) ->
@@ -305,11 +298,11 @@ run_task(Inputs, Mode, Name, Job) ->
         end,
 
         R = [list_to_binary(X) || X <- gb_trees:keys(Results)],
-        move_to_resultfs(Name, R, resultfs_enabled()),
+        move_to_resultfs(Name, R, disco:is_resultfs_enabled()),
         R.
 
 job_coordinator(Name, Job) ->
-        Started = now(), 
+        Started = now(),
         event_server:event(Name, "Starting job", [], {job_data, Job}),
 
         case catch gen_server:call(disco_server, {new_job, Name, self()}, 30000) of
@@ -336,7 +329,7 @@ job_coordinator(Name, Job) ->
                                 Name, RedInputs, Job#jobinfo.nr_reduce),
                                 "reduce", Name,
                                 Job#jobinfo{force_local = false, force_remote = false}),
-                if Job#jobinfo.map -> 
+                if Job#jobinfo.map ->
                         %FIXME: Old code doesn't remove URLs correctly
                         ok;
                         %garbage_collect:remove_map_results(RedInputs);

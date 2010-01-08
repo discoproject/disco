@@ -4,7 +4,7 @@
 
 -define(CACHE_SIZE, 100).
 
--export([start_link/0, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/0, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
@@ -18,7 +18,7 @@ init(_Args) ->
         {ok, []}.
 
 handle_cast({store, JobName, Node, Keys}, Cache) ->
-        {ok, Root} = application:get_env(disco_root),
+        Root = disco:get_setting("DISCO_MASTER_ROOT"),
         FName = filename:join([Root, disco_server:jobhome(JobName), "oob"]),
         {ok, F} = file:open(FName, [raw, append]),
         file:write(F, [[Node, " ", Key, " ", Path, "\n"] ||
@@ -60,10 +60,10 @@ cache_find(JobName, [X|Cache], C) ->
 
 % LRU cache
 cache_add(JobName, Cache) ->
-        {ok, Root} = application:get_env(disco_root),
+        Root = disco:get_setting("DISCO_MASTER_ROOT"),
         FName = filename:join([Root, disco_server:jobhome(JobName), "oob"]),
         case file:read_file(FName) of
-                {ok, Data} -> 
+                {ok, Data} ->
                         OobKeys = parse_file(binary_to_list(Data)),
                         C = if length(Cache) == ?CACHE_SIZE ->
                                 lists:sublist(Cache, ?CACHE_SIZE - 1);
