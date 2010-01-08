@@ -11,14 +11,14 @@ Disco is based on the master-slave architecture.
  * **Disco master** receives jobs from clients,
    adds them to the job queue, and runs them in the cluster when CPUs
    become available.
- 
+
  * **Client processes** are Python programs that submit jobs to the
    master using the :func:`disco.job` function.
- 
+
  * A **worker supervisor** is started automatically by the master on each node
    in the cluster. Its responsibility is to spawn and monitor all Python worker
    processes that run on that particular node.
- 
+
  * **Python workers** take the user-specified :term:`job functions`, run them
    with the specified input, and write output to result files. As the result,
    they send addresses of the result files to the master through their

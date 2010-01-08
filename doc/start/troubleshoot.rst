@@ -95,7 +95,7 @@ compilation fails for some reason.
 If the binaries exist but the master doesn't start, run::
 
         cd ~/disco
-        erl -boot master/disco
+        disco master nodaemon
 
 This assumes ``DISCO_HOME`` is ``~/disco``.
 This command tries to start the Erlang virtual machine with the Disco
@@ -189,6 +189,12 @@ Note that node names need to be consistent. If your master node is called
 ``huey`` and your remote node ``dewey``, ``dewey`` must be able to connect to
 the master node by the name ``huey`` and vice versa. Aliasing is not allowed.
 
+.. warning::
+   Future versions of Disco may allow you to specify a port range for Erlang to use,
+   however the current version of Disco does not,
+   which may cause problems if you are using a firewall.
+   If you have a firewall running inside your cluster,
+   you may need to turn it off in order for Disco to work properly.
 
 4. Does disco-worker start up?
 ------------------------------
