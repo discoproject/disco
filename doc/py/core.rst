@@ -377,6 +377,8 @@ anymore. You can delete the unneeded job files as follows::
        without *map*. In this case the *nr_reduces* parameter is required
        as well. For more information, see the FAQ entry :ref:`reduceonly`.
 
+       *Changed in version 0.2.4*: *nr_reduces* defaults to 1.
+
      * *reduce_input_stream* - same as in *map_input_stream*, but used for the reduce task.
        By default :func:`disco.func.reduce_input_stream`.
 

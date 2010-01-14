@@ -12,26 +12,28 @@ only *map* is required. If a job function is not specified by the user,
 the corresponding default function that is specified in this module,
 is used instead.
 
-When writing custom functions, take into account the following
-features of the disco worker environment:
+.. hint::
+   When writing custom functions, take into account the following
+   features of the disco worker environment:
 
-- Only the specified function is included in the request. The function
-  can't call any other functions specified in your source file nor it can't
-  refer to any global names, including any imported modules. If you need
-  a special module in your function, import it within the function body.
-  Use of global variables or functions with side-effects, such as
-  external files besides the given input, is strongly discouraged.
+            - Only the specified function is included in the request. The function
+              can't call any other functions specified in your source file nor can it
+              refer to any global names, including any imported modules. If you need
+              a special module in your function, import it within the function body.
+              Use of global variables or functions with side-effects, such as
+              external files besides the given input, is strongly discouraged.
 
-- The function should not print anything to the stdout or stderr.
-  Instead, you can use the function :func:`disco_worker.msg` to
-  send messages to the status display. You can use the function
-  :func:`disco_worker.data_err`, to abort the task on this node and
-  request transfer to another node. Otherwise it is a good idea to just
-  let the task die if any exceptions occur -- do not catch any exceptions
-  from which you can't recover.
+            - The function should not print anything to stderr.
+              The task uses stderr to signal events to the master.
+              You can raise a :class:`disco.error.DataError`, to abort the task on this node and
+              request transfer to another node. Otherwise it is a good idea to just
+              let the task die if any exceptions occur -- do not catch any exceptions
+              from which you can't recover.
+              When other types of exceptions occur, the disco worker will catch them and
+              signal an appropriate event to the master.
 
-In short, this means all user-provded functions must be pure (see
-:term:`pure function`).
+              In short, this means all user-provded functions must be pure (see
+              :term:`pure function`).
 
 .. function:: netstr_reader(fd, size, fname)
 

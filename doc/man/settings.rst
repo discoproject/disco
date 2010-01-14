@@ -103,9 +103,9 @@ Disco settings
 
         *DISCO_SCHEDULER*
                 The type of scheduler that disco should use.
-                The only options are ``fair`` and ``fifo``.
+                The only options are `fair` and `fifo`.
                 Default is ``fair``.
 
-         *DISCO_SCHEDULER_ALPHA*
+        *DISCO_SCHEDULER_ALPHA*
                 Parameter controlling how much the ``fair`` scheduler punishes long-running jobs vs. short ones.
                 Default is .001 and should usually not need to be changed.
