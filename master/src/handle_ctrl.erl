@@ -26,15 +26,13 @@ op("joblist", _Query, _Json) ->
         {ok, Priorities} = gen_server:call(sched_policy, current_priorities),
 
         JobTuples = lists:map(fun({JobName, _, _}) ->
-                                              {case lists:keysearch(JobName, 1, Priorities) of
-                                                       false ->
-                                                               1.0;
-                                                       {value, {_, Priority}} ->
-                                                               Priority
-                                               end,
-                                               job_status(JobName),
-                                               list_to_binary(JobName)}
-                              end, JobNames),
+                        {case lists:keysearch(JobName, 1, Priorities) of
+                                false ->
+                                        1.0;
+                                {value, {_, Priority}} ->
+                                        Priority
+                        end, job_status(JobName), list_to_binary(JobName)}
+        end, JobNames),
         {ok, lists:keysort(1, JobTuples)};
 
 op("jobinfo", Query, _Json) ->
@@ -215,14 +213,16 @@ render_jobinfo(Tstamp, JobPid, JobInfo, Nodes, Res, Tasks, Ready, Failed) ->
                 {_, false} -> <<"ready">>
         end,
         
+        MapI = if JobInfo#jobinfo.map ->
+                        length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun);
+                true -> 0 end,
         RedI = if JobInfo#jobinfo.reduce ->
                         JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
                true -> 0 end,
                 
         {obj, [{timestamp, Tstamp}, 
                {active, R},
-               {mapi, [length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun),
-                        NMapRun, NMapDone, NMapFail]},
+               {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
                {redi, [RedI, NRedRun, NRedDone, NRedFail]},
                {reduce, JobInfo#jobinfo.reduce},
                {results, lists:flatten(Res)},

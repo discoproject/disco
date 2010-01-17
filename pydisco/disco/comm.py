@@ -16,6 +16,8 @@ else:
         from disco.comm_curl import *
 
 def open_local(path, url):
+        # XXX: wouldn't it be polite to give a specific error message if this
+        # operation fails
         fd = file(path)
         sze = os.stat(path).st_size
         return (fd, sze, "file://" + path)

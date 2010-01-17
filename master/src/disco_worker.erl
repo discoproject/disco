@@ -63,7 +63,7 @@ start_link_remote(Master, Eventserver, Node, Task) ->
                                         exit({worker_dies,
                                               {"Unknown node failure: ~p", [X]}})
                         after 60000 ->
-                                        exit({worker_dies, {"Node timeout", []}})
+                                exit({worker_dies, {"Node timeout", []}})
                         end
         end,
         process_flag(trap_exit, true),
@@ -82,7 +82,7 @@ start_link_remote(Master, Eventserver, Node, Task) ->
                 _ ->
                         exit({error, invalid_reply})
         after 60000 ->
-                        exit({worker_dies, {"Worker did not start in 60s", []}})
+                exit({worker_dies, {"Worker did not start in 60s", []}})
         end,
         wait_for_exit().
 
@@ -112,7 +112,7 @@ start_link([Parent|_] = Args) ->
                         Parent ! ok;
                 Reason1 ->
                         exit({worker_dies, {"Worker startup failed: ~p",
-                                            [Reason1]}})
+                                [Reason1]}})
         end.
 
 init([Id, EventServer, Master, JobUrl, Task, Node, Debug]) ->
@@ -204,7 +204,8 @@ handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
         event({"PID", "Child PID is " ++ ChildPID}, S),
         {noreply, S#state{child_pid = ChildPID}};
 
-handle_event({event, {<<"OOB">>, _Time, _Tags, {_Key, _Path}}}, S) when S#state.oob_counter >= ?OOB_MAX ->
+handle_event({event, {<<"OOB">>, _Time, _Tags, {_Key, _Path}}}, S)
+                when S#state.oob_counter >= ?OOB_MAX ->
         Reason = "OOB message limit exceeded. Too many put() calls.",
         error(Reason, S);
 
@@ -226,7 +227,8 @@ handle_event({errline, _Line}, #state{errlines = {_Q, overflow, _Max}} = S) ->
         error("Worker failed (too much garbage on stderr):\n" ++ Garbage, S);
 
 handle_event({errline, Line}, S) ->
-        {noreply, S#state{errlines = message_buffer:append(Line, S#state.errlines)}};
+        {noreply, S#state{errlines =
+                message_buffer:append(Line, S#state.errlines)}};
 
 handle_event({malformed_event, Reason}, S) ->
         error(Reason, S);

@@ -158,5 +158,6 @@ def map_output_stream(stream, partition, url, params):
                 return disco.fileutils.PartitionFile(ppath, mpath, "w"), purl
 
 def reduce_output_stream(stream, partition, url, params):
+        XXX: partition needed?
         path, url = Task.reduce_output()
         return disco.fileutils.AtomicFile(path, "w"), url

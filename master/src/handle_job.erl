@@ -87,8 +87,10 @@ find_values(Msg) ->
                 nr_reduce = NumRed,
                 inputs = Inputs,
                 max_cores = MaxCores,
-                map = field_exists(Msg, <<"map">>) or field_exists(Msg, <<"ext_map">>),
-                reduce = field_exists(Msg, <<"reduce">>),
+                map = field_exists(Msg, <<"map">>)
+                        or field_exists(Msg, <<"ext_map">>),
+                reduce = field_exists(Msg, <<"reduce">>)
+                        or field_exists(Msg, <<"ext_reduce">>),
                 force_local = field_exists(Msg, <<"sched_force_local">>),
                 force_remote = field_exists(Msg, <<"sched_force_remote">>)
         }}.
@@ -204,13 +206,13 @@ wait_workers(N, Results, Name, Mode) ->
         end.
 
 submit_task(Task) ->
-        case catch gen_server:call(disco_server, {new_task, Task}) of
+        case catch gen_server:call(disco_server, {new_task, Task}, 30000) of
                 ok -> ok;
                 _ ->
                         event_server:event(Task#task.jobname,
                                 "ERROR: ~s:~B scheduling failed. "
                                 "Try again later.",
-                                [Task#task.mode, Task#task.taskid]),
+                                [Task#task.mode, Task#task.taskid], []),
                         throw(logged_error)
         end.
 
@@ -220,7 +222,7 @@ submit_task(Task) ->
 % failing node in its blacklist. If a task fails too many times, as
 % determined by check_failure_rate(), the whole job will be terminated.
 handle_data_error(Task, Node) ->
-        {ok, NumCores} = gen_server:call(disco_server, get_num_cores),
+        {ok, NumCores} = gen_server:call(disco_server, get_num_cores, 30000),
         check_failure_rate(Task#task.jobname, Task#task.taskid, Task#task.mode,
                 length(Task#task.taskblack) + 1, NumCores),
 
@@ -255,7 +257,7 @@ check_failure_rate(Name, TaskID, Mode, L, _) ->
 
 kill_job(Name, Msg, P, Type) ->
         event_server:event(Name, Msg, P, []),
-        %gen_server:call(disco_server, {kill_job, Name}),
+        gen_server:call(disco_server, {kill_job, Name}, 30000),
         gen_server:cast(event_server, {job_done, Name}),
         exit(Type).
 
@@ -303,7 +305,7 @@ job_coordinator(Name, Job) ->
         Started = now(),
         event_server:event(Name, "Starting job", [], {job_data, Job}),
 
-        case catch gen_server:call(disco_server, {new_job, Name, self()}) of
+        case catch gen_server:call(disco_server, {new_job, Name, self()}, 30000) of
                 ok -> ok;
                 R ->
                         event_server:event(Name,
@@ -358,18 +360,15 @@ reduce_input(Name, Inputs, NRed) ->
         V = lists:any(fun erlang:is_list/1, Inputs),
         if V ->
                 event_server:event(Name,
-                        "ERROR: Reduce doesn't support redundant inputs"),
+                        "ERROR: Reduce doesn't support redundant inputs", [], []),
                 throw({error, "redundant inputs in reduce"});
         true -> ok
         end,
         B = << <<"'", X/binary, "' ">> || X <- Inputs >>,
-
-        % TODO: We could prioritize preferences according to partition sizes.
-        N = length(Inputs),
-        D = dict:from_list(lists:zip(lists:seq(1, N),
-                [pref_node(X) || X <- Inputs])),
-        [{X, [{B, dict:fetch(random:uniform(N), D)}]} ||
-                X <- lists:seq(0, NRed - 1)].
+        U = lists:usort([pref_node(X) || X <- Inputs]),
+        N = length(U),
+        D = dict:from_list(lists:zip(lists:seq(0, N - 1), U)),
+        [{X, [{B, dict:fetch(X rem N, D)}]} || X <- lists:seq(0, NRed - 1)].
 
 % pref_node() suggests a preferred node for a task (one preserving locality)
 % given the url of its input.
