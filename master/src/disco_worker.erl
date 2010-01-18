@@ -147,9 +147,10 @@ worker_exit(#state{id = Id, master = Master}, Msg) ->
 event(Event, S) ->
         event(Event, S, []).
 
-event({Type, Message}, #state{task = T, eventserver = EventServer, node = Node}, Params) ->
-        event_server:event(EventServer, Node, T#task.jobname,
-                           "~s [~s:~B] ~s", [Type, T#task.mode, T#task.taskid, Message], Params).
+event({_Type, Message}, #state{task = T,
+            eventserver = EventServer, node = Node}, Params) ->
+        event_server:event(EventServer, Node, T#task.jobname, "~s [~s:~B] ~s",
+            [T#task.mode, T#task.taskid, Message], Params).
 
 error(Reason, State) ->
         error(nonrecoverable, Reason, State).
@@ -201,7 +202,7 @@ handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
         error(Message, S);
 
 handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
-        event({"PID", "Child PID is " ++ ChildPID}, S),
+        % event({"PID", "Child PID is " ++ ChildPID}, S),
         {noreply, S#state{child_pid = ChildPID}};
 
 handle_event({event, {<<"OOB">>, _Time, _Tags, {_Key, _Path}}}, S)
@@ -215,7 +216,7 @@ handle_event({event, {<<"OOB">>, _Time, _Tags, {Key, Path}}}, S) ->
                           oob_counter = S#state.oob_counter + 1}};
 
 handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
-        event({"OUT", "Results at " ++ Results}, S),
+        % event({"OUT", "Results at " ++ Results}, S),
         {noreply, S#state{results = Results}};
 
 handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
