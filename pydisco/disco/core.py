@@ -377,7 +377,7 @@ class Job(object):
 
                 if 'ext_params' in kwargs:
                         e = kwargs['ext_params']
-                        request['ext_params'] = encode_netstring_fd(e)
+                        request['ext_params'] = encode_netstring_fd(e)\
                                 if isinstance(e, dict) else e
 
                 # -- reduce --
