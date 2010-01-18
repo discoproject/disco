@@ -3,7 +3,13 @@ from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
 from httplib import OK, INTERNAL_SERVER_ERROR
 from threading import Thread
-from unittest import SkipTest, TestCase, TestLoader, TextTestRunner
+from unittest import TestCase, TestLoader, TextTestRunner
+
+try:
+        from unittest import SkipTest
+except ImportError:
+        class SkipTest(Exception):
+                pass
 
 import disco
 from disco.core import Disco, result_iterator
