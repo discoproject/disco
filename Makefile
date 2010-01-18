@@ -52,8 +52,8 @@ install-master: install-config install-bin master
 install-node: install-config install-bin master
 	install -d $(TARGETDIR)/ebin
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
+	install -m 0755 node/disco-worker $(TARGETBIN)
 
-	(cd node; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
 	$(if $(wildcard $(TARGETCFG)/lighttpd-worker.conf),\
 		$(info lighttpd-worker config already exists, skipping),\
 		install -m 0644 conf/lighttpd-worker.conf $(TARGETCFG))
