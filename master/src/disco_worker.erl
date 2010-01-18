@@ -149,7 +149,7 @@ event(Event, S) ->
 
 event({_Type, Message}, #state{task = T,
             eventserver = EventServer, node = Node}, Params) ->
-        event_server:event(EventServer, Node, T#task.jobname, "~s [~s:~B] ~s",
+        event_server:event(EventServer, Node, T#task.jobname, "[~s:~B] ~s",
             [T#task.mode, T#task.taskid, Message], Params).
 
 error(Reason, State) ->
