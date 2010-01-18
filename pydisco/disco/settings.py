@@ -23,6 +23,7 @@ class DiscoSettings(dict):
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_TEST_HOST':       "socket.gethostname()",
         'DISCO_TEST_PORT':       "9444",
+        'DISCO_TEST_PURGE':      "'purge'",
         'DISCO_ERLANG':          "guess_erlang()",
         'DISCO_HTTPD':           "'lighttpd'",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",

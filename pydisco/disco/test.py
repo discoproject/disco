@@ -151,7 +151,8 @@ class DiscoJobTestFixture(object):
 
         def tearDown(self):
                 self.test_server.stop()
-                self.job.purge()
+                if self.disco_settings['DISCO_TEST_PURGE']:
+                        self.job.purge()
 
         def runTest(self):
                 for result, answer in zip(self.results, self.answers):
@@ -203,7 +204,8 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
         def tearDown(self):
                 for m in xrange(self.njobs):
                         self.test_servers[m].stop()
-                        self.jobs[m].purge()
+                        if self.disco_settings['DISCO_TEST_PURGE']:
+                                self.jobs[m].purge()
 
         def runTest(self):
                 for m in xrange(self.njobs):
