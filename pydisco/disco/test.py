@@ -32,7 +32,10 @@ class TestServer(ThreadingMixIn, HTTPServer):
                 self.thread.start()
 
         def stop(self):
-                self.shutdown()
+                # Workaround for Python2.5 which doesn't have the shutdown
+                # method
+                if hasattr(self, "shutdown"):
+                        self.shutdown()
                 self.socket.close()
 
         def urls(self, inputs):
