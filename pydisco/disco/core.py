@@ -154,8 +154,7 @@ class Disco(object):
                 while True:
                         event_monitor.refresh()
                         try:
-                                results = self.check_results(name, start_time, poll_interval * 1000)
-                                return results
+                                return self.check_results(name, start_time, poll_interval * 1000)
                         except JobError, e:
                                 raise
                         finally:
