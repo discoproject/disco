@@ -25,5 +25,5 @@ class TempFailTestCase(DiscoJobTestFixture, DiscoTestCase):
 
         def runTest(self):
                 if len(self.nodes) > 1:
-                        self.assertEquals(sum(int(k) for k, v in self.results), 122500)
+                        return self.assertEquals(sum(int(k) for k, v in self.results), 122500)
                 self.skipTest("Cannot test temporary node failure with < 2 nodes")

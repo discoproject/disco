@@ -167,6 +167,15 @@ class DiscoJobTestFixture(object):
                 for result, answer in zip(self.results, self.answers):
                         self.assertEquals(result, answer)
 
+        def skipTest(self, message):
+                # Workaround for python2.5 which doesn't have skipTest in unittests
+                # make sure calls to skipTest are the last statement in a code branch
+                # (until we drop 2.5 support)
+                try:
+                        super(DiscoJobTestFixture, self).skipTest(message)
+                except AttributeError, e:
+                        pass
+
 class DiscoMultiJobTestFixture(DiscoJobTestFixture):
         def result_reader(self, m):
                 return disco.func.netstr_reader
