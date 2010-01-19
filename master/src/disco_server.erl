@@ -130,37 +130,6 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
         true -> {noreply, S}
         end;
 
-handle_cast({update_stats, Node, ReplyType}, #state{nodes = Nodes} = S) ->
-        V = gb_trees:lookup(Node, Nodes),
-        if V == none -> {noreply, S};
-        true ->
-                {value, N} = V,
-                M = N#dnode{num_running = N#dnode.num_running - 1},
-                M0 = case ReplyType of
-                        job_ok ->
-                                M#dnode{stats_ok = M#dnode.stats_ok + 1};
-                        data_error ->
-                                M#dnode{stats_failed = M#dnode.stats_failed + 1};
-                        job_error ->
-                                M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
-                        _ ->
-                                M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
-                end,
-                {noreply, S#state{nodes = gb_trees:update(Node, M0, Nodes)}}
-        end;
-
-handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
-        V = gb_trees:lookup(Pid, S#state.workers),
-        if V == none -> {noreply, S};
-        true ->
-                {_, {Node, Task}} = V,
-                UWorkers = gb_trees:delete(Pid, S#state.workers),
-                Task#task.from ! {Res, Task, Node},
-                gen_server:cast(self(), {update_stats, Node, Type}),
-                gen_server:cast(self(), schedule_next),
-                {noreply, S#state{workers = UWorkers}}
-        end;
-
 handle_cast({purge_job, JobName}, S) ->
         % SECURITY NOTE! This function leads to the following command
         % being executed:
@@ -187,7 +156,34 @@ handle_cast({purge_job, JobName}, S) ->
                                 filename:join([Root, jobhome(JobName)]))
                 end)
         end,
-        {noreply, S}.
+        {noreply, S};
+
+handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
+        V = gb_trees:lookup(Pid, S#state.workers),
+        if V == none -> {noreply, S};
+        true ->
+                {_, {Node, Task}} = V,
+                UWorkers = gb_trees:delete(Pid, S#state.workers),
+                Task#task.from ! {Res, Task, Node},
+                gen_server:cast(self(), schedule_next),
+                update_stats(Node, gb_trees:lookup(Node, S#state.nodes),
+                        Type, S#state{workers = UWorkers})
+        end.
+
+update_stats(_Node, none, _ReplyType, S) -> {noreply, S};
+update_stats(Node, {value, N}, ReplyType, S) ->
+        M = N#dnode{num_running = N#dnode.num_running - 1},
+        M0 = case ReplyType of
+                job_ok ->
+                        M#dnode{stats_ok = M#dnode.stats_ok + 1};
+                data_error ->
+                        M#dnode{stats_failed = M#dnode.stats_failed + 1};
+                job_error ->
+                        M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
+                _ ->
+                        M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
+        end,
+        {noreply, S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}}.
 
 handle_call(dbg_get_state, _, S) ->
         {reply, S, S};
