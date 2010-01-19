@@ -9,7 +9,7 @@ class FiveTestCase(DiscoJobTestFixture, DiscoTestCase):
 
         @property
         def nr_reduces(self):
-                return self.num_workers * 10
+                return min(self.num_workers * 10, 300)
 
         @staticmethod
         def map(e, params):

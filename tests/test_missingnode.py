@@ -9,7 +9,6 @@ def unique_nodename(nodenames, count=0):
 class MissingNodeTestCase(DiscoJobTestFixture, DiscoTestCase):
         @property
         def inputs(self):
-                print range(self.num_workers * 2)
                 return range(self.num_workers * 2)
 
         def getdata(self, path):
