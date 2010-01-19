@@ -58,7 +58,7 @@ def handler(data_generator):
                         try:
                                 self.send_data(data_generator(self.path.strip('/')))
                         except FailedReply, e:
-                                self.send_error(INTERNAL_SERVER_ERROR, e.message)
+                                self.send_error(INTERNAL_SERVER_ERROR, str(e))
 
                 def log_request(*args):
                         pass # suppress logging output for now
