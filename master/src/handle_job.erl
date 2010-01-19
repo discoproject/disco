@@ -87,8 +87,10 @@ find_values(Msg) ->
                 nr_reduce = NumRed,
                 inputs = Inputs,
                 max_cores = MaxCores,
-                map = field_exists(Msg, <<"map">>) or field_exists(Msg, <<"ext_map">>),
-                reduce = field_exists(Msg, <<"reduce">>),
+                map = field_exists(Msg, <<"map">>)
+                        or field_exists(Msg, <<"ext_map">>),
+                reduce = field_exists(Msg, <<"reduce">>)
+                        or field_exists(Msg, <<"ext_reduce">>),
                 force_local = field_exists(Msg, <<"sched_force_local">>),
                 force_remote = field_exists(Msg, <<"sched_force_remote">>)
         }}.
@@ -210,7 +212,7 @@ submit_task(Task) ->
                         event_server:event(Task#task.jobname,
                                 "ERROR: ~s:~B scheduling failed. "
                                 "Try again later.",
-                                [Task#task.mode, Task#task.taskid]),
+                                [Task#task.mode, Task#task.taskid], []),
                         throw(logged_error)
         end.
 
@@ -358,18 +360,15 @@ reduce_input(Name, Inputs, NRed) ->
         V = lists:any(fun erlang:is_list/1, Inputs),
         if V ->
                 event_server:event(Name,
-                        "ERROR: Reduce doesn't support redundant inputs"),
+                        "ERROR: Reduce doesn't support redundant inputs", [], []),
                 throw({error, "redundant inputs in reduce"});
         true -> ok
         end,
         B = << <<"'", X/binary, "' ">> || X <- Inputs >>,
-
-        % TODO: We could prioritize preferences according to partition sizes.
-        N = length(Inputs),
-        D = dict:from_list(lists:zip(lists:seq(1, N),
-                [pref_node(X) || X <- Inputs])),
-        [{X, [{B, dict:fetch(random:uniform(N), D)}]} ||
-                X <- lists:seq(0, NRed - 1)].
+        U = lists:usort([pref_node(X) || X <- Inputs]),
+        N = length(U),
+        D = dict:from_list(lists:zip(lists:seq(0, N - 1), U)),
+        [{X, [{B, dict:fetch(X rem N, D)}]} || X <- lists:seq(0, NRed - 1)].
 
 % pref_node() suggests a preferred node for a task (one preserving locality)
 % given the url of its input.
