@@ -32,10 +32,10 @@ handle_state({outside_event, _StateData}, Data) ->
                                               {Year, Month, Day, Hour, Minute, Second},
                                               [],
                                              message_buffer:append(binary_to_list(Message), Messages)})}};
-                {_IsEOL, <<BadMessage/binary>>} ->
+                {IsEOL, <<BadMessage/binary>>} ->
                         {next_stream, {outside_event,
                                        {errline, binary_to_list(BadMessage) ++
-                                        case _IsEOL of
+                                        case IsEOL of
                                                 true -> "";
                                                 false -> "..."
                                         end}}}
