@@ -4,14 +4,9 @@ from opcode import opname
 
 from disco.error import ModUtilImportError
 
-def local_paths():
-        return set(sys.path) - system_paths()
-
 def user_paths():
         return set(os.getenv('PYTHONPATH', '').split(':') + [''])
 
-def system_paths():
-        return set(path for path in sys.path if path.startswith('%s/lib/python' % sys.prefix))
 
 def parse_function(function):
         code = function.func_code

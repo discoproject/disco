@@ -12,7 +12,9 @@ class Params(object):
                 self.__dict__.update(kwargs)
 
         def __getstate__(self):
-                return dict((k, util.pack(v)) for k, v in self.__dict__.iteritems() if not k.startswith('_'))
+                return dict((k, util.pack(v))
+                        for k, v in self.__dict__.iteritems()
+                                if not k.startswith('_'))
 
         def __setstate__(self, state):
                 for k, v in state.iteritems():
@@ -195,6 +197,7 @@ class Job(object):
                     "combiner": None,
                     "nr_maps": None,
                     "scheduler": {},
+#XXX: nr_reduces default has changed!
                     "nr_reduces": 1,
                     "sort": False,
                     "params": Params(),
@@ -297,7 +300,8 @@ class Job(object):
                 else:
                         functions = util.flatten(util.iterify(jobargs[f])
                                                  for f in self.mapreduce_functions)
-                        rm = modutil.find_modules([f for f in functions if isinstance(f, types.FunctionType)])
+                        rm = modutil.find_modules([f for f in functions
+                                if isinstance(f, types.FunctionType)])
 
                 send_mod = []
                 imp_mod = []
@@ -365,13 +369,16 @@ class Job(object):
                 # -- only reduce --
 
                 else:
+                        # XXX: Check for redundant inputs, external &
+                        # partitioned inputs
                         input = [url for i in input for url in util.urllist(i)]
 
                 request['input'] = ' '.join(input)
 
                 if 'ext_params' in kwargs:
                         e = kwargs['ext_params']
-                        request['ext_params'] = encode_netstring_fd(e) if isinstance(e, dict) else e
+                        request['ext_params'] = encode_netstring_fd(e)\
+                                if isinstance(e, dict) else e
 
                 # -- reduce --
 

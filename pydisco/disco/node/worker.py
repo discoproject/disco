@@ -156,6 +156,7 @@ class ReduceReader(object):
         def __init__(self, input_files, do_sort, mem_sort_limit, params):
                 self.inputs = [url for input in input_files
                                for url in util.urllist(input, partid=Task.id)]
+                random.shuffle(self.inputs)
                 self.line_count = 0
                 if do_sort:
                         total_size = 0

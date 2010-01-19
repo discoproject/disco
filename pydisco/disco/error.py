@@ -38,6 +38,7 @@ class ModUtilImportError(DiscoError, ImportError):
         self.function = function
 
     def __str__(self):
+        # XXX! Add module name below
         return ("%s: Could not find module defined in %s. Maybe it is a typo. "
                 "See documentation of the required_modules parameter for details "
                 "on how to include modules." % (self.error, self.function.func_name))

@@ -64,8 +64,8 @@ init(_Args) ->
         {ok, _} = fair_scheduler:start_link(),
         Name = disco:get_setting("DISCO_NAME"),
         register(slave_master, spawn_link(fun() ->
-                                                          slave_master(lists:flatten([Name, "_slave"]))
-                                          end)),
+                slave_master(lists:flatten([Name, "_slave"]))
+        end)),
         {ok, #state{workers = gb_trees:empty(), nodes = gb_trees:empty()}}.
 
 handle_cast({update_config_table, Config}, S) ->
@@ -131,27 +131,35 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
         end;
 
 handle_cast({update_stats, Node, ReplyType}, #state{nodes = Nodes} = S) ->
-        N = gb_trees:get(Node, Nodes),
-        M = N#dnode{num_running = N#dnode.num_running - 1},
-        M0 = case ReplyType of
-                job_ok ->
-                        M#dnode{stats_ok = M#dnode.stats_ok + 1};
-                data_error ->
-                        M#dnode{stats_failed = M#dnode.stats_failed + 1};
-                job_error ->
-                        M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
-                _ ->
-                        M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
-        end,
-        {noreply, S#state{nodes = gb_trees:update(Node, M0, Nodes)}};
+        V = gb_trees:lookup(Node, Nodes),
+        if V == none -> {noreply, S};
+        true ->
+                {value, N} = V,
+                M = N#dnode{num_running = N#dnode.num_running - 1},
+                M0 = case ReplyType of
+                        job_ok ->
+                                M#dnode{stats_ok = M#dnode.stats_ok + 1};
+                        data_error ->
+                                M#dnode{stats_failed = M#dnode.stats_failed + 1};
+                        job_error ->
+                                M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
+                        _ ->
+                                M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
+                end,
+                {noreply, S#state{nodes = gb_trees:update(Node, M0, Nodes)}}
+        end;
 
 handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
-        {Node, Task} = gb_trees:get(Pid, S#state.workers),
-        UWorkers = gb_trees:delete(Pid, S#state.workers),
-        Task#task.from ! {Res, Task, Node},
-        gen_server:cast(self(), {update_stats, Node, Type}),
-        gen_server:cast(self(), schedule_next),
-        {noreply, S#state{workers = UWorkers}};
+        V = gb_trees:lookup(Pid, S#state.workers),
+        if V == none -> {noreply, S};
+        true ->
+                {_, {Node, Task}} = V,
+                UWorkers = gb_trees:delete(Pid, S#state.workers),
+                Task#task.from ! {Res, Task, Node},
+                gen_server:cast(self(), {update_stats, Node, Type}),
+                gen_server:cast(self(), schedule_next),
+                {noreply, S#state{workers = UWorkers}}
+        end;
 
 handle_cast({purge_job, JobName}, S) ->
         % SECURITY NOTE! This function leads to the following command
@@ -169,14 +177,15 @@ handle_cast({purge_job, JobName}, S) ->
                         {"Tried to purge an invalid job", JobName});
         true ->
                 spawn_link(fun() ->
-                                           Root = disco:get_setting("DISCO_MASTER_ROOT"),
-                                           handle_call({clean_job, JobName}, none, S),
-                                           Nodes = [lists:flatten(["dir://", Node, "/", Node, "/",
-                                                                   jobhome(JobName), "/null"]) ||
-                                                           #dnode{name = Node} <- gb_trees:values(S#state.nodes)],
-                                           garbage_collect:remove_job(Nodes),
-                                           garbage_collect:remove_dir(filename:join([Root, jobhome(JobName)]))
-                           end)
+                        Root = disco:get_setting("DISCO_MASTER_ROOT"),
+                        handle_call({clean_job, JobName}, none, S),
+                        Nodes = [lists:flatten(["dir://", Node, "/", Node, "/",
+                                jobhome(JobName), "/null"]) || #dnode{name = Node}
+                                        <- gb_trees:values(S#state.nodes)],
+                        garbage_collect:remove_job(Nodes),
+                        garbage_collect:remove_dir(
+                                filename:join([Root, jobhome(JobName)]))
+                end)
         end,
         {noreply, S}.
 
@@ -241,59 +250,41 @@ handle_call({blacklist, Node}, _From, #state{nodes = Nodes} = S) ->
 handle_call({whitelist, Node}, _From, #state{nodes = Nodes} = S) ->
         {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, false)}}.
 
-handle_info({'EXIT', Pid, normal}, S) ->
-        V = gb_trees:lookup(Pid, S#state.workers),
-        if V == none ->
-                {noreply, S};
-        true ->
-                {value, {Node, T}} = V,
-                error_logger:warning_report(
-                        {"Task failed to call exit_worker", Node, T}),
-                event_server:event(Node, T#task.jobname,
-                        "WARN: [~s:~B] Died unexpectedly without a reason",
-                                [T#task.mode, T#task.taskid],
-                                        {task_failed, T#task.mode}),
-                gen_server:cast(self(), {exit_worker, Pid,
-                        {data_error, "unexpected"}}),
-                {noreply, S}
-        end;
+process_exit(Pid, Msg, Code, S) ->
+        process_exit1(gb_trees:lookup(Pid, S#state.workers), Pid, Msg, Code, S).
 
-handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
-        {Node, T} = gb_trees:get(Pid, S#state.workers),
-        event_server:event(Node, T#task.jobname, "WARN: [~s:~B] ~s",
-                [T#task.mode, T#task.taskid, io_lib:fwrite(Msg, Args)],
+process_exit1(none, _, _, _, S) -> {noreply, S};
+process_exit1({_, {Node, T}}, Pid, Msg, Code, S) ->
+        P = io_lib:fwrite("WARN: [~s:~B] ", [T#task.mode, T#task.taskid]),
+        event_server:event(Node, T#task.jobname, lists:flatten(P, Msg), [],
                         {task_failed, T#task.mode}),
-        gen_server:cast(self(), {exit_worker, Pid, {data_error, "worker_dies"}}),
-        {noreply, S};
+        gen_server:cast(self(), {exit_worker, Pid, {data_error, Code}}),
+        {noreply, S}.
 
+handle_info({'EXIT', Pid, normal}, S) ->
+        case gb_trees:lookup(Pid, S#state.workers) of
+                none -> {noreply, S};
+                _ -> error_logger:warning_report(
+                        {"Task failed to call exit_worker", Pid}),
+                     process_exit(Pid, "Died unexpectedly without a reason",
+                        "unexpected", S)
+        end;
+        
+handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
+        process_exit(Pid, io_lib:fwrite(Msg, Args), "worker_dies", S);
+        
 handle_info({'EXIT', Pid, noconnection}, S) ->
-        {Node, T} = gb_trees:get(Pid, S#state.workers),
-        event_server:event(Node, T#task.jobname,
-                "WARN: [~s:~B] Connection lost to the node (network busy?)",
-                [T#task.mode, T#task.taskid], {task_failed, T#task.mode}),
-        gen_server:cast(self(), {exit_worker, Pid, {data_error, "noconnection"}}),
-        {noreply, S};
+        process_exit(Pid, "Connection lost to the node (network busy?)",
+                "noconnection", S);
 
-handle_info({'EXIT', Pid, Reason}, State) when Pid == self() ->
+handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
         error_logger:warning_report(["Disco server dies on error!", Reason]),
-        {stop, stop_requested, State};
+        {stop, stop_requested, S};
 
 handle_info({'EXIT', Pid, Reason}, S) ->
-        Worker = gb_trees:lookup(Pid, S#state.workers),
-        if Worker =/= none ->
-                {_, {Node, T}} = Worker,
-                event_server:event(Node, T#task.jobname,
-                        "WARN: [~s:~B] Worker died unexpectedly: ~p",
-                                [T#task.mode, T#task.taskid, Reason],
-                                        {task_failed, T#task.mode}),
-                gen_server:cast(self(), {exit_worker, Pid,
-                        {data_error, "unexpected"}});
-                {noreply, S};
-        true ->
-                error_logger:warning_report({"Unknown exit signal", Pid, Reason}),
-                {noreply, S}
-        end.
-
+        process_exit(Pid, io_lib:fwrite("Worked died unexpectedly: ~p",
+                [Reason]), "unexpected", S).
+                
 toggle_blacklist(Node, Nodes, IsBlacklisted) ->
         case gb_trees:lookup(Node, Nodes) of
                 none -> Nodes;

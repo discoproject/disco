@@ -42,8 +42,8 @@ unique_key(Prefix, Dict) ->
 
 handle_call(get_jobnames, _From, {Events, _MsgBuf} = S) ->
         JobList = dict:fold(fun(JobName, {_EventList, JobStart, Pid}, Acc) ->
-                                            [{JobName, JobStart, Pid}|Acc]
-                            end, [], Events),
+                [{JobName, JobStart, Pid}|Acc]
+        end, [], Events),
         {reply, {ok, JobList}, S};
 
 handle_call({get_job_events, JobName, Query, N0}, _From, {_Events, MsgBuf} = S) ->
@@ -154,9 +154,9 @@ grep_log(JobName, Query, N) ->
 
 event_filter(Key, EventList) ->
         {_, R} = lists:unzip(lists:filter(fun
-                                                  ({K, _}) when K == Key -> true;
-                                                  (_) -> false
-                                          end, EventList)),
+                ({K, _}) when K == Key -> true;
+                (_) -> false
+        end, EventList)),
         R.
 
 format_timestamp(TimeStamp) ->
@@ -203,14 +203,15 @@ event(Host, JobName, Format, Args, Params) ->
 
 event(EventServer, Host, JobName, Format, Args, Params) ->
         SArgs = lists:map(fun(Arg) ->
-                                          L = lists:flatlength(io_lib:fwrite("~p", [Arg])),
-                                          if
-                                                  L > 10000 -> trunc_io:fprint(Arg, 10000);
-                                                  true -> Arg
-                                          end
-                          end, Args),
+                        L = lists:flatlength(io_lib:fwrite("~p", [Arg])),
+                        if
+                                L > 10000 -> trunc_io:fprint(Arg, 10000);
+                        true -> Arg
+                        end
+        end, Args),
 
-        Msg = list_to_binary(json:encode(list_to_binary(io_lib:fwrite(Format, SArgs)))),
+        Msg = list_to_binary(json:encode(
+                list_to_binary(io_lib:fwrite(Format, SArgs)))),
         gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
 
 % callback stubs
