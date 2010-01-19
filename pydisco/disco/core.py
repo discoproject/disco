@@ -139,20 +139,29 @@ class Disco(object):
         def jobinfo(self, name):
                 return json.loads(self.request("/disco/ctrl/jobinfo?name=%s" % name))
 
+        def check_results(self, name, start_time, timeout):
+                status, results = self.results(name, timeout=timeout)
+                if status == 'ready':
+                        return results
+                if status != 'active':
+                        raise JobError("Job status %s" % status, self.host, name)
+                if timeout and time.time() - start_time > timeout:
+                        raise JobError("Timeout", self.host, name)
+
         def wait(self, name, show = None, poll_interval = 2, timeout = None, clean = False):
                 event_monitor = EventMonitor(show, disco=self, name=name)
                 start_time    = time.time()
                 while True:
-                        status, results = self.results(name, timeout = poll_interval * 1000)
                         event_monitor.refresh()
-                        if status == 'ready':
+                        try:
+                                results = self.check_results(name, start_time, poll_interval * 1000)
+                                return results
+                        except JobError, e:
+                                raise
+                        finally:
                                 if clean:
                                         self.clean(name)
-                                return results
-                        if status != 'active':
-                                raise JobError("Job status %s" % status, self.host, name)
-                        if timeout and time.time() - start_time > timeout:
-                                raise JobError("Timeout", self.host, name)
+                                event_monitor.refresh()
 
 class JobSpecifier(list):
         def __init__(self, jobspec):
