@@ -8,7 +8,6 @@ class ObjectRWTestCase(DiscoJobTestFixture, DiscoTestCase):
         map_writer       = func.object_writer
         reduce_reader    = func.object_reader
         reduce_writer    = func.object_writer
-        required_modules = ['math', 'datetime', 'time']
         result_reader    = staticmethod(func.object_reader)
         sort             = False
 

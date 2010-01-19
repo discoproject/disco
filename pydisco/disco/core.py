@@ -300,8 +300,8 @@ class Job(object):
                 else:
                         functions = util.flatten(util.iterify(jobargs[f])
                                                  for f in self.mapreduce_functions)
-                        rm = modutil.find_modules([f for f in functions
-                                if isinstance(f, types.FunctionType)])
+                        rm = modutil.find_modules([f for f in functions\
+                                if callable(f)])
 
                 send_mod = []
                 imp_mod = []
