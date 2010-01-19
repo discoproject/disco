@@ -218,8 +218,7 @@ handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
         {noreply, S#state{results = Results}};
 
 handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
-        gen_server:cast(self(), {rate_limited_event, {Type, Payload}}),
-        {noreply, S};
+        handle_cast({rate_limited_event, {Type, Payload}}, S);
 
 handle_event({errline, _Line}, #state{errlines = {_Q, overflow, _Max}} = S) ->
         Garbage = message_buffer:to_string(S#state.errlines),
@@ -237,9 +236,8 @@ handle_event(_EventState, S) ->
 handle_info({_Port, {data, Data}}, #state{eventstream = EventStream} = S) ->
         EventStream1 = event_stream:feed(Data, EventStream),
         {next_stream, {_NextState, EventState}} = EventStream1,
-        {Reply, S1} = handle_event(EventState, S),
-        {Reply, S1#state{eventstream = EventStream1,
-                         linecount   = S#state.linecount + 1}};
+        handle_event(EventState, S#state{eventstream = EventStream1,
+                                         linecount   = S#state.linecount + 1});
 
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
         Reason =  "Worker didn't start:\n" ++ message_buffer:to_string(S#state.errlines),
