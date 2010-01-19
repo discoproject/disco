@@ -28,6 +28,9 @@ class Stats(object):
         def create_stats(self):
                 pass
 
+class Continue(Exception):
+        pass
+
 class Disco(object):
         def __init__(self, host):
                 self.host = util.disco_host(host)
@@ -147,6 +150,7 @@ class Disco(object):
                         raise JobError("Job status %s" % status, self.host, name)
                 if timeout and time.time() - start_time > timeout:
                         raise JobError("Timeout", self.host, name)
+                raise Continue()
 
         def wait(self, name, show = None, poll_interval = 2, timeout = None, clean = False):
                 event_monitor = EventMonitor(show, disco=self, name=name)
@@ -155,8 +159,8 @@ class Disco(object):
                         event_monitor.refresh()
                         try:
                                 return self.check_results(name, start_time, poll_interval * 1000)
-                        except JobError, e:
-                                raise
+                        except Continue:
+                                continue
                         finally:
                                 if clean:
                                         self.clean(name)
