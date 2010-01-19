@@ -111,6 +111,12 @@ class DiscoJobTestFixture(object):
         result_reader = staticmethod(disco.func.netstr_reader)
 
         @property
+        def nodes(self):
+                return dict((n['node'], n['max_workers'])
+                            for n in self.disco.nodeinfo()['available']
+                            if not n['blacklisted'])
+
+        @property
         def num_workers(self):
                 return sum(x['max_workers'] for x in self.disco.nodeinfo()['available'])
 

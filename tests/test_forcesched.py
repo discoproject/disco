@@ -6,12 +6,6 @@ class ForceLocalTestCase(DiscoJobTestFixture, DiscoTestCase):
         scheduler = {'force_local': True}
 
         @property
-        def nodes(self):
-                return dict((n['node'], n['max_workers'])
-                            for n in self.disco.nodeinfo()['available']
-                            if not n['blacklisted'])
-
-        @property
         def input(self):
                 return ['http://%s' % node
                         for node, max_workers in self.nodes.iteritems()
