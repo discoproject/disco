@@ -116,7 +116,7 @@ def load_oob(host, name, key):
         settings = DiscoSettings()
         params = {'name': name,
                   'key': key,
-                  'proxy': bool(settings['DISCO_PROXY'])}
+                  'proxy': '1' if settings['DISCO_PROXY'] else '0'}
         url = '%s/disco/ctrl/oob_get?%s' % (host, urlencode(params))
         if 'resultfs' in settings['DISCO_FLAGS']:
                 size, fd = open_remote(url, expect=302)
