@@ -1,17 +1,27 @@
+import thread
 from disco.test import DiscoJobTestFixture, DiscoTestCase, FailedReply
 
 class TempFailTestCase(DiscoJobTestFixture, DiscoTestCase):
-        inputs = xrange(10)
+        inputs = range(50)
 
         def getdata(self, path):
-                from datetime import datetime
-                if datetime.now().microsecond % 2:
+                self.lock.acquire()
+                if path in self.fail:
+                        self.fail.remove(path)
+                        self.lock.release()
                         raise FailedReply()
-                return '%s\n' % (int(path) * 10)
+                else:
+                        self.lock.release()
+                        return '%s\n' % (int(path) * 10)
+
+        def setUp(self):
+                self.lock = thread.allocate_lock()
+                self.fail = map(str, TempFailTestCase.inputs[::2])
+                super(TempFailTestCase, self).setUp()
 
         @staticmethod
         def map(e, params):
                 return [(int(e) * 10, '')]
 
         def runTest(self):
-                self.assertEquals(sum(int(k) for k, v in self.results), 4500)
+                self.assertEquals(sum(int(k) for k, v in self.results), 122500)
