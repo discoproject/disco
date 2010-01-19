@@ -175,21 +175,7 @@ handle_call(start_worker, _From, S) ->
         {reply, ok, S#state{port = Port}, 30000}.
 
 handle_cast(kill_worker, S) ->
-        error("Worker killed", S);
-
-handle_cast({rate_limited_event, Event}, S) ->
-        Now = now(),
-        EventGap = timer:now_diff(Now, S#state.last_event),
-        if
-                EventGap > ?RATE_WINDOW ->
-                        event(Event, S),
-                        {noreply, S#state{last_event = Now, event_counter = 1}};
-                S#state.event_counter > ?RATE_LIMIT ->
-                        error("Event rate limit exceeded. Too many msg() calls?", S);
-                true ->
-                        event(Event, S),
-                        {noreply, S#state{event_counter = S#state.event_counter + 1}}
-        end.
+        error("Worker killed", S).
 
 handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
         error(recoverable, Message, S);
@@ -219,9 +205,20 @@ handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
         % event({"OUT", "Results at " ++ Results}, S),
         {noreply, S#state{results = Results}};
 
+% rate limited event
 handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
-        gen_server:cast(self(), {rate_limited_event, {Type, Payload}}),
-        {noreply, S};
+        Now = now(),
+        EventGap = timer:now_diff(Now, S#state.last_event),
+        if
+                EventGap > ?RATE_WINDOW ->
+                        event({Type, Payload}, S),
+                        {noreply, S#state{last_event = Now, event_counter = 1}};
+                S#state.event_counter > ?RATE_LIMIT ->
+                        error("Event rate limit exceeded. Too many msg() calls?", S);
+                true ->
+                        event({Type, Payload}, S),
+                        {noreply, S#state{event_counter = S#state.event_counter + 1}}
+        end;
 
 handle_event({errline, _Line}, #state{errlines = {_Q, overflow, _Max}} = S) ->
         Garbage = message_buffer:to_string(S#state.errlines),
@@ -240,9 +237,8 @@ handle_event(_EventState, S) ->
 handle_info({_Port, {data, Data}}, #state{eventstream = EventStream} = S) ->
         EventStream1 = event_stream:feed(Data, EventStream),
         {next_stream, {_NextState, EventState}} = EventStream1,
-        {Reply, S1} = handle_event(EventState, S),
-        {Reply, S1#state{eventstream = EventStream1,
-                         linecount   = S#state.linecount + 1}};
+        handle_event(EventState, S#state{eventstream = EventStream1,
+                                         linecount   = S#state.linecount + 1});
 
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
         Reason =  "Worker didn't start:\n" ++ message_buffer:to_string(S#state.errlines),
