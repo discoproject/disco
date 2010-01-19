@@ -222,9 +222,11 @@ submit_task(Task) ->
 % failing node in its blacklist. If a task fails too many times, as
 % determined by check_failure_rate(), the whole job will be terminated.
 handle_data_error(Task, Node) ->
-        {ok, NumCores} = gen_server:call(disco_server, get_num_cores, 30000),
-        check_failure_rate(Task#task.jobname, Task#task.taskid, Task#task.mode,
-                length(Task#task.taskblack) + 1, NumCores),
+        MaxFail = case application:get_env(max_failure_rate) of
+                undefined -> 3;
+                {ok, N0} -> N0
+        end,
+        check_failure_rate(Task, MaxFail),
 
         Inputs = Task#task.input,
         NInputs = if length(Inputs) > 1 ->
@@ -235,25 +237,17 @@ handle_data_error(Task, Node) ->
         submit_task(Task#task{taskblack = [Node|Task#task.taskblack],
                 input = NInputs}).
 
-check_failure_rate(Name, TaskID, Mode, L, NumCores) when NumCores =< L ->
-        event_server:event(Name,
-                "ERROR: ~s:~B failed on all available cores (~B times in "
-                "total). Aborting the job.", [Mode, TaskID, L], []),
-        throw(logged_error);
-
-check_failure_rate(Name, TaskID, Mode, L, _) ->
-        N = case application:get_env(max_failure_rate) of
-                undefined -> 3;
-                {ok, N0} -> N0
-        end,
-        if L > N ->
-                event_server:event(Name,
-                        "ERROR: ~s:~B failed ~B times. At most ~B failures "
-                        "are allowed. Aborting the job.", [Mode, TaskID, L, N], []),
-                throw(logged_error);
-        true ->
-                ok
-        end.
+check_failure_rate(Task, MaxFail)
+        when length(Task#task.taskblack) + 1 =< MaxFail -> ok;
+check_failure_rate(Task, MaxFail) ->
+        event_server:event(Task#task.jobname,
+                "ERROR: ~s:~B failed ~B times. At most ~B failures "
+                "are allowed. Aborting job.", 
+                        [Task#task.mode,
+                         Task#task.taskid,
+                         length(Task#task.taskblack) + 1,
+                         MaxFail]),
+        throw(logged_error).
 
 kill_job(Name, Msg, P, Type) ->
         event_server:event(Name, Msg, P, []),

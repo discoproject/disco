@@ -262,41 +262,43 @@ error(T, M) ->
 % The task may have several redundant inputs, so we need to find the
 % first one that matchs.
 assign_task(Task, Tasks, Nodes) when Task#task.force_remote ->
-        case Nodes -- (Task#task.taskblack ++ 
-                        [N || {_, N} <- Task#task.input]) of
+        FNodes = Nodes -- Task#task.taskblack,
+        case FNodes -- [N || {_, N} <- Task#task.input] of
                 [] -> error(Task, "remote");
-                _ -> findpref([], Task, Tasks, Nodes)
+                _ -> findpref([], Task, Tasks, FNodes)
         end;
 
 assign_task(Task, Tasks, Nodes) ->
-        findpref(Task#task.input, Task, Tasks, Nodes).
+        findpref(Task#task.input, Task, Tasks, Nodes -- Task#task.taskblack).
 
-findpref([], Task, _, _) when Task#task.force_local ->
+findpref(_Inputs, Task, _Tasks, []) ->
+        event_server:event(get(jobname),
+                "ERROR: ~s:~B Task failed on all available nodes "
+                "(or no nodes available). Aborting job.",
+                        [Task#task.mode, Task#task.taskid], {}),
+        exit(normal);
+
+findpref([], Task, _Tasks, _Nodes) when Task#task.force_local ->
         error(Task, "local");
         
-findpref([], Task, Tasks, _) ->
+findpref([], Task, Tasks, _Nodes) ->
         {N, L} = gb_trees:get(nopref, Tasks),
         [{Input, _}|_] = Task#task.input,
         T = Task#task{chosen_input = Input},
         gb_trees:update(nopref, {N + 1, [T|L]}, Tasks);
 
 findpref([{Input, Node}|R], Task, Tasks, Nodes) ->
-        IsBlack = lists:member(Node, Task#task.taskblack),
-        if IsBlack ->
-                findpref(R, Task, Tasks, Nodes);
-        true ->
-                T = Task#task{chosen_input = Input},
-                case gb_trees:lookup(Node, Tasks) of
-                        none ->
-                                ValidNode = lists:member(Node, Nodes),
-                                if ValidNode ->
-                                        gb_trees:insert(Node, {1, [T]}, Tasks);
-                                true ->
-                                        findpref(R, Task, Tasks, Nodes)
-                                end;
-                        {value, {N, L}} ->
-                                gb_trees:update(Node, {N + 1, [T|L]}, Tasks)
-                end
+        T = Task#task{chosen_input = Input},
+        case gb_trees:lookup(Node, Tasks) of
+                none ->
+                        ValidNode = lists:member(Node, Nodes),
+                        if ValidNode ->
+                                gb_trees:insert(Node, {1, [T]}, Tasks);
+                        true ->
+                                findpref(R, Task, Tasks, Nodes)
+                        end;
+                {value, {N, L}} ->
+                        gb_trees:update(Node, {N + 1, [T|L]}, Tasks)
         end.
 
 % Cluster topology changed: New nodes appeared or existing ones were deleted

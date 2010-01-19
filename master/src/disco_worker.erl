@@ -152,6 +152,9 @@ event({_Type, Message}, #state{task = T,
         event_server:event(EventServer, Node, T#task.jobname, "[~s:~B] ~s",
             [T#task.mode, T#task.taskid, Message], Params).
 
+error(State) ->
+        {stop, worker_exit(State, {job_error, "Worker killed"}), State}.
+
 error(Reason, State) ->
         error(nonrecoverable, Reason, State).
 
@@ -175,7 +178,7 @@ handle_call(start_worker, _From, S) ->
         {reply, ok, S#state{port = Port}, 30000}.
 
 handle_cast(kill_worker, S) ->
-        error("Worker killed", S).
+        error(S).
 
 handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
         error(recoverable, Message, S);
@@ -249,13 +252,13 @@ handle_info({_, {exit_status, _Status}}, S) ->
         error(Reason, S);
 
 handle_info({_, closed}, S) ->
-        error("Worker killed", S);
+        error(S);
 
 handle_info(timeout, #state{linecount = 0} = S) ->
         error(recoverable, "Worker didn't start in 30 seconds", S);
 
 handle_info({'DOWN', _, _, _, _}, S) ->
-        error("Worker killed", S).
+        error(S).
 
 terminate(_Reason, State) ->
         % Possible bug: If we end up here before knowing child_pid, the
