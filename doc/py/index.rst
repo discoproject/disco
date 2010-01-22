@@ -21,7 +21,7 @@ Runtime environment for Disco jobs
 .. toctree::
    :maxdepth: 1
 
-   disco_worker
+   node/worker
 
 Utilities
 ---------
