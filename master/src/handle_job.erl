@@ -246,7 +246,7 @@ check_failure_rate(Task, MaxFail) ->
                         [Task#task.mode,
                          Task#task.taskid,
                          length(Task#task.taskblack) + 1,
-                         MaxFail]),
+                         MaxFail], []),
         throw(logged_error).
 
 kill_job(Name, Msg, P, Type) ->
