@@ -57,6 +57,12 @@ class Disco(object):
         def joblist(self):
                 return json.loads(self.request("/disco/ctrl/joblist"))
 
+        def blacklist(self, node):
+                self.request('/disco/ctrl/blacklist', '"%s"' % node)
+        
+        def whitelist(self, node):
+                self.request('/disco/ctrl/whitelist', '"%s"' % node)
+
         def oob_get(self, name, key):
                 try:
                         return util.load_oob(self.host, name, key)
