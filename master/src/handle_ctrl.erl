@@ -131,12 +131,12 @@ op("get_blacklist", _Query, _Json) ->
 
 op("blacklist", _Query, Json) ->
         Node = binary_to_list(Json),
-        gen_server:call(disco_server, {blacklist, Node}),
+        gen_server:call(disco_server, {blacklist, Node, now()}),
         {ok, <<>>};
 
 op("whitelist", _Query, Json) ->
         Node = binary_to_list(Json),
-        gen_server:call(disco_server, {whitelist, Node}),
+        gen_server:call(disco_server, {whitelist, Node, any}),
         {ok, <<>>};
 
 op("get_settings", _Query, _Json) ->

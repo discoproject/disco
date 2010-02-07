@@ -221,7 +221,7 @@ handle_call({get_nodeinfo, all}, _From, S) ->
                        {data_error, N#dnode.stats_failed},
                        {error, N#dnode.stats_crashed},
                        {max_workers, N#dnode.slots},
-                       {blacklisted, N#dnode.blacklisted}]}
+                       {blacklisted, not (N#dnode.blacklisted == false)}]}
         end, gb_trees:values(S#state.nodes)),
         {reply, {ok, {Available, Active}}, S};
 
@@ -240,11 +240,13 @@ handle_call({clean_job, JobName}, From, State) ->
         gen_server:cast(event_server, {clean_job, JobName}),
         {reply, ok, State};
 
-handle_call({blacklist, Node}, _From, #state{nodes = Nodes} = S) ->
-        {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, true)}};
+handle_call({blacklist, Node, Token}, _From, #state{nodes = Nodes} = S) ->
+        {reply, ok, S#state{nodes =
+                toggle_blacklist(Node, Nodes, true, Token)}};
 
-handle_call({whitelist, Node}, _From, #state{nodes = Nodes} = S) ->
-        {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, false)}}.
+handle_call({whitelist, Node, Token}, _From, #state{nodes = Nodes} = S) ->
+        {reply, ok, S#state{nodes =
+                toggle_blacklist(Node, Nodes, false, Token)}}.
 
 process_exit(Pid, Msg, Code, S) ->
         process_exit1(gb_trees:lookup(Pid, S#state.workers), Pid, Msg, Code, S).
@@ -281,19 +283,28 @@ handle_info({'EXIT', Pid, Reason}, S) ->
         process_exit(Pid, io_lib:fwrite("Worked died unexpectedly: ~p",
                 [Reason]), "unexpected", S).
                 
-toggle_blacklist(Node, Nodes, IsBlacklisted) ->
-        case gb_trees:lookup(Node, Nodes) of
-                none -> Nodes;
-                {value, M} ->
-                        UpdatedNodes = gb_trees:update(Node,
-                                M#dnode{blacklisted = IsBlacklisted}, Nodes),
-                        Config = [{N#dnode.name, N#dnode.slots} ||
-                                #dnode{blacklisted = false} = N
-                                        <- gb_trees:values(UpdatedNodes)],
-                        gen_server:cast(scheduler, {update_nodes, Config}),
-                        gen_server:cast(self(), schedule_next),
-                        UpdatedNodes
-        end.
+toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
+        UpdatedNodes =
+                case gb_trees:lookup(Node, Nodes) of
+                        % blacklist
+                        {value, M} when IsBlacklisted == true ->
+                                gb_trees:update(Node,
+                                        M#dnode{blacklisted = Token}, Nodes);
+                        % whitelist if token is valid
+                        {value, M} when Token == any;
+                                        Token == M#dnode.blacklisted ->
+                                error_logger:info_report({"Whitelisted", Node}),
+                                gb_trees:update(Node,
+                                        M#dnode{blacklisted = false}, Nodes);
+                        _ -> Nodes
+                end,
+        Config = [{N#dnode.name, N#dnode.slots} ||
+                        #dnode{blacklisted = false} = N
+                                <- gb_trees:values(UpdatedNodes)],
+        error_logger:info_report({"BLACKLIST", Node, IsBlacklisted}),
+        gen_server:cast(scheduler, {update_nodes, Config}),
+        gen_server:cast(self(), schedule_next),
+        UpdatedNodes.
 
 start_worker(Node, T) ->
         event_server:event(T#task.jobname, "~s:~B assigned to ~s",
@@ -339,10 +350,10 @@ launch(F, Pid, Node) ->
 blacklist_guard(Node) ->
         error_logger:info_report({"Blacklisting", Node,
                 "for", ?BLACKLIST_PERIOD, "ms."}),
-        gen_server:call(disco_server, {blacklist, Node}),
+        Token = now(),
+        gen_server:call(disco_server, {blacklist, Node, Token}),
         timer:sleep(?BLACKLIST_PERIOD),
-        gen_server:call(disco_server, {whitelist, Node}),
-        error_logger:info_report({"Quarantine ended for", Node}).
+        gen_server:call(disco_server, {whitelist, Node, Token}).
 
 % callback stubs
 terminate(_Reason, _State) ->
