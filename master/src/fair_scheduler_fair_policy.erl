@@ -149,24 +149,15 @@ update_priorities(Alpha, NumCores) ->
 
         % Each job gets a 1/Nth share of resources by default
         Share = NumCores / lists:max([1, NumJobs]),
-        % If a job has fewer tasks than its share would allow, it donates
-        % its extra resources to other needy jobs.
-        Extra = [Share - NumTasks ||
-                        {_, {NumTasks, _}} <- Stats, NumTasks < Share],
-        % Extra resources are shared equally among the needy
-        ExtraShare = lists:sum(Extra) / lists:max([1, NumJobs - length(Extra)]),
+        % NB: Two things are not accounted in the deficit calculation
+        % 1) If NumTasks < Share, job will accumulate deficit.
+        % 2) If max_cores < Share, job will accumulate deficit.
 
         gen_server:cast(sched_policy, {priv_update_priorities, lists:map(fun
-                ({Job, {NumTasks, NumRunning}}) ->
-                        MyShare =
-                                if NumTasks < Share ->
-                                        NumTasks;
-                                true ->
-                                        Share + ExtraShare
-                                end,
+                ({Job, {_NumTasks, NumRunning}}) ->
                         % Compute the difference between the ideal fair share
                         % and how much resources the job has actually reserved
-                        Deficit = NumRunning / NumCores - MyShare / NumCores,
+                        Deficit = NumRunning / NumCores - Share / NumCores,
                         % Job's priority is the exponential moving average
                         % of its deficits over time
                         Prio = Alpha * Deficit + (1 - Alpha) * Job#job.prio,
