@@ -287,7 +287,8 @@ toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
         UpdatedNodes =
                 case gb_trees:lookup(Node, Nodes) of
                         % blacklist
-                        {value, M} when IsBlacklisted == true ->
+                        {value, M} when IsBlacklisted == true,
+                                        M#dnode.blacklisted =/= manual ->
                                 gb_trees:update(Node,
                                         M#dnode{blacklisted = Token}, Nodes);
                         % whitelist if token is valid

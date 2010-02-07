@@ -131,7 +131,7 @@ op("get_blacklist", _Query, _Json) ->
 
 op("blacklist", _Query, Json) ->
         Node = binary_to_list(Json),
-        gen_server:call(disco_server, {blacklist, Node, now()}),
+        gen_server:call(disco_server, {blacklist, Node, manual}),
         {ok, <<>>};
 
 op("whitelist", _Query, Json) ->
