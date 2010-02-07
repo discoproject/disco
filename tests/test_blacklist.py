@@ -13,7 +13,6 @@ class BlacklistTestCase(DiscoJobTestFixture, DiscoTestCase):
                         n, next = self.whitelist[path]
                         if n == 1:
                                 self.disco.whitelist(next)
-                                self.disco.blacklist(path)
                         self.whitelist[path] = (n - 1, next)
                 return path
 
