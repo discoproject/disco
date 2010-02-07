@@ -117,13 +117,9 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
                                         M#dnode{num_running =
                                                 M#dnode.num_running + 1},
                                                          Nodes),
-
-                                if length(AvailableNodes) > 1 ->
-                                        gen_server:cast(self, schedule_next);
-                                true -> ok
-                                end,
-                                {noreply, S#state{nodes = UNodes,
-                                        workers = UWorkers}};
+                                handle_cast(schedule_next, 
+                                        S#state{nodes = UNodes,
+                                                workers = UWorkers});
                         nojobs ->
                                 {noreply, S}
                 end;
