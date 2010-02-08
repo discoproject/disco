@@ -156,7 +156,8 @@ def map_output_stream(stream, partition, url, params):
                 return disco.fileutils.AtomicFile(mpath, "w", BUFFER_SIZE), murl
         else:
                 ppath, purl = Task.partition_output(partition)
-                return disco.fileutils.PartitionFile(ppath, mpath, "w"), purl
+                return disco.fileutils.PartitionFile(
+                        ppath, mpath, "w", BUFFER_SIZE), purl
 
 def reduce_output_stream(stream, partition, url, params):
         BUFFER_SIZE = int(1024**2)
