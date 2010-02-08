@@ -131,9 +131,15 @@ class CurlConn:
                 self.body = True
                 self.buf += buf
 
-        def read(self, bytes):
-                while len(self.buf) < bytes and self.cont:
-                        self.perform()
+        def read(self, bytes = None):
+                if bytes == None:
+                        while self.cont:
+                                self.perform()
+                        bytes = len(self.buf)
+                else:
+                        while len(self.buf) < bytes and self.cont:
+                                self.perform()
+                
                 r = self.buf[:bytes]
                 self.buf = self.buf[bytes:]
                 return r
