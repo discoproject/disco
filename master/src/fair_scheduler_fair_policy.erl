@@ -58,7 +58,7 @@ handle_cast({new_job, JobPid, JobName}, {Jobs, PrioQ, NC}) ->
         NewJobs = gb_trees:insert(JobPid, Job, Jobs),
         erlang:monitor(process, JobPid),
         {noreply, {NewJobs, prioq_insert(
-                {InitialPrio, JobPid, JobName}, PrioQ), NC}}.
+                {0.0, JobPid, JobName}, PrioQ), NC}}.
 
 % Return current priorities for the ui
 handle_call(current_priorities, _, {_, PrioQ, _} = S) ->
