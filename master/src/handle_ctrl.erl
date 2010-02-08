@@ -23,17 +23,12 @@ op("load_config_table", _Query, _Json) ->
 
 op("joblist", _Query, _Json) ->
         {ok, JobNames}   = gen_server:call(event_server, get_jobnames),
-        {ok, Priorities} = gen_server:call(sched_policy, current_priorities),
 
-        JobTuples = lists:map(fun({JobName, _, _}) ->
-                        {case lists:keysearch(JobName, 1, Priorities) of
-                                false ->
-                                        1.0;
-                                {value, {_, Priority}} ->
-                                        Priority
-                        end, job_status(JobName), list_to_binary(JobName)}
+        JobTuples = lists:map(fun({JobName, {MSec, Sec, USec}, _}) ->
+                        {1000000 * MSec + Sec, job_status(JobName),
+                                list_to_binary(JobName)}
         end, JobNames),
-        {ok, lists:keysort(1, JobTuples)};
+        {ok, lists:reverse(lists:keysort(1, JobTuples))};
 
 op("jobinfo", Query, _Json) ->
         {value, {_, Name}} = lists:keysearch("name", 1, Query),
