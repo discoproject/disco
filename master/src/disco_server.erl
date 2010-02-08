@@ -215,7 +215,7 @@ handle_call({get_nodeinfo, all}, _From, S) ->
 			   {data_error, N#dnode.stats_failed},
 			   {error, N#dnode.stats_crashed}, 
 			   {max_workers, N#dnode.slots},
-			   {blacklisted, N#dnode.blacklisted}]}
+			   {blacklisted, not (N#dnode.blacklisted == false)}]}
 		    || N <- gb_trees:values(S#state.nodes)],
         {reply, {ok, {Available, Active}}, S};
 
