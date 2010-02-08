@@ -22,6 +22,7 @@ from discodb import Q
 discodex_settings = settings.DiscodexSettings()
 disco_master      = discodex_settings['DISCODEX_DISCO_MASTER']
 disco_prefix      = discodex_settings['DISCODEX_DISCO_PREFIX']
+purge_file        = discodex_settings['DISCODEX_PURGE_FILE']
 index_root        = discodex_settings.safedir('DISCODEX_INDEX_ROOT')
 index_temp        = discodex_settings.safedir('DISCODEX_INDEX_TEMP')
 disco_master      = Disco(disco_master)
@@ -174,7 +175,8 @@ class DiscoDBResource(Resource):
         except DiscoError, e:
             return HttpResponseServerError("DiscoDB job failed: %s" % e)
         finally:
-            disco_master.purge(job.name)
+            if os.path.exists(purge_file):
+                disco_master.purge(job.name)
 
         return HttpResponse(results)
 

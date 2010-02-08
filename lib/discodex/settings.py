@@ -10,6 +10,7 @@ class DiscodexSettings(dict):
         'DISCODEX_PID_DIR':      "os.path.join(DISCODEX_HOME, 'run')",
         'DISCODEX_WWW_ROOT':     "os.path.join(DISCODEX_HOME, 'www')",
         'DISCODEX_SETTINGS':     "os.path.join(DISCODEX_ETC_DIR, 'settings.py')",
+        'DISCODEX_PURGE_FILE':   "os.path.join(DISCODEX_ETC_DIR, 'purge')",
         'DISCODEX_DATA_ROOT':    "os.path.join(DISCODEX_WWW_ROOT, 'data')",
         'DISCODEX_INDEX_ROOT':   "os.path.join(DISCODEX_DATA_ROOT, 'indices')",
         'DISCODEX_INDEX_TEMP':   "os.path.join(DISCODEX_DATA_ROOT, 'tmp')",

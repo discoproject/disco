@@ -1,4 +1,5 @@
 *.pyc
+etc/purge
 etc/settings.py
 log/
 run/
