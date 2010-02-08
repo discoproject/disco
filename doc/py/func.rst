@@ -12,26 +12,28 @@ only *map* is required. If a job function is not specified by the user,
 the corresponding default function that is specified in this module,
 is used instead.
 
-When writing custom functions, take into account the following 
-features of the disco worker environment:
+.. hint::
+   When writing custom functions, take into account the following
+   features of the disco worker environment:
 
-- Only the specified function is included in the request. The function
-  can't call any other functions specified in your source file nor it can't
-  refer to any global names, including any imported modules. If you need
-  a special module in your function, import it within the function body.
-  Use of global variables or functions with side-effects, such as
-  external files besides the given input, is strongly discouraged.
+            - Only the specified function is included in the request. The function
+              can't call any other functions specified in your source file nor can it
+              refer to any global names, including any imported modules. If you need
+              a special module in your function, import it within the function body.
+              Use of global variables or functions with side-effects, such as
+              external files besides the given input, is strongly discouraged.
 
-- The function should not print anything to the stdout or stderr.
-  Instead, you can use the function :func:`disco_worker.msg` to
-  send messages to the status display. You can use the function
-  :func:`disco_worker.data_err`, to abort the task on this node and
-  request transfer to another node. Otherwise it is a good idea to just
-  let the task die if any exceptions occur -- do not catch any exceptions
-  from which you can't recover.
+            - The function should not print anything to stderr.
+              The task uses stderr to signal events to the master.
+              You can raise a :class:`disco.error.DataError`, to abort the task on this node and
+              request transfer to another node. Otherwise it is a good idea to just
+              let the task die if any exceptions occur -- do not catch any exceptions
+              from which you can't recover.
+              When other types of exceptions occur, the disco worker will catch them and
+              signal an appropriate event to the master.
 
-In short, this means all user-provded functions must be pure (see
-:term:`pure function`).
+              In short, this means all user-provded functions must be pure (see
+              :term:`pure function`).
 
 .. function:: netstr_reader(fd, size, fname)
 
@@ -49,7 +51,7 @@ In short, this means all user-provded functions must be pure (see
    module to serialize arbitrary Python objects to strings.
 
 .. function:: object_writer(fd, key, value, params)
-   
+
    A wrapper for :func:`netstr_writer` that uses Python's ``cPickle``
    module to deserialize strings to Python objects.
 
@@ -67,10 +69,10 @@ In short, this means all user-provded functions must be pure (see
     works as follows:
 
      1. X bytes is read from *fd* and appended to an internal buffer *buf*.
-     2. ``m = regexp.match(buf)`` is executed. 
+     2. ``m = regexp.match(buf)`` is executed.
      3. If *buf* produces a match, ``m.groups()`` is yielded, which contains an
         input entry for the map function. Step 2. is executed for the remaining
-        part of *buf*. If no match is made, go to step 1. 
+        part of *buf*. If no match is made, go to step 1.
      4. If *fd* is exhausted before *size* bytes have been read, a data error is
         raised, unless *size* is not specified.
      5. When *fd* is exhausted but *buf* contains unmatched bytes, two modes are
@@ -100,6 +102,26 @@ In short, this means all user-provded functions must be pure (see
     Note that since *output_tail = True* in :func:`map_line_reader`, an input
     file that lacks the final newline character is silently accepted.
 
+.. function:: map_input_stream(stream, size, url, params)
+
+   An input stream which looks at the scheme of ``url`` and tries to import a function named ``input_stream`` from the module ``disco.schemes.scheme_SCHEME``, where SCHEME is the parsed scheme.
+   If no scheme is found in the url, ``file`` is used.
+   The resulting input stream is then used.
+
+.. function:: reduce_input_stream(stream, size, url, params)
+
+   Same as :func:`map_input_stream`.
+
+.. function:: map_output_stream(stream, partition, url, params)
+
+   An output stream which returns a file handle to an appropriate partition output file.
+   The file handle ensures that if the task fails prematurely, partial data is not seen.
+
+.. function:: reduce_output_stream(stream, partition, url, params)
+
+   An output stream which returns a file handle to an appropriate reduce output file.
+   The file handle ensures that if the task fails prematurely, partial data is not seen.
+
 .. function:: default_partition(key, nr_reduces, params)
 
    Default partitioning function. Defined as::
@@ -111,7 +133,7 @@ In short, this means all user-provded functions must be pure (see
 
    Returns a new partitioning function that partitions keys in the range
    *[min_val:max_val]* to equal sized partitions. The number of partitions is
-   defined by *nr_reduces* in :class:`disco.core.Job`. 
+   defined by *nr_reduces* in :class:`disco.core.Job`.
 
 .. function:: nop_reduce(iter, out, params)
 
@@ -125,6 +147,6 @@ In short, this means all user-provded functions must be pure (see
 
 .. function:: map_line_reader(fd, sze, fname)
 
-   Default input reader function. Reads inputs line by line. 
+   Default input reader function. Reads inputs line by line.
 
 

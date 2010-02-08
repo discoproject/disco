@@ -135,10 +135,6 @@ class master(server):
                 '-connect_all', 'false',
                 '-pa', os.path.join(settings['DISCO_MASTER_HOME'], 'ebin'),
                 '-sname', self.name,
-                '-disco', 'disco_name', '"%s"' % settings['DISCO_NAME'],
-                '-disco', 'disco_root', '"%s"' % settings['DISCO_MASTER_ROOT'],
-                '-disco', 'scgi_port', '%s' % settings['DISCO_SCGI_PORT'],
-                '-disco', 'disco_localdir', '"%s"' % settings['DISCO_LOCAL_DIR'],
                 '-eval', '[handle_job, handle_ctrl]',
                 '-eval', 'application:start(disco)']
 
@@ -216,10 +212,25 @@ class test(object):
     def __init__(self, disco_settings):
         self.disco_settings = disco_settings
 
+    @property
+    def tests_path(self):
+        return os.path.join(self.disco_settings['DISCO_HOME'], 'tests')
+
+    @property
+    def all_tests(self):
+        for name in os.listdir(self.tests_path):
+            if name.startswith('test_'):
+                test, ext = os.path.splitext(name)
+                if ext == '.py':
+                    yield test
+
     def send(self, *names):
-        sys.path.insert(0, os.path.join(self.disco_settings['DISCO_HOME'], 'tests'))
-        yield 'searching for names in sys.path:\n%s' % sys.path
         from disco.test import DiscoTestRunner
+        os.environ.update(self.disco_settings.env)
+        sys.path.insert(0, self.tests_path)
+        yield 'searching for names in sys.path:\n%s' % sys.path
+        if names == ('status', ):
+            names = list(self.all_tests)
         DiscoTestRunner(self.disco_settings).run(*names)
 
 def main():
@@ -290,8 +301,6 @@ def main():
         if options.verbose or command == 'status':
             print(message)
 
-signal.signal(signal.SIGINT, signal.SIG_IGN)
-
 if __name__ == '__main__':
     try:
         main()
@@ -299,4 +308,7 @@ if __name__ == '__main__':
         sys.exit(e)
     except Exception, e:
         print('Disco encountered a fatal system error:')
-        sys.exit(e)
+        raise
+    # Workaround for "disco test" in Python2.5 which doesn't shutdown the 
+    # tserver thread properly.
+    sys.exit(0)

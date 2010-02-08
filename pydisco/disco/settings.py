@@ -2,7 +2,7 @@ import os, socket
 
 class DiscoSettings(dict):
     defaults = {
-        'DISCO_DEBUG':           "1",
+        'DISCO_DEBUG':           "'off'",
         'DISCO_EVENTS':          "''",
         'DISCO_FLAGS':           "''",
         'DISCO_LOG_DIR':         "'/var/log/disco'",
@@ -11,6 +11,7 @@ class DiscoSettings(dict):
         'DISCO_NAME':            "'disco_%s' % DISCO_SCGI_PORT",
         'DISCO_PID_DIR':         "'/var/run'",
         'DISCO_PORT':            "8989",
+        'DISCO_PROXY':           "''",
         'DISCO_ROOT':            "'/srv/disco'",
         'DISCO_SCGI_PORT':       "4444",
         'DISCO_ULIMIT':          "16000000",
@@ -20,8 +21,9 @@ class DiscoSettings(dict):
         'DISCO_CONFIG':          "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
         'DISCO_LOCAL_DIR':       "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
-        'DISCO_TEST_HOST':       "DISCO_MASTER_HOST",
+        'DISCO_TEST_HOST':       "socket.gethostname()",
         'DISCO_TEST_PORT':       "9444",
+        'DISCO_TEST_PURGE':      "'purge'",
         'DISCO_ERLANG':          "guess_erlang()",
         'DISCO_HTTPD':           "'lighttpd'",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",

@@ -1,85 +1,69 @@
 #!/usr/bin/env python
-import os, sys
+import os, sys, traceback
 
-from disconode import disco_worker as dw
-from disconode.util import ensure_path, ensure_file 
-
-from disconode.disco_worker import JOB_ROOT, OOB_FILE, PARAMS_FILE, CHDIR_PATH
+from disco.error import CommError, DiscoError, DataError
+from disco.events import AnnouncePID, DataUnavailable, EndOfJob, TaskFailed
+from disco.fileutils import ensure_file
 from disco.netstring import decode_netstring_fd
-from disco import util, comm
+from disco.node import worker
+from disco.comm import download
+from disco.util import MessageWriter
 
+def run(task, jobpack):
+        method = getattr(worker, 'op_%s' % task.mode)
 
-def run(method, mode, part, jobpack):
-        if int(jobpack['profile']):
-                try:
-                        import cProfile as prof
-                except:
-                        import profile as prof
+        if not int(jobpack['profile']):
+                return method(jobpack)
 
-                key = "profile-%s-%s" % (mode, part)
-                prof.run("method(m)", OOB_FILE % key)
-                dw.put(key, None) 
-        else:
-                method(jobpack)
-
-if __name__ == "__main__":
-        if len(sys.argv) < 7:
-                util.err("Invalid command line. "\
-                         "Usage: disco_worker [map|reduce] "\
-                         "name hostname master_url partid inputs..")
-
-      
-        # Announce my PID to the master
-        print >> sys.stderr, "**<PID>%s" % os.getpid()
-        
-        mode = sys.argv[1]
-        name = sys.argv[2]
-        master_url = sys.argv[4]
-        part = sys.argv[5]
-
-        try: 
-                ensure_path(OOB_FILE % "", False)
-                os.chdir(CHDIR_PATH)
-        except Exception, e:
-                util.data_err("Failed to initialize worker directories "\
-                                "(disk full?)", "")
-        
         try:
-                if util.resultfs_enabled:
-                        x, x, root = util.load_conf()
-                        url = "%s/data/%s/params" % (root, "/".join(\
-                                master_url.strip("/").split("/")[-3:]))
+                import cProfile as prof
+        except ImportError:
+                import profile as prof
+
+        filename = 'profile-%s-%s' % (task.mode, task.id)
+        path     = task.path('OOB_FILE', filename)
+        prof.runctx('method(jobpack)', globals(), locals(), path)
+        worker.put(filename, None)
+
+def main(inputs, mode, name, host, master_job, part):
+        AnnouncePID(os.getpid())
+
+        master = master_job.split('/')[2]
+        worker.init(mode, host, master, name, part, inputs)
+        task = worker.Task
+
+        try:
+                if task.has_flag('resultfs'):
+                        url = '%s/data/%s/params' % (task.root, '/'.join(master_job.strip('/').split('/')[-3:]))
                         fn = lambda: file(url).read()
                 else:
-                        url = "%s/params" % master_url
-                        fn = lambda: comm.download(url)
-                ensure_file(PARAMS_FILE, fn, mode = 444)
+                        url = '%s/params' % master_job
+                        fn = lambda: download(url)
+                ensure_file(task.path('PARAMS_FILE'), fn, mode = 444)
         except Exception, e:
-                util.data_err("Failed to get %s: %s" % (url, e), master_url)
+                raise DataError("Failed to get url: %s" % e, url)
 
         try:
-                m = decode_netstring_fd(file(PARAMS_FILE))
+                m = decode_netstring_fd(file(task.path('PARAMS_FILE')))
         except Exception, e:
-                util.data_err("Decoding the job description failed", master_url)
-        
-        job_name = util.job_name = m['name']
-        dw.status_interval = int(m['status_interval']) 
+                raise DiscoError("Decoding the job description failed: %s" % e)
 
-        my_ver = ".".join(map(str, sys.version_info[:2]))
-        if m["version"] != my_ver:
-                util.msg("Python version mismatch: client = %s vs. node = %s" %\
-                                (m["version"], my_ver), "DAT")
-                sys.exit(1)
+        assert m['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
 
-        method = getattr(dw, 'op_' + mode, None)
-        if method is None:
-                util.err("Invalid operation: %s" % mode)
+        run(task, m)
+        EndOfJob("Worker done")
 
+if __name__ == '__main__':
         try:
-                run(method, mode, part, m)
-        except comm.CommException, x:
-                util.data_err("HTTP error: %s" % x)
-        except IOError, x:
-                util.data_err("IO error: %s" % x)
-        
-        util.msg("Worker done", "END")
+                sys.stdout = MessageWriter()
+                main(sys.argv[6:], *sys.argv[1:6])
+        except (DataError, EnvironmentError), e:
+                # check the number of open file descriptors (under proc), warn
+                # if close to max
+                # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
+                # also check for other known reasons for error, such as if disk is full
+                DataUnavailable(traceback.format_exc())
+                raise
+        except Exception, e:
+                TaskFailed(traceback.format_exc())
+                raise

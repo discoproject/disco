@@ -1,10 +1,10 @@
 
 import sys
-from disconode import external
+from disco.node import external
 from disco.netstring import encode_netstring_fd
 
 # An ugly workaround for the problem that prevents saying
-# "from disconode import external in external.py.
+# "from disco.node import external in external.py.
 external.external = external
 
 params = {"test1": "1,2,3",\

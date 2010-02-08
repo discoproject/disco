@@ -24,16 +24,15 @@ def find_gluster_mountpoint(path):
                         root = p
         if root:
                 return root
-        else:
-                raise DFSException("%s: Not a Gluster filesystem" % path)
+        raise DFSException("%s: Not a Gluster filesystem" % path)
 
 def load_hostname_map(hmap):
         try:
                 f = file(os.environ.get("DISCO_HOSTNAME_MAP", hmap))
-        except:
-                raise DFSException("Hostname map not found at %s "\
-                        "(you can specify another file in the "\
-                        "DISCO_HOSTNAME_MAP env.var)" % hmap)
+        except Exception, e:
+                raise DFSException("Hostname map not found at %s "
+                                   "(you can specify another file in the "
+                                   "DISCO_HOSTNAME_MAP env.var)" % hmap)
         m = {}
         for l in f:
                 gluhost, discohost = l.split()

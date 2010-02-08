@@ -2,6 +2,33 @@
 Release notes
 =============
 
+Disco 0.2.4 (February 8th 2010)
+-------------------------------
+
+New features
+''''''''''''
+
+ - New fair job scheduler which replaces the old FIFO queue. The scheduler is
+   inspired by `Hadoop's Fair Scheduler <http://hadoop.apache.org/common/docs/r0.20.1/fair_scheduler.html>`_.
+   Running multiple jobs in parallel is now supported properly.
+ - *Scheduler* option to control data locality and resource usage. See :meth:`disco.core.Disco.new_job`.
+ - Support for custom input and output streams in tasks: See *map_input_stream*, *map_output_stream*,
+   *reduce_input_stream* and *reduce_output_stream* in :meth:`disco.core.Disco.new_job`.
+ - :meth:`disco.core.Disco.blacklist` and :meth:`disco.core.Disco.whitelist`.
+ - New test framework based on Python's unittest module.
+ - Improved exception handling.  
+ - Lots of internal changes.
+
+Bugfixes
+''''''''
+
+ - Set ``LC_ALL=C`` for disco worker to ensure that external sort produces
+   consistent results (bug #36, 7635c9a)
+ - Apply rate limit to all messages on stdout / stderr. (bug #21, db76c80)
+ - Fixed *flock* error handing for OS X (b06757e4)
+ - Documentation fixes (bug #34, #42 9cd9b6f1)
+   
+
 Disco 0.2.3 (September 9th 2009)
 --------------------------------
 
@@ -26,6 +53,7 @@ New features
  - Several improvements related to fault-tolerance of the system
  - Serialize job parameters using more efficient and compact binary format.
  - Improved support for GlusterFS (2.0.6 and newer).
+ - Support for the pre-0.1 ``disco`` module, ``disco.job`` call etc., removed.
 
 Bugfixes
 ''''''''

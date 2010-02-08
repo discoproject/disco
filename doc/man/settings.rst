@@ -81,6 +81,14 @@ Disco settings
                 Executable which launches the Disco worker process.
                 Default obtained using ``os.path.join(DISCO_HOME, node, disco-worker)``.
 
+        *DISCO_TEST_HOST*
+                The hostname that the test data server should bind on.
+                Default is ``DISCO_MASTER_HOST``.
+
+        *DISCO_TEST_PORT*
+                The port that the test data server should bind to.
+                Default is 9444.
+
         *DISCO_ERLANG*
                 Command used to launch Erlang on all nodes in the cluster.
                 Default usually ``erl``, but depends on the OS.
@@ -93,3 +101,11 @@ Disco settings
                 Directory that is the document root for the master `HTTP` server.
                 Default obtained using ``os.path.join(DISCO_MASTER_HOME, www)``.
 
+        *DISCO_SCHEDULER*
+                The type of scheduler that disco should use.
+                The only options are `fair` and `fifo`.
+                Default is ``fair``.
+
+        *DISCO_SCHEDULER_ALPHA*
+                Parameter controlling how much the ``fair`` scheduler punishes long-running jobs vs. short ones.
+                Default is .001 and should usually not need to be changed.

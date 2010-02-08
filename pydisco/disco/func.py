@@ -16,9 +16,9 @@ def netstr_reader(fd, content_len, fname):
 
                 i = data.find(" ", idx, idx + 11)
                 if i == -1:
-                        err("Corrupted input (%s). Could not "\
+                        data_err("Corrupted input (%s). Could not "\
                                "parse a value length at %d bytes."\
-                                        % (fname, tot))
+                                        % (fname, tot), fname)
                 else:
                         lenstr = data[idx:i + 1]
                         idx = i + 1
@@ -27,13 +27,13 @@ def netstr_reader(fd, content_len, fname):
                         data_err("Truncated input (%s). "\
                                 "Expected %d bytes, got %d" %\
                                 (fname, content_len, tot), fname)
-                
+
                 try:
                         llen = int(lenstr)
                 except ValueError:
-                        err("Corrupted input (%s). Could not "\
+                        data_err("Corrupted input (%s). Could not "\
                                 "parse a value length at %d bytes."\
-                                        % (fname, tot))
+                                        % (fname, tot), fname)
 
                 tot += len(lenstr)
 
@@ -43,7 +43,7 @@ def netstr_reader(fd, content_len, fname):
                         idx = 0
 
                 msg = data[idx:idx + llen]
-                
+
                 if idx + llen + 1 > ldata:
                         data_err("Truncated input (%s). "\
                                 "Expected a value of %d bytes "\
@@ -53,7 +53,7 @@ def netstr_reader(fd, content_len, fname):
                 tot += llen + 1
                 idx += llen + 1
                 return idx, data, tot, msg
-        
+
         data = fd.read(8192)
         tot = idx = 0
         while tot < content_len:
@@ -62,21 +62,19 @@ def netstr_reader(fd, content_len, fname):
                 idx, data, tot, val = read_netstr(idx, data, tot)
                 yield key, val
 
+chain_reader = netstr_reader
 
 def re_reader(item_re_str, fd, content_len, fname, output_tail = False, read_buffer_size=8192):
         item_re = re.compile(item_re_str)
         buf = ""
         tot = 0
         while True:
-                try:
-                        if content_len:
-                                r = fd.read(min(read_buffer_size, content_len - tot))
-                        else:
-                                r = fd.read(read_buffer_size)
-                        tot += len(r)
-                        buf += r
-                except:
-                        data_err("Receiving data failed", fname)
+                if content_len:
+                        r = fd.read(min(read_buffer_size, content_len - tot))
+                else:
+                        r = fd.read(read_buffer_size)
+                tot += len(r)
+                buf += r
 
                 m = item_re.match(buf)
                 while m:
@@ -134,31 +132,31 @@ def object_reader(fd, sze, fname):
         for k, v in netstr_reader(fd, sze, fname):
                 yield (cPickle.loads(k), cPickle.loads(v))
 
+def map_input_stream(stream, size, url, params):
+        m = re.match("(\w+)://", url)
+        if m:
+                scheme = m.group(1)
+                try:
+                        mod = __import__("disco.schemes.scheme_%s" % scheme,
+                                        fromlist = ["scheme_%s" % scheme])
+                except Exception:
+                        err("Unknown scheme %s in %s" % (scheme, url))
+        else:
+                from disco.schemes import scheme_file as mod
+                url = "file://" + url
+        mod.input_stream.func_globals.setdefault("Task", Task)
+        return mod.input_stream(stream, size, url, params)
 
-chain_reader = netstr_reader
+reduce_input_stream = map_input_stream
 
+def map_output_stream(stream, partition, url, params):
+        mpath, murl = Task.map_output(partition)
+        if Task.num_partitions == 0:
+                return disco.fileutils.AtomicFile(mpath, "w"), murl
+        else:
+                ppath, purl = Task.partition_output(partition)
+                return disco.fileutils.PartitionFile(ppath, mpath, "w"), purl
 
-
-
-
-
-
-
-
-                
-
-
-        
-
-
-        
-
-
-
-
-
-        
-
-
-
-
+def reduce_output_stream(stream, partition, url, params):
+        path, url = Task.reduce_output()
+        return disco.fileutils.AtomicFile(path, "w"), url

@@ -1,7 +1,7 @@
 import os, os.path, time, struct, marshal
 from subprocess import Popen, PIPE
 from disco.netstring import decode_netstring_str
-from disconode.util import write_files
+from disco.fileutils import write_files
 from disco.util import msg
 from disco.error import DiscoError
 

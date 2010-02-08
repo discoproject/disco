@@ -78,13 +78,11 @@ handle_info({'EXIT', _Pid, _Reason}, LSocket) ->
 % scgi stuff
 
 scgi_worker(LSocket) ->
-        case gen_tcp:accept(LSocket) of
-                {ok, Socket} -> 
-                        gen_server:call(scgi_server, {new_worker, self()}),
-                        {ok, Msg} = scgi:receive_scgi_message(Socket),
-                        scgi_server:handle_request(Socket, Msg),
-                        gen_tcp:close(Socket)
-        end.
+        {ok, Socket} = gen_tcp:accept(LSocket),
+        gen_server:call(scgi_server, {new_worker, self()}),
+        {ok, Msg} = scgi:receive_scgi_message(Socket),
+        scgi_server:handle_request(Socket, Msg),
+        gen_tcp:close(Socket).
 
 handle_request(Socket, Msg) ->
         case catch dispatch_request(Socket, Msg) of

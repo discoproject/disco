@@ -18,6 +18,7 @@ SYNOPSIS
         disco [-v] [-s settings] [master|worker] [start|stop|restart|status]
         disco [-v] [-s settings] master nodaemon
         disco [-v] [-s settings] debug
+        disco [-v] [-s settings] test [test_names]
 
 DESCRIPTION
 ===========
@@ -64,6 +65,12 @@ COMMANDS
 
 **debug**
         Opens a remote Erlang shell to the Disco master.
+
+**test** [test_names]
+        Runs the Disco test suite.
+        Assumes Disco master is already running and configured.
+        Test names is an optional list of names of modules in the ``tests`` directory (e.g. ``test_simple``).
+        Test names may also include the names of specific test cases (e.g. ``test_sort.MemorySortTestCase``).
 
 SEE ALSO
 ========

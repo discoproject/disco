@@ -45,14 +45,14 @@ class HomeDisco:
                             "http://nohost", self.partition]
                 sys.argv += kwargs["input"]
                 
-                from disconode import disco_worker
+                from disco.node import worker
 
                 sys.stderr = out = MsgStream()
                 try:
                         if self.mode == "map":
-                                disco_worker.op_map(req)
+                                worker.op_map(req)
                         elif self.mode == "reduce":
-                                disco_worker.op_reduce(req)
+                                worker.op_reduce(req)
                         else:
                                 raise "Unknown mode: %s "\
                                       "(must be 'map' or 'reduce')"\

@@ -28,16 +28,16 @@ distributed applications. Users of Disco typically write jobs in Python,
 which makes it possible to express even complex algorithms or data
 processing tasks often only in tens of lines of code.
 
-For instance, the following fully working example computes word 
+For instance, the following fully working example computes word
 frequencies in a large text corpus using 100 CPUs in parallel:
 
 ::
 
     import disco
-    
+
     def fun_map(e, params):
             return [(w, 1) for w in re.sub("\W", " ", e).lower().split()]
-    
+
     def fun_reduce(iter, out, params):
             s = {}
             for k, v in iter:
@@ -47,11 +47,11 @@ frequencies in a large text corpus using 100 CPUs in parallel:
                             s[k] = int(v)
             for k, v in s.iteritems():
                     out.add(k, v)
-    
+
     results = disco.job("disco://localhost:5000", "wordcount",
-                ["http://localhost/text-block-1", "http://localhost/text-block-2"], 
+                ["http://localhost/text-block-1", "http://localhost/text-block-2"],
                 fun_map, reduce = fun_reduce, nr_maps = 100, sort = False)
-    
+
     for key, value in disco.result_iterator(results):
 	    print key, value
 
@@ -89,18 +89,18 @@ Main features
   in Python and two calls to the Disco API.
 
 - Tasks can be specified in any other language as well, via a simple external
-  interface based on standard input and output streams. Bindings for C are 
+  interface based on standard input and output streams. Bindings for C are
   provided as an example.
 
 - Input data can be in any format, even binary data such as images. The
   data can be located on any source that is accesible by HTTP or it can
   distributed to local disks.
 
-- Fault-tolerant: Server crashes don't interrupt jobs. New servers can be 
+- Fault-tolerant: Server crashes don't interrupt jobs. New servers can be
   added to the system on the fly.
 
-- Flexible: In addition to the core map and reduce functions, a combiner 
-  function, a partition function and an input reader can be provided by 
+- Flexible: In addition to the core map and reduce functions, a combiner
+  function, a partition function and an input reader can be provided by
   the user.
 
 - Easy to integrate to larger applications using the standard Disco module
