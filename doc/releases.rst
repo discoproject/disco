@@ -16,7 +16,8 @@ New features
    *reduce_input_stream* and *reduce_output_stream* in :meth:`disco.core.Disco.new_job`.
  - :meth:`disco.core.Disco.blacklist` and :meth:`disco.core.Disco.whitelist`.
  - New test framework based on Python's unittest module.
- - Improved exception handling.  
+ - Improved exception handling.
+ - Improved IO performance thanks to larger IO buffers.
  - Lots of internal changes.
 
 Bugfixes
