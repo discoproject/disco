@@ -150,13 +150,15 @@ def map_input_stream(stream, size, url, params):
 reduce_input_stream = map_input_stream
 
 def map_output_stream(stream, partition, url, params):
+        BUFFER_SIZE = int(1024**2)
         mpath, murl = Task.map_output(partition)
         if Task.num_partitions == 0:
-                return disco.fileutils.AtomicFile(mpath, "w"), murl
+                return disco.fileutils.AtomicFile(mpath, "w", BUFFER_SIZE), murl
         else:
                 ppath, purl = Task.partition_output(partition)
                 return disco.fileutils.PartitionFile(ppath, mpath, "w"), purl
 
 def reduce_output_stream(stream, partition, url, params):
+        BUFFER_SIZE = int(1024**2)
         path, url = Task.reduce_output()
-        return disco.fileutils.AtomicFile(path, "w"), url
+        return disco.fileutils.AtomicFile(path, "w", BUFFER_SIZE), url
