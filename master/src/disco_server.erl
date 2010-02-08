@@ -32,9 +32,8 @@ debug_flags(Server) ->
         case os:getenv("DISCO_DEBUG") of
                 "trace" ->
                         Root = disco:get_setting("DISCO_MASTER_ROOT"),
-                        A = [{debug, [{log_to_file,
-                                       filename:join(Root, Server ++ "_trace.log")}]}],
-                        A;
+                        [{debug, [{log_to_file,
+                                filename:join(Root, Server ++ "_trace.log")}]}];
                 _ -> []
         end.
 
@@ -43,7 +42,7 @@ jobhome(JobName) when is_list(JobName) ->
 jobhome(JobName) ->
         <<D0:8, _/binary>> = erlang:md5(JobName),
         [D1] = io_lib:format("~.16b", [D0]),
-        Prefix = if length(D1) == 1 -> "0"; true -> "" end,
+        Prefix = case D1 of [_] -> "0"; _ -> "" end,
         lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
 
 format_time(T) ->
@@ -211,14 +210,13 @@ handle_call({get_active, JobName}, _From, #state{workers = Workers} = S) ->
 handle_call({get_nodeinfo, all}, _From, S) ->
        Active = [{N, Name} || {N, #task{jobname = Name}}
                 <- gb_trees:values(S#state.workers)],
-       Available = lists:map(fun(N) ->
-                {obj, [{node, list_to_binary(N#dnode.name)},
-                       {job_ok, N#dnode.stats_ok},
-                       {data_error, N#dnode.stats_failed},
-                       {error, N#dnode.stats_crashed},
-                       {max_workers, N#dnode.slots},
-                       {blacklisted, not (N#dnode.blacklisted == false)}]}
-        end, gb_trees:values(S#state.nodes)),
+       Available = [{obj, [{node, list_to_binary(N#dnode.name)},
+			   {job_ok, N#dnode.stats_ok},
+			   {data_error, N#dnode.stats_failed},
+			   {error, N#dnode.stats_crashed}, 
+			   {max_workers, N#dnode.slots},
+			   {blacklisted, N#dnode.blacklisted}]}
+		    || N <- gb_trees:values(S#state.nodes)],
         {reply, {ok, {Available, Active}}, S};
 
 handle_call(get_num_cores, _, #state{nodes = Nodes} = S) ->

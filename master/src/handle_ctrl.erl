@@ -24,7 +24,7 @@ op("load_config_table", _Query, _Json) ->
 op("joblist", _Query, _Json) ->
         {ok, JobNames}   = gen_server:call(event_server, get_jobnames),
 
-        JobTuples = lists:map(fun({JobName, {MSec, Sec, USec}, _}) ->
+        JobTuples = lists:map(fun({JobName, {MSec, Sec, _USec}, _}) ->
                         {1000000 * MSec + Sec, job_status(JobName),
                                 list_to_binary(JobName)}
         end, JobNames),
@@ -222,7 +222,7 @@ render_jobinfo(Tstamp, JobPid, JobInfo, Nodes, Res, Tasks, Ready, Failed) ->
                {reduce, JobInfo#jobinfo.reduce},
                {results, lists:flatten(Res)},
                {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
-               {nodes, lists:map(fun erlang:list_to_binary/1, Nodes)}
+               {nodes, [list_to_binary(N) || N <- Nodes]}
         ]}.
 
 status_msg(invalid_job) -> [<<"unknown job">>, []];

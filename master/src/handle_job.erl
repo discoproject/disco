@@ -70,12 +70,11 @@ find_values(Msg) ->
         Prefix = binary_to_list(PrefixBinary),
 
         {value, {_, InputStr}} = lists:keysearch(<<"input">>, 1, Msg),
-        Inputs = lists:map(fun(Inp) ->
-                        case string:tokens(Inp, "\n") of
-                                [X] -> list_to_binary(X);
-                                Y -> [list_to_binary(X) || X <- Y]
-                        end
-        end, string:tokens(binary_to_list(InputStr), " ")),
+        
+        Inputs = [case string:tokens(Inp, "\n") of
+		      [X] -> list_to_binary(X);
+		      Y -> [list_to_binary(X) || X <- Y]
+		  end || Inp <- string:tokens(binary_to_list(InputStr), " ")],
 
         {value, {_, MaxCStr}} = lists:keysearch(<<"sched_max_cores">>, 1, Msg),
         MaxCores = list_to_integer(binary_to_list(MaxCStr)),
@@ -229,11 +228,13 @@ handle_data_error(Task, Node) ->
         check_failure_rate(Task, MaxFail),
 
         Inputs = Task#task.input,
-        NInputs = if length(Inputs) > 1 ->
-                [{X, N} || {X, N} <- Inputs, X =/= Task#task.chosen_input];
-        true ->
-                Inputs
-        end,
+        NInputs =
+	    case Inputs of
+		[_, _ | _] ->
+		    [{X, N} || {X, N} <- Inputs, X =/= Task#task.chosen_input];
+		_ ->
+		    Inputs
+	    end,
         submit_task(Task#task{taskblack = [Node|Task#task.taskblack],
                 input = NInputs}).
 
@@ -342,13 +343,13 @@ job_coordinator(Name, Job) ->
         gen_server:cast(event_server, {job_done, Name}).
 
 map_input(Inputs) ->
-        Prefs = lists:map(fun
-                (Inp) when is_list(Inp) ->
-                        [{<<"'", X/binary, "' ">>, pref_node(X)} || X <- Inp];
-                (Inp) ->
-                        [{<<"'", Inp/binary, "' ">>, pref_node(Inp)}]
-        end, Inputs),
+        Prefs = [map_input1(I) || I <- Inputs],
         lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
+
+map_input1(Inp) when is_list(Inp) ->
+        [{<<"'", X/binary, "' ">>, pref_node(X)} || X <- Inp];
+map_input1(Inp) ->
+        [{<<"'", Inp/binary, "' ">>, pref_node(Inp)}].
 
 reduce_input(Name, Inputs, NRed) ->
         V = lists:any(fun erlang:is_list/1, Inputs),
