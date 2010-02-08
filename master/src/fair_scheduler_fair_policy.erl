@@ -52,9 +52,7 @@ handle_cast({update_nodes, Nodes}, {Jobs, PrioQ, _}) ->
         {noreply, {Jobs, PrioQ, NumCores}};
 
 handle_cast({new_job, JobPid, JobName}, {Jobs, PrioQ, NC}) ->
-        InitialPrio = -1.0 / lists:max([gb_trees:size(Jobs), 1.0]),
-
-        Job = #job{name = JobName, cputime = 0, prio = InitialPrio,
+        Job = #job{name = JobName, cputime = 0, prio = 0.0,
                 bias = 0.0, pid = JobPid},
 
         NewJobs = gb_trees:insert(JobPid, Job, Jobs),
