@@ -1,4 +1,5 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
+from disco.func import object_reader, object_writer
 
 class WriterTestCase(DiscoJobTestFixture, DiscoTestCase):
         inputs = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31]
@@ -39,3 +40,7 @@ class WriterTestCase(DiscoJobTestFixture, DiscoTestCase):
         def answers(self):
                 yield '1028380578493512611198383005758052057919386757620401'\
                       '58350002406688858214958513887550465113168573010369619140625'
+
+class ObjectWriterTestCase(WriterTestCase):
+        map_writer    = object_writer
+        reduce_reader = object_reader
