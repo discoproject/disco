@@ -57,6 +57,12 @@ class Disco(object):
         def joblist(self):
                 return json.loads(self.request("/disco/ctrl/joblist"))
 
+        def blacklist(self, node):
+                self.request('/disco/ctrl/blacklist', '"%s"' % node)
+        
+        def whitelist(self, node):
+                self.request('/disco/ctrl/whitelist', '"%s"' % node)
+
         def oob_get(self, name, key):
                 try:
                         return util.load_oob(self.host, name, key)
@@ -111,13 +117,16 @@ class Disco(object):
                                         # HTTP range request doesn't like empty ranges:
                                         # Let's ensure that at least the last newline
                                         # is always retrieved.
-                                        if i == len(lines) - 1:
-                                                offs -= 1
+                                        #if i == len(lines) - 1 and\
+                                        #        events.endswith("\n"):
+                                        #        offs -= 1
                                         yield offs, event
-
-                r = self.request("/disco/ctrl/rawevents?name=%s" % name,
-                                 redir = True,
-                                 offset = offset)
+                try:
+                        r = self.request("/disco/ctrl/rawevents?name=%s" % name,
+                                         redir = True,
+                                         offset = offset)
+                except Exception, x:
+                        return []
 
                 if len(r) < 2:
                         return []

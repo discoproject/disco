@@ -139,7 +139,7 @@ tail_log(JobName, N)->
         FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
         Tail = string:tokens(os:cmd(["tail -n ", integer_to_list(N),
                                      " ", FName, " 2>/dev/null"]), "\n"),
-        lists:map(fun erlang:list_to_binary/1, lists:reverse(Tail)).
+        [list_to_binary(L) || L <- lists:reverse(Tail)].
 
 grep_log(JobName, Query, N) ->
         Root = disco:get_setting("DISCO_MASTER_ROOT"),
@@ -153,11 +153,7 @@ grep_log(JobName, Query, N) ->
         lists:map(fun erlang:list_to_binary/1, lists:reverse(Lines)).
 
 event_filter(Key, EventList) ->
-        {_, R} = lists:unzip(lists:filter(fun
-                ({K, _}) when K == Key -> true;
-                (_) -> false
-        end, EventList)),
-        R.
+        [V || {K, V} <- EventList, K == Key].
 
 format_timestamp(TimeStamp) ->
         {Date, Time} = calendar:now_to_local_time(TimeStamp),
@@ -202,14 +198,10 @@ event(Host, JobName, Format, Args, Params) ->
         event(event_server, Host, JobName, Format, Args, Params).
 
 event(EventServer, Host, JobName, Format, Args, Params) ->
-        SArgs = lists:map(fun(Arg) ->
-                        L = lists:flatlength(io_lib:fwrite("~p", [Arg])),
-                        if
-                                L > 10000 -> trunc_io:fprint(Arg, 10000);
-                        true -> Arg
-                        end
-        end, Args),
-
+        SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 10000 of
+		     true -> trunc_io:fprint(X, 10000);
+		     false -> X 
+		 end || X <- Args],
         Msg = list_to_binary(json:encode(
                 list_to_binary(io_lib:fwrite(Format, SArgs)))),
         gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).

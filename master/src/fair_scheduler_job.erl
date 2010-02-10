@@ -240,13 +240,12 @@ datalocal_nodes(Tasks, AvailableNodes) ->
         filter_nodes(Tasks, AvailableNodes, true).
 
 filter_nodes(Tasks, AvailableNodes, Local) ->
-        lists:filter(fun(Node) ->
-                case gb_trees:lookup(Node, Tasks) of
-                        none -> false == Local;
-                        {value, {0, _}} -> false == Local;
-                        _ -> true == Local
-                end
-        end, AvailableNodes).
+        [Node || Node <- AvailableNodes,
+		 case gb_trees:lookup(Node, Tasks) of
+                        none -> false =:= Local;
+                        {value, {0, _}} -> false =:= Local;
+                        _ -> true =:= Local
+		 end].
 
 error(T, M) ->
         event_server:event(get(jobname),

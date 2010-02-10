@@ -1,0 +1,14 @@
+#!/bin/bash
+
+TESTS=$(grep TestCase test_*.py | grep class | sed "s/py\:class //g" | cut -d "("  -f 1 | grep -v InterruptTest)
+
+export DISCO_TEST_PURGE=
+export DISCO_MASTER_HOST=discomaster 
+export PYTHONPATH=$PYTHONPATH:../pydisco
+
+for i in $TESTS;
+do
+	echo "Test $i"
+	../bin/disco.py test $i
+done
+

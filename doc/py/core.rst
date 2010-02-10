@@ -74,6 +74,18 @@ anymore. You can delete the unneeded job files as follows::
 
    Returns a dictionary describing status of the nodes that are managed by
    this Disco master.
+   
+   .. method:: Disco.blacklist(node)
+
+   (*Added in version 0.2.4*)
+
+   Blacklists *node*.
+   
+   .. method:: Disco.whitelist(node)
+
+   (*Added in version 0.2.4*)
+
+   Whitelists *node*.
 
    .. method:: Disco.joblist()
 
@@ -290,8 +302,8 @@ anymore. You can delete the unneeded job files as follows::
        The map task can also be an external program. For more information, see
        :ref:`discoext`.
 
-     * *map_input_stream* - a function that returns a file-like object for a given url.
-       By default :func:`disco.func.map_input_stream`.
+     * *map_input_stream* - (*Added in version 0.2.4*) a function that returns a 
+       file-like object for a given url. By default :func:`disco.func.map_input_stream`.
 
        The function signature looks like::
 
@@ -303,8 +315,8 @@ anymore. You can delete the unneeded job files as follows::
        Input/output streams allow you to use custom file-like objects for reading/writing from tasks.
        Chaining can be used, for example, to produce compressed input/output streams.
 
-     * *map_output_stream* - a function that returns a file-like object for a given url.
-       By default :func:`disco.func.map_output_stream`.
+     * *map_output_stream* - (*Added in version 0.2.4*) a function that returns a 
+       file-like object for a given url. By default :func:`disco.func.map_output_stream`.
 
        The function signature looks like::
 
@@ -379,10 +391,12 @@ anymore. You can delete the unneeded job files as follows::
 
        *Changed in version 0.2.4*: *nr_reduces* defaults to 1.
 
-     * *reduce_input_stream* - same as in *map_input_stream*, but used for the reduce task.
+     * *reduce_input_stream* - (*Added in version 0.2.4*) 
+       same as in *map_input_stream*, but used for the reduce task.
        By default :func:`disco.func.reduce_input_stream`.
 
-     * *reduce_output_stream* - same as in *map_output_stream*, but used for the reduce task.
+     * *reduce_output_stream* - (*Added in version 0.2.4*) same as 
+       in *map_output_stream*, but used for the reduce task.
        By default :func:`disco.func.reduce_output_stream`.
 
      * *reduce_reader* - (*Added in version 0.2*) a function that deserializes
@@ -447,13 +461,26 @@ anymore. You can delete the unneeded job files as follows::
        *True*. This is the last opportunity for the combiner to return
        an iterator to the key-value pairs it wants to output.
 
-     * *nr_maps* - the number of parallel map operations. By default,
+     * *nr_maps* - (*Deprecated in version 0.2.4, use "scheduler" instead*)
+       the number of parallel map operations. By default,
        ``nr_maps = len(input_files)``. Note that making this value
        larger than ``len(input_files)`` has no effect. You can only save
        resources by making the value smaller than that.
+     
+     * *nr_reduces* - number of partitions. By default, ``nr_reduces = 1``
+       (*Changed in version 0.2.4*).
 
-     * *nr_reduces* - the number of parallel reduce operations. This equals
-       to the number of partitions. By default, ``nr_reduces = max(nr_maps / 2, 1)``.
+     * *scheduler* - (*Added in version 0.2.4*) a dictionary of options for 
+       the job scheduler. The following keys are supported:
+
+          * *max_cores* - use this many cores at most (applies to both map and
+            reduce).
+
+          * *force_local* - always run task on the node where input data is 
+            located; never use HTTP to access data remotely.
+
+          * *force_remote* - never run task on the node where input data is
+            located; always use HTTP to access data remotely. 
 
      * *map_init* - initialization function for the map task. This function
        is called once before the actual processing starts with *fun_map*.

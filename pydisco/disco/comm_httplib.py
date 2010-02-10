@@ -27,6 +27,7 @@ def check_code(fd, expected, url):
                                 (expected, fd.status), url)
 
 def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
+        http = None
         try:
                 ext_host, ext_file = url[7:].split("/", 1)
                 ext_file = "/" + ext_file
@@ -67,7 +68,8 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
                         raise CommError("Downloading %s failed "
                                         "after %d attempts: %s" %
                                         (url, MAX_RETRIES, e), url)
-                http.close()
+                if http:
+                        http.close()
                 if ext_host in http_pool:
                         del http_pool[ext_host]
                 return open_remote(url, data, ttl=ttl - 1)
