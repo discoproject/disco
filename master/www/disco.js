@@ -14,17 +14,17 @@ function show_msg(m){
 
 function post_req(url, data, func){
   $.ajax({data: data,
-        dataType: "JSON", 
-        url: url,
-        type: "POST",
-        processData: false,
-        error: function(XMLHttpRequest, textStatus, errorThrown) {
-          show_msg("Request to " + url + " failed: " + textStatus);
-        },
-        success: function(x) {
-          show_msg(x);
-          if (func) 
-            func(x);
-        }
+    dataType: "JSON", 
+    url: url,
+    type: "POST",
+    processData: false,
+    error: function(XMLHttpRequest, textStatus, errorThrown) {
+      show_msg("Request to " + url + " failed: " + textStatus);
+    },
+    success: function(x) {
+      show_msg(x);
+      if (func) 
+        func(x);
+    }
     });
 }

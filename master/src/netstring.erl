@@ -21,43 +21,43 @@
 -module(netstring).
 -compile([binary_comprehension]).
 -export([encode_netstring_fd/1, decode_netstring_fd/1,
-         decode_netstring_fdx/1]).
+     decode_netstring_fdx/1]).
 
 encode_netstring_fd(Lst) ->
-        B = << <<(encode_item(K))/binary, " ", 
-                 (encode_item(V))/binary, "\n">> || {K, V} <- Lst>>,
-        S = list_to_binary(integer_to_list(size(B))),
-        <<S/binary, "\n", B/binary>>.  
+    B = << <<(encode_item(K))/binary, " ", 
+         (encode_item(V))/binary, "\n">> || {K, V} <- Lst>>,
+    S = list_to_binary(integer_to_list(size(B))),
+    <<S/binary, "\n", B/binary>>.  
 
 encode_item(E) when is_list(E) -> encode_item(list_to_binary(E));
 encode_item(E) ->
-        S = list_to_binary(integer_to_list(size(E))),
-        <<S/binary, " ", E/binary>>.
+    S = list_to_binary(integer_to_list(size(E))),
+    <<S/binary, " ", E/binary>>.
 
 decode_netstring_fd(Msg) ->
-        {L, _} = decode_netstring_fdx(Msg), L.
+    {L, _} = decode_netstring_fdx(Msg), L.
 
 decode_netstring_fdx(Msg) ->
-        Len = bin_sub_word(Msg, <<>>, <<"\n">>),
-        P1 = size(Len) + 1,
-        P2 = list_to_integer(binary_to_list(Len)),
-        <<_:P1/binary, Msg0:P2/binary, Rest/binary>> = Msg,
-        {decode_next_pair(Msg0, []), Rest}.
+    Len = bin_sub_word(Msg, <<>>, <<"\n">>),
+    P1 = size(Len) + 1,
+    P2 = list_to_integer(binary_to_list(Len)),
+    <<_:P1/binary, Msg0:P2/binary, Rest/binary>> = Msg,
+    {decode_next_pair(Msg0, []), Rest}.
 
 decode_next_pair(<<>>, Lst) -> Lst;
 decode_next_pair(Msg, Lst) ->
-        {Msg1, Key} = decode_next_item(Msg),
-        {Msg2, Val} = decode_next_item(Msg1),
-        decode_next_pair(Msg2, [{Key, Val}|Lst]).
+    {Msg1, Key} = decode_next_item(Msg),
+    {Msg2, Val} = decode_next_item(Msg1),
+    decode_next_pair(Msg2, [{Key, Val}|Lst]).
 
 decode_next_item(Msg) ->
-        Len = bin_sub_word(Msg, <<>>, <<" ">>),
-        P = size(Len) + 1,
-        I = list_to_integer(binary_to_list(Len)),
-        <<_:P/binary, X:I/binary, _:1/binary, Rest/binary>> = Msg,
-        {Rest, X}.
+    Len = bin_sub_word(Msg, <<>>, <<" ">>),
+    P = size(Len) + 1,
+    I = list_to_integer(binary_to_list(Len)),
+    <<_:P/binary, X:I/binary, _:1/binary, Rest/binary>> = Msg,
+    {Rest, X}.
 
 bin_sub_word(<<C:1/binary, _/binary>>, Buf, Delim) when C == Delim -> Buf;
 bin_sub_word(<<C:1/binary, Rest/binary>>, Buf, Delim) ->
-        bin_sub_word(Rest, <<Buf/binary, C/binary>>, Delim).
-        
+    bin_sub_word(Rest, <<Buf/binary, C/binary>>, Delim).
+    
