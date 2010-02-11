@@ -1,3 +1,61 @@
+"""
+Disco master runs :mod:`disco.node.worker` to execute map and reduce functions
+for a Disco job. The module contains several classes and functions that
+are used by Disco internally to connect to input sources, write output
+files etc. However, this page only documents features that may be useful
+for writing new Disco jobs.
+
+As job functions are imported to the :mod:`disco.node.worker` namespace
+for execution, they can use functions in this module directly without
+importing the module explicitely.
+
+.. _oob:
+
+Out-of-band results
+-------------------
+*(new in version 0.2)*
+
+In addition to standard input and output streams, map and reduce tasks can
+output results through an auxiliary channel called *out-of-band results* (OOB).
+In contrast to the standard output stream, which is sequential, OOB results
+can be accessed by unique keys.
+
+Out-of-band results should not be used as a substitute for the normal output
+stream. Each OOB key-value pair is saved to an individual file which waste
+space when values are small and which are inefficient to random-access in bulk.
+Due to these limitations, OOB results are mainly suitable, e.g for outputting
+statistics and other metadata about the actual results.
+
+To prevent rogue tasks from overwhelming nodes with a large number of OOB
+results, each is allowed to output 1000 results (:func:`put` calls) at maximum.
+Hitting this limit is often a sign that you should use the normal output stream
+for you results instead.
+
+You can not use OOB results as a communication channel between concurrent tasks.
+Concurrent tasks need to be independent to preserve desirable fault-tolerance
+and scheduling characteristics of the map/reduce paradigm. However, in the
+reduce phase you can access OOB results produced in the preceding map phase.
+Similarly you can access OOB results produced by other finished jobs, given
+a job name.
+
+You can retrieve OOB results outside tasks using the :meth:`disco.core.Disco.oob_list` and
+:meth:`disco.core.Disco.oob_get` functions.
+
+.. autofunction:: put
+.. autofunction:: get
+
+Utility functions
+-----------------
+
+.. autofunction:: this_partition
+.. autofunction:: this_host
+.. autofunction:: this_master
+.. autofunction:: this_inputs
+.. autofunction:: disco.util.msg
+.. autofunction:: disco.util.err
+.. autofunction:: disco.util.data_err
+"""
+
 import os, subprocess, cStringIO, time, sys
 import re, traceback, tempfile, struct, random
 from disco import util
@@ -58,25 +116,51 @@ def this_name():
     return Task.name
 
 def this_master():
+    """Returns hostname and port of the disco master."""
     return Task.master
 
 def this_host():
+    """Returns jostname of the node that executes the task currently."""
     return Task.host
 
 def this_partition():
+    """
+    For a map task, returns an integer between *[0..nr_maps]* that identifies
+    the task. This value is mainly useful if you need to generate unique IDs
+    in each map task. There are no guarantees about how ids are assigned
+    for map tasks.
+
+    For a reduce task, returns an integer between *[0..nr_reduces]* that
+    identifies this partition. You can use a custom partitioning function to
+    assign key-value pairs to a particular partition.
+    """
     return Task.id
 
 def this_inputs():
+    """List of input files for this task."""
     return Task.inputs
 
 def put(key, value):
+    """
+    Stores an out-of-band result *value* with the key *key*. Key must be unique in
+    this job. Maximum key length is 256 characters. Only characters in the set
+    ``[a-zA-Z_\-:0-9]`` are allowed in the key.
+    """
     if oob_chars.match(key):
-        raise DiscoError("OOB key contains invalid characters (%s)" % key)
+            raise DiscoError("OOB key contains invalid characters (%s)" % key)
     if value is not None:
-        file(Task.oob_file(key), 'w').write(value)
+            file(Task.oob_file(key), 'w').write(value)
     OOBData(key, Task)
 
 def get(key, job=None):
+    """
+    Gets an out-of-band result assigned with the key *key*. The job name *job*
+    defaults to the current job.
+
+    Given the semantics of OOB results (see above), this means that the default
+    value is only good for the reduce phase which can access results produced
+    in the preceding map phase.
+    """
     return load_oob('http://%s' % Task.master, job or Task.name, key)
 
 def connect_input(url, params):
