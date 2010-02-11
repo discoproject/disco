@@ -5,17 +5,17 @@
 #include <Judy.h>
 
 #define STDIN_READ(buf, len)\
-        if (!fread(buf, len, 1, stdin))\
-                die("Couldn't read %u bytes from stdin", len);
+    if (!fread(buf, len, 1, stdin))\
+        die("Couldn't read %u bytes from stdin", len);
 
 #define STDOUT_WRITE(buf, len)\
-        if (!fwrite(buf, len, 1, stdout))\
-                die("Couldn't write %u bytes to stdout", len);
+    if (!fwrite(buf, len, 1, stdout))\
+        die("Couldn't write %u bytes to stdout", len);
 
 typedef struct{
-        unsigned int len;
-        unsigned int sze;
-        char data[0];
+    unsigned int len;
+    unsigned int sze;
+    char data[0];
 } p_entry;
 
 void msg(const char *fmt, ...);

@@ -10,28 +10,28 @@ def estimate_map(e, params):
 
 
 def estimate_combiner(k, v, centers, done, params):
-        if done:
-                return [(i,' '.join(map(repr,c))) for (i,c) in centers.iteritems()]
-        else:
+    if done:
+        return [(i,' '.join(map(repr,c))) for (i,c) in centers.iteritems()]
+    else:
 		v=map(float,v.split(' '))
-                if not centers.has_key(k): centers[k]=[0.0]*len(v) + [0]
-                for i in range(len(v)): centers[k][i]+=v[i]
+        if not centers.has_key(k): centers[k]=[0.0]*len(v) + [0]
+        for i in range(len(v)): centers[k][i]+=v[i]
 
 		centers[k][len(v)]+=1
 
 
 def estimate_reduce(iter, out, params):
-        x={}
-        for k,v in iter:
-                y=map(float,v.split(' '))
-                if not x.has_key(k): 
+    x={}
+    for k,v in iter:
+        y=map(float,v.split(' '))
+        if not x.has_key(k): 
 			x[k]=y
-                else:
-                        for i in y: x[k][i]+=y[i]
+        else:
+            for i in y: x[k][i]+=y[i]
 
-        for k,v in x.iteritems():
-                for i in range(len(v)-1): v[i]/=v[-1]
-                out.add(k,' '.join(map(repr,v)))
+    for k,v in x.iteritems():
+        for i in range(len(v)-1): v[i]/=v[-1]
+        out.add(k,' '.join(map(repr,v)))
 
 
 def predict_map(e, params):

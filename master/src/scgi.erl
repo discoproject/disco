@@ -23,48 +23,48 @@
 -export([receive_scgi_message/1, parse_scgi_message/1, recv_msg/3]).
 
 receive_scgi_message(Socket) ->
-        receive_scgi_message(header, Socket, <<>>).
+    receive_scgi_message(header, Socket, <<>>).
 
 receive_scgi_message(header, Socket, Msg) ->
-        case gen_tcp:recv(Socket, 1) of
-                {ok, <<":">>} -> receive_scgi_message(
-                        body, Socket, list_to_integer(binary_to_list(Msg)));
-                {ok, C} -> receive_scgi_message(header, Socket,
-                                <<Msg/binary, C/binary>>);
-                _Other -> {error, invalid_scgi_header}
-        end;
+    case gen_tcp:recv(Socket, 1) of
+        {ok, <<":">>} -> receive_scgi_message(
+            body, Socket, list_to_integer(binary_to_list(Msg)));
+        {ok, C} -> receive_scgi_message(header, Socket,
+                <<Msg/binary, C/binary>>);
+        _Other -> {error, invalid_scgi_header}
+    end;
 
 receive_scgi_message(body, Socket, Length) ->
-        case catch recv_msg(Socket, <<>>, Length + 1) of
-                {ok, Packet} -> {ok, parse_scgi_message(Packet)};
-                _Other -> {error, invalid_scgi_body}
-        end.
+    case catch recv_msg(Socket, <<>>, Length + 1) of
+        {ok, Packet} -> {ok, parse_scgi_message(Packet)};
+        _Other -> {error, invalid_scgi_body}
+    end.
 
 parse_scgi_message([]) -> [];
 parse_scgi_message(Packet) ->
-        parse_scgi_message(split_msg(Packet, <<>>, []), []).
+    parse_scgi_message(split_msg(Packet, <<>>, []), []).
 
 parse_scgi_message([], Lst) -> Lst;
 parse_scgi_message(Packet, Lst) ->
-        [Key|A] = Packet,
-        case A of
-                [] -> Lst;
-                [Value|B] -> parse_scgi_message(B, [{Key, Value}|Lst])
-        end.
+    [Key|A] = Packet,
+    case A of
+        [] -> Lst;
+        [Value|B] -> parse_scgi_message(B, [{Key, Value}|Lst])
+    end.
 
 recv_msg(_, _, 0) -> <<>>;
 recv_msg(Socket, Msg, Length) when Length - size(Msg) < 8192 ->
-        {ok, D} = gen_tcp:recv(Socket, Length - size(Msg)),
-        {ok, <<Msg/binary, D/binary>>};
+    {ok, D} = gen_tcp:recv(Socket, Length - size(Msg)),
+    {ok, <<Msg/binary, D/binary>>};
 recv_msg(Socket, Msg, Length) ->
-        {ok, D} = gen_tcp:recv(Socket, 8192),
-        recv_msg(Socket, <<Msg/binary, D/binary>>, Length).
+    {ok, D} = gen_tcp:recv(Socket, 8192),
+    recv_msg(Socket, <<Msg/binary, D/binary>>, Length).
 
 split_msg(<<>>, <<>>, Lst) -> lists:reverse(Lst);
 split_msg(<<>>, Cur, Lst) -> 
-        split_msg(<<>>, <<>>, [Cur|Lst]);
+    split_msg(<<>>, <<>>, [Cur|Lst]);
 split_msg(<<0, Rest/binary>>, Cur, Lst) ->
-        split_msg(Rest, <<>>, [Cur|Lst]);
+    split_msg(Rest, <<>>, [Cur|Lst]);
 split_msg(<<C:1/binary, Rest/binary>>, Cur, Lst) ->
-        split_msg(Rest, <<Cur/binary, C/binary>>, Lst).
+    split_msg(Rest, <<Cur/binary, C/binary>>, Lst).
 
