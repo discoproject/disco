@@ -1,17 +1,9 @@
 
--module(web).
-
--export([start/1]).
+-module(ddfs_web).
 
 -include("config.hrl").
 
-start(MochiConfig) ->
-    mochiweb_http:start([{name, ddfs_get},
-        {loop, fun(Req) -> loop(Req) end}
-            | MochiConfig]).
-
-loop(Req) ->
-    op(Req:get(method), Req:get(path), Req).
+-export([op/3]).
 
 op('GET', "/dfs/blob/" ++ BlobName, Req) ->
     K = case lists:keysearch("replicas", 1, Req:parse_qs()) of
@@ -107,10 +99,3 @@ tag_update1(Op, Tag, Req) ->
                     error(E, Req)
             end
     end.
-
-
-    
-    
-
-
-
