@@ -287,10 +287,10 @@ class Job(object):
                 if "nr_maps" in kwargs:
                         sys.stderr.write("Warning: nr_maps is deprecated. "
                                          "Use scheduler = {'max_cores': N} instead.\n")
-                        sched = d("scheduler").copy()
+                        sched = jobargs["scheduler"].copy()
                         if "max_cores" not in sched:
-                                sched["max_cores"] = int(kw["nr_maps"])
-                        kw["scheduler"] = sched
+                                sched["max_cores"] = int(jobargs["nr_maps"])
+                        jobargs["scheduler"] = sched
 
                 if not "input" in kwargs:
                         raise DiscoError("Argument input is required")
