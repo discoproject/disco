@@ -48,8 +48,10 @@ clean:
 install: install-master install-pydisco install-node
 
 install-master: install-config install-bin master
-	install -d $(TARGETDIR)/ebin
+	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb 
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
+	install -m 0755 $(MOCHI_TARGET) $(TARGETDIR)/ebin/mochiweb
+	install -m 0755 $(DDFS_TARGET) $(TARGETDIR)/ebin/ddfs
 	install -m 0755 master/ebin/disco.app $(TARGETDIR)/ebin
 	install -m 0755 master/make-lighttpd-proxyconf.py $(TARGETDIR)
 
