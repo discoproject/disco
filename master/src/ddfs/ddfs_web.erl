@@ -5,7 +5,7 @@
 
 -export([op/3]).
 
-op('GET', "/dfs/blob/" ++ BlobName, Req) ->
+op('GET', "/ddfs/blob/" ++ BlobName, Req) ->
     K = case lists:keysearch("replicas", 1, Req:parse_qs()) of
             false -> ?DEFAULT_REPLICAS;
             {value, {_, X}} -> list_to_integer(X)
@@ -23,7 +23,7 @@ op('GET', "/dfs/blob/" ++ BlobName, Req) ->
             error(E, Req)
     end;
 
-op('GET', "/dfs/tags", Req) ->
+op('GET', "/ddfs/tags", Req) ->
     case gen_server:call(ddfs_master, {get_tags, filter}, ?NODEOP_TIMEOUT) of 
         {ok, L} ->
             okjson(L, Req);
@@ -31,7 +31,7 @@ op('GET', "/dfs/tags", Req) ->
             error(E, Req)
     end;
 
-op('GET', "/dfs/tag/" ++ Tag, Req) ->
+op('GET', "/ddfs/tag/" ++ Tag, Req) ->
     case (ddfs_util:is_valid_name(Tag) andalso (catch
         gen_server:call(ddfs_master,
             {tag, get, list_to_binary(Tag)}, ?NODEOP_TIMEOUT))) of
@@ -48,18 +48,18 @@ op('GET', "/dfs/tag/" ++ Tag, Req) ->
             error(E, Req)
     end;
 
-op('POST', "/dfs/tag/" ++ Tag, Req) ->
+op('POST', "/ddfs/tag/" ++ Tag, Req) ->
     tag_update(update, Tag, Req);
 
-op('PUT', "/dfs/tag/" ++ Tag, Req) ->
+op('PUT', "/ddfs/tag/" ++ Tag, Req) ->
     tag_update(put, Tag, Req);
 
-op('DELETE', "/dfs/tag/" ++ Tag, Req) ->
+op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
     error_logger:info_report({"DELT", Tag}),
     tag_update(delete, Tag, Req);
 
 op(_, _, Req) ->
-    Req:respond({404, [], ["Not found"]}).
+    Req:not_found().
 
 error({_, timeout}, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});

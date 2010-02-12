@@ -42,7 +42,7 @@ unique_key(Prefix, Dict) ->
 
 handle_call(get_jobnames, _From, {Events, _MsgBuf} = S) ->
     JobList = dict:fold(fun(JobName, {_EventList, JobStart, Pid}, Acc) ->
-        [{JobName, JobStart, Pid}|Acc]
+        [{JobStart, JobName, Pid}|Acc]
     end, [], Events),
     {reply, {ok, JobList}, S};
 

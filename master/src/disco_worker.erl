@@ -48,8 +48,6 @@ slave_name(Node) ->
 
 start_link_remote(Master, Eventserver, Node, Task) ->
     NodeAtom = slave_name(Node),
-    JobName = Task#task.jobname,
-
     case net_adm:ping(NodeAtom) of
         pong -> ok;
         pang ->
@@ -68,9 +66,7 @@ start_link_remote(Master, Eventserver, Node, Task) ->
     end,
     process_flag(trap_exit, true),
 
-    {ok, JobUrl_} = application:get_env(disco_url),
-    JobUrl = JobUrl_ ++ disco_server:jobhome(JobName),
-
+    {ok, JobUrl} = application:get_env(disco_url),
     Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
     spawn_link(NodeAtom, disco_worker, remote_worker,
            [[self(), Eventserver, Master, JobUrl, Task, Node, Debug]]),

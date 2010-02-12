@@ -208,15 +208,15 @@ handle_call({get_active, JobName}, _From, #state{workers = Workers} = S) ->
     {reply, {ok, {Nodes, Tasks}}, S};
 
 handle_call({get_nodeinfo, all}, _From, S) ->
-       Active = [{N, Name} || {N, #task{jobname = Name}}
-        <- gb_trees:values(S#state.workers)],
-       Available = [{obj, [{node, list_to_binary(N#dnode.name)},
-			   {job_ok, N#dnode.stats_ok},
-			   {data_error, N#dnode.stats_failed},
-			   {error, N#dnode.stats_crashed}, 
-			   {max_workers, N#dnode.slots},
-			   {blacklisted, not (N#dnode.blacklisted == false)}]}
-		    || N <- gb_trees:values(S#state.nodes)],
+    Active = [{N, Name} || {N, #task{jobname = Name}}
+                <- gb_trees:values(S#state.workers)],
+    Available = [{struct, [{node, list_to_binary(N#dnode.name)},
+		           {job_ok, N#dnode.stats_ok},
+                           {data_error, N#dnode.stats_failed},
+                           {error, N#dnode.stats_crashed}, 
+                           {max_workers, N#dnode.slots},
+                           {blacklisted, not (N#dnode.blacklisted == false)}]}
+                    || N <- gb_trees:values(S#state.nodes)],
     {reply, {ok, {Available, Active}}, S};
 
 handle_call(get_num_cores, _, #state{nodes = Nodes} = S) ->
@@ -351,8 +351,8 @@ blacklist_guard(Node) ->
     gen_server:call(disco_server, {whitelist, Node, Token}).
 
 % callback stubs
-terminate(_Reason, _State) ->
-    error_logger:warning_report({"Disco server dies"}).
+terminate(Reason, _State) ->
+    error_logger:warning_report({"Disco server dies", Reason}).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 

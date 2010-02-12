@@ -417,11 +417,11 @@ class Job(object):
 
         # -- encode and send the request --
 
-        reply = self.master.request("/disco/job/new", encode_netstring_fd(request))
-
-        if not reply.startswith('job started:'):
+        reply = json.loads(self.master.request("/disco/job/new",
+                        encode_netstring_fd(request)))
+        if reply[0] != "ok":
             raise DiscoError("Failed to start a job. Server replied: " + reply)
-        self.name = reply.split(':', 1)[1]
+        self.name = reply[1]
 
 def result_iterator(results,
             notifier = None,
