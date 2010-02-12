@@ -15,7 +15,7 @@ to_string({_MessageQ, Overflow, _MessagesMax} = MessageBuffer) ->
     case Overflow of
         overflow -> "...\n";
         nooverflow -> ""
-    end ++ string:join(lists:reverse(to_list(MessageBuffer)), "\n").
+    end ++ string:join(to_list(MessageBuffer), "\n").
 
 append(Message, {MessageQ, Overflow, MessagesMax}) ->
     MessageQ_ = queue:in(Message, MessageQ),
