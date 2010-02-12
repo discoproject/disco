@@ -32,9 +32,9 @@ DDFS_TARGET = $(addsuffix .beam, $(basename \
 
 UNAME = $(shell uname)
 
-build: $(EBIN)/ddfs $(EBIN)/mochiweb master config
+build: master config
 
-master: $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
+master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
 
 clean:
 	- rm -Rf master/ebin/*.beam
