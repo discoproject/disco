@@ -62,19 +62,15 @@ def main():
     option_parser.add_option('-P', '--port',
                              help='port that the client should connect to')
     option_parser.add_option('--parser',
-                             default='rawparse',
                              help='parser object to use for indexing')
     option_parser.add_option('--demuxer',
-                             default='nodemux',
                              help='demuxer object to user for indexing')
     option_parser.add_option('--balancer',
-                             default='nchunksbalance',
                              help='balancer to use for indexing')
     option_parser.add_option('--profile',
                              action='store_true',
                              help='turn on job profiling')
     option_parser.add_option('--nr-ichunks',
-                             default='8',
                              help='the number of ichunks to create')
     option_parser.add_option('--no-sort',
                              action='store_true',
@@ -111,7 +107,8 @@ def main():
         from discodex.client import CommandLineClient
         receiver = CommandLineClient(options.host or discodex_settings['DISCODEX_HTTP_HOST'],
                                      options.port or discodex_settings['DISCODEX_HTTP_PORT'],
-                                     options)
+                                     dict((k, v) for k, v in options.__dict__.iteritems()
+                                          if v is not None))
     elif command in commands['server']:
         from discodex.server import djangoscgi
         receiver = djangoscgi(discodex_settings)

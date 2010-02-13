@@ -20,8 +20,12 @@ class JSONSerialized(object):
 
 class DataSet(dict, JSONSerialized):
     @property
+    def options(self):
+        return self.get('options', {})
+
+    @property
     def nr_ichunks(self):
-        return self['options'].get('nr_ichunks', 8)
+        return self.options.get('nr_ichunks', 8)
 
     @property
     def input(self):
@@ -29,27 +33,27 @@ class DataSet(dict, JSONSerialized):
 
     @property
     def parser(self):
-        return self.__getcallable__(parsers, self['options']['parser'])
+        return self.__getcallable__(parsers, self.options.get('parser', 'rawparse'))
 
     @property
     def demuxer(self):
-        return self.__getcallable__(demuxers, self['options']['demuxer'])
+        return self.__getcallable__(demuxers, self.options.get('demuxer', 'nodemux'))
 
     @property
     def balancer(self):
-        return self.__getcallable__(balancers, self['options']['balancer'])
+        return self.__getcallable__(balancers, self.options.get('balancer', 'nchunksbalance'))
 
     @property
     def profile(self):
-        return not bool(self['options']['profile'])
+        return bool(self.options.get('profile', False))
 
     @property
     def sort(self):
-        return not bool(self['options']['no_sort'])
+        return not bool(self.options.get('no_sort', False))
 
     @property
     def k_viter(self):
-        return bool(self['options']['k_viter'])
+        return bool(self.options.get('k_viter', False))
 
     def __getcallable__(self, module, name):
         if hasattr(module, name):

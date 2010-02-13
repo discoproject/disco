@@ -81,7 +81,7 @@ class CommandLineClient(DiscodexClient):
         return super(CommandLineClient, self).put(indexspec, index)
 
     def index(self, *args):
-        dataset = DataSet(options=self.options.__dict__,
+        dataset = DataSet(options=self.options,
                           input=[line.strip() for line in fileinput.input(args)])
         return super(CommandLineClient, self).index(dataset)
 
