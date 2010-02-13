@@ -38,7 +38,7 @@ get_config_table() ->
 
 save_config_table(Json) ->
     update_config_table(Json),
-    ok = file:write_file(os:getenv("DISCO_CONFIG"), json:encode(Json)),
+    ok = file:write_file(os:getenv("DISCO_CONFIG"), mochijson2:encode(Json)),
     {ok, <<"table saved!">>}.
 
 

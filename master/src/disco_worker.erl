@@ -1,9 +1,9 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_link/1, start_link_remote/4, remote_worker/1]).
+-export([start_link/1, start_link_remote/4]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-    terminate/2, code_change/3, slave_name/1]).
+    terminate/2, code_change/3]).
 
 -include("task.hrl").
 -record(state, {id, master, job_url, port, task,
@@ -22,55 +22,18 @@
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 
--define(SLAVE_ARGS, "+K true").
 -define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
 -define(PORT_OPT, [{line, 100000}, binary, exit_status,
            use_stdio, stderr_to_stdout,
            {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}]}]).
 
-slave_env() ->
-    lists:flatten([?SLAVE_ARGS,
-           io_lib:format(" -pa ~s/ebin", [disco:get_setting("DISCO_MASTER_HOME")]),
-           [case disco:get_setting(Setting) of
-                ""  -> "";
-                Val -> io_lib:format(" -env ~s '~s'", [Setting, Val])
-            end
-            || Setting <- ["DISCO_FLAGS",
-                   "DISCO_PORT",
-                   "DISCO_PROXY",
-                   "DISCO_ROOT",
-                   "DISCO_WORKER",
-                   "PYTHONPATH"]]]).
-
-slave_name(Node) ->
-    SName = lists:flatten([disco:get_setting("DISCO_NAME"), "_slave"]),
-    list_to_atom(SName ++ "@" ++ Node).
-
 start_link_remote(Master, Eventserver, Node, Task) ->
-    NodeAtom = slave_name(Node),
-    case net_adm:ping(NodeAtom) of
-        pong -> ok;
-        pang ->
-            slave_master ! {start, self(), Node, slave_env()},
-            receive
-                slave_started -> ok;
-                {slave_failed, X} ->
-                    exit({worker_dies,
-                          {"Node failure: ~p", [X]}});
-                X ->
-                    exit({worker_dies,
-                          {"Unknown node failure: ~p", [X]}})
-            after 60000 ->
-                exit({worker_dies, {"Node timeout", []}})
-            end
-    end,
-    process_flag(trap_exit, true),
-
     {ok, JobUrl} = application:get_env(disco_url),
     Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
-    spawn_link(NodeAtom, disco_worker, remote_worker,
+    NodeAtom = node_mon:slave_node(Node),
+    spawn_link(NodeAtom, disco_worker, start_link,
            [[self(), Eventserver, Master, JobUrl, Task, Node, Debug]]),
-
+    process_flag(trap_exit, true),
     receive
         ok -> ok;
         {'EXIT', _, Reason} ->
@@ -82,11 +45,6 @@ start_link_remote(Master, Eventserver, Node, Task) ->
     end,
     wait_for_exit().
 
-remote_worker(Args) ->
-    process_flag(trap_exit, true),
-    start_link(Args),
-    wait_for_exit().
-
 wait_for_exit() ->
     receive
         {'EXIT', _, Reason} ->
@@ -94,6 +52,7 @@ wait_for_exit() ->
     end.
 
 start_link([Parent|_] = Args) ->
+    process_flag(trap_exit, true),
     Worker = case catch gen_server:start_link(disco_worker, Args, []) of
              {ok, Server} ->
                  Server;
@@ -109,7 +68,8 @@ start_link([Parent|_] = Args) ->
         Reason1 ->
             exit({worker_dies, {"Worker startup failed: ~p",
                 [Reason1]}})
-    end.
+    end,
+    wait_for_exit().
 
 init([Id, EventServer, Master, JobUrl, Task, Node, Debug]) ->
     process_flag(trap_exit, true),

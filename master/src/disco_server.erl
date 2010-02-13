@@ -7,12 +7,10 @@
     terminate/2, code_change/3]).
 
 -include("task.hrl").
--record(dnode, {name, blacklisted, slots, num_running,
+-record(dnode, {name, node_mon, blacklisted, slots, num_running,
         stats_ok, stats_failed, stats_crashed}).
 
 -record(state, {workers, nodes}).
-
--define(BLACKLIST_PERIOD, 600000).
 
 start_link() ->
     error_logger:info_report([{"DISCO SERVER STARTS"}]),
@@ -65,10 +63,6 @@ format_time(T) ->
 init(_Args) ->
     process_flag(trap_exit, true),
     {ok, _} = fair_scheduler:start_link(),
-    Name = disco:get_setting("DISCO_NAME"),
-    register(slave_master, spawn_link(fun() ->
-        slave_master(lists:flatten([Name, "_slave"]))
-    end)),
     {ok, #state{workers = gb_trees:empty(), nodes = gb_trees:empty()}}.
 
 handle_cast({update_config_table, Config}, S) ->
@@ -76,8 +70,10 @@ handle_cast({update_config_table, Config}, S) ->
     NewNodes = lists:foldl(fun({Node, Slots}, NewNodes) ->
         NewNode = case gb_trees:lookup(Node, S#state.nodes) of
             none ->
+                Mon = spawn_link(fun() -> node_mon:spawn_node(Node) end),
                 #dnode{name = Node,
                        slots = Slots,
+                       node_mon = Mon,
                        blacklisted = false,
                        stats_ok = 0,
                        num_running = 0,
@@ -86,6 +82,7 @@ handle_cast({update_config_table, Config}, S) ->
             {value, N} ->
                 #dnode{name = Node,
                        slots = Slots,
+                       node_mon = N#dnode.node_mon,
                        blacklisted = N#dnode.blacklisted,
                        stats_ok = N#dnode.stats_ok,
                        num_running = N#dnode.num_running,
@@ -94,6 +91,15 @@ handle_cast({update_config_table, Config}, S) ->
         end,
         gb_trees:insert(Node, NewNode, NewNodes)
     end, gb_trees:empty(), Config),
+    
+    lists:foreach(fun(Node) ->
+        case gb_trees:lookup(Node#dnode.name, NewNodes) of
+            none ->
+                unlink(Node#dnode.node_mon),
+                exit(Node#dnode.node_mon, kill);
+            _ -> ok
+        end     
+    end, gb_trees:values(S#state.nodes)),
 
     gen_server:cast(scheduler, {update_nodes, Config}),
     gen_server:cast(self(), schedule_next),
@@ -310,49 +316,6 @@ start_worker(Node, T) ->
         [T#task.mode, T#task.taskid, Node], []),
     spawn_link(disco_worker, start_link_remote,
         [self(), whereis(event_server), Node, T]).
-
-% slave:start() contains a race condition, thus it is not safe to call it
-% simultaneously in many parallel processes. Instead, we serialize the calls
-% through slave_master().
-slave_master(SlaveName) ->
-    receive
-        {start, Pid, Node, Args} ->
-        launch(fun() ->
-                   slave:start(list_to_atom(Node),
-                       SlaveName, Args, self(),
-                       os:getenv("DISCO_ERLANG"))
-               end, Pid, Node),
-        slave_master(SlaveName)
-    end.
-
-launch(F, Pid, Node) ->
-    case catch F() of
-        {ok, _} ->
-            Pid ! slave_started;
-        {error, {already_running, _}} ->
-            Pid ! slave_started;
-        {error, timeout} ->
-            Pid ! {slave_failed, lists:flatten(
-                ["Couldn't connect to ", Node, " (timeout). ",
-                "Node blacklisted temporarily."])},
-            spawn_link(fun() -> blacklist_guard(Node) end);
-        X ->
-            error_logger:warning_report(
-                {"Couldn't start slave at ", Node, X}),
-            Pid ! {slave_failed, lists:flatten(
-                ["Couldn't connect to ", Node,
-                ". See logs for more information. ",
-                "Node blacklisted temporarily."])},
-            spawn_link(fun() -> blacklist_guard(Node) end)
-    end.
-
-blacklist_guard(Node) ->
-    error_logger:info_report({"Blacklisting", Node,
-        "for", ?BLACKLIST_PERIOD, "ms."}),
-    Token = now(),
-    gen_server:call(disco_server, {blacklist, Node, Token}),
-    timer:sleep(?BLACKLIST_PERIOD),
-    gen_server:call(disco_server, {whitelist, Node, Token}).
 
 % callback stubs
 terminate(Reason, _State) ->
