@@ -21,15 +21,18 @@ class DiscoSettings(dict):
         'DISCO_CONFIG':          "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
         'DISCO_LOCAL_DIR':       "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
-        'DISCO_TEST_HOST':       "socket.gethostname()",
-        'DISCO_TEST_PORT':       "9444",
-        'DISCO_TEST_PURGE':      "'purge'",
         'DISCO_ERLANG':          "guess_erlang()",
         'DISCO_HTTPD':           "'lighttpd'",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_PATH",
+# TESTING
+        'DISCO_TEST_HOST':       "socket.gethostname()",
+        'DISCO_TEST_PORT':       "9444",
+        'DISCO_TEST_PURGE':      "'purge'",
+# SCHEDULER 
         'DISCO_SCHEDULER':       "'fair'",
         'DISCO_SCHEDULER_ALPHA': ".001",
+# DDFS
         'DDFS_ENABLED':          "'on'",
         'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_PUT_PORT':         "8990",

@@ -37,7 +37,7 @@ loop(_, Req) ->
     Req:not_found().
 
 docroot() ->
-    disco:get_setting("DISCO_MASTER_HOME") ++ "/www/".
+    disco:get_setting("DISCO_WWW_ROOT").
 
 dispatch(Req, Mod) ->
     case catch Mod:op(Req:get(method), Req:get(path), Req) of

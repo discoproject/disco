@@ -14,6 +14,9 @@
 % How long to wait for replies from nodes
 -define(NODE_TIMEOUT, 5 * ?SECOND).
 
+% How long ddfs node startup can take
+-define(NODE_STARTUP, 1 * ?MINUTE).
+
 % How long to wait for a reply from and operation that accesses nodes
 % (>NODE_TIMEOUT)
 -define(NODEOP_TIMEOUT, 10 * ?SECOND).
