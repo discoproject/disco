@@ -27,14 +27,14 @@ def input_stream(fd, size, url, params):
     if host == Task.host or Task.has_flag("resultfs"):
         datadir = os.path.join(Task.root, "data")
         try:
-            return maybe_method(datadir, rest, 'query', xargs=query), size, params
+            return maybe_method(datadir, rest, 'query', xargs=query), size, url
         except NotMethod, e:
             pass
         for method in ('keys', 'values'):
             try:
-                return maybe_method(datadir, rest, method), size, params
+                return maybe_method(datadir, rest, method), size, url
             except NotMethod, e:
                 pass
-        return DiscoDB.load(open(os.path.join(datadir, rest))), size, params
+        return DiscoDB.load(open(os.path.join(datadir, rest))), size, url
     raise core.DiscoError("Scheme 'discodb' can only be used with force_local=True")
 
