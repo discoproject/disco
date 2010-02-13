@@ -4,7 +4,9 @@
 
 get_setting(SettingName) ->
     case os:getenv(SettingName) of
-        false  ->
+        false ->
+            error_logger:warning_report(
+                {"Required setting", SettingName, "missing!"}),
             exit(["Must specify ", SettingName]);
         Val ->
             Val
