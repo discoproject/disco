@@ -32,7 +32,7 @@ get_config_table() ->
         {error, enoent} ->
             Config = "[]"
     end,
-    {ok, Json, _Rest} = json:decode(Config),
+    Json = mochijson2:decode(Config),
     update_config_table(Json),
     {ok, Json}.
 

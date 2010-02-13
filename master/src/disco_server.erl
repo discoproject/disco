@@ -19,8 +19,12 @@ start_link() ->
     case gen_server:start_link({local, disco_server},
             disco_server, [], debug_flags("disco_server")) of
         {ok, Server} ->
-            {ok, _} = disco_config:get_config_table(),
-            {ok, Server};
+            case catch disco_config:get_config_table() of
+                {ok, _Config} ->
+                    {ok, Server};
+                E ->
+                    error_logger:warning_report({"Parsing config failed", E})
+            end;
         {error, {already_started, Server}} ->
             {ok, Server}
     end.

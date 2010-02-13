@@ -9,7 +9,7 @@
 -define(NAME_MAX, 255).
 
 % How many replicas by default
--define(DEFAULT_REPLICAS, 3).
+% -define(DEFAULT_REPLICAS, 3).
 
 % How long to wait for replies from nodes
 -define(NODE_TIMEOUT, 5 * ?SECOND).
@@ -29,7 +29,7 @@
 -define(TAG_EXPIRES_ONERROR, 10 * ?MINUTE).
 
 % Number of tag replicas: min(length(Nodes), ?TAG_REPLICAS)
--define(TAG_REPLICAS, 3).
+% -define(TAG_REPLICAS, 3).
 
 % Permissions for blobs and tags
 -define(FILE_MODE, 8#00400).

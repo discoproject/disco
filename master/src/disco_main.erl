@@ -26,7 +26,6 @@ gethostname() ->
 set_disco_url(Port) ->
     Hostname = gethostname(),
     DiscoUrl = lists:flatten(["http://", Hostname, ":", Port]),
-    error_logger:info_report({"DISCOURL", DiscoUrl}),
     application:set_env(disco, disco_url, DiscoUrl).
 
 start(_Type, _Args) ->
@@ -37,8 +36,10 @@ start(_Type, _Args) ->
 
 init([Port]) ->
     error_logger:info_report([{"DISCO BOOTS"}]),
-    {ok, {{one_for_one, ?MAX_R, ?MAX_T},
-         [{event_server, {event_server, start_link, []},
+    {ok, {{one_for_one, ?MAX_R, ?MAX_T}, [
+         {ddfs_master, {ddfs_master, start_link, []},
+            permanent, 10, worker, dynamic},
+         {event_server, {event_server, start_link, []},
             permanent, 10, worker, dynamic},
          {disco_server, {disco_server, start_link, []},
             permanent, 10, worker, dynamic},

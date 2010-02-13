@@ -5,9 +5,10 @@
 
 -export([op/3]).
 
-op('GET', "/ddfs/blob/" ++ BlobName, Req) ->
+op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
+    BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     K = case lists:keysearch("replicas", 1, Req:parse_qs()) of
-            false -> ?DEFAULT_REPLICAS;
+            false -> BlobK;
             {value, {_, X}} -> list_to_integer(X)
     end, 
     case (ddfs_util:is_valid_name(BlobName) andalso (catch
@@ -20,15 +21,21 @@ op('GET', "/ddfs/blob/" ++ BlobName, Req) ->
         too_many_replicas ->
             Req:respond({403, [], ["Not enough nodes for replicas"]});
         E ->
+            error_logger:warning_report({"/ddfs/new_blob failed", E}),
             error(E, Req)
     end;
 
 op('GET', "/ddfs/tags", Req) ->
-    case gen_server:call(ddfs_master, {get_tags, filter}, ?NODEOP_TIMEOUT) of 
-        {ok, L} ->
-            okjson(L, Req);
-        E ->
-            error(E, Req)
+    TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
+    case catch gen_server:call(ddfs_master,
+            {get_tags, filter}, ?NODEOP_TIMEOUT) of 
+        {'EXIT', _} = E ->
+            error_logger:warning_report({"/ddfs/tags failed", E}),
+            error(E, Req);
+        {_OkNodes, Failed, Tags} when length(Failed) < TagMinK ->
+            okjson(Tags, Req);
+        _ ->
+            error({error, too_many_failed_nodes}, Req)
     end;
 
 op('GET', "/ddfs/tag/" ++ Tag, Req) ->
@@ -55,7 +62,6 @@ op('PUT', "/ddfs/tag/" ++ Tag, Req) ->
     tag_update(put, Tag, Req);
 
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
-    error_logger:info_report({"DELT", Tag}),
     tag_update(delete, Tag, Req);
 
 op(_, _, Req) ->

@@ -4,20 +4,33 @@
 
 -include("config.hrl").
 
--export([start/2, init/1, handle_call/3, handle_cast/2,
+-export([start/1, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
--record(state, {tag, data, timeout, replicas, tagk, url_cache}).
+-record(state, {tag, data, timeout, replicas, url_cache}).
 
-start(TagName, TagK) ->
-    gen_server:start(ddfs_tag, {TagName, TagK}, []).
+% THOUGHT: Eventually we want to partition tag keyspace instead
+% of using a single global keyspace. This can be done relatively 
+% easily with consistent hashing: Each tag has a set of nodes 
+% (partition) which it operates on. If tag can't be found in its
+% partition (due to addition of many new nodes, for instance),
+% partition to be searched can be increased incrementally until
+% the tag is found.
+% 
+% Correspondingly GC'ing must ensure that K replicas for a tag
+% are found within its partition rather than globally.
 
-init({TagName, TagK}) ->
+start(TagName) ->
+    gen_server:start(ddfs_tag, TagName, []).
+
+init(TagName) ->
+    put(min_tagk, list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS"))),
+    put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
+
     {ok, #state{tag = TagName,
                 data = false,
                 replicas = false,
                 url_cache = false,
-                tagk = TagK,
                 timeout = ?TAG_EXPIRES}}.
 
 % We don't want to cache requests made by garbage collector
@@ -35,7 +48,7 @@ handle_cast(M, #state{data = false} = S) ->
             true ->
                 {deleted, false, ?TAG_EXPIRES_ONERROR};
             false ->
-                case get_tagdata(S#state.tag, S#state.tagk) of
+                case get_tagdata(S#state.tag) of
                     {ok, TagData, Repl} ->
                         {TagData, Repl, S#state.timeout};
                     E ->
@@ -139,12 +152,13 @@ terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-get_tagdata(Tag, TagK) ->
+get_tagdata(Tag) ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     {Replies, Failed} = gen_server:multi_call(Nodes, ddfs_node,
         {get_tag_timestamp, Tag}, ?NODE_TIMEOUT),
+    TagMinK = get(min_tagk),
     case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
-        _ when length(Failed) >= TagK ->
+        _ when length(Failed) >= TagMinK ->
             {error, too_many_failed_nodes};
         [] ->
             notfound;
@@ -202,10 +216,10 @@ put_transaction(true, Urls, S) ->
                     {<<"urls">>, Urls},
                     {<<"last-modified">>, ddfs_util:format_timestamp()} 
                 ]})),
-    put_distribute({TagName, TagData}, S#state.tagk).
+    put_distribute({TagName, TagData}).
 
-put_distribute(Msg, TagK) ->
-    case put_distribute(Msg, TagK, [], []) of
+put_distribute(Msg) ->
+    case put_distribute(Msg, get(tagk), [], []) of
         {ok, TagVol} -> put_commit(Msg, TagVol);
         {error, _} = E -> E
     end.
@@ -214,10 +228,13 @@ put_distribute(_, K, OkNodes, _) when K == length(OkNodes) ->
     {ok, OkNodes};
 
 put_distribute(Msg, K, OkNodes, Exclude) ->
+    TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
     {ok, Nodes} = gen_server:call(ddfs_master, {choose_nodes, K0, Exclude}),
-    if length(Nodes) < K0 ->
+    if Nodes =:= [], length(OkNodes) < TagMinK ->
         {error, replication_failed};
+    Nodes =:= [] ->
+        {ok, OkNodes};
     true ->
         {Replies, Failed} = gen_server:multi_call(Nodes,
                 ddfs_node, {put_tag_data, Msg}, ?NODE_TIMEOUT),

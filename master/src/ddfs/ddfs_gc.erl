@@ -26,7 +26,9 @@
 %    the tag itself if
 %       - Any of the blobs was rereplicated and the urls were updated
 %       - Tag doesn't have enough known replicas [05]
-% 4. Tell nodes that all tags have been processed.
+% 4. If the number of failed nodes does not exceed DDFS_TAG_MIN_REPLICAS,
+%    operations O1, O2, O3 and O6 are safe. Tell nodes that all tags have
+%    been processed and proceed to 5. Otherwise exit.
 % 5. Start the orphan server that tells nodes if any copies of a tag/blob
 %    are available (orphan_server).
 % 6. Once the orphan server is finished, run garbage collection on the
@@ -79,15 +81,26 @@ gc_objects(DeletedAges) ->
     % ensures that only a single gc_objects process is running at a time
     register(gc_objects_lock, self()),
     process_flag(priority, low),
-    % XXX! Change these
-    put(tagk, ?DEFAULT_REPLICAS),
-    put(blobk, ?DEFAULT_REPLICAS),
+    
+    TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
+    put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
+    put(blobk, list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS"))),
+    
     ets:new(gc_nodes, [named_table, set, private]), 
     ets:new(obj_cache, [named_table, set, private]),
-    Tags = process_tags(),
-    [Pid ! done || {_, Pid} <- ets:tab2list(gc_nodes)],
-    orphan_server(ets:info(gc_nodes, size)),
-    process_deleted(Tags, DeletedAges),
+    
+    {Tags, NumFailed} = process_tags(),
+
+    if NumFailed < TagMinK ->
+        error_logger:info_report({"GC: Only", NumFailed,
+            "failed nodes. Deleting is allowed."}),
+        [Pid ! done || {_, Pid} <- ets:tab2list(gc_nodes)],
+        orphan_server(ets:info(gc_nodes, size)),
+        process_deleted(Tags, DeletedAges);
+    true ->
+        error_logger:info_report({"GC:", NumFailed,
+            "failed nodes. Skipping delete."})
+    end,
     error_logger:info_report({"GC: Done!"}).
 
 start_gc_nodes([]) -> ok;
@@ -105,14 +118,10 @@ start_gc_nodes([Node|T]) ->
     
 process_tags() ->
     error_logger:info_report({"GC: Process tags"}),
-    case gen_server:call(ddfs_master, {get_tags, all}) of
-        {ok, OkNodes, Tags} ->
-            start_gc_nodes(OkNodes),
-            process_tags(Tags),
-            Tags;
-        E ->
-            abort({"GC: Couldn't get tags list", E}, tags_list_failed)
-    end.
+    {OkNodes, Failed, Tags} = gen_server:call(ddfs_master, {get_tags, all}),
+    start_gc_nodes(OkNodes),
+    process_tags(Tags),
+    {Tags, length(Failed)}.
 
 process_tags([]) -> ok;
 process_tags([Tag|T]) ->
