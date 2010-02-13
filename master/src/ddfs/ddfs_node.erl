@@ -6,16 +6,18 @@
 
 -include("config.hrl").
 
--define(PUT_PORT, 8000).
--define(GET_PORT, 8002).
-
 -record(state, {root, volumes, put_max, put_active, get_max, get_active, tags}).
 
 start_link(Config) ->
+    process_flag(trap_exit, true),
     error_logger:info_report([{"DDFS node starts"}]),
     case gen_server:start_link({local, ddfs_node}, ddfs_node, Config, []) of
-        {ok, Server} -> {ok, Server};
-        {error, {already_started, Server}} -> {ok, Server}
+        {ok, _Server} -> ok;
+        {error, {already_started, _Server}} -> ok
+    end,
+    receive
+        {'EXIT', _, Reason} ->
+            exit(Reason)
     end.
 
 stop() ->
@@ -25,14 +27,17 @@ init(Config) ->
     {root, Root} = proplists:lookup(root, Config),
     {put_max, PutMax} = proplists:lookup(put_max, Config),
     {get_max, GetMax} = proplists:lookup(get_max, Config),
+    {put_port, PutPort} = proplists:lookup(put_port, Config),
+    {get_port, GetPort} = proplists:lookup(get_port, Config),
+
     {ok, VolUn} = find_volumes(Root),
     % lists:ukeymerge in update_volumestats requires a sorted list
     Vol = lists:sort(VolUn),
     error_logger:info_report({"found vols", Vol}), 
     {ok, Tags} = find_tags(Root, Vol),
     error_logger:info_report({"found tags", Tags}), 
-    {ok, _PutPid} = ddfs_put:start([{port, ?PUT_PORT}]),
-    {ok, _GetPid} = ddfs_get:start([{port, ?GET_PORT}], Root),
+    {ok, _PutPid} = ddfs_put:start([{port, PutPort}]),
+    {ok, _GetPid} = ddfs_get:start([{port, GetPort}], Root),
 
     spawn_link(fun() -> refresh_tags(Root, Vol) end),
     spawn_link(fun() -> monitor_diskspace(Root, Vol) end),

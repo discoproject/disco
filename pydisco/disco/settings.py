@@ -30,11 +30,14 @@ class DiscoSettings(dict):
         'PYTHONPATH':            "DISCO_PATH",
         'DISCO_SCHEDULER':       "'fair'",
         'DISCO_SCHEDULER_ALPHA': ".001",
-        'DDFS_ENABLED':          "True",
+        'DDFS_ENABLED':          "'on'",
+        'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_PUT_PORT':         "8990",
         'DDFS_TAG_MIN_REPLICAS': "3",
         'DDFS_TAG_REPLICAS':     "3",
-        'DDFS_BLOB_REPLICAS':    "3"
+        'DDFS_BLOB_REPLICAS':    "3",
+        'DDFS_PUT_MAX':          "3",
+        'DDFS_GET_MAX':          "3"
         }
 
     must_exist = ('DISCO_DATA',
