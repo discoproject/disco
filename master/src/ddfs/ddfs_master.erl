@@ -27,15 +27,18 @@ init(_Args) ->
     {ok, #state{tags = gb_trees:empty(), nodes = [], blacklisted = []}}.
 
 handle_call(get_nodes, _, S) ->
-    {reply, {ok, [N || {_, N} <- S#state.nodes]}, S};
+    {reply, {ok, [N || {N, _} <- S#state.nodes]}, S};
+
+handle_call(dbg_get_state, _, S) ->
+    {reply, S, S};
 
 handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
     % NB: We should probably avoid choosing the same node many times in
     % sequence (which is pretty much guaranteed to happen with the current
     % implemention). This causes huge congestion on the frequently chosen
     % node and it's bad for data distribution. Add a layer of randomization.
-    Nodes = lists:sublist([N || {_, N} <- lists:reverse(
-        lists:keysort(1, S#state.nodes))] -- (Exclude ++ BL), K),
+    Nodes = lists:sublist([N || {N, _} <- lists:reverse(
+        lists:keysort(2, S#state.nodes))] -- (Exclude ++ BL), K),
     {reply, {ok, Nodes}, S};
 
 handle_call({new_blob, BlobName, K}, From, S) ->
@@ -68,20 +71,30 @@ handle_call({tag, M, Tag}, From, #state{tags = Tags} = S) ->
 
 handle_call({get_tags, Mode}, From, #state{nodes = Nodes} = S) ->
     spawn(fun() -> 
-        gen_server:reply(From, get_tags(Mode, [N || {_, N} <- Nodes]))
+        gen_server:reply(From, get_tags(Mode, [N || {N, _} <- Nodes]))
     end),
     {noreply, S}.
 
 handle_cast({update_nodes, NewNodes0}, #state{nodes = Nodes} = S) ->
+    error_logger:info_report({"DDFS UPDATE NODES", NewNodes0}),
     NewNodes = [{node_mon:slave_node(Node), Blacklisted} ||
                         {Node, Blacklisted} <- NewNodes0],
     Blacklisted = [Node || {Node, true} <- NewNodes],
-    UpdatedNodes = lists:ukeymerge(2, Nodes,
-        lists:sort([{0, Node} || {Node, _Blacklisted} <- NewNodes])),
+    OldNodes = gb_trees:from_orddict(Nodes),
+    UpdatedNodes = lists:keysort(1, [
+        case gb_trees:lookup(Node, OldNodes) of
+            none -> {Node, 0};
+            {value, OldStats} -> {Node, OldStats}
+        end || {Node, _Blacklisted} <- NewNodes]),
     {noreply, S#state{nodes = UpdatedNodes, blacklisted = Blacklisted}};
 
 handle_cast({update_nodestats, NewNodes}, #state{nodes = Nodes} = S) ->
-    {noreply, S#state{nodes = lists:ukeymerge(2, NewNodes, Nodes)}}.
+    UpdatedNodes = [
+        case gb_trees:lookup(Node, NewNodes) of
+            none -> {Node, Stats};
+            {value, NewStats} -> {Node, NewStats}
+        end || {Node, Stats} <- Nodes],
+    {noreply, S#state{nodes = UpdatedNodes}}.
 
 handle_info({'DOWN', _, _, Pid, _}, S) ->
     {noreply, S#state{tags = gb_trees:from_orddict(
@@ -112,8 +125,9 @@ monitor_diskspace() ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     {Replies, _} = gen_server:multi_call(Nodes,
         ddfs_node, get_volumes, ?NODE_TIMEOUT),
-    gen_server:cast(ddfs_master, {update_nodestats, lists:keysort(2,
-        [{lists:sum([S || {S, _} <- Vol]), N} || {N, {Vol, _}} <- Replies])}),
+    gen_server:cast(ddfs_master, {update_nodestats, gb_trees:from_orddict(
+        lists:keysort(1, [{N, lists:sum([S || {S, _} <- Vol])} ||
+            {N, {Vol, _}} <- Replies]))}),
     timer:sleep(?DISKSPACE_INTERVAL),
     monitor_diskspace().
 

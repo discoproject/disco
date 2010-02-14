@@ -142,6 +142,9 @@ handle_cast({{remove, Urls}, ReplyTo}, S) ->
 handle_cast({die, _}, S) ->
     {stop, normal, S}.
 
+handle_call(dbg_get_state, _, S) ->
+    {reply, S, S};
+
 handle_call(_, _, S) -> {reply, ok, S}.
 
 handle_info(timeout, S) ->
