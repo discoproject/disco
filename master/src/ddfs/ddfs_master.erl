@@ -30,6 +30,10 @@ handle_call(get_nodes, _, S) ->
     {reply, {ok, [N || {_, N} <- S#state.nodes]}, S};
 
 handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
+    % NB: We should probably avoid choosing the same node many times in
+    % sequence (which is pretty much guaranteed to happen with the current
+    % implemention). This causes huge congestion on the frequently chosen
+    % node and it's bad for data distribution. Add a layer of randomization.
     Nodes = lists:sublist([N || {_, N} <- lists:reverse(
         lists:keysort(1, S#state.nodes))] -- (Exclude ++ BL), K),
     {reply, {ok, Nodes}, S};
