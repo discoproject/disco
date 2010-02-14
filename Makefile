@@ -47,11 +47,13 @@ clean:
 
 install: install-master install-pydisco install-node
 
-install-master: install-config install-bin master
+install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb 
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
 	install -m 0755 $(MOCHI_TARGET) $(TARGETDIR)/ebin/mochiweb
 	install -m 0755 $(DDFS_TARGET) $(TARGETDIR)/ebin/ddfs
+
+install-master: master install-ebin install-config install-bin
 	install -m 0755 master/ebin/disco.app $(TARGETDIR)/ebin
 	install -m 0755 master/make-lighttpd-proxyconf.py $(TARGETDIR)
 
@@ -62,9 +64,7 @@ install-master: install-config install-bin master
 		$(info lighttpd-master config already exists, skipping),\
 		install -m 0644 conf/lighttpd-master.conf $(TARGETCFG))
 
-install-node: install-config install-bin master
-	install -d $(TARGETDIR)/ebin
-	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
+install-node: master install-ebin install-config install-bin
 	install -m 0755 node/disco-worker $(TARGETBIN)
 
 	$(if $(wildcard $(TARGETCFG)/lighttpd-worker.conf),\
