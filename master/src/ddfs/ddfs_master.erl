@@ -72,11 +72,13 @@ handle_call({get_tags, Mode}, From, #state{nodes = Nodes} = S) ->
     end),
     {noreply, S}.
 
-handle_cast({update_nodes, NewNodes}, #state{nodes = Nodes} = S) ->
+handle_cast({update_nodes, NewNodes0}, #state{nodes = Nodes} = S) ->
+    NewNodes = [{node_mon:slave_node(Node), Blacklisted} ||
+                        {Node, Blacklisted} <- NewNodes0],
     Blacklisted = [Node || {Node, true} <- NewNodes],
-    Nodes = lists:ukeymerge(2, Nodes,
+    UpdatedNodes = lists:ukeymerge(2, Nodes,
         lists:sort([{0, Node} || {Node, _Blacklisted} <- NewNodes])),
-    {noreply, S#state{nodes = Nodes, blacklisted = Blacklisted}};
+    {noreply, S#state{nodes = UpdatedNodes, blacklisted = Blacklisted}};
 
 handle_cast({update_nodestats, NewNodes}, #state{nodes = Nodes} = S) ->
     {noreply, S#state{nodes = lists:ukeymerge(2, NewNodes, Nodes)}}.

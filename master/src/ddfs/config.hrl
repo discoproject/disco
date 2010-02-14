@@ -19,7 +19,7 @@
 
 % How long to wait for a reply from and operation that accesses nodes
 % (>NODE_TIMEOUT)
--define(NODEOP_TIMEOUT, 10 * ?SECOND).
+-define(NODEOP_TIMEOUT, 1 * ?MINUTE).
 
 % Tag cache expires in TAG_EXPIRES milliseconds.
 % Note that must be TAG_EXPIRES < GC_INTERVAL, otherwise tags never expire
@@ -71,4 +71,4 @@
 % are reactivated (or cleaned) within the ?DELETED_TAG_EXPIRES
 % time frame. To be on the safe side, make the period long
 % enough.
--define(DELETED_TAG_EXPIRES, 15 * ?DAY).
+-define(DELETED_TAG_EXPIRES, 30 * ?DAY).
