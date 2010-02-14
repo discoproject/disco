@@ -4,7 +4,7 @@
 
 -include("config.hrl").
 
--export([start/1, init/1, handle_call/3, handle_cast/2,
+-export([start/2, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {tag, data, timeout, replicas, url_cache}).
@@ -20,18 +20,24 @@
 % Correspondingly GC'ing must ensure that K replicas for a tag
 % are found within its partition rather than globally.
 
-start(TagName) ->
-    gen_server:start(ddfs_tag, TagName, []).
+start(TagName, Status) ->
+    gen_server:start(ddfs_tag, {TagName, Status}, []).
 
-init(TagName) ->
+init({TagName, Status}) ->
     put(min_tagk, list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS"))),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
 
     {ok, #state{tag = TagName,
-                data = false,
+                data = Status,
                 replicas = false,
                 url_cache = false,
-                timeout = ?TAG_EXPIRES}}.
+                timeout =
+                    if Status =:= notfound ->
+                        ?TAG_EXPIRES_ONERROR;
+                    true ->
+                        ?TAG_EXPIRES
+                    end
+    }}.
 
 % We don't want to cache requests made by garbage collector
 handle_cast({gc_get, ReplyTo}, #state{data = false} = S) ->
@@ -84,14 +90,14 @@ handle_cast({{update, Urls}, ReplyTo}, #state{data = D} = S) ->
     case parse_tagurls(D) of
         {error, _} = E ->
             gen_server:reply(ReplyTo, E),
-            {noreply, S, S#state.timeout};
+            {noreply, S, ?TAG_EXPIRES_ONERROR};
         {ok, OldUrls} ->
             case validate_urls(Urls) of
                 true ->
                     handle_cast({{put, Urls ++ OldUrls}, ReplyTo}, S);
                 false ->
                     gen_server:reply(ReplyTo, {error, invalid_url_object}),
-                    {noreply, S, S#state.timeout}
+                    {noreply, S, ?TAG_EXPIRES_ONERROR}
             end
     end;
 
@@ -105,14 +111,14 @@ handle_cast({{put, Urls}, ReplyTo}, S) ->
             gen_server:reply(ReplyTo, {ok, DestUrls}),
             S1 = S#state{data = TagData, replicas = DestNodes},
             if S#state.url_cache == false ->
-                {noreply, S1, S#state.timeout};
+                {noreply, S1, ?TAG_EXPIRES};
             true ->
                 {noreply, S1#state{url_cache = lists:usort(Urls)},
-                    S#state.timeout}
+                    ?TAG_EXPIRES}
             end;
         {error, _} = E ->
             gen_server:reply(ReplyTo, E),
-            {noreply, S, S#state.timeout}
+            {noreply, S, ?TAG_EXPIRES_ONERROR}
     end;
 
 % Special operations for the +deleted metatag
@@ -166,12 +172,12 @@ get_tagdata(Tag) ->
         [] ->
             notfound;
         L ->
-            {{Time, _} = T, _} = lists:max(L),
-            Replicas = [N || {{X, _}, N} <- L, X == Time],
-            SrcNode = ddfs_util:choose_random(Replicas),
+            {{Time, _Vol}, _Node} = lists:max(L),
+            Replicas = [X || {{T, _}, _} = X <- L, T == Time],
+            {TagNfo, SrcNode} = ddfs_util:choose_random(Replicas),
             TagName = ddfs_util:pack_objname(Tag, Time),
             case catch gen_server:call({ddfs_node, SrcNode},
-                    {get_tag_data, TagName, T}, ?NODE_TIMEOUT) of
+                    {get_tag_data, TagName, TagNfo}, ?NODE_TIMEOUT) of
                 {ok, Data} ->
                     {ok, Data, Replicas};
                 {'EXIT', timeout} ->

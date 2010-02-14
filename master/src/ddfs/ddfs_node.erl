@@ -35,9 +35,7 @@ init(Config) ->
     {ok, VolUn} = find_volumes(Root),
     % lists:ukeymerge in update_volumestats requires a sorted list
     Vol = lists:sort(VolUn),
-    error_logger:info_report({"found vols", Vol}), 
     {ok, Tags} = find_tags(Root, Vol),
-    error_logger:info_report({"found tags", Tags}), 
     {ok, _PutPid} = ddfs_put:start([{port, PutPort}]),
     {ok, _GetPid} = ddfs_get:start([{port, GetPort}], Root),
 
@@ -110,7 +108,6 @@ handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
     end;
 
 handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
-    error_logger:info_report({"put_tag_commit", Tag, TagVol}),
     {value, {_, Vol}} = lists:keysearch(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag, "tag", S#state.root, Vol),
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
@@ -150,7 +147,8 @@ read_tag(Tag, Root, {_, Vol}, From) ->
     case prim_file:read_file(filename:join(D, binary_to_list(Tag))) of
         {ok, Bin} ->
             gen_server:reply(From, {ok, Bin});
-        _ ->
+        E ->
+            error_logger:warning_report({"Read failed", Tag, D, E}),
             gen_server:reply(From, {error, read_failed})
     end.
 

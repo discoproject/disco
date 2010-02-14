@@ -25,6 +25,11 @@
 % Note that must be TAG_EXPIRES < GC_INTERVAL, otherwise tags never expire
 -define(TAG_EXPIRES, 10 * ?HOUR).
 
+% Interval for refreshing the list of all available tags
+% (This is only needed to purge non-existent tags eventually from the tag
+% cache. It doesn't harm to have a long interval).
+-define(TAG_CACHE_INTERVAL, 30 * ?SECOND).
+
 % Time to wait between garbage collection runs
 -define(GC_INTERVAL, ?DAY).
 
