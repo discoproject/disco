@@ -19,18 +19,18 @@ def input_stream(fd, size, url, params):
     scheme, rest = url.split('://', 1)
     host, rest = rest.split('/', 1)
 
-    if hasattr(params, "discodb_query"):
+    if hasattr(params, 'discodb_query'):
         query = lambda x: params.discodb_query
     else:
         query = Q.urlscan
 
-    if host == Task.host or Task.has_flag("resultfs"):
-        datadir = os.path.join(Task.root, "data")
+    if host == Task.host or Task.has_flag('resultfs'):
+        datadir = os.path.join(Task.root, 'data')
         try:
             return maybe_method(datadir, rest, 'query', xargs=query), size, url
         except NotMethod, e:
             pass
-        for method in ('keys', 'values'):
+        for method in ('keys', 'values', 'items'):
             try:
                 return maybe_method(datadir, rest, method), size, url
             except NotMethod, e:
