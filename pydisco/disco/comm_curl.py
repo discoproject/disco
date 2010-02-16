@@ -4,6 +4,7 @@ from pycurl import error as PyCurlError
 
 from disco.error import CommError
 
+FILE_BUFFER_SIZE = 10 * 1024**2
 MAX_BUF = 1024**2
 MAX_RETRIES = 10
 CONNECT_TIMEOUT = 20
@@ -13,9 +14,9 @@ def check_code(c, expected, url):
     code = c.getinfo(HTTP_CODE)
     if code != expected:
         raise CommError("Invalid HTTP reply (expected %s got %s)" %
-                    (expected, code), url)
+                    (expected, code), url, code)
 
-def download(url, data = None, redir = False, offset = 0):
+def download(url, data = None, redir = False, offset = 0, method = None):
     dl_handle = Curl()
     dl_handle.setopt(NOSIGNAL, 1)
     dl_handle.setopt(CONNECTTIMEOUT, CONNECT_TIMEOUT)
@@ -35,6 +36,8 @@ def download(url, data = None, redir = False, offset = 0):
             dl_handle.setopt(POSTFIELDSIZE, len(data))
             dl_handle.setopt(HTTPHEADER, ["Expect:"])
             dl_handle.setopt(POST, 1)
+        elif method != None:
+            dl_handle.setopt(CUSTOMREQUEST, method)
         try:
             dl_handle.perform()
             break
@@ -153,10 +156,69 @@ def open_remote(url, expect = 200):
     return (conn, conn.length, url)
 
 
+class MultiPut:
+    def __init__(self, fname, urls):
+        self.handles = dict((url, self.init_handle(url, fname)) for url in urls)
+        self.multi = CurlMulti()
+        [self.multi.add_handle(handle) for handle, out in self.handles.values()]
+    
+    def init_handle(self, url, fname):
+        fd = file(fname, "r", FILE_BUFFER_SIZE)
+        out = cStringIO.StringIO()
+        handle = Curl()
+        handle.setopt(URL, url)
+        handle.setopt(NOSIGNAL, 1)
+        handle.setopt(CONNECTTIMEOUT, 20)
+        handle.setopt(TIMEOUT, 10 * 60)
+        handle.setopt(WRITEFUNCTION, out.write)
+        handle.setopt(READFUNCTION, fd.read)
+        handle.setopt(UPLOAD, 1)
+        handle.setopt(INFILESIZE, os.stat(fname).st_size)
+        return handle, out
+
+    def perform(self):
+        num_handles = True
+        while num_handles:
+            ret, num_handles = self.multi.perform()
+        success = []
+        retry = []
+        fail = []
+        for url, (handle, out) in self.handles.iteritems():
+            ret = handle.getinfo(HTTP_CODE)
+            if ret == 201:
+                success.append(out.getvalue())
+            elif ret == 503:
+                retry.append(url)
+            else:
+                fail.append((url, ret, out.getvalue()))
+        return success, retry, fail
+
+def upload(fname, urls, retries = 10):
+    success = []
+    rounds = 0
+    while urls and rounds <= retries:
+        succ, urls, fail = MultiPut(fname, urls).perform()
+        rounds += 1
+        if succ:
+            rounds = 0
+        success += succ
+        if fail:
+            url, ret, out = fail[0]
+            raise CommError("PUT failed (%d): %s" % (ret, out), url, ret)
+        if urls:
+            time.sleep(1)
+    if urls:
+        raise CommError("Maximum number of PUT retries reached. "
+            "The following URLs were unreachable: %s" % " ".join(urls), urls[0])
+    return success
 
 
 
 
+
+
+
+    
 
 
 

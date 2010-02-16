@@ -21,12 +21,17 @@ class DataError(DiscoError):
     These errors are treated specially by Disco master in that they are assumed to be recoverable.
     If Disco thinks an error is recoverable, it will retry the task on another node.
     """
-    def __init__(self, msg, url):
+    def __init__(self, msg, url, code = None):
         self.msg = msg
         self.url = url
+        self.code = code
 
     def __str__(self):
-        return 'Unable to access resource (%s): %s' % (self.url, self.msg)
+        if self.code == None:
+            return 'Unable to access resource (%s): %s' % (self.url, self.msg)
+        else:
+            return 'Unable to access resource (%s): %s (HTTP error %d)' %\
+                (self.url, self.msg, self.code)
 
 class CommError(DataError):
     """An error caused by the inability to access a resource over the network."""
