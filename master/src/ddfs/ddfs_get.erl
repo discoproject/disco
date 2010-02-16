@@ -7,12 +7,15 @@
 
 start(MochiConfig, Root) ->
     mochiweb_http:start([{name, ddfs_get},
-        {loop, fun(Req) -> loop(Req, Root) end}
+        {loop, fun(Req) -> loop(Req:get(path), Req, Root) end}
             | MochiConfig]).
 
-loop(Req, Root) ->
-    "/" ++ Path = Req:get(path),
-    
+loop("/proxy/" ++ Path, Req, Root) ->
+    {_Node, Rest} = mochiweb_util:path_split(Path),
+    {_Method, RealPath} = mochiweb_util:path_split(Rest),
+    loop([$/|RealPath], Req, Root);
+
+loop("/" ++ Path, Req, Root) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
 

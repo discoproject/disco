@@ -46,6 +46,8 @@ init([Port]) ->
          {oob_server, {oob_server, start_link, []},
             permanent, 10, worker, dynamic},
          {mochi_server, {web_server, start, [Port]},
+            permanent, 10, worker, dynamic},
+         {disco_proxy, {disco_proxy, start, []},
             permanent, 10, worker, dynamic}
         ]
     }}.

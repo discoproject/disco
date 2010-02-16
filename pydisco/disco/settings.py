@@ -11,7 +11,6 @@ class DiscoSettings(dict):
         'DISCO_NAME':            "'disco_%s' % DISCO_SCGI_PORT",
         'DISCO_PID_DIR':         "'/var/run'",
         'DISCO_PORT':            "8989",
-        'DISCO_PROXY':           "''",
         'DISCO_ROOT':            "'/srv/disco'",
         'DISCO_SCGI_PORT':       "4444",
         'DISCO_ULIMIT':          "16000000",
@@ -25,6 +24,11 @@ class DiscoSettings(dict):
         'DISCO_HTTPD':           "'lighttpd'",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_PATH",
+# PROXY
+        'DISCO_PROXY':           "'off'",
+        'DISCO_PROXY_PORT':      "8999",
+        'DISCO_PROXY_PID':       "os.path.join(DISCO_ROOT, '%s-proxy.pid' % DISCO_NAME)",
+        'DISCO_PROXY_CONFIG':    "os.path.join(DISCO_ROOT, '%s-proxy.conf' % DISCO_NAME)",
 # TESTING
         'DISCO_TEST_HOST':       "socket.gethostname()",
         'DISCO_TEST_PORT':       "9444",

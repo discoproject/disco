@@ -109,7 +109,7 @@ handle_cast({update_config_table, Config}, S) ->
             _ -> ok
         end     
     end, gb_trees:values(S#state.nodes)),
-    
+    disco_proxy:update_nodes(gb_trees:keys(NewNodes)), 
     update_nodes(NewNodes),
     {noreply, S#state{nodes = NewNodes}};
 
