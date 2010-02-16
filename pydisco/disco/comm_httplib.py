@@ -59,7 +59,7 @@ def open_remote(url, data = None, expect = 200, offset = 0,
             meth = method
         else:
             meth = "GET"
-        print "NEGH"
+        
         http.request(meth, ext_file, data, headers = h)
         fd = http.getresponse()
         check_code(fd, expect, url)
@@ -79,4 +79,4 @@ def open_remote(url, data = None, expect = 200, offset = 0,
         return open_remote(url, data, ttl=ttl - 1)
 
 def upload(fname, urls, retries = 10):
-    raise CommError("Uploading with httplib is not currently supported. Install pycurl.")
+    raise CommError("Uploading with httplib is not currently supported. Install pycurl.", urls[0])

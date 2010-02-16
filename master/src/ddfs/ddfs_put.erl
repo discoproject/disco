@@ -13,12 +13,15 @@
 start(MochiConfig) ->
     error_logger:info_report({"START PID", self()}),
     mochiweb_http:start([{name, ddfs_put},
-        {loop, fun(Req) -> loop(Req) end}
+        {loop, fun(Req) -> loop(Req:get(path), Req) end}
             | MochiConfig]).
 
-loop(Req) ->
-    "/" ++ BlobName = Req:get(path),
-    
+loop("/proxy/" ++ Path, Req) ->
+    {_Node, Rest} = mochiweb_util:path_split(Path),
+    {_Method, RealPath} = mochiweb_util:path_split(Rest),
+    loop([$/|RealPath], Req);
+
+loop("/" ++ BlobName, Req) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
     

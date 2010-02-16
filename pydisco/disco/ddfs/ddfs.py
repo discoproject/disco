@@ -2,18 +2,29 @@
 import os, re
 from disco import util, error
 from disco.comm import upload, download, json
+from disco.settings import DiscoSettings
 
 class DDFS(object):
     def __init__(self, host):
-        self.host = util.disco_host(host)
+        proxy = DiscoSettings()["DISCO_PROXY"]
+        if proxy == "off":
+            self.host = util.disco_host(host)
+            self.proxy = False
+        else:
+            scheme, host, path = util.urlsplit(proxy)
+            self.host = "http://" + host
+            self.proxy = True
 
-    def put(self, tag, files, replicas = None, retries = None):
+    def put(self, tag, files, replicas = None, retries = None, return_tag_urls = False):
         urls = [self._put_file(fname, replicas, retries) for fname in files]
-        return self.tag(tag, urls), urls
+        return self.tag(tag, urls, return_tag_urls = return_tag_urls), urls
 
     def tag(self, tag, urls, return_tag_urls = False):
         tag_urls = self._request("/ddfs/tag/" + tag, json.dumps(urls))
-        return "tag://%s" % tag
+        if return_tag_urls:
+            return tag_urls
+        else:
+            return "tag://%s" % tag
 
     def get_tag(self, tag, recursive = False,
                     ignore_missing = True, ignore = {}):
@@ -55,6 +66,14 @@ class DDFS(object):
         else:
             qs = ""
         dst = self._request("/ddfs/new_blob/%s%s" % (name, qs))
+        if self.proxy:
+            proxied = []
+            for url in dst:
+                scheme, host, path = util.urlsplit(url)
+                host = host.split(":")[0]
+                proxied.append("%s/proxy/%s/PUT/%s" %\
+                    (self.host, host, path))
+            dst = proxied
         if retries != None:
             urls = upload(fname, dst, retries = retries)
         else:
@@ -65,3 +84,5 @@ class DDFS(object):
         return json.loads(download(self.host + url,
                     data = data, method = method))
 
+if __name__ == "__main__":
+    print DDFS("http://localhost:8989").put("proxtest", ["testfile.big"])

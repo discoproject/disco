@@ -173,6 +173,8 @@ class MultiPut:
         handle.setopt(WRITEFUNCTION, out.write)
         handle.setopt(READFUNCTION, fd.read)
         handle.setopt(UPLOAD, 1)
+        # Workaround for Lighty (http://redmine.lighttpd.net/issues/1017)
+        handle.setopt(HTTPHEADER, ["Expect:"])
         handle.setopt(INFILESIZE, os.stat(fname).st_size)
         return handle, out
 
