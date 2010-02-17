@@ -75,5 +75,8 @@ class Keys(list, JSONSerialized):
 class Values(list, JSONSerialized):
     pass
 
+class Items(list, JSONSerialized):
+    pass
+
 class Query(dict, JSONSerialized):
     pass

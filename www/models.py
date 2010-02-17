@@ -10,8 +10,8 @@ from restapi.resource import (HttpResponseAccepted,
                               HttpResponseServiceUnavailable)
 
 from discodex import settings
-from discodex.mapreduce import Indexer, Queryer, KeyIterator, ValuesIterator
-from discodex.objects import DataSet, Indices, Index, Keys, Values, Query
+from discodex.mapreduce import Indexer, Queryer, KeyIterator, ValuesIterator, ItemsIterator
+from discodex.objects import DataSet, Indices, Index, Keys, Values, Items, Query
 
 from disco.core import Disco
 from disco.error import DiscoError
@@ -99,6 +99,10 @@ class IndexResource(Collection):
         return ValuesResource(self)
 
     @property
+    def items(self):
+        return ItemsResource(self)
+
+    @property
     def query(self):
         return QueryCollection(self)
 
@@ -162,16 +166,18 @@ class DiscoDBResource(Resource):
 
     @property
     def job(self):
-        return KeyIterator(self.index.ichunks)
+        return KeyIterator(self.index.ichunks, self.mapfilters, self.reducefilters)
 
     def read(self, request, *args, **kwargs):
         try:
+            self.mapfilters    = filter(None, kwargs.pop('mapfilters').split('|'))
+            self.reducefilters = filter(None, kwargs.pop('reducefilters').split('}'))
             job = self.job.run(disco_master, disco_prefix)
         except DiscoError, e:
             return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
 
         try:
-            results = self.result_type(v for k, v in job.results).dumps()
+            results = self.result_type(job.results).dumps()
         except DiscoError, e:
             return HttpResponseServerError("DiscoDB job failed: %s" % e)
         finally:
@@ -188,7 +194,15 @@ class ValuesResource(DiscoDBResource):
 
     @property
     def job(self):
-        return ValuesIterator(self.index.ichunks)
+        return ValuesIterator(self.index.ichunks, self.mapfilters, self.reducefilters)
+
+
+class ItemsResource(DiscoDBResource):
+    result_type = Items
+
+    @property
+    def job(self):
+        return ItemsIterator(self.index.ichunks, self.mapfilters, self.reducefilters)
 
 class QueryCollection(Collection):
     allowed_methods = ('GET', 'POST')
@@ -216,4 +230,4 @@ class QueryResource(DiscoDBResource):
 
     @property
     def job(self):
-        return Queryer(self.index.ichunks, self.query)
+        return Queryer(self.index.ichunks, self.mapfilters, self.reducefilters, self.query)

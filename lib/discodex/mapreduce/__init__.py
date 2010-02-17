@@ -88,11 +88,17 @@ class Indexer(DiscodexJob):
     reduce_output_stream = [func.reduce_output_stream, reduce_output_stream]
 
 class DiscoDBIterator(DiscodexJob):
-    scheduler = {'force_local': True}
-    method    = 'keys'
+    scheduler     = {'force_local': True}
+    method        = 'keys'
+    mapfilters    = []
+    reducefilters = []
 
-    def __init__(self, ichunks):
+    def __init__(self, ichunks, mapfilters, reducefilters):
         self.ichunks = ichunks
+        self.params = Params(mapfilters=mapfilters or self.mapfilters,
+                             reducefilters=reducefilters or self.reducefilters)
+        if reducefilters:
+            self.reduce = self._reduce
 
     @property
     def input(self):
@@ -106,7 +112,22 @@ class DiscoDBIterator(DiscodexJob):
 
     @staticmethod
     def map(entry, params):
-        return [(None, entry)]
+        from discodex.mapreduce.func import filterchain, funcify, kviterify
+        filterfn = filterchain(funcify(name) for name in params.mapfilters)
+        return kviterify(filterfn(entry))
+
+    @staticmethod
+    def _reduce(iterator, out, params):
+        from discodex.mapreduce.func import filterchain, funcify, kviterify, kvgroup
+        filterfn = filterchain(funcify(name) for name in params.reducefilters)
+        for items in kvgroup(iterator):
+            for k, v in kviterify(filterfn(items)):
+                out.add(k, v)
+
+    @property
+    def results(self):
+        for k, v in result_iterator(self._job.wait(), reader=self.result_reader):
+            yield v
 
 class KeyIterator(DiscoDBIterator):
     pass
@@ -114,11 +135,19 @@ class KeyIterator(DiscoDBIterator):
 class ValuesIterator(DiscoDBIterator):
     method = 'values'
 
+class ItemsIterator(DiscoDBIterator):
+    method     = 'items'
+    mapfilters = ['kvungroup']
+
+    @property
+    def results(self):
+        return result_iterator(self._job.wait(), reader=self.result_reader)
+
 class Queryer(DiscoDBIterator):
     method = 'query'
 
-    def __init__(self, ichunks, query):
-        super(Queryer, self).__init__(ichunks)
+    def __init__(self, ichunks, mapfilters, reducefilters, query):
+        super(Queryer, self).__init__(ichunks, mapfilters, reducefilters)
         self.params = Params(discodb_query=query)
 
 class Record(object):
