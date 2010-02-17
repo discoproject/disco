@@ -6,7 +6,7 @@
 -define(MB, 1024 * 1024).
 
 % Maximum length of tag/blob prefix
--define(NAME_MAX, 255).
+-define(NAME_MAX, 511).
 
 % How many replicas by default
 % -define(DEFAULT_REPLICAS, 3).

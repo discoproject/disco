@@ -96,7 +96,9 @@ receive_body(Req, IO) ->
         end, ok),
     R1 = file:sync(IO),
     R2 = file:close(IO),
-    case lists:filter(fun(ok) -> false; (_) -> true end, [R0, R1, R2]) of
+    % R0 == <<>> if the blob is zero bytes
+    case lists:filter(fun(ok) -> false; (<<>>) -> false; (_) -> true end,
+            [R0, R1, R2]) of
         [] -> ok;
         [Error|_] -> Error
     end.
