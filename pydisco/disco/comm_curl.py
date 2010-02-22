@@ -27,7 +27,7 @@ def download(url, data = None, redir = False, offset = 0, method = None):
     if offset:
         dl_handle.setopt(RANGE, "%d-" % offset)
     while True:
-        dl_handle.setopt(URL, url)
+        dl_handle.setopt(URL, str(url))
         outbuf = cStringIO.StringIO()
         dl_handle.setopt(WRITEFUNCTION, outbuf.write)
         if data != None:
@@ -86,7 +86,7 @@ class CurlConn:
         check_code(self.handle, expect, url)
 
     def init_handle(self, url):
-        self.handle.setopt(URL, url)
+        self.handle.setopt(URL, str(url))
         self.handle.setopt(NOSIGNAL, 1)
         self.handle.setopt(CONNECTTIMEOUT, 20)
         self.handle.setopt(TIMEOUT, 10 * 60)
@@ -166,7 +166,7 @@ class MultiPut:
         fd = file(fname, "r", FILE_BUFFER_SIZE)
         out = cStringIO.StringIO()
         handle = Curl()
-        handle.setopt(URL, url)
+        handle.setopt(URL, str(url))
         handle.setopt(NOSIGNAL, 1)
         handle.setopt(CONNECTTIMEOUT, 20)
         handle.setopt(TIMEOUT, 10 * 60)
@@ -181,7 +181,13 @@ class MultiPut:
     def perform(self):
         num_handles = True
         while num_handles:
-            ret, num_handles = self.multi.perform()
+            ret = self.multi.select(1.0)
+            if ret == -1:
+                continue
+            while True:
+                ret, num_handles = self.multi.perform()
+                if ret != E_CALL_MULTI_PERFORM:
+                    break
         success = []
         retry = []
         fail = []
