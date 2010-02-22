@@ -26,23 +26,24 @@ stop() ->
     gen_server:call(ddfs_node, stop).
 
 init(Config) ->
-    {root, Root} = proplists:lookup(root, Config),
+    {ddfs_root, DdfsRoot} = proplists:lookup(ddfs_root, Config),
+    {disco_root, DiscoRoot} = proplists:lookup(disco_root, Config),
     {put_max, PutMax} = proplists:lookup(put_max, Config),
     {get_max, GetMax} = proplists:lookup(get_max, Config),
     {put_port, PutPort} = proplists:lookup(put_port, Config),
     {get_port, GetPort} = proplists:lookup(get_port, Config),
 
-    {ok, VolUn} = find_volumes(Root),
+    {ok, VolUn} = find_volumes(DdfsRoot),
     % lists:ukeymerge in update_volumestats requires a sorted list
     Vol = lists:sort(VolUn),
-    {ok, Tags} = find_tags(Root, Vol),
+    {ok, Tags} = find_tags(DdfsRoot, Vol),
     {ok, _PutPid} = ddfs_put:start([{port, PutPort}]),
-    {ok, _GetPid} = ddfs_get:start([{port, GetPort}], Root),
+    {ok, _GetPid} = ddfs_get:start([{port, GetPort}], {DdfsRoot, DiscoRoot}),
 
-    spawn_link(fun() -> refresh_tags(Root, Vol) end),
-    spawn_link(fun() -> monitor_diskspace(Root, Vol) end),
+    spawn_link(fun() -> refresh_tags(DdfsRoot, Vol) end),
+    spawn_link(fun() -> monitor_diskspace(DdfsRoot, Vol) end),
     
-    {ok, #state{root = Root,
+    {ok, #state{root = DdfsRoot,
                 volumes = [{0, V} || V <- Vol],
                 tags = Tags,
                 put_max = PutMax,

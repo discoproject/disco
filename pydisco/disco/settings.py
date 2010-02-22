@@ -25,7 +25,7 @@ class DiscoSettings(dict):
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_PATH",
 # PROXY
-        'DISCO_PROXY':           "'off'",
+        'DISCO_PROXY':           "''",
         'DISCO_PROXY_PORT':      "8999",
         'DISCO_PROXY_PID':       "os.path.join(DISCO_ROOT, '%s-proxy.pid' % DISCO_NAME)",
         'DISCO_PROXY_CONFIG':    "os.path.join(DISCO_ROOT, '%s-proxy.conf' % DISCO_NAME)",

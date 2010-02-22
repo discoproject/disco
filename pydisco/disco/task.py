@@ -37,6 +37,8 @@ class Task(object):
 
         settings   = DiscoSettings()
         self.root  = settings['DISCO_ROOT']
+        self.ddfs  = settings['DDFS_ROOT']
+        self.data  = settings['DISCO_DATA']
         self.port  = settings['DISCO_PORT']
         self.flags = settings['DISCO_FLAGS'].lower().split()
 
@@ -63,7 +65,7 @@ class Task(object):
     def url(self, name, *args, **kwargs):
         path = self.default_paths[name] % args
         scheme = kwargs.get('scheme', 'disco')
-        return '%s://%s/%s/%s' % (scheme, self.host, self.home, path)
+        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.home, path)
 
     @property
     def map_index(self):

@@ -49,7 +49,8 @@ hashdir(Name, Mode, Root, Vol) ->
     [D1] = io_lib:format("~.16b", [D0]),
     Dir = [if length(D1) == 1 -> "0"; true -> "" end, D1],
     Path = filename:join([Vol, Mode, Dir]),
-    Url = list_to_binary(["ddfs://", net_adm:localhost(), "/", Path, "/", Name]),
+    Url = list_to_binary(
+        ["disco://", net_adm:localhost(), "/ddfs/", Path, "/", Name]),
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
 

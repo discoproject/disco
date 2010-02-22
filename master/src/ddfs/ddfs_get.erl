@@ -5,32 +5,37 @@
 
 -export([start/2]).
 
-start(MochiConfig, Root) ->
+start(MochiConfig, Roots) ->
     mochiweb_http:start([{name, ddfs_get},
-        {loop, fun(Req) -> loop(Req:get(path), Req, Root) end}
+        {loop, fun(Req) -> loop(Req:get(raw_path), Req, Roots) end}
             | MochiConfig]).
 
-loop("/proxy/" ++ Path, Req, Root) ->
+loop("/proxy/" ++ Path, Req, Roots) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
-    loop([$/|RealPath], Req, Root);
+    loop([$/|RealPath], Req, Roots);
 
-loop("/" ++ Path, Req, Root) ->
+loop("/ddfs/" ++ Path, Req, {DdfsRoot, _DiscoRoot}) ->
+    send_file(Req, Path, DdfsRoot);
+
+loop("/disco/" ++ Path, Req, {_DdfsRoot, DiscoRoot}) ->
+    send_file(Req, Path, DiscoRoot).
+
+send_file(Req, Path, Root) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
-
-    case {Req:get(method), string:chr(Path, $.)} of
-        {'GET', 0} ->
+    case {Req:get(method), mochiweb_util:safe_relative_path(Path)} of
+        {'GET', undefined} ->
+            Req:not_found();
+        {'GET', SafePath} ->
             case catch gen_server:call(ddfs_node, get_blob) of
                 ok ->
-                    send_file(Req, filename:join(Root, Path));
+                    send_file(Req, filename:join(Root, SafePath));
                 _ -> 
                     Req:respond({503, [],
                         ["Maximum number of downloaders reached. ",
                             "Try again later"]})
             end;
-        {'GET', _} ->
-            Req:respond({403, [], ["Invalid blob name"]});
         _ ->
             Req:respond({501, [], ["Method not supported"]})
     end. 

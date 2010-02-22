@@ -21,7 +21,7 @@ loop("/proxy/" ++ Path, Req) ->
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
     loop([$/|RealPath], Req);
 
-loop("/" ++ BlobName, Req) ->
+loop("/ddfs/" ++ BlobName, Req) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
     
@@ -44,7 +44,10 @@ loop("/" ++ BlobName, Req) ->
             Req:respond({403, [], ["Invalid blob name"]});
         _ ->
             Req:respond({501, [], ["Method not supported"]})
-    end.
+    end;
+
+loop(_, Req) ->
+    Req:not_found().
 
 valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) -> 

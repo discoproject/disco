@@ -44,6 +44,8 @@ slave_env() ->
                    "DISCO_PORT",
                    "DISCO_PROXY",
                    "DISCO_ROOT",
+                   "DDFS_ROOT",
+                   "DISCO_DATA",
                    "DISCO_WORKER",
                    "PYTHONPATH"]]]).
 
@@ -70,12 +72,14 @@ node_monitor(Node) ->
 start_ddfs_node(NodeAtom) ->
     Enabled = disco:get_setting("DDFS_ENABLED"),
     if Enabled =:= "on" ->
-        Root = disco:get_setting("DDFS_ROOT"),
+        DdfsRoot = disco:get_setting("DDFS_ROOT"),
+        DiscoRoot = disco:get_setting("DISCO_DATA"),
         PutMax = list_to_integer(disco:get_setting("DDFS_PUT_MAX")),
         GetMax = list_to_integer(disco:get_setting("DDFS_GET_MAX")),
         PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
         GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
-        Args = [{root, Root}, {put_max, PutMax}, {get_max, GetMax},
+        Args = [{ddfs_root, DdfsRoot}, {disco_root, DiscoRoot},
+                {put_max, PutMax}, {get_max, GetMax},
                 {put_port, PutPort}, {get_port, GetPort}],
         spawn_link(NodeAtom, ddfs_node, start_link, [Args]);
     true -> ok

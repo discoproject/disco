@@ -7,7 +7,7 @@ from disco.settings import DiscoSettings
 class DDFS(object):
     def __init__(self, host):
         proxy = DiscoSettings()["DISCO_PROXY"]
-        if proxy == "off":
+        if proxy == "":
             self.host = util.disco_host(host)
             self.proxy = False
         else:
