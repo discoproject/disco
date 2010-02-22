@@ -89,9 +89,9 @@ gc_objects(DeletedAges) ->
     ets:new(gc_nodes, [named_table, set, private]), 
     ets:new(obj_cache, [named_table, set, private]),
     
-    {Tags, NumFailed} = process_tags(),
+    {Tags, NumOk, NumFailed} = process_tags(),
 
-    if NumFailed < TagMinK ->
+    if NumOk > 0, NumFailed < TagMinK ->
         error_logger:info_report({"GC: Only", NumFailed,
             "failed nodes. Deleting is allowed."}),
         [Pid ! done || {_, Pid} <- ets:tab2list(gc_nodes)],
@@ -121,7 +121,7 @@ process_tags() ->
     {OkNodes, Failed, Tags} = gen_server:call(ddfs_master, {get_tags, all}),
     start_gc_nodes(OkNodes),
     process_tags(Tags),
-    {Tags, length(Failed)}.
+    {Tags, length(OkNodes), length(Failed)}.
 
 process_tags([]) -> ok;
 process_tags([Tag|T]) ->
@@ -193,7 +193,7 @@ check_blobsets([Repl|T], {IsFixed, NRepl}) ->
             check_blobsets(T, {IsFixed, [Repl|NRepl]})
     end.
    
-ddfs_url(<<"ddfs://", _/binary>> = Url) ->
+ddfs_url(<<"disco://", _/binary>> = Url) ->
     {_, Host, Path, _, _} = mochiweb_util:urlsplit(binary_to_list(Url)),
     BlobName = list_to_binary(filename:basename(Path)),
     case catch erlang:list_to_existing_atom(lists:flatten(["ddfs@", Host])) of
