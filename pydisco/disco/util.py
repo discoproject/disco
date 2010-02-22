@@ -28,6 +28,16 @@ def flatten(iterable):
         else:
             yield item
 
+def partition(iterable, fn):
+    t = []
+    f = []
+    for item in iterable:
+        if fn(item):
+            t.append(item)
+        else:
+            f.append(item)
+    return t, f
+
 def iterify(object):
     if hasattr(object, '__iter__'):
         return object

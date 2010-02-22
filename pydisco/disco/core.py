@@ -1,6 +1,7 @@
 import sys, re, os, modutil, time, types, cPickle, cStringIO, random
 
 from disco import func, util
+from disco.ddfs import DDFS
 from disco.comm import download, json
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
@@ -365,6 +366,15 @@ class Job(object):
         for k in sched_keys:
             if k in sched:
                 request["sched_" + k] = str(sched[k])
+
+        # -- ddfs --
+
+        tags, input = util.partition(input,
+            lambda x: str(x).startswith("tag://"))
+        if tags:
+            ddfs = DDFS(self.master.host)
+            for tag in tags:
+                input += ddfs.get_tag(tag[6:], recurse = True)
 
         # -- map --
 

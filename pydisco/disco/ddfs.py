@@ -26,10 +26,10 @@ class DDFS(object):
         else:
             return "tag://%s" % tag
 
-    def get_tag(self, tag, recursive = False,
+    def get_tag(self, tag, recurse = False,
                     ignore_missing = True, ignore = {}):
         tag = self._request("/ddfs/tag/" + tag)
-        if recursive:
+        if recurse:
             res = []
             for repl in tag['urls']:
                 if len(repl) == 1 and repl[0].startswith("tag://"):
@@ -39,7 +39,7 @@ class DDFS(object):
                     ignore[ntag] = True
                     try:
                         res += self.get_tag(ntag,
-                            recursive = True, ignore = ignore)
+                            recurse = True, ignore = ignore)
                     except error.CommError, x:
                         if ignore_missing and x.code == 404:
                             continue
