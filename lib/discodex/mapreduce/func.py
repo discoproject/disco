@@ -11,27 +11,41 @@ which will be curried to the function to create a filter.
 When a function is specified with optional string argument, the argument is completely url-unquoted.
 This is done to support the ReST API, which requires '|' and '}' characters to be url-quoted in filter arguments.
 
-Once constructed, filter chains must adhere to an overall system input/output signature.
-This means that constraints are placed on the initial/final functions in a chain,
-while filters in the middle of a chain need only adhere to constraints created by surrounding filters.
+In order to construct filter chains, filter functions must have a particular signature.
+A filter receives a single argument, which depends on the context in which the filter is applied, and returns a sequence.
+The most general filter has the following signature:
+        f(x) -> v, ...
 
-A filter chain must have one of the following signatures:
-        f(entry)   ->     v
-        f(entry)   -> (k, v)
-        f(entry)   -> (k, v), ...
+Any filter at the end of a chain must return a sequence of (k, v) pairs:
+        f(x) -> (k, v), ...
 
-For a reducefilter chain,
-        entry = k, vs
+In other contexts, other assumptions may also be made.
+For instance, the first filter in a reduce chain will always have the following signature:
+        f((k, vs)) -> v, ...
 
-A mapfilter of the form:
-        f(entry)   ->     v
+The first filter in a map chain from a `DiscoDB` `items` resource (e.g. `/indices/[index]/items`) is also guaranteed to have the same signature.
+The first filter in a map chain from a `MetaDB` `values` resource similarly has the same signature.
 
-will yield from map with '' as the key, e.g.:
+For `MetaDB` items, the following initial map filter signature applies:
+        f((metak, (k, vs))) -> v, ...
+
+Initial map filters for `keys` resources always look like:
+        f(k) -> v, ...
+
+`DiscoDB` `values` resources initial map filters looke like:
+        f(v) -> v, ...
+
+`query` resources always look like their associated `values` resources.
+
+In all cases, if the initial filter is also the final filter, `v = k, v`.
+The default map filter for most resources is `kvify`, which gives the value an empty key if it is not already a (k, v) pair.
+
+examples:
+
 /keys
   '', k1
   '', k2
 /values
-/values|str
   '', v1
   '', v2
 /values|kvify|kvswap
@@ -42,57 +56,9 @@ will yield from map with '' as the key, e.g.:
 /values|kvify|kvswap}count
   v1, n1
   v2, n2
-/values|kvify|kvswap}topk:10
-
-/keys
-        map: entry = dbkey
-             yield '', dbkey
-/values
-        map: entry = dbvalue
-             yield '', dbvalue
-
-/items
-        map: entry = dbkey, dbvalues
-             yield dbkey, dbvalues
-
-/query/[query_path]
-        map: entry = dbvalue
-             yield '', dbvalue
-
-TODO:
-/keys/startingwith:host/values|melnorme.parse_time}count
-/keys/startingwith:user
-  '', u1
-  '', u2
-/keys/startingwith:user/values
-  u1, v1
-  u2, v2
-/keys/startingwith:user/values|melnorme.parse_time
-  u1, t1
-  u2, t2
-/keys/startingwith:user/values|melnorme.parse_time}min
-  u1, d1
-  u2, d2
-
-mapfilters:
-  gt:X
-  gte:X
-  lt:X
-  lte:X
-  numv
-  numk
-reducefilters:
-  count
-  minv
-  maxv
-  top:K     for each key: sorted(vs)[:K] -> yield k, v
-  bottom:K
-  mean
-  median
-  std
-  unique
 """
 from discodb import kvgroup
+from itertools import chain
 
 def funcify(maybe_curry):
     if ':' in maybe_curry:
@@ -111,42 +77,30 @@ def reify(dotted_name):
 def iskv(object):
     return isinstance(object, tuple) and len(object) is 2
 
-def kvify(entry):
-    if iskv(entry):
-        return entry
-    return '', entry
-
-def kviterify(entry_or_kvseq):
-    if hasattr(entry_or_kvseq, '__iter__'):
-        if iskv(entry_or_kvseq):
-            yield entry_or_kvseq
-        else:
-            for k, v in entry_or_kvseq:
-                yield k, v
-    else:
-        yield '', entry_or_kvseq
-
 def filterchain(filters):
     filters = list(filters)
     def f(x):
+        seq = x,
         for filter in filters:
-            x = filter(x)
-        return x
+            seq = chain(*(filter(x) for x in seq))
+        return seq
     return f
 
 
+def kvify(entry):
+    yield entry if iskv(entry) else '', entry
 
 def key((k, v)):
-    return k
+    yield k
 
 def value((k, v)):
-    return v
+    yield v
 
 def kvswap((k, v)):
-    return v, k
+    yield v, k
 
 def lenv((k, v)):
-    return k, len(v)
+    yield k, len(v)
 
 def where(predicate, entry):
     if iskv(entry):
@@ -154,44 +108,35 @@ def where(predicate, entry):
     if eval(predicate):
         yield entry
 
-def iwhere(predicate, entryseq):
-    for entry in entryseq:
-        for e in where(predicate, entry):
-            yield e
-
 def evaluate(expression, entry):
     if iskv(entry):
         k, v = entry
-    return eval(expression)
-
-def ievaluate(expression, entryseq):
-    for entry in entryseq:
-        yield evaluate(expression, entry)
+    yield eval(expression)
 
 def kvungroup((k, vs)):
     for v in vs:
         yield k, v
 
 def count((k, vs)):
-    return k, sum(1 for v in vs)
+    yield k, sum(1 for v in vs)
 
 def listv((k, vs)):
-    return k, list(vs)
+    yield k, list(vs)
 
 def sumv((k, vs)):
-    return k, sum(float(v) for v in vs)
+    yield k, sum(float(v) for v in vs)
 
 def minv((k, vs)):
-    return k, min(vs)
+    yield k, min(vs)
 
 def maxv((k, vs)):
-    return k, max(vs)
+    yield k, max(vs)
 
 def mean((k, vs)):
     total = 0.
     for n, v in enumerate(vs):
         total += float(v)
-    return k, total / n
+    yield k, total / n
 
 def unique((k, vs)):
-    return k, set(vs)
+    yield k, set(vs)

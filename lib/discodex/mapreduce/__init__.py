@@ -131,7 +131,7 @@ class MetaIndexer(DiscodexJob):
 class DiscoDBIterator(DiscodexJob):
     scheduler     = {'force_local': True}
     method        = 'keys'
-    mapfilters    = []
+    mapfilters    = ['kvify']
     reducefilters = []
 
     def __init__(self, ichunks, target, mapfilters, reducefilters):
@@ -142,6 +142,7 @@ class DiscoDBIterator(DiscodexJob):
                              reducefilters=reducefilters or self.reducefilters)
         if reducefilters:
             self.reduce = self._reduce
+            self.sort   = True
 
     @property
     def input(self):
@@ -155,16 +156,16 @@ class DiscoDBIterator(DiscodexJob):
 
     @staticmethod
     def map(entry, params):
-        from discodex.mapreduce.func import filterchain, funcify, kviterify
+        from discodex.mapreduce.func import filterchain, funcify
         filterfn = filterchain(funcify(name) for name in params.mapfilters)
-        return kviterify(filterfn(entry))
+        return filterfn(entry)
 
     @staticmethod
     def _reduce(iterator, out, params):
-        from discodex.mapreduce.func import filterchain, funcify, kviterify, kvgroup
+        from discodex.mapreduce.func import filterchain, funcify, kvgroup
         filterfn = filterchain(funcify(name) for name in params.reducefilters)
-        for items in kvgroup(iterator):
-            for k, v in kviterify(filterfn(items)):
+        for k_vs in kvgroup(iterator):
+            for k, v in filterfn(k_vs):
                 out.add(k, v)
 
     @property
