@@ -1,7 +1,7 @@
 import doctest, unittest
 from random import randint
 
-from discodb import DiscoDB, Q
+from discodb import DiscoDB, MetaDB, Q
 from discodb import query
 from discodb import tools
 
@@ -82,6 +82,30 @@ class TestSerializationProtocol(unittest.TestCase):
 
 class TestLargeSerializationProtocol(TestSerializationProtocol):
     numkeys = 10000
+
+class TestMetaDBMappingProtocol(TestMappingProtocol):
+    def setUp(self):
+        datadb = DiscoDB(k_vs_iter(self.numkeys))
+        metadb = DiscoDB(k_vs_iter(self.numkeys, max_values=self.numkeys))
+        self.discodb = MetaDB(datadb, metadb)
+
+class TestMetaDBSerializationProtocol(unittest.TestCase):
+    numkeys = 1000
+
+    def setUp(self):
+        datadb = DiscoDB(k_vs_iter(self.numkeys))
+        metadb = DiscoDB(k_vs_iter(self.numkeys, max_values=self.numkeys))
+        self.metadb = MetaDB(datadb, metadb)
+
+    def test_dump_load(self):
+        from tempfile import NamedTemporaryFile
+        handle = NamedTemporaryFile()
+        self.metadb.dump(handle)
+        handle.seek(0)
+        metadb = MetaDB.load(handle.name)
+        def metavaldict(metavals):
+            return dict((k, list(v)) for k, v in metavals)
+        assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
 
 if __name__ == '__main__':
     unittest.TextTestRunner().run(doctest.DocTestSuite(query))
