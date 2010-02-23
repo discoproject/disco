@@ -67,6 +67,12 @@ init(_Args) ->
     end)),
     {ok, #state{workers = gb_trees:empty(), nodes = gb_trees:empty()}}.
 
+update_nodes(Nodes) ->
+    WhiteNodes = [{N#dnode.name, N#dnode.slots} ||
+        #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
+    gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
+    gen_server:cast(self(), schedule_next).
+
 handle_cast({update_config_table, Config}, S) ->
     error_logger:info_report([{"Config table update"}]),
     NewNodes = lists:foldl(fun({Node, Slots}, NewNodes) ->
@@ -90,9 +96,7 @@ handle_cast({update_config_table, Config}, S) ->
         end,
         gb_trees:insert(Node, NewNode, NewNodes)
     end, gb_trees:empty(), Config),
-
-    gen_server:cast(scheduler, {update_nodes, Config}),
-    gen_server:cast(self(), schedule_next),
+    update_nodes(NewNodes),
     {noreply, S#state{nodes = NewNodes}};
 
 handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
@@ -293,12 +297,7 @@ toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
                     M#dnode{blacklisted = false}, Nodes);
             _ -> Nodes
         end,
-    Config = [{N#dnode.name, N#dnode.slots} ||
-            #dnode{blacklisted = false} = N
-                <- gb_trees:values(UpdatedNodes)],
-    error_logger:info_report({"BLACKLIST", Node, IsBlacklisted}),
-    gen_server:cast(scheduler, {update_nodes, Config}),
-    gen_server:cast(self(), schedule_next),
+    update_nodes(UpdatedNodes),
     UpdatedNodes.
 
 start_worker(Node, T) ->

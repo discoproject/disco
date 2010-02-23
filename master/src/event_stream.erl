@@ -36,8 +36,8 @@ handle_state({outside_event, _StateData}, Data) ->
             {next_stream, {outside_event,
                        {errline, binary_to_list(BadMessage) ++
                     case IsEOL of
-                        true -> "";
-                        false -> "..."
+                        eol -> "";
+                        _ -> "..."
                     end}}}
     end;
 
