@@ -2,7 +2,7 @@ Source: disco
 Section: admin
 Priority: extra
 Maintainer: Ville Tuulos <ville.h.tuulos@nokia.com>
-Build-depends: debhelper (>= 7), erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a
+Build-depends: debhelper (>= 7), python-support, python-setuptools, erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a
 Standards-Version: 3.7.3
 Homepage: http://www.discoproject.org
 
