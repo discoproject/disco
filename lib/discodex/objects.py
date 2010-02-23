@@ -8,17 +8,31 @@ except ImportError:
     except ImportError:
         from disco.comm import json
 
-from discodex.mapreduce import parsers, demuxers, balancers
+from discodex.mapreduce import parsers, demuxers, balancers, metakeyers
 
 class JSONSerialized(object):
+    required_fields = []
+
     @classmethod
     def loads(cls, string):
-        return cls(json.loads(string))
+        self = cls(json.loads(string))
+        for field in self.required_fields:
+            if not field in self:
+                raise TypeError("Required field '%s' missing" % field)
+        return self
 
     def dumps(self):
         return json.dumps(self)
 
+    def __getcallable__(self, module, name):
+        if hasattr(module, name):
+            return getattr(module, name)
+        __import__(name)
+        return sys.modules[name]
+
 class DataSet(dict, JSONSerialized):
+    required_fields = ['input']
+
     @property
     def options(self):
         return self.get('options', {})
@@ -55,12 +69,6 @@ class DataSet(dict, JSONSerialized):
     def k_viter(self):
         return bool(self.options.get('k_viter', False))
 
-    def __getcallable__(self, module, name):
-        if hasattr(module, name):
-            return getattr(module, name)
-        __import__(name)
-        return sys.modules[name]
-
 class Indices(list, JSONSerialized):
     pass
 
@@ -68,6 +76,17 @@ class Index(dict, JSONSerialized):
     @property
     def ichunks(self):
         return [str(ichunk) for ichunk in self['ichunks']]
+
+class MetaSet(Index):
+    required_fields = ['ichunks']
+
+    @property
+    def options(self):
+        return self.get('options', {})
+
+    @property
+    def metakeyer(self):
+        return self.__getcallable__(metakeyers, self.options.get('metakeyer', 'prefixkeyer'))
 
 class Keys(list, JSONSerialized):
     pass

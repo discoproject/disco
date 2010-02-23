@@ -26,19 +26,19 @@ For a reducefilter chain,
 A mapfilter of the form:
         f(entry)   ->     v
 
-will yield from map with None as the key, e.g.:
+will yield from map with '' as the key, e.g.:
 /keys
-  None, k1
-  None, k2
+  '', k1
+  '', k2
 /values
 /values|str
-  None, v1
-  None, v2
+  '', v1
+  '', v2
 /values|kvify|kvswap
-  v1, None
-  v2, None
+  v1, ''
+  v2, ''
 /values}count
-  None, n
+  '', n
 /values|kvify|kvswap}count
   v1, n1
   v2, n2
@@ -46,10 +46,10 @@ will yield from map with None as the key, e.g.:
 
 /keys
         map: entry = dbkey
-             yield None, dbkey
+             yield '', dbkey
 /values
         map: entry = dbvalue
-             yield None, dbvalue
+             yield '', dbvalue
 
 /items
         map: entry = dbkey, dbvalues
@@ -57,13 +57,13 @@ will yield from map with None as the key, e.g.:
 
 /query/[query_path]
         map: entry = dbvalue
-             yield None, dbvalue
+             yield '', dbvalue
 
 TODO:
 /keys/startingwith:host/values|melnorme.parse_time}count
 /keys/startingwith:user
-  None, u1
-  None, u2
+  '', u1
+  '', u2
 /keys/startingwith:user/values
   u1, v1
   u2, v2
@@ -114,7 +114,7 @@ def iskv(object):
 def kvify(entry):
     if iskv(entry):
         return entry
-    return None, entry
+    return '', entry
 
 def kviterify(entry_or_kvseq):
     if hasattr(entry_or_kvseq, '__iter__'):
@@ -124,9 +124,10 @@ def kviterify(entry_or_kvseq):
             for k, v in entry_or_kvseq:
                 yield k, v
     else:
-        yield None, entry_or_kvseq
+        yield '', entry_or_kvseq
 
 def filterchain(filters):
+    filters = list(filters)
     def f(x):
         for filter in filters:
             x = filter(x)
@@ -173,6 +174,9 @@ def kvungroup((k, vs)):
 
 def count((k, vs)):
     return k, sum(1 for v in vs)
+
+def listv((k, vs)):
+    return k, list(vs)
 
 def sumv((k, vs)):
     return k, sum(float(v) for v in vs)

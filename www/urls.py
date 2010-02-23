@@ -10,23 +10,36 @@ TODO:
                 /keys/[metakey]        -> index keys with metakey as values
                 /keys/[metakey]/values -> values of keys with metakey as k, v
 
+ichunks    -> /indices/[index]
+metachunks -> /indices/[metaindex]
+                metaindex is normal index, but ichunks are metadb:// not discodb://
+
+/indices/[metaindex]
+                        /metadb         -> normal discodb (metadb.metadb)
+                        /datadb         -> normal discodb (metadb.datadb)
+                        /keys           -> metadb keys as values
+                        /values         -> metadb values as key, values
+                        /items          -> metadb metakeys, values as key, values
+                        /query/[query]  -> metadb values as key, values
+                        /query/startingwith:host:/ -> {'host:X': ..., 'host:Y': ...}
 """
 from django.conf.urls.defaults import *
 
 import views
 
 indices       = r'indices/?'
-index         = r'%s/(?P<name>[A-Za-z0-9_@:]+)/?' % (indices)
-keys          = r'%s/(?P<property>keys)/?'    % (index)
-values        = r'%s/(?P<property>values)/?'  % (index)
-items         = r'%s/(?P<property>items)/?'   % (index)
-_query        = r'%s/(?P<property>query)/?'   % (index)
-query         = r'%s/(?P<query_path>.*)'      % (_query)
+index         = r'%s/(?P<name>[A-Za-z0-9_@:]+)/?'      % (indices)
+target        = r'%s(?:/(?P<target>metadb|datadb)/?)?' % (index)
+keys          = r'%s/(?P<property>keys)/?'             % (target)
+values        = r'%s/(?P<property>values)/?'           % (target)
+items         = r'%s/(?P<property>items)/?'            % (target)
+_query        = r'%s/(?P<property>query)/?'            % (target)
+query         = r'%s/(?P<query_path>[^|}]*)'           % (_query)
 
 name          = r'\w+'
-dotted_name   = r'%s(\.%s)*' % (name, name)
+dotted_name   = r'%s(\.%s)*'    % (name, name)
 maybe_curry   = r'%s(:[^|}]*)?' % (dotted_name)
-mapfilters    = r'(?P<mapfilters>(\|%s)*)' % (maybe_curry)
+mapfilters    = r'(?P<mapfilters>(\|%s)*)'   % (maybe_curry)
 reducefilters = r'(?P<reducefilters>(}%s)*)' % (maybe_curry)
 
 def pipeline(pattern):

@@ -10,6 +10,7 @@ commands = {'client': set(('list',
                            'put',
                            'delete',
                            'index',
+                           'metaindex',
                            'clone',
                            'keys',
                            'values',
@@ -32,6 +33,7 @@ def main():
     discodex put <indexspec> [index]
     discodex delete <indexspec>
     discodex index [options] [dataset]
+    discodex metaindex [options] <indexspec>
     discodex clone <indexspec> <indexspec>
     discodex keys <indexspec>
     discodex values <indexspec>
@@ -66,6 +68,8 @@ def main():
     option_parser.add_option('--demuxer',
                              help='demuxer object to user for indexing')
     option_parser.add_option('--balancer',
+                             help='balancer to use for indexing')
+    option_parser.add_option('--metakeyer',
                              help='balancer to use for indexing')
     option_parser.add_option('--profile',
                              action='store_true',

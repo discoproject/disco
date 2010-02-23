@@ -9,7 +9,9 @@ def module(package):
     return module
 
 class DiscodexJob(object):
+    combiner             = None
     map_input_stream     = staticmethod(func.map_input_stream)
+    map_output_stream    = staticmethod(func.map_output_stream)
     map_reader           = staticmethod(func.map_line_reader)
     map_writer           = staticmethod(func.netstr_writer)
     params               = Params()
@@ -38,18 +40,22 @@ class DiscodexJob(object):
         return result_iterator(self._job.wait(), reader=self.result_reader)
 
     def run(self, disco_master, disco_prefix):
-        jobargs = {'name':             disco_prefix,
-                   'input':            self.input,
-                   'map':              self.map,
-                   'map_input_stream': self.map_input_stream,
-                   'map_reader':       self.map_reader,
-                   'map_writer':       self.map_writer,
-                   'params':           self.params,
-                   'partition':        self.partition,
-                   'profile':          self.profile,
-                   'required_modules': self.required_modules,
-                   'scheduler':        self.scheduler,
-                   'sort':             self.sort}
+        jobargs = {'name':              disco_prefix,
+                   'input':             self.input,
+                   'map':               self.map,
+                   'map_input_stream':  self.map_input_stream,
+                   'map_output_stream': self.map_output_stream,
+                   'map_reader':        self.map_reader,
+                   'map_writer':        self.map_writer,
+                   'params':            self.params,
+                   'partition':         self.partition,
+                   'profile':           self.profile,
+                   'required_modules':  self.required_modules,
+                   'scheduler':         self.scheduler,
+                   'sort':              self.sort}
+
+        if self.combiner:
+            jobargs.update({'combiner': self.combiner})
 
         if self.reduce:
             jobargs.update({'reduce':        self.reduce,
@@ -87,14 +93,51 @@ class Indexer(DiscodexJob):
         return stream, 'discodb:%s' % url.split(':', 1)[1]
     reduce_output_stream = [func.reduce_output_stream, reduce_output_stream]
 
+class MetaIndexer(DiscodexJob):
+    scheduler     = {'force_local': True}
+
+    def __init__(self, metaset):
+        self.input  = metaset.ichunks
+        self.map    = metaset.metakeyer
+
+    @staticmethod
+    def map_reader(fd, size, fname):
+        if hasattr(fd, '__iter__'):
+            return fd
+        return func.map_line_reader(fd, size, fname)
+
+    @staticmethod
+    def combiner(metakey, key, buf, done, params):
+        from discodb import DiscoDB, MetaDB
+        if done:
+            datadb = Task.discodb
+            metadb = DiscoDB(buf)
+            yield None, MetaDB(datadb, metadb)
+        else:
+            keys = buf.get(metakey, [])
+            keys.append(key)
+            print buf
+            buf[metakey] = keys
+
+    @staticmethod
+    def map_writer(fd, none, metadb, params):
+        metadb.dump(fd)
+
+    def map_output_stream(stream, partition, url, params):
+        # there should be a metadb writer
+        return stream, 'metadb:%s' % url.split(':', 1)[1]
+    map_output_stream = [func.map_output_stream, map_output_stream]
+
 class DiscoDBIterator(DiscodexJob):
     scheduler     = {'force_local': True}
     method        = 'keys'
     mapfilters    = []
     reducefilters = []
 
-    def __init__(self, ichunks, mapfilters, reducefilters):
+    def __init__(self, ichunks, target, mapfilters, reducefilters):
         self.ichunks = ichunks
+        if target:
+            self.method = '%s/%s' % (target, self.method)
         self.params = Params(mapfilters=mapfilters or self.mapfilters,
                              reducefilters=reducefilters or self.reducefilters)
         if reducefilters:
@@ -127,7 +170,7 @@ class DiscoDBIterator(DiscodexJob):
     @property
     def results(self):
         for k, v in result_iterator(self._job.wait(), reader=self.result_reader):
-            yield v
+            yield (k, v) if k else v
 
 class KeyIterator(DiscoDBIterator):
     pass
@@ -139,16 +182,12 @@ class ItemsIterator(DiscoDBIterator):
     method     = 'items'
     mapfilters = ['kvungroup']
 
-    @property
-    def results(self):
-        return result_iterator(self._job.wait(), reader=self.result_reader)
-
 class Queryer(DiscoDBIterator):
     method = 'query'
 
-    def __init__(self, ichunks, mapfilters, reducefilters, query):
-        super(Queryer, self).__init__(ichunks, mapfilters, reducefilters)
-        self.params = Params(discodb_query=query)
+    def __init__(self, ichunks, target, mapfilters, reducefilters, query):
+        super(Queryer, self).__init__(ichunks, target, mapfilters, reducefilters)
+        self.params.discodb_query = query
 
 class Record(object):
     __slots__ = ('fields', 'fieldnames')
