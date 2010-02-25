@@ -10,6 +10,9 @@
 #include <discodb.h>
 #include <ddb_internal.h>
 
+#define PAGE_MASK (~(getpagesize() - 1))
+#define PAGE_ALIGN(addr) ((intptr_t)(addr) & PAGE_MASK)
+
 static const char *ERR_STR[] = {
         "Ok",
         "Out of memory",
@@ -48,22 +51,26 @@ struct ddb *ddb_new()
 int ddb_load(struct ddb *db, int fd)
 {
         struct stat nfo;
+        off_t file_offset = lseek(fd, 0, SEEK_CUR);
+        off_t mmap_offset = PAGE_ALIGN(file_offset);
+
         if (fstat(fd, &nfo)){
                 db->errno = DDB_ERR_STAT_FAILED;
                 return -1;
         }
-        db->mmap = mmap(0, nfo.st_size, PROT_READ, MAP_SHARED, fd, 0);
+        db->mmap = mmap(0, nfo.st_size - mmap_offset, PROT_READ, MAP_SHARED, fd, mmap_offset);
+
         if (db->mmap == MAP_FAILED){
                 db->errno = DDB_ERR_MMAP_FAILED;
                 return -1;
         }
-        return ddb_loads(db, db->mmap, nfo.st_size);
+        return ddb_loads(db, db->mmap + (file_offset - mmap_offset), nfo.st_size - file_offset);
 }
 
 int ddb_loads(struct ddb *db, const char *data, uint64_t length)
 {
         const struct ddb_header *head = (const struct ddb_header*)data;
-        
+
         if (length < sizeof(struct ddb_header)){
                 db->errno = DDB_ERR_BUFFER_TOO_SMALL;
                 return -1;
@@ -71,7 +78,7 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
                 db->errno = DDB_ERR_BUFFER_NOT_DISCODB;
                 return -1;
         }
-        if (head->size != length){
+        if (head->size > length){
                 db->errno = DDB_ERR_INVALID_BUFFER_SIZE;
                 return -1;
         }
@@ -89,7 +96,7 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
         db->data = &data[head->data_offs];
         db->values = &data[head->values_offs];
         db->hash = &data[head->hash_offs];
-        
+
         return 0;
 }
 
@@ -160,7 +167,7 @@ static const struct ddb_entry *values_cursor_next(struct ddb_cursor *c)
         while (!c->cursor.values.cur.num_left){
                 if (c->cursor.values.i == c->db->num_keys)
                         return NULL;
-                ddb_fetch_item(c->cursor.values.i++, c->db->toc, c->db->data, 
+                ddb_fetch_item(c->cursor.values.i++, c->db->toc, c->db->data,
                         &c->ent, &c->cursor.values.cur);
         }
         ddb_value_cursor_step(&c->cursor.values.cur);
@@ -177,7 +184,7 @@ struct ddb_cursor *ddb_values(struct ddb *db)
         }
         c->db = db;
         c->cursor.values.i = 0;
-        c->cursor.values.cur.num_left = 0; 
+        c->cursor.values.cur.num_left = 0;
         c->next = values_cursor_next;
         c->num_items = db->num_values;
         return c;
@@ -217,8 +224,8 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
                 /* hash exists, perform O(1) lookup */
                 uint32_t id = cmph_search_packed((void*)db->hash,
                         key->data, key->length);
-                /* XXX Bug in cmph? It seems to sometimes return 
-                 * IDs that were never hashed with it if given an 
+                /* XXX Bug in cmph? It seems to sometimes return
+                 * IDs that were never hashed with it if given an
                  * unknown key. This shouldn't happen. */
                 if (id < db->num_keys)
                     ddb_fetch_item(id, db->toc, db->data,
@@ -267,16 +274,16 @@ struct ddb_cursor *ddb_query(struct ddb *db,
         uint32_t num_terms = 0;
         while (i--)
                 num_terms += clauses[i].num_terms;
-        
+
         c->db = db;
         c->num_items = 0;
         c->next = ddb_cnf_cursor_next;
-        
+
         c->cursor.cnf.num_clauses = length;
         c->cursor.cnf.num_terms = num_terms;
         c->cursor.cnf.isect_offset = WINDOW_SIZE;
-        
-        if (!(c->cursor.cnf.clauses = 
+
+        if (!(c->cursor.cnf.clauses =
                         calloc(length, sizeof(struct ddb_cnf_clause))))
                 goto err;
         if (!(c->cursor.cnf.terms =
@@ -284,11 +291,11 @@ struct ddb_cursor *ddb_query(struct ddb *db,
                 goto err;
         if (!(c->cursor.cnf.isect = calloc(1, WINDOW_SIZE_BYTES)))
                 goto err;
-        
+
         for (j = 0, i = 0; i < length; i++){
                 c->cursor.cnf.clauses[i].terms = &c->cursor.cnf.terms[j];
                 c->cursor.cnf.clauses[i].num_terms = clauses[i].num_terms;
-                
+
                 for (k = 0; k < clauses[i].num_terms; k++){
                         struct ddb_cnf_term *term = &c->cursor.cnf.terms[j++];
                         if (!(term->cursor = ddb_getitem(db, &clauses[i].terms[k].key)))
@@ -305,7 +312,7 @@ struct ddb_cursor *ddb_query(struct ddb *db,
         return c;
 err:
         db->errno = DDB_ERR_OUT_OF_MEMORY;
-        ddb_free_cursor(c); 
+        ddb_free_cursor(c);
         return NULL;
 }
 
@@ -326,12 +333,12 @@ void ddb_free_cursor(struct ddb_cursor *c)
 
 uint64_t ddb_resultset_size(const struct ddb_cursor *c)
 {
-        return c->num_items;        
+        return c->num_items;
 }
 
 int ddb_notfound(const struct ddb_cursor *c)
 {
-        return c->next == empty_next; 
+        return c->next == empty_next;
 }
 
 const struct ddb_entry *ddb_next(struct ddb_cursor *c)
@@ -354,7 +361,7 @@ void ddb_fetch_item(uint32_t i, const uint64_t *toc, const char *data,
         const char *p = &data[toc[i]];
 
         key->length = *(uint32_t*)p;
-        key->data = &p[4]; 
+        key->data = &p[4];
 
         val->num_left = *(uint32_t*)&p[4 + key->length];
         val->cur_id = 0;
