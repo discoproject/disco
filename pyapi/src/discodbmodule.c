@@ -64,8 +64,8 @@ static PyMethodDef DiscoDB_methods[] = {
    "d.dump(o) -> write serialization of d to file object o."},
   {"loads", (PyCFunction)DiscoDB_loads, METH_CLASS | METH_O,
    "D.loads(s) -> a deserialized instance of D from serialization s."},
-  {"load", (PyCFunction)DiscoDB_load, METH_CLASS | METH_O,
-   "D.load(o) -> a deserialized instance of D from file object o."},
+  {"load", (PyCFunction)DiscoDB_load, METH_CLASS | METH_VARARGS,
+   "D.load(o[, n=0]]) -> a deserialized instance of D from file object o with offset n."},
   {NULL}                         /* Sentinel          */
 };
 
@@ -550,13 +550,19 @@ DiscoDB_loads(PyTypeObject *type, PyObject *bytes)
 }
 
 static PyObject *
-DiscoDB_load(PyTypeObject *type, PyObject *file)
+DiscoDB_load(PyTypeObject *type, PyObject *args)
 {
   DiscoDB *self = (DiscoDB *)type->tp_alloc(type, 0);
-  PyObject *fileno = NULL;
+  PyObject
+    *file = NULL,
+    *fileno = NULL;
+  long offset = 0;
   int fd;
 
   if (self != NULL) {
+    if (!PyArg_ParseTuple(args, "O|l", &file, &offset))
+      goto Done;
+
     fileno = PyObject_CallMethod(file, "fileno", NULL);
     if (fileno == NULL)
       goto Done;
@@ -571,7 +577,7 @@ DiscoDB_load(PyTypeObject *type, PyObject *file)
     if (self->discodb == NULL)
       goto Done;
 
-    if (ddb_load(self->discodb, fd))
+    if (ddb_loado(self->discodb, fd, offset))
       if (ddb_has_error(self->discodb))
         goto Done;
   }

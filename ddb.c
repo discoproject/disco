@@ -1,7 +1,6 @@
 
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -50,9 +49,13 @@ struct ddb *ddb_new()
 
 int ddb_load(struct ddb *db, int fd)
 {
+        return ddb_loado(db, fd, 0);
+}
+
+int ddb_loado(struct ddb *db, int fd, off_t offset)
+{
         struct stat nfo;
-        off_t file_offset = lseek(fd, 0, SEEK_CUR);
-        off_t mmap_offset = PAGE_ALIGN(file_offset);
+        off_t mmap_offset = PAGE_ALIGN(offset);
 
         if (fstat(fd, &nfo)){
                 db->errno = DDB_ERR_STAT_FAILED;
@@ -64,7 +67,7 @@ int ddb_load(struct ddb *db, int fd)
                 db->errno = DDB_ERR_MMAP_FAILED;
                 return -1;
         }
-        return ddb_loads(db, db->mmap + (file_offset - mmap_offset), nfo.st_size - file_offset);
+        return ddb_loads(db, db->mmap + (offset - mmap_offset), nfo.st_size - offset);
 }
 
 int ddb_loads(struct ddb *db, const char *data, uint64_t length)

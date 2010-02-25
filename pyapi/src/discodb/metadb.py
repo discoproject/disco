@@ -75,9 +75,14 @@ class MetaDB(object):
         zipfile.close()
 
     @classmethod
-    def load(cls, filename):
+    def load(cls, file):
         """a deserialized instance of %s from file.""" % cls
-        zipfile = ZipFile(open(filename, 'r', 0))
-        metadb = DiscoDB.load(zipfile.open('metadb').fileobj)
-        datadb = DiscoDB.load(zipfile.open('datadb').fileobj)
+        if isinstance(file, basestring):
+            zipfile = ZipFile(open(file, 'r', 0))
+        else:
+            zipfile = ZipFile(file)
+        metazip = zipfile.open('metadb').fileobj
+        metadb  = DiscoDB.load(metazip, metazip.tell())
+        datazip = zipfile.open('datadb').fileobj
+        datadb  = DiscoDB.load(datazip, datazip.tell())
         return cls(datadb, metadb)

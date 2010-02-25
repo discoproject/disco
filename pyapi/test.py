@@ -101,10 +101,13 @@ class TestMetaDBSerializationProtocol(unittest.TestCase):
         from tempfile import NamedTemporaryFile
         handle = NamedTemporaryFile()
         self.metadb.dump(handle)
-        handle.seek(0)
-        metadb = MetaDB.load(handle.name)
         def metavaldict(metavals):
             return dict((k, list(v)) for k, v in metavals)
+        handle.seek(0)
+        metadb = MetaDB.load(handle)
+        assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
+        handle.seek(0)
+        metadb = MetaDB.load(handle.name)
         assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
 
 if __name__ == '__main__':

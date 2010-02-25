@@ -3,6 +3,7 @@
 #define __DISCODB_H__
 
 #include <stdint.h>
+#include <unistd.h>
 
 #define DDB_MAX_NUM_VALUES 4294967295
 #define DDB_MAX_NUM_KEYS 4294967295
@@ -44,6 +45,7 @@ char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
 
 struct ddb *ddb_new(void);
 int ddb_load(struct ddb *db, int fd);
+int ddb_loado(struct ddb *db, int fd, off_t);
 int ddb_loads(struct ddb *db, const char *data, uint64_t length);
 int ddb_dump(struct ddb *db, int fd);
 char *ddb_dumps(struct ddb *db, uint64_t *length);
