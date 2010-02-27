@@ -64,7 +64,6 @@ MIDDLEWARE_CLASSES = (
 ROOT_URLCONF = '%s.urls' % PROJ_NAME
 
 TEMPLATE_CONTEXT_PROCESSORS = (
-    'django.core.context_processors.debug',
     'django.core.context_processors.media',
     'django.core.context_processors.request',
 )

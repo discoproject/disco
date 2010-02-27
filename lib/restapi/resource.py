@@ -90,7 +90,7 @@ class Collection(Resource):
     def __call__(self, request, *args, **kwargs):
         if filter(None, args) or filter(None, kwargs.itervalues()):
             return self.delegate(request, *args, **kwargs)
-        return self.relegate(request, (), {})
+        return self.relegate(request, *args, **kwargs)
 
     def relegate(self, request, *args, **kwargs):
         """

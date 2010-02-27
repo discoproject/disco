@@ -9,6 +9,7 @@ except ImportError:
         from disco.comm import json
 
 from discodex.mapreduce import parsers, demuxers, balancers, metakeyers
+from discodex.mapreduce.func import reify
 
 class JSONSerialized(object):
     required_fields = []
@@ -27,8 +28,7 @@ class JSONSerialized(object):
     def __getcallable__(self, module, name):
         if hasattr(module, name):
             return getattr(module, name)
-        __import__(name)
-        return sys.modules[name]
+        return reify(name)
 
 class DataSet(dict, JSONSerialized):
     required_fields = ['input']

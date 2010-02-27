@@ -1,18 +1,11 @@
-from .. import module
-
-demuxer = module(__name__)
-
-@demuxer
 def nodemux(kvrecord, params):
     yield kvrecord
 
-@demuxer
 def iterdemux(k_viter, params):
     k, viter = k_viter
     for v in viter:
         yield k, v
 
-@demuxer
 def namedfielddemux(record, params):
     """
     Produce (fieldname, value) pairs for a record.
@@ -21,7 +14,6 @@ def namedfielddemux(record, params):
     """
     return iter(record)
 
-@demuxer
 def inverteddemux(record, params):
     """
     Produce ('fieldname:value', record) pairs for a record.
@@ -31,7 +23,6 @@ def inverteddemux(record, params):
     for item in record:
         yield '%s:%s' % item, record
 
-@demuxer
 def invertediddemux(record, params):
     """
     Produce ('fieldname:value', id) pairs for a record.

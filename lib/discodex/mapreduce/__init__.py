@@ -1,13 +1,6 @@
 from disco import func
 from disco.core import result_iterator, Params
 
-def module(package):
-    def module(object):
-        import sys
-        sys.modules['%s.%s' % (package, object.__name__)] = object
-        return object
-    return module
-
 class DiscodexJob(object):
     combiner             = None
     map_input_stream     = staticmethod(func.map_input_stream)
@@ -47,6 +40,7 @@ class DiscodexJob(object):
                    'map_output_stream': self.map_output_stream,
                    'map_reader':        self.map_reader,
                    'map_writer':        self.map_writer,
+                   'nr_reduces':        self.nr_reduces,
                    'params':            self.params,
                    'partition':         self.partition,
                    'profile':           self.profile,
@@ -61,8 +55,7 @@ class DiscodexJob(object):
             jobargs.update({'reduce':        self.reduce,
                             'reduce_reader': self.reduce_reader,
                             'reduce_writer': self.reduce_writer,
-                            'reduce_output_stream': self.reduce_output_stream,
-                            'nr_reduces':    self.nr_reduces})
+                            'reduce_output_stream': self.reduce_output_stream})
 
         self._job = disco_master.new_job(**jobargs)
         return self
@@ -94,11 +87,12 @@ class Indexer(DiscodexJob):
     reduce_output_stream = [func.reduce_output_stream, reduce_output_stream]
 
 class MetaIndexer(DiscodexJob):
-    scheduler     = {'force_local': True}
+    nr_reduces = 0
+    scheduler  = {'force_local': True}
 
     def __init__(self, metaset):
-        self.input  = metaset.ichunks
-        self.map    = metaset.metakeyer
+        self.input = metaset.ichunks
+        self.map   = metaset.metakeyer
 
     @staticmethod
     def map_reader(fd, size, fname):
@@ -116,7 +110,6 @@ class MetaIndexer(DiscodexJob):
         else:
             keys = buf.get(metakey, [])
             keys.append(key)
-            print buf
             buf[metakey] = keys
 
     @staticmethod

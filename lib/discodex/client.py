@@ -42,7 +42,7 @@ class DiscodexClient(object):
         if response.status == httplib.SERVICE_UNAVAILABLE:
             raise DiscodexServiceUnavailable(response.getheader('Retry-After'))
         if response.status == httplib.INTERNAL_SERVER_ERROR:
-            raise DiscodexServerError(response.read())
+            raise DiscodexServerError("request failed.\n\n%s""" % response.read())
         return response
 
     def list(self):

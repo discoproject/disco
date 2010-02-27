@@ -56,6 +56,9 @@ examples:
 /values|kvify|kvswap}count
   v1, n1
   v2, n2
+
+/indices/[metaindex]/items
+  metakey, ((key, vs), ...)
 """
 from discodb import kvgroup
 from itertools import chain
@@ -102,6 +105,9 @@ def kvswap((k, v)):
 def lenv((k, v)):
     yield k, len(v)
 
+def listv((k, v)):
+    yield k, list(v)
+
 def where(predicate, entry):
     if iskv(entry):
         k, v = entry
@@ -120,8 +126,8 @@ def kvungroup((k, vs)):
 def count((k, vs)):
     yield k, sum(1 for v in vs)
 
-def listv((k, vs)):
-    yield k, list(vs)
+def setv((k, vs)):
+    yield k, set(vs)
 
 def sumv((k, vs)):
     yield k, sum(float(v) for v in vs)
@@ -137,6 +143,3 @@ def mean((k, vs)):
     for n, v in enumerate(vs):
         total += float(v)
     yield k, total / n
-
-def unique((k, vs)):
-    yield k, set(vs)
