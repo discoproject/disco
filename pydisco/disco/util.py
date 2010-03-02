@@ -95,7 +95,7 @@ def pack(object):
         return marshal.dumps((object.func_code, defs))
     return cPickle.dumps(object)
 
-def unpack(string, globals={}):
+def unpack(string, globals={'__builtins__': __builtins__}):
     try:
         return cPickle.loads(string)
     except Exception, err:
