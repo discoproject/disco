@@ -8,6 +8,7 @@ ESRC = master/src
 EBIN = master/ebin
 
 PREFIX=/usr
+DESTDIR=/
 SYSCONFDIR=/etc
 BIN_DIR = $(PREFIX)/bin/
 INSTALL_DIR = $(PREFIX)/lib/disco/
