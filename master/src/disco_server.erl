@@ -205,18 +205,23 @@ handle_call({new_job, JobName, JobCoord}, _, S) ->
     {reply, catch gen_server:call(scheduler,
         {new_job, JobName, JobCoord}), S};
 
-handle_call({new_task, Task}, _, State) ->
-    case catch gen_server:call(scheduler, {new_task, Task}) of
+handle_call({new_task, Task}, _, S) ->
+    NodeStats =
+        [case gb_trees:lookup(Node, S#state.nodes) of
+            none -> {false, Input};
+            {value, N} -> {N#dnode.num_running, Input}
+         end || {_Url, Node} = Input <- Task#task.input],
+    case catch gen_server:call(scheduler, {new_task, Task, NodeStats}) of
         ok ->
             gen_server:cast(self(), schedule_next),
             event_server:event(Task#task.jobname,
                 "~s:~B added to waitlist",
                 [Task#task.mode, Task#task.taskid], []),
-            {reply, ok, State};
+            {reply, ok, S};
         Error ->
             error_logger:warning_report({"Scheduling task failed",
                 Task, Error}),
-            {reply, failed, State}
+            {reply, failed, S}
     end;
 
 handle_call({get_active, JobName}, _From, #state{workers = Workers} = S) ->

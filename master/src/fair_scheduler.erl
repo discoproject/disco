@@ -58,13 +58,13 @@ handle_call({new_job, JobName, JobCoord}, _, Nodes) ->
 % This is not a handle_cast function, since we don't want to race against
 % disco_server. We need to send the new_job and new_task messaged before
 % disco_server sends its task_started and next_task messages. 
-handle_call({new_task, Task}, _, Nodes) ->
+handle_call({new_task, Task, NodeStats}, _, Nodes) ->
     JobName = Task#task.jobname,
     case ets:lookup(jobs, JobName) of
         [] ->
             {reply, unknown_job, Nodes};
         [{_, {JobPid, _}}] ->
-            gen_server:cast(JobPid, {new_task, Task}),
+            gen_server:cast(JobPid, {new_task, Task, NodeStats}),
             {reply, ok, Nodes}
     end;
 
