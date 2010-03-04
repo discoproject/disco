@@ -23,7 +23,7 @@ parse_row([NodeSpecB, InstancesB]) ->
     add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
 update_config_table(Json) ->
-    gen_server:cast(disco_server, {update_config_table, 
+    gen_server:cast(disco_server, {update_config_table,
         lists:flatten([parse_row(R) || R <- Json])}).
 
 get_config_table() ->
@@ -37,9 +37,16 @@ get_config_table() ->
     {ok, Json}.
 
 save_config_table(Json) ->
-    update_config_table(Json),
-    ok = file:write_file(os:getenv("DISCO_CONFIG"), json:encode(Json)),
-    {ok, <<"table saved!">>}.
+    {Nodes, _Cores} = lists:unzip(lists:flatten([parse_row(R) || R <- Json])),
+    Sorted = lists:sort(Nodes),
+    USorted = lists:usort(Nodes),
+    if length(Sorted) == length(USorted) ->
+        ok = file:write_file(os:getenv("DISCO_CONFIG"), json:encode(Json)),
+        update_config_table(Json),
+        {ok, <<"table saved!">>};
+    true ->
+        {error, <<"duplicate nodes">>}
+    end.
 
 
             
