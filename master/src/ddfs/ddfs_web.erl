@@ -7,19 +7,24 @@
 
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
-    K = case lists:keysearch("replicas", 1, Req:parse_qs()) of
+    QS = Req:parse_qs(),
+    K = case lists:keysearch("replicas", 1, QS) of
             false -> BlobK;
             {value, {_, X}} -> list_to_integer(X)
-    end, 
+    end,
+    Exc = parse_exclude(lists:keysearch("exclude", 1, QS)),
+    Obj = [BlobName, "$", ddfs_util:timestamp()],
     case (ddfs_util:is_valid_name(BlobName) andalso (catch
-        gen_server:call(ddfs_master, {new_blob, BlobName, K}))) of
+        gen_server:call(ddfs_master, {new_blob, Obj, K, Exc}))) of
 
         false ->
             Req:respond({403, [], ["Invalid prefix"]});
-        {ok, Urls} ->
-            okjson([list_to_binary(U) || U <- Urls], Req);
+        {ok, Urls} when length(Urls) < K ->
+            Req:respond({403, [], ["Not enough nodes for replicas"]});
         too_many_replicas ->
             Req:respond({403, [], ["Not enough nodes for replicas"]});
+        {ok, Urls} ->
+            okjson([list_to_binary(U) || U <- Urls], Req);
         E ->
             error_logger:warning_report({"/ddfs/new_blob failed", E}),
             error(E, Req)
@@ -105,3 +110,8 @@ tag_update1(Op, Tag, Req) ->
                     error(E, Req)
             end
     end.
+
+parse_exclude(false) -> [];
+parse_exclude({value, {_, ExcStr}}) ->
+    [node_mon:slave_node_safe(Node) || Node <- string:tokens(ExcStr, ",")].
+

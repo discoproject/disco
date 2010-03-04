@@ -1,5 +1,5 @@
 -module(node_mon).
--export([spawn_node/1, slave_node/1]).
+-export([spawn_node/1, slave_node/1, slave_node_safe/1]).
 
 -define(SLAVE_ARGS, "+K true").
 -define(RESTART_DELAY, 10000).
@@ -24,6 +24,12 @@ spawn_node(Node) ->
     receive 
         {'EXIT', _Pid, _Reason} -> 
             spawn_node(Node) 
+    end.
+
+slave_node_safe(Node) ->
+    case catch list_to_existing_atom(slave_name() ++ "@" ++ Node) of
+        {'EXIT', _} -> false;
+        X -> X
     end.
 
 slave_node(Node) ->

@@ -45,10 +45,6 @@ handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
         lists:keysort(2, S#state.nodes))] -- (Exclude ++ BL), K),
     {reply, {ok, Nodes}, S};
 
-handle_call({new_blob, BlobName, K}, From, S) ->
-    Obj = [BlobName, "$", ddfs_util:timestamp()],
-    handle_call({new_blob, Obj, K, []}, From, S);
-
 handle_call({new_blob, _, K, _}, _, #state{nodes = N} = S) when K > length(N) ->
     {reply, too_many_replicas, S};
 

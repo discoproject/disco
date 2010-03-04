@@ -3,6 +3,7 @@ import os, re
 from disco import error
 from disco.util import disco_host, urlsplit
 from disco.comm import upload, download, json
+from disco.error import CommError
 from disco.settings import DiscoSettings
 
 class DDFS(object):
@@ -59,15 +60,15 @@ class DDFS(object):
     def tags(self):
         return self._request("/ddfs/tags")
 
-    def _put_file(self, fname, replicas, retries):
-        if type(fname) == tuple:
-            name, fname = fname
+    def _put_file(self, blob, replicas, retries, exclude = []):
+        if type(blob) == tuple:
+            name, fname = blob
         else:
+            fname = blob
             name = re.sub("[^A-Za-z0-9_\-@:]", "_", os.path.basename(fname))
+        qs = "?exclude=" + ",".join(exclude)
         if replicas:
-            qs = "?replicas=%d" % replicas
-        else:
-            qs = ""
+            qs += "&replicas=%d" % replicas
         dst = self._request("/ddfs/new_blob/%s%s" % (name, qs))
         if self.proxy:
             proxied = []
@@ -77,10 +78,16 @@ class DDFS(object):
                 proxied.append("%s/proxy/%s/PUT/%s" %\
                     (self.host, host, path))
             dst = proxied
-        if retries != None:
-            urls = upload(fname, dst, retries = retries)
-        else:
-            urls = upload(fname, dst)
+        try:
+            if retries != None:
+                urls = upload(fname, dst, retries = retries)
+            else:
+                urls = upload(fname, dst)
+        except CommError, ex:
+            scheme, host, path = urlsplit(ex.url)
+            host = host.split(':')[0]
+            exclude.append(host)
+            return self._put_file(blob, replicas, retries, exclude)
         return [json.loads(url) for url in urls]
 
     def _request(self, url, data = None, method = None):
