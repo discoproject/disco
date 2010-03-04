@@ -2,7 +2,7 @@
 -export([is_valid_name/1, timestamp/0, timestamp/1, timestamp_to_time/1,
          ensure_dir/1, hashdir/4, safe_rename/2, format_timestamp/0,
          diskspace/1, fold_files/3, pack_objname/2, unpack_objname/1,
-         choose_random/1]).
+         choose_random/1, replace/3, startswith/2]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -13,6 +13,21 @@ is_valid_name(Name) when length(Name) > ?NAME_MAX -> false;
 is_valid_name(Name) ->
     Ok = ":@-_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
     not lists:any(fun(C) -> string:chr(Ok, C) == 0 end, Name).
+
+replace(Str, A, B) ->
+    replace(lists:flatten(Str), A, B, []).
+replace([], _, _, L) ->
+    lists:reverse(L);
+replace([C|R], A, B, L) when C == A ->
+    replace(R, A, B, [B|L]);
+replace([C|R], A, B, L) ->
+    replace(R, A, B, [C|L]).
+
+startswith(B, Prefix) when size(B) < size(Prefix) ->
+    false;
+startswith(B, Prefix) ->
+    {Head, _} = split_binary(B, size(Prefix)),
+    Head =:= Prefix.
 
 timestamp() -> timestamp(now()).
 timestamp({X0, X1, X2}) ->

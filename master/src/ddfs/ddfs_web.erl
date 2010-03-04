@@ -30,7 +30,9 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
             error(E, Req)
     end;
 
-op('GET', "/ddfs/tags", Req) ->
+op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
+    Prefix = list_to_binary(
+        ddfs_util:replace(string:strip(Prefix0, both, $/), $/, $:)),
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     case catch gen_server:call(ddfs_master,
             {get_tags, filter}, ?NODEOP_TIMEOUT) of 
@@ -38,12 +40,18 @@ op('GET', "/ddfs/tags", Req) ->
             error_logger:warning_report({"/ddfs/tags failed", E}),
             error(E, Req);
         {_OkNodes, Failed, Tags} when length(Failed) < TagMinK ->
-            okjson(Tags, Req);
+            okjson(
+                if Prefix =:= <<>> ->
+                    Tags;
+                true ->
+                    [T || T <- Tags, ddfs_util:startswith(T, Prefix)]
+            end, Req);
         _ ->
             error({error, too_many_failed_nodes}, Req)
     end;
 
-op('GET', "/ddfs/tag/" ++ Tag, Req) ->
+op('GET', "/ddfs/tag/" ++ Tag0, Req) ->
+    Tag = ddfs_util:replace(Tag0, $/, $:),
     case (ddfs_util:is_valid_name(Tag) andalso (catch
         gen_server:call(ddfs_master,
             {tag, get, list_to_binary(Tag)}, ?NODEOP_TIMEOUT))) of
