@@ -34,6 +34,7 @@ class Task(object):
         self.inputs = inputs
         self.name = job_name
         self.result_iterator = result_iterator
+        self._blobs = []
 
         settings   = DiscoSettings()
         self.root  = settings['DISCO_ROOT']
@@ -55,6 +56,13 @@ class Task(object):
         datadir = 'temp' if self.has_flag('resultfs') else 'data'
         return os.path.join(self.root, datadir, self.home)
 
+    @property
+    def blobs(self):
+        return self._blobs
+
+    def add_blob(self, blob):
+        self._blobs.append(blob)
+    
     def has_flag(self, flag):
         return flag.lower() in self.flags
 

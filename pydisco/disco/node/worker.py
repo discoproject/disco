@@ -59,7 +59,7 @@ Utility functions
 import os, subprocess, cStringIO, time, sys
 import re, traceback, tempfile, struct, random
 from disco import util
-from disco.util import parse_dir, err, data_err, msg, load_oob
+from disco.util import parse_dir, err, data_err, msg, load_oob, ddfs_save
 from disco.func import re_reader, netstr_reader
 from disco.netstring import decode_netstring_str
 from disco.fileutils import safe_update, write_files, ensure_path, AtomicFile
@@ -422,7 +422,15 @@ def op_map(job):
 
     index, index_url = Task.map_index
     safe_update(index, urls)
-    OutputURL(index_url)
+    
+    if int(job['save']) and 'reduce' not in job:
+        if Task.num_partitions > 0:
+            err("Storing partitioned outputs in DDFS is not yet supported")
+        else:
+            OutputURL(ddfs_save(Task.blobs, Task.name, Task.master))
+            msg("Results pushed to DDFS")
+    else:
+        OutputURL(index_url)
 
 def op_reduce(job):
     msg("Received a new reduce job!")
@@ -463,6 +471,10 @@ def op_reduce(job):
     red_out.close()
     external.close_ext()
 
-    index, index_url = Task.reduce_index
-    safe_update(index, {"%d %s" % (Task.id, red_out.url()): True})
-    OutputURL(index_url)
+    if int(job['save']):
+        OutputURL(ddfs_save(Task.blobs, Task.name, Task.master))
+        msg("Results pushed to DDFS")
+    else:
+        index, index_url = Task.reduce_index
+        safe_update(index, {"%d %s" % (Task.id, red_out.url()): True})
+        OutputURL(index_url)

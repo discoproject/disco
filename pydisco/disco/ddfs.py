@@ -1,6 +1,7 @@
 
 import os, re
-from disco import util, error
+from disco import error
+from disco.util import disco_host, urlsplit
 from disco.comm import upload, download, json
 from disco.settings import DiscoSettings
 
@@ -8,10 +9,10 @@ class DDFS(object):
     def __init__(self, host):
         proxy = DiscoSettings()["DISCO_PROXY"]
         if proxy == "":
-            self.host = util.disco_host(host)
+            self.host = disco_host(host)
             self.proxy = False
         else:
-            scheme, host, path = util.urlsplit(proxy)
+            scheme, host, path = urlsplit(proxy)
             self.host = "http://" + host
             self.proxy = True
 
@@ -28,6 +29,8 @@ class DDFS(object):
 
     def get_tag(self, tag, recurse = False,
                     ignore_missing = True, ignore = {}):
+        if tag.startswith("tag://"):
+            tag = tag[6:]
         tag = self._request("/ddfs/tag/" + tag)
         if recurse:
             res = []
@@ -69,7 +72,7 @@ class DDFS(object):
         if self.proxy:
             proxied = []
             for url in dst:
-                scheme, host, path = util.urlsplit(url)
+                scheme, host, path = urlsplit(url)
                 host = host.split(":")[0]
                 proxied.append("%s/proxy/%s/PUT/%s" %\
                     (self.host, host, path))

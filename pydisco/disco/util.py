@@ -69,10 +69,13 @@ def urlsplit(url):
         netloc = '%s:%s' % (netloc, DiscoSettings()['DISCO_PORT'])
     return scheme, netloc, path
 
-def urllist(url, partid=None):
+def urllist(url, partid = None, ddfs = None):
     scheme, netloc, path = urlsplit(url)
     if scheme == 'dir':
         return parse_dir(url, partid=partid)
+    elif scheme == 'tag':
+        from disco.ddfs import DDFS
+        return [repl[0] for repl in DDFS(ddfs).get_tag(netloc)['urls']]
     return [url]
 
 def msg(message):
@@ -150,3 +153,12 @@ def load_oob(host, name, key):
         path = '%s/data/%s' % (settings['DISCO_ROOT'], location)
         return file(path).read()
     return download(url, redir=True)
+
+def ddfs_save(blobs, name, master):
+    from disco.ddfs import DDFS
+    ddfs = DDFS("http://" + master)
+    blobs = [("discoblob:%s:%s" % (name, os.path.basename(blob)), blob)
+                for blob in blobs]
+    tag, bloburls = ddfs.put("disco:job:results:" + name, blobs, retries = 600)
+    return tag
+
