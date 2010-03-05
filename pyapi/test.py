@@ -110,6 +110,19 @@ class TestMetaDBSerializationProtocol(unittest.TestCase):
         metadb = MetaDB.load(handle.name)
         assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
 
+    def test_dump64_load(self):
+        from tempfile import NamedTemporaryFile
+        handle = NamedTemporaryFile()
+        self.metadb.dump(handle, allowZip64=True)
+        def metavaldict(metavals):
+            return dict((k, list(v)) for k, v in metavals)
+        handle.seek(0)
+        metadb = MetaDB.load(handle)
+        assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
+        handle.seek(0)
+        metadb = MetaDB.load(handle.name)
+        assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
+
 if __name__ == '__main__':
     unittest.TextTestRunner().run(doctest.DocTestSuite(query))
     unittest.TextTestRunner().run(doctest.DocTestSuite(tools))

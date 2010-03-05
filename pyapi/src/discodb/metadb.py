@@ -67,9 +67,9 @@ class MetaDB(object):
         for key in self.metadb.query(q):
             yield key, self.datadb[key]
 
-    def dump(self, file):
+    def dump(self, file, allowZip64=False):
         """write serialization of self to file."""
-        zipfile = ZipFile(file, 'w')
+        zipfile = ZipFile(file, 'w', allowZip64=allowZip64)
         zipfile.writestr('metadb', self.metadb.dumps())
         zipfile.writestr('datadb', self.datadb.dumps())
         zipfile.close()
