@@ -28,6 +28,8 @@ key values
 from discodb import DiscoDB
 
 class MetaDB(object):
+    VERSION = '00' # 2 bytes
+
     def __init__(self, datadb, metadb):
         self.metadb = metadb
         self.datadb = datadb
@@ -71,7 +73,7 @@ class MetaDB(object):
         if isinstance(file, basestring):
             file = open(file, 'w')
         metadb = self.metadb.dumps()
-        file.write('%d\n' % (len(metadb)))
+        file.write('v%s:%d\n' % (self.VERSION, len(metadb)))
         file.write(metadb)
         file.write(self.datadb.dumps())
 
@@ -83,7 +85,8 @@ class MetaDB(object):
 
         header = file.readline()
         offset = len(header)
+        version, metalen = header.strip().split(':')
         metadb = DiscoDB.load(file, offset)
-        offset += int(header.strip())
+        offset += int(metalen)
         datadb = DiscoDB.load(file, offset)
         return cls(datadb, metadb)
