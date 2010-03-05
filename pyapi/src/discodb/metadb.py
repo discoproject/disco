@@ -1,5 +1,5 @@
 """
-A MetaDB is a zipfile containing two DiscoDBs where one is an index over the keys of the other.
+A MetaDB is a file containing two DiscoDBs where one is an index over the keys of the other.
 
 Lookups into the MetaDB are first performed in the metadb and then keys are dereferenced in the datadb.
 
@@ -26,7 +26,6 @@ key values
 """
 
 from discodb import DiscoDB
-from zipfile import ZipFile
 
 class MetaDB(object):
     def __init__(self, datadb, metadb):
@@ -67,28 +66,24 @@ class MetaDB(object):
         for key in self.metadb.query(q):
             yield key, self.datadb[key]
 
-    def dump(self, file, allowZip64=False):
+    def dump(self, file):
         """write serialization of self to file."""
-        zipfile = ZipFile(file, 'w', allowZip64=allowZip64)
-        zipfile.writestr('metadb', self.metadb.dumps())
-        zipfile.writestr('datadb', self.datadb.dumps())
-        zipfile.close()
+        if isinstance(file, basestring):
+            file = open(file, 'w')
+        metadb = self.metadb.dumps()
+        file.write('%d\n' % (len(metadb)))
+        file.write(metadb)
+        file.write(self.datadb.dumps())
 
     @classmethod
     def load(cls, file):
         """a deserialized instance of %s from file.""" % cls
         if isinstance(file, basestring):
-            zipfile = ZipFile(open(file, 'r', 0))
-        else:
-            zipfile = ZipFile(file)
+            file = open(file, 'r', 0)
 
-        metazip = zipfile.open('metadb')
-        if not hasattr(metazip, 'fileno'):
-            metazip = metazip.fileobj
-        metadb = DiscoDB.load(metazip, metazip.tell())
-
-        datazip = zipfile.open('datadb')
-        if not hasattr(datazip, 'fileno'):
-            datazip = datazip.fileobj
-        datadb = DiscoDB.load(datazip, datazip.tell())
+        header = file.readline()
+        offset = len(header)
+        metadb = DiscoDB.load(file, offset)
+        offset += int(header.strip())
+        datadb = DiscoDB.load(file, offset)
         return cls(datadb, metadb)
