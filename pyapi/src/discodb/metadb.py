@@ -81,8 +81,14 @@ class MetaDB(object):
             zipfile = ZipFile(open(file, 'r', 0))
         else:
             zipfile = ZipFile(file)
-        metazip = zipfile.open('metadb').fileobj
-        metadb  = DiscoDB.load(metazip, metazip.tell())
-        datazip = zipfile.open('datadb').fileobj
-        datadb  = DiscoDB.load(datazip, datazip.tell())
+
+        metazip = zipfile.open('metadb')
+        if not hasattr(metazip, 'fileno'):
+            metazip = metazip.fileobj
+        metadb = DiscoDB.load(metazip, metazip.tell())
+
+        datazip = zipfile.open('datadb')
+        if not hasattr(datazip, 'fileno'):
+            datazip = datazip.fileobj
+        datadb = DiscoDB.load(datazip, datazip.tell())
         return cls(datadb, metadb)
