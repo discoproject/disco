@@ -134,8 +134,9 @@ class DiscoDBIterator(DiscodexJob):
         self.params = Params(mapfilters=mapfilters or self.mapfilters,
                              reducefilters=reducefilters or self.reducefilters)
         if reducefilters:
-            self.reduce = self._reduce
-            self.sort   = True
+            self.nr_reduces = max(1, len(self.ichunks) / 8)
+            self.reduce     = self._reduce
+            self.sort       = True
 
     @property
     def input(self):

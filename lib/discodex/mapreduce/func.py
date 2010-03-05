@@ -91,7 +91,7 @@ def filterchain(filters):
 
 
 def kvify(entry):
-    yield entry if iskv(entry) else '', entry
+    yield entry if iskv(entry) else ('', entry)
 
 def key((k, v)):
     yield k
