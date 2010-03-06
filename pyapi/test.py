@@ -59,6 +59,9 @@ class TestMappingProtocol(unittest.TestCase):
         q = Q.parse('5 & 10 & (15 | 30)')
         list(self.discodb.query(q))
 
+    def test_str(self):
+        assert str(self.discodb) != repr(self.discodb)
+
 class TestLargeMappingProtocol(TestMappingProtocol):
     numkeys = 10000
 

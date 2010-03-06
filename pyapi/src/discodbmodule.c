@@ -75,7 +75,7 @@ static PyMemberDef DiscoDB_members[] = {
 
 static PyTypeObject DiscoDBType = {
   PyVarObject_HEAD_INIT(&PyType_Type, 0)
-  "_discodb.DiscoDB",            /* tp_name           */
+  "DiscoDB",                     /* tp_name           */
   sizeof(DiscoDB),               /* tp_basicsize      */
   0,                             /* tp_itemsize       */
   (destructor)DiscoDB_dealloc,   /* tp_dealloc        */
@@ -89,7 +89,7 @@ static PyTypeObject DiscoDBType = {
   &DiscoDB_as_mapping,           /* tp_as_mapping     */
   0,                             /* tp_hash           */
   0,                             /* tp_call           */
-  0,                             /* tp_str            */
+  (reprfunc)DiscoDB_str,         /* tp_str            */
   0,                             /* tp_getattro       */
   0,                             /* tp_setattro       */
   0,                             /* tp_as_buffer      */
@@ -252,6 +252,38 @@ DiscoDB_repr(DiscoDB *self)
   return PyBytes_FromFormat("<%s object at %p>", Py_TYPE(self)->tp_name, self);
 }
 
+static PyObject *
+DiscoDB_str(DiscoDB *self)
+{
+  PyObject
+    *string = PyString_FromFormat("%s({", Py_TYPE(self)->tp_name),
+    *format = PyString_FromString("'%s': %s"),
+    *items = NULL;
+
+  if (string == NULL)
+    goto Done;
+
+  if (format == NULL)
+    goto Done;
+
+  items = DiscoDB_items(self);
+  if (items == NULL)
+    goto Done;
+
+  PyString_ConcatAndDel(&string, DiscoDBIter_format(items, format, 3));
+  PyString_ConcatAndDel(&string, PyString_FromString("})"));
+
+ Done:
+  Py_CLEAR(format);
+  Py_CLEAR(items);
+
+  if (PyErr_Occurred()) {
+    Py_CLEAR(string);
+    return NULL;
+  }
+
+  return string;
+}
 
 
 /* Mapping Formal / Informal Protocol */
@@ -502,10 +534,8 @@ DiscoDB_dump(DiscoDB *self, PyObject *file)
  Done:
   Py_CLEAR(fileno);
 
-  if (PyErr_Occurred()) {
-    Py_CLEAR(self);
+  if (PyErr_Occurred())
     return NULL;
-  }
 
   Py_RETURN_NONE;
 }
@@ -644,7 +674,7 @@ static PyTypeObject DiscoDBIterEntryType = {
   0,                                       /* tp_as_mapping     */
   0,                                       /* tp_hash           */
   0,                                       /* tp_call           */
-  0,                                       /* tp_str            */
+  (reprfunc)DiscoDBIter_str,               /* tp_str            */
   PyObject_GenericGetAttr,                 /* tp_getattro       */
   0,                                       /* tp_setattro       */
   0,                                       /* tp_as_buffer      */
@@ -674,7 +704,7 @@ static PyTypeObject DiscoDBIterItemType = {
   0,                                       /* tp_as_mapping     */
   0,                                       /* tp_hash           */
   0,                                       /* tp_call           */
-  0,                                       /* tp_str            */
+  (reprfunc)DiscoDBIter_str,               /* tp_str            */
   PyObject_GenericGetAttr,                 /* tp_getattro       */
   0,                                       /* tp_setattro       */
   0,                                       /* tp_as_buffer      */
@@ -741,6 +771,86 @@ DiscoDBIter_iternextitem(DiscoDBIter *self)
                        DiscoDBIter_new(&DiscoDBIterEntryType, self->owner, vcursor));
 }
 
+static PyObject *
+DiscoDBIter_str(DiscoDBIter *self)
+{
+  PyObject
+    *string = PyString_FromFormat("%s(", Py_TYPE(self)->tp_name),
+    *format = NULL;
+
+  if (string == NULL)
+    goto Done;
+
+  if (Py_TYPE(self) == &DiscoDBIterItemType)
+    format = PyString_FromString("('%s', %s)");
+  else
+    format = PyString_FromString("'%s'");
+
+  if (format == NULL)
+    goto Done;
+
+  PyString_ConcatAndDel(&string, DiscoDBIter_format(self, format, 3));
+  PyString_ConcatAndDel(&string, PyString_FromString(")"));
+
+ Done:
+  Py_CLEAR(format);
+
+  if (PyErr_Occurred()) {
+    Py_CLEAR(string);
+    return NULL;
+  }
+
+  return string;
+}
+
+static PyObject *
+DiscoDBIter_format(DiscoDBIter *self, PyObject *format, int N)
+{
+  PyObject
+    *iterator = PyObject_GetIter((PyObject *)self),
+    *string = PyString_FromString(""),
+    *item = NULL;
+  int i;
+
+  if (iterator == NULL)
+    goto Done;
+
+  if (string == NULL)
+    goto Done;
+
+  for (i = 0; i < N; i++) {
+    item = PyIter_Next(iterator);
+    if (item == NULL) {
+      if (PyErr_Occurred())
+        goto Done;
+      else
+        break;
+    }
+
+    if (i > 0)
+      PyString_ConcatAndDel(&string, PyString_FromString(", "));
+
+    PyString_ConcatAndDel(&string, PyString_Format(format, item));
+    if (string == NULL)
+      goto Done;
+
+    Py_CLEAR(item);
+  }
+
+  if (DiscoDBIter_length(self) > N)
+    PyString_ConcatAndDel(&string, PyString_FromString(", ..."));
+
+ Done:
+  Py_CLEAR(iterator);
+  Py_CLEAR(item);
+
+  if (PyErr_Occurred()) {
+    Py_CLEAR(string);
+    return NULL;
+  }
+
+  return string;
+}
 
 
 /* ddb helpers */

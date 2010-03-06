@@ -19,6 +19,7 @@ typedef struct {
 static PyObject * DiscoDB_new     (PyTypeObject *, PyObject *, PyObject *);
 static void       DiscoDB_dealloc (DiscoDB *);
 static PyObject * DiscoDB_repr    (DiscoDB *);
+static PyObject * DiscoDB_str     (DiscoDB *);
 
 /* Mapping Formal / Informal Protocol */
 
@@ -48,6 +49,8 @@ static void       DiscoDBIter_dealloc      (DiscoDBIter *);
 static Py_ssize_t DiscoDBIter_length       (DiscoDBIter *);
 static PyObject * DiscoDBIter_iternextentry(DiscoDBIter *);
 static PyObject * DiscoDBIter_iternextitem (DiscoDBIter *);
+static PyObject * DiscoDBIter_str          (DiscoDBIter *);
+static PyObject * DiscoDBIter_format       (DiscoDBIter *, PyObject *, int);
 
 /* ddb helpers */
 

@@ -49,6 +49,9 @@ class MetaDB(object):
     def __len__(self):
         return len(self.metadb)
 
+    def __str__(self):
+        return 'MetaDB(datadb=%s, metadb=%s)' % (self.datadb, self.metadb)
+
     def items(self):
         """an iterator over the metakeys and their corresponding values."""
         for metakey in self:
