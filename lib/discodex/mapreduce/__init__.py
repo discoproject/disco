@@ -121,11 +121,26 @@ class MetaIndexer(DiscodexJob):
         return stream, 'metadb:%s' % url.split(':', 1)[1]
     map_output_stream = [func.map_output_stream, map_output_stream]
 
+def json_reader(fd, size, filename):
+    from disco.func import netstr_reader
+    from discodex import json
+    for k, v in netstr_reader(fd, size, filename):
+        yield json.loads(k), json.loads(v)
+
+def json_writer(fd, key, value, params):
+    from disco.func import netstr_writer
+    from discodex import json
+    netstr_writer(fd,
+                  json.dumps(key, default=str),
+                  json.dumps(value, default=str),
+                  params)
+
 class DiscoDBIterator(DiscodexJob):
     scheduler     = {'force_local': True}
     method        = 'keys'
     mapfilters    = ['kvify']
     reducefilters = []
+    result_reader = staticmethod(json_reader)
 
     def __init__(self, ichunks, target, mapfilters, reducefilters):
         self.ichunks = ichunks
@@ -137,6 +152,9 @@ class DiscoDBIterator(DiscodexJob):
             self.nr_reduces = max(1, len(self.ichunks) / 8)
             self.reduce     = self._reduce
             self.sort       = True
+            self.reduce_writer = json_writer
+        else:
+            self.map_writer    = json_writer
 
     @property
     def input(self):
