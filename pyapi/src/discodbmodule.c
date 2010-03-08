@@ -270,7 +270,7 @@ DiscoDB_str(DiscoDB *self)
   if (items == NULL)
     goto Done;
 
-  PyString_ConcatAndDel(&string, DiscoDBIter_format(items, format, 3));
+  PyString_ConcatAndDel(&string, DiscoDBIter_format((DiscoDBIter *)items, format, 3));
   PyString_ConcatAndDel(&string, PyString_FromString("})"));
 
  Done:
