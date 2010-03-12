@@ -123,7 +123,7 @@ def kvungroup((k, vs)):
     for v in vs:
         yield k, v
 
-def count((k, vs)):
+def countv((k, vs)):
     yield k, sum(1 for v in vs)
 
 def setv((k, vs)):
@@ -143,3 +143,10 @@ def mean((k, vs)):
     for n, v in enumerate(vs):
         total += float(v)
     yield k, total / n
+
+def count(iter):
+    yield sum(1 for x in iter)
+
+def kv_or_v(kviter):
+    for k, v in kviter:
+        yield (k, v) if k else v

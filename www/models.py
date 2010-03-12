@@ -21,9 +21,7 @@ from discodex.objects import (DataSet,
                               MetaSet,
                               Indices,
                               Index,
-                              Keys,
-                              Values,
-                              Items,
+                              Results,
                               Query)
 
 from disco.core import Disco
@@ -179,26 +177,30 @@ class IndexResource(Collection):
 
 class DiscoDBResource(Resource):
     job_type    = DiscoDBIterator
-    result_type = Keys
 
     def __init__(self, index):
         self.index = index
 
     @property
     def job(self):
-        return self.job_type(self.index.ichunks, self.target, self.mapfilters, self.reducefilters)
+        return self.job_type(self.index.ichunks,
+                             self.target,
+                             self.mapfilters,
+                             self.reducefilters,
+                             self.resultsfilters)
 
     def read(self, request, *args, **kwargs):
         try:
-            self.target        = str(kwargs.pop('target') or '')
-            self.mapfilters    = filter(None, kwargs.pop('mapfilters').split('|'))
-            self.reducefilters = filter(None, kwargs.pop('reducefilters').split('}'))
+            self.target         = str(kwargs.pop('target') or '')
+            self.mapfilters     = filter(None, kwargs.pop('mapfilters').split('|'))
+            self.reducefilters  = filter(None, kwargs.pop('reducefilters').split('}'))
+            self.resultsfilters = filter(None, kwargs.pop('resultsfilters').split(']'))
             job = self.job.run(disco_master, disco_prefix)
         except DiscoError, e:
             return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
 
         try:
-            results = self.result_type(job.results).dumps()
+            results = Results(job.results).dumps()
         except DiscoError, e:
             return HttpResponseServerError("DiscoDB job failed: %s" % e)
         finally:
@@ -209,15 +211,12 @@ class DiscoDBResource(Resource):
 
 class KeysResource(DiscoDBResource):
     job_type    = KeyIterator
-    result_type = Keys
 
 class ValuesResource(DiscoDBResource):
     job_type    = ValuesIterator
-    result_type = Values
 
 class ItemsResource(DiscoDBResource):
     job_type    = ItemsIterator
-    result_type = Items
 
 class QueryCollection(Collection):
     allowed_methods = ('GET', 'POST')
@@ -230,15 +229,13 @@ class QueryCollection(Collection):
         return QueryResource(self.index, query_path)(request, *args, **kwargs)
 
     def read(self, request, *args, **kwargs):
-        return HttpResponse(Values().dumps())
+        return HttpResponse(Results().dumps())
 
     def create(self, request, *args, **kwargs):
         query = Query.loads(request.raw_post_data)
         return QueryResource(self.index, query['query_path']).read(request, *args, **kwargs)
 
 class QueryResource(DiscoDBResource):
-    result_type = Values
-
     def __init__(self, index, query_path):
         self.index = index
         self.query = Q.urlscan(query_path)
@@ -249,4 +246,5 @@ class QueryResource(DiscoDBResource):
                        self.target,
                        self.mapfilters,
                        self.reducefilters,
+                       self.resultsfilters,
                        self.query)

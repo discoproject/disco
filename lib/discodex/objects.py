@@ -16,7 +16,7 @@ class JSONSerialized(object):
         return self
 
     def dumps(self):
-        return json.dumps(self)
+        return json.dumps(self, default=str)
 
     def __getcallable__(self, module, name):
         if hasattr(module, name):
@@ -81,13 +81,7 @@ class MetaSet(Index):
     def metakeyer(self):
         return self.__getcallable__(metakeyers, self.options.get('metakeyer', 'prefixkeyer'))
 
-class Keys(list, JSONSerialized):
-    pass
-
-class Values(list, JSONSerialized):
-    pass
-
-class Items(list, JSONSerialized):
+class Results(list, JSONSerialized):
     pass
 
 class Query(dict, JSONSerialized):

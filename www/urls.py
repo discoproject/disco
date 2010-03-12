@@ -21,29 +21,30 @@ metachunks -> /indices/[metaindex]
                         /values         -> metadb values as key, values
                         /items          -> metadb metakeys, values as key, values
                         /query/[query]  -> metadb values as key, values
-                        /query/startingwith:host:/ -> {'host:X': ..., 'host:Y': ...}
+                        /query/host:/   -> {'host:X': ..., 'host:Y': ...}
 """
 from django.conf.urls.defaults import *
 
 import views
 
-indices       = r'indices/?'
-index         = r'%s/(?P<name>[A-Za-z0-9_@:]+)/?'      % (indices)
-target        = r'%s(?:/(?P<target>metadb|datadb)/?)?' % (index)
-keys          = r'%s/(?P<property>keys)/?'             % (target)
-values        = r'%s/(?P<property>values)/?'           % (target)
-items         = r'%s/(?P<property>items)/?'            % (target)
-_query        = r'%s/(?P<property>query)/?'            % (target)
-query         = r'%s/(?P<query_path>[^|}]*)'           % (_query)
+indices        = r'indices/?'
+index          = r'%s/(?P<name>[A-Za-z0-9_@:]+)/?'      % (indices)
+target         = r'%s(?:/(?P<target>metadb|datadb)/?)?' % (index)
+keys           = r'%s/(?P<property>keys)/?'             % (target)
+values         = r'%s/(?P<property>values)/?'           % (target)
+items          = r'%s/(?P<property>items)/?'            % (target)
+_query         = r'%s/(?P<property>query)/?'            % (target)
+query          = r'%s/(?P<query_path>[^|}\]]*)'         % (_query)
 
-name          = r'\w+'
-dotted_name   = r'%s(\.%s)*'    % (name, name)
-maybe_curry   = r'%s(:[^|}]*)?' % (dotted_name)
-mapfilters    = r'(?P<mapfilters>(\|%s)*)'   % (maybe_curry)
-reducefilters = r'(?P<reducefilters>(}%s)*)' % (maybe_curry)
+name           = r'\w+'
+dotted_name    = r'%s(\.%s)*'      % (name, name)
+maybe_curry    = r'%s(:[^|}\]]*)?' % (dotted_name)
+mapfilters     = r'(?P<mapfilters>(\|%s)*)'    % (maybe_curry)
+reducefilters  = r'(?P<reducefilters>(}%s)*)'  % (maybe_curry)
+resultsfilters = r'(?P<resultsfilters>(]%s)*)' % (maybe_curry)
 
 def pipeline(pattern):
-    return r'^%s%s%s$' % (pattern, mapfilters, reducefilters)
+    return r'^%s%s%s%s$' % (pattern, mapfilters, reducefilters, resultsfilters)
 
 urlpatterns = patterns('',
                        url(r'^%s$' % indices, views.indices, name='indices'),

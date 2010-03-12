@@ -136,13 +136,14 @@ def json_writer(fd, key, value, params):
                   params)
 
 class DiscoDBIterator(DiscodexJob):
-    scheduler     = {'force_local': True}
-    method        = 'keys'
-    mapfilters    = ['kvify']
-    reducefilters = []
-    result_reader = staticmethod(json_reader)
+    scheduler      = {'force_local': True}
+    method         = 'keys'
+    mapfilters     = ['kvify']
+    reducefilters  = []
+    resultsfilters = ['kv_or_v']
+    result_reader  = staticmethod(json_reader)
 
-    def __init__(self, ichunks, target, mapfilters, reducefilters):
+    def __init__(self, ichunks, target, mapfilters, reducefilters, resultsfilters):
         self.ichunks = ichunks
         if target:
             self.method = '%s/%s' % (target, self.method)
@@ -155,6 +156,9 @@ class DiscoDBIterator(DiscodexJob):
             self.reduce_writer = json_writer
         else:
             self.map_writer    = json_writer
+
+        if resultsfilters:
+            self.resultsfilters = resultsfilters
 
     @property
     def input(self):
@@ -182,8 +186,10 @@ class DiscoDBIterator(DiscodexJob):
 
     @property
     def results(self):
-        for k, v in result_iterator(self._job.wait(), reader=self.result_reader):
-            yield (k, v) if k else v
+        from discodex.mapreduce.func import filterchain, funcify, kvgroup
+        filterfn = filterchain(funcify(name) for name in self.resultsfilters)
+        results  = result_iterator(self._job.wait(), reader=self.result_reader)
+        return filterfn(results)
 
 class KeyIterator(DiscoDBIterator):
     pass
@@ -198,8 +204,8 @@ class ItemsIterator(DiscoDBIterator):
 class Queryer(DiscoDBIterator):
     method = 'query'
 
-    def __init__(self, ichunks, target, mapfilters, reducefilters, query):
-        super(Queryer, self).__init__(ichunks, target, mapfilters, reducefilters)
+    def __init__(self, ichunks, target, mapfilters, reducefilters, resultsfilters, query):
+        super(Queryer, self).__init__(ichunks, target, mapfilters, reducefilters, resultsfilters)
         self.params.discodb_query = query
 
 class Record(object):
