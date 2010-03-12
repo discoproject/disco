@@ -90,8 +90,14 @@ def filterchain(filters):
     return f
 
 
+def keyify(entry):
+    yield entry, ''
+
 def kvify(entry):
     yield entry if iskv(entry) else ('', entry)
+
+def valify(entry):
+    yield '', entry
 
 def key((k, v)):
     yield k
@@ -107,6 +113,9 @@ def lenv((k, v)):
 
 def listv((k, v)):
     yield k, list(v)
+
+def hashbin(nbins, entry):
+    yield (hash(entry) % eval(nbins)), entry
 
 def where(predicate, entry):
     if iskv(entry):
