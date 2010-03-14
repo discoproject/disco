@@ -14,26 +14,26 @@ This is done to support the ReST API, which requires '|' and '}' characters to b
 In order to construct filter chains, filter functions must have a particular signature.
 A filter receives a single argument, which depends on the context in which the filter is applied, and returns a sequence.
 The most general filter has the following signature:
-        f(x) -> v, ...
+f(x) -> v, ...
 
 Any filter at the end of a chain must return a sequence of (k, v) pairs:
-        f(x) -> (k, v), ...
+f(x) -> (k, v), ...
 
 In other contexts, other assumptions may also be made.
 For instance, the first filter in a reduce chain will always have the following signature:
-        f((k, vs)) -> v, ...
+f((k, vs)) -> v, ...
 
 The first filter in a map chain from a `DiscoDB` `items` resource (e.g. `/indices/[index]/items`) is also guaranteed to have the same signature.
 The first filter in a map chain from a `MetaDB` `values` resource similarly has the same signature.
 
 For `MetaDB` items, the following initial map filter signature applies:
-        f((metak, (k, vs))) -> v, ...
+f((metak, (k, vs))) -> v, ...
 
 Initial map filters for `keys` resources always look like:
-        f(k) -> v, ...
+f(k) -> v, ...
 
 `DiscoDB` `values` resources initial map filters looke like:
-        f(v) -> v, ...
+f(v) -> v, ...
 
 `query` resources always look like their associated `values` resources.
 
@@ -43,22 +43,22 @@ The default map filter for most resources is `kvify`, which gives the value an e
 examples:
 
 /keys
-  '', k1
-  '', k2
+'', k1
+'', k2
 /values
-  '', v1
-  '', v2
+'', v1
+'', v2
 /values|kvify|kvswap
-  v1, ''
-  v2, ''
+v1, ''
+v2, ''
 /values}count
-  '', n
+'', n
 /values|kvify|kvswap}count
-  v1, n1
-  v2, n2
+v1, n1
+v2, n2
 
 /indices/[metaindex]/items
-  metakey, ((key, vs), ...)
+metakey, ((key, vs), ...)
 """
 from discodb import kvgroup
 from itertools import chain

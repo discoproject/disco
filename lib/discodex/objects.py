@@ -1,3 +1,7 @@
+"""
+:mod:`discodex.objects` -- objects passed to and from the discodex server
+=========================================================================
+"""
 import sys
 
 from discodex import json
@@ -24,6 +28,7 @@ class JSONSerialized(object):
         return reify(name)
 
 class DataSet(dict, JSONSerialized):
+    """Specifies a collection of inputs to be indexed and how to index them."""
     required_fields = ['input']
 
     @property
@@ -66,11 +71,17 @@ class Indices(list, JSONSerialized):
     pass
 
 class Index(dict, JSONSerialized):
+    """A collection of `ichunks` resulting from a :class:`DataSet` previously indexed by discodex."""
     @property
     def ichunks(self):
         return [str(ichunk) for ichunk in self['ichunks']]
 
 class MetaSet(Index):
+    """
+    An :class:`Index` together with a `metakeyer` function used to describe how the index should be metaindexed.
+
+    See :mod:`discodex.mapreduce.metakeyers` and :class:`discodex.mapreduce.MetaIndexer`.
+    """
     required_fields = ['ichunks']
 
     @property

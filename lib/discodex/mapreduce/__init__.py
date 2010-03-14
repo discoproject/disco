@@ -1,3 +1,21 @@
+"""
+Discodex uses mapreduce jobs to build and query indices...
+
+::
+
+        ichunk parser == func.discodb_reader (iteritems)
+
+
+        parser:  data -> records       \\
+                                        | kvgenerator            \\
+        demuxer: record -> k, v ...    /                          |
+                                                                  | indexer
+                                                                  |
+        balancer: (k, ) ... -> (p, (k, )) ...   \                /
+                                                 | ichunkbuilder
+        ichunker: (p, (k, v) ... -> ichunks     /
+"""
+
 from disco import func
 from disco.core import result_iterator, Params
 
@@ -61,6 +79,7 @@ class DiscodexJob(object):
         return self
 
 class Indexer(DiscodexJob):
+    """A discodex mapreduce job used to build an index from a dataset."""
     def __init__(self, dataset):
         self.input      = dataset.input
         self.map_reader = dataset.parser
@@ -87,6 +106,7 @@ class Indexer(DiscodexJob):
     reduce_output_stream = [func.reduce_output_stream, reduce_output_stream]
 
 class MetaIndexer(DiscodexJob):
+    """A discodex mapreduce job used to build a metaindex over an index, given a :class:`discodex.objects.MetaSet`."""
     nr_reduces = 0
     scheduler  = {'force_local': True}
 
@@ -209,6 +229,7 @@ class Queryer(DiscoDBIterator):
         self.params.discodb_query = query
 
 class Record(object):
+    """Convenient containers for holding bags of [named] attributes."""
     __slots__ = ('fields', 'fieldnames')
 
     def __init__(self, *fields, **namedfields):
@@ -235,15 +256,3 @@ class Record(object):
         return 'Record(%s)' % ', '.join('%s=%r' % (n, f) if n else '%r' % f
                                       for f, n in zip(self.fields, self.fieldnames))
 
-
-# ichunk parser == func.discodb_reader (iteritems)
-
-
-# parser:  data -> records       \
-#                                 | kvgenerator            \
-# demuxer: record -> k, v ...    /                          |
-#                                                           | indexer
-#                                                           |
-# balancer: (k, ) ... -> (p, (k, )) ...   \                /
-#                                          | ichunkbuilder
-# ichunker: (p, (k, v) ... -> ichunks     /

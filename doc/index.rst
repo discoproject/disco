@@ -1,18 +1,21 @@
 discodex documentation
-===================
+======================
 
-Tutorial
---------
-
-.. toctree::
-   :maxdepth: 1
-
-Reference
----------
+Getting Started
+---------------
 
 .. toctree::
-   :maxdepth: 1
 
+   tutorial
+
+API Reference
+-------------
+
+.. toctree::
+   :glob:
+
+   api/discodex/*
+   api/discodex/mapreduce/index
 
 Indices and tables
 ------------------

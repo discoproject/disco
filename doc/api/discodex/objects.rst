@@ -1,0 +1,2 @@
+.. automodule:: discodex.objects
+   :members:
