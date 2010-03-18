@@ -14,6 +14,7 @@ API Reference
 .. toctree::
    :glob:
 
+   api/rest
    api/discodex/*
    api/discodex/mapreduce/index
 

@@ -1,28 +1,3 @@
-"""
-/indices                               -> index collection
-        /[index]                       -> index resource
-                /keys                  -> index keys as values
-                /values                -> index values as values
-                /items                 -> index items as key, values
-                /query/[query]         -> index values with keys satisfying query as values
-
-TODO:
-                /keys/[metakey]        -> index keys with metakey as values
-                /keys/[metakey]/values -> values of keys with metakey as k, v
-
-ichunks    -> /indices/[index]
-metachunks -> /indices/[metaindex]
-                metaindex is normal index, but ichunks are metadb:// not discodb://
-
-/indices/[metaindex]
-                        /metadb         -> normal discodb (metadb.metadb)
-                        /datadb         -> normal discodb (metadb.datadb)
-                        /keys           -> metadb keys as values
-                        /values         -> metadb values as key, values
-                        /items          -> metadb metakeys, values as key, values
-                        /query/[query]  -> metadb values as key, values
-                        /query/host:/   -> {'host:X': ..., 'host:Y': ...}
-"""
 from django.conf.urls.defaults import *
 
 import views
@@ -37,8 +12,8 @@ _query         = r'%s/(?P<property>query)/?'            % (target)
 query          = r'%s/(?P<query_path>[^|}\]]*)'         % (_query)
 
 name           = r'\w+'
-dotted_name    = r'%s(\.%s)*'      % (name, name)
-maybe_curry    = r'%s(:[^|}\]]*)?' % (dotted_name)
+dotted_name    = r'%s(\.%s)*'                  % (name, name)
+maybe_curry    = r'%s(:[^|}\]]*)?'             % (dotted_name)
 mapfilters     = r'(?P<mapfilters>(\|%s)*)'    % (maybe_curry)
 reducefilters  = r'(?P<reducefilters>(}%s)*)'  % (maybe_curry)
 resultsfilters = r'(?P<resultsfilters>(]%s)*)' % (maybe_curry)

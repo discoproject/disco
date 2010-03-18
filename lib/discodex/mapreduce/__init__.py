@@ -13,7 +13,7 @@ Discodex uses mapreduce jobs to build and query indices...
                                                                   |
         balancer: (k, ) ... -> (p, (k, )) ...   \                /
                                                  | ichunkbuilder
-        ichunker: (p, (k, v) ... -> ichunks     /
+        ichunker: (p, (k, v)) ... -> ichunks    /
 """
 
 from disco import func

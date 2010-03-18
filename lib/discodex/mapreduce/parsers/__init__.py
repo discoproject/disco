@@ -7,6 +7,10 @@ Parsers are essentially the map_reader function for the :class:`discodex.mapredu
 A parser takes a chunk of a dataset and produces zero or more records (see :mod:`discodex.mapreduce.demuxers`).
 """
 
+def noparse(iterable, size, fname):
+    """Returns the iterable."""
+    return iterable
+
 def rawparse(iterable, size, fname):
     """
     Maps `raw` URLs to (key, value) pairs.
