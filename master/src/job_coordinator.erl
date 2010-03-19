@@ -1,12 +1,6 @@
 
--module(handle_job).
--export([handle/2, set_disco_url/2]).
-
--include_lib("kernel/include/inet.hrl").
-
--define(OK_HEADER, "HTTP/1.1 200 OK\n"
-       "Status: 200 OK\n"
-       "Content-type: text/plain\n\n").
+-module(job_coordinator).
+-export([new/1]).
 
 -include("task.hrl").
 
@@ -16,7 +10,7 @@
 % takes care of coordinating the whole map-reduce show, including
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
-new_coordinator(PostData) ->
+new(PostData) ->
     TMsg = "couldn't start a new job coordinator in 10s (master busy?)",
     S = self(),
     P = spawn(fun() -> init_job_coordinator(S, PostData) end),
@@ -93,37 +87,6 @@ find_values(Msg) ->
     force_local = field_exists(Msg, <<"sched_force_local">>),
     force_remote = field_exists(Msg, <<"sched_force_remote">>)
     }}.
-
-gethostname() ->
-    {ok, Hostname} = inet:gethostname(),
-    {ok, Hostent}  = inet:gethostbyname(Hostname),
-    Hostent#hostent.h_name.
-
-set_disco_url(undefined, Msg) ->
-    {value, {_, SPort}} =
-    lists:keysearch(<<"SERVER_PORT">>, 1, Msg),
-    Name = disco:get_setting("DISCO_NAME"),
-    Hostname = gethostname(),
-    DiscoUrl = lists:flatten(["http://", Hostname, ":",
-          binary_to_list(SPort), "/_", Name, "/"]),
-    application:set_env(disco, disco_url, DiscoUrl);
-set_disco_url(_, _) -> ok.
-
-% handle() receives the SCGI request and reads POST data.
-handle(Socket, Msg) ->
-    {value, {_, CLenStr}} = lists:keysearch(<<"CONTENT_LENGTH">>, 1, Msg),
-    CLen = list_to_integer(binary_to_list(CLenStr)),
-
-    set_disco_url(application:get_env(disco_url), Msg),
-
-    % scgi_recv_msg used instead of gen_tcp to work around gen_tcp:recv()'s
-    % 16MB limit.
-    {ok, PostData} = scgi:recv_msg(Socket, <<>>, CLen),
-    Reply = case catch new_coordinator(PostData) of
-        {ok, JobName} -> ["job started:", JobName];
-        E -> ["ERROR: ", E]
-    end,
-    gen_tcp:send(Socket, [?OK_HEADER, Reply]).
 
 
 % work() is the heart of the map/reduce show. First it distributes tasks

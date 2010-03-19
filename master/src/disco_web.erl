@@ -1,37 +1,61 @@
 
--module(handle_ctrl).
--export([handle/2]).
-
--define(HTTP_HEADER, "HTTP/1.1 200 OK\n"
-             "Status: 200 OK\n"
-             "Content-type: text/plain\n\n").
+-module(disco_web).
+-export([op/3]).
 
 -include("task.hrl").
+-include("config.hrl").
 
-job_status(JobName) ->
-    case gen_server:call(event_server, {get_results, JobName}) of
-        {active, _} -> <<"job_active">>;
-        {dead, _} -> <<"job_died">>;
-        {ready, _, _} -> <<"job_ready">>
-    end.
+op('POST', "/disco/job/" ++ _, Req) ->
+    BodySize = list_to_integer(Req:get_header_value("content-length")),
+    if BodySize > ?MAX_JOB_PACKET ->
+        Req:respond({413, [], ["Job packet too large"]});
+    true ->
+        Body = Req:recv_body(?MAX_JOB_PACKET),
+        case catch job_coordinator:new(Body) of
+            {ok, JobName} ->
+                reply({ok, [<<"ok">>, list_to_binary(JobName)]}, Req);
+            {'EXIT', Error} ->
+                error_logger:warning_report({"could not start job", Error}),
+                reply({ok, [<<"error">>, <<"could not start job">>]}, Req)
+        end
+    end;
 
-op("save_config_table", _Query, Json) ->
-    disco_config:save_config_table(Json);
+op('POST', "/disco/ctrl/" ++ Op, Req) ->
+    Json = mochijson2:decode(Req:recv_body(?MAX_JSON_POST)),
+    reply(postop(Op, Json), Req);
 
-op("load_config_table", _Query, _Json) ->
+op('GET', "/disco/ctrl/" ++ Op, Req) ->
+    Query = Req:parse_qs(),
+    Name =
+        case lists:keysearch("name", 1, Query) of
+            {value, {_, N}} -> N;
+            _ -> false
+        end,    
+    reply(getop(Op, {Query, Name}), Req).
+        
+reply({ok, Data}, Req) ->
+    Req:ok({"application/json", [], mochijson2:encode(Data)});
+reply({raw, Data}, Req) ->
+    Req:ok({"text/plain", [], Data});
+reply({relo, Loc}, Req) ->
+    Req:respond({302, [{"Location", Loc}], <<>>});
+reply({file, File, Docroot}, Req) ->
+    Req:serve_file(File, Docroot);
+reply(not_found, Req) ->
+    Req:not_found();
+reply(_, Req) ->
+    Req:respond({500, [], ["Internal server error"]}).
+
+getop("load_config_table", _Query) ->
     disco_config:get_config_table();
 
-op("joblist", _Query, _Json) ->
-    {ok, JobNames}   = gen_server:call(event_server, get_jobnames),
+getop("joblist", _Query) ->
+    {ok, JobNames} = gen_server:call(event_server, get_jobnames),
+    {ok, [[1000000 * MSec + Sec, job_status(JobName), list_to_binary(JobName)]
+            || {{MSec, Sec, _USec}, JobName, _} <-
+                lists:reverse(lists:keysort(1, JobNames))]};
 
-    JobTuples = lists:map(fun({JobName, {MSec, Sec, _USec}, _}) ->
-            {1000000 * MSec + Sec, job_status(JobName),
-                list_to_binary(JobName)}
-    end, JobNames),
-    {ok, lists:reverse(lists:keysort(1, JobTuples))};
-
-op("jobinfo", Query, _Json) ->
-    {value, {_, Name}} = lists:keysearch("name", 1, Query),
+getop("jobinfo", {_Query, Name}) ->
     {ok, {Nodes, Tasks}} =
         gen_server:call(disco_server, {get_active, Name}),
     {ok, {TStamp, Pid, JobNfo, Res, Ready, Failed}} =
@@ -39,18 +63,13 @@ op("jobinfo", Query, _Json) ->
     {ok, render_jobinfo(TStamp, Pid, JobNfo, Nodes,
         Res, Tasks, Ready, Failed)};
 
-op("parameters", Query, _Json) ->
-    {value, {_, Name}} = lists:keysearch("name", 1, Query),
-    {ok, MasterUrl} = application:get_env(disco_url),
-    {relo, [MasterUrl, "/", disco_server:jobhome(Name), "params"]};
+getop("parameters", {_Query, Name}) ->
+    job_file(Name, "params");
 
-op("rawevents", Query, _Json) ->
-    {value, {_, Name}} = lists:keysearch("name", 1, Query),
-    {ok, MasterUrl} = application:get_env(disco_url),
-    {relo, [MasterUrl, "/", disco_server:jobhome(Name), "events"]};
+getop("rawevents", {_Query, Name}) ->
+    job_file(Name, "events");
 
-op("oob_get", Query, _Json) ->
-    {value, {_, Name}} = lists:keysearch("name", 1, Query),
+getop("oob_get", {Query, Name}) ->
     {value, {_, Key}} = lists:keysearch("key", 1, Query),
     Proxy = lists:keysearch("proxy", 1, Query),
     case {Proxy, gen_server:call(oob_server, {fetch,
@@ -67,15 +86,13 @@ op("oob_get", Query, _Json) ->
         {_, error} -> not_found
     end;
 
-op("oob_list", Query, _Json) ->
-    {value, {_, Name}} = lists:keysearch("name", 1, Query),
+getop("oob_list", {_Query, Name}) ->
     case gen_server:call(oob_server, {list, list_to_binary(Name)}) of
         {ok, Keys} -> {ok, Keys};
         error -> not_found
     end;
 
-op("jobevents", Query, _Json) ->
-    {value, {_, Name}} = lists:keysearch("name", 1, Query),
+getop("jobevents", {Query, Name}) ->
     {value, {_, NumS}} = lists:keysearch("num", 1, Query),
     Num = list_to_integer(NumS),
     Q = case lists:keysearch("filter", 1, Query) of
@@ -86,57 +103,26 @@ op("jobevents", Query, _Json) ->
         {get_job_events, Name, string:to_lower(Q), Num}),
     {raw, Ev};
 
-op("nodeinfo", _Query, _Json) ->
+getop("nodeinfo", _Query) ->
     {ok, {Available, Active}} =
         gen_server:call(disco_server, {get_nodeinfo, all}),
     ActiveB = lists:map(fun({Node, JobName}) ->
-        {obj, [{node, list_to_binary(Node)},
+        {struct, [{node, list_to_binary(Node)},
                {jobname, list_to_binary(JobName)}]}
     end, Active),
-    {ok, {obj, [{available, Available}, {active, ActiveB}]}};
+    {ok, {struct, [{available, Available}, {active, ActiveB}]}};
 
-op("kill_job", _Query, Json) ->
-    JobName = binary_to_list(Json),
-    gen_server:call(disco_server, {kill_job, JobName}),
-    {ok, <<>>};
-
-op("purge_job", _Query, Json) ->
-    JobName = binary_to_list(Json),
-    gen_server:cast(disco_server, {purge_job, JobName}),
-    {ok, <<>>};
-
-op("clean_job", _Query, Json) ->
-    JobName = binary_to_list(Json),
-    gen_server:call(disco_server, {clean_job, JobName}),
-    {ok, <<>>};
-
-op("get_results", _Query, Json) ->
-    [Timeout, Names] = Json,
-    S = [{N, gen_server:call(event_server,
-        {get_results, binary_to_list(N)})} || N <- Names],
-    {ok, [[N, status_msg(M)] || {N, M} <- wait_jobs(S, Timeout)]};
-
-op("get_blacklist", _Query, _Json) ->
+getop("get_blacklist", _Query) ->
     {ok, {A, _}} = gen_server:call(disco_server, {get_nodeinfo, all}),
-    {ok, [N0 || {N0, true} <- lists:map(fun({obj, L}) ->
+    {ok, [N0 || {N0, true} <- lists:map(fun({struct, L}) ->
         {value, {_, N}} = lists:keysearch(node, 1, L),
         {value, {_, B}} = lists:keysearch(blacklisted, 1, L),
         {N, B}
     end, A)]};
 
-op("blacklist", _Query, Json) ->
-    Node = binary_to_list(Json),
-    gen_server:call(disco_server, {blacklist, Node, manual}),
-    {ok, <<>>};
-
-op("whitelist", _Query, Json) ->
-    Node = binary_to_list(Json),
-    gen_server:call(disco_server, {whitelist, Node, any}),
-    {ok, <<>>};
-
-op("get_settings", _Query, _Json) ->
+getop("get_settings", _Query) ->
     L = [max_failure_rate],
-    {ok, {obj, lists:filter(fun(X) -> is_tuple(X) end,
+    {ok, {struct, lists:filter(fun(X) -> is_tuple(X) end,
         lists:map(fun(S) ->
             case application:get_env(disco, S) of
                 {ok, V} -> {S, V};
@@ -144,13 +130,63 @@ op("get_settings", _Query, _Json) ->
             end
         end, L))}};
 
-op("save_settings", _Query, Json) ->
-    {obj, Lst} = Json,
+getop(_, _) -> not_found.
+
+postop("kill_job", Json) ->
+    JobName = binary_to_list(Json),
+    gen_server:call(disco_server, {kill_job, JobName}),
+    {ok, <<>>};
+
+postop("purge_job", Json) ->
+    JobName = binary_to_list(Json),
+    gen_server:cast(disco_server, {purge_job, JobName}),
+    {ok, <<>>};
+
+postop("clean_job", Json) ->
+    JobName = binary_to_list(Json),
+    gen_server:call(disco_server, {clean_job, JobName}),
+    {ok, <<>>};
+
+postop("get_results", Json) ->
+    [Timeout, Names] = Json,
+    S = [{N, gen_server:call(event_server,
+        {get_results, binary_to_list(N)})} || N <- Names],
+    {ok, [[N, status_msg(M)] || {N, M} <- wait_jobs(S, Timeout)]};
+
+postop("blacklist", Json) ->
+    Node = binary_to_list(Json),
+    gen_server:call(disco_server, {blacklist, Node, manual}),
+    {ok, <<>>};
+
+postop("whitelist", Json) ->
+    Node = binary_to_list(Json),
+    gen_server:call(disco_server, {whitelist, Node, any}),
+    {ok, <<>>};
+
+postop("save_config_table", Json) ->
+    disco_config:save_config_table(Json);
+
+postop("save_settings", Json) ->
+    {struct, Lst} = Json,
     {ok, App} = application:get_application(),
     lists:foreach(fun({Key, Val}) ->
         update_setting(Key, Val, App)
     end, Lst),
-    {ok, <<"Settings saved">>}.
+    {ok, <<"Settings saved">>};
+
+postop(_, _) -> not_found.
+
+job_file(Name, File) ->
+    Root = disco:get_setting("DISCO_MASTER_ROOT"),
+    Home = disco_server:jobhome(Name),
+    {file, File, filename:join([Root, Home])}.
+
+job_status(JobName) ->
+    case gen_server:call(event_server, {get_results, JobName}) of
+        {active, _} -> <<"job_active">>;
+        {dead, _} -> <<"job_died">>;
+        {ready, _, _} -> <<"job_ready">>
+    end.
 
 update_setting("max_failure_rate", Val, App) ->
     ok = application:set_env(App, max_failure_rate,
@@ -158,36 +194,6 @@ update_setting("max_failure_rate", Val, App) ->
 
 update_setting(Key, Val, _) ->
     error_logger:info_report([{"Unknown setting", Key, Val}]).
-
-handle(Socket, Msg) ->
-    {value, {_, Script}} = lists:keysearch(<<"SCRIPT_NAME">>, 1, Msg),
-    {value, {_, Query}} = lists:keysearch(<<"QUERY_STRING">>, 1, Msg),
-    {value, {_, CLenStr}} = lists:keysearch(<<"CONTENT_LENGTH">>, 1, Msg),
-    CLen = list_to_integer(binary_to_list(CLenStr)),
-    if CLen > 0 ->
-        {ok, PostData} = gen_tcp:recv(Socket, CLen, 30000),
-        {ok, Json, _Rest} = json:decode(PostData);
-    true ->
-        Json = none
-    end,
-
-    handle_job:set_disco_url(application:get_env(disco_url), Msg),
-
-    Op = lists:last(string:tokens(binary_to_list(Script), "/")),
-    Reply = case catch op(Op,
-            httpd:parse_query(binary_to_list(Query)), Json) of
-        {ok, Res} -> [?HTTP_HEADER, json:encode(Res)];
-        {raw, Res} -> [?HTTP_HEADER, Res];
-        {relo, Loc} -> ["HTTP/1.1 302 ok\nLocation: ", Loc, "\n\n"];
-        not_found -> "HTTP/1.1 404 not found\n"
-                 "Status: 404 Not found\n\nNot found.";
-        R -> error_logger:info_report({"Request failed", Op, R}),
-            "HTTP/1.1 500 internal server error\n"
-            "Status: 500 Internal server error\n\n"
-            "Internal server error."
-    end,
-    gen_tcp:send(Socket, Reply).
-
 
 count_maps(L) ->
     {M, N} = lists:foldl(fun
@@ -215,7 +221,7 @@ render_jobinfo(Tstamp, JobPid, JobInfo, Nodes, Res, Tasks, Ready, Failed) ->
             JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
            true -> 0 end,
         
-    {obj, [{timestamp, Tstamp}, 
+    {struct, [{timestamp, Tstamp}, 
            {active, R},
            {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
            {redi, [RedI, NRedRun, NRedDone, NRedFail]},

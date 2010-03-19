@@ -2,10 +2,11 @@ import httplib, urllib2
 
 from disco.error import CommError
 
+FILE_BUFFER_SIZE = 10 * 1024**2
 MAX_RETRIES = 10
 http_pool = {}
 
-def download(url, data = None, redir = False, offset = 0):
+def download(url, data = None, redir = False, offset = 0, method = None):
     if redir:
         req = urllib2.Request(url, data)
         if offset:
@@ -17,16 +18,18 @@ def download(url, data = None, redir = False, offset = 0):
         r = c.read()
         c.close()
         return r
-    fd, sze, url = open_remote(url, data = data, offset = offset)
+    fd, sze, url = open_remote(url, data = data,
+        offset = offset, method = method)
     return fd.read()
 
 
 def check_code(fd, expected, url):
     if fd.status != expected:
         raise CommError("Invalid HTTP reply (expected %s got %s)" %\
-                (expected, fd.status), url)
+                (expected, fd.status), url, fd.status)
 
-def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
+def open_remote(url, data = None, expect = 200, offset = 0,
+        ttl = MAX_RETRIES, method = None):
     http = None
     try:
         ext_host, ext_file = url[7:].split("/", 1)
@@ -51,14 +54,15 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
             expect = 206
 
         if data:
-            http.request("POST", ext_file, data, headers = h)
-            fd = http.getresponse()
-            check_code(fd, expect, url)
+            meth = "POST"
+        elif method != None:
+            meth = method
         else:
-            http.request("GET", ext_file, None, headers = h)
-            fd = http.getresponse()
-            check_code(fd, expect, url)
-
+            meth = "GET"
+        
+        http.request(meth, ext_file, data, headers = h)
+        fd = http.getresponse()
+        check_code(fd, expect, url)
         sze = fd.getheader("content-length")
         if sze:
             sze = int(sze)
@@ -73,3 +77,6 @@ def open_remote(url, data = None, expect = 200, offset = 0, ttl = MAX_RETRIES):
         if ext_host in http_pool:
             del http_pool[ext_host]
         return open_remote(url, data, ttl=ttl - 1)
+
+def upload(fname, urls, retries = 10):
+    raise CommError("Uploading with httplib is not currently supported. Install pycurl.", urls[0])

@@ -11,7 +11,6 @@ class DiscoSettings(dict):
         'DISCO_NAME':            "'disco_%s' % DISCO_SCGI_PORT",
         'DISCO_PID_DIR':         "'/var/run'",
         'DISCO_PORT':            "8989",
-        'DISCO_PROXY':           "''",
         'DISCO_ROOT':            "'/srv/disco'",
         'DISCO_SCGI_PORT':       "4444",
         'DISCO_ULIMIT':          "16000000",
@@ -21,15 +20,31 @@ class DiscoSettings(dict):
         'DISCO_CONFIG':          "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
         'DISCO_LOCAL_DIR':       "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
-        'DISCO_TEST_HOST':       "socket.gethostname()",
-        'DISCO_TEST_PORT':       "9444",
-        'DISCO_TEST_PURGE':      "'purge'",
         'DISCO_ERLANG':          "guess_erlang()",
         'DISCO_HTTPD':           "'lighttpd'",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_PATH",
+# PROXY
+        'DISCO_PROXY':           "''",
+        'DISCO_PROXY_PORT':      "8999",
+        'DISCO_PROXY_PID':       "os.path.join(DISCO_ROOT, '%s-proxy.pid' % DISCO_NAME)",
+        'DISCO_PROXY_CONFIG':    "os.path.join(DISCO_ROOT, '%s-proxy.conf' % DISCO_NAME)",
+# TESTING
+        'DISCO_TEST_HOST':       "socket.gethostname()",
+        'DISCO_TEST_PORT':       "9444",
+        'DISCO_TEST_PURGE':      "'purge'",
+# SCHEDULER 
         'DISCO_SCHEDULER':       "'fair'",
         'DISCO_SCHEDULER_ALPHA': ".001",
+# DDFS
+        'DDFS_ENABLED':          "'on'",
+        'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
+        'DDFS_PUT_PORT':         "8990",
+        'DDFS_TAG_MIN_REPLICAS': "3",
+        'DDFS_TAG_REPLICAS':     "3",
+        'DDFS_BLOB_REPLICAS':    "3",
+        'DDFS_PUT_MAX':          "3",
+        'DDFS_GET_MAX':          "3"
         }
 
     must_exist = ('DISCO_DATA',

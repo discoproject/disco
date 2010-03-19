@@ -42,7 +42,7 @@ unique_key(Prefix, Dict) ->
 
 handle_call(get_jobnames, _From, {Events, _MsgBuf} = S) ->
     JobList = dict:fold(fun(JobName, {_EventList, JobStart, Pid}, Acc) ->
-        [{JobName, JobStart, Pid}|Acc]
+        [{JobStart, JobName, Pid}|Acc]
     end, [], Events),
     {reply, {ok, JobList}, S};
 
@@ -202,7 +202,7 @@ event(EventServer, Host, JobName, Format, Args, Params) ->
 		     true -> trunc_io:fprint(X, 10000);
 		     false -> X 
 		 end || X <- Args],
-    Msg = list_to_binary(json:encode(
+    Msg = list_to_binary(mochijson2:encode(
         list_to_binary(io_lib:fwrite(Format, SArgs)))),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
 

@@ -34,10 +34,11 @@ def main(inputs, mode, name, host, master_job, part):
 
     try:
         if task.has_flag('resultfs'):
+            # XXX Does not work!
             url = '%s/data/%s/params' % (task.root, '/'.join(master_job.strip('/').split('/')[-3:]))
             fn = lambda: file(url).read()
         else:
-            url = '%s/params' % master_job
+            url = master_job + "/disco/ctrl/parameters?name=" + name
             fn = lambda: download(url)
         ensure_file(task.path('PARAMS_FILE'), fn, mode = 444)
     except Exception, e:

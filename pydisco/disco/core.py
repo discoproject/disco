@@ -1,6 +1,7 @@
 import sys, re, os, modutil, time, types, cPickle, cStringIO, random
 
 from disco import func, util
+from disco.ddfs import DDFS
 from disco.comm import download, json
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
@@ -175,6 +176,10 @@ class Disco(object):
                     self.clean(name)
                 event_monitor.refresh()
 
+    def result_iterator(self, *args, **kwargs):
+        kwargs['ddfs'] = self.host
+        return result_iterator(*args, **kwargs)
+
 class JobSpecifier(list):
     def __init__(self, jobspec):
         super(JobSpecifier, self).__init__([jobspec]
@@ -221,6 +226,7 @@ class Job(object):
 #XXX: nr_reduces default has changed!
             "nr_reduces": 1,
             "sort": False,
+            "save": False,
             "params": Params(),
             "mem_sort_limit": 256 * 1024**2,
             "ext_params": None,
@@ -310,6 +316,7 @@ class Job(object):
                "version": ".".join(map(str, sys.version_info[:2])),
                "params": cPickle.dumps(jobargs['params'], cPickle.HIGHEST_PROTOCOL),
                "sort": str(int(jobargs['sort'])),
+               "save": str(int(jobargs['save'])),
                "mem_sort_limit": str(jobargs['mem_sort_limit']),
                "status_interval": str(jobargs['status_interval']),
                "profile": str(int(jobargs['profile']))}
@@ -366,6 +373,15 @@ class Job(object):
             if k in sched:
                 request["sched_" + k] = str(sched[k])
 
+        # -- ddfs --
+
+        tags, input = util.partition(input,
+            lambda x: str(x).startswith("tag://"))
+        if tags:
+            ddfs = DDFS(self.master.host)
+            for tag in tags:
+                input += ddfs.get_tag(tag[6:], recurse = True)
+
         # -- map --
 
         if 'map' in kwargs:
@@ -417,24 +433,26 @@ class Job(object):
 
         # -- encode and send the request --
 
-        reply = self.master.request("/disco/job/new", encode_netstring_fd(request))
-
-        if not reply.startswith('job started:'):
+        reply = json.loads(self.master.request("/disco/job/new",
+                        encode_netstring_fd(request)))
+        if reply[0] != "ok":
             raise DiscoError("Failed to start a job. Server replied: " + reply)
-        self.name = reply.split(':', 1)[1]
+        self.name = reply[1]
+
 
 def result_iterator(results,
             notifier = None,
             reader = func.netstr_reader,
             input_stream = [func.map_input_stream],
-            params = None):
+            params = None,
+            ddfs = None):
 
     task = Task(result_iterator = True)
     for fun in input_stream:
         fun.func_globals.setdefault("Task", task)
 
     res = []
-    res = [url for r in results for url in util.urllist(r)]
+    res = [url for r in results for url in util.urllist(r, ddfs = ddfs)]
 
     for url in res:
         fd = sze = None

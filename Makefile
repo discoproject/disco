@@ -22,14 +22,25 @@ SRC = $(wildcard $(ESRC)/*.erl)
 TARGET = $(addsuffix .beam, $(basename \
              $(addprefix $(EBIN)/, $(notdir $(SRC)))))
 
+
+SRC2 = $(wildcard $(ESRC)/mochiweb/*.erl)
+MOCHI_TARGET = $(addsuffix .beam, $(basename \
+             $(addprefix $(EBIN)/mochiweb/, $(notdir $(SRC2)))))
+
+SRC3 = $(wildcard $(ESRC)/ddfs/*.erl)
+DDFS_TARGET = $(addsuffix .beam, $(basename \
+             $(addprefix $(EBIN)/ddfs/, $(notdir $(SRC3)))))
+
 UNAME = $(shell uname)
 
 build: master config
 
-master: $(TARGET)
+master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
 
 clean:
 	- rm -Rf master/ebin/*.beam
+	- rm -Rf master/ebin/mochiweb/*.beam
+	- rm -Rf master/ebin/ddfs/*.beam
 	- rm -Rf pydisco/build
 	- rm -Rf pydisco/disco.egg-info
 	- rm -Rf node/build
@@ -37,9 +48,13 @@ clean:
 
 install: install-master install-pydisco install-node
 
-install-master: install-config install-bin master
-	install -d $(TARGETDIR)/ebin
+install-ebin:
+	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb 
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
+	install -m 0755 $(MOCHI_TARGET) $(TARGETDIR)/ebin/mochiweb
+	install -m 0755 $(DDFS_TARGET) $(TARGETDIR)/ebin/ddfs
+
+install-master: master install-ebin install-config install-bin
 	install -m 0755 master/ebin/disco.app $(TARGETDIR)/ebin
 	install -m 0755 master/make-lighttpd-proxyconf.py $(TARGETDIR)
 
@@ -50,9 +65,7 @@ install-master: install-config install-bin master
 		$(info lighttpd-master config already exists, skipping),\
 		install -m 0644 conf/lighttpd-master.conf $(TARGETCFG))
 
-install-node: install-config install-bin master
-	install -d $(TARGETDIR)/ebin
-	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
+install-node: master install-ebin install-config install-bin
 	install -m 0755 node/disco-worker $(TARGETBIN)
 
 	$(if $(wildcard $(TARGETCFG)/lighttpd-worker.conf),\
@@ -73,8 +86,21 @@ install-config:
 		$(info disco config already exists, skipping),\
 		install -m 0644 conf/settings.py.sys-$(UNAME) $(TARGETCFG)/settings.py)
 
+$(EBIN)/mochiweb/%.beam: $(ESRC)/mochiweb/%.erl
+	$(CC) $(OPT) -o $(EBIN)/mochiweb/ $<
+
+$(EBIN)/ddfs/%.beam: $(ESRC)/ddfs/%.erl
+	$(CC) $(OPT) -o $(EBIN)/ddfs/ $<
+
 $(EBIN)/%.beam: $(ESRC)/%.erl
 	$(CC) $(OPT) -o $(EBIN) $<
+
+$(EBIN)/ddfs:
+	- mkdir $(EBIN)/ddfs
+
+$(EBIN)/mochiweb:
+	- mkdir $(EBIN)/mochiweb
+
 
 config:
 	$(if $(wildcard conf/settings.py),\

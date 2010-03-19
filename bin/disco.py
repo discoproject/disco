@@ -129,13 +129,15 @@ class master(server):
     @property
     def basic_args(self):
         settings = self.disco_settings
+        ebin = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'ebin', d)
         return settings['DISCO_ERLANG'].split() + \
                ['+K', 'true',
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
-                '-pa', os.path.join(settings['DISCO_MASTER_HOME'], 'ebin'),
                 '-sname', self.name,
-                '-eval', '[handle_job, handle_ctrl]',
+                '-pa', ebin(''),
+                '-pa', ebin('mochiweb'),
+                '-pa', ebin('ddfs'),
                 '-eval', 'application:start(disco)']
 
     @property
@@ -143,12 +145,6 @@ class master(server):
         env = self.disco_settings.env
         env.update({'DISCO_MASTER_PID': self.pid_file})
         return env
-
-    @property
-    def lighttpd(self):
-        return lighttpd(self.disco_settings,
-                        self.disco_settings['DISCO_PORT'],
-                        self.conf_path('lighttpd-master.conf'))
 
     @property
     def name(self):
@@ -159,14 +155,10 @@ class master(server):
         return '%s@%s' % (self.name, self.host.split('.', 1)[0])
 
     def nodaemon(self):
-        return chain(self.lighttpd.start(),
-                     ('' for x in self.start(self.basic_args)), # suppress output
-                     self.lighttpd.stop())
+        return ('' for x in self.start(self.basic_args))
 
     def send(self, command):
-        if command in ('nodaemon', 'remsh'):
-            return getattr(self, command)()
-        return chain(getattr(self, command)(), self.lighttpd.send(command))
+        return getattr(self, command)()
 
     def __str__(self):
         return 'disco master'
@@ -187,7 +179,10 @@ class worker(server):
         return '%s_slave' % self.disco_settings['DISCO_NAME']
 
     def send(self, command):
-        return self.lighttpd.send(command)
+        if not self.disco_settings['DDFS_ENABLED']:
+            return self.lighttpd.send(command)
+        else:
+            return []
 
 class debug(object):
     def __init__(self, disco_settings):
