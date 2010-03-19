@@ -33,7 +33,7 @@ class DiscoSettings(dict):
         'DISCO_TEST_HOST':       "socket.gethostname()",
         'DISCO_TEST_PORT':       "9444",
         'DISCO_TEST_PURGE':      "'purge'",
-# SCHEDULER 
+# SCHEDULER
         'DISCO_SCHEDULER':       "'fair'",
         'DISCO_SCHEDULER_ALPHA': ".001",
 # DDFS
@@ -52,7 +52,8 @@ class DiscoSettings(dict):
                   'DISCO_MASTER_HOME',
                   'DISCO_MASTER_ROOT',
                   'DISCO_LOG_DIR',
-                  'DISCO_PID_DIR')
+                  'DISCO_PID_DIR',
+                  'DDFS_ROOT')
 
     def __init__(self, filename=None, **kwargs):
         super(DiscoSettings, self).__init__(kwargs)

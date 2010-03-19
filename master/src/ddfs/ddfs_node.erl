@@ -42,7 +42,7 @@ init(Config) ->
 
     spawn_link(fun() -> refresh_tags(DdfsRoot, Vol) end),
     spawn_link(fun() -> monitor_diskspace(DdfsRoot, Vol) end),
-    
+
     {ok, #state{root = DdfsRoot,
                 volumes = [{0, V} || V <- Vol],
                 tags = Tags,
@@ -63,17 +63,17 @@ handle_call(get_blob, _, #state{get_max = Max, get_active = Act} = S)
 
 handle_call(get_blob, {Pid, _}, S) ->
     erlang:monitor(process, Pid),
-    {reply, ok, S#state{get_active = [Pid|S#state.get_active]}}; 
+    {reply, ok, S#state{get_active = [Pid|S#state.get_active]}};
 
 handle_call({put_blob, _}, _, #state{put_max = Max, put_active = Act} = S)
         when length(Act) >= Max ->
     {reply, busy, S};
-        
+
 handle_call({put_blob, BlobName}, {Pid, _}, S) ->
     Vol = choose_volume(S#state.volumes),
     {ok, Local, Url} = ddfs_util:hashdir(
         list_to_binary(BlobName), "blob", S#state.root, Vol),
-    case ddfs_util:ensure_dir(Local) of 
+    case ddfs_util:ensure_dir(Local) of
         ok ->
             erlang:monitor(process, Pid),
             {reply, {ok, Local, Url},
@@ -112,7 +112,7 @@ handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
     {value, {_, Vol}} = lists:keysearch(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag, "tag", S#state.root, Vol),
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
-    
+
     TagL = binary_to_list(Tag),
     Src = filename:join(Local, ["!partial.", TagL]),
     Dst = filename:join(Local,  TagL),
@@ -153,27 +153,32 @@ read_tag(Tag, Root, {_, Vol}, From) ->
             gen_server:reply(From, {error, read_failed})
     end.
 
+init_volumes(Root, Volumes) ->
+    lists:foreach(fun(Volume) ->
+                          prim_file:make_dir(filename:join([Root, Volume, "blob"])),
+                          prim_file:make_dir(filename:join([Root, Volume, "tag"]))
+                  end, Volumes),
+    {ok, Volumes}.
+
 find_volumes(Root) ->
     case prim_file:list_dir(Root) of
         {ok, Files} ->
             case [F || "vol" ++ _ = F <- Files] of
                 [] ->
-                    error_logger:warning_report(
-                        {"Could not find volumes in", Root}),
-                    {error, novolumes};
-                Vol ->
-                    lists:foreach(fun(V) ->
-                        prim_file:make_dir(filename:join([Root, V, "blob"])),
-                        prim_file:make_dir(filename:join([Root, V, "tag"]))
-                    end, Vol),
-                    {ok, Vol}
-            end;    
+                    Volume = "vol0",
+                    prim_file:make_dir(filename:join([Root, Volume])),
+                    error_logger:warning_report({"Could not find volumes in ", Root,
+                                                 "Created ", Volume}),
+                    init_volumes(Root, [Volume]);
+                Volumes ->
+                    init_volumes(Root, Volumes)
+            end;
         Error ->
             error_logger:warning_report(
                 {"Invalid root directory", Root, Error}),
             Error
     end.
-    
+
 find_tags(Root, Vols) ->
     {ok, lists:foldl(fun(Vol, Tags) ->
         ddfs_util:fold_files(filename:join([Root, Vol, "tag"]),
