@@ -77,6 +77,9 @@ op('PUT', "/ddfs/tag/" ++ Tag, Req) ->
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
     tag_update(delete, Tag, Req);
 
+op('GET', Path, Req) ->
+    ddfs_get:serve_ddfs_file(Path, Req); 
+
 op(_, _, Req) ->
     Req:not_found().
 
