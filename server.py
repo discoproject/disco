@@ -4,10 +4,6 @@ from itertools import chain
 class ServerError(Exception):
     pass
 
-class PropertyDict(dict):
-    def __getattribute__(self, key):
-        return self[key]
-
 def safedir(path):
     if not os.path.exists(path):
         os.makedirs(path)
