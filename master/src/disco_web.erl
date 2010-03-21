@@ -77,7 +77,7 @@ getop("oob_get", {Query, Name}) ->
         {P, {ok, {Node, Path}}} when P == false;
                 P == {value, {"proxy", "0"}} ->
             {relo, ["http://", Node, ":",
-                os:getenv("DISCO_PORT"), "/", Path]};
+                os:getenv("DISCO_PORT"), "/disco/", Path]};
         {_, {ok, {Node, Path}}} ->
             {ok, MasterUrl} = application:get_env(disco_url),
             [_, H|_] = string:tokens(MasterUrl, "/"),
