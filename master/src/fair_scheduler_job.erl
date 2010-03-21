@@ -287,7 +287,7 @@ assign_nopref(Task, Tasks, _Nodes) ->
     gb_trees:update(nopref, {N + 1, C + 1, [T|L]}, Tasks).
 
 findpref(Task, NodeStats, Tasks, Nodes) ->
-    LoadSorted = lists:sort([{Load, taskcount(Node, Tasks), X} ||
+    LoadSorted = lists:sort([{taskcount(Node, Tasks), Load, X} ||
             {Load, {_Url, Node} = X} <- NodeStats, lists:member(Node, Nodes)]),
     case LoadSorted of
         [] ->
