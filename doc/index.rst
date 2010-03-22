@@ -26,7 +26,7 @@ Getting started
    start/install
    start/tutorial
    start/ec2setup
-   start/dfs
+   start/ddfs
    start/troubleshoot
    man/disco
 
