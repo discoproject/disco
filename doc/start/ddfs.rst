@@ -76,7 +76,7 @@ objects (files) that have been pushed to DDFS. They are distributed to
 storage nodes and stored on the local filesystems as is.
 
 Tags contain metadata about blobs. Most importantly, a tag contains a
-list of URLs that refer to blobs that have been assinged this tag. Tag
+list of URLs that refer to blobs that have been assigned this tag. Tag
 may also contain links to other tags. It may also include user-defined
 metadata.
 
@@ -170,7 +170,7 @@ re-populating the master cache takes only some seconds.
 
 All tag-related operations are handled by the master, to ensure their
 atomicity and consistency. The client may push new blobs to DDFS by
-first requesting a set of URLs for the desired number of replices from
+first requesting a set of URLs for the desired number of replicas from
 the master. After receiving the URLs, the client can push the blobs
 individually to the designated URLs using HTTP PUT requests. After
 pushing all replicas successfully to storage nodes, the client can tag
@@ -183,7 +183,7 @@ This approach is enabled by default in the DDFS Python API. The client
 can also decide to accept only *M* replicas, where *M < K*, if this is
 sufficient for the application. If the master detects that a node has
 become unresponsive, it is automatically blacklisted and dropped from
-subsequest queries. Thanks to replicated data and metadata, this does
+subsequent queries. Thanks to replicated data and metadata, this does
 not result in any data loss.
 
 A regular garbage collection process makes sure that the required number of
@@ -291,8 +291,8 @@ blobs, deleting a single tag does not affect the blobs.
 
 GET ``http://disco:8989/ddfs/tags[/PREFIX0/PREFIX1...]``
 
-Returns all tags stored in DDFS. As the returned list of tags can be potentially really
-long, tags can be filtered by prefix.
+Returns all tags stored in DDFS. As the returned list of tags can be
+potentially really long, tags can be filtered by prefix.
 
 Special syntactic sugar is provided for filtering hierarchically named tags,
 that is, tags with prefixes separated by colons. You can query a certain prefix
@@ -326,7 +326,7 @@ Getting a blob is just a matter of making a normal HTTP GET request.
 Tag operations
 ''''''''''''''
 
-Tags are the only mutable datatype in DDFS. Updating data in a
+Tags are the only mutable data type in DDFS. Updating data in a
 distributed system is a non-trivial task. Classical solutions
 include centralized lock servers, various methods based on
 eventual consistency and consensus protocols such as `Paxos
@@ -381,13 +381,14 @@ version. Deleting all versions of the tag is not very robust, as it is very
 likely that a temporarily unavailable node might contain a version of the
 tag, which would resurface once the node becomes available again.
 
-DDFS uses a special tag ``+deleted`` (inaccessible to the user due to the plus
-sign), to list deleted tags. Each tag operation checks whether the requested tag
-exists on this list, to hide deleted tags from the user. Actual deletion is
-handled by garbage collector in ``ddfs_gc:process_deleted()``.
+DDFS uses a special tag (metatag) ``+deleted`` (inaccessible to the
+user due to the plus sign), to list deleted tags. Each tag operation
+checks whether the requested tag exists on this list, to hide deleted
+tags from the user. Actual deletion is handled by garbage collector in
+``ddfs_gc:process_deleted()``.
 
 The deleted tag is kept on the ``+deleted`` list until all known instances of
-the tag have been garbage collected, and a sufficient quarantice period has
+the tag have been garbage collected, and a sufficient quarantine period has
 passed since the last seen instance, to ensure that all nodes which might be
 temporarily unavailable have been restarted.
 
@@ -399,7 +400,7 @@ Garbage collection
 ''''''''''''''''''
 
 Garbage collector is a central background process ensuring consistency and
-persistency of data and metadata in DDFS. It takes care of the following tasks:
+persistence of data and metadata in DDFS. It takes care of the following tasks:
 
    * Remove leftover !partial. files (failed PUT operations).
    * Remove orphaned tags (old versions and deleted tags).
@@ -413,7 +414,7 @@ These operations are extensively documented in the beginning of ``ddfs_gc.erl``.
 Fault tolerance
 '''''''''''''''
 
-DDFS piggypacks on Disco on fault-tolerance. It relies on Disco's
+DDFS piggybacks on Disco on fault-tolerance. It relies on Disco's
 ``node_mon.erl`` to monitor availability of nodes, and to blacklist
 unavailable nodes.
 
