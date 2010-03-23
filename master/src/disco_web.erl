@@ -31,8 +31,14 @@ op('GET', "/disco/ctrl/" ++ Op, Req) ->
             {value, {_, N}} -> N;
             _ -> false
         end,    
-    reply(getop(Op, {Query, Name}), Req).
-        
+    reply(getop(Op, {Query, Name}), Req);
+
+op('GET', Path, Req) ->
+    ddfs_get:serve_disco_file(Path, Req);
+
+op(_, _, Req) ->
+    Req:not_found().
+
 reply({ok, Data}, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)});
 reply({raw, Data}, Req) ->
@@ -77,7 +83,7 @@ getop("oob_get", {Query, Name}) ->
         {P, {ok, {Node, Path}}} when P == false;
                 P == {value, {"proxy", "0"}} ->
             {relo, ["http://", Node, ":",
-                os:getenv("DISCO_PORT"), "/", Path]};
+                os:getenv("DISCO_PORT"), "/disco/", Path]};
         {_, {ok, {Node, Path}}} ->
             {ok, MasterUrl} = application:get_env(disco_url),
             [_, H|_] = string:tokens(MasterUrl, "/"),

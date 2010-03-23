@@ -9,11 +9,16 @@ spawn_node(Node) ->
     process_flag(trap_exit, true),
     spawn_link(fun() ->
         case slave_start(Node) of
-            {ok, _SlaveNode} ->
+            {true, {ok, _Node}} ->
+                start_ddfs_node(node(), false),
+                receive
+                    ok -> ok                    
+                end;
+            {false, {ok, _SlaveNode}} ->
                 node_monitor(Node);
-            {error, {already_running, _SlaveNode}} ->
+            {_, {error, {already_running, _SlaveNode}}} ->
                 node_monitor(Node);
-            {error, timeout} ->
+            {_, {error, timeout}} ->
                 blacklist(Node);
             Error ->
                 error_logger:warning_report(
@@ -57,13 +62,23 @@ slave_env() ->
 
 slave_start(Node) ->
     error_logger:info_report({"starting node", Node}),
-    slave:start(list_to_atom(Node), slave_name(), slave_env(), self(),
-        disco:get_setting("DISCO_ERLANG")).
+    {is_master_node(Node), 
+        slave:start(list_to_atom(Node), slave_name(), slave_env(), self(),
+                disco:get_setting("DISCO_ERLANG"))}.
+
+is_master_node(Node) ->
+    case net_adm:names(Node) of
+        {ok, Names} ->
+            Master = string:sub_word(atom_to_list(node()), 1, $@),
+            lists:keymember(Master, 1, Names);
+        _ ->
+            false
+    end.
 
 node_monitor(Node) ->
     process_flag(trap_exit, true),
     NodeAtom = slave_node(Node),
-    start_ddfs_node(NodeAtom),
+    start_ddfs_node(NodeAtom, true),
     monitor_node(NodeAtom, true),
     receive
         {'EXIT', _, Reason} ->
@@ -75,7 +90,7 @@ node_monitor(Node) ->
     end,
     timer:sleep(?RESTART_DELAY).
 
-start_ddfs_node(NodeAtom) ->
+start_ddfs_node(NodeAtom, GetEnabled) ->
     Enabled = disco:get_setting("DDFS_ENABLED"),
     if Enabled =:= "on" ->
         DdfsRoot = disco:get_setting("DDFS_ROOT"),
@@ -86,7 +101,8 @@ start_ddfs_node(NodeAtom) ->
         GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
         Args = [{ddfs_root, DdfsRoot}, {disco_root, DiscoRoot},
                 {put_max, PutMax}, {get_max, GetMax},
-                {put_port, PutPort}, {get_port, GetPort}],
+                {put_port, PutPort}, {get_port, GetPort},
+                {get_enabled, GetEnabled}],
         spawn_link(NodeAtom, ddfs_node, start_link, [Args]);
     true -> ok
     end.

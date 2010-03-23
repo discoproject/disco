@@ -3,12 +3,20 @@
 
 -include_lib("kernel/include/file.hrl").
 
--export([start/2]).
+-export([start/2, serve_ddfs_file/2, serve_disco_file/2]).
 
 start(MochiConfig, Roots) ->
     mochiweb_http:start([{name, ddfs_get},
         {loop, fun(Req) -> loop(Req:get(raw_path), Req, Roots) end}
             | MochiConfig]).
+
+serve_ddfs_file(Path, Req) ->
+    DdfsRoot = disco:get_setting("DDFS_ROOT"),
+    loop(Path, Req, {DdfsRoot, none}).
+
+serve_disco_file(Path, Req) ->
+    DiscoRoot = disco:get_setting("DISCO_DATA"),
+    loop(Path, Req, {none, DiscoRoot}).
 
 loop("/proxy/" ++ Path, Req, Roots) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),

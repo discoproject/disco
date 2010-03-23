@@ -32,13 +32,20 @@ init(Config) ->
     {get_max, GetMax} = proplists:lookup(get_max, Config),
     {put_port, PutPort} = proplists:lookup(put_port, Config),
     {get_port, GetPort} = proplists:lookup(get_port, Config),
+    {get_enabled, GetEnabled} = proplists:lookup(get_enabled, Config),
 
     {ok, VolUn} = find_volumes(DdfsRoot),
     % lists:ukeymerge in update_volumestats requires a sorted list
     Vol = lists:sort(VolUn),
     {ok, Tags} = find_tags(DdfsRoot, Vol),
     {ok, _PutPid} = ddfs_put:start([{port, PutPort}]),
-    {ok, _GetPid} = ddfs_get:start([{port, GetPort}], {DdfsRoot, DiscoRoot}),
+    
+    if GetEnabled ->
+        {ok, _GetPid} =
+            ddfs_get:start([{port, GetPort}], {DdfsRoot, DiscoRoot});
+    true ->
+        ok
+    end,
 
     spawn_link(fun() -> refresh_tags(DdfsRoot, Vol) end),
     spawn_link(fun() -> monitor_diskspace(DdfsRoot, Vol) end),

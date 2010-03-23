@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://web.resource.org/cc/"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="481.50079"
+   height="360.58093"
+   id="svg2"
+   sodipodi:version="0.32"
+   inkscape:version="0.45.1"
+   version="1.0"
+   sodipodi:docbase="/home/tuulos"
+   sodipodi:docname="ddfs-concept-4.svg"
+   inkscape:output_extension="org.inkscape.output.svg.inkscape"
+   inkscape:export-filename="/home/tuulos/ddfs-concept-4.png"
+   inkscape:export-xdpi="70"
+   inkscape:export-ydpi="70">
+  <defs
+     id="defs4">
+    <linearGradient
+       inkscape:collect="always"
+       id="linearGradient20052">
+      <stop
+         style="stop-color:#ffffff;stop-opacity:1;"
+         offset="0"
+         id="stop20054" />
+      <stop
+         style="stop-color:#ffffff;stop-opacity:0;"
+         offset="1"
+         id="stop20056" />
+    </linearGradient>
+    <marker
+       inkscape:stockid="Arrow2Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow2Lend"
+       style="overflow:visible">
+      <path
+         id="path8071"
+         style="font-size:12px;fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.97309,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         transform="matrix(-1.1,0,0,-1.1,-1.1,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow2Mend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow2Mend"
+       style="overflow:visible">
+      <path
+         id="path8077"
+         style="font-size:12px;fill-rule:evenodd;stroke-width:0.625;stroke-linejoin:round"
+         d="M 8.7185878,4.0337352 L -2.2072895,0.016013256 L 8.7185884,-4.0017078 C 6.97309,-1.6296469 6.9831476,1.6157441 8.7185878,4.0337352 z "
+         transform="scale(-0.6,-0.6)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Mend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Mend"
+       style="overflow:visible">
+      <path
+         id="path8059"
+         d="M 0,0 L 5,-5 L -12.5,0 L 5,5 L 0,0 z "
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;marker-start:none"
+         transform="matrix(-0.4,0,0,-0.4,-4,0)" />
+    </marker>
+    <marker
+       inkscape:stockid="Arrow1Lend"
+       orient="auto"
+       refY="0"
+       refX="0"
+       id="Arrow1Lend"
+       style="overflow:visible">
+      <path
+         id="path8053"
+         d="M 0,0 L 5,-5 L -12.5,0 L 5,5 L 0,0 z "
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt;marker-start:none"
+         transform="matrix(-0.8,0,0,-0.8,-10,0)" />
+    </marker>
+    <radialGradient
+       inkscape:collect="always"
+       xlink:href="#linearGradient20052"
+       id="radialGradient20058"
+       cx="312.16574"
+       cy="344.11334"
+       fx="312.16574"
+       fy="344.11334"
+       r="222.20496"
+       gradientTransform="matrix(1.0878672,0,0,0.8157785,-46.87455,78.040263)"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     gridtolerance="10000"
+     guidetolerance="10"
+     objecttolerance="10"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="1.979899"
+     inkscape:cx="527.27353"
+     inkscape:cy="207.14433"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     inkscape:window-width="2546"
+     inkscape:window-height="1565"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:connector-spacing="0"
+     showguides="true"
+     inkscape:guide-bbox="true" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-51.969898,-178.47008)">
+    <rect
+       style="fill:url(#radialGradient20058);fill-opacity:1;stroke:none;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+       id="rect5094"
+       width="481.50079"
+       height="360.58093"
+       x="51.969898"
+       y="178.47008" />
+    <path
+       sodipodi:type="arc"
+       style="fill:#53a012;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+       id="path6101"
+       sodipodi:cx="77.781746"
+       sodipodi:cy="82.615738"
+       sodipodi:rx="23.233509"
+       sodipodi:ry="21.213203"
+       d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+       transform="matrix(0.7893459,0,0,0.8645217,129.84405,287.12389)"
+       inkscape:export-filename="/home/tuulos/concepts-1.png"
+       inkscape:export-xdpi="70"
+       inkscape:export-ydpi="70" />
+    <text
+       xml:space="preserve"
+       style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+       x="58.910759"
+       y="362.58759"
+       id="text7072"><tspan
+         sodipodi:role="line"
+         id="tspan7074"
+         x="58.910759"
+         y="362.58759">data:log:website</tspan></text>
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 181.50794,339.42964 L 181.50794,339.42964"
+       id="path8264"
+       inkscape:connector-type="polyline"
+       inkscape:connection-start="#path6101"
+       inkscape:connection-end="#path6101" />
+    <g
+       id="g9246"
+       transform="matrix(0.6827629,0,0,0.6946598,92.308279,57.784642)">
+      <path
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         transform="matrix(0.7893459,0,0,0.8645217,265.86964,153.62415)"
+         d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+         sodipodi:ry="21.213203"
+         sodipodi:rx="23.233509"
+         sodipodi:cy="82.615738"
+         sodipodi:cx="77.781746"
+         id="path2160"
+         style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+         sodipodi:type="arc" />
+      <text
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         id="text4103"
+         y="230.09801"
+         x="351.50998"
+         style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="230.09801"
+           x="351.50998"
+           id="tspan4105"
+           sodipodi:role="line">daily-log-2009-12-03_gz</tspan></text>
+    </g>
+    <g
+       id="g9241"
+       transform="matrix(0.6827629,0,0,0.6946598,92.308279,57.784642)">
+      <path
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         transform="matrix(0.7893459,0,0,0.8645217,265.86964,200.03609)"
+         d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+         sodipodi:ry="21.213203"
+         sodipodi:rx="23.233509"
+         sodipodi:cy="82.615738"
+         sodipodi:cx="77.781746"
+         id="path6084"
+         style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+         sodipodi:type="arc" />
+      <text
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         id="text6086"
+         y="276.50995"
+         x="351.50998"
+         style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="276.50995"
+           x="351.50998"
+           id="tspan6088"
+           sodipodi:role="line">daily-log-2009-12-03_gz</tspan></text>
+    </g>
+    <g
+       id="g6090"
+       transform="matrix(0.6827629,0,0,0.6946598,90.91313,122.26566)">
+      <path
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         transform="matrix(0.7893459,0,0,0.8645217,267.91303,153.62415)"
+         d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+         sodipodi:ry="21.213203"
+         sodipodi:rx="23.233509"
+         sodipodi:cy="82.615738"
+         sodipodi:cx="77.781746"
+         id="path6092"
+         style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+         sodipodi:type="arc" />
+      <text
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         id="text6094"
+         y="230.09801"
+         x="353.55338"
+         style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="230.09801"
+           x="353.55338"
+           id="tspan6096"
+           sodipodi:role="line">daily-log-2009-12-03_gz</tspan></text>
+    </g>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#0c0c0c;stroke-width:0.68868566;stroke-miterlimit:15;stroke-dasharray:0.68868566,0.68868566;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect9275"
+       width="154.59703"
+       height="108.16845"
+       x="292.84796"
+       y="189.60091" />
+    <path
+       sodipodi:type="arc"
+       style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+       id="path10265"
+       sodipodi:cx="77.781746"
+       sodipodi:cy="82.615738"
+       sodipodi:rx="23.233509"
+       sodipodi:ry="21.213203"
+       d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+       transform="matrix(0.5389361,0,0,0.6005485,273.8342,277.17974)"
+       inkscape:export-filename="/home/tuulos/concepts-1.png"
+       inkscape:export-xdpi="70"
+       inkscape:export-ydpi="70" />
+    <text
+       transform="scale(0.9913999,1.0086747)"
+       xml:space="preserve"
+       style="font-size:8.95291328px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+       x="335.1889"
+       y="327.46243"
+       id="text10267"
+       inkscape:export-filename="/home/tuulos/concepts-1.png"
+       inkscape:export-xdpi="70"
+       inkscape:export-ydpi="70"><tspan
+         sodipodi:role="line"
+         id="tspan10269"
+         x="335.1889"
+         y="327.46243">daily-log-2009-12-04_gz</tspan></text>
+    <g
+       id="g10271"
+       transform="matrix(0.6827629,0,0,0.6946598,92.308279,170.46322)">
+      <path
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         transform="matrix(0.7893459,0,0,0.8645217,265.86964,200.03609)"
+         d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+         sodipodi:ry="21.213203"
+         sodipodi:rx="23.233509"
+         sodipodi:cy="82.615738"
+         sodipodi:cx="77.781746"
+         id="path10273"
+         style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+         sodipodi:type="arc" />
+      <text
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         id="text10275"
+         y="276.50995"
+         x="351.50998"
+         style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="276.50995"
+           x="351.50998"
+           id="tspan10277"
+           sodipodi:role="line">daily-log-2009-12-04_gz</tspan></text>
+    </g>
+    <g
+       id="g10279"
+       transform="matrix(0.6827629,0,0,0.6946598,90.91313,234.94424)">
+      <path
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         transform="matrix(0.7893459,0,0,0.8645217,267.91303,153.62415)"
+         d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+         sodipodi:ry="21.213203"
+         sodipodi:rx="23.233509"
+         sodipodi:cy="82.615738"
+         sodipodi:cx="77.781746"
+         id="path10281"
+         style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+         sodipodi:type="arc" />
+      <text
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         id="text10283"
+         y="230.09801"
+         x="353.55338"
+         style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="230.09801"
+           x="353.55338"
+           id="tspan10285"
+           sodipodi:role="line">daily-log-2009-12-04_gz</tspan></text>
+    </g>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#0c0c0c;stroke-width:0.68868566;stroke-miterlimit:15;stroke-dasharray:0.68868566,0.68868566;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect10287"
+       width="154.59703"
+       height="108.16845"
+       x="292.84796"
+       y="302.27948" />
+    <g
+       id="g10291"
+       transform="matrix(0.6827629,0,0,0.6946598,92.308279,283.1418)">
+      <path
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         transform="matrix(0.7893459,0,0,0.8645217,265.86964,153.62415)"
+         d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+         sodipodi:ry="21.213203"
+         sodipodi:rx="23.233509"
+         sodipodi:cy="82.615738"
+         sodipodi:cx="77.781746"
+         id="path10293"
+         style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+         sodipodi:type="arc" />
+      <text
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         id="text10295"
+         y="230.09801"
+         x="351.50998"
+         style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="230.09801"
+           x="351.50998"
+           id="tspan10297"
+           sodipodi:role="line">daily-log-2009-12-05_gz</tspan></text>
+    </g>
+    <g
+       id="g10299"
+       transform="matrix(0.6827629,0,0,0.6946598,92.308279,283.1418)">
+      <path
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         transform="matrix(0.7893459,0,0,0.8645217,265.86964,200.03609)"
+         d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+         sodipodi:ry="21.213203"
+         sodipodi:rx="23.233509"
+         sodipodi:cy="82.615738"
+         sodipodi:cx="77.781746"
+         id="path10301"
+         style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+         sodipodi:type="arc" />
+      <text
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         id="text10303"
+         y="276.50995"
+         x="351.50998"
+         style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="276.50995"
+           x="351.50998"
+           id="tspan10305"
+           sodipodi:role="line">daily-log-2009-12-05_gz</tspan></text>
+    </g>
+    <g
+       id="g10307"
+       transform="matrix(0.6827629,0,0,0.6946598,90.91313,347.62281)">
+      <path
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         transform="matrix(0.7893459,0,0,0.8645217,267.91303,153.62415)"
+         d="M 101.01525 82.615738 A 23.233509 21.213203 0 1 1  54.548237,82.615738 A 23.233509 21.213203 0 1 1  101.01525 82.615738 z"
+         sodipodi:ry="21.213203"
+         sodipodi:rx="23.233509"
+         sodipodi:cy="82.615738"
+         sodipodi:cx="77.781746"
+         id="path10309"
+         style="fill:#9512a0;fill-opacity:1;stroke:#414141;stroke-width:1.79999995;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0.77134645"
+         sodipodi:type="arc" />
+      <text
+         inkscape:export-ydpi="70"
+         inkscape:export-xdpi="70"
+         inkscape:export-filename="/home/tuulos/concepts-1.png"
+         id="text10311"
+         y="230.09801"
+         x="353.55338"
+         style="font-size:13px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
+         xml:space="preserve"><tspan
+           y="230.09801"
+           x="353.55338"
+           id="tspan10313"
+           sodipodi:role="line">daily-log-2009-12-05_gz</tspan></text>
+    </g>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#0c0c0c;stroke-width:0.68868566;stroke-miterlimit:15;stroke-dasharray:0.68868566,0.68868566;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect10315"
+       width="154.59703"
+       height="108.16845"
+       x="292.84796"
+       y="414.95807" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:0.98390138px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 210.13843,357.97891 L 303.01168,216.1771"
+       id="path10319" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 119.198,179.80716 L 211.62696,69.953073"
+       id="path17127"
+       transform="translate(90.860771,178.47008)" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 119.198,180.0597 L 211.62696,102.78303"
+       id="path17129"
+       transform="translate(90.860771,178.47008)" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 119.198,180.31224 C 119.198,180.39642 119.198,180.4806 119.198,180.31224 z "
+       id="path17131"
+       transform="translate(90.860771,178.47008)" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 118.69292,180.0597 L 211.62696,149.75512"
+       id="path17133"
+       transform="translate(90.860771,178.47008)" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 118.94546,180.0597 L 211.12188,180.31224"
+       id="path17135"
+       transform="translate(90.860771,178.47008)" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 118.69292,180.31224 L 211.37442,211.87951"
+       id="path17137"
+       transform="translate(90.860771,178.47008)" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 118.94546,180.0597 L 211.37442,260.61937"
+       id="path17139"
+       transform="translate(90.860771,178.47008)" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 119.45054,180.0597 L 211.37442,291.42902"
+       id="path17141"
+       transform="translate(90.860771,178.47008)" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#5d5d5d;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
+       d="M 119.198,179.80716 L 211.37442,322.74375"
+       id="path17143"
+       transform="translate(90.860771,178.47008)" />
+  </g>
+</svg>
