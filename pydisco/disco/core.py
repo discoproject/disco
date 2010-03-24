@@ -68,7 +68,7 @@ class Disco(object):
         try:
             return util.load_oob(self.host, name, key)
         except CommError, e:
-            if e.http_code == 404:
+            if e.code == 404:
                 raise DiscoError("Unknown key or job name")
             raise
 
@@ -409,7 +409,6 @@ class Job(object):
             # XXX: Check for redundant inputs, external &
             # partitioned inputs
             input = [url for i in input for url in util.urllist(i)]
-
         request['input'] = ' '.join(input)
 
         if 'ext_params' in kwargs:
