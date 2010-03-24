@@ -10,7 +10,7 @@ spawn_remote([Url|Urls], F) when is_binary(Url) ->
 spawn_remote([Url|Urls], F) when is_list(Url) ->
     ["dir:", Node, _, Pref, JobName, File] = string:tokens(Url, "/"),
     JobRoot = filename:join([Node, Pref, JobName]),
-    SName = disco_worker:slave_name(Node),
+    SName = node_mon:slave_node(Node),
     case net_adm:ping(SName) of 
         pong -> spawn(SName, fun () -> F(File, JobRoot, Node) end);
         _ -> ok

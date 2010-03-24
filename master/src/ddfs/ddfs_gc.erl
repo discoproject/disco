@@ -110,7 +110,7 @@ start_gc_nodes([Node|T]) ->
     case net_adm:ping(Node) of
         pong ->
             ets:insert(gc_nodes,
-                {Node, spawn_link(Node, ddfs_gc, gc_node, [S, now()])});
+                {Node, spawn_link(Node, ddfs_gc_node, gc_node, [S, now()])});
         pang ->
             error_logger:warning_report({"GC: Node unreachable", Node})
     end,
