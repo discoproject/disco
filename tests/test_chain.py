@@ -1,13 +1,13 @@
 from disco.test import DiscoMultiJobTestFixture, DiscoTestCase
 from disco.core import Params
-from disco.func import chain_reader
+from disco.func import chain_reader, nop_reduce
 
 import string
 
 class ChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     animals      = ['horse', 'sheep', 'whale', 'tiger']
 
-    njobs    = 2
+    njobs        = 2
     inputs_1     = [''] * 100
     map_reader_2 = chain_reader
     nr_reduces_1 = 4
@@ -22,7 +22,7 @@ class ChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map_1(e, params):
-        return [(e + params['suffix'], 0)]
+        yield e + params['suffix'], 0
 
     @staticmethod
     def reduce_1(iter, out, params):
@@ -46,4 +46,23 @@ class ChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
             self.assertEquals(value, '1')
 
 
+class DavinChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
+    njobs        = 3
+    input_1      = ['raw://0', 'raw://1', 'raw://2']
+    input_2      = ['raw://3', 'raw://4', 'raw://5']
+    map_reader_3 = chain_reader
+    reduce_3     = nop_reduce
+    nr_reduces_3 = 2
 
+    def map_1(e, params):
+        yield e, ''
+
+    map_2 = map_1
+
+    @property
+    def input_3(self):
+        return self.job_1.wait() + self.job_2.wait()
+
+    def runTest(self):
+        for n, (key, value) in zip(xrange(6), sorted(self.results_3)):
+            self.assertEquals(n, int(key))
