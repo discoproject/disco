@@ -7,7 +7,6 @@ from disco.error import ModUtilImportError
 def user_paths():
     return set(os.getenv('PYTHONPATH', '').split(':') + [''])
 
-
 def parse_function(function):
     code = function.func_code
     mod = re.compile(r'\x%.2x(..)\x%.2x' % (opname.index('LOAD_GLOBAL'),
@@ -25,7 +24,7 @@ def locate_modules(modules, recurse=True, include_sys=False):
     found = {}
     for module in modules:
         file, path, x = imp.find_module(module)
-        if dirname(path) in LOCALDIRS:
+        if dirname(path) in LOCALDIRS and os.path.isfile(path):
             found[module] = path
             if recurse:
                 found.update(recurse_module(module, path))
@@ -37,7 +36,7 @@ def locate_modules(modules, recurse=True, include_sys=False):
 def find_modules(functions, send_modules=True, recurse=True, exclude=['Task']):
     modules = set()
     for function in functions:
-        fmod = [m for m in parse_function(function) if m not in exclude]
+        fmod = set([m for m in parse_function(function) if m not in exclude])
         if send_modules:
             try:
                 m = locate_modules(fmod, recurse, include_sys=True)

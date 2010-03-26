@@ -1,5 +1,5 @@
+from disco import modutil
 from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.core import modutil
 from disco.error import ModUtilImportError
 
 import sys, os

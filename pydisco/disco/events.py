@@ -35,7 +35,7 @@ class AnnouncePID(Signal):
 class DataUnavailable(Signal):
     type = 'DAT'
 
-class EndOfJob(Signal):
+class WorkerDone(Signal):
     type = 'END'
 
 class TaskFailed(Signal):

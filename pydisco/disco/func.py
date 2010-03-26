@@ -109,10 +109,12 @@ def make_range_partition(min_val, max_val):
     return eval(f)
 
 
+def noop(*args, **kwargs):
+    pass
+
 def nop_reduce(iter, out, params):
     for k, v in iter:
         out.add(k, v)
-
 
 def map_line_reader(fd, sze, fname):
     for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
@@ -133,36 +135,30 @@ def object_reader(fd, sze, fname):
         yield (cPickle.loads(k), cPickle.loads(v))
 
 def map_input_stream(stream, size, url, params):
-    m = re.match("(\w+)://", url)
-    if m:
-        scheme = m.group(1)
-        try:
-            mod = __import__("disco.schemes.scheme_%s" % scheme,
-                    fromlist = ["scheme_%s" % scheme])
-        except Exception:
-            err("Unknown scheme %s in %s" % (scheme, url))
-    else:
-        from disco.schemes import scheme_file as mod
-        url = "file://" + url
-    mod.input_stream.func_globals.setdefault("Task", Task)
+    m = re.match('(\w+)://', url)
+    scheme = m.group(1) if m else 'file'
+    mod = __import__('disco.schemes.scheme_%s' % scheme,
+                     fromlist=['scheme_%s' % scheme])
+    Task.insert_globals([mod.input_stream])
     return mod.input_stream(stream, size, url, params)
 
 reduce_input_stream = map_input_stream
 
 def map_output_stream(stream, partition, url, params):
+    from disco.fileutils import AtomicFile, PartitionFile
     BUFFER_SIZE = int(1024**2)
     mpath, murl = Task.map_output(partition)
-    if Task.num_partitions == 0:
+    if not Task.ispartitioned:
         Task.add_blob(mpath)
-        return disco.fileutils.AtomicFile(mpath, "w", BUFFER_SIZE), murl
+        return AtomicFile(mpath, 'w', BUFFER_SIZE), murl
     else:
         ppath, purl = Task.partition_output(partition)
         Task.add_blob(ppath)
-        return disco.fileutils.PartitionFile(
-            ppath, mpath, "w", BUFFER_SIZE), purl
+        return PartitionFile(ppath, mpath, 'w', BUFFER_SIZE), purl
 
 def reduce_output_stream(stream, partition, url, params):
+    from disco.fileutils import AtomicFile
     BUFFER_SIZE = int(1024**2)
     path, url = Task.reduce_output()
     Task.add_blob(path)
-    return disco.fileutils.AtomicFile(path, "w", BUFFER_SIZE), url
+    return AtomicFile(path, 'w', BUFFER_SIZE), url

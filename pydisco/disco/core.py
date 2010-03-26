@@ -1,12 +1,13 @@
-import sys, re, os, modutil, time, types, cPickle, cStringIO, random
+import sys, os, time, cStringIO
+from itertools import chain
 
 from disco import func, util
-from disco.ddfs import DDFS
 from disco.comm import download, json
+from disco.ddfs import DDFS
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
-from disco.netstring import encode_netstring_fd, encode_netstring_str, decode_netstring_fd
-from disco.task import Task
+from disco.modutil import find_modules
+from disco.netstring import decode_netstring_fd, encode_netstring_fd
 
 class Params(object):
     def __init__(self, **kwargs):
@@ -32,15 +33,228 @@ class Stats(object):
 class Continue(Exception):
     pass
 
+class JobSpecifier(list):
+    def __init__(self, jobspec):
+        super(JobSpecifier, self).__init__([jobspec]
+            if type(jobspec) is str else jobspec)
+
+    @property
+    def jobnames(self):
+        for job in self:
+            if type(job) is str:
+                yield job
+            elif type(job) is list:
+                yield job[0]
+            else:
+                yield job.name
+
+    def __str__(self):
+        return '{%s}' % ', '.join(self.jobnames)
+
+class JobDict(util.DefaultDict):
+    """
+    .. todo:: deprecate nr_reduces, move to nr_partitions
+    """
+    defaults = {'input': (),
+                'map': None,
+                'map_init': func.noop,
+                'map_reader': func.map_line_reader,
+                'map_writer': func.netstr_writer,
+                'map_input_stream': (func.map_input_stream, ),
+                'map_output_stream': (func.map_output_stream, ),
+                'combiner': None,
+                'partition': func.default_partition,
+                'reduce': None,
+                'reduce_init': func.noop,
+                'reduce_reader': func.netstr_reader,
+                'reduce_writer': func.netstr_writer,
+                'reduce_input_stream': (func.reduce_input_stream, ),
+                'reduce_output_stream': (func.reduce_output_stream, ),
+                'ext_map': False,
+                'ext_reduce': False,
+                'ext_params': None,
+                'mem_sort_limit': 256 * 1024**2,
+                'nr_reduces': 1, # XXX: default has changed!
+                'params': Params(),
+                'prefix': '',
+                'profile': False,
+                'required_files': None,
+                'required_modules': None,
+                'scheduler': {'max_cores': '%d' % 2**31},
+                'save': False,
+                'sort': False,
+                'status_interval': 100000,
+                'version': '.'.join(str(s) for s in sys.version_info[:2])}
+    default_factory = defaults.__getitem__
+
+    functions = set(['map',
+                     'map_init',
+                     'map_reader',
+                     'map_writer',
+                     'combiner',
+                     'partition',
+                     'reduce',
+                     'reduce_init',
+                     'reduce_reader',
+                     'reduce_writer'])
+
+    scheduler_keys = set(['force_local', 'force_remote', 'max_cores'])
+
+    stacks = set(['map_input_stream',
+                  'map_output_stream',
+                  'reduce_input_stream',
+                  'reduce_output_stream'])
+
+    def __init__(self, *args, **kwargs):
+        super(JobDict, self).__init__(*args, **kwargs)
+
+        # -- backwards compatibility --
+        if 'fun_map' in self and 'map' not in self:
+            self['map'] = self.pop('fun_map')
+
+        if 'input_files' in kwargs and 'input' not in self:
+            self['input'] = self.pop('input_files')
+
+        if 'chunked' in self:
+            raise DeprecationWarning("Argument 'chunked' is deprecated") # XXX: Deprecate properly
+
+        # -- external flags --
+        if isinstance(self['map'], dict):
+            self['ext_map'] = True
+        if isinstance(self['reduce'], dict):
+            self['ext_reduce'] = True
+
+        # -- input --
+        self['input'] = [url for i in self['input']
+                         for url in util.urllist(i, listdirs=bool(self['map']))]
+
+        # XXX: Check for redundant inputs, external & partitioned inputs
+
+        # -- required modules and files --
+
+        if self['required_modules'] is None:
+            functions = util.flatten(util.iterify(self[f])
+                                     for f in chain(self.functions, self.stacks))
+            self['required_modules'] = find_modules([f for f in functions
+                                                     if callable(f)])
+
+        if self['required_files']:
+            if not isinstance(self['required_files'], dict):
+                self['required_files'] = util.pack_files(self['required_files'])
+        else:
+            self['required_files'] = {}
+        self['required_files'].update(util.pack_files(o[1]
+                                                      for o in self['required_modules']
+                                                      if util.iskv(o)))
+
+        # -- scheduler --
+        scheduler = self.__class__.defaults['scheduler'].copy()
+        scheduler.update(self['scheduler'])
+        if 'nr_maps' in self:
+            # XXX: Deprecate properly
+            raise DeprecationWarning("Use scheduler = {'max_cores': N} instead or nr_maps.")
+            if 'max_cores' not in scheduler:
+                scheduler['max_cores'] = self['nr_maps']
+        if int(scheduler['max_cores']) < 1:
+            raise DiscoError("max_cores must be >= 1")
+        self['scheduler'] = scheduler
+
+        # -- sanity checks --
+        if not self['map'] and not self['reduce']:
+            raise DiscoError("Must specify map and/or reduce")
+
+        for key in self:
+            if key not in self.defaults:
+                raise DiscoError("Unknown job argument: %s" % key)
+
+    def pack(self):
+        jobpack = {}
+
+        for key in self.defaults:
+            if key == 'input':
+                jobpack['input'] = ' '.join('\n'.join(reversed(list(util.iterify(url)))) # XXX: why reverse?
+                                            for url in self['input'])
+            elif key in ('nr_reduces', 'prefix'):
+                jobpack[key] = str(self[key])
+            elif key == 'scheduler':
+                scheduler = self['scheduler']
+                for key in scheduler:
+                    jobpack['sched_%s' % key] = str(scheduler[key])
+            elif self[key] is None:
+                pass
+            elif key in self.stacks:
+                jobpack[key] = util.pack_stack(self[key])
+            else:
+                jobpack[key] = util.pack(self[key])
+        return encode_netstring_fd(jobpack)
+
+    @classmethod
+    def unpack(cls, jobpack, globals={}):
+        jobdict = cls.defaults.copy()
+        jobdict.update(**decode_netstring_fd(jobpack))
+
+        for key in cls.defaults:
+            if key == 'input':
+                jobdict['input'] = [i.split()
+                                    for i in jobdict['input'].split(' ')]
+            elif key == 'nr_reduces':
+                jobdict[key] = int(jobdict[key])
+            elif key == 'scheduler':
+                for key in cls.scheduler_keys:
+                    if 'sched_%s' % key in jobdict:
+                        jobdict['scheduler'][key] = jobdict.pop('sched_%s' % key)
+            elif key == 'prefix':
+                pass
+            elif jobdict[key] is None:
+                pass
+            elif key in cls.stacks:
+                jobdict[key] = util.unpack_stack(jobdict[key], globals=globals)
+            else:
+                jobdict[key] = util.unpack(jobdict[key], globals=globals)
+        return cls(**jobdict)
+
+class Job(object):
+    proxy_functions = ('clean',
+                       'events',
+                       'kill',
+                       'jobinfo',
+                       'jobspec',
+                       'oob_get',
+                       'oob_list',
+                       'parameters',
+                       'profile_stats',
+                       'purge',
+                       'results',
+                       'wait')
+
+    def __init__(self, master, name='', **kwargs):
+        self.master  = master
+        self.name    = name
+        self.jobdict = JobDict(prefix=name, **kwargs)
+        self._run()
+
+    def __getattr__(self, attr):
+        if attr in self.proxy_functions:
+            from functools import partial
+            return partial(getattr(self.master, attr), self.name)
+        raise AttributeError("%r has no attribute %r" % (self, attr))
+
+    def _run(self):
+        jobpack = self.jobdict.pack()
+        reply = json.loads(self.master.request('/disco/job/new', jobpack))
+        if reply[0] != 'ok':
+            raise DiscoError("Failed to start a job. Server replied: " + reply)
+        self.name = reply[1]
+
 class Disco(object):
     def __init__(self, host):
         self.host = util.disco_host(host)
 
     def request(self, url, data = None, redir = False, offset = 0):
         try:
-            return download(self.host + url, data = data, redir = redir, offset = offset)
+            return download(self.host + url, data=data, redir=redir, offset=offset)
         except CommError, e:
-            raise DiscoError("Got %s, make sure disco master is running at %s" % (e, self.host))
+            raise CommError("is disco master running at %s?" % self.host, url)
 
     def get_config(self):
         return json.loads(self.request('/disco/ctrl/load_config_table'))
@@ -60,7 +274,7 @@ class Disco(object):
 
     def blacklist(self, node):
         self.request('/disco/ctrl/blacklist', '"%s"' % node)
-    
+
     def whitelist(self, node):
         self.request('/disco/ctrl/whitelist', '"%s"' % node)
 
@@ -73,7 +287,7 @@ class Disco(object):
             raise
 
     def oob_list(self, name):
-        r = self.request("/disco/ctrl/oob_list?name=%s" % name, redir=True)
+        r = self.request('/disco/ctrl/oob_list?name=%s' % name, redir=True)
         return json.loads(r)
 
     def profile_stats(self, name, mode=''):
@@ -100,9 +314,14 @@ class Disco(object):
     def purge(self, name):
         self.request('/disco/ctrl/purge_job', '"%s"' % name)
 
-    def jobspec(self, name):
-        r = self.request('/disco/ctrl/parameters?name=%s' % name, redir=True)
-        return decode_netstring_fd(cStringIO.StringIO(r))
+    def jobdict(self, name):
+        return JobDict.unpack(self.jobpack(name))
+
+    def jobpack(self, name):
+        return self.request('/disco/ctrl/parameters?name=%s' % name, redir=True)
+
+    def jobspec(self, name):         # XXX: deprecate this
+        return self.jobdict(name)
 
     def events(self, name, offset = 0):
         def event_iter(events):
@@ -180,288 +399,25 @@ class Disco(object):
         kwargs['ddfs'] = self.host
         return result_iterator(*args, **kwargs)
 
-class JobSpecifier(list):
-    def __init__(self, jobspec):
-        super(JobSpecifier, self).__init__([jobspec]
-            if type(jobspec) is str else jobspec)
-
-    @property
-    def jobnames(self):
-        for job in self:
-            if type(job) is str:
-                yield job
-            elif type(job) is list:
-                yield job[0]
-            else:
-                yield job.name
-
-    def __str__(self):
-        return '{%s}' % ', '.join(self.jobnames)
-
-class Job(object):
-
-    funs = ["map", "map_init", "reduce_init", "map_reader", "map_writer",\
-        "reduce_reader", "reduce_writer", "reduce", "partition",\
-        "combiner", "reduce_input_stream", "reduce_output_stream",\
-        "map_input_stream", "map_output_stream"]
-
-    defaults = {"name": None,
-            "map": None,
-            "input": None,
-            "map_init": None,
-            "reduce_init": None,
-            "map_reader": func.map_line_reader,
-            "map_writer": func.netstr_writer,
-            "map_input_stream": None,
-            "map_output_stream": None,
-            "reduce_reader": func.netstr_reader,
-            "reduce_writer": func.netstr_writer,
-            "reduce_input_stream": None,
-            "reduce_output_stream": None,
-            "reduce": None,
-            "partition": func.default_partition,
-            "combiner": None,
-            "nr_maps": None,
-            "scheduler": {},
-#XXX: nr_reduces default has changed!
-            "nr_reduces": 1,
-            "sort": False,
-            "save": False,
-            "params": Params(),
-            "mem_sort_limit": 256 * 1024**2,
-            "ext_params": None,
-            "status_interval": 100000,
-            "required_files": [],
-            "required_modules": [],
-            "profile": False}
-
-    mapreduce_functions = ("map_init",
-                   "map_reader",
-                   "map",
-                   "map_writer",
-                   "partition",
-                   "combiner",
-                   "reduce_init",
-                   "reduce_reader",
-                   "reduce",
-                   "reduce_writer")
-
-    proxy_functions = ("kill",
-               "clean",
-               "purge",
-               "jobspec",
-               "results",
-               "jobinfo",
-               "wait",
-               "oob_get",
-               "oob_list",
-               "profile_stats",
-               "events")
-
-    def __init__(self, master, name='', **kwargs):
-        self.master = master
-        self.name   = name
-        self._run(**kwargs)
-
-    def __getattr__(self, attr):
-        if attr in self.proxy_functions:
-            from functools import partial
-            return partial(getattr(self.master, attr), self.name)
-        raise AttributeError("%r has no attribute %r" % (self, attr))
-
-    def pack_stack(self, kw, req, stream):
-        if stream in kw:
-            req[stream] = encode_netstring_str((f.func_name, util.pack(f))
-                               for f in util.iterify(kw[stream]))
-
-    def _run(self, **kwargs):
-        jobargs = util.DefaultDict(self.defaults.__getitem__, kwargs)
-
-        # -- check parameters --
-
-        # Backwards compatibility
-        # (fun_map == map, input_files == input)
-        if "fun_map" in kwargs:
-            kwargs["map"] = kwargs["fun_map"]
-
-        if "input_files" in kwargs:
-            kwargs["input"] = kwargs["input_files"]
-
-        if "chunked" in kwargs:
-            raise DeprecationWarning("Argument 'chunked' is deprecated")
-
-        if "nr_maps" in kwargs:
-            sys.stderr.write("Warning: nr_maps is deprecated. "
-                     "Use scheduler = {'max_cores': N} instead.\n")
-            sched = jobargs["scheduler"].copy()
-            if "max_cores" not in sched:
-                sched["max_cores"] = int(jobargs["nr_maps"])
-            jobargs["scheduler"] = sched
-
-        if not "input" in kwargs:
-            raise DiscoError("Argument input is required")
-
-        if not ("map" in kwargs or "reduce" in kwargs):
-            raise DiscoError("Specify map and/or reduce")
-
-        for p in kwargs:
-            if p not in Job.defaults:
-                raise DiscoError("Unknown argument: %s" % p)
-
-        input = kwargs["input"]
-
-        # -- initialize request --
-
-        request = {"prefix": self.name,
-               "version": ".".join(map(str, sys.version_info[:2])),
-               "params": cPickle.dumps(jobargs['params'], cPickle.HIGHEST_PROTOCOL),
-               "sort": str(int(jobargs['sort'])),
-               "save": str(int(jobargs['save'])),
-               "mem_sort_limit": str(jobargs['mem_sort_limit']),
-               "status_interval": str(jobargs['status_interval']),
-               "profile": str(int(jobargs['profile']))}
-
-        # -- required modules --
-
-        if 'required_modules' in kwargs:
-            rm = kwargs['required_modules']
-        else:
-            functions = util.flatten(util.iterify(jobargs[f])
-                         for f in self.mapreduce_functions)
-            rm = modutil.find_modules([f for f in functions\
-                if callable(f)])
-
-        send_mod = []
-        imp_mod = []
-        for mod in rm:
-            if type(mod) == tuple:
-                send_mod.append(mod[1])
-                mod = mod[0]
-            imp_mod.append(mod)
-
-        request["required_modules"] = " ".join(imp_mod)
-        rf = util.pack_files(send_mod)
-
-        # -- input & output streams --
-
-        for stream in ["map_input_stream", "map_output_stream",
-                   "reduce_input_stream", "reduce_output_stream"]:
-            self.pack_stack(kwargs, request, stream)
-
-        # -- required files --
-
-        if "required_files" in kwargs:
-            if isinstance(kwargs["required_files"], dict):
-                rf.update(kwargs["required_files"])
-            else:
-                rf.update(util.pack_files(\
-                    kwargs["required_files"]))
-        if rf:
-            request["required_files"] = util.pack(rf)
-
-        # -- scheduler --
-
-        sched = jobargs["scheduler"]
-        sched_keys = ["max_cores", "force_local", "force_remote"]
-
-        if "max_cores" not in sched:
-            sched["max_cores"] = 2**31
-        elif sched["max_cores"] < 1:
-            raise DiscoError("max_cores must be >= 1")
-
-        for k in sched_keys:
-            if k in sched:
-                request["sched_" + k] = str(sched[k])
-
-        # -- ddfs --
-
-        tags, input = util.partition(input,
-            lambda x: str(x).startswith("tag://"))
-        if tags:
-            ddfs = DDFS(self.master.host)
-            for tag in tags:
-                input += ddfs.get_tag(tag[6:], recurse = True)
-
-        # -- map --
-
-        if 'map' in kwargs:
-            k = 'ext_map' if isinstance(kwargs['map'], dict) else 'map'
-            request[k] = util.pack(kwargs['map'])
-
-            for function_name in ('map_init',
-                          'map_reader',
-                          'map_writer',
-                          'partition',
-                          'combiner'):
-                function = jobargs[function_name]
-                if function:
-                    request[function_name] = util.pack(function)
-
-            def inputlist(input):
-                if hasattr(input, '__iter__'):
-                    return ['\n'.join(reversed(list(input)))]
-                return util.urllist(input)
-            input = [e for i in input for e in inputlist(i)]
-
-        # -- only reduce --
-
-        else:
-            # XXX: Check for redundant inputs, external &
-            # partitioned inputs
-            input = [url for i in input for url in util.urllist(i)]
-
-        request['input'] = ' '.join(input)
-
-        if 'ext_params' in kwargs:
-            e = kwargs['ext_params']
-            request['ext_params'] = encode_netstring_fd(e)\
-                if isinstance(e, dict) else e
-
-        # -- reduce --
-
-        nr_reduces = jobargs['nr_reduces']
-        if 'reduce' in kwargs:
-            k = 'ext_reduce' if isinstance(kwargs['reduce'], dict) else 'reduce'
-            request[k] = util.pack(kwargs['reduce'])
-
-            for function_name in ('reduce_reader', 'reduce_writer', 'reduce_init'):
-                function = jobargs[function_name]
-                if function:
-                    request[function_name] = util.pack(function)
-
-        request['nr_reduces'] = str(nr_reduces)
-
-        # -- encode and send the request --
-
-        reply = json.loads(self.master.request("/disco/job/new",
-                        encode_netstring_fd(request)))
-        if reply[0] != "ok":
-            raise DiscoError("Failed to start a job. Server replied: " + reply)
-        self.name = reply[1]
-
-
 def result_iterator(results,
-            notifier = None,
-            reader = func.netstr_reader,
-            input_stream = [func.map_input_stream],
-            params = None,
-            ddfs = None):
-
-    task = Task(result_iterator = True)
+                    notifier = None,
+                    reader = func.netstr_reader,
+                    input_stream = [func.map_input_stream],
+                    params = None,
+                    ddfs = None):
+    from disco.task import Task
+    task = Task()
     for fun in input_stream:
-        fun.func_globals.setdefault("Task", task)
+        fun.func_globals.setdefault('Task', task)
 
-    res = []
-    res = [url for r in results for url in util.urllist(r, ddfs = ddfs)]
+    for result in results:
+        for url in util.urllist(result, ddfs=ddfs):
+            fd = sze = None
+            for fun in input_stream:
+                fd, sze, url = fun(fd, sze, url, params)
 
-    for url in res:
-        fd = sze = None
-        for fun in input_stream:
-            fd, sze, url = fun(fd, sze, url, params)
+            if notifier:
+                notifier(url)
 
-        if notifier:
-            notifier(url)
-
-        for x in reader(fd, sze, url):
-            yield x
-
+            for x in reader(fd, sze, url):
+                yield x

@@ -13,8 +13,13 @@ TRANSFER_TIMEOUT = 10 * 60
 
 BLOCK_SIZE = 1024**2
 
-def download(url, data = None, redir = False, offset = 0,
-            method = None, sleep = 0, header = {}):
+def download(url,
+             data=None,
+             redir=False,
+             offset=0,
+             method=None,
+             sleep=0,
+             header={}):
 
     def headfun(h):
         try:
@@ -125,17 +130,3 @@ def upload(fname, urls, retries = 10):
         raise CommError("Maximum number of PUT retries reached. "
             "The following URLs were unreachable: %s" % " ".join(urls), urls[0])
     return success
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
