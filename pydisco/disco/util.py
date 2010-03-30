@@ -93,7 +93,7 @@ def pack(object):
         defs = [pack(x) for x in object.func_defaults]\
                     if object.func_defaults else None
         return marshal.dumps((object.func_code, defs))
-    return cPickle.dumps(object)
+    return cPickle.dumps(object, cPickle.HIGHEST_PROTOCOL)
 
 def unpack(string, globals={'__builtins__': __builtins__}):
     try:
