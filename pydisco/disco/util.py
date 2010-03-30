@@ -10,6 +10,7 @@ external interface.
 """
 import os
 import cPickle, marshal, sys, time, traceback
+import copy_reg, functools
 
 from collections import defaultdict
 from itertools import chain, repeat
@@ -75,10 +76,20 @@ def rapply(iterable, fn):
         else:
             yield fn(item)
 
+def unpickle_partial(func, args, kwargs):
+    return functools.partial(func, *args, **kwargs)
+
+def pickle_partial(p):
+    return unpickle_partial, (p.func, p.args, p.keywords or {})
+
+# support functools.partial also on Pythons prior to 3.1
+if sys.version_info < (3,1):
+    copy_reg.pickle(functools.partial, pickle_partial)
+
 def pack(object):
     if hasattr(object, 'func_code'):
         if object.func_closure != None:
-            raise TypeError('Function must not have closures: %s' % object.func_name)
+            raise TypeError('Function must not have closures: %s (try using functools.partial instead)'%object.func_name)
         defs = [pack(x) for x in object.func_defaults]\
                     if object.func_defaults else None
         return marshal.dumps((object.func_code, defs))
