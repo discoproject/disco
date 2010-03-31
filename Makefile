@@ -7,8 +7,8 @@ PYTHON = python
 ESRC = master/src
 EBIN = master/ebin
 
-PREFIX=/usr
 DESTDIR=/
+PREFIX=/usr
 SYSCONFDIR=/etc
 BIN_DIR = $(PREFIX)/bin/
 INSTALL_DIR = $(PREFIX)/lib/disco/

@@ -82,7 +82,7 @@ def re_reader(item_re_str, fd, content_len, fname, output_tail = False, read_buf
             buf = buf[m.end():]
             m = item_re.match(buf)
 
-        if not len(r) or tot >= content_len:
+        if not len(r) or (content_len!=None and tot >= content_len):
             if content_len != None and tot < content_len:
                 data_err("Truncated input (%s). "\
                      "Expected %d bytes, got %d" %\

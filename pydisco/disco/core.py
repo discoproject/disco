@@ -282,7 +282,7 @@ class Disco(object):
         try:
             return util.load_oob(self.host, name, key)
         except CommError, e:
-            if e.http_code == 404:
+            if e.code == 404:
                 raise DiscoError("Unknown key or job name")
             raise
 
