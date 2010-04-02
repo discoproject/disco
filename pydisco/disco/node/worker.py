@@ -66,7 +66,6 @@ class Worker(object):
         AnnouncePID(os.getpid())
         Message("Received a new %s task!" % mode)
         self.task = getattr(task, mode.capitalize())(**taskargs)
-
         self.task.run()
         WorkerDone("Worker done")
 

@@ -2,10 +2,12 @@ import os, socket
 
 class DiscoSettings(dict):
     defaults = {
+        'DISCO_SETTINGS':        "''",
         'DISCO_DEBUG':           "'off'",
         'DISCO_EVENTS':          "''",
         'DISCO_FLAGS':           "''",
         'DISCO_LOG_DIR':         "'/var/log/disco'",
+        'DISCO_MASTER':          "'http://%s:%s' % (DISCO_MASTER_HOST, DISCO_PORT)",
         'DISCO_MASTER_HOME':     "'/usr/lib/disco'",
         'DISCO_MASTER_HOST':     "socket.gethostname()",
         'DISCO_NAME':            "'disco_%s' % DISCO_SCGI_PORT",
@@ -71,6 +73,7 @@ class DiscoSettings(dict):
     def env(self):
         settings = os.environ.copy()
         settings.update(dict((k, str(self[k])) for k in self.defaults))
+        settings['DISCO_SETTINGS'] = ','.join(self.defaults)
         return settings
 
 def guess_erlang():
