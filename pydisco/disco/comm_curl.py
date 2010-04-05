@@ -63,13 +63,19 @@ def download(url, data = None, redir = False, offset = 0,
     return code, outbuf.getvalue()
 
 class MultiPut:
-    def __init__(self, fname, urls):
-        self.handles = dict((url, self.init_handle(url, fname)) for url in urls)
+    def __init__(self, input, urls):
+        if type(input) == tuple:
+            data, size = input
+            new_fd = lambda: cStringIO.StringIO(data)
+        else:
+            size = os.stat(input).st_size
+            new_fd = lambda: file(input, "r", FILE_BUFFER_SIZE)
+        self.handles = dict((url, self.init_handle(url, size, new_fd()))\
+                                for url in urls)
         self.multi = CurlMulti()
         [self.multi.add_handle(handle) for handle, out in self.handles.values()]
     
-    def init_handle(self, url, fname):
-        fd = file(fname, "r", FILE_BUFFER_SIZE)
+    def init_handle(self, url, size, fd):
         out = cStringIO.StringIO()
         handle = Curl()
         handle.setopt(URL, str(url))
@@ -79,9 +85,9 @@ class MultiPut:
         handle.setopt(WRITEFUNCTION, out.write)
         handle.setopt(READFUNCTION, fd.read)
         handle.setopt(UPLOAD, 1)
+        handle.setopt(INFILESIZE, size)
         # Workaround for Lighty (http://redmine.lighttpd.net/issues/1017)
         handle.setopt(HTTPHEADER, ["Expect:"])
-        handle.setopt(INFILESIZE, os.stat(fname).st_size)
         return handle, out
 
     def perform(self):

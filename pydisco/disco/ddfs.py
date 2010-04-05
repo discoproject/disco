@@ -62,10 +62,14 @@ class DDFS(object):
 
     def _put_file(self, blob, replicas, retries, exclude = []):
         if type(blob) == tuple:
-            name, fname = blob
+            if len(blob) == 2:
+                name, input = blob
+                if hasattr(input, "read"):
+                    data = input.read()
+                    input = (data, len(data))
         else:
-            fname = blob
-            name = re.sub("[^A-Za-z0-9_\-@:]", "_", os.path.basename(fname))
+            input = blob
+            name = re.sub("[^A-Za-z0-9_\-@:]", "_", os.path.basename(input))
         qs = "?exclude=" + ",".join(exclude)
         if replicas:
             qs += "&replicas=%d" % replicas
@@ -80,9 +84,9 @@ class DDFS(object):
             dst = proxied
         try:
             if retries != None:
-                urls = upload(fname, dst, retries = retries)
+                urls = upload(input, dst, retries = retries)
             else:
-                urls = upload(fname, dst)
+                urls = upload(input, dst)
         except CommError, ex:
             scheme, host, path = urlsplit(ex.url)
             host = host.split(':')[0]
