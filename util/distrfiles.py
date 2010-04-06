@@ -75,7 +75,7 @@ while True:
         print >> sys.stderr, "Couldn't mkdir %s:%s/data/%s" % (node, root, name)
 
     print >> sys.stderr, "Copying %d files to %s" % (len(nset), node)
-    p = Popen("nice -19 %s scp %s %s %s:%s/data/%s/" % 
+    p = Popen("nice -19 %s scp %s %s %s:%s/data/%s/" %
         (ionice, " ".join(ssh), " ".join(nset), unode, root, name),
             shell = True)
     procs.append((node, p, nset))
