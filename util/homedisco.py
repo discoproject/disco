@@ -30,11 +30,11 @@ class DummyDisco:
         return "job started"
 
 class HomeDisco:
-    
+
     def __init__(self, mode, partition = "0"):
         self.mode = mode
         self.partition = partition
-    
+
     def new_job(self, *args, **kwargs):
         job = Job(DummyDisco(), **kwargs)
         req = decode_netstring_fd(cStringIO.StringIO(job.msg))
@@ -44,7 +44,7 @@ class HomeDisco:
         sys.argv = ["", "", job.name, "localhost",
                 "http://nohost", self.partition]
         sys.argv += kwargs["input"]
-        
+
         from disco.node import worker
 
         sys.stderr = out = MsgStream()
@@ -66,23 +66,23 @@ if __name__ == "__main__":
 
     def fun_map(e, params):
         return [(e, e)]
-    
+
     def fun_reduce(iter, out, params):
         for k, v in iter:
             out.add("red:" + k, v)
-    
+
     f = file("homedisco-test", "w")
     print >> f, "dog\ncat\npossum"
     f.close()
 
     map_hd = HomeDisco("map")
     reduce_hd = HomeDisco("reduce")
-    
+
     res = map_hd.new_job(name = "homedisco",
                  input = ["homedisco-test"],
                  map = fun_map,
                  reduce = fun_reduce)
-    
+
     res = reduce_hd.new_job(name = "homedisco",
                 input = res,
                 map = fun_map,
