@@ -126,5 +126,6 @@ class DDFS(object):
         urls = [self._maybe_proxy(url, method='PUT') for url in urls]
         return upload(filename, urls, retries=retries)
 
-    def _request(self, url, data=None, method=None):
-        return json.loads(download(self.master + url, data=data, method=method))
+    def _request(self, url, data=None, method=None, default='[]'):
+        response = download(self.master + url, data=data, method=method)
+        return json.loads(response or default)
