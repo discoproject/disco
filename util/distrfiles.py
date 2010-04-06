@@ -1,5 +1,9 @@
-import os, sys, math, random, os
-from subprocess import *
+import os
+import sys
+import math
+import random
+
+from subprocess import Popen, call
 
 if len(sys.argv) < 3:
     print >> sys.stderr, "\nUsage: distrfiles.py <dataset-path> <nodes-file>\n"
