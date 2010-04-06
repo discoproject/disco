@@ -46,7 +46,7 @@ class HomeDisco:
         argv_backup = sys.argv[:]
         out_backup = sys.stderr
         sys.argv = ["", "", job.name, "localhost",
-                "http://nohost", self.partition]
+                    "http://nohost", self.partition]
         sys.argv += kwargs["input"]
 
         from disco.node import worker
