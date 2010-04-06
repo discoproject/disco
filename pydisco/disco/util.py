@@ -131,10 +131,6 @@ def external(files):
     msg['op'] = file(files[0]).read()
     return msg
 
-def disco_host(address):
-    scheme, netloc, x = urlsplit(address)
-    return '%s://%s' % (scheme, netloc)
-
 def proxy_url(path, node='x'):
     settings = DiscoSettings()
     port, proxy = settings['DISCO_PORT'], settings['DISCO_PROXY']

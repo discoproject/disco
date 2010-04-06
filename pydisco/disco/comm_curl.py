@@ -72,7 +72,7 @@ class MultiPut:
         self.handles = dict((url, self.init_handle(url, fname)) for url in urls)
         self.multi = CurlMulti()
         [self.multi.add_handle(handle) for handle, out in self.handles.values()]
-    
+
     def init_handle(self, url, fname):
         fd = file(fname, "r", FILE_BUFFER_SIZE)
         out = cStringIO.StringIO()
@@ -112,7 +112,8 @@ class MultiPut:
                 fail.append((url, ret, out.getvalue()))
         return success, retry, fail
 
-def upload(fname, urls, retries = 10):
+def upload(fname, urls, retries=None):
+    retries = MAX_RETRIES if retries == None else retries
     success = []
     rounds = 0
     while urls and rounds <= retries:

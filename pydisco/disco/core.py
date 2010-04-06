@@ -248,13 +248,14 @@ class Job(object):
 
 class Disco(object):
     def __init__(self, host):
-        self.host = util.disco_host(host)
+        self.host = host
 
     def request(self, url, data = None, redir = False, offset = 0):
         try:
             return download(self.host + url, data=data, redir=redir, offset=offset)
         except CommError, e:
-            raise CommError("is disco master running at %s?" % self.host, url)
+            e.msg += " (is disco master running at %s?)" % self.host
+            raise
 
     def get_config(self):
         return json.loads(self.request('/disco/ctrl/load_config_table'))

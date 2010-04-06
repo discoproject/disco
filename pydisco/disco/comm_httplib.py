@@ -12,11 +12,11 @@ def download(url,
              sleep=0,
              header={},
              ttl=MAX_RETRIES):
+    from disco.util import urlsplit
     while True:
         try:
-            ext_host, ext_file = url[7:].split('/', 1)
-            ext_file = '/' + ext_file
-            http = httplib.HTTPConnection(ext_host)
+            scheme, netloc, path = urlsplit(url)
+            http = httplib.HTTPConnection(netloc)
             h = {}
             if offset:
                 if type(offset) == tuple:
@@ -24,20 +24,16 @@ def download(url,
                 else:
                     offs = 'bytes=%d-' % offset
                 h = {'Range': offs}
-            if data:
-                meth = 'POST'
-            elif method != None:
-                meth = method
-            else:
-                meth = 'GET'
-            http.request(meth, ext_file, data, headers = h)
+            if not method:
+                method = 'POST' if data else 'GET'
+            http.request(method, '/%s' % path, data, headers = h)
             fd = http.getresponse()
             if fd.status == 302:
                 loc = fd.getheader('location')
                 if loc.startswith('http://'):
                     url = loc
                 elif loc.startswith('/'):
-                    url = 'http://%s%s' % (ext_host, loc)
+                    url = 'http://%s%s' % (netloc, loc)
                 else:
                     url = '%s/%s' % (url, loc)
                 continue
