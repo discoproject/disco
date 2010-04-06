@@ -58,9 +58,8 @@ class HomeDisco:
             elif self.mode == "reduce":
                 worker.op_reduce(req)
             else:
-                raise "Unknown mode: %s "\
-                      "(must be 'map' or 'reduce')"\
-                    % self.mode
+                raise ValueError(
+                    "Unknown mode: %s (must be 'map' or 'reduce')" % self.mode)
         finally:
             sys.argv = argv_backup
             sys.stderr = out_backup
