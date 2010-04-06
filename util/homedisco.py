@@ -1,4 +1,8 @@
-import os, sys, imp, cStringIO
+import os
+import sys
+import imp
+import cStringIO
+
 from disco.netstring import decode_netstring_fd
 from disco.core import Job, result_iterator, util
 
