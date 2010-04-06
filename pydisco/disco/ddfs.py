@@ -89,7 +89,7 @@ class DDFS(object):
         for urls in tags:
             next_tag = tagname(urls)
             if next_tag not in seen:
-                seen |= set([next_tag])
+                seen = seen | set([next_tag])
                 for child in self.walk(next_tag,
                                        ignore_missing=ignore_missing,
                                        seen=seen,
