@@ -35,7 +35,7 @@ class DummyDisco:
 
 class HomeDisco:
 
-    def __init__(self, mode, partition = "0"):
+    def __init__(self, mode, partition="0"):
         self.mode = mode
         self.partition = partition
 
@@ -81,15 +81,15 @@ if __name__ == "__main__":
     map_hd = HomeDisco("map")
     reduce_hd = HomeDisco("reduce")
 
-    res = map_hd.new_job(name = "homedisco",
-                 input = ["homedisco-test"],
-                 map = fun_map,
-                 reduce = fun_reduce)
+    res = map_hd.new_job(name="homedisco",
+                         input=["homedisco-test"],
+                         map=fun_map,
+                         reduce=fun_reduce)
 
-    res = reduce_hd.new_job(name = "homedisco",
-                input = res,
-                map = fun_map,
-                reduce = fun_reduce)
+    res = reduce_hd.new_job(name="homedisco",
+                            input=res,
+                            map=fun_map,
+                            reduce=fun_reduce)
 
     for k, v in result_iterator(res):
         print "KEY", k, "VALUE", v
