@@ -57,7 +57,7 @@ class DDFS(object):
         return self._request('/ddfs/tag/%s' % tag, json.dumps(urls))
 
     def get(self, tag):
-        return self._request('/ddfs/tag/%s' % tagname(tag))
+        return self._request('/ddfs/tag/%s' % tagname(tag), default='{}')
 
     def blobs(self, tag, ignore_missing=True):
         """
@@ -77,7 +77,7 @@ class DDFS(object):
         """
         try:
             tagpath    += (tag,)
-            urls        = self.get(tag)['urls']
+            urls        = self.get(tag).get('urls', [])
             tags, blobs = util.partition(urls, tagname)
             yield tagpath, tags, blobs
         except CommError, e:
