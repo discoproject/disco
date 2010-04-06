@@ -5,18 +5,26 @@ import random
 
 from subprocess import Popen, call, PIPE
 
+
+def log(s):
+    print >> sys.stderr, s
+
+
+USAGE_INFO = """
+Usage: distrfiles.py <dataset-path> <nodes-file>\n
+DISCO_ROOT must specify the disco home directory (e.g. /srv/disco/).
+SSH_KEY can specify a value for the -i flag of ssh / scp.
+SSH_USER can specify the user name.
+REMOVE_FIRST if set, removes previous dataset of the same name before copying.
+"""
+
+
 if len(sys.argv) < 3:
-    print >> sys.stderr, "\nUsage: distrfiles.py <dataset-path> <nodes-file>\n"
-    print >> sys.stderr, "DISCO_ROOT must specify the disco home directory (e.g. /srv/disco/)."
-    print >> sys.stderr, "SSH_KEY can specify a value for the -i flag of ssh / scp."
-    print >> sys.stderr, "SSH_USER can specify the user name."
-    print >> sys.stderr, "REMOVE_FIRST if set, removes previous dataset of the "\
-                 "same name before copying.\n"
+    log(USAGE_INFO)
     sys.exit(1)
 
 if "DISCO_ROOT" not in os.environ:
-    print >> sys.stderr, "Specify DISCO_ROOT "\
-        "(data lives at $DISCO_ROOT/data)"
+    log("Specify DISCO_ROOT (data lives at $DISCO_ROOT/data)")
     sys.exit(1)
 
 root = os.environ["DISCO_ROOT"]
@@ -51,9 +59,8 @@ for l in file(sys.argv[2]):
 
 fno = int(math.ceil(max(1, float(len(files)) / len(nodes))))
 
-print >> sys.stderr, "Dataset name: %s" % name
-print >> sys.stderr, "%d files and %d nodes: %d files per node" %\
-        (len(files), len(nodes), fno)
+log("Dataset name: %s" % name)
+log("%d files and %d nodes: %d files per node" % (len(files), len(nodes), fno))
 
 random.shuffle(nodes)
 nodes = iter(nodes)
@@ -72,25 +79,24 @@ while True:
         call(["ssh"] + ssh + [unode, "rm -Rf %s/data/%s" % (root, name)])
 
     if call(["ssh"] + ssh + [unode, "mkdir /%s/data/%s" % (root, name)]):
-        print >> sys.stderr, "Couldn't mkdir %s:%s/data/%s" % (node, root, name)
+        log("Couldn't mkdir %s:%s/data/%s" % (node, root, name))
 
-    print >> sys.stderr, "Copying %d files to %s" % (len(nset), node)
+    log("Copying %d files to %s" % (len(nset), node))
     p = Popen("nice -19 %s scp %s %s %s:%s/data/%s/" %
         (ionice, " ".join(ssh), " ".join(nset), unode, root, name),
             shell = True)
     procs.append((node, p, nset))
 
-print >> sys.stderr, "Waiting for copyers to finish.."
+log("Waiting for copyers to finish..")
 
 for node, p, nset in procs:
     if p.wait():
-        print >> sys.stderr, "Copying to %s failed" % node
+        log("Copying to %s failed" % node)
     else:
-        print >> sys.stderr, "%s ok" % node
+        log("%s ok" % node)
         print "\n".join(("disco://%s/%s/%s" %
             (hostname[node], name, os.path.basename(f))
                 for f in nset))
 
-print >> sys.stderr, "Done"
-
+log("Done")
 
