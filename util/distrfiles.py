@@ -3,7 +3,7 @@ import sys
 import math
 import random
 
-from subprocess import Popen, call
+from subprocess import Popen, call, PIPE
 
 if len(sys.argv) < 3:
     print >> sys.stderr, "\nUsage: distrfiles.py <dataset-path> <nodes-file>\n"
@@ -33,7 +33,7 @@ else:
     name = os.path.basename(sys.argv[1])
 
 # check to see if ionice is installed on this system
-status = Popen('which ionice'.split()).wait()
+status = Popen('which ionice'.split(), stdout=PIPE).wait()
 if status == 0:
     ionice = 'ionice -n 7'
 else:
