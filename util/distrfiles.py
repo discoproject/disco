@@ -49,7 +49,7 @@ else:
 
 nodes = []
 hostname = {}
-for l in file(sys.argv[2]):
+for l in open(sys.argv[2]):
     s = l.strip().split()
     if len(s) > 1:
         hostname[s[0]] = s[1]
