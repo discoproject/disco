@@ -8,6 +8,7 @@ from disco.settings import DiscoSettings
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
+
 def tagname(tag):
     if isinstance(tag, list):
         return tagname(tag[0])
@@ -15,6 +16,16 @@ def tagname(tag):
         return tag[6:]
     if '://' not in tag:
         return tag
+
+def canonizetags(tags):
+    if tags == None:
+        tags = [tagname(tag) for tag in self.tags()]
+    elif type(tags) == list:
+        tags = [tagname(tag) for tag in tags]
+    elif type(tags) == str:
+        tags = [tagname(tags)]
+
+    return tags
 
 def netlocsplit(netloc):
     if ':' in netloc:
@@ -69,32 +80,64 @@ class DDFS(object):
             for replicas in blobs:
                 yield replicas
 
-    def walk(self, tag, ignore_missing=True, seen=set(), tagpath=()):
+
+    def walk(self, tags, ignore_missing=True, seen=set(), tagpath=()):
         """
-        Walks the tag graph starting at `tag`.
+        Walks the simple paths of the tag graph starting at `tags`.
 
         Yields a 3-tuple `(tagpath, tags, blobs)`.
         """
-        try:
-            tagpath    += (tag,)
-            urls        = self.get(tag).get('urls', [])
-            tags, blobs = util.partition(urls, tagname)
-            yield tagpath, tags, blobs
-        except CommError, e:
-            if ignore_missing and e.code == 404:
-                tags = blobs = ()
-            else:
-                raise
+        if len(seen)==0:
+            tags = canonizetags(tags)
+        else:
+            tag = tags
+            try:
+                tagpath    += (tag,)
+                urls        = self.get(tag).get('urls', [])
+                tags, blobs = util.partition(urls, tagname)
+                yield tagpath, tags, blobs
+            except CommError, e:
+                if ignore_missing and e.code == 404:
+                    tags = blobs = ()
+                else:
+                    raise
 
         for urls in tags:
             next_tag = tagname(urls)
             if next_tag not in seen:
-                seen |= set([next_tag])
+                seen = seen | set([next_tag])
                 for child in self.walk(next_tag,
                                        ignore_missing=ignore_missing,
                                        seen=seen,
                                        tagpath=tagpath):
                     yield child
+
+
+    def findtags(self, tags = None, ignore_missing = True):
+        """
+        Walks the nodes of the tag graph starting at `tags`.
+
+        Yields a 3-tuple `(tagpath, tags, blobs)`.
+        """
+        seen = set()
+
+        tag_queue = canonizetags(tags)
+
+        for tag in tag_queue:
+            if tag not in seen:
+                try:
+                    urls        = self.get(tag).get('urls', [])
+                    tags, blobs = util.partition(urls, tagname)
+                    yield tag, tags, blobs
+
+                    tag_queue += tags
+                    seen.add(tag)
+                except CommError, e:
+                    if ignore_missing and e.code == 404:
+                        tags = blobs = ()
+                    else:
+                        raise
+    
 
     def list(self, prefix=''):
         return self._request('/ddfs/tags/%s' % prefix)
