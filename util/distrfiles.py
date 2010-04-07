@@ -14,7 +14,7 @@ REMOVE_FIRST if set, removes previous dataset of the same name before copying.
 """
 
 def log(s):
-    print >> sys.stderr, s
+    sys.stderr.write(s + '\n')
 
 
 def copy_files(name, files, nodes):
