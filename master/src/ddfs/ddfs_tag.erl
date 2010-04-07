@@ -69,7 +69,7 @@ handle_cast(M, #state{data = false} = S) ->
                 timeout = lists:min([Timeout, S#state.timeout])});
 
 handle_cast({die, _}, S) ->
-    {stop, normal, S}.
+    {stop, normal, S};
 
 handle_cast({get, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, S#state.data),
@@ -146,7 +146,7 @@ handle_cast({{remove, Urls}, ReplyTo}, S) ->
             {ok, S#state.url_cache}
         end,
     NewUrls = [U || [_|_] = U <- [R -- Urls || R <- OldUrls]],
-    handle_cast({{put, NewUrls}, ReplyTo}, S);
+    handle_cast({{put, NewUrls}, ReplyTo}, S).
 
 
 handle_call(dbg_get_state, _, S) ->
