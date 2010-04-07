@@ -95,6 +95,7 @@ class DDFS(object):
                 tagpath    += (tag,)
                 urls        = self.get(tag).get('urls', [])
                 tags, blobs = util.partition(urls, tagname)
+                tags        = canonizetags(tags)
                 yield tagpath, tags, blobs
             except CommError, e:
                 if ignore_missing and e.code == 404:
@@ -117,7 +118,7 @@ class DDFS(object):
         """
         Walks the nodes of the tag graph starting at `tags`.
 
-        Yields a 3-tuple `(tagpath, tags, blobs)`.
+        Yields a 3-tuple `(tag, tags, blobs)`.
         """
         seen = set()
 
@@ -128,6 +129,7 @@ class DDFS(object):
                 try:
                     urls        = self.get(tag).get('urls', [])
                     tags, blobs = util.partition(urls, tagname)
+                    tags        = canonizetags(tags)
                     yield tag, tags, blobs
 
                     tag_queue += tags
