@@ -73,10 +73,28 @@ class Conn(object):
     
     def close(self):
         pass
-
+    
     def read(self, n = None):
         if n == None:
             return self.read_all()
+        buf = ""
+        while n > 0:
+            b = self.read_chunk(n)
+            if not b:
+                break
+            n -= len(b)
+            buf += b
+        return buf
+    
+    def read_all(self):
+        buf = cStringIO.StringIO()
+        ret = True
+        while ret:
+            ret = self.read(CHUNK_SIZE)
+            buf.write(ret)
+        return buf.getvalue()
+
+    def read_chunk(self, n):
         if self.buf == None or self.i >= len(self.buf):
             if self.eof:
                 return ''
@@ -106,14 +124,6 @@ class Conn(object):
 
     def length(self):
         return self.size
-
-    def read_all(self):
-        buf = cStringIO.StringIO()
-        ret = True
-        while ret:
-            ret = self.read(CHUNK_SIZE)
-            buf.write(ret)
-        return buf.getvalue()
 
     def tell(self):
         return self.orig_offset + self.i
