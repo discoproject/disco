@@ -34,7 +34,7 @@
 -define(GC_INTERVAL, ?DAY).
 
 % Tag cache expires in this many milliseconds if tag can't be fetched
--define(TAG_EXPIRES_ONERROR, 10 * ?MINUTE).
+-define(TAG_EXPIRES_ONERROR, 1 * ?MINUTE).
 
 % Number of tag replicas: min(length(Nodes), ?TAG_REPLICAS)
 % -define(TAG_REPLICAS, 3).
