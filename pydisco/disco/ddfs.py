@@ -2,7 +2,7 @@ import os, re
 from urllib import urlencode
 
 from disco import util
-from disco.comm import upload, download, json
+from disco.comm import upload, download, json, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
 
@@ -55,6 +55,15 @@ class DDFS(object):
 
     def tag(self, tag, urls):
         return self._request('/ddfs/tag/%s' % tag, json.dumps(urls))
+
+    def exists(self, tag):
+        try:
+            if open_remote('%s/ddfs/tag/%s' % (self.master, tag)):
+                return True
+        except CommError, e:
+            if e.code != 404:
+                raise
+        return False
 
     def get(self, tag):
         return self._request('/ddfs/tag/%s' % tagname(tag), default='{}')

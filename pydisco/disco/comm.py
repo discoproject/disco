@@ -54,7 +54,7 @@ def open_local(path, url):
     sze = os.stat(path).st_size
     return (fd, sze, "file://" + path)
 
-def open_remote(url, expect = 200):
+def open_remote(url):
     conn = Conn(url)
     return conn, conn.length(), url
 

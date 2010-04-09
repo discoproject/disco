@@ -158,7 +158,7 @@ def load_oob(host, name, key):
           'proxy': '1' if settings['DISCO_PROXY'] else '0'}
     url = '%s/disco/ctrl/oob_get?%s' % (host, urlencode(params))
     if 'resultfs' in settings['DISCO_FLAGS']:
-        size, fd = open_remote(url, expect=302)
+        size, fd = open_remote(url)
         location = fd.getheader('location').split('/', 3)[-1]
         path = '%s/data/%s' % (settings['DISCO_ROOT'], location)
         return file(path).read()
