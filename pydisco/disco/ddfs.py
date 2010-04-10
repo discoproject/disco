@@ -149,12 +149,12 @@ class DDFS(object):
         return self._request('/ddfs/tag/%s' % tag, method='DELETE')
 
     def _push(self, (source, target), replicas=None, retries=None, exclude=[]):
-        qs = urlencode((k, v) for k, v in (('exclude', ','.join(exclude)),
-                                           ('replicas', replicas)) if v)
+        qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
+                                            ('replicas', replicas)) if v])
         dsts = self._request('/ddfs/new_blob/%s?%s' % (target, qs))
         try:
             return [json.loads(url)
-                    for url in self._upload(fname, dsts, retries=retries)]
+                    for url in self._upload(source, dsts, retries=retries)]
         except CommError, e:
             scheme, (host, port), path = urlsplit(e.url)
             return self._push((source, target),
