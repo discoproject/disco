@@ -11,7 +11,7 @@ unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
 def tagname(tag):
     if isinstance(tag, list):
-        if len(tag)>0:
+        if tag:
             return tagname(tag[0])
     elif tag.startswith('tag://'):
         return tag[6:]
@@ -20,13 +20,11 @@ def tagname(tag):
 
 def canonizetags(tags):
     if tags == None:
-        tags = [tagname(tag) for tag in self.tags()]
+        return [tagname(tag) for tag in self.tags()]
     elif type(tags) == list:
-        tags = [tagname(tag) for tag in tags]
+        return [tagname(tag) for tag in tags]
     elif type(tags) == str:
-        tags = [tagname(tags)]
-
-    return tags
+        return [tagname(tags)]
 
 def netlocsplit(netloc):
     if ':' in netloc:
