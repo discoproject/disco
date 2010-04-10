@@ -1,95 +1,117 @@
+from __future__ import with_statement
 import os
 import sys
-import imp
 import cStringIO
 
+from contextlib import contextmanager
+
+from disco.core import Job
+from disco.core import result_iterator
+from disco.core import util
 from disco.node import worker
 from disco.netstring import decode_netstring_fd
-from disco.core import Job, result_iterator, util
+from disco.settings import DiscoSettings
 
-def parse_dir(dir):
-    x, x, LOCAL_PATH = util.load_conf()
-    x, x, x, mode, path = dir.split("/", 4)
-    res = []
-    for f in os.listdir(LOCAL_PATH + path):
-        if not (f.startswith(mode) or "." in f):
-            continue
-        proto = f.split("-")[1]
-        if proto == "chunk":
-            res.append("chunkfile://%s%s" % (path, f))
-        elif proto == "disco":
-            res.append("disco://localhost/%s%s" % (path, f))
-    return res
 
-class MsgStream:
+@contextmanager
+def redirected_stderr(new_stderr):
+    old_stderr = sys.stderr
+    sys.stderr = new_stderr
+    try:
+        yield None
+    finally:
+        sys.stderr = old_stderr
+
+def parse_dir(dir_url, partid=None):
+    def parse_index(index):
+        return [url for id, url in (line.split() for line in index)
+                if partid is None or partid == int(id)]
+    settings = DiscoSettings()
+    scheme, netloc, path = util.urlsplit(dir_url)
+    path = '%s/data/%s' % (settings['DISCO_ROOT'], path)
+    return parse_index(open(path))
+
+
+class MsgStream(object):
+
     def __init__(self):
-        self.out = []
+        self.out = None
+
     def write(self, msg):
-        if msg.startswith("**<OUT>"):
-            addr = msg.split()[-1]
+        if msg.startswith('**<OUT>'):
+            addr = msg.split()[-2]
             self.out = parse_dir(addr)
         print msg,
 
-class DummyDisco:
-    def request(*args, **kwargs):
-        return "job started"
+class DummyDisco(object):
 
-class HomeDisco:
+    def __init__(self):
+        self.request_data = None
 
-    def __init__(self, mode, partition="0"):
+    def request(self, url, data=None, **kwargs):
+        self.request_data = req = decode_netstring_fd(cStringIO.StringIO(data))
+        return 'job started:%s' % req['prefix']
+
+
+class HomeDisco(object):
+
+    def __init__(self, mode, partition='0'):
         self.mode = mode
         self.partition = partition
 
     def new_job(self, *args, **kwargs):
-        job = Job(DummyDisco(), **kwargs)
-        req = decode_netstring_fd(cStringIO.StringIO(job.msg))
+        master = DummyDisco()
+        job = Job(master, **kwargs)
+        request = master.request_data
 
-        argv_backup = sys.argv[:]
-        out_backup = sys.stderr
-        sys.argv = ["", "", job.name, "localhost",
-                    "http://nohost", self.partition]
-        sys.argv += kwargs["input"]
+        worker.init(mode=self.mode,
+                    host='localhost',
+                    master='nohost',
+                    job_name=job.name,
+                    id=1,
+                    inputs=kwargs.get('input'))
 
-        sys.stderr = out = MsgStream()
-        try:
-            if self.mode == "map":
-                worker.op_map(req)
-            elif self.mode == "reduce":
-                worker.op_reduce(req)
+        out = MsgStream()
+        with redirected_stderr(out):
+            if self.mode == 'map':
+                worker.op_map(request)
+            elif self.mode == 'reduce':
+                worker.op_reduce(request)
             else:
                 raise ValueError(
                     "Unknown mode: %s (must be 'map' or 'reduce')" % self.mode)
-        finally:
-            sys.argv = argv_backup
-            sys.stderr = out_backup
+
         return out.out
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
+
+    os.environ['DISCO_ROOT'] = os.getcwd()
 
     def fun_map(e, params):
         return [(e, e)]
 
     def fun_reduce(iter, out, params):
         for k, v in iter:
-            out.add("red:" + k, v)
+            out.add('red:' + k, v)
 
-    f = file("homedisco-test", "w")
-    print >> f, "dog\ncat\npossum"
-    f.close()
 
-    map_hd = HomeDisco("map")
-    reduce_hd = HomeDisco("reduce")
+    with open('homedisco-test', 'w') as fout:
+        fout.write('dog\ncat\npossum')
 
-    res = map_hd.new_job(name="homedisco",
-                         input=["homedisco-test"],
+    map_hd = HomeDisco('map')
+    reduce_hd = HomeDisco('reduce')
+
+    res = map_hd.new_job(name='homedisco',
+                         input=[os.path.join(os.getcwd(), 'homedisco-test')],
                          map=fun_map,
                          reduce=fun_reduce)
 
-    res = reduce_hd.new_job(name="homedisco",
+    res = reduce_hd.new_job(name='homedisco',
                             input=res,
                             map=fun_map,
                             reduce=fun_reduce)
 
     for k, v in result_iterator(res):
-        print "KEY", k, "VALUE", v
+        print 'KEY', k, 'VALUE', v
 
