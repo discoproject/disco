@@ -11,10 +11,11 @@ unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
 def tagname(tag):
     if isinstance(tag, list):
-        return tagname(tag[0])
-    if tag.startswith('tag://'):
+        if len(tag)>0:
+            return tagname(tag[0])
+    elif tag.startswith('tag://'):
         return tag[6:]
-    if '://' not in tag:
+    elif '://' not in tag:
         return tag
 
 def canonizetags(tags):
@@ -90,42 +91,35 @@ class DDFS(object):
                 yield replicas
 
 
-    def walk(self, tags, ignore_missing=True, seen=set(), tagpath=()):
+    def walk(self, tag, ignore_missing=True, tagpath=()):
         """
-        Walks the simple paths of the tag graph starting at `tags`.
+        Walks the tag graph starting at `tag`.
 
         Yields a 3-tuple `(tagpath, tags, blobs)`.
         """
-        if len(seen)==0:
-            tags = canonizetags(tags)
-        else:
-            tag = tags
-            try:
-                tagpath    += (tag,)
-                urls        = self.get(tag).get('urls', [])
-                tags, blobs = util.partition(urls, tagname)
-                tags        = canonizetags(tags)
-                yield tagpath, tags, blobs
-            except CommError, e:
-                if ignore_missing and e.code == 404:
-                    tags = blobs = ()
-                else:
-                    raise
+        try:
+            tagpath    += (tagname(tag),)
+            urls        = self.get(tag).get('urls', [])
+            tags, blobs = util.partition(urls, tagname)
+            tags        = canonizetags(tags)
+            yield tagpath, tags, blobs
+        except CommError, e:
+            if ignore_missing and e.code == 404:
+                tags = blobs = ()
+            else:
+                raise
 
-        for urls in tags:
-            next_tag = tagname(urls)
-            if next_tag not in seen:
-                seen = seen | set([next_tag])
-                for child in self.walk(next_tag,
-                                       ignore_missing=ignore_missing,
-                                       seen=seen,
-                                       tagpath=tagpath):
-                    yield child
+        for next_tag in tags:
+            for child in self.walk(next_tag,
+                                   ignore_missing=ignore_missing,
+                                   tagpath=tagpath):
+                yield child
 
 
     def findtags(self, tags = None, ignore_missing = True):
+        import sys
         """
-        Walks the nodes of the tag graph starting at `tags`.
+        Finds the nodes of the tag graph starting at `tags`.
 
         Yields a 3-tuple `(tag, tags, blobs)`.
         """
