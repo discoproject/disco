@@ -11,6 +11,7 @@ DISCO_ROOT must specify the disco home directory (e.g. /srv/disco/).
 SSH_KEY can specify a value for the -i flag of ssh / scp.
 SSH_USER can specify the user name.
 REMOVE_FIRST if set, removes previous dataset of the same name before copying.
+DISABLE_IONICE if set, disables ionice even if it is found.
 """
 
 def log(s):
@@ -31,8 +32,10 @@ def copy_files(name, files, nodes):
     ssh_user = os.environ.get('SSH_USER', '')
 
     # check to see if ionice is installed on this system
-    status = Popen('which ionice'.split(), stdout=PIPE).wait()
-    ionice = 'ionice -n 7' if status == 0 else ''
+    ionice = ''
+    if 'DISABLE_IONICE' not in os.environ:
+        status = Popen('which ionice'.split(), stdout=PIPE).wait()
+        ionice = 'ionice -n 7' if status == 0 else ''
 
     fgroups = (files[idx:idx+fno] for idx in range(0, len(files), fno))
     procs = []
