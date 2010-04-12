@@ -16,7 +16,7 @@ add_nodes([FirstNode, Max], Instances) ->
     [{N, Instances} || N <- expand_range(FirstNode, Max)];
 
 add_nodes([Node], Instances) -> {Node, Instances}.
-    
+
 parse_row([NodeSpecB, InstancesB]) ->
     NodeSpec = string:strip(binary_to_list(NodeSpecB)),
     Instances = string:strip(binary_to_list(InstancesB)),
@@ -40,14 +40,11 @@ save_config_table(Json) ->
     {Nodes, _Cores} = lists:unzip(lists:flatten([parse_row(R) || R <- Json])),
     Sorted = lists:sort(Nodes),
     USorted = lists:usort(Nodes),
-    if length(Sorted) == length(USorted) ->
-        ok = file:write_file(
-            os:getenv("DISCO_CONFIG"), mochijson2:encode(Json)),
-        update_config_table(Json),
-        {ok, <<"table saved!">>};
-    true ->
-        {error, <<"duplicate nodes">>}
+    if
+        length(Sorted) == length(USorted) ->
+            ok = file:write_file(os:getenv("DISCO_CONFIG"), mochijson2:encode(Json)),
+            update_config_table(Json),
+            {ok, <<"table saved!">>};
+        true ->
+            {error, <<"duplicate nodes">>}
     end.
-
-
-            

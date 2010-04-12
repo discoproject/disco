@@ -1,9 +1,9 @@
 -module(node_mon).
 -export([spawn_node/1, slave_node/1, slave_node_safe/1]).
 
--define(SLAVE_ARGS, "+K true").
--define(RESTART_DELAY, 10000).
 -define(BLACKLIST_PERIOD, 600000).
+-define(RESTART_DELAY, 10000).
+-define(SLAVE_ARGS, "+K true").
 
 spawn_node(Node) ->
     process_flag(trap_exit, true),
@@ -12,7 +12,7 @@ spawn_node(Node) ->
             {true, {ok, _Node}} ->
                 start_ddfs_node(node(), false),
                 receive
-                    ok -> ok                    
+                    ok -> ok
                 end;
             {false, {ok, _SlaveNode}} ->
                 node_monitor(Node);
@@ -26,9 +26,9 @@ spawn_node(Node) ->
                 blacklist(Node)
         end
     end),
-    receive 
-        {'EXIT', _Pid, _Reason} -> 
-            spawn_node(Node) 
+    receive
+        {'EXIT', _Pid, _Reason} ->
+            spawn_node(Node)
     end.
 
 slave_node_safe(Node) ->
@@ -44,25 +44,16 @@ slave_name() ->
     disco:get_setting("DISCO_NAME") ++ "_slave".
 
 slave_env() ->
+    Home = disco:get_setting("DISCO_MASTER_HOME"),
     lists:flatten([?SLAVE_ARGS,
-           [io_lib:format(" -pa ~s/ebin/~s", [disco:get_setting("DISCO_MASTER_HOME"), Dir])
-            || Dir <- ["", "mochiweb", "ddfs"]],
-           [case disco:get_setting(Setting) of
-                ""  -> "";
-                Val -> io_lib:format(" -env ~s '~s'", [Setting, Val])
-            end
-            || Setting <- ["DISCO_FLAGS",
-                   "DISCO_PORT",
-                   "DISCO_PROXY",
-                   "DISCO_ROOT",
-                   "DDFS_ROOT",
-                   "DISCO_DATA",
-                   "DISCO_WORKER",
-                   "PYTHONPATH"]]]).
+                   [io_lib:format(" -pa ~s/ebin/~s", [Home, Dir])
+                    || Dir <- ["", "mochiweb", "ddfs"]],
+                   [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
+                    || S <- disco:settings()]]).
 
 slave_start(Node) ->
     error_logger:info_report({"starting node", Node}),
-    {is_master_node(Node), 
+    {is_master_node(Node),
         slave:start(list_to_atom(Node), slave_name(), slave_env(), self(),
                 disco:get_setting("DISCO_ERLANG"))}.
 

@@ -30,7 +30,7 @@ op('GET', "/disco/ctrl/" ++ Op, Req) ->
         case lists:keysearch("name", 1, Query) of
             {value, {_, N}} -> N;
             _ -> false
-        end,    
+        end,
     reply(getop(Op, {Query, Name}), Req);
 
 op('GET', Path, Req) ->
@@ -219,15 +219,15 @@ render_jobinfo(Tstamp, JobPid, JobInfo, Nodes, Res, Tasks, Ready, Failed) ->
         {[], false} -> <<"dead">>;
         {_, false} -> <<"ready">>
     end,
-    
+
     MapI = if JobInfo#jobinfo.map ->
             length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun);
         true -> 0 end,
     RedI = if JobInfo#jobinfo.reduce ->
             JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
            true -> 0 end,
-        
-    {struct, [{timestamp, Tstamp}, 
+
+    {struct, [{timestamp, Tstamp},
            {active, R},
            {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
            {redi, [RedI, NRedRun, NRedDone, NRedFail]},
@@ -254,5 +254,3 @@ wait_jobs(Jobs, Timeout) ->
                 {get_results, binary_to_list(N)})} ||
                     {N, _} <- Jobs]
     end.
-
-

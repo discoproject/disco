@@ -23,9 +23,12 @@
 -define(OOB_MAX, 1000).
 
 -define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
--define(PORT_OPT, [{line, 100000}, binary, exit_status,
-           use_stdio, stderr_to_stdout,
-           {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}]}]).
+
+port_options() ->
+    [{line, 100000}, binary, exit_status,
+     use_stdio, stderr_to_stdout,
+     {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}] ++
+      [{Setting, disco:get_setting(Setting)} || Setting <- disco:settings()]}].
 
 start_link_remote(Master, Eventserver, Node, Task) ->
     {ok, JobUrl} = application:get_env(disco_url),
@@ -130,7 +133,7 @@ handle_call(start_worker, _From, S) ->
         true ->
             ok
     end,
-    Port = open_port({spawn, Cmd}, ?PORT_OPT),
+    Port = open_port({spawn, Cmd}, port_options()),
     {reply, ok, S#state{port = Port}, 30000}.
 
 handle_cast(kill_worker, S) ->

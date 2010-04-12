@@ -22,30 +22,32 @@ class MessageWriter(object):
 
 def flatten(iterable):
     for item in iterable:
-        if hasattr(item, '__iter__'):
+        if isiterable(item):
             for subitem in flatten(item):
                 yield subitem
         else:
             yield item
 
-def partition(iterable, fn):
-    t = []
-    f = []
-    for item in iterable:
-        if fn(item):
-            t.append(item)
-        else:
-            f.append(item)
-    return t, f
+def isiterable(object):
+    return hasattr(object, '__iter__')
+
+def iskv(object):
+    return isinstance(object, tuple) and len(object) is 2
 
 def iterify(object):
     if hasattr(object, '__iter__'):
         return object
     return repeat(object, 1)
 
+def partition(iterable, fn):
+    t, f = [], []
+    for item in iterable:
+        (t if fn(item) else f).append(item)
+    return t, f
+
 def rapply(iterable, fn):
     for item in iterable:
-        if hasattr(item, '__iter__'):
+        if isiterable(item):
             yield rapply(item, fn)
         else:
             yield fn(item)
@@ -55,27 +57,39 @@ def pack(object):
         return marshal.dumps(object.func_code)
     return cPickle.dumps(object)
 
-def unpack(string):
+def unpack(string, globals={}):
     try:
         return cPickle.loads(string)
     except Exception:
-        return FunctionType(marshal.loads(string), {})
+        return FunctionType(marshal.loads(string), globals)
+
+def pack_stack(stack):
+    return pack([pack(object) for object in stack])
+
+def unpack_stack(stackstring, globals={}):
+    return [unpack(string, globals=globals) for string in unpack(stackstring)]
+
+def schemesplit(url):
+    return url.split('://', 1) if '://' in url else ('file', url)
 
 def urlsplit(url):
-    scheme, rest = url.split('://', 1) if '://' in url  else ('file', url)
+    scheme, rest = schemesplit(url)
     netloc, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
     if scheme == 'disco':
         scheme = 'http'
         netloc = '%s:%s' % (netloc, DiscoSettings()['DISCO_PORT'])
     return scheme, netloc, path
 
-def urllist(url, partid = None, ddfs = None):
+def urllist(url, partid=None, listdirs=True, ddfs=None, recurse=False):
+    if isiterable(url):
+        return [list(url)]
     scheme, netloc, path = urlsplit(url)
-    if scheme == 'dir':
+    if scheme == 'dir' and listdirs:
         return parse_dir(url, partid=partid)
     elif scheme == 'tag':
         from disco.ddfs import DDFS
-        return [repl[0] for repl in DDFS(ddfs).get_tag(netloc)['urls']]
+        tag = DDFS(ddfs).get_tag(netloc, recurse=recurse)
+        return [repl[0] for repl in tag['urls']]
     return [url]
 
 def msg(message):
@@ -117,10 +131,6 @@ def external(files):
     msg['op'] = file(files[0]).read()
     return msg
 
-def disco_host(address):
-    scheme, netloc, x = urlsplit(address)
-    return '%s://%s' % (scheme, netloc)
-
 def proxy_url(path, node='x'):
     settings = DiscoSettings()
     port, proxy = settings['DISCO_PORT'], settings['DISCO_PROXY']
@@ -148,7 +158,7 @@ def load_oob(host, name, key):
           'proxy': '1' if settings['DISCO_PROXY'] else '0'}
     url = '%s/disco/ctrl/oob_get?%s' % (host, urlencode(params))
     if 'resultfs' in settings['DISCO_FLAGS']:
-        size, fd = open_remote(url, expect=302)
+        size, fd = open_remote(url)
         location = fd.getheader('location').split('/', 3)[-1]
         path = '%s/data/%s' % (settings['DISCO_ROOT'], location)
         return file(path).read()

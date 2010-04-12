@@ -13,8 +13,10 @@
 start(MochiConfig) ->
     error_logger:info_report({"START PID", self()}),
     mochiweb_http:start([{name, ddfs_put},
-        {loop, fun(Req) -> loop(Req:get(path), Req) end}
-            | MochiConfig]).
+                         {loop, fun(Req) ->
+                                        loop(Req:get(path), Req)
+                                end}
+                         | MochiConfig]).
 
 loop("/proxy/" ++ Path, Req) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
@@ -24,7 +26,7 @@ loop("/proxy/" ++ Path, Req) ->
 loop("/ddfs/" ++ BlobName, Req) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
-    
+
     case {Req:get(method),
             valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
         {'PUT', true} ->
@@ -38,7 +40,7 @@ loop("/ddfs/" ++ BlobName, Req) ->
                     Req:respond({503, [],
                         ["Maximum number of uploaders reached. ",
                          "Try again later"]})
-                    
+
             end;
         {'PUT', _} ->
             Req:respond({403, [], ["Invalid blob name"]});
@@ -50,7 +52,7 @@ loop(_, Req) ->
     Req:not_found().
 
 valid_blob({'EXIT', _}) -> false;
-valid_blob({Name, _}) -> 
+valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
 
 receive_blob(Req, {Path, Fname}, Url) ->
@@ -110,6 +112,3 @@ error_reply(Req, Msg, Dst, Err) ->
     M = io_lib:format("~s (path: ~s): ~p", [Msg, Dst, Err]),
     error_logger:warning_report(M),
     Req:respond({500, [], M}).
-   
-
-

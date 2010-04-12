@@ -13,8 +13,13 @@ TRANSFER_TIMEOUT = 10 * 60
 
 BLOCK_SIZE = 1024**2
 
-def download(url, data = None, redir = False, offset = 0,
-            method = None, sleep = 0, header = {}):
+def download(url,
+             data=None,
+             redir=False,
+             offset=0,
+             method=None,
+             sleep=0,
+             header={}):
 
     def headfun(h):
         try:
@@ -63,18 +68,12 @@ def download(url, data = None, redir = False, offset = 0,
     return code, outbuf.getvalue()
 
 class MultiPut:
-    def __init__(self, input, urls):
-        if type(input) == tuple:
-            data, size = input
-            new_fd = lambda: cStringIO.StringIO(data)
-        else:
-            size = os.stat(input).st_size
-            new_fd = lambda: file(input, "r", FILE_BUFFER_SIZE)
-        self.handles = dict((url, self.init_handle(url, size, new_fd()))\
-                                for url in urls)
+    def __init__(self, urls):
+        self.handles = dict(
+            (url, self.init_handle(url, fd)) for url, fd in urls)
         self.multi = CurlMulti()
         [self.multi.add_handle(handle) for handle, out in self.handles.values()]
-    
+
     def init_handle(self, url, size, fd):
         out = cStringIO.StringIO()
         handle = Curl()
@@ -113,7 +112,8 @@ class MultiPut:
                 fail.append((url, ret, out.getvalue()))
         return success, retry, fail
 
-def upload(fname, urls, retries = 10):
+def upload(fname, urls, retries=None):
+    retries = MAX_RETRIES if retries == None else retries
     success = []
     rounds = 0
     while urls and rounds <= retries:
@@ -131,17 +131,3 @@ def upload(fname, urls, retries = 10):
         raise CommError("Maximum number of PUT retries reached. "
             "The following URLs were unreachable: %s" % " ".join(urls), urls[0])
     return success
-
-
-
-
-
-
-
-    
-
-
-
-
-
-

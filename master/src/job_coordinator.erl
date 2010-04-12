@@ -60,11 +60,11 @@ field_exists(Msg, Opt) ->
     lists:keysearch(Opt, 1, Msg) =/= false.
 
 find_values(Msg) ->
+
     {value, {_, PrefixBinary}} = lists:keysearch(<<"prefix">>, 1, Msg),
     Prefix = binary_to_list(PrefixBinary),
 
     {value, {_, InputStr}} = lists:keysearch(<<"input">>, 1, Msg),
-    
     Inputs = [case string:tokens(Inp, "\n") of
 		      [X] -> list_to_binary(X);
 		      Y -> [list_to_binary(X) || X <- Y]
@@ -77,15 +77,13 @@ find_values(Msg) ->
     NumRed = list_to_integer(binary_to_list(NRedStr)),
 
     {Prefix, #jobinfo{
-    nr_reduce = NumRed,
-    inputs = Inputs,
-    max_cores = MaxCores,
-    map = field_exists(Msg, <<"map">>)
-        or field_exists(Msg, <<"ext_map">>),
-    reduce = field_exists(Msg, <<"reduce">>)
-        or field_exists(Msg, <<"ext_reduce">>),
-    force_local = field_exists(Msg, <<"sched_force_local">>),
-    force_remote = field_exists(Msg, <<"sched_force_remote">>)
+       nr_reduce = NumRed,
+       inputs = Inputs,
+       max_cores = MaxCores,
+       map = field_exists(Msg, <<"map">>),
+       reduce = field_exists(Msg, <<"reduce">>),
+       force_local = field_exists(Msg, <<"sched_force_local">>),
+       force_remote = field_exists(Msg, <<"sched_force_remote">>)
     }}.
 
 

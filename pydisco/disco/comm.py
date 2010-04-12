@@ -1,12 +1,12 @@
 import os, time, cStringIO, struct
-from disco.error import CommError
 
-import disco.settings
+from disco.error import CommError
+from disco.settings import DiscoSettings
 
 BUFFER_SIZE = int(1024**2)
 CHUNK_SIZE = int(10 * 1024**2)
 
-settings = disco.settings.DiscoSettings()
+settings = DiscoSettings()
 nocurl = "nocurl" in settings["DISCO_FLAGS"].lower().split()
 
 try:
@@ -43,9 +43,8 @@ def download(url, **kwargs):
             time.sleep(2**sleep)
             kwargs['sleep'] = sleep + 1
             return download(url, **kwargs)
-    elif str(code)[0] != '2':
-        raise CommError("Invalid HTTP reply (expected 200 or 206 got %s)" %
-            code, url, code)
+    elif not str(code).startswith('2'):
+        raise CommError("Expected HTTP status 2xx, got %s" % code, url, code)
     return body
 
 def open_local(path, url):
@@ -55,9 +54,9 @@ def open_local(path, url):
     sze = os.stat(path).st_size
     return (fd, sze, "file://" + path)
 
-def open_remote(url, expect = 200):
+def open_remote(url):
     conn = Conn(url)
-    return conn, conn.length(), url   
+    return conn, conn.length(), url
 
 class Conn(object):
     def __init__(self, url):
@@ -70,7 +69,7 @@ class Conn(object):
         self.size = None
         self.read(1)
         self.i = 0
-    
+
     def close(self):
         pass
     

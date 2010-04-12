@@ -67,7 +67,7 @@ init(_Args) ->
 
 update_nodes(Nodes) ->
     WhiteNodes = [{N#dnode.name, N#dnode.slots} ||
-                    #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
+                     #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
     DdfsNodes = [{N#dnode.name, not (N#dnode.blacklisted == false)} ||
                     N <- gb_trees:values(Nodes)],
     gen_server:cast(ddfs_master, {update_nodes, DdfsNodes}),
@@ -100,25 +100,25 @@ handle_cast({update_config_table, Config}, S) ->
         end,
         gb_trees:insert(Node, NewNode, NewNodes)
     end, gb_trees:empty(), Config),
-    
+
     lists:foreach(fun(Node) ->
         case gb_trees:lookup(Node#dnode.name, NewNodes) of
             none ->
                 unlink(Node#dnode.node_mon),
                 exit(Node#dnode.node_mon, kill);
             _ -> ok
-        end     
+        end
     end, gb_trees:values(S#state.nodes)),
-    disco_proxy:update_nodes(gb_trees:keys(NewNodes)), 
+    disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
     update_nodes(NewNodes),
     {noreply, S#state{nodes = NewNodes}};
 
 handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
-    
-    {_, AvailableNodes} = lists:unzip(lists:keysort(1, [{Y, N} || 
+
+    {_, AvailableNodes} = lists:unzip(lists:keysort(1, [{Y, N} ||
         #dnode{slots = X, num_running = Y, name = N, blacklisted = false}
                 <- gb_trees:values(Nodes), X > Y])),
-    
+
     if AvailableNodes =/= [] ->
         case gen_server:call(scheduler, {next_task, AvailableNodes}) of
             {ok, {JobSchedPid, {Node, Task}}} ->
@@ -134,7 +134,7 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
                     M#dnode{num_running =
                         M#dnode.num_running + 1},
                              Nodes),
-                handle_cast(schedule_next, 
+                handle_cast(schedule_next,
                     S#state{nodes = UNodes,
                         workers = UWorkers});
             nojobs ->
@@ -236,7 +236,7 @@ handle_call({get_nodeinfo, all}, _From, S) ->
     Available = [{struct, [{node, list_to_binary(N#dnode.name)},
 		           {job_ok, N#dnode.stats_ok},
                            {data_error, N#dnode.stats_failed},
-                           {error, N#dnode.stats_crashed}, 
+                           {error, N#dnode.stats_crashed},
                            {max_workers, N#dnode.slots},
                            {blacklisted, not (N#dnode.blacklisted == false)}]}
                     || N <- gb_trees:values(S#state.nodes)],
@@ -284,10 +284,10 @@ handle_info({'EXIT', Pid, normal}, S) ->
              process_exit(Pid, "Died unexpectedly without a reason",
             "unexpected", S)
     end;
-    
+
 handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
     process_exit(Pid, io_lib:fwrite(Msg, Args), "worker_dies", S);
-    
+
 handle_info({'EXIT', Pid, noconnection}, S) ->
     process_exit(Pid, "Connection lost to the node (network busy?)",
         "noconnection", S);
@@ -299,7 +299,7 @@ handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
 handle_info({'EXIT', Pid, Reason}, S) ->
     process_exit(Pid, io_lib:fwrite("Worked died unexpectedly: ~p",
         [Reason]), "unexpected", S).
-        
+
 toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of

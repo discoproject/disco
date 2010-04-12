@@ -16,6 +16,7 @@ Background
    FAQ <faq>
    releases
    glossary
+   screenshots
 
 Getting started
 ---------------
@@ -23,12 +24,14 @@ Getting started
 .. toctree::
    :maxdepth: 1
 
+   start/download
    start/install
    start/tutorial
    start/ec2setup
    start/ddfs
    start/troubleshoot
-   man/disco
+   start/getinvolved
+
 
 References
 ----------
