@@ -40,6 +40,10 @@ class DDFS(object):
         self.master = master or settings['DISCO_MASTER']
         self.proxy  = proxy  or settings['DISCO_PROXY']
 
+    @classmethod
+    def safe_name(cls, name):
+        return unsafe_re.sub('_', name)
+
     def pull(self, tag, retries=None):
         """
         Pulls the blobs associated with `tag`.
@@ -57,7 +61,7 @@ class DDFS(object):
             if isinstance(tuple_or_path, basestring):
                 source = tuple_or_path
                 src_fd = lambda: file(source, 'r')
-                target = unsafe_re.sub('_', os.path.basename(source))
+                target = self.safe_name(os.path.basename(source))
             else:
                 source, target = tuple_or_path
                 if hasattr(source, 'read'):
@@ -160,7 +164,7 @@ class DDFS(object):
 
         try:
             return [json.loads(url)
-                for url in self._upload(up, retries=retries)]
+                for url in self._upload(urls, retries=retries)]
         except CommError, e:
             scheme, (host, port), path = urlsplit(e.url)
             return self._push((src_fd, target),
@@ -174,9 +178,9 @@ class DDFS(object):
             return '%s/proxy/%s/%s/%s' % (self.proxy, host, method, path)
         return url
 
-    def _upload(self, filename, urls, retries=10):
-        urls = [self._maybe_proxy(url, method='PUT') for url in urls]
-        return upload(filename, urls, retries=retries)
+    def _upload(self, urls, retries=10):
+        urls = [(self._maybe_proxy(url, method='PUT'), fd) for url, fd in urls]
+        return upload(urls, retries=retries)
 
     def _request(self, url, data=None, method=None, default='[]'):
         response = download(self.master + url, data=data, method=method)

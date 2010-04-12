@@ -8,51 +8,64 @@ from disco.error import CommError
 FILE_BUFFER_SIZE = 10 * 1024**2
 MAX_BUF = 1024**2
 MAX_RETRIES = 10
-CONNECT_TIMEOUT = 20
-TRANSFER_TIMEOUT = 10 * 60
+D_CONNECT_TIMEOUT = 20
+D_LOW_SPEED_LIMIT = 1024 # 1kbps
+D_LOW_SPEED_TIME = 2 * 60
 
 BLOCK_SIZE = 1024**2
 
-def download(url,
-             data=None,
-             redir=False,
-             offset=0,
-             method=None,
-             sleep=0,
-             header={}):
+def new_handle(url):
+    handle = Curl()
+    #handle.setopt(FRESH_CONNECT, 1)
+    handle.setopt(URL, str(url))
+    handle.setopt(NOSIGNAL, 1)
+    handle.setopt(CONNECTTIMEOUT, D_CONNECT_TIMEOUT)
+    handle.setopt(LOW_SPEED_LIMIT, D_LOW_SPEED_LIMIT)
+    handle.setopt(LOW_SPEED_TIME, D_LOW_SPEED_TIME)
+    # Workaround for Lighty (http://redmine.lighttpd.net/issues/1017)
+    handle.setopt(HTTPHEADER, ["Expect:"])
+    return handle
 
+def download_handle(url, data, redir, offset, method, header):
     def headfun(h):
         try:
             k, v = h.strip().split(":", 1)
             header[k.lower()] = v
         except:
             pass
-
-    dl_handle = Curl()
-    dl_handle.setopt(NOSIGNAL, 1)
-    dl_handle.setopt(CONNECTTIMEOUT, CONNECT_TIMEOUT)
-    #dl_handle.setopt(TIMEOUT, TRANSFER_TIMEOUT)
+    dl_handle = new_handle(url)
+    outbuf = cStringIO.StringIO()
+    dl_handle.setopt(HEADERFUNCTION, headfun)
+    dl_handle.setopt(WRITEFUNCTION, outbuf.write)
     if redir:
         dl_handle.setopt(FOLLOWLOCATION, 1)
-    retry = 0
     if offset:
         if type(offset) == tuple:
             dl_handle.setopt(RANGE, "%d-%d" % offset)
         else:
             dl_handle.setopt(RANGE, "%d-" % offset)
+    if data != None:
+        inbuf = cStringIO.StringIO(data)
+        dl_handle.setopt(READFUNCTION, inbuf.read)
+        dl_handle.setopt(POSTFIELDSIZE, len(data))
+        dl_handle.setopt(POST, 1)
+    elif method != None:
+        dl_handle.setopt(CUSTOMREQUEST, method)
+    return dl_handle, outbuf
+
+def download(url,
+             data=None,
+             redir=False,
+             offset=0,
+             method=None,
+             header=None):
+
+    header = header if header else {}
+
+    retry = 0
     while True:
-        dl_handle.setopt(URL, str(url))
-        outbuf = cStringIO.StringIO()
-        dl_handle.setopt(WRITEFUNCTION, outbuf.write)
-        dl_handle.setopt(HEADERFUNCTION, headfun)
-        if data != None:
-            inbuf = cStringIO.StringIO(data)
-            dl_handle.setopt(READFUNCTION, inbuf.read)
-            dl_handle.setopt(POSTFIELDSIZE, len(data))
-            dl_handle.setopt(HTTPHEADER, ["Expect:"])
-            dl_handle.setopt(POST, 1)
-        elif method != None:
-            dl_handle.setopt(CUSTOMREQUEST, method)
+        dl_handle, outbuf =\
+            download_handle(url, data, redir, offset, method, header)
         try:
             dl_handle.perform()
             break
@@ -61,10 +74,8 @@ def download(url,
                 raise CommError("Download failed "
                         "after %d attempts: %s" %
                         (MAX_RETRIES, dl_handle.errstr()), url)
-            dl_handle.setopt(FRESH_CONNECT, 1)
             retry += 1
     code = dl_handle.getinfo(HTTP_CODE)
-    dl_handle.close()
     return code, outbuf.getvalue()
 
 class MultiPut:
@@ -74,19 +85,13 @@ class MultiPut:
         self.multi = CurlMulti()
         [self.multi.add_handle(handle) for handle, out in self.handles.values()]
 
-    def init_handle(self, url, size, fd):
+    def init_handle(self, url, fd):
+        handle = new_handle(url)
         out = cStringIO.StringIO()
-        handle = Curl()
-        handle.setopt(URL, str(url))
-        handle.setopt(NOSIGNAL, 1)
-        handle.setopt(CONNECTTIMEOUT, 20)
-        handle.setopt(TIMEOUT, 10 * 60)
         handle.setopt(WRITEFUNCTION, out.write)
         handle.setopt(READFUNCTION, fd.read)
         handle.setopt(UPLOAD, 1)
-        handle.setopt(INFILESIZE, size)
-        # Workaround for Lighty (http://redmine.lighttpd.net/issues/1017)
-        handle.setopt(HTTPHEADER, ["Expect:"])
+        #handle.setopt(INFILESIZE, size)
         return handle, out
 
     def perform(self):
@@ -112,12 +117,12 @@ class MultiPut:
                 fail.append((url, ret, out.getvalue()))
         return success, retry, fail
 
-def upload(fname, urls, retries=None):
+def upload(urls, retries=None):
     retries = MAX_RETRIES if retries == None else retries
     success = []
     rounds = 0
     while urls and rounds <= retries:
-        succ, urls, fail = MultiPut(fname, urls).perform()
+        succ, urls, fail = MultiPut(urls).perform()
         rounds += 1
         if succ:
             rounds = 0
