@@ -1,6 +1,5 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.core import Params
-from disco.func import netstr_writer
 from functools import partial
 
 def foo(x, extra):
@@ -10,10 +9,13 @@ def init(items, params, extra):
     pass
 
 def reader(fd, size, fname, extra):
-    yield (fd.read()+extra, 1)
+    from disco.func import netstr_reader
+    for k,v in netstr_reader(fd, size, fname):
+        yield k+extra, v
 
 def writer(fd, k, v, params, extra):
-    netstr_writer(fd, key+extra, v, params)
+    from disco.func import netstr_writer
+    netstr_writer(fd, k+extra, v, params)
 
 def map(e, params, extra):
     return [(e[0]+params.foo(extra), e[1])]
@@ -32,7 +34,7 @@ class PartialTestCase(DiscoJobTestFixture, DiscoTestCase):
         return [str(x) for x in range(self.num_workers)]
 
     def getdata(self, path):
-        return '42'
+        return '1 _ 0 \n'
 
     map=partial(map, extra='a')
     combiner=partial(combiner, extra='b')
@@ -47,4 +49,4 @@ class PartialTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     def runTest(self):
         for k, v in self.results:
-            self.assertEquals(k, '42fazbghczi')
+            self.assertEquals(k, '_fazbghczi')

@@ -1,4 +1,4 @@
-"""
+<"""
 :mod:`disco.util` --- Helper functions
 ======================================
 
@@ -77,10 +77,10 @@ def rapply(iterable, fn):
             yield fn(item)
 
 def unpickle_partial(func, args, kwargs):
-    return functools.partial(func, *args, **kwargs)
+    return functools.partial(unpack(func), *unpack(args), **unpack(kwargs))
 
 def pickle_partial(p):
-    return unpickle_partial, (p.func, p.args, p.keywords or {})
+    return unpickle_partial, (pack(p.func), pack(p.args), pack(p.keywords or {}))
 
 # support functools.partial also on Pythons prior to 3.1
 if sys.version_info < (3,1):
@@ -98,10 +98,13 @@ def pack(object):
 def unpack(string, globals={}):
     try:
         return cPickle.loads(string)
-    except Exception:
-        code, defs = marshal.loads(string)
-        defs = tuple([unpack(x) for x in defs]) if defs else None
-        return FunctionType(code, globals, argdefs = defs)
+    except Exception, err:
+        try:
+           code, defs = marshal.loads(string)
+           defs = tuple([unpack(x) for x in defs]) if defs else None
+           return FunctionType(code, globals, argdefs = defs)
+        except:
+            raise err
 
 def pack_stack(stack):
     return pack([pack(object) for object in stack])
