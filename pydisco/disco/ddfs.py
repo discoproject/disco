@@ -8,7 +8,6 @@ from disco.settings import DiscoSettings
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
-
 def tagname(tag):
     if isinstance(tag, list):
         if tag:
@@ -76,7 +75,7 @@ class DDFS(object):
 
     def exists(self, tag):
         try:
-            if open_remote('%s/ddfs/tag/%s' % (self.master, tag)):
+            if open_remote('%s/ddfs/tag/%s' % (self.master, tagname(tag))):
                 return True
         except CommError, e:
             if e.code != 404:
@@ -95,7 +94,6 @@ class DDFS(object):
         for path, tags, blobs in self.walk(tag, ignore_missing=ignore_missing):
             for replicas in blobs:
                 yield replicas
-
 
     def walk(self, tag, ignore_missing=True, tagpath=()):
         """
@@ -120,7 +118,6 @@ class DDFS(object):
                                    ignore_missing=ignore_missing,
                                    tagpath=tagpath):
                 yield child
-
 
     def findtags(self, tags = None, ignore_missing = True):
         import sys
@@ -153,13 +150,14 @@ class DDFS(object):
         return self._request('/ddfs/tags/%s' % prefix)
 
     def delete(self, tag):
-        return self._request('/ddfs/tag/%s' % tag, method='DELETE')
+        return self._request('/ddfs/tag/%s' % tagname(tag), method='DELETE')
 
     def _push(self, (src_fd, target), replicas=None, retries=None, exclude=[]):
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
         urls = [(url, src_fd())
             for url in self._request('/ddfs/new_blob/%s?%s' % (target, qs))]
+
         try:
             return [json.loads(url)
                 for url in self._upload(up, retries=retries)]

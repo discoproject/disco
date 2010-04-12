@@ -283,7 +283,7 @@ class Map(Task):
         safe_update(index, urls)
 
         if self.save and not self.reduce:
-            if self.ispartitioned > 0:
+            if self.ispartitioned:
                 TaskFailed("Storing partitioned outputs in DDFS is not yet supported")
             else:
                 OutputURL(ddfs_save(self.blobs, self.jobname, self.master))
