@@ -48,8 +48,7 @@ def download(url,
 
 def upload(fname, urls, retries = 10):
     success = []
-    blob    = open(fname).read()
-    for url in urls:
-        download(url, data=blob, method='PUT')
+    for url, fd in urls:
+        download(url, data=fd.read(), method='PUT')
     return success
 
