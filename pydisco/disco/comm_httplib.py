@@ -10,7 +10,7 @@ def download(url,
              sleep=0,
              header=None):
 
-    header = header if header else {}
+    header = header if header != None else {}
 
     from disco.util import urlsplit
     try:
