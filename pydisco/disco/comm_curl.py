@@ -16,7 +16,7 @@ BLOCK_SIZE = 1024**2
 
 def new_handle(url):
     handle = Curl()
-    #handle.setopt(FRESH_CONNECT, 1)
+    handle.setopt(FRESH_CONNECT, 1)
     handle.setopt(URL, str(url))
     handle.setopt(NOSIGNAL, 1)
     handle.setopt(CONNECTTIMEOUT, D_CONNECT_TIMEOUT)
