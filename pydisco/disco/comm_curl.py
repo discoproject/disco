@@ -58,23 +58,16 @@ def download(url,
              redir=False,
              offset=0,
              method=None,
+             sleep=0,
              header=None):
 
     header = header if header else {}
-
-    retry = 0
-    while True:
-        dl_handle, outbuf =\
-            download_handle(url, data, redir, offset, method, header)
-        try:
-            dl_handle.perform()
-            break
-        except PyCurlError, e:
-            if retry == MAX_RETRIES:
-                raise CommError("Download failed "
-                        "after %d attempts: %s" %
-                        (MAX_RETRIES, dl_handle.errstr()), url)
-            retry += 1
+    dl_handle, outbuf =\
+        download_handle(url, data, redir, offset, method, header)
+    try:
+        dl_handle.perform()
+    except PyCurlError, e:
+        raise CommError("Download failed: %s" % dl_handle.errstr(), url)
     code = dl_handle.getinfo(HTTP_CODE)
     return code, outbuf.getvalue()
 

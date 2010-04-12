@@ -15,7 +15,9 @@ except ImportError:
     nocurl = True
 
 if nocurl:
-    from disco.comm_httplib import upload, download as real_download
+    from disco.comm_httplib import download as real_download
+    def upload(urls, retries = 10):
+        return [download(url, data=fd.read(), method='PUT') for url, fd in urls]
 else:
     from disco.comm_curl import upload, download as real_download
 
@@ -72,7 +74,7 @@ class Conn(object):
 
     def close(self):
         pass
-    
+
     def read(self, n = None):
         if n == None:
             return self.read_all()
@@ -84,7 +86,7 @@ class Conn(object):
             n -= len(b)
             buf += b
         return buf
-    
+
     def read_all(self):
         buf = cStringIO.StringIO()
         ret = True
