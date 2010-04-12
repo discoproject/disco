@@ -14,8 +14,8 @@ host = environ['DDFS_HOST'] if 'DDFS_HOST' in environ else sys.argv[2]
 ddfs = DDFS(host)
 
 try:
-    for url in flatten(ddfs.get_tag(sys.argv[1], recurse = True)):
-        print url.split("/")[-1], url
+    for url in flatten(ddfs.blobs(sys.argv[1])):
+        print url.split('/')[-1], url
 except CommError, x:
     if x.code == 404:
         print >> sys.stderr, "Tag not found"

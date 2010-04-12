@@ -80,6 +80,9 @@ def urlsplit(url):
         netloc = '%s:%s' % (netloc, DiscoSettings()['DISCO_PORT'])
     return scheme, netloc, path
 
+def urlresolve(url):
+    return '%s://%s/%s' % urlsplit(url)
+
 def urllist(url, partid=None, listdirs=True, ddfs=None, recurse=False):
     if isiterable(url):
         return [list(url)]

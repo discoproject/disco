@@ -36,7 +36,8 @@ except ImportError:
         json.dumps = cjson.encode
 
 def download(url, **kwargs):
-    code, body = real_download(url, **kwargs)
+    from disco.util import urlresolve
+    code, body = real_download(urlresolve(url), **kwargs)
     if code == 503:
         sleep = kwargs.get('sleep', 0)
         if sleep == 9:

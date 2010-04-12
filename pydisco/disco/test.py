@@ -86,28 +86,28 @@ class DiscoTestCase(TestCase):
 
 class DiscoJobTestFixture(object):
     jobargs = ('input',
-           'map',
-           'map_init',
-           'map_input_stream',
-           'map_output_stream',
-           'map_reader',
-           'map_writer',
-           'mem_sort_limit',
-           'params',
-           'partition',
-           'profile',
-           'scheduler',
-           'sort',
-           'reduce',
-           'reduce_init',
-           'reduce_input_stream',
-           'reduce_output_stream',
-           'reduce_reader',
-           'reduce_writer',
-           'required_files',
-           'required_modules',
-           'nr_maps',
-           'nr_reduces')
+               'map',
+               'map_init',
+               'map_input_stream',
+               'map_output_stream',
+               'map_reader',
+               'map_writer',
+               'mem_sort_limit',
+               'params',
+               'partition',
+               'profile',
+               'scheduler',
+               'sort',
+               'reduce',
+               'reduce_init',
+               'reduce_input_stream',
+               'reduce_output_stream',
+               'reduce_reader',
+               'reduce_writer',
+               'required_files',
+               'required_modules',
+               'nr_maps',
+               'nr_reduces')
     result_reader = staticmethod(disco.func.netstr_reader)
 
     @property
@@ -122,7 +122,7 @@ class DiscoJobTestFixture(object):
 
     @property
     def disco_master_url(self):
-        return 'disco://%s' % self.disco_settings['DISCO_MASTER_HOST']
+        return self.disco_settings['DISCO_MASTER']
 
     @property
     def disco(self):
@@ -131,7 +131,7 @@ class DiscoJobTestFixture(object):
     @property
     def test_server_address(self):
         return (str(self.disco_settings['DISCO_TEST_HOST']),
-            int(self.disco_settings['DISCO_TEST_PORT']))
+                int(self.disco_settings['DISCO_TEST_PORT']))
 
     @property
     def results(self):
