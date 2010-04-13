@@ -12,7 +12,7 @@ def main(inputs, mode, jobname, host, master_job, id):
            id=id,
            inputs=inputs,
            jobname=jobname,
-           master=master_job.split('/')[2])
+           master=master_job)
 
 if __name__ == '__main__':
     try:
