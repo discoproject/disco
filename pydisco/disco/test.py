@@ -96,6 +96,7 @@ class DiscoJobTestFixture(object):
                'params',
                'partition',
                'profile',
+               'save',
                'scheduler',
                'sort',
                'reduce',

@@ -6,13 +6,13 @@ from disco.events import DataUnavailable, TaskFailed
 from disco.node.worker import Worker
 from disco.util import MessageWriter
 
-def main(inputs, mode, jobname, host, master_job, id):
+def main(inputs, mode, jobname, host, master, id):
     Worker(mode,
            host=host,
            id=id,
            inputs=inputs,
            jobname=jobname,
-           master=master_job)
+           master=master)
 
 if __name__ == '__main__':
     try:
