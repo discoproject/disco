@@ -47,7 +47,8 @@ def download(url, **kwargs):
             kwargs['sleep'] = sleep + 1
             return download(url, **kwargs)
     elif not str(code).startswith('2'):
-        raise CommError("Expected HTTP status 2xx, got %s" % code, url, code)
+        raise CommError("Expected HTTP status 2xx, got %s: %s" %\
+                (code, body), url, code)
     return body
 
 def open_local(path, url):
