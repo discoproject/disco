@@ -33,13 +33,18 @@ init(Config) ->
     {put_port, PutPort} = proplists:lookup(put_port, Config),
     {get_port, GetPort} = proplists:lookup(get_port, Config),
     {get_enabled, GetEnabled} = proplists:lookup(get_enabled, Config),
+    {put_enabled, PutEnabled} = proplists:lookup(put_enabled, Config),
 
     {ok, VolUn} = find_volumes(DdfsRoot),
     % lists:ukeymerge in update_volumestats requires a sorted list
     Vol = lists:sort(VolUn),
     {ok, Tags} = find_tags(DdfsRoot, Vol),
-    {ok, _PutPid} = ddfs_put:start([{port, PutPort}]),
-    
+    if PutEnabled ->
+        {ok, _PutPid} =
+            ddfs_put:start([{port, PutPort}]);
+    true ->
+        ok
+    end,
     if GetEnabled ->
         {ok, _GetPid} =
             ddfs_get:start([{port, GetPort}], {DdfsRoot, DiscoRoot});

@@ -10,14 +10,17 @@ spawn_node(Node) ->
     spawn_link(fun() ->
         case slave_start(Node) of
             {true, {ok, _Node}} ->
-                start_ddfs_node(node(), false),
-                receive
-                    ok -> ok
-                end;
+                % start a dummy ddfs_node process for the master, no get or put
+                start_ddfs_node(node(), {false, false}),
+                % start ddfs_node for the slave on the master node.
+                % put enabled, but no get, which is handled by master
+                node_monitor(Node, {false, true});
             {false, {ok, _SlaveNode}} ->
-                node_monitor(Node);
+                % normal remote ddfs_node, both put and get enabled
+                node_monitor(Node, {true, true});
             {_, {error, {already_running, _SlaveNode}}} ->
-                node_monitor(Node);
+                % normal remote ddfs_node, both put and get enabled
+                node_monitor(Node, {true, true});
             {_, {error, timeout}} ->
                 blacklist(Node);
             Error ->
@@ -66,10 +69,10 @@ is_master_node(Node) ->
             false
     end.
 
-node_monitor(Node) ->
+node_monitor(Node, WebConfig) ->
     process_flag(trap_exit, true),
     NodeAtom = slave_node(Node),
-    start_ddfs_node(NodeAtom, true),
+    start_ddfs_node(NodeAtom, WebConfig),
     monitor_node(NodeAtom, true),
     receive
         {'EXIT', _, Reason} ->
@@ -81,7 +84,7 @@ node_monitor(Node) ->
     end,
     timer:sleep(?RESTART_DELAY).
 
-start_ddfs_node(NodeAtom, GetEnabled) ->
+start_ddfs_node(NodeAtom, {GetEnabled, PutEnabled}) ->
     Enabled = disco:get_setting("DDFS_ENABLED"),
     if Enabled =:= "on" ->
         DdfsRoot = disco:get_setting("DDFS_ROOT"),
@@ -93,7 +96,8 @@ start_ddfs_node(NodeAtom, GetEnabled) ->
         Args = [{ddfs_root, DdfsRoot}, {disco_root, DiscoRoot},
                 {put_max, PutMax}, {get_max, GetMax},
                 {put_port, PutPort}, {get_port, GetPort},
-                {get_enabled, GetEnabled}],
+                {get_enabled, GetEnabled},
+                {put_enabled, PutEnabled}],
         spawn_link(NodeAtom, ddfs_node, start_link, [Args]);
     true -> ok
     end.
