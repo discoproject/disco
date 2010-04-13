@@ -39,5 +39,4 @@ def download(url,
         header.update(fd.getheaders())
         return fd.status, fd.read()
     except (httplib.HTTPException, httplib.socket.error), e:
-        raise CommError("Transfer %s failed: %s" %
-                        (url, e), url)
+        raise CommError("Transfer %s failed: %s" % (url, e), url)
