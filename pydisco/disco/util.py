@@ -167,11 +167,13 @@ def load_oob(host, name, key):
         return file(path).read()
     return download(url, redir=True)
 
+def ddfs_name(jobname):
+    return 'disco:job:results:%s' % jobname
+
 def ddfs_save(blobs, name, master):
     from disco.ddfs import DDFS
     ddfs = DDFS(master)
     blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
              for blob in blobs]
-    tag, bloburls = ddfs.push('disco:job:results:%s' % name, blobs, retries=600)
+    tag, bloburls = ddfs.push(ddfs_name(name), blobs, retries=600)
     return tag
-

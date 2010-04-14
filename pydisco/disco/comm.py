@@ -53,9 +53,9 @@ def download(url, **kwargs):
 def open_local(path, url):
     # XXX: wouldn't it be polite to give a specific error message if this
     # operation fails
-    fd = file(path, "r", BUFFER_SIZE)
+    fd = open(path, 'r', BUFFER_SIZE)
     sze = os.stat(path).st_size
-    return (fd, sze, "file://" + path)
+    return (fd, sze, 'file://' + path)
 
 def open_remote(url):
     conn = Conn(url)

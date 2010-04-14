@@ -401,11 +401,11 @@ class Disco(object):
         return result_iterator(*args, **kwargs)
 
 def result_iterator(results,
-                    notifier = None,
-                    reader = func.netstr_reader,
-                    input_stream = [func.map_input_stream],
-                    params = None,
-                    ddfs = None):
+                    notifier=None,
+                    reader=func.netstr_reader,
+                    input_stream=[func.map_input_stream],
+                    params=None,
+                    ddfs=None):
     from disco.task import Task
     task = Task()
     for fun in input_stream:
