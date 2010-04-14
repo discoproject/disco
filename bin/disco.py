@@ -309,6 +309,6 @@ if __name__ == '__main__':
     except Exception, e:
         print('Disco encountered a fatal system error:')
         raise
-    # Workaround for "disco test" in Python2.5 which doesn't shutdown the 
+    # Workaround for "disco test" in Python2.5 which doesn't shutdown the
     # tserver thread properly.
     sys.exit(0)
