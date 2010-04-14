@@ -183,7 +183,7 @@ class Task(object):
         value is only good for the reduce phase which can access results produced
         in the preceding map phase.
         """
-        return load_oob('http://%s' % self.master, job or self.jobname, key)
+        return load_oob(self.master, job or self.jobname, key)
 
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval

@@ -169,9 +169,9 @@ def load_oob(host, name, key):
 
 def ddfs_save(blobs, name, master):
     from disco.ddfs import DDFS
-    ddfs = DDFS("http://" + master)
-    blobs = [("discoblob:%s:%s" % (name, os.path.basename(blob)), blob)
-                for blob in blobs]
-    tag, bloburls = ddfs.put("disco:job:results:" + name, blobs, retries = 600)
+    ddfs = DDFS(master)
+    blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
+             for blob in blobs]
+    tag, bloburls = ddfs.push('disco:job:results:%s' % name, blobs, retries=600)
     return tag
 
