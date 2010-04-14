@@ -30,9 +30,9 @@ class UtilTestCase(DiscoTestCase):
     def test_urlsplit(self):
         port = self.disco_settings['DISCO_PORT']
         self.assertEquals(urlsplit('http://host/path'),
-                  ('http', 'host', 'path'))
+                          ('http', ('host', ''), 'path'))
         self.assertEquals(urlsplit('http://host:port/path'),
-                  ('http', 'host:port', 'path'))
+                          ('http', ('host', 'port'), 'path'))
         self.assertEquals(urlsplit('disco://master/long/path'),
-                  ('http', 'master:%s' % port, 'long/path'))
+                          ('http', ('master', '%s' % port), 'long/path'))
 

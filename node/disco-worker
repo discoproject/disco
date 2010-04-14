@@ -4,11 +4,11 @@ import os, sys, traceback
 from disco.error import DataError
 from disco.events import DataUnavailable, TaskFailed
 from disco.node.worker import Worker
-from disco.util import MessageWriter
+from disco.util import MessageWriter, netloc
 
-def main(inputs, mode, jobname, host, master, id):
+def main(inputs, mode, jobname, netlocstr, master, id):
     Worker(mode,
-           host=host,
+           host=netloc.parse(netlocstr),
            id=id,
            inputs=inputs,
            jobname=jobname,

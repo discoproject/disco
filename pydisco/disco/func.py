@@ -144,6 +144,10 @@ def map_input_stream(stream, size, url, params):
 
 reduce_input_stream = map_input_stream
 
+def string_input_stream(string, size, url, params):
+    from cStringIO import StringIO
+    return StringIO(string), len(string), url
+
 def map_output_stream(stream, partition, url, params):
     from disco.fileutils import AtomicFile, PartitionFile
     BUFFER_SIZE = int(1024**2)

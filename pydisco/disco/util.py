@@ -20,6 +20,16 @@ class MessageWriter(object):
     def write(self, string):
         Message(string)
 
+class netloc(tuple):
+    @classmethod
+    def parse(cls, netlocstr):
+        if ':' in netlocstr:
+            return cls(netlocstr.split(':'))
+        return cls((netlocstr, ''))
+
+    def __str__((host, port)):
+        return '%s:%s' % (host, port) if port else host
+
 def flatten(iterable):
     for item in iterable:
         if isiterable(item):
@@ -74,11 +84,11 @@ def schemesplit(url):
 
 def urlsplit(url):
     scheme, rest = schemesplit(url)
-    netloc, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
+    locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
     if scheme == 'disco':
         scheme = 'http'
-        netloc = '%s:%s' % (netloc, DiscoSettings()['DISCO_PORT'])
-    return scheme, netloc, path
+        locstr = '%s:%s' % (locstr, DiscoSettings()['DISCO_PORT'])
+    return scheme, netloc.parse(locstr), path
 
 def urlresolve(url):
     return '%s://%s/%s' % urlsplit(url)

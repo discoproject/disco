@@ -15,7 +15,7 @@ def download(url,
     from disco.util import urlsplit
     try:
         scheme, netloc, path = urlsplit(url)
-        http = httplib.HTTPConnection(netloc)
+        http = httplib.HTTPConnection(str(netloc))
         h = {}
         if offset:
             if type(offset) == tuple:
