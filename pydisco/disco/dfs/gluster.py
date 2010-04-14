@@ -60,7 +60,7 @@ def replicas(path, hmap):
         return ["unknown"]
 
 def files(path, filter = "", hostname_map = None):
-    if type(filter) == str:
+    if isinstance(filter, basestring):
         rf = re.compile(".*%s.*" % re.escape(filter))
     else:
         rf = filter

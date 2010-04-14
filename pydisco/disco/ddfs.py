@@ -20,9 +20,9 @@ def tagname(tag):
 def canonizetags(tags):
     if tags == None:
         return [tagname(tag) for tag in self.tags()]
-    elif type(tags) == list:
+    elif isinstance(tags, list):
         return [tagname(tag) for tag in tags]
-    elif type(tags) == str:
+    elif isinstance(tags, basestring):
         return [tagname(tags)]
 
 def netlocsplit(netloc):

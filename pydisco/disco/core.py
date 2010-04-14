@@ -36,14 +36,14 @@ class Continue(Exception):
 class JobSpecifier(list):
     def __init__(self, jobspec):
         super(JobSpecifier, self).__init__([jobspec]
-            if type(jobspec) is str else jobspec)
+            if isinstance(jobspec, basestring) else jobspec)
 
     @property
     def jobnames(self):
         for job in self:
-            if type(job) is str:
+            if isinstance(job, basestring):
                 yield job
-            elif type(job) is list:
+            elif isinstance(job, list):
                 yield job[0]
             else:
                 yield job.name
@@ -358,7 +358,7 @@ class Disco(object):
         data = json.dumps([timeout, list(jobspecifier.jobnames)])
         results = json.loads(self.request("/disco/ctrl/get_results", data))
 
-        if type(jobspec) == str:
+        if isinstance(jobspec, basestring):
             return results[0][1]
 
         others, active = [], []
