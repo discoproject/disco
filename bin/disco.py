@@ -1,6 +1,11 @@
 #!/usr/bin/env python
+import os
+import optparse
+import subprocess
+import signal
+import socket
+import sys
 
-import optparse, os, subprocess, signal, socket, sys
 from itertools import chain
 
 class DiscoError(Exception):
