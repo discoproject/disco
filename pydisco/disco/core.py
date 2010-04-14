@@ -247,14 +247,17 @@ class Job(object):
         self.name = reply[1]
 
 class Disco(object):
-    def __init__(self, host):
-        self.host = host
+    def __init__(self, master):
+        self.master = master
 
-    def request(self, url, data = None, redir = False, offset = 0):
+    def request(self, url, data=None, redir=False, offset=0):
         try:
-            return download(self.host + url, data=data, redir=redir, offset=offset)
+            return download('%s%s' % (self.master, url),
+                            data=data,
+                            redir=redir,
+                            offset=offset)
         except CommError, e:
-            e.msg += " (is disco master running at %s?)" % self.host
+            e.msg += " (is disco master running at %s?)" % self.master
             raise
 
     def get_config(self):
@@ -281,7 +284,7 @@ class Disco(object):
 
     def oob_get(self, name, key):
         try:
-            return util.load_oob(self.host, name, key)
+            return util.load_oob(self.master, name, key)
         except CommError, e:
             if e.code == 404:
                 raise DiscoError("Unknown key or job name")
@@ -295,7 +298,7 @@ class Disco(object):
         prefix = 'profile-%s' % mode
         f = [s for s in self.oob_list(name) if s.startswith(prefix)]
         if not f:
-            raise JobError("No profile data", self.host, name)
+            raise JobError("No profile data", self.master, name)
 
         import pstats
         stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
@@ -377,9 +380,9 @@ class Disco(object):
         if status == 'ready':
             return results
         if status != 'active':
-            raise JobError("Job status %s" % status, self.host, name)
+            raise JobError("Job status %s" % status, self.master, name)
         if timeout and time.time() - start_time > timeout:
-            raise JobError("Timeout", self.host, name)
+            raise JobError("Timeout", self.master, name)
         raise Continue()
 
     def wait(self, name, show = None, poll_interval = 2, timeout = None, clean = False):
@@ -397,7 +400,7 @@ class Disco(object):
                 event_monitor.refresh()
 
     def result_iterator(self, *args, **kwargs):
-        kwargs['ddfs'] = self.host
+        kwargs['ddfs'] = self.master
         return result_iterator(*args, **kwargs)
 
 def result_iterator(results,

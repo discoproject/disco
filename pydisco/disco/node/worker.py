@@ -85,7 +85,7 @@ def this_master():
     return Task.master
 
 def this_host():
-    """Returns jostname of the node that executes the task currently."""
+    """Returns hostname of the node that executes the task currently."""
     return Task.host
 
 def this_partition():

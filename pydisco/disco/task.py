@@ -11,7 +11,7 @@ from disco.fileutils import AtomicFile
 from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
-from disco.util import ddfs_save, iskv, load_oob, urllist
+from disco.util import ddfs_save, iskv, load_oob, netloc, urllist
 
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
@@ -33,14 +33,14 @@ class Task(object):
     }
 
     def __init__(self,
-                 host='',
+                 netlocstr='',
                  id=-1,
                  inputs=None,
                  jobdict=None,
                  jobname='',
                  master=None,
                  settings=DiscoSettings()):
-        self.host     = host
+        self.netloc   = netloc.parse(netlocstr)
         self.id       = int(id)
         self.inputs   = inputs
         self.jobdict  = jobdict
@@ -50,7 +50,7 @@ class Task(object):
         self._blobs   = []
 
         if not jobdict:
-            if host:
+            if netlocstr:
                 self.jobdict = JobDict.unpack(open(self.jobpack),
                                               globals=worker.__dict__)
             else:
@@ -87,7 +87,11 @@ class Task(object):
 
     @property
     def home(self):
-        return os.path.join(str(self.host), self.hex_key, self.jobname)
+        return os.path.join(self.host, self.hex_key, self.jobname)
+
+    @property
+    def host(self):
+        return self.netloc[0]
 
     @property
     def jobroot(self):

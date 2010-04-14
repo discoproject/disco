@@ -15,7 +15,7 @@ class ForceLocalTestCase(DiscoJobTestFixture, DiscoTestCase):
         from disco.func import string_input_stream
         from disco.util import urlsplit
         scheme, netloc, path = urlsplit(url)
-        assert netloc == Task.host
+        assert netloc == Task.netloc
         return string_input_stream(str(netloc), size, url, params)
     map_input_stream = [map_input_stream]
 
@@ -48,7 +48,7 @@ class ForceRemoteNoNodeTestCase(ForceLocalTestCase):
         from disco.func import string_input_stream
         from disco.util import urlsplit
         scheme, netloc, path = urlsplit(url)
-        assert netloc != Task.host
+        assert netloc != Task.netloc
         return string_input_stream(str(netloc), size, url, params)
     map_input_stream = [map_input_stream]
 
