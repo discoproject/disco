@@ -1,4 +1,5 @@
 import os, re
+from cStringIO import StringIO
 from urllib import urlencode
 
 from disco.comm import upload, download, json, open_remote
@@ -48,11 +49,11 @@ class DDFS(object):
             if open_remote('%s/ddfs/tag/%s' % (self.master, tagname(tag))):
                 return True
         except CommError, e:
-            if e.code != 404:
+            if e.code not in (403, 404):
                 raise
         return False
 
-    def findtags(self, tags = None, ignore_missing = True):
+    def findtags(self, tags=None, ignore_missing=True):
         import sys
         """
         Finds the nodes of the tag graph starting at `tags`.
@@ -101,15 +102,15 @@ class DDFS(object):
         def aim(tuple_or_path):
             if isinstance(tuple_or_path, basestring):
                 source = tuple_or_path
-                src_fd = lambda: file(source, 'r')
+                src_fd = lambda: open(source, 'r')
                 target = self.safe_name(os.path.basename(source))
             else:
                 source, target = tuple_or_path
                 if hasattr(source, 'read'):
                     data   = source.read()
-                    src_fd = lambda: cStringIO.StringIO(data)
+                    src_fd = lambda: StringIO(data)
                 else:
-                    src_fd = lambda: file(source, 'r')
+                    src_fd = lambda: open(source, 'r')
             return src_fd, target
 
         urls = [self._push(aim(f), replicas, retries) for f in files]

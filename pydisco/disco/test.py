@@ -78,6 +78,21 @@ class InterruptTest(KeyboardInterrupt, SkipTest):
 class DiscoTestCase(TestCase):
     disco_settings = DiscoSettings()
 
+    @property
+    def disco_master_url(self):
+        return self.disco_settings['DISCO_MASTER']
+
+    @property
+    def disco(self):
+        return Disco(self.disco_master_url)
+
+    def assertCommErrorCode(self, code, callable):
+        from disco.error import CommError
+        try:
+            callable()
+        except CommError, e:
+            self.assertEquals(code, e.code)
+
     def run(self, result=None):
         self.is_running = True
         signal.signal(signal.SIGINT, InterruptTest(self))
@@ -120,14 +135,6 @@ class DiscoJobTestFixture(object):
     @property
     def num_workers(self):
         return sum(x['max_workers'] for x in self.disco.nodeinfo()['available'])
-
-    @property
-    def disco_master_url(self):
-        return self.disco_settings['DISCO_MASTER']
-
-    @property
-    def disco(self):
-        return Disco(self.disco_master_url)
 
     @property
     def test_server_address(self):
