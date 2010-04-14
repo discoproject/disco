@@ -4,17 +4,12 @@ from urllib import urlencode
 from disco.comm import upload, download, json, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
-from disco.util import partition, urlsplit
+from disco.util import iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
 def canonizetags(tags):
-    if tags == None:
-        return [tagname(tag) for tag in self.tags()]
-    elif type(tags) == list:
-        return [tagname(tag) for tag in tags]
-    elif type(tags) == str:
-        return [tagname(tags)]
+    return [tagname(tag) for tag in iterify(tags)]
 
 def tagname(tag):
     if isinstance(tag, list):
