@@ -226,11 +226,12 @@ class Task(object):
 
     def insert_globals(self, functions):
         for fn in functions:
-            fn.func_globals.setdefault('Task', self)
-            for module in self.required_modules:
-                mod_name = module[0] if iskv(module) else module
-                mod = __import__(mod_name, fromlist=[mod_name])
-                fn.func_globals.setdefault(mod_name.split('.')[-1], mod)
+            if isinstance(fn, FunctionType):
+                fn.func_globals.setdefault('Task', self)
+                for module in self.required_modules:
+                    mod_name = module[0] if iskv(module) else module
+                    mod = __import__(mod_name, fromlist=[mod_name])
+                    fn.func_globals.setdefault(mod_name.split('.')[-1], mod)
 
     def run(self):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
@@ -239,6 +240,7 @@ class Task(object):
         path = self.path('REQ_FILES')
         write_files(self.required_files, path)
         sys.path.insert(0, path)
+        self.insert_globals(self.functions)
         if self.profile:
             self._run_profile()
         else:
@@ -263,7 +265,7 @@ class Map(Task):
             external.prepare(self.map, self.params, self.path('EXT_MAP'))
             self.map = FunctionType(external.ext_map.func_code,
                                     globals=external.__dict__)
-        self.insert_globals(self.functions)
+            self.insert_globals([self.map])
 
         partitions = [MapOutput(self, i) for i in xrange(self.num_partitions)]
         fd, sze, url = self.connect_input(self.inputs[0])
@@ -350,7 +352,7 @@ class Reduce(Task):
             external.prepare(self.reduce, self.params, path)
             self.reduce = FunctionType(external.ext_reduce.func_code,
                                        globals=external.__dict__)
-        self.insert_globals(self.functions)
+            self.insert_globals([self.reduce])
 
         Message("Starting reduce")
         self.init(red_in, params)
