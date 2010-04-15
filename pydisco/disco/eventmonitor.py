@@ -127,23 +127,17 @@ class JSONEventWriter(EventWriter):
 
 
 class EventMonitor(object):
-    def __init__(self, show, disco = None, name = None, job = None):
-        if job:
-            self.disco, self.name = job.master, job.name
-        else:
-            self.disco, self.name = disco, name
-
-        if not self.disco:
-            raise DiscoError("Specify either job or disco and name")
-
-        self.offset      = 0
-        self.prev_status = None
-        self.output      = OutputStream(format=(show or os.getenv('DISCO_EVENTS')))
-        self.output.write(message=self.name)
+    def __init__(self, job, format=None, poll_interval=2):
+        self.job           = job
+        self.offset        = 0
+        self.poll_interval = poll_interval
+        self.prev_status   = None
+        self.output        = OutputStream(format)
+        self.output.write(message=self.job.name)
 
     @property
     def events(self):
-        return self.disco.events(self.name, self.offset)
+        return self.job.events(self.offset)
 
     @property
     def isenabled(self):
@@ -151,7 +145,7 @@ class EventMonitor(object):
 
     @property
     def stats(self):
-        jobinfo = self.disco.jobinfo(self.name)
+        jobinfo = self.job.jobinfo()
         if sum(jobinfo['redi'][1:]):
             return ['reduce'] + jobinfo['redi']
         return ['map'] + jobinfo['mapi']
@@ -172,4 +166,4 @@ class EventMonitor(object):
             if self.prev_status != status:
                 self.output.write(status=status)
                 self.prev_status = status
-            time.sleep(2)
+            time.sleep(self.poll_interval)

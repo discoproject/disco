@@ -8,6 +8,7 @@ from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
 from disco.modutil import find_modules
 from disco.netstring import decode_netstring_fd, encode_netstring_fd
+from disco.settings import DiscoSettings
 
 class Params(object):
     def __init__(self, **kwargs):
@@ -227,11 +228,9 @@ class Job(object):
                        'results',
                        'wait')
 
-    def __init__(self, master, name='', **kwargs):
+    def __init__(self, master, name):
         self.master  = master
         self.name    = name
-        self.jobdict = JobDict(prefix=name, **kwargs)
-        self._run()
 
     def __getattr__(self, attr):
         if attr in self.proxy_functions:
@@ -239,12 +238,13 @@ class Job(object):
             return partial(getattr(self.master, attr), self.name)
         raise AttributeError("%r has no attribute %r" % (self, attr))
 
-    def _run(self):
-        jobpack = self.jobdict.pack()
+    def run(self, **kwargs):
+        jobpack = JobDict(prefix=self.name, **kwargs).pack()
         reply = json.loads(self.master.request('/disco/job/new', jobpack))
         if reply[0] != 'ok':
             raise DiscoError("Failed to start a job. Server replied: " + reply)
         self.name = reply[1]
+        return self
 
 class Disco(object):
     def __init__(self, master):
@@ -274,7 +274,7 @@ class Disco(object):
         return json.loads(self.request('/disco/ctrl/nodeinfo'))
 
     def joblist(self):
-        return json.loads(self.request("/disco/ctrl/joblist"))
+        return json.loads(self.request('/disco/ctrl/joblist'))
 
     def blacklist(self, node):
         self.request('/disco/ctrl/blacklist', '"%s"' % node)
@@ -306,8 +306,8 @@ class Disco(object):
             stats.add(Stats(self.oob_get(name, s)))
         return stats
 
-    def new_job(self, **kwargs):
-        return Job(self, **kwargs)
+    def new_job(self, name, **kwargs):
+        return Job(self, name=name).run(**kwargs)
 
     def kill(self, name):
         self.request('/disco/ctrl/kill_job', '"%s"' % name)
@@ -327,7 +327,7 @@ class Disco(object):
     def jobspec(self, name):         # XXX: deprecate this
         return self.jobdict(name)
 
-    def events(self, name, offset = 0):
+    def events(self, name, offset=0):
         def event_iter(events):
             offs = offset
             lines = events.splitlines()
@@ -342,24 +342,21 @@ class Disco(object):
                     # Let's ensure that at least the last newline
                     # is always retrieved.
                     #if i == len(lines) - 1 and\
-                    #    events.endswith("\n"):
+                    #    events.endswith('\n'):
                     #    offs -= 1
                     yield offs, event
-        try:
-            r = self.request("/disco/ctrl/rawevents?name=%s" % name,
-                     redir = True,
-                     offset = offset)
-        except Exception, x:
-            return []
+        r = self.request('/disco/ctrl/rawevents?name=%s' % name,
+                         redir=True,
+                         offset=offset)
 
         if len(r) < 2:
             return []
         return event_iter(r)
 
-    def results(self, jobspec, timeout = 2000):
+    def results(self, jobspec, timeout=2000):
         jobspecifier = JobSpecifier(jobspec)
         data = json.dumps([timeout, list(jobspecifier.jobnames)])
-        results = json.loads(self.request("/disco/ctrl/get_results", data))
+        results = json.loads(self.request('/disco/ctrl/get_results', data))
 
         if type(jobspec) == str:
             return results[0][1]
@@ -373,10 +370,10 @@ class Disco(object):
         return others, active
 
     def jobinfo(self, name):
-        return json.loads(self.request("/disco/ctrl/jobinfo?name=%s" % name))
+        return json.loads(self.request('/disco/ctrl/jobinfo?name=%s' % name))
 
-    def check_results(self, name, start_time, timeout, poll_interval):
-        status, results = self.results(name, timeout = poll_interval)
+    def check_results(self, name, start_time, timeout):
+        status, results = self.results(name, timeout=timeout)
         if status == 'ready':
             return results
         if status != 'active':
@@ -385,13 +382,19 @@ class Disco(object):
             raise JobError("Timeout", self.master, name)
         raise Continue()
 
-    def wait(self, name, show = None, poll_interval = 2, timeout = None, clean = False):
-        event_monitor = EventMonitor(show, disco=self, name=name)
+    def wait(self, name,
+             poll_interval=2,
+             timeout=2000,
+             clean=False,
+             show=DiscoSettings()['DISCO_EVENTS']):
+        event_monitor = EventMonitor(Job(self, name=name),
+                                     format=show,
+                                     poll_interval=poll_interval)
         start_time    = time.time()
         while True:
             event_monitor.refresh()
             try:
-                return self.check_results(name, start_time, timeout, poll_interval * 1000)
+                return self.check_results(name, start_time, timeout)
             except Continue:
                 continue
             finally:

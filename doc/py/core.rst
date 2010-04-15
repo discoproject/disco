@@ -125,7 +125,8 @@ anymore. You can delete the unneeded job files as follows::
    The iterator returns tuples ``(offset, event)``. You can pass an *offset* value
    to this function, to make the iterator skip over the events before the specified
    *offset*. This provides an efficient way to monitor job events continuously.
-   For a built-in example, see the *show* parameter in :meth:`Disco.wait`.
+   See ``DISCO_EVENTS`` in :ref:`settings` for more information on how to enable
+   the console output of job events.
 
    .. method:: Disco.results(jobspec[, timeout = 5000])
 
@@ -234,12 +235,41 @@ anymore. You can delete the unneeded job files as follows::
 :class:`Job` --- Disco job
 --------------------------
 
-.. class:: Job(master, [name, input, map, map_input_stream, map_output_stream, map_reader, map_writer, reduce, reduce_input_stream, reduce_output_stream, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_files, required_modules, status_interval, profile])
+.. class:: Job(master, name)
 
-   Starts a new Disco job. You seldom instantiate this class
-   directly. Instead, the :meth:`Disco.new_job` is used to start a job
-   on a particular Disco master. :meth:`Disco.new_job` accepts the same
-   set of keyword arguments as specified below.
+   Creates a Disco job with the given name.
+   Call :meth:`Job.run` to start the job.
+
+   You need not instantiate this class directly.
+   Instead, the :meth:`Disco.new_job` can be used to start a job
+   on a particular Disco master.
+
+     * *master* - an instance of the :class:`Disco` class that identifies
+       the Disco master runs this job. This argument is required but
+       it is provided automatically when the job is started using
+       :meth:`Disco.new_job`.
+
+     * *name* - the job name. The ``@[timestamp]`` suffix is appended
+       to the name to ensure uniqueness. If you start more than one job
+       per second, you cannot rely on the timestamp which increments only
+       once per second. In any case, users are strongly recommended to devise a
+       good naming scheme of their own. Only characters in ``[a-zA-Z0-9_]``
+       are allowed in the job name.
+
+    .. attribute:: Job.master
+
+       An instance of the :class:`Disco` class that identifies the Disco
+       master that runs this job.
+
+    .. attribute:: Job.name
+
+       Name of the job. You can store or transfer the name string if
+       you need to identify the job in another process. In this case,
+       you can use the job methods in :class:`Disco` directly.
+
+   .. method:: Job.run([input, map, map_input_stream, map_output_stream, map_reader, map_writer, reduce, reduce_input_stream, reduce_output_stream, reduce_reader, reduce_writer, partition, combiner, nr_maps, nr_reduces, sort, params, mem_sort_limit, chunked, ext_params, required_files, required_modules, status_interval, profile])
+
+   :meth:`Disco.new_job` accepts the same set of keyword arguments as specified below.
 
    The constructor returns immediately after a job request has been
    submitted. A typical pattern in Disco scripts is to run a job
@@ -258,18 +288,6 @@ anymore. You can delete the unneeded job files as follows::
 
    All arguments that are required are marked as such. All other arguments
    are optional.
-
-     * *master* - an instance of the :class:`Disco` class that identifies
-       the Disco master runs this job. This argument is required but
-       it is provided automatically when the job is started using
-       :meth:`Disco.new_job`.
-
-     * *name* - the job name (**required**). The ``@[timestamp]`` suffix is appended
-       to the name to ensure uniqueness. If you start more than one job
-       per second, you cannot rely on the timestamp which increments only
-       once per second. In any case, users are strongly recommended to devise a
-       good naming scheme of their own. Only characters in ``[a-zA-Z0-9_]``
-       are allowed in the job name.
 
      * *input* - a list of input files for the map function (**required**). Each
        input must be specified in one of the following protocols:
@@ -595,18 +613,6 @@ anymore. You can delete the unneeded job files as follows::
 
      * *profile* - Enable tasks profiling. By default false. Retrieve profiling
        results with the :meth:`Disco.profile_stats` function.
-
-    .. attribute:: Job.name
-
-       Name of the job. You can store or transfer the name string if
-       you need to identify the job in another process. In this case,
-       you can use the job methods in :class:`Disco` directly.
-
-    .. attribute:: Job.master
-
-       An instance of the :class:`Disco` class that identifies the Disco
-       master that runs this job.
-
 
 .. class:: Params([key = value])
 

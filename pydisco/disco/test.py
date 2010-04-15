@@ -198,10 +198,14 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
         return self.test_servers[m].urls(getattr(self, 'inputs_%d' % (m + 1)))
 
     def __getattribute__(self, name):
-        if name.startswith('results_') or name.startswith('result_reader_'):
-            attribute, n = name.rsplit('_', 1)
-            return getattr(self, attribute)(int(n) - 1)
-        return super(DiscoMultiJobTestFixture, self).__getattribute__(name)
+        try:
+            return super(DiscoMultiJobTestFixture, self).__getattribute__(name)
+        except AttributeError:
+            for prefix in ('input', 'results', 'result_reader'):
+                if name.startswith('%s_' % prefix):
+                    attribute, n = name.rsplit('_', 1)
+                    return getattr(self, attribute)(int(n) - 1)
+            raise
 
     def setUp(self):
         host, port    = self.test_server_address
@@ -213,14 +217,11 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
                                  getattr(self, 'getdata_%d' % n, self.getdata))
             self.test_servers[m].start()
             try:
-                if not hasattr(self, 'input_%d' % n):
-                    setattr(self, 'input_%d' % n, self.input(m))
-
                 jobargs = {'name': '%s_%d' % (self.__class__.__name__, n)}
                 for jobarg in self.jobargs:
-                    jobargname = '%s_%d' % (jobarg, n)
-                    if hasattr(self, jobargname):
-                        jobargs[jobarg] = getattr(self, jobargname)
+                    attr = getattr(self, '%s_%d' % (jobarg, n), None)
+                    if attr:
+                        jobargs[jobarg] = attr
 
                 self.jobs[m] = self.disco.new_job(**jobargs)
                 setattr(self, 'job_%d' % n, self.jobs[m])
@@ -239,7 +240,7 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
         for m in xrange(self.njobs):
             n = m + 1
             for result, answer in zip(getattr(self, 'results_%d' % n),
-                          getattr(self, 'answers_%d' % n)):
+                                      getattr(self, 'answers_%d' % n)):
                 self.assertEquals(result, answer)
 
 class DiscoTestLoader(TestLoader):
