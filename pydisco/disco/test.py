@@ -122,6 +122,8 @@ class DiscoJobTestFixture(object):
                'reduce_writer',
                'required_files',
                'required_modules',
+               'ext_map',
+               'ext_reduce',
                'nr_maps',
                'nr_reduces')
     result_reader = staticmethod(disco.func.netstr_reader)

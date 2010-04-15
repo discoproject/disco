@@ -17,19 +17,19 @@ oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
 class Task(object):
     default_paths = {
-        'CHDIR_PATH':    "",
-        'JOBPACK':       "params.dl",
-        'REQ_FILES':     "lib",
-        'EXT_MAP':       "ext.map",
-        'EXT_REDUCE':    "ext.reduce",
-        'MAP_OUTPUT':    "map-disco-%d-%.9d",
-        'PART_OUTPUT':   "part-disco-%.9d",
-        'REDUCE_DL':     "reduce-in-%d.dl",
-        'REDUCE_SORTED': "reduce-in-%d.sorted",
-        'REDUCE_OUTPUT': "reduce-disco-%d",
-        'OOB_FILE':      "oob/%s",
-        'MAP_INDEX':     "map-index.txt",
-        'REDUCE_INDEX':  "reduce-index.txt"
+        'CHDIR_PATH':    '',
+        'JOBPACK':       'params.dl',
+        'REQ_FILES':     'lib',
+        'EXT_MAP':       'ext.map',
+        'EXT_REDUCE':    'ext.reduce',
+        'MAP_OUTPUT':    'map-disco-%d-%.9d',
+        'PART_OUTPUT':   'part-disco-%.9d',
+        'REDUCE_DL':     'reduce-in-%d.dl',
+        'REDUCE_SORTED': 'reduce-in-%d.sorted',
+        'REDUCE_OUTPUT': 'reduce-disco-%d',
+        'OOB_FILE':      'oob/%s',
+        'MAP_INDEX':     'map-index.txt',
+        'REDUCE_INDEX':  'reduce-index.txt'
     }
 
     def __init__(self,
@@ -239,7 +239,6 @@ class Task(object):
         path = self.path('REQ_FILES')
         write_files(self.required_files, path)
         sys.path.insert(0, path)
-        self.insert_globals(self.functions)
         if self.profile:
             self._run_profile()
         else:
@@ -258,11 +257,13 @@ class Task(object):
 class Map(Task):
     def _run(self):
         if len(self.inputs) != 1:
-            TaskFailed("Map can only handle one input. Got: %s" % " ".join(self.inputs))
+            TaskFailed("Map can only handle one input. Got: %s" % ' '.join(self.inputs))
 
         if self.ext_map:
             external.prepare(self.map, self.params, self.path('EXT_MAP'))
-            self.map = FunctionType(external.ext_map.func_code)
+            self.map = FunctionType(external.ext_map.func_code,
+                                    globals=external.__dict__)
+        self.insert_globals(self.functions)
 
         partitions = [MapOutput(self, i) for i in xrange(self.num_partitions)]
         fd, sze, url = self.connect_input(self.inputs[0])
@@ -345,9 +346,11 @@ class Reduce(Task):
         params  = self.params
 
         if self.ext_reduce:
-            path = self.path("EXT_MAP")
-            external.prepare(self.ext_reduce, self.params, path)
-            self.reduce = FunctionType(external.ext_reduce.func_code)
+            path = self.path('EXT_REDUCE')
+            external.prepare(self.reduce, self.params, path)
+            self.reduce = FunctionType(external.ext_reduce.func_code,
+                                       globals=external.__dict__)
+        self.insert_globals(self.functions)
 
         Message("Starting reduce")
         self.init(red_in, params)
@@ -362,7 +365,7 @@ class Reduce(Task):
             Message("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
-            safe_update(index, {"%d %s" % (self.id, red_out.url): True})
+            safe_update(index, {'%d %s' % (self.id, red_out.url): True})
             OutputURL(index_url)
 
     @property
@@ -418,7 +421,7 @@ class ReduceReader(object):
                     TaskFailed("Zero bytes are not allowed in "\
                                "values with external sort. "\
                                "Consider using base64 encoding.")
-                out_fd.write("%s %s\0" % (k, v))
+                out_fd.write('%s %s\0' % (k, v))
         out_fd.close()
         Message("Reduce input downloaded ok")
 

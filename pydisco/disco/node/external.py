@@ -8,7 +8,7 @@ from disco.error import DiscoError
 MAX_ITEM_SIZE = 1024**3
 MAX_NUM_OUTPUT = 1000000
 
-proc = None
+proc, in_fd, out_fd = None, None, None
 
 def pack_kv(k, v):
     return struct.pack("I", len(k)) + k +\
@@ -31,19 +31,19 @@ def ext_map(e, params):
         v = e
     else:
         k, v = e
-    external.in_fd.write(external.pack_kv(k, v))
-    external.in_fd.flush()
-    num = struct.unpack("I", external.out_fd.read(4))[0]
-    r = [external.unpack_kv() for i in range(num)]
+    in_fd.write(pack_kv(k, v))
+    in_fd.flush()
+    num = struct.unpack("I", out_fd.read(4))[0]
+    r = [unpack_kv() for i in range(num)]
     return r
 
 def ext_reduce(red_in, red_out, params):
     import select
     p = select.poll()
     eof = select.POLLHUP | select.POLLNVAL | select.POLLERR
-    p.register(external.out_fd, select.POLLIN | eof)
-    p.register(external.in_fd, select.POLLOUT | eof)
-    MAX_NUM_OUTPUT = external.MAX_NUM_OUTPUT
+    p.register(out_fd, select.POLLIN | eof)
+    p.register(in_fd, select.POLLOUT | eof)
+    MAX_NUM_OUTPUT = MAX_NUM_OUTPUT
 
     tt = 0
     while True:
@@ -52,27 +52,27 @@ def ext_reduce(red_in, red_out, params):
                 raise DiscoError("Pipe to the external process failed")
             elif event & select.POLLIN:
                 num = struct.unpack("I",
-                    external.out_fd.read(4))[0]
+                    out_fd.read(4))[0]
                 if num > MAX_NUM_OUTPUT:
                     raise DiscoError("External output limit "\
                         "exceeded: %d > %d" %\
                         (num, MAX_NUM_OUTPUT))
                 for i in range(num):
-                    red_out.add(*external.unpack_kv())
+                    red_out.add(*unpack_kv())
                     tt += 1
             elif event & select.POLLOUT:
                 try:
-                    msg = external.pack_kv(*red_in.next())
-                    external.in_fd.write(msg)
-                    external.in_fd.flush()
+                    msg = pack_kv(*red_in.next())
+                    in_fd.write(msg)
+                    in_fd.flush()
                 except StopIteration:
-                    p.unregister(external.in_fd)
-                    external.in_fd.close()
+                    p.unregister(in_fd)
+                    in_fd.close()
             else:
                 return
 
-def prepare(ext_job, params, path):
-    write_files(marshal.loads(ext_job), path)
+def prepare(ext_task, params, path):
+    write_files(ext_task, path)
     open_ext(path + "/op", params)
 
 def open_ext(fname, params):

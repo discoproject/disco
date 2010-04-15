@@ -137,11 +137,11 @@ def jobname(address):
     raise DiscoError("Cannot parse jobname from %s" % address)
 
 def pack_files(files):
-    return dict((os.path.basename(f), file(f).read()) for f in files)
+    return dict((os.path.basename(f), open(f).read()) for f in files)
 
 def external(files):
     msg = pack_files(files[1:])
-    msg['op'] = file(files[0]).read()
+    msg['op'] = open(files[0]).read()
     return msg
 
 def proxy_url(path, node='x'):
@@ -160,7 +160,7 @@ def parse_dir(dir_url, partid = None):
     scheme, netloc, path = urlsplit(dir_url)
     if 'resultfs' in settings['DISCO_FLAGS']:
         path = '%s/data/%s' % (settings['DISCO_ROOT'], path)
-        return parse_index(file(path))
+        return parse_index(open(path))
     url = proxy_url(path, netloc)
     return parse_index(download(url).splitlines())
 
@@ -174,7 +174,7 @@ def load_oob(host, name, key):
         size, fd = open_remote(url)
         location = fd.getheader('location').split('/', 3)[-1]
         path = '%s/data/%s' % (settings['DISCO_ROOT'], location)
-        return file(path).read()
+        return open(path).read()
     return download(url, redir=True)
 
 def ddfs_name(jobname):
