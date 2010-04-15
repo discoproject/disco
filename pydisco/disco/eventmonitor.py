@@ -10,7 +10,7 @@ except ImportError:
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 
 class OutputStream(object):
-    def __init__(self, format, handle=sys.stdout):
+    def __init__(self, format, handle=sys.stderr):
         self.handle    = handle
         self.isenabled = True
 
