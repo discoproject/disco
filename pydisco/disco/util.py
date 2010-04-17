@@ -20,6 +20,16 @@ class MessageWriter(object):
     def write(self, string):
         Message(string)
 
+class netloc(tuple):
+    @classmethod
+    def parse(cls, netlocstr):
+        if ':' in netlocstr:
+            return cls(netlocstr.split(':'))
+        return cls((netlocstr, ''))
+
+    def __str__((host, port)):
+        return '%s:%s' % (host, port) if port else host
+
 def flatten(iterable):
     for item in iterable:
         if isiterable(item):
@@ -74,11 +84,11 @@ def schemesplit(url):
 
 def urlsplit(url):
     scheme, rest = schemesplit(url)
-    netloc, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
+    locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
     if scheme == 'disco':
         scheme = 'http'
-        netloc = '%s:%s' % (netloc, DiscoSettings()['DISCO_PORT'])
-    return scheme, netloc, path
+        locstr = '%s:%s' % (locstr, DiscoSettings()['DISCO_PORT'])
+    return scheme, netloc.parse(locstr), path
 
 def urlresolve(url):
     return '%s://%s/%s' % urlsplit(url)
@@ -127,11 +137,11 @@ def jobname(address):
     raise DiscoError("Cannot parse jobname from %s" % address)
 
 def pack_files(files):
-    return dict((os.path.basename(f), file(f).read()) for f in files)
+    return dict((os.path.basename(f), open(f).read()) for f in files)
 
 def external(files):
     msg = pack_files(files[1:])
-    msg['op'] = file(files[0]).read()
+    msg['op'] = open(files[0]).read()
     return msg
 
 def proxy_url(path, node='x'):
@@ -150,7 +160,7 @@ def parse_dir(dir_url, partid = None):
     scheme, netloc, path = urlsplit(dir_url)
     if 'resultfs' in settings['DISCO_FLAGS']:
         path = '%s/data/%s' % (settings['DISCO_ROOT'], path)
-        return parse_index(file(path))
+        return parse_index(open(path))
     url = proxy_url(path, netloc)
     return parse_index(download(url).splitlines())
 
@@ -164,14 +174,16 @@ def load_oob(host, name, key):
         size, fd = open_remote(url)
         location = fd.getheader('location').split('/', 3)[-1]
         path = '%s/data/%s' % (settings['DISCO_ROOT'], location)
-        return file(path).read()
+        return open(path).read()
     return download(url, redir=True)
+
+def ddfs_name(jobname):
+    return 'disco:job:results:%s' % jobname
 
 def ddfs_save(blobs, name, master):
     from disco.ddfs import DDFS
-    ddfs = DDFS("http://" + master)
-    blobs = [("discoblob:%s:%s" % (name, os.path.basename(blob)), blob)
-                for blob in blobs]
-    tag, bloburls = ddfs.put("disco:job:results:" + name, blobs, retries = 600)
+    ddfs = DDFS(master)
+    blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
+             for blob in blobs]
+    tag, bloburls = ddfs.push(ddfs_name(name), blobs, retries=600)
     return tag
-

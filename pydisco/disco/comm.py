@@ -47,16 +47,15 @@ def download(url, **kwargs):
             kwargs['sleep'] = sleep + 1
             return download(url, **kwargs)
     elif not str(code).startswith('2'):
-        raise CommError("Expected HTTP status 2xx, got %s: %s" %\
-                (code, body), url, code)
+        raise CommError(body, url, code)
     return body
 
 def open_local(path, url):
     # XXX: wouldn't it be polite to give a specific error message if this
     # operation fails
-    fd = file(path, "r", BUFFER_SIZE)
+    fd = open(path, 'r', BUFFER_SIZE)
     sze = os.stat(path).st_size
-    return (fd, sze, "file://" + path)
+    return (fd, sze, 'file://' + path)
 
 def open_remote(url):
     conn = Conn(url)

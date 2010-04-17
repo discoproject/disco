@@ -11,36 +11,36 @@ from disco.fileutils import AtomicFile
 from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
-from disco.util import ddfs_save, iskv, load_oob, urllist
+from disco.util import ddfs_save, iskv, load_oob, netloc, urllist
 
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
 class Task(object):
     default_paths = {
-        'CHDIR_PATH':    "",
-        'JOBPACK':       "params.dl",
-        'REQ_FILES':     "lib",
-        'EXT_MAP':       "ext.map",
-        'EXT_REDUCE':    "ext.reduce",
-        'MAP_OUTPUT':    "map-disco-%d-%.9d",
-        'PART_OUTPUT':   "part-disco-%.9d",
-        'REDUCE_DL':     "reduce-in-%d.dl",
-        'REDUCE_SORTED': "reduce-in-%d.sorted",
-        'REDUCE_OUTPUT': "reduce-disco-%d",
-        'OOB_FILE':      "oob/%s",
-        'MAP_INDEX':     "map-index.txt",
-        'REDUCE_INDEX':  "reduce-index.txt"
+        'CHDIR_PATH':    '',
+        'JOBPACK':       'params.dl',
+        'REQ_FILES':     'lib',
+        'EXT_MAP':       'ext.map',
+        'EXT_REDUCE':    'ext.reduce',
+        'MAP_OUTPUT':    'map-disco-%d-%.9d',
+        'PART_OUTPUT':   'part-disco-%.9d',
+        'REDUCE_DL':     'reduce-in-%d.dl',
+        'REDUCE_SORTED': 'reduce-in-%d.sorted',
+        'REDUCE_OUTPUT': 'reduce-disco-%d',
+        'OOB_FILE':      'oob/%s',
+        'MAP_INDEX':     'map-index.txt',
+        'REDUCE_INDEX':  'reduce-index.txt'
     }
 
     def __init__(self,
-                 host='',
+                 netlocstr='',
                  id=-1,
                  inputs=None,
                  jobdict=None,
                  jobname='',
                  master=None,
                  settings=DiscoSettings()):
-        self.host     = host
+        self.netloc   = netloc.parse(netlocstr)
         self.id       = int(id)
         self.inputs   = inputs
         self.jobdict  = jobdict
@@ -50,7 +50,7 @@ class Task(object):
         self._blobs   = []
 
         if not jobdict:
-            if host:
+            if netlocstr:
                 self.jobdict = JobDict.unpack(open(self.jobpack),
                                               globals=worker.__dict__)
             else:
@@ -87,7 +87,11 @@ class Task(object):
 
     @property
     def home(self):
-        return os.path.join(str(self.host), self.hex_key, self.jobname)
+        return os.path.join(self.host, self.hex_key, self.jobname)
+
+    @property
+    def host(self):
+        return self.netloc[0]
 
     @property
     def jobroot(self):
@@ -183,7 +187,7 @@ class Task(object):
         value is only good for the reduce phase which can access results produced
         in the preceding map phase.
         """
-        return load_oob('http://%s' % self.master, job or self.jobname, key)
+        return load_oob(self.master, job or self.jobname, key)
 
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval
@@ -222,11 +226,12 @@ class Task(object):
 
     def insert_globals(self, functions):
         for fn in functions:
-            fn.func_globals.setdefault('Task', self)
-            for module in self.required_modules:
-                mod_name = module[0] if iskv(module) else module
-                mod = __import__(mod_name, fromlist=[mod_name])
-                fn.func_globals.setdefault(mod_name.split('.')[-1], mod)
+            if isinstance(fn, FunctionType):
+                fn.func_globals.setdefault('Task', self)
+                for module in self.required_modules:
+                    mod_name = module[0] if iskv(module) else module
+                    mod = __import__(mod_name, fromlist=[mod_name])
+                    fn.func_globals.setdefault(mod_name.split('.')[-1], mod)
 
     def run(self):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
@@ -254,11 +259,13 @@ class Task(object):
 class Map(Task):
     def _run(self):
         if len(self.inputs) != 1:
-            TaskFailed("Map can only handle one input. Got: %s" % " ".join(self.inputs))
+            TaskFailed("Map can only handle one input. Got: %s" % ' '.join(self.inputs))
 
         if self.ext_map:
             external.prepare(self.map, self.params, self.path('EXT_MAP'))
-            self.map = FunctionType(external.ext_map.func_code)
+            self.map = FunctionType(external.ext_map.func_code,
+                                    globals=external.__dict__)
+            self.insert_globals([self.map])
 
         partitions = [MapOutput(self, i) for i in xrange(self.num_partitions)]
         fd, sze, url = self.connect_input(self.inputs[0])
@@ -341,9 +348,11 @@ class Reduce(Task):
         params  = self.params
 
         if self.ext_reduce:
-            path = self.path("EXT_MAP")
-            external.prepare(self.ext_reduce, self.params, path)
-            self.reduce = FunctionType(external.ext_reduce.func_code)
+            path = self.path('EXT_REDUCE')
+            external.prepare(self.reduce, self.params, path)
+            self.reduce = FunctionType(external.ext_reduce.func_code,
+                                       globals=external.__dict__)
+            self.insert_globals([self.reduce])
 
         Message("Starting reduce")
         self.init(red_in, params)
@@ -358,7 +367,7 @@ class Reduce(Task):
             Message("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
-            safe_update(index, {"%d %s" % (self.id, red_out.url): True})
+            safe_update(index, {'%d %s' % (self.id, red_out.url): True})
             OutputURL(index_url)
 
     @property
@@ -414,7 +423,7 @@ class ReduceReader(object):
                     TaskFailed("Zero bytes are not allowed in "\
                                "values with external sort. "\
                                "Consider using base64 encoding.")
-                out_fd.write("%s %s\0" % (k, v))
+                out_fd.write('%s %s\0' % (k, v))
         out_fd.close()
         Message("Reduce input downloaded ok")
 

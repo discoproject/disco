@@ -21,8 +21,8 @@ class BlacklistTestCase(DiscoJobTestFixture, DiscoTestCase):
         from disco import comm
         scheme, netloc, path = urlsplit(url)
         # test that scheduler preserved data locality
-        msg("NODE %s GOT URL %s" % (Task.host, url))
-        assert netloc == Task.host
+        msg("NODE %s GOT URL %s" % (Task.netloc, url))
+        assert netloc == Task.netloc
         return comm.open_remote("http://%s/%s" % (path, netloc))
     map_input_stream = [map_input_stream]
 

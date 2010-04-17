@@ -15,7 +15,7 @@ def download(url,
     from disco.util import urlsplit
     try:
         scheme, netloc, path = urlsplit(url)
-        http = httplib.HTTPConnection(netloc)
+        http = httplib.HTTPConnection(str(netloc))
         h = {}
         if offset:
             if type(offset) == tuple:
@@ -39,5 +39,4 @@ def download(url,
         header.update(fd.getheaders())
         return fd.status, fd.read()
     except (httplib.HTTPException, httplib.socket.error), e:
-        raise CommError("Transfer %s failed: %s" %
-                        (url, e), url)
+        raise CommError("Transfer %s failed: %s" % (url, e), url)

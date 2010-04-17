@@ -12,10 +12,11 @@ class ForceLocalTestCase(DiscoJobTestFixture, DiscoTestCase):
             for x in xrange(max_workers * 2)]
 
     def map_input_stream(stream, size, url, params):
+        from disco.func import string_input_stream
         from disco.util import urlsplit
         scheme, netloc, path = urlsplit(url)
-        assert netloc == Task.host
-        return cStringIO.StringIO(netloc), len(netloc), url
+        assert netloc == Task.netloc
+        return string_input_stream(str(netloc), size, url, params)
     map_input_stream = [map_input_stream]
 
     @staticmethod
@@ -27,7 +28,7 @@ class ForceLocalTestCase(DiscoJobTestFixture, DiscoTestCase):
     def answers(self):
         for input in self.input:
             scheme, netloc, path = urlsplit(input)
-            yield netloc, ''
+            yield str(netloc), ''
 
     def runTest(self):
         for result, answer in zip(sorted(self.answers), sorted(self.results)):
@@ -44,10 +45,11 @@ class ForceRemoteNoNodeTestCase(ForceLocalTestCase):
     scheduler = {'force_remote': True}
 
     def map_input_stream(stream, size, url, params):
+        from disco.func import string_input_stream
         from disco.util import urlsplit
         scheme, netloc, path = urlsplit(url)
-        assert netloc != Task.host
-        return cStringIO.StringIO(netloc), len(netloc), url
+        assert netloc != Task.netloc
+        return string_input_stream(str(netloc), size, url, params)
     map_input_stream = [map_input_stream]
 
 class ForceRemoteTestCase(ForceRemoteNoNodeTestCase):

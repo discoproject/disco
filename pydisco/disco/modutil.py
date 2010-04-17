@@ -5,7 +5,8 @@ from opcode import opname
 from disco.error import ModUtilImportError
 
 def user_paths():
-    return set(os.getenv('PYTHONPATH', '').split(':') + [''])
+    return set([os.path.abspath(path)
+                for path in os.getenv('PYTHONPATH', '').split(':')] + [''])
 
 def parse_function(function):
     code = function.func_code

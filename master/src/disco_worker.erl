@@ -203,7 +203,8 @@ handle_info({_Port, {data, Data}}, #state{eventstream = EventStream} = S) ->
                      linecount   = S#state.linecount + 1});
 
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
-    Reason =  "Worker didn't start:\n" ++ message_buffer:to_string(S#state.errlines),
+    Reason = "Worker didn't start.\nSpawn command was: " ++ spawn_cmd(S) ++
+        "Last words:\n" ++ message_buffer:to_string(S#state.errlines),
     error(recoverable, Reason, S);
 
 handle_info({_, {exit_status, _Status}}, S) ->

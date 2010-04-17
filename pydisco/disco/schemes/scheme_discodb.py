@@ -3,9 +3,9 @@ from disco import comm, core, util
 from discodb import DiscoDB, Q
 
 def input_stream(fd, size, url, params):
-    scheme, host, rest = util.urlsplit(url)
+    scheme, netloc, rest = util.urlsplit(url)
 
-    if host == Task.host or Task.has_flag('resultfs'):
+    if netloc == Task.netloc or Task.has_flag('resultfs'):
         host, dir, jobname, rest = rest.split('/', 3)
         file, rest   = rest.split('/', 1) if '/' in rest else (rest, '')
         path         = os.path.join(Task.datadir, host, dir, jobname, file)

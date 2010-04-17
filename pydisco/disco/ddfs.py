@@ -1,12 +1,16 @@
 import os, re
+from cStringIO import StringIO
 from urllib import urlencode
 
-from disco import util
 from disco.comm import upload, download, json, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
+from disco.util import iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
+
+def canonizetags(tags):
+    return [tagname(tag) for tag in iterify(tags)]
 
 def tagname(tag):
     if isinstance(tag, list):
@@ -17,23 +21,6 @@ def tagname(tag):
     elif '://' not in tag:
         return tag
 
-def canonizetags(tags):
-    if tags == None:
-        return [tagname(tag) for tag in self.tags()]
-    elif isinstance(tags, list):
-        return [tagname(tag) for tag in tags]
-    elif isinstance(tags, basestring):
-        return [tagname(tags)]
-
-def netlocsplit(netloc):
-    if ':' in netloc:
-        return netloc.split(':')
-    return netloc, ''
-
-def urlsplit(url):
-    scheme, netloc, path = util.urlsplit(url)
-    return scheme, netlocsplit(netloc), path
-
 class DDFS(object):
     def __init__(self, master=None, proxy=None):
         settings    = DiscoSettings()
@@ -43,6 +30,61 @@ class DDFS(object):
     @classmethod
     def safe_name(cls, name):
         return unsafe_re.sub('_', name)
+
+    def blobs(self, tag, ignore_missing=True):
+        """
+        Walks the tag graph starting at `tag`.
+
+        Yields only the terminal nodes of the graph (`blobs`).
+        """
+        for path, tags, blobs in self.walk(tag, ignore_missing=ignore_missing):
+            for replicas in blobs:
+                yield replicas
+
+    def delete(self, tag):
+        return self._request('/ddfs/tag/%s' % tagname(tag), method='DELETE')
+
+    def exists(self, tag):
+        try:
+            if open_remote('%s/ddfs/tag/%s' % (self.master, tagname(tag))):
+                return True
+        except CommError, e:
+            if e.code not in (403, 404):
+                raise
+        return False
+
+    def findtags(self, tags=None, ignore_missing=True):
+        import sys
+        """
+        Finds the nodes of the tag graph starting at `tags`.
+
+        Yields a 3-tuple `(tag, tags, blobs)`.
+        """
+        seen = set()
+
+        tag_queue = canonizetags(tags)
+
+        for tag in tag_queue:
+            if tag not in seen:
+                try:
+                    urls        = self.get(tag).get('urls', [])
+                    tags, blobs = partition(urls, tagname)
+                    tags        = canonizetags(tags)
+                    yield tag, tags, blobs
+
+                    tag_queue += tags
+                    seen.add(tag)
+                except CommError, e:
+                    if ignore_missing and e.code == 404:
+                        tags = blobs = ()
+                    else:
+                        raise
+
+    def get(self, tag):
+        return self._request('/ddfs/tag/%s' % tagname(tag), default='{}')
+
+    def list(self, prefix=''):
+        return self._request('/ddfs/tags/%s' % prefix)
 
     def pull(self, tag, retries=None):
         """
@@ -60,15 +102,15 @@ class DDFS(object):
         def aim(tuple_or_path):
             if isinstance(tuple_or_path, basestring):
                 source = tuple_or_path
-                src_fd = lambda: file(source, 'r')
+                src_fd = lambda: open(source, 'r')
                 target = self.safe_name(os.path.basename(source))
             else:
                 source, target = tuple_or_path
                 if hasattr(source, 'read'):
                     data   = source.read()
-                    src_fd = lambda: cStringIO.StringIO(data)
+                    src_fd = lambda: StringIO(data)
                 else:
-                    src_fd = lambda: file(source, 'r')
+                    src_fd = lambda: open(source, 'r')
             return src_fd, target
 
         urls = [self._push(aim(f), replicas, retries) for f in files]
@@ -76,28 +118,6 @@ class DDFS(object):
 
     def tag(self, tag, urls):
         return self._request('/ddfs/tag/%s' % tag, json.dumps(urls))
-
-    def exists(self, tag):
-        try:
-            if open_remote('%s/ddfs/tag/%s' % (self.master, tagname(tag))):
-                return True
-        except CommError, e:
-            if e.code != 404:
-                raise
-        return False
-
-    def get(self, tag):
-        return self._request('/ddfs/tag/%s' % tagname(tag), default='{}')
-
-    def blobs(self, tag, ignore_missing=True):
-        """
-        Walks the tag graph starting at `tag`.
-
-        Yields only the terminal nodes of the graph (`blobs`).
-        """
-        for path, tags, blobs in self.walk(tag, ignore_missing=ignore_missing):
-            for replicas in blobs:
-                yield replicas
 
     def walk(self, tag, ignore_missing=True, tagpath=()):
         """
@@ -108,7 +128,7 @@ class DDFS(object):
         try:
             tagpath    += (tagname(tag),)
             urls        = self.get(tag).get('urls', [])
-            tags, blobs = util.partition(urls, tagname)
+            tags, blobs = partition(urls, tagname)
             tags        = canonizetags(tags)
             yield tagpath, tags, blobs
         except CommError, e:
@@ -123,38 +143,11 @@ class DDFS(object):
                                    tagpath=tagpath):
                 yield child
 
-    def findtags(self, tags = None, ignore_missing = True):
-        import sys
-        """
-        Finds the nodes of the tag graph starting at `tags`.
-
-        Yields a 3-tuple `(tag, tags, blobs)`.
-        """
-        seen = set()
-
-        tag_queue = canonizetags(tags)
-
-        for tag in tag_queue:
-            if tag not in seen:
-                try:
-                    urls        = self.get(tag).get('urls', [])
-                    tags, blobs = util.partition(urls, tagname)
-                    tags        = canonizetags(tags)
-                    yield tag, tags, blobs
-
-                    tag_queue += tags
-                    seen.add(tag)
-                except CommError, e:
-                    if ignore_missing and e.code == 404:
-                        tags = blobs = ()
-                    else:
-                        raise
-
-    def list(self, prefix=''):
-        return self._request('/ddfs/tags/%s' % prefix)
-
-    def delete(self, tag):
-        return self._request('/ddfs/tag/%s' % tagname(tag), method='DELETE')
+    def _maybe_proxy(self, url, method='GET'):
+        if self.proxy:
+            scheme, (host, port), path = urlsplit(url)
+            return '%s/proxy/%s/%s/%s' % (self.proxy, host, method, path)
+        return url
 
     def _push(self, (src_fd, target), replicas=None, retries=None, exclude=[]):
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
@@ -172,16 +165,10 @@ class DDFS(object):
                               retries=retries,
                               exclude=exclude + [host])
 
-    def _maybe_proxy(self, url, method='GET'):
-        if self.proxy:
-            scheme, (host, port), path = urlsplit(url)
-            return '%s/proxy/%s/%s/%s' % (self.proxy, host, method, path)
-        return url
+    def _request(self, url, data=None, method=None, default='[]'):
+        response = download(self.master + url, data=data, method=method)
+        return json.loads(response or default)
 
     def _upload(self, urls, retries=10):
         urls = [(self._maybe_proxy(url, method='PUT'), fd) for url, fd in urls]
         return upload(urls, retries=retries)
-
-    def _request(self, url, data=None, method=None, default='[]'):
-        response = download(self.master + url, data=data, method=method)
-        return json.loads(response or default)

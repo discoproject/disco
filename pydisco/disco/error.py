@@ -1,3 +1,9 @@
+"""
+:mod:`disco.error` -- Errors with special meaning in Disco
+==========================================================
+
+
+"""
 import sys
 
 class DiscoError(Exception):
@@ -5,7 +11,21 @@ class DiscoError(Exception):
     pass
 
 class JobError(DiscoError):
-    """An error that occurs when a client submits or interacts with a Disco job."""
+    """
+    An error that occurs when a client submits or interacts with a Disco job.
+
+    .. attribute:: msg
+
+        Error message.
+
+   .. attribute:: name
+
+        Name of the failed job.
+
+   .. attribute:: master
+
+        Address of the Disco master that produced the error.
+    """
     def __init__(self, error, master=None, jobname=None):
         self.error   = error
         self.master  = master
