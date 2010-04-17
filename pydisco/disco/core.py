@@ -240,9 +240,12 @@ class Disco(object):
                     #    events.endswith('\n'):
                     #    offs -= 1
                     yield offs, event
-        r = self.request('/disco/ctrl/rawevents?name=%s' % name,
-                         redir=True,
-                         offset=offset)
+        try:
+            r = self.request("/disco/ctrl/rawevents?name=%s" % name,
+                     redir = True,
+                     offset = offset)
+        except Exception, x:
+            return []
 
         if len(r) < 2:
             return []
@@ -304,8 +307,8 @@ class Disco(object):
         """Returns a dictionary containing information about the job *name*."""
         return json.loads(self.request('/disco/ctrl/jobinfo?name=%s' % name))
 
-    def check_results(self, name, start_time, timeout):
-        status, results = self.results(name, timeout=timeout)
+    def check_results(self, name, start_time, timeout, poll_interval):
+        status, results = self.results(name, timeout=poll_interval)
         if status == 'ready':
             return results
         if status != 'active':
@@ -351,7 +354,8 @@ class Disco(object):
         while True:
             event_monitor.refresh()
             try:
-                return self.check_results(name, start_time, timeout)
+                return self.check_results(name, start_time,
+                                          timeout, poll_interval * 1000)
             except Continue:
                 continue
             finally:
@@ -406,14 +410,14 @@ class Params(object):
 class JobSpecifier(list):
     def __init__(self, jobspec):
         super(JobSpecifier, self).__init__([jobspec]
-            if type(jobspec) is str else jobspec)
+            if isinstance(jobspec, basestring) else jobspec)
 
     @property
     def jobnames(self):
         for job in self:
-            if type(job) is str:
+            if isinstance(job, basestring):
                 yield job
-            elif type(job) is list:
+            elif isinstance(job, list):
                 yield job[0]
             else:
                 yield job.name

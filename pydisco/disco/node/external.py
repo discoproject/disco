@@ -26,7 +26,7 @@ def unpack_kv():
     return k, v
 
 def ext_map(e, params):
-    if type(e) == str:
+    if isinstance(e, basestring):
         k = ""
         v = e
     else:

@@ -26,3 +26,7 @@ DISCO_PID_DIR = os.path.join(DISCO_HOME, 'run')
 # - nocurl: use httplib instead of pycurl even if pycurl is available
 #DISCO_FLAGS = "nocurl"
 
+# DDFS settings for running Disco and DDFS locally
+DDFS_TAG_MIN_REPLICAS = 1
+DDFS_TAG_REPLICAS = 1
+DDFS_BLOB_REPLICAS = 1
