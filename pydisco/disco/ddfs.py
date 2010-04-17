@@ -64,7 +64,6 @@ class DDFS(object):
                 target = self.safe_name(os.path.basename(source))
             else:
                 source, target = tuple_or_path
-                target = self.safe_name(target)
                 if hasattr(source, 'read'):
                     data   = source.read()
                     src_fd = lambda: cStringIO.StringIO(data)
