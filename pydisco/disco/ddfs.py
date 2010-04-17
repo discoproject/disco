@@ -81,7 +81,7 @@ class DDFS(object):
                         raise
 
     def get(self, tag):
-        return self._request('/ddfs/tag/%s' % tagname(tag), default='{}')
+        return self._request('/ddfs/tag/%s' % tagname(tag))
 
     def list(self, prefix=''):
         return self._request('/ddfs/tags/%s' % prefix)
@@ -165,9 +165,9 @@ class DDFS(object):
                               retries=retries,
                               exclude=exclude + [host])
 
-    def _request(self, url, data=None, method=None, default='[]'):
+    def _request(self, url, data=None, method=None):
         response = download(self.master + url, data=data, method=method)
-        return json.loads(response or default)
+        return json.loads(response)
 
     def _upload(self, urls, retries=10):
         urls = [(self._maybe_proxy(url, method='PUT'), fd) for url, fd in urls]
