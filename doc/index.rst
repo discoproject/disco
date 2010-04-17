@@ -42,7 +42,7 @@ References
    py/index
    external
    disco command line interface <man/disco>
-   man/settings
+   py/settings
 
 Indices and tables
 ------------------
