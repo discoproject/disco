@@ -994,11 +994,8 @@ def process_url_safe(urls, tempdir, input_stream, reader, params):
     while urls:
         try:
             in_stream = process_url(urls[0], input_stream, reader, params)
-            out_stream = list(in_stream) if tempdir == False\
+            return list(in_stream) if tempdir == False\
                 else disk_buffer(tempdir, in_stream)
-            for x in out_stream:
-                yield x
-            return
         except:
             urls = urls[1:]
     raise DiscoError("All replicas failed (%s)" % ",".join(orig_urls))
@@ -1014,8 +1011,7 @@ def process_url(url, input_stream, reader, params):
     fd = sze = None
     for fun in input_stream:
         fd, sze, url = fun(fd, sze, url, params)
-    for x in reader(fd, sze, url):
-        yield x
+    return reader(fd, sze, url)
 
 class Stats(object):
     def __init__(self, prof_data):
