@@ -1003,10 +1003,9 @@ def process_url_safe(urls, tempdir, input_stream, reader, params):
 
 def disk_buffer(tempdir, in_stream):
     fd = NamedTemporaryFile(prefix='discores-', dir=tempdir)
-    for num, x in enumerate(in_stream):
-        marshal.dump(x, fd.file)
+    n = util.ilen(marshal.dump(x, fd.file) for x in in_stream)
     fd.seek(0)
-    return (marshal.load(fd.file) for i in range(num))
+    return (marshal.load(fd.file) for i in range(n))
 
 def process_url(url, input_stream, reader, params):
     fd = sze = None

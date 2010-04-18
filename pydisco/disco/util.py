@@ -59,6 +59,9 @@ def iterify(object):
         return object
     return repeat(object, 1)
 
+def ilen(iter):
+    return sum(1 for _ in iter)
+
 def partition(iterable, fn):
     t, f = [], []
     for item in iterable:
