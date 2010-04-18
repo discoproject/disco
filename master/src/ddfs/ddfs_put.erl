@@ -99,13 +99,14 @@ receive_body(Req, IO) ->
             ({_, Buf}, ok) -> file:write(IO, Buf);
             (_, S) -> S
         end, ok),
-    R1 = file:sync(IO),
-    R2 = file:close(IO),
-    % R0 == <<>> if the blob is zero bytes
-    case lists:filter(fun(ok) -> false; (<<>>) -> false; (_) -> true end,
-            [R0, R1, R2]) of
-        [] -> ok;
-        [Error|_] -> Error
+    case R0 of
+        % R == <<>> or undefined if body is empty
+        R when R =:= ok; R =:= <<>>; R =:= undefined ->
+            case [file:sync(IO), file:close(IO)] of
+                [ok, ok] -> ok;
+                E -> hd([X || X <- E, X =/= ok])
+            end;
+        Error -> Error
     end.
 
 error_reply(Req, Msg, Dst, Err) ->
