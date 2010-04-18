@@ -8,9 +8,6 @@ import os
 # disco://host URIs are mapped to http://host:DISCO_PORT.
 DISCO_PORT = 8989
 
-# Port for master <-> lighty communication.
-DISCO_SCGI_PORT = 4444
-
 # Root directory for Disco data.
 DISCO_ROOT = os.path.join(DISCO_HOME, 'root')
 

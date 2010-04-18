@@ -62,13 +62,13 @@ If the master is running, you should see something like this::
         disco 6848 0.0 0.7 317220 125960 ? Sl Oct07 3:46
         /usr/lib/erlang/erts-5.6.3/bin/beam.smp -K true -- -root
         /usr/lib/erlang -progname erl -- -home /srv/disco -heart -noshell
-        -sname disco_4444_master -rsh ssh -pa /usr/lib/disco//ebin
+        -sname disco_8989_master -rsh ssh -pa /usr/lib/disco//ebin
         -boot /usr/lib/disco//disco -kernel error_logger {file,
-        "/var/log/disco//disco_4444.log"} -eval [handle_job,
-        handle_ctrl] -disco disco_name "disco_4444" -disco disco_root
-        "/srv/disco//data/_disco_4444" -disco disco_master_host "" -disco
-        disco_slaves_os "linux" -disco scgi_port 4444 -disco disco_config
-        "/srv/disco//disco_4444.config
+        "/var/log/disco//disco_8989.log"} -eval [handle_job,
+        handle_ctrl] -disco disco_name "disco_8989" -disco disco_root
+        "/srv/disco//data/_disco_8989" -disco disco_master_host "" -disco
+        disco_slaves_os "linux" -disco scgi_port 8989 -disco disco_config
+        "/srv/disco//disco_8989.config
 
 If you do see output like above, the master is running correctly and
 you can proceed to the next step.
