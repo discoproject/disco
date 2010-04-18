@@ -1,4 +1,7 @@
 """
+:mod:`disco.node.worker` -- Runtime environment for Disco jobs
+==============================================================
+
 Disco master runs :mod:`disco.node.worker` to execute map and reduce functions
 for a Disco job. The module contains several classes and functions that
 are used by Disco internally to connect to input sources, write output
@@ -7,7 +10,7 @@ for writing new Disco jobs.
 
 As job functions are imported to the :mod:`disco.node.worker` namespace
 for execution, they can use functions in this module directly without
-importing the module explicitely.
+importing the module explicitly.
 
 .. _oob:
 
@@ -51,9 +54,6 @@ Utility functions
 .. autofunction:: this_host
 .. autofunction:: this_master
 .. autofunction:: this_inputs
-.. autofunction:: disco.util.msg
-.. autofunction:: disco.util.err
-.. autofunction:: disco.util.data_err
 """
 import os
 

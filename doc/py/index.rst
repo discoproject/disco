@@ -12,6 +12,7 @@ Disco client
    func
    error
    modutil
+   settings
    schemes
    util
 
