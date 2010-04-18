@@ -27,7 +27,8 @@ newly started job.
         :members:
 .. autofunction:: result_iterator
 """
-import sys, os, time, cStringIO
+import sys, os, time, cStringIO, marshal
+from tempfile import NamedTemporaryFile
 from itertools import chain
 
 from disco import func, util
@@ -942,7 +943,8 @@ def result_iterator(results,
                     reader=func.netstr_reader,
                     input_stream=[func.map_input_stream],
                     params=None,
-                    ddfs=None):
+                    ddfs=None,
+                    tempdir=None):
     """
     Iterates the key-value pairs in job results. *results* is a list of
     results, as returned by :meth:`Disco.wait`.
@@ -953,9 +955,22 @@ def result_iterator(results,
                       def notifier(url):
                           ...
 
+                     *url* may be a list if results are replicated.
+
     :param reader: a custom reader function.
                    Specify this to match with a custom *map_writer* or *reduce_writer*.
                    By default, *reader* is :func:`disco.func.netstr_reader`.
+
+    :param tempdir: if results are replicated, *result_iterator* ensures that only
+                    valid replicas are used. By default, this is done by downloading
+                    and parsing results first to a temporary file. If the temporary
+                    file was created succesfully, the results are returned,
+                    otherwise an alternative replica is used.
+
+                    If *tempdir=None* (default), the system default temporary
+                    directory is used (typically ``/tmp``). An alternative path
+                    can be set with *tempdir="path"*. Temporary files can be disabled
+                    with *tempdir=False*, in which case results are read in memory.
     """
     from disco.task import Task
     task = Task()
@@ -964,15 +979,43 @@ def result_iterator(results,
 
     for result in results:
         for url in util.urllist(result, ddfs=ddfs):
-            fd = sze = None
-            for fun in input_stream:
-                fd, sze, url = fun(fd, sze, url, params)
-
             if notifier:
                 notifier(url)
-
-            for x in reader(fd, sze, url):
+            if type(url) == list:
+                iter = process_url_safe(url, tempdir,
+                        input_stream, reader, params)
+            else:
+                iter = process_url(url, input_stream, reader, params)
+            for x in iter:
                 yield x
+
+def process_url_safe(urls, tempdir, input_stream, reader, params):
+    orig_urls = urls
+    while urls:
+        try:
+            in_stream = process_url(urls[0], input_stream, reader, params)
+            out_stream = list(in_stream) if tempdir == False\
+                else disk_buffer(tempdir, in_stream)
+            for x in out_stream:
+                yield x
+            return
+        except:
+            urls = urls[1:]
+    raise DiscoError("All replicas failed (%s)" % ",".join(orig_urls))
+
+def disk_buffer(tempdir, in_stream):
+    fd = NamedTemporaryFile(prefix='discores-', dir=tempdir)
+    for num, x in enumerate(in_stream):
+        marshal.dump(x, fd.file)
+    fd.seek(0)
+    return (marshal.load(fd.file) for i in range(num))
+
+def process_url(url, input_stream, reader, params):
+    fd = sze = None
+    for fun in input_stream:
+        fd, sze, url = fun(fd, sze, url, params)
+    for x in reader(fd, sze, url):
+        yield x
 
 class Stats(object):
     def __init__(self, prof_data):
