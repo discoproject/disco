@@ -998,7 +998,8 @@ def process_url_safe(urls, tempdir, input_stream, reader, params):
                 else disk_buffer(tempdir, in_stream)
         except:
             urls = urls[1:]
-    raise DiscoError("All replicas failed (%s)" % ",".join(orig_urls))
+            if not urls:
+                raise
 
 def disk_buffer(tempdir, in_stream):
     fd = NamedTemporaryFile(prefix='discores-', dir=tempdir)
