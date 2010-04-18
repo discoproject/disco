@@ -40,7 +40,7 @@ take_key(Key, Ets) ->
 
 send_blob(Obj, DstUrl, Root) ->
     [{_, Vol, _}] = ets:lookup(blob, Obj),
-    {ok, Path, _} = ddfs_util:hashdir(Obj, "blob", Root, Vol),
+    {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", "blob", Root, Vol),
     ddfs_http:http_put(filename:join(Path, binary_to_list(Obj)),
         DstUrl, ?GC_PUT_TIMEOUT).
 
@@ -75,7 +75,7 @@ delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
         {"GC: # orphaned", Mode, ets:info(Ets, size)}),
     lists:foreach(fun([Obj, Vol]) ->
         {_, Time} = ddfs_util:unpack_objname(Obj),
-        {ok, Path, _} = ddfs_util:hashdir(Obj, Mode, Root, Vol),
+        {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", Mode, Root, Vol),
         is_really_orphan(Master, Obj) andalso
             delete_if_expired(filename:join(Path, binary_to_list(Obj)),
                 Now, Time, Expires)

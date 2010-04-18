@@ -1,6 +1,6 @@
 -module(ddfs_util).
 -export([is_valid_name/1, timestamp/0, timestamp/1, timestamp_to_time/1,
-         ensure_dir/1, hashdir/4, safe_rename/2, format_timestamp/0,
+         ensure_dir/1, hashdir/5, safe_rename/2, format_timestamp/0,
          diskspace/1, fold_files/3, pack_objname/2, unpack_objname/1,
          choose_random/1, replace/3, startswith/2]).
 
@@ -59,13 +59,12 @@ format_timestamp() ->
     TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
     list_to_binary([DateStr, TimeStr]).
 
-hashdir(Name, Mode, Root, Vol) ->
+hashdir(Name, Node, Mode, Root, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
     [D1] = io_lib:format("~.16b", [D0]),
     Dir = [if length(D1) == 1 -> "0"; true -> "" end, D1],
     Path = filename:join([Vol, Mode, Dir]),
-    Url = list_to_binary(
-        ["disco://", net_adm:localhost(), "/ddfs/", Path, "/", Name]),
+    Url = list_to_binary(["disco://", Node, "/ddfs/", Path, "/", Name]),
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
 

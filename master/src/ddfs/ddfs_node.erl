@@ -6,7 +6,8 @@
 
 -include("config.hrl").
 
--record(state, {root, volumes, put_max, put_active, get_max, get_active, tags}).
+-record(state, {nodename, root, volumes, put_max,
+                put_active, get_max, get_active, tags}).
 
 start_link(Config) ->
     process_flag(trap_exit, true),
@@ -26,6 +27,7 @@ stop() ->
     gen_server:call(ddfs_node, stop).
 
 init(Config) ->
+    {nodename, NodeName} = proplists:lookup(nodename, Config),
     {ddfs_root, DdfsRoot} = proplists:lookup(ddfs_root, Config),
     {disco_root, DiscoRoot} = proplists:lookup(disco_root, Config),
     {put_max, PutMax} = proplists:lookup(put_max, Config),
@@ -55,7 +57,8 @@ init(Config) ->
     spawn_link(fun() -> refresh_tags(DdfsRoot, Vol) end),
     spawn_link(fun() -> monitor_diskspace(DdfsRoot, Vol) end),
 
-    {ok, #state{root = DdfsRoot,
+    {ok, #state{nodename = NodeName,
+                root = DdfsRoot,
                 volumes = [{0, V} || V <- Vol],
                 tags = Tags,
                 put_max = PutMax,
@@ -83,8 +86,8 @@ handle_call({put_blob, _}, _, #state{put_max = Max, put_active = Act} = S)
 
 handle_call({put_blob, BlobName}, {Pid, _}, S) ->
     Vol = choose_volume(S#state.volumes),
-    {ok, Local, Url} = ddfs_util:hashdir(
-        list_to_binary(BlobName), "blob", S#state.root, Vol),
+    {ok, Local, Url} = ddfs_util:hashdir(list_to_binary(BlobName),
+        S#state.nodename, "blob", S#state.root, Vol),
     case ddfs_util:ensure_dir(Local) of
         ok ->
             erlang:monitor(process, Pid),
@@ -103,12 +106,15 @@ handle_call({get_tag_timestamp, TagName}, _From, S) ->
     end;
 
 handle_call({get_tag_data, TagName, TagNfo}, From, S) ->
-    spawn(fun() -> read_tag(TagName, S#state.root, TagNfo, From) end),
+    spawn(fun() ->
+        read_tag(TagName, S#state.nodename, S#state.root, TagNfo, From)
+    end),
     {noreply, S};
 
 handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
     Vol = choose_volume(S#state.volumes),
-    {ok, Local, _} = ddfs_util:hashdir(Tag, "tag", S#state.root, Vol),
+    {ok, Local, _} = ddfs_util:hashdir(Tag, S#state.nodename,
+        "tag", S#state.root, Vol),
     case ddfs_util:ensure_dir(Local) of
         ok ->
             F = filename:join(Local, ["!partial.", binary_to_list(Tag)]),
@@ -122,7 +128,8 @@ handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
 
 handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
     {value, {_, Vol}} = lists:keysearch(node(), 1, TagVol),
-    {ok, Local, Url} = ddfs_util:hashdir(Tag, "tag", S#state.root, Vol),
+    {ok, Local, Url} = ddfs_util:hashdir(Tag, S#state.nodename,
+        "tag", S#state.root, Vol),
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
 
     TagL = binary_to_list(Tag),
@@ -155,8 +162,8 @@ terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-read_tag(Tag, Root, {_, Vol}, From) ->
-    {ok, D, _} = ddfs_util:hashdir(Tag, "tag", Root, Vol),
+read_tag(Tag, NodeName, Root, {_, Vol}, From) ->
+    {ok, D, _} = ddfs_util:hashdir(Tag, NodeName, "tag", Root, Vol),
     case prim_file:read_file(filename:join(D, binary_to_list(Tag))) of
         {ok, Bin} ->
             gen_server:reply(From, {ok, Bin});
