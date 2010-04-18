@@ -990,7 +990,6 @@ def result_iterator(results,
                 yield x
 
 def process_url_safe(urls, tempdir, input_stream, reader, params):
-    orig_urls = urls
     while urls:
         try:
             in_stream = process_url(urls[0], input_stream, reader, params)
