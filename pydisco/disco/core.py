@@ -32,7 +32,6 @@ from itertools import chain
 
 from disco import func, util
 from disco.comm import download, json
-from disco.ddfs import DDFS
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
 from disco.modutil import find_modules

@@ -93,7 +93,7 @@ def urlsplit(url):
 def urlresolve(url):
     return '%s://%s/%s' % urlsplit(url)
 
-def urllist(url, partid=None, listdirs=True, ddfs=None, recurse=False):
+def urllist(url, partid=None, listdirs=True, ddfs=None):
     if isiterable(url):
         return [list(url)]
     scheme, netloc, path = urlsplit(url)
@@ -101,8 +101,10 @@ def urllist(url, partid=None, listdirs=True, ddfs=None, recurse=False):
         return parse_dir(url, partid=partid)
     elif scheme == 'tag':
         from disco.ddfs import DDFS
-        tag = DDFS(ddfs).get_tag(netloc, recurse=recurse)
-        return [repl[0] for repl in tag['urls']]
+        ret = []
+        for name, tags, blobs in DDFS(ddfs).findtags(url):
+            ret += blobs
+        return ret
     return [url]
 
 def msg(message):
@@ -185,5 +187,7 @@ def ddfs_save(blobs, name, master):
     ddfs = DDFS(master)
     blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
              for blob in blobs]
-    tag, bloburls = ddfs.push(ddfs_name(name), blobs, retries=600)
-    return tag
+    tag = ddfs_name(name)
+    ddfs.push(tag, blobs, retries=600)
+    return "tag://%s" % tag
+
