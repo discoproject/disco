@@ -25,18 +25,19 @@ from discodex.objects import (DataSet,
                               Query)
 
 from disco.core import Disco
+from disco.ddfs import DDFS
 from disco.error import DiscoError
-from disco.util import flatten, parse_dir
+from disco.util import ddfs_name, flatten, parse_dir
 
 from discodb import Q
 
 discodex_settings = settings.DiscodexSettings()
-disco_master      = discodex_settings['DISCODEX_DISCO_MASTER']
+disco_master_url  = discodex_settings['DISCODEX_DISCO_MASTER']
 disco_prefix      = discodex_settings['DISCODEX_DISCO_PREFIX']
+index_prefix      = discodex_settings['DISCODEX_INDEX_PREFIX']
 purge_file        = discodex_settings['DISCODEX_PURGE_FILE']
-index_root        = discodex_settings.safedir('DISCODEX_INDEX_ROOT')
-index_temp        = discodex_settings.safedir('DISCODEX_INDEX_TEMP')
-disco_master      = Disco(disco_master)
+disco_master      = Disco(disco_master_url)
+ddfs              = DDFS(disco_master_url)
 
 NOT_FOUND, OK, ACTIVE, DEAD = 'unknown job', 'ready', 'active', 'dead'
 
@@ -49,7 +50,7 @@ class IndexCollection(Collection):
 
     @property
     def names(self):
-        return os.listdir(index_root)
+        return ddfs.list(index_prefix)
 
     def __iter__(self):
         for name in self.names:
@@ -59,12 +60,13 @@ class IndexCollection(Collection):
         try:
             dataset = DataSet.loads(request.raw_post_data)
             job     = Indexer(dataset)
+            prefix  = '%s:discodb:' % disco_prefix
         except TypeError:
             metaset = MetaSet.loads(request.raw_post_data)
             job     = MetaIndexer(metaset)
-
+            prefix  = '%s:metadb:' % disco_prefix
         try:
-            job.run(disco_master, disco_prefix)
+            job.run(disco_master, prefix)
         except ImportError, e:
             return HttpResponseServerError("Callable object not found: %s" % e)
         except DiscoError, e:
@@ -75,7 +77,7 @@ class IndexCollection(Collection):
         return HttpResponse(Indices(self.names).dumps())
 
 class IndexResource(Collection):
-    allowed_methods = ('GET', 'PUT', 'DELETE')
+    allowed_methods = ('GET', 'PUT', 'DELETE') # add post/create for incremental updates
 
     def __init__(self, name):
         self.name = name
@@ -88,15 +90,27 @@ class IndexResource(Collection):
 
     @property
     def exists(self):
-        return os.path.exists(self.path)
+        return ddfs.exists(self.tag)
 
     @property
     def isdisco(self):
         return self.name.startswith(disco_prefix)
 
     @property
-    def path(self):
-        return os.path.join(index_root, self.name)
+    def isindex(self):
+        return self.name.startswith(index_prefix)
+
+    @property
+    def jobname(self):
+        if self.isdisco:
+            return self.name
+        if self.isindex:
+            return self.name.replace(index_prefix, disco_prefix, 1)
+        return '%s:%s' % (disco_prefix, self.name)
+
+    @property
+    def tag(self):
+        return self.jobname.replace(disco_prefix, index_prefix, 1)
 
     @property
     @models.permalink
@@ -105,7 +119,7 @@ class IndexResource(Collection):
 
     @property
     def ichunks(self):
-        return Index.loads(open(self.path).read()).ichunks
+        return Index(ddfs.get(self.tag)).ichunks
 
     @property
     def keys(self):
@@ -130,20 +144,20 @@ class IndexResource(Collection):
 
         if self.isdisco:
             status, results = disco_master.results(self.name)
-            if self.exists:
-                return OK
 
             if status == OK:
-                ichunks = list(flatten(parse_dir(result) for result in results))
-                self.write(Index(id=self.name, ichunks=ichunks))
-                disco_master.clean(self.name)
+                _prefix, type, id = self.name.split(':', 2)
+                ddfs.tag(self.tag, [[url.replace('disco://', '%s://' % type, 1)
+                                     for url in urls]
+                                    for urls in Index(ddfs.get(results)).ichunks])
+                disco_master.purge(self.jobname)
             return status
         return NOT_FOUND
 
     def read(self, request, *args, **kwargs):
         status = self.status
         if status == OK:
-            return HttpResponse(open(self.path))
+            return HttpResponse(Index(ddfs.get(self.tag)).dumps())
         if status == ACTIVE:
             return HttpResponseServiceUnavailable(100)
         if status == DEAD:
@@ -151,29 +165,13 @@ class IndexResource(Collection):
         raise Http404
 
     def update(self, request, *args, **kwargs):
-        index = Index.loads(request.raw_post_data)
-        if self.isdisco:
-            disco_master.purge(self.name)
-        self.write(index)
+        ddfs.tag(self.tag, Index.loads(request.raw_post_data).ichunks)
         return HttpResponseCreated(self.url)
 
     def delete(self, request, *args, **kwargs):
-        try:
-            os.remove(self.path)
-        except OSError, e:
-            if e.errno == errno.ENOENT:
-                raise Http404
-            raise
-        else:
-            if self.isdisco:
-                disco_master.purge(self.name)
+        ddfs.delete(self.tag)
+        ddfs.delete(ddfs_name(self.jobname))
         return HttpResponseNoContent()
-
-    def write(self, index):
-        from tempfile import mkstemp
-        fd, filename = mkstemp(dir=index_temp)
-        os.write(fd, index.dumps())
-        os.rename(filename, self.path)
 
 class DiscoDBResource(Resource):
     job_type    = DiscoDBIterator

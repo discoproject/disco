@@ -90,7 +90,7 @@ class CommandLineClient(DiscodexClient):
 
     def metaindex(self, indexspec):
         metaset = MetaSet(options=self.options,
-                          ichunks=self.get(indexspec).ichunks)
+                          urls=self.get(indexspec).ichunks)
         return super(CommandLineClient, self).metaindex(metaset)
 
     def clone(self, indexaspec, indexbspec):

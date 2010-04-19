@@ -21,8 +21,8 @@ from disco.core import result_iterator, Params
 
 class DiscodexJob(object):
     combiner             = None
-    map_input_stream     = staticmethod(func.map_input_stream)
-    map_output_stream    = staticmethod(func.map_output_stream)
+    map_input_stream     = [func.map_input_stream]
+    map_output_stream    = [func.map_output_stream]
     map_reader           = staticmethod(func.map_line_reader)
     map_writer           = staticmethod(func.netstr_writer)
     params               = Params()
@@ -31,9 +31,10 @@ class DiscodexJob(object):
     reduce               = None
     reduce_reader        = staticmethod(func.netstr_reader)
     reduce_writer        = staticmethod(func.netstr_writer)
-    reduce_output_stream = staticmethod(func.reduce_output_stream)
-    result_reader        = staticmethod(func.netstr_reader)
+    reduce_output_stream = [func.reduce_output_stream]
+    result_reader        = [func.netstr_reader]
     required_modules     = []
+    save                 = False
     scheduler            = {}
     sort                 = False
     nr_reduces           = 1
@@ -50,8 +51,8 @@ class DiscodexJob(object):
     def results(self):
         return result_iterator(self._job.wait(), reader=self.result_reader)
 
-    def run(self, disco_master, disco_prefix):
-        jobargs = {'name':              disco_prefix,
+    def run(self, disco_master, prefix):
+        jobargs = {'name':              prefix,
                    'input':             self.input,
                    'map':               self.map,
                    'map_input_stream':  self.map_input_stream,
@@ -63,6 +64,7 @@ class DiscodexJob(object):
                    'partition':         self.partition,
                    'profile':           self.profile,
                    'required_modules':  self.required_modules,
+                   'save':              self.save,
                    'scheduler':         self.scheduler,
                    'sort':              self.sort}
 
@@ -80,6 +82,8 @@ class DiscodexJob(object):
 
 class Indexer(DiscodexJob):
     """A discodex mapreduce job used to build an index from a dataset."""
+    save = True
+
     def __init__(self, dataset):
         self.input      = dataset.input
         self.map_reader = dataset.parser
@@ -108,6 +112,7 @@ class Indexer(DiscodexJob):
 class MetaIndexer(DiscodexJob):
     """A discodex mapreduce job used to build a metaindex over an index, given a :class:`discodex.objects.MetaSet`."""
     nr_reduces = 0
+    save       = True
     scheduler  = {'force_local': True}
 
     def __init__(self, metaset):
@@ -169,6 +174,7 @@ class DiscoDBIterator(DiscodexJob):
             self.method = '%s/%s' % (target, self.method)
         self.params = Params(mapfilters=mapfilters or self.mapfilters,
                              reducefilters=reducefilters or self.reducefilters)
+
         if reducefilters:
             self.nr_reduces = max(1, len(self.ichunks) / 8)
             self.reduce     = self._reduce
@@ -182,7 +188,8 @@ class DiscoDBIterator(DiscodexJob):
 
     @property
     def input(self):
-        return ['%s/%s/' % (ichunk, self.method) for ichunk in self.ichunks]
+        return [['%s!%s/' % (url, self.method) for url in urls]
+                for urls in self.ichunks]
 
     @staticmethod
     def map_reader(fd, size, fname):

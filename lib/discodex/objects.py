@@ -74,7 +74,7 @@ class Index(dict, JSONSerialized):
     """A collection of `ichunks` resulting from a :class:`DataSet` previously indexed by discodex."""
     @property
     def ichunks(self):
-        return [str(ichunk) for ichunk in self['ichunks']]
+        return [ichunk for ichunk in self['urls']]
 
 class MetaSet(Index):
     """
@@ -82,7 +82,7 @@ class MetaSet(Index):
 
     See :mod:`discodex.mapreduce.metakeyers` and :class:`discodex.mapreduce.MetaIndexer`.
     """
-    required_fields = ['ichunks']
+    required_fields = ['urls']
 
     @property
     def options(self):
