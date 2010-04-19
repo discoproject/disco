@@ -201,7 +201,8 @@ class Task(object):
     def connect_input(self, url):
         fd = sze = None
         for input_stream in self.input_stream:
-            fd, sze, url = input_stream(fd, sze, url, self.params)
+            ret = input_stream(fd, sze, url, self.params)
+            fd, sze, url = ret if type(ret) == tuple else (ret, sze, url)
         return fd, sze, url
 
     def connect_output(self, part=0):
@@ -268,8 +269,7 @@ class Map(Task):
             self.insert_globals([self.map])
 
         partitions = [MapOutput(self, i) for i in xrange(self.num_partitions)]
-        fd, sze, url = self.connect_input(self.inputs[0])
-        reader = self.reader(fd, sze, url)
+        reader, sze, url = self.connect_input(self.inputs[0])
         params = self.params
         self.init(reader, params)
 
@@ -318,9 +318,9 @@ class MapOutput(object):
                                      self.task.params)
             if ret:
                 for key, value in ret:
-                    self.task.writer(self.fd, key, value, self.task.params)
+                    self.fd.add(key, value)
         else:
-            self.task.writer(self.fd, key, value, self.task.params)
+            self.fd.add(key, value)
 
     def close(self):
         if self.task.combiner:
@@ -330,7 +330,7 @@ class MapOutput(object):
                                      self.task.params)
             if ret:
                 for key, value in ret:
-                    self.task.writer(self.fd, key, value, self.task.params)
+                    self.fd.add(key, value)
         self.task.close_output(self.fd_list)
 
 def num_cmp(x, y):
@@ -343,9 +343,9 @@ def num_cmp(x, y):
 
 class Reduce(Task):
     def _run(self):
-        red_in  = iter(ReduceReader(self))
-        red_out = ReduceOutput(self)
-        params  = self.params
+        red_out, out_url, fd_list = self.connect_output()
+        red_in                    = iter(ReduceReader(self))
+        params                    = self.params
 
         if self.ext_reduce:
             path = self.path('EXT_REDUCE')
@@ -359,7 +359,7 @@ class Reduce(Task):
         self.reduce(red_in, red_out, params)
         Message("Reduce done")
 
-        red_out.close()
+        self.close_output(fd_list)
         external.close_ext()
 
         if self.save:
@@ -367,7 +367,7 @@ class Reduce(Task):
             Message("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
-            safe_update(index, {'%d %s' % (self.id, red_out.url): True})
+            safe_update(index, {'%d %s' % (self.id, out_url): True})
             OutputURL(index_url)
 
     @property
@@ -376,23 +376,16 @@ class Reduce(Task):
             return self.ext_params or '0\n'
         return self.jobdict['params']
 
-class ReduceOutput(object):
-    def __init__(self, task):
-        self.task = task
-        self.fd, self.url, self.fd_list = self.task.connect_output()
-
-    def add(self, key, value):
-        self.task.writer(self.fd, key, value, self.task.params)
-
-    def close(self):
-        self.task.close_output(self.fd_list)
-
 class ReduceReader(object):
     def __init__(self, task):
         self.task   = task
         self.inputs = [url for input in task.inputs
                        for url in urllist(input, partid=task.id)]
         random.shuffle(self.inputs)
+
+    def connect_input(self, url):
+        fd, sze, url = self.task.connect_input(url)
+        return fd
 
     def __iter__(self):
         if self.task.sort:
@@ -407,15 +400,15 @@ class ReduceReader(object):
             if total_size > self.task.mem_sort_limit:
                 return self.download_and_sort()
             return self.memory_sort()
-        return self.multi_file_iterator(self.task.reader)
+        return self.multi_file_iterator(self.connect_input)
 
     def download_and_sort(self):
         dlname = self.task.path('REDUCE_DL', self.task.id)
         Message("Reduce will be downloaded to %s" % dlname)
         out_fd = AtomicFile(dlname, 'w')
         for url in self.inputs:
-            fd, sze, url = self.task.connect_input(url)
-            for k, v in self.task.reader(fd, sze, url):
+            reader, sze, url = self.task.connect_input(url)
+            for k, v in reader:
                 if ' ' in k:
                     TaskFailed("Spaces are not allowed in keys "\
                                "with external sort.")
@@ -438,21 +431,20 @@ class ReduceReader(object):
             TaskFailed("Sorting %s to %s failed (%d)" % (dlname, sortname, ret))
 
         Message("External sort done: %s" % sortname)
-        def reader(fd, sze, url):
+        def connect(url):
+            fd, sze, url = comm.open_local(url, url)
             return func.re_reader('(?s)(.*?) (.*?)\000', fd, sze, url)
-        return self.multi_file_iterator(reader, inputs=[sortname])
+        return self.multi_file_iterator(connect, inputs=[sortname])
 
     def memory_sort(self):
         Message("Sorting in memory")
-        m = list(self.multi_file_iterator(self.task.reader, progress=False))
-        return self.task.track_status(sorted(m, cmp=num_cmp), "%s entries reduced")
+        m = list(self.multi_file_iterator(self.connect_input, progress=False))
+        return self.task.track_status(
+            sorted(m, cmp=num_cmp), "%s entries reduced")
 
-    def multi_file_iterator(self, reader, progress=True, inputs=None):
-        def entries():
-            for url in (inputs or self.inputs):
-                fd, sze, url = self.task.connect_input(url)
-                for entry in reader(fd, sze, url):
-                    yield entry
+    def multi_file_iterator(self, connect_input, progress=True, inputs=None):
+        inputs = inputs or self.inputs
+        entries = (e for url in inputs for e in connect_input(url))
         if progress:
-            return self.task.track_status(entries(), "%s entries reduced")
-        return entries()
+            return self.task.track_status(entries, "%s entries reduced")
+        return entries

@@ -683,22 +683,20 @@ class JobDict(util.DefaultDict):
                 'map': None,
                 'map_init': func.noop,
                 'map_reader': func.map_line_reader,
-                'map_writer': func.netstr_writer,
                 'map_input_stream': (func.map_input_stream, ),
                 'map_output_stream': (func.map_output_stream, ),
                 'combiner': None,
                 'partition': func.default_partition,
                 'reduce': None,
                 'reduce_init': func.noop,
-                'reduce_reader': func.netstr_reader,
-                'reduce_writer': func.netstr_writer,
+                'reduce_reader': func.chain_reader,
                 'reduce_input_stream': (func.reduce_input_stream, ),
                 'reduce_output_stream': (func.reduce_output_stream, ),
                 'ext_map': False,
                 'ext_reduce': False,
                 'ext_params': None,
                 'mem_sort_limit': 256 * 1024**2,
-                'nr_reduces': 1, # XXX: default has changed!
+                'nr_reduces': 1,
                 'params': Params(),
                 'prefix': '',
                 'profile': False,
@@ -708,7 +706,11 @@ class JobDict(util.DefaultDict):
                 'save': False,
                 'sort': False,
                 'status_interval': 100000,
-                'version': '.'.join(str(s) for s in sys.version_info[:2])}
+                'version': '.'.join(str(s) for s in sys.version_info[:2]),
+                # deprecated
+                'map_writer': func.netstr_writer,
+                'reduce_writer': func.netstr_writer
+                }
     default_factory = defaults.__getitem__
 
     functions = set(['map',
@@ -723,6 +725,12 @@ class JobDict(util.DefaultDict):
                      'reduce_writer'])
 
     scheduler_keys = set(['force_local', 'force_remote', 'max_cores'])
+
+    io_mappings =\
+        [('map_reader', 'map_input_stream', func.reader_wrapper),
+         ('map_writer', 'map_output_stream', func.writer_wrapper),
+         ('reduce_reader', 'reduce_input_stream', func.reader_wrapper),
+         ('reduce_writer', 'reduce_output_stream', func.writer_wrapper)]
 
     stacks = set(['map_input_stream',
                   'map_output_stream',
@@ -837,6 +845,10 @@ class JobDict(util.DefaultDict):
                 jobdict[key] = util.unpack_stack(jobdict[key], globals=globals)
             else:
                 jobdict[key] = util.unpack(jobdict[key], globals=globals)
+        # map readers and writers to streams
+        for oldio, stream, wrapper in cls.io_mappings:
+            if jobdict[oldio]:
+                jobdict[stream].append(wrapper(jobdict[oldio]))
         return cls(**jobdict)
 
 class Job(object):
@@ -940,7 +952,7 @@ class Job(object):
 
 def result_iterator(results,
                     notifier=None,
-                    reader=func.netstr_reader,
+                    reader=func.chain_reader,
                     input_stream=[func.map_input_stream],
                     params=None,
                     ddfs=None,
@@ -974,7 +986,11 @@ def result_iterator(results,
     """
     from disco.task import Task
     task = Task()
-    for fun in input_stream:
+    task.params = params
+    task.input_stream = input_stream
+    if reader:
+        task.input_stream.append(func.reader_wrapper(reader))
+    for fun in task.input_stream:
         fun.func_globals.setdefault('Task', task)
 
     for result in results:
@@ -982,17 +998,16 @@ def result_iterator(results,
             if notifier:
                 notifier(url)
             if type(url) == list:
-                iter = process_url_safe(url, tempdir,
-                        input_stream, reader, params)
+                iter = process_url_safe(url, tempdir, task)
             else:
-                iter = process_url(url, input_stream, reader, params)
+                iter, sze, url = task.connect_input(url)
             for x in iter:
                 yield x
 
-def process_url_safe(urls, tempdir, input_stream, reader, params):
+def process_url_safe(urls, tempdir, task):
     while urls:
         try:
-            in_stream = process_url(urls[0], input_stream, reader, params)
+            in_stream, sze, url = task.connect_input(urls[0])
             return list(in_stream) if tempdir == False\
                 else disk_buffer(tempdir, in_stream)
         except:
@@ -1005,12 +1020,6 @@ def disk_buffer(tempdir, in_stream):
     n = util.ilen(marshal.dump(x, fd.file) for x in in_stream)
     fd.seek(0)
     return (marshal.load(fd.file) for i in range(n))
-
-def process_url(url, input_stream, reader, params):
-    fd = sze = None
-    for fun in input_stream:
-        fd, sze, url = fun(fd, sze, url, params)
-    return reader(fd, sze, url)
 
 class Stats(object):
     def __init__(self, prof_data):

@@ -451,3 +451,22 @@ def reduce_output_stream(stream, partition, url, params):
     path, url = Task.reduce_output()
     Task.add_blob(path)
     return AtomicFile(path, 'w', BUFFER_SIZE), url
+
+# backwards compatibility for readers and writers
+# remove when readers and writers are gone
+
+def reader_wrapper(reader):
+    if reader.func_code.co_argcount == 3:
+        # old style reader without params
+        def reader_input_stream(stream, size, url, params):
+            return reader(stream, size, url)
+        return reader_input_stream
+    else:
+        return reader
+
+def writer_wrapper(writer):
+    def writer_output_stream(stream, partition, url, params):
+        stream.add = lambda k, v: writer(stream, k, v, params)
+        return stream, url
+    return writer_output_stream
+
