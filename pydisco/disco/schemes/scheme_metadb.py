@@ -6,10 +6,8 @@ def input_stream(fd, size, url, params):
     scheme, netloc, rest = util.urlsplit(url)
 
     if netloc == Task.netloc or Task.has_flag('resultfs'):
-        host, dir, jobname, rest = rest.split('/', 3)
-        file, rest = rest.split('/', 1) if '/' in rest else (rest, '')
-        path       = os.path.join(Task.datadir, host, dir, jobname, file)
-        discodb    = MetaDB.load(path)
+        path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
+        discodb    = MetaDB.load(os.path.join(Task.root, path))
 
         if rest:
             method, arg = rest.split('/', 1)
