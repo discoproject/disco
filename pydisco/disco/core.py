@@ -988,8 +988,7 @@ def result_iterator(results,
     task.input_stream = list(input_stream)
     if reader:
         task.input_stream.append(func.reader_wrapper(reader))
-    for fun in task.input_stream:
-        fun.func_globals.setdefault('Task', task)
+    task.insert_globals(task.input_stream)
     for result in results:
         for url in util.urllist(result, ddfs=ddfs):
             if notifier:
