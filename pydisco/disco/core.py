@@ -767,7 +767,8 @@ class JobDict(util.DefaultDict):
 
         # -- input --
         self['input'] = [url for i in self['input']
-                         for url in util.urllist(i, listdirs=bool(self['map']))]
+                         for url in util.urllist(i, listdirs=bool(self['map']),
+                                                 ddfs=self.pop('ddfs', None))]
 
         # -- scheduler --
         scheduler = self.__class__.defaults['scheduler'].copy()
@@ -943,7 +944,9 @@ class Job(object):
 
         A :class:`JobError` is raised if an error occurs while starting the job.
         """
-        jobpack = JobDict(prefix=self.name, **kwargs).pack()
+        jobpack = JobDict(prefix=self.name,
+                          ddfs=self.master.master,
+                          **kwargs).pack()
         reply = json.loads(self.master.request('/disco/job/new', jobpack))
         if reply[0] != 'ok':
             raise DiscoError("Failed to start a job. Server replied: " + reply)
