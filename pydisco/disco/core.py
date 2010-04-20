@@ -750,6 +750,13 @@ class JobDict(util.DefaultDict):
         if 'chunked' in self:
             raise DeprecationWarning("Argument 'chunked' is deprecated") # XXX: Deprecate properly
 
+        # -- required modules and files --
+        if self['required_modules'] is None:
+            functions = util.flatten(util.iterify(self[f])
+                                     for f in chain(self.functions, self.stacks))
+            self['required_modules'] = find_modules([f for f in functions
+                                                     if callable(f)])
+
         # -- external flags --
         if isinstance(self['map'], dict):
             self['ext_map'] = True
@@ -783,14 +790,6 @@ class JobDict(util.DefaultDict):
     def pack(self):
         """Pack up the :class:`JobDict` for sending over the wire."""
         jobpack = {}
-
-        # -- required modules and files --
-
-        if self['required_modules'] is None:
-            functions = util.flatten(util.iterify(self[f])
-                                     for f in chain(self.functions, self.stacks))
-            self['required_modules'] = find_modules([f for f in functions
-                                                     if callable(f)])
 
         if self['required_files']:
             if not isinstance(self['required_files'], dict):
