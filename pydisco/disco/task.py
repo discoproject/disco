@@ -193,8 +193,8 @@ class Task(object):
         status_interval = self.status_interval
         n = 0
         for n, item in enumerate(iterator):
-            if status_interval and n % status_interval == 0:
-                Message(message_template % n)
+            if status_interval and (n + 1) % status_interval == 0:
+                Message(message_template % (n + 1))
             yield item
         Message("Done: %s" % (message_template % (n + 1)))
 
