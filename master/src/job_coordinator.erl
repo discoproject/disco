@@ -199,9 +199,11 @@ handle_data_error(Task, Node) ->
 		_ ->
 		    Inputs
 	    end,
-    timer:sleep(?FAILED_TASK_PAUSE),
-    submit_task(Task#task{taskblack = [Node|Task#task.taskblack],
-    input = NInputs}).
+    spawn_link(fun() ->
+        T = Task#task.taskblack,
+        timer:sleep(length(T) * ?FAILED_TASK_PAUSE),
+        submit_task(Task#task{taskblack = [Node|T], input = NInputs})
+    end).
 
 check_failure_rate(Task, MaxFail)
     when length(Task#task.taskblack) + 1 =< MaxFail -> ok;
