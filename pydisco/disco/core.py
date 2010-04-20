@@ -708,8 +708,8 @@ class JobDict(util.DefaultDict):
                 'status_interval': 100000,
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
-                'map_writer': func.netstr_writer,
-                'reduce_writer': func.netstr_writer
+                'map_writer': func.disco_output_stream,
+                'reduce_writer': func.disco_output_stream
                 }
     default_factory = defaults.__getitem__
 
