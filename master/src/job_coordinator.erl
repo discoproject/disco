@@ -4,6 +4,9 @@
 
 -include("task.hrl").
 
+-define(TASK_MAX_FAILURES, 100).
+-define(FAILED_TASK_PAUSE, 1000).
+
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
 % Thus, the HTTP request spawns a new process, job_coordinator, that
@@ -183,7 +186,7 @@ submit_task(Task) ->
 % determined by check_failure_rate(), the whole job will be terminated.
 handle_data_error(Task, Node) ->
     MaxFail = case application:get_env(max_failure_rate) of
-    undefined -> 3;
+    undefined -> ?TASK_MAX_FAILURES;
     {ok, N0} -> N0
     end,
     check_failure_rate(Task, MaxFail),
@@ -196,6 +199,7 @@ handle_data_error(Task, Node) ->
 		_ ->
 		    Inputs
 	    end,
+    timer:sleep(?FAILED_TASK_PAUSE),
     submit_task(Task#task{taskblack = [Node|Task#task.taskblack],
     input = NInputs}).
 
