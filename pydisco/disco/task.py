@@ -423,7 +423,8 @@ class ReduceReader(object):
         Message("Starting external sort")
         sortname = self.task.path('REDUCE_SORTED', self.task.id)
         ensure_path(os.path.dirname(sortname))
-        cmd = ['sort', '-n', '-k', '1,1', '-z', '-t', ' ', '-o', sortname, dlname]
+        cmd = ['sort', '-n', '-k', '1,1', '-T', '.',
+                       '-z', '-t', ' ', '-o', sortname, dlname]
 
         proc = subprocess.Popen(cmd)
         ret = proc.wait()
