@@ -760,25 +760,6 @@ class JobDict(util.DefaultDict):
         self['input'] = [url for i in self['input']
                          for url in util.urllist(i, listdirs=bool(self['map']))]
 
-        # XXX: Check for redundant inputs, external & partitioned inputs
-
-        # -- required modules and files --
-
-        if self['required_modules'] is None:
-            functions = util.flatten(util.iterify(self[f])
-                                     for f in chain(self.functions, self.stacks))
-            self['required_modules'] = find_modules([f for f in functions
-                                                     if callable(f)])
-
-        if self['required_files']:
-            if not isinstance(self['required_files'], dict):
-                self['required_files'] = util.pack_files(self['required_files'])
-        else:
-            self['required_files'] = {}
-        self['required_files'].update(util.pack_files(o[1]
-                                                      for o in self['required_modules']
-                                                      if util.iskv(o)))
-
         # -- scheduler --
         scheduler = self.__class__.defaults['scheduler'].copy()
         scheduler.update(self['scheduler'])
@@ -803,10 +784,28 @@ class JobDict(util.DefaultDict):
         """Pack up the :class:`JobDict` for sending over the wire."""
         jobpack = {}
 
+        # -- required modules and files --
+
+        if self['required_modules'] is None:
+            functions = util.flatten(util.iterify(self[f])
+                                     for f in chain(self.functions, self.stacks))
+            self['required_modules'] = find_modules([f for f in functions
+                                                     if callable(f)])
+
+        if self['required_files']:
+            if not isinstance(self['required_files'], dict):
+                self['required_files'] = util.pack_files(self['required_files'])
+        else:
+            self['required_files'] = {}
+
+        self['required_files'].update(util.pack_files(
+            o[1] for o in self['required_modules'] if util.iskv(o)))
+
         for key in self.defaults:
             if key == 'input':
-                jobpack['input'] = ' '.join('\n'.join(reversed(list(util.iterify(url)))) # XXX: why reverse?
-                                            for url in self['input'])
+                jobpack['input'] = ' '.join(
+                    '\n'.join(reversed(list(util.iterify(url))))
+                        for url in self['input'])
             elif key in ('nr_reduces', 'prefix'):
                 jobpack[key] = str(self[key])
             elif key == 'scheduler':
