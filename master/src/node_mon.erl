@@ -31,6 +31,7 @@ spawn_node(Node) ->
     end),
     receive
         {'EXIT', _Pid, _Reason} ->
+            timer:sleep(?RESTART_DELAY),
             spawn_node(Node)
     end.
 
@@ -81,8 +82,7 @@ node_monitor(Node, WebConfig) ->
             error_logger:info_report({"Node", Node, "down"});
         E ->
             error_logger:info_report({"Erroneous message (node_mon)", E})
-    end,
-    timer:sleep(?RESTART_DELAY).
+    end.
 
 start_ddfs_node(NodeAtom, {GetEnabled, PutEnabled}) ->
     Enabled = disco:get_setting("DDFS_ENABLED"),
