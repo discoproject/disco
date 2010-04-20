@@ -70,7 +70,7 @@ class ModUtilTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        x, y = map(float, e.split('|'))
+        x, y = [float(x) for x in e.split('|')]
         return [(mod1.plusceil(x, y) + math.ceil(1.5), '')]
 
     @property
