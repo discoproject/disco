@@ -45,11 +45,13 @@ class server(object):
 
     @property
     def log_file(self):
-        return os.path.join(self.disco_settings['DISCO_LOG_DIR'], '%s-%s_%s.log' % self.id)
+        return os.path.join(
+            self.disco_settings['DISCO_LOG_DIR'], '%s-%s_%s.log' % self.id)
 
     @property
     def pid_file(self):
-        return os.path.join(self.disco_settings['DISCO_PID_DIR'], '%s-%s_%s.pid' % self.id)
+        return os.path.join(
+            self.disco_settings['DISCO_PID_DIR'], '%s-%s_%s.pid' % self.id)
 
     def conf_path(self, filename):
         return os.path.join(self.disco_settings['DISCO_CONF'], filename)
@@ -68,10 +70,9 @@ class server(object):
             process = subprocess.Popen(args, env=self.env, **kwargs)
         except OSError, x:
             if x.errno == 2:
-                    raise DiscoError("%s not found. "\
-                            "Is it in your PATH?" % args[0])
+                raise DiscoError("%s not found. Is it in your PATH?" % args[0])
             else:
-                    raise
+                raise
         if process.wait():
             raise DiscoError("Failed to start %s" % self)
         yield '%s started' % self
@@ -123,14 +124,16 @@ class lighttpd(server):
 
 class master(server):
     def __init__(self, disco_settings):
-        super(master, self).__init__(disco_settings, disco_settings['DISCO_SCGI_PORT'])
+        super(master, self).__init__(disco_settings,
+                                     disco_settings['DISCO_SCGI_PORT'])
         self.setid()
 
     @property
     def args(self):
-        return self.basic_args + ['-detached',
-                                  '-heart',
-                                  '-kernel', 'error_logger', '{file, "%s"}' % self.log_file]
+        return self.basic_args + [
+            '-detached',
+            '-heart',
+            '-kernel', 'error_logger', '{file, "%s"}' % self.log_file]
     @property
     def basic_args(self):
         settings = self.disco_settings
@@ -164,9 +167,10 @@ class master(server):
         return '%s@%s' % (self.name, self.host.split('.', 1)[0])
 
     def nodaemon(self):
-        return chain(self.lighttpd.start(),
-                     ('' for x in self.start(self.basic_args)), # suppress output
-                     self.lighttpd.stop())
+        return chain(
+            self.lighttpd.start(),
+            ('' for x in self.start(self.basic_args)),  # suppress output
+            self.lighttpd.stop())
 
     def send(self, command):
         if command in ('nodaemon', 'remsh'):
@@ -207,10 +211,11 @@ class debug(object):
         nodename = discomaster.nodename
         if command != 'status':
             nodename = '%s@%s' % (discomaster.name, command)
-        args = self.disco_settings['DISCO_ERLANG'].split() + ['-remsh', nodename,
-                                                        '-sname', self.name]
+        args = self.disco_settings['DISCO_ERLANG'].split() + [
+            '-remsh', nodename, '-sname', self.name]
         if subprocess.Popen(args).wait():
-            raise DiscoError("Could not connect to %s (%s)" % (command, nodename))
+            raise DiscoError(
+                "Could not connect to %s (%s)" % (command, nodename))
         yield 'closing remote shell to %s (%s)' % (command, nodename)
 
 class test(object):
@@ -239,7 +244,7 @@ class test(object):
         DiscoTestRunner(self.disco_settings).run(*names)
 
 def main():
-    DISCO_BIN  = os.path.dirname(os.path.realpath(__file__))
+    DISCO_BIN = os.path.dirname(os.path.realpath(__file__))
     DISCO_HOME = os.path.dirname(DISCO_BIN)
     DISCO_CONF = os.path.join(DISCO_HOME, 'conf')
     DISCO_PATH = os.path.join(DISCO_HOME, 'pydisco')
@@ -286,14 +291,14 @@ def main():
             Disco settings are at {0}
 
             If this is not what you want, see the `--help` option
-            """.format(options.settings, **disco_settings)) # python2.6+
+            """.format(options.settings, **disco_settings))  # python2.6+
 
     if options.print_env:
         for item in sorted(disco_settings.env.iteritems()):
             print('%s = %s' % (item))
         sys.exit(0)
 
-    argdict      = dict(enumerate(sys.argv))
+    argdict = dict(enumerate(sys.argv))
     disco_object = globals()[argdict.pop(0, 'master')](disco_settings)
 
     for name in disco_settings.must_exist:
