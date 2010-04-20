@@ -2,7 +2,7 @@
 import sys, time, os, cPickle, cStringIO, struct, zlib
 import errno, fcntl
 
-from disco.util import data_err, err
+from disco.util import data_err, err, msg
 
 class DiscoOutput(object):
     VERSION = 1
@@ -14,6 +14,7 @@ class DiscoOutput(object):
         self.stream = stream
         self.chunk = cStringIO.StringIO()
         self.chunk_size = 0
+        self.newstream = False
 
     def write(self, buf):
         self.stream.write(buf)
@@ -37,6 +38,7 @@ class DiscoOutput(object):
             v = str(v)
             self.stream.write("%d %s %d %s\n" % (len(k), k, len(v), v))
             return
+        self.newstream = True
         buf = cPickle.dumps((k, v), 1)
         self.chunk_size += len(buf)
         self.chunk.write(buf)
@@ -44,7 +46,7 @@ class DiscoOutput(object):
             self.dump()
 
     def close(self):
-        if self.version > 0:
+        if self.newstream:
             if self.chunk_size:
                 self.dump()
             self.dump()

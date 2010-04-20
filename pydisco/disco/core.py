@@ -684,14 +684,16 @@ class JobDict(util.DefaultDict):
                 'map_init': func.noop,
                 'map_reader': func.map_line_reader,
                 'map_input_stream': (func.map_input_stream, ),
-                'map_output_stream': (func.map_output_stream, ),
+                'map_output_stream': (func.map_output_stream,
+                                      func.disco_output_stream),
                 'combiner': None,
                 'partition': func.default_partition,
                 'reduce': None,
                 'reduce_init': func.noop,
                 'reduce_reader': func.chain_reader,
                 'reduce_input_stream': (func.reduce_input_stream, ),
-                'reduce_output_stream': (func.reduce_output_stream, ),
+                'reduce_output_stream': (func.reduce_output_stream,
+                                         func.disco_output_stream),
                 'ext_map': False,
                 'ext_reduce': False,
                 'ext_params': None,
@@ -708,8 +710,8 @@ class JobDict(util.DefaultDict):
                 'status_interval': 100000,
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
-                'map_writer': func.disco_output_stream,
-                'reduce_writer': func.disco_output_stream
+                'map_writer': None,
+                'reduce_writer': None
                 }
     default_factory = defaults.__getitem__
 
