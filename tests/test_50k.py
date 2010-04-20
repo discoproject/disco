@@ -22,16 +22,17 @@ class FiveTestCase(DiscoJobTestFixture, DiscoTestCase):
             out.add(k, sum(int(v) for k, v in kvs))
 
     def runTest(self):
+        print "NANA", self.job.results()
         self.assertEquals(dict(self.results),
-                  {'gutta':   str(int(5e2)),
-                   'cavat':   str(int(1e3)),
-                   'capidem': str(int(5e2))})
+                  {'gutta':   int(5e2),
+                   'cavat':   int(1e3),
+                   'capidem': int(5e2)})
 
 class FiftyThousandTestCase(FiveTestCase):
     inputs = [''] * int(5e4)
 
     def runTest(self):
         self.assertEquals(dict(self.results),
-                  {'gutta':   str(int(5e6)),
-                   'cavat':   str(int(1e7)),
-                   'capidem': str(int(5e6))})
+                  {'gutta':   int(5e6),
+                   'cavat':   int(1e7),
+                   'capidem': int(5e6)})

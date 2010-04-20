@@ -19,7 +19,7 @@ class DiscoProtoTestCase(DiscoTestCase):
 
     def decode(self, fd, size, url, ignore_corrupt):
         t = time.time()
-        res = list(disco_input_stream(fd, size, url, None,
+        res = list(disco_input_stream(fd, size, url,
                         ignore_corrupt = ignore_corrupt))
         return time.time() - t, res
 

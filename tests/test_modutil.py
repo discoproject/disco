@@ -75,7 +75,7 @@ class ModUtilTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @property
     def answers(self):
-        yield '4.0', ''
+        yield 4.0, ''
 
     def setUp(self):
         self.sys_path = sys.path

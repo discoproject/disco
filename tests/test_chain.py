@@ -43,7 +43,7 @@ class ChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
         for key, value in self.results_2:
             self.assert_(key[:5] in self.animals)
             self.assertEquals(key[5:], '0-1-')
-            self.assertEquals(value, '1')
+            self.assertEquals(value, 1)
 
 
 class DavinChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
