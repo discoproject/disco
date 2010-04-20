@@ -10,11 +10,23 @@ class DDFSWriteTestCase(DiscoTestCase):
     def test_push(self):
         from cStringIO import StringIO
         self.ddfs.push('disco:test:blobs', [(StringIO('blobdata'), 'blobdata')])
+        self.assert_(self.ddfs.exists('disco:test:blobs'))
+        self.ddfs.push('tag://disco:test:blobs2', [(StringIO('blobdata'), 'blobdata')])
+        self.assert_(self.ddfs.exists('disco:test:blobs2'))
         self.ddfs.delete('disco:test:blobs')
+        self.assert_(not self.ddfs.exists('disco:test:blobs'))
+        self.ddfs.delete('disco:test:blobs2')
+        self.assert_(not self.ddfs.exists('disco:test:blobs2'))
 
     def test_tag(self):
         self.ddfs.tag('disco:test:tag', [['urls']])
+        self.assert_(self.ddfs.exists('disco:test:tag'))
         self.ddfs.delete('disco:test:tag')
+        self.assert_(not self.ddfs.exists('disco:test:tag'))
+        self.ddfs.tag('tag://disco:test:tag', [['urls']])
+        self.assert_(self.ddfs.exists('tag://disco:test:tag'))
+        self.ddfs.delete('tag://disco:test:tag')
+        self.assert_(not self.ddfs.exists('tag://disco:test:tag'))
 
     def test_delete(self):
         self.ddfs.delete('disco:test:notag')
@@ -42,6 +54,8 @@ class DDFSReadTestCase(DiscoTestCase):
         self.assertEquals(self.ddfs.exists('!!'), False)
         self.assertEquals(self.ddfs.exists('disco:test:tag'), True)
         self.assertEquals(self.ddfs.exists('disco:test:notag'), False)
+        self.assertEquals(self.ddfs.exists('tag://disco:test:tag'), True)
+        self.assertEquals(self.ddfs.exists('tag://disco:test:notag'), False)
 
     def test_findtags(self):
         list(self.ddfs.findtags(['disco:test:metatag']))
