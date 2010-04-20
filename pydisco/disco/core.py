@@ -953,7 +953,7 @@ class Job(object):
 def result_iterator(results,
                     notifier=None,
                     reader=func.chain_reader,
-                    input_stream=[func.map_input_stream],
+                    input_stream=(func.map_input_stream, ),
                     params=None,
                     ddfs=None,
                     tempdir=None):
@@ -987,12 +987,11 @@ def result_iterator(results,
     from disco.task import Task
     task = Task()
     task.params = params
-    task.input_stream = input_stream
+    task.input_stream = list(input_stream)
     if reader:
         task.input_stream.append(func.reader_wrapper(reader))
     for fun in task.input_stream:
         fun.func_globals.setdefault('Task', task)
-
     for result in results:
         for url in util.urllist(result, ddfs=ddfs):
             if notifier:
