@@ -3,7 +3,7 @@ import hashlib, os, random, re, subprocess, sys
 from itertools import chain
 from types import FunctionType
 
-from disco import func
+from disco import func, comm
 from disco.core import Disco, JobDict
 from disco.error import DiscoError
 from disco.events import Message, OutputURL, OOBData, TaskFailed
