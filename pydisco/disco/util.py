@@ -77,14 +77,18 @@ def rapply(iterable, fn):
 
 def pack(object):
     if hasattr(object, 'func_code'):
-        return marshal.dumps(object.func_code)
+        defs = [pack(x) for x in object.func_defaults]\
+                    if object.func_defaults else None
+        return marshal.dumps((object.func_code, defs))
     return cPickle.dumps(object)
 
 def unpack(string, globals={}):
     try:
         return cPickle.loads(string)
     except Exception:
-        return FunctionType(marshal.loads(string), globals)
+        code, defs = marshal.loads(string)
+        defs = tuple([unpack(x) for x in defs]) if defs else None
+        return FunctionType(code, globals, argdefs = defs)
 
 def pack_stack(stack):
     return pack([pack(object) for object in stack])
