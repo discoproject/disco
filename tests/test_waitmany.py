@@ -23,7 +23,7 @@ class WaitManyTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
         err('this job is supposed to fail')
 
     def runTest(self):
-        res, jobs = self.jobs, []
+        res, jobs = [], self.jobs
         while jobs:
             ready, jobs = self.disco.results(jobs)
             res += ready

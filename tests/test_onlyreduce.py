@@ -19,4 +19,4 @@ class OnlyReduceTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @property
     def answers(self):
-        yield '', str(sum(int(x) for x in self.inputs))
+        yield '', sum(int(x) for x in self.inputs)

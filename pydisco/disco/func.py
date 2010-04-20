@@ -201,7 +201,7 @@ def writer(fd, key, value, params):
                    by the *params* parameter in :class:`disco.core.JobDict`.
     """
 
-def netstr_reader(fd, size, fname):
+def old_netstr_reader(fd, size, fname, head = ''):
     """
     Reader for Disco's default/internal key-value format.
 
@@ -261,15 +261,13 @@ def netstr_reader(fd, size, fname):
         idx += llen + 1
         return idx, data, tot, msg
 
-    data = fd.read(8192)
+    data = head + fd.read(8192)
     tot = idx = 0
     while tot < size:
         key = val = ""
         idx, data, tot, key = read_netstr(idx, data, tot)
         idx, data, tot, val = read_netstr(idx, data, tot)
         yield key, val
-
-chain_reader = netstr_reader
 
 def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=8192):
     """
@@ -451,3 +449,75 @@ def reduce_output_stream(stream, partition, url, params):
     path, url = Task.reduce_output()
     Task.add_blob(path)
     return AtomicFile(path, 'w', BUFFER_SIZE), url
+
+# backwards compatibility for readers and writers
+# remove when readers and writers are gone
+
+def reader_wrapper(reader):
+    if reader.func_code.co_argcount == 3:
+        # old style reader without params
+        def reader_input_stream(stream, size, url, params):
+            return reader(stream, size, url)
+        return reader_input_stream
+    else:
+        return reader
+
+def writer_wrapper(writer):
+    def writer_output_stream(stream, partition, url, params):
+        stream.add = lambda k, v: writer(stream, k, v, params)
+        return stream, url
+    return writer_output_stream
+
+def disco_output_stream(stream, partition, url, params, version = -1,
+                        compress_level = 2, min_chunk = 64 * 1024**2):
+    from disco.fileutils import DiscoOutput
+    return DiscoOutput(stream,
+                       version = version,
+                       compress_level = compress_level,
+                       min_chunk = min_chunk), url
+
+def disco_input_stream(stream, size, url, ignore_corrupt = False):
+    import struct, cStringIO, gzip, cPickle, zlib
+    offset = 0
+    while True:
+        header = stream.read(1)
+        if not header:
+            return
+        if ord(header[0]) < 128:
+            for e in old_netstr_reader(stream, size, url, header):
+                yield e
+            return
+        try:
+            is_compressed, checksum, chunk_size =\
+                struct.unpack('<BIQ', stream.read(13))
+        except:
+            data_err("Truncated data at %d bytes" % offset)
+        if not chunk_size:
+            return
+        chunk = stream.read(chunk_size)
+        data = ''
+        try:
+            data = zlib.decompress(chunk) if is_compressed else chunk
+            if checksum != zlib.crc32(data):
+                raise Exception()
+        except:
+            if not ignore_corrupt:
+                data_err("Corrupted data between bytes %d-%d" %
+                    (offset, offset + chunk_size), url)
+        offset += chunk_size
+        chunk = cStringIO.StringIO(data)
+        while True:
+            try:
+                yield cPickle.load(chunk)
+            except EOFError:
+                break
+
+chain_reader = netstr_reader = disco_input_stream
+
+
+
+
+
+
+
+
