@@ -766,9 +766,10 @@ class JobDict(util.DefaultDict):
             self['ext_reduce'] = True
 
         # -- input --
+        ddfs = self.pop('ddfs', None)
         self['input'] = [url for i in self['input']
                          for url in util.urllist(i, listdirs=bool(self['map']),
-                                                 ddfs=self.pop('ddfs', None))]
+                                                 ddfs=ddfs)]
 
         # -- scheduler --
         scheduler = self.__class__.defaults['scheduler'].copy()
