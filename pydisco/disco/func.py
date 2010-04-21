@@ -449,7 +449,8 @@ def reduce_output_stream(stream, partition, url, params):
 # remove when readers and writers are gone
 
 def reader_wrapper(reader):
-    if reader.func_code.co_argcount == 3:
+    from util import argcount
+    if argcount(reader) == 3:
         # old style reader without params
         def reader_input_stream(stream, size, url, params):
             return reader(stream, size, url)

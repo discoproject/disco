@@ -76,6 +76,12 @@ def rapply(iterable, fn):
         else:
             yield fn(item)
 
+def argcount(object):
+    if hasattr(object, 'func_code'):
+        return object.func_code.co_argcount
+    argcount = object.func.func_code.co_argcount
+    return argcount - len(object.args or ()) - len(object.keywords or ())
+
 def unpickle_partial(func, args, kwargs):
     return functools.partial(unpack(func), *unpack(args), **unpack(kwargs))
 
@@ -89,7 +95,9 @@ if sys.version_info < (3,1):
 def pack(object):
     if hasattr(object, 'func_code'):
         if object.func_closure != None:
-            raise TypeError('Function must not have closures: %s (try using functools.partial instead)'%object.func_name)
+            raise TypeError("Function must not have closures: "\
+                            "%s (try using functools.partial instead)"\
+                            % object.func_name)
         defs = [pack(x) for x in object.func_defaults]\
                     if object.func_defaults else None
         return marshal.dumps((object.func_code, defs))
