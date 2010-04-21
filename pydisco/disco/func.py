@@ -498,7 +498,7 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
         data = ''
         try:
             data = zlib.decompress(chunk) if is_compressed else chunk
-            if checksum != zlib.crc32(data):
+            if checksum != (zlib.crc32(data) & 0xFFFFFFFF):
                 raise Exception()
         except:
             if not ignore_corrupt:

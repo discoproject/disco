@@ -21,7 +21,7 @@ class DiscoOutput(object):
 
     def dump(self):
         encoded_data = self.chunk.getvalue()
-        checksum = zlib.crc32(encoded_data)
+        checksum = zlib.crc32(encoded_data) & 0xFFFFFFFF
         if self.compress_level:
             encoded_data = zlib.compress(encoded_data, self.compress_level)
         self.stream.write(struct.pack('<BBIQ',
