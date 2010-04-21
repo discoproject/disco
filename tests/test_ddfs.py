@@ -25,6 +25,9 @@ class DDFSWriteTestCase(DiscoTestCase):
         self.assert_(not self.ddfs.exists('disco:test:tag'))
         self.ddfs.tag('tag://disco:test:tag', [['urls']])
         self.assert_(self.ddfs.exists('tag://disco:test:tag'))
+        self.ddfs.tag('disco:test:tag', [['more_urls']])
+        self.assertEquals(sorted(self.ddfs.get('disco:test:tag')['urls']),
+                          sorted([['urls'], ['more_urls']]))
         self.ddfs.delete('tag://disco:test:tag')
         self.assert_(not self.ddfs.exists('tag://disco:test:tag'))
 
