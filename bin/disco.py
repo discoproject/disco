@@ -118,7 +118,7 @@ class lighttpd(server):
 
 class master(server):
     def __init__(self, disco_settings):
-        super(master, self).__init__(disco_settings, disco_settings['DISCO_SCGI_PORT'])
+        super(master, self).__init__(disco_settings, disco_settings['DISCO_PORT'])
         self.setid()
 
     @property
@@ -276,6 +276,7 @@ def main():
             Disco settings are at {0}
 
             If this is not what you want, see the `--help` option
+            print "DS"
             """.format(options.settings, **disco_settings)) # python2.6+
 
     if options.print_env:
