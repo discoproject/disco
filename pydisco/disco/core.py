@@ -319,7 +319,7 @@ class Disco(object):
 
     def wait(self, name,
              poll_interval=2,
-             timeout=2000,
+             timeout=None,
              clean=False,
              show=DiscoSettings()['DISCO_EVENTS']):
         """
