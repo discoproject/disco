@@ -59,7 +59,7 @@ class Disco(object):
 
     def blacklist(self, node):
         self.request('/disco/ctrl/blacklist', '"%s"' % node)
-    
+
     def whitelist(self, node):
         self.request('/disco/ctrl/whitelist', '"%s"' % node)
 
