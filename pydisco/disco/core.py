@@ -1,10 +1,19 @@
-import sys, re, os, modutil, time, types, cPickle, cStringIO, random
+import os
+import re
+import sys
+import modutil
+import time
+import types
+import cPickle
+import cStringIO
+import random
 
 from disco import func, util
 from disco.comm import download, json
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
-from disco.netstring import encode_netstring_fd, encode_netstring_str, decode_netstring_fd
+from disco.netstring import (
+    encode_netstring_fd, encode_netstring_str, decode_netstring_fd)
 from disco.task import Task
 
 class Params(object):
