@@ -67,7 +67,7 @@ class Disco(object):
         return json.loads(self.request('/disco/ctrl/nodeinfo'))
 
     def joblist(self):
-        return json.loads(self.request("/disco/ctrl/joblist"))
+        return json.loads(self.request('/disco/ctrl/joblist'))
 
     def blacklist(self, node):
         self.request('/disco/ctrl/blacklist', '"%s"' % node)
@@ -80,18 +80,18 @@ class Disco(object):
             return util.load_oob(self.host, name, key)
         except CommError, e:
             if e.http_code == 404:
-                raise DiscoError("Unknown key or job name")
+                raise DiscoError('Unknown key or job name')
             raise
 
     def oob_list(self, name):
-        r = self.request("/disco/ctrl/oob_list?name=%s" % name, redir=True)
+        r = self.request('/disco/ctrl/oob_list?name=%s' % name, redir=True)
         return json.loads(r)
 
     def profile_stats(self, name, mode=''):
         prefix = 'profile-%s' % mode
         f = [s for s in self.oob_list(name) if s.startswith(prefix)]
         if not f:
-            raise JobError("No profile data", self.host, name)
+            raise JobError('No profile data', self.host, name)
 
         import pstats
         stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
@@ -134,7 +134,7 @@ class Disco(object):
                     #    offs -= 1
                     yield offs, event
         try:
-            r = self.request("/disco/ctrl/rawevents?name=%s" % name,
+            r = self.request('/disco/ctrl/rawevents?name=%s' % name,
                              redir=True, offset=offset)
         except Exception, x:
             return []
@@ -146,7 +146,7 @@ class Disco(object):
     def results(self, jobspec, timeout=2000):
         jobspecifier = JobSpecifier(jobspec)
         data = json.dumps([timeout, list(jobspecifier.jobnames)])
-        results = json.loads(self.request("/disco/ctrl/get_results", data))
+        results = json.loads(self.request('/disco/ctrl/get_results', data))
 
         if type(jobspec) == str:
             return results[0][1]
@@ -160,16 +160,16 @@ class Disco(object):
         return others, active
 
     def jobinfo(self, name):
-        return json.loads(self.request("/disco/ctrl/jobinfo?name=%s" % name))
+        return json.loads(self.request('/disco/ctrl/jobinfo?name=%s' % name))
 
     def check_results(self, name, start_time, timeout, poll_interval):
         status, results = self.results(name, timeout=poll_interval)
         if status == 'ready':
             return results
         if status != 'active':
-            raise JobError("Job status %s" % status, self.host, name)
+            raise JobError('Job status %s' % status, self.host, name)
         if timeout and time.time() - start_time > timeout:
-            raise JobError("Timeout", self.host, name)
+            raise JobError('Timeout', self.host, name)
         raise Continue()
 
     def wait(self, name, show=None, poll_interval=2, timeout=None, clean=False):
@@ -208,68 +208,68 @@ class JobSpecifier(list):
 class Job(object):
 
     funs = [
-        "map", "map_init", "reduce_init", "map_reader", "map_writer",
-        "reduce_reader", "reduce_writer", "reduce", "partition",
-        "combiner", "reduce_input_stream", "reduce_output_stream",
-        "map_input_stream", "map_output_stream"
+        'map', 'map_init', 'reduce_init', 'map_reader', 'map_writer',
+        'reduce_reader', 'reduce_writer', 'reduce', 'partition',
+        'combiner', 'reduce_input_stream', 'reduce_output_stream',
+        'map_input_stream', 'map_output_stream'
         ]
 
     defaults = {
-        "name": None,
-        "map": None,
-        "input": None,
-        "map_init": None,
-        "reduce_init": None,
-        "map_reader": func.map_line_reader,
-        "map_writer": func.netstr_writer,
-        "map_input_stream": None,
-        "map_output_stream": None,
-        "reduce_reader": func.netstr_reader,
-        "reduce_writer": func.netstr_writer,
-        "reduce_input_stream": None,
-        "reduce_output_stream": None,
-        "reduce": None,
-        "partition": func.default_partition,
-        "combiner": None,
-        "nr_maps": None,
-        "scheduler": {},
+        'name': None,
+        'map': None,
+        'input': None,
+        'map_init': None,
+        'reduce_init': None,
+        'map_reader': func.map_line_reader,
+        'map_writer': func.netstr_writer,
+        'map_input_stream': None,
+        'map_output_stream': None,
+        'reduce_reader': func.netstr_reader,
+        'reduce_writer': func.netstr_writer,
+        'reduce_input_stream': None,
+        'reduce_output_stream': None,
+        'reduce': None,
+        'partition': func.default_partition,
+        'combiner': None,
+        'nr_maps': None,
+        'scheduler': {},
         #XXX: nr_reduces default has changed!
-        "nr_reduces": 1,
-        "sort": False,
-        "params": Params(),
-        "mem_sort_limit": 256 * 1024**2,
-        "ext_params": None,
-        "status_interval": 100000,
-        "required_files": [],
-        "required_modules": [],
-        "profile": False
+        'nr_reduces': 1,
+        'sort': False,
+        'params': Params(),
+        'mem_sort_limit': 256 * 1024**2,
+        'ext_params': None,
+        'status_interval': 100000,
+        'required_files': [],
+        'required_modules': [],
+        'profile': False
         }
 
     mapreduce_functions = (
-        "map_init",
-        "map_reader",
-        "map",
-        "map_writer",
-        "partition",
-        "combiner",
-        "reduce_init",
-        "reduce_reader",
-        "reduce",
-        "reduce_writer"
+        'map_init',
+        'map_reader',
+        'map',
+        'map_writer',
+        'partition',
+        'combiner',
+        'reduce_init',
+        'reduce_reader',
+        'reduce',
+        'reduce_writer'
         )
 
     proxy_functions = (
-        "kill",
-        "clean",
-        "purge",
-        "jobspec",
-        "results",
-        "jobinfo",
-        "wait",
-        "oob_get",
-        "oob_list",
-        "profile_stats",
-        "events"
+        'kill',
+        'clean',
+        'purge',
+        'jobspec',
+        'results',
+        'jobinfo',
+        'wait',
+        'oob_get',
+        'oob_list',
+        'profile_stats',
+        'events'
         )
 
     def __init__(self, master, name='', **kwargs):
@@ -281,7 +281,7 @@ class Job(object):
         if attr in self.proxy_functions:
             from functools import partial
             return partial(getattr(self.master, attr), self.name)
-        raise AttributeError("%r has no attribute %r" % (self, attr))
+        raise AttributeError('%r has no attribute %r' % (self, attr))
 
     def pack_stack(self, kw, req, stream):
         if stream in kw:
@@ -295,46 +295,46 @@ class Job(object):
 
         # Backwards compatibility
         # (fun_map == map, input_files == input)
-        if "fun_map" in kwargs:
-            kwargs["map"] = kwargs["fun_map"]
+        if 'fun_map' in kwargs:
+            kwargs['map'] = kwargs['fun_map']
 
-        if "input_files" in kwargs:
-            kwargs["input"] = kwargs["input_files"]
+        if 'input_files' in kwargs:
+            kwargs['input'] = kwargs['input_files']
 
-        if "chunked" in kwargs:
+        if 'chunked' in kwargs:
             raise DeprecationWarning("Argument 'chunked' is deprecated")
 
-        if "nr_maps" in kwargs:
+        if 'nr_maps' in kwargs:
             sys.stderr.write("Warning: nr_maps is deprecated. "
-                     "Use scheduler = {'max_cores': N} instead.\n")
-            sched = jobargs["scheduler"].copy()
-            if "max_cores" not in sched:
-                sched["max_cores"] = int(jobargs["nr_maps"])
-            jobargs["scheduler"] = sched
+                             "Use scheduler = {'max_cores': N} instead.\n")
+            sched = jobargs['scheduler'].copy()
+            if 'max_cores' not in sched:
+                sched['max_cores'] = int(jobargs['nr_maps'])
+            jobargs['scheduler'] = sched
 
-        if not "input" in kwargs:
-            raise DiscoError("Argument input is required")
+        if not 'input' in kwargs:
+            raise DiscoError('Argument input is required')
 
-        if not ("map" in kwargs or "reduce" in kwargs):
-            raise DiscoError("Specify map and/or reduce")
+        if not ('map' in kwargs or 'reduce' in kwargs):
+            raise DiscoError('Specify map and/or reduce')
 
         for p in kwargs:
             if p not in Job.defaults:
-                raise DiscoError("Unknown argument: %s" % p)
+                raise DiscoError('Unknown argument: %s' % p)
 
-        input = kwargs["input"]
+        input = kwargs['input']
 
         # -- initialize request --
 
         request = {
-            "prefix": self.name,
-            "version": ".".join(map(str, sys.version_info[:2])),
-            "params": cPickle.dumps(jobargs['params'],
+            'prefix': self.name,
+            'version': '.'.join(map(str, sys.version_info[:2])),
+            'params': cPickle.dumps(jobargs['params'],
                                     cPickle.HIGHEST_PROTOCOL),
-            "sort": str(int(jobargs['sort'])),
-            "mem_sort_limit": str(jobargs['mem_sort_limit']),
-            "status_interval": str(jobargs['status_interval']),
-            "profile": str(int(jobargs['profile']))
+            'sort': str(int(jobargs['sort'])),
+            'mem_sort_limit': str(jobargs['mem_sort_limit']),
+            'status_interval': str(jobargs['status_interval']),
+            'profile': str(int(jobargs['profile']))
             }
 
         # -- required modules --
@@ -354,38 +354,38 @@ class Job(object):
                 mod = mod[0]
             imp_mod.append(mod)
 
-        request["required_modules"] = " ".join(imp_mod)
+        request['required_modules'] = ' '.join(imp_mod)
         rf = util.pack_files(send_mod)
 
         # -- input & output streams --
 
-        for stream in ["map_input_stream", "map_output_stream",
-                   "reduce_input_stream", "reduce_output_stream"]:
+        for stream in ['map_input_stream', 'map_output_stream',
+                       'reduce_input_stream', 'reduce_output_stream']:
             self.pack_stack(kwargs, request, stream)
 
         # -- required files --
 
-        if "required_files" in kwargs:
-            if isinstance(kwargs["required_files"], dict):
-                rf.update(kwargs["required_files"])
+        if 'required_files' in kwargs:
+            if isinstance(kwargs['required_files'], dict):
+                rf.update(kwargs['required_files'])
             else:
-                rf.update(util.pack_files(kwargs["required_files"]))
+                rf.update(util.pack_files(kwargs['required_files']))
         if rf:
-            request["required_files"] = util.pack(rf)
+            request['required_files'] = util.pack(rf)
 
         # -- scheduler --
 
-        sched = jobargs["scheduler"]
-        sched_keys = ["max_cores", "force_local", "force_remote"]
+        sched = jobargs['scheduler']
+        sched_keys = ['max_cores', 'force_local', 'force_remote']
 
-        if "max_cores" not in sched:
-            sched["max_cores"] = 2**31
-        elif sched["max_cores"] < 1:
-            raise DiscoError("max_cores must be >= 1")
+        if 'max_cores' not in sched:
+            sched['max_cores'] = 2**31
+        elif sched['max_cores'] < 1:
+            raise DiscoError('max_cores must be >= 1')
 
         for k in sched_keys:
             if k in sched:
-                request["sched_" + k] = str(sched[k])
+                request['sched_' + k] = str(sched[k])
 
         # -- map --
 
@@ -436,11 +436,11 @@ class Job(object):
 
         # -- encode and send the request --
 
-        reply = self.master.request("/disco/job/new",
+        reply = self.master.request('/disco/job/new',
                                     encode_netstring_fd(request))
 
         if not reply.startswith('job started:'):
-            raise DiscoError("Failed to start a job. Server replied: " + reply)
+            raise DiscoError('Failed to start a job. Server replied: ' + reply)
         self.name = reply.split(':', 1)[1]
 
 def result_iterator(results,
@@ -451,7 +451,7 @@ def result_iterator(results,
 
     task = Task(result_iterator=True)
     for fun in input_stream:
-        fun.func_globals.setdefault("Task", task)
+        fun.func_globals.setdefault('Task', task)
 
     res = []
     res = [url for r in results for url in util.urllist(r)]
