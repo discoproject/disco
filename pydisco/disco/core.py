@@ -928,6 +928,17 @@ class Job(object):
             return partial(getattr(self.master, attr), self.name)
         raise AttributeError("%r has no attribute %r" % (self, attr))
 
+    class JobDict(JobDict):
+        def __init__(self, job, *args, **kwargs):
+            self.job = job
+            super(Job.JobDict, self).__init__(*args, **kwargs)
+
+        def default_factory(self, attr):
+            try:
+                return getattr(self.job, attr)
+            except AttributeError:
+                return self.defaults.__getitem__(attr)
+
     def run(self, **kwargs):
         """
         Returns the job immediately after the request has been submitted.
@@ -945,9 +956,10 @@ class Job(object):
 
         A :class:`JobError` is raised if an error occurs while starting the job.
         """
-        jobpack = JobDict(prefix=self.name,
-                          ddfs=self.master.master,
-                          **kwargs).pack()
+        jobpack = Job.JobDict(self,
+                              prefix=self.name,
+                              ddfs=self.master.master,
+                              **kwargs).pack()
         reply = json.loads(self.master.request('/disco/job/new', jobpack))
         if reply[0] != 'ok':
             raise DiscoError("Failed to start a job. Server replied: " + reply)
