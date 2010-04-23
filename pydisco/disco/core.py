@@ -81,6 +81,11 @@ class Disco(object):
 
     config = property(get_config, set_config)
 
+    @property
+    def ddfs(self):
+        from disco.ddfs import DDFS
+        return DDFS(self.master)
+
     def nodeinfo(self):
         """
         Returns a dictionary describing status of the nodes that are managed by
