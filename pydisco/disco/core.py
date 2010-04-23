@@ -44,17 +44,20 @@ class Disco(object):
     def __init__(self, host):
         self.host = util.disco_host(host)
 
-    def request(self, url, data = None, redir = False, offset = 0):
+    def request(self, url, data=None, redir=False, offset=0):
         try:
-            return download(self.host + url, data = data, redir = redir, offset = offset)
+            return download(self.host + url, data=data,
+                            redir=redir, offset=offset)
         except CommError, e:
-            raise DiscoError("Got %s, make sure disco master is running at %s" % (e, self.host))
+            raise DiscoError('Got %s, make sure disco master '
+                             'is running at %s' % (e, self.host))
 
     def get_config(self):
         return json.loads(self.request('/disco/ctrl/load_config_table'))
 
     def set_config(self, config):
-        response = json.loads(self.request('/disco/ctrl/save_config_table', json.dumps(config)))
+        response = json.loads(self.request('/disco/ctrl/save_config_table',
+                                           json.dumps(config)))
         if response != 'table saved!':
             raise DiscoError(response)
 
@@ -112,7 +115,7 @@ class Disco(object):
         r = self.request('/disco/ctrl/parameters?name=%s' % name, redir=True)
         return decode_netstring_fd(cStringIO.StringIO(r))
 
-    def events(self, name, offset = 0):
+    def events(self, name, offset=0):
         def event_iter(events):
             offs = offset
             lines = events.splitlines()
@@ -132,8 +135,7 @@ class Disco(object):
                     yield offs, event
         try:
             r = self.request("/disco/ctrl/rawevents?name=%s" % name,
-                     redir = True,
-                     offset = offset)
+                             redir=True, offset=offset)
         except Exception, x:
             return []
 
@@ -141,7 +143,7 @@ class Disco(object):
             return []
         return event_iter(r)
 
-    def results(self, jobspec, timeout = 2000):
+    def results(self, jobspec, timeout=2000):
         jobspecifier = JobSpecifier(jobspec)
         data = json.dumps([timeout, list(jobspecifier.jobnames)])
         results = json.loads(self.request("/disco/ctrl/get_results", data))
@@ -161,7 +163,7 @@ class Disco(object):
         return json.loads(self.request("/disco/ctrl/jobinfo?name=%s" % name))
 
     def check_results(self, name, start_time, timeout, poll_interval):
-        status, results = self.results(name, timeout = poll_interval)
+        status, results = self.results(name, timeout=poll_interval)
         if status == 'ready':
             return results
         if status != 'active':
@@ -170,13 +172,14 @@ class Disco(object):
             raise JobError("Timeout", self.host, name)
         raise Continue()
 
-    def wait(self, name, show = None, poll_interval = 2, timeout = None, clean = False):
+    def wait(self, name, show=None, poll_interval=2, timeout=None, clean=False):
         event_monitor = EventMonitor(show, disco=self, name=name)
-        start_time    = time.time()
+        start_time = time.time()
         while True:
             event_monitor.refresh()
             try:
-                return self.check_results(name, start_time, timeout, poll_interval * 1000)
+                return self.check_results(name, start_time,
+                                          timeout, poll_interval * 1000)
             except Continue:
                 continue
             finally:
@@ -204,66 +207,74 @@ class JobSpecifier(list):
 
 class Job(object):
 
-    funs = ["map", "map_init", "reduce_init", "map_reader", "map_writer",\
-        "reduce_reader", "reduce_writer", "reduce", "partition",\
-        "combiner", "reduce_input_stream", "reduce_output_stream",\
-        "map_input_stream", "map_output_stream"]
+    funs = [
+        "map", "map_init", "reduce_init", "map_reader", "map_writer",
+        "reduce_reader", "reduce_writer", "reduce", "partition",
+        "combiner", "reduce_input_stream", "reduce_output_stream",
+        "map_input_stream", "map_output_stream"
+        ]
 
-    defaults = {"name": None,
-            "map": None,
-            "input": None,
-            "map_init": None,
-            "reduce_init": None,
-            "map_reader": func.map_line_reader,
-            "map_writer": func.netstr_writer,
-            "map_input_stream": None,
-            "map_output_stream": None,
-            "reduce_reader": func.netstr_reader,
-            "reduce_writer": func.netstr_writer,
-            "reduce_input_stream": None,
-            "reduce_output_stream": None,
-            "reduce": None,
-            "partition": func.default_partition,
-            "combiner": None,
-            "nr_maps": None,
-            "scheduler": {},
-#XXX: nr_reduces default has changed!
-            "nr_reduces": 1,
-            "sort": False,
-            "params": Params(),
-            "mem_sort_limit": 256 * 1024**2,
-            "ext_params": None,
-            "status_interval": 100000,
-            "required_files": [],
-            "required_modules": [],
-            "profile": False}
+    defaults = {
+        "name": None,
+        "map": None,
+        "input": None,
+        "map_init": None,
+        "reduce_init": None,
+        "map_reader": func.map_line_reader,
+        "map_writer": func.netstr_writer,
+        "map_input_stream": None,
+        "map_output_stream": None,
+        "reduce_reader": func.netstr_reader,
+        "reduce_writer": func.netstr_writer,
+        "reduce_input_stream": None,
+        "reduce_output_stream": None,
+        "reduce": None,
+        "partition": func.default_partition,
+        "combiner": None,
+        "nr_maps": None,
+        "scheduler": {},
+        #XXX: nr_reduces default has changed!
+        "nr_reduces": 1,
+        "sort": False,
+        "params": Params(),
+        "mem_sort_limit": 256 * 1024**2,
+        "ext_params": None,
+        "status_interval": 100000,
+        "required_files": [],
+        "required_modules": [],
+        "profile": False
+        }
 
-    mapreduce_functions = ("map_init",
-                   "map_reader",
-                   "map",
-                   "map_writer",
-                   "partition",
-                   "combiner",
-                   "reduce_init",
-                   "reduce_reader",
-                   "reduce",
-                   "reduce_writer")
+    mapreduce_functions = (
+        "map_init",
+        "map_reader",
+        "map",
+        "map_writer",
+        "partition",
+        "combiner",
+        "reduce_init",
+        "reduce_reader",
+        "reduce",
+        "reduce_writer"
+        )
 
-    proxy_functions = ("kill",
-               "clean",
-               "purge",
-               "jobspec",
-               "results",
-               "jobinfo",
-               "wait",
-               "oob_get",
-               "oob_list",
-               "profile_stats",
-               "events")
+    proxy_functions = (
+        "kill",
+        "clean",
+        "purge",
+        "jobspec",
+        "results",
+        "jobinfo",
+        "wait",
+        "oob_get",
+        "oob_list",
+        "profile_stats",
+        "events"
+        )
 
     def __init__(self, master, name='', **kwargs):
         self.master = master
-        self.name   = name
+        self.name = name
         self._run(**kwargs)
 
     def __getattr__(self, attr):
@@ -315,13 +326,16 @@ class Job(object):
 
         # -- initialize request --
 
-        request = {"prefix": self.name,
-               "version": ".".join(map(str, sys.version_info[:2])),
-               "params": cPickle.dumps(jobargs['params'], cPickle.HIGHEST_PROTOCOL),
-               "sort": str(int(jobargs['sort'])),
-               "mem_sort_limit": str(jobargs['mem_sort_limit']),
-               "status_interval": str(jobargs['status_interval']),
-               "profile": str(int(jobargs['profile']))}
+        request = {
+            "prefix": self.name,
+            "version": ".".join(map(str, sys.version_info[:2])),
+            "params": cPickle.dumps(jobargs['params'],
+                                    cPickle.HIGHEST_PROTOCOL),
+            "sort": str(int(jobargs['sort'])),
+            "mem_sort_limit": str(jobargs['mem_sort_limit']),
+            "status_interval": str(jobargs['status_interval']),
+            "profile": str(int(jobargs['profile']))
+            }
 
         # -- required modules --
 
@@ -329,9 +343,8 @@ class Job(object):
             rm = kwargs['required_modules']
         else:
             functions = util.flatten(util.iterify(jobargs[f])
-                         for f in self.mapreduce_functions)
-            rm = modutil.find_modules([f for f in functions\
-                if callable(f)])
+                                     for f in self.mapreduce_functions)
+            rm = modutil.find_modules([f for f in functions if callable(f)])
 
         send_mod = []
         imp_mod = []
@@ -356,8 +369,7 @@ class Job(object):
             if isinstance(kwargs["required_files"], dict):
                 rf.update(kwargs["required_files"])
             else:
-                rf.update(util.pack_files(\
-                    kwargs["required_files"]))
+                rf.update(util.pack_files(kwargs["required_files"]))
         if rf:
             request["required_files"] = util.pack(rf)
 
@@ -381,11 +393,8 @@ class Job(object):
             k = 'ext_map' if isinstance(kwargs['map'], dict) else 'map'
             request[k] = util.pack(kwargs['map'])
 
-            for function_name in ('map_init',
-                          'map_reader',
-                          'map_writer',
-                          'partition',
-                          'combiner'):
+            for function_name in ('map_init', 'map_reader',
+                                  'map_writer', 'partition', 'combiner'):
                 function = jobargs[function_name]
                 if function:
                     request[function_name] = util.pack(function)
@@ -417,7 +426,8 @@ class Job(object):
             k = 'ext_reduce' if isinstance(kwargs['reduce'], dict) else 'reduce'
             request[k] = util.pack(kwargs['reduce'])
 
-            for function_name in ('reduce_reader', 'reduce_writer', 'reduce_init'):
+            for function_name in ('reduce_reader', 'reduce_writer',
+                                  'reduce_init'):
                 function = jobargs[function_name]
                 if function:
                     request[function_name] = util.pack(function)
@@ -426,19 +436,20 @@ class Job(object):
 
         # -- encode and send the request --
 
-        reply = self.master.request("/disco/job/new", encode_netstring_fd(request))
+        reply = self.master.request("/disco/job/new",
+                                    encode_netstring_fd(request))
 
         if not reply.startswith('job started:'):
             raise DiscoError("Failed to start a job. Server replied: " + reply)
         self.name = reply.split(':', 1)[1]
 
 def result_iterator(results,
-            notifier = None,
-            reader = func.netstr_reader,
-            input_stream = [func.map_input_stream],
-            params = None):
+                    notifier=None,
+                    reader=func.netstr_reader,
+                    input_stream=[func.map_input_stream],
+                    params=None):
 
-    task = Task(result_iterator = True)
+    task = Task(result_iterator=True)
     for fun in input_stream:
         fun.func_globals.setdefault("Task", task)
 
@@ -455,4 +466,3 @@ def result_iterator(results,
 
         for x in reader(fd, sze, url):
             yield x
-
