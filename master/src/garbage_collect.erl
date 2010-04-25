@@ -1,6 +1,6 @@
 
 -module(garbage_collect).
--export([remove_map_results/1, remove_job/1, remove_dir/1, move_results/1]).
+-export([remove_job/1, remove_dir/1, move_results/1]).
 
 -define(RESULTFS_TIMEOUT, 300000). % 5min
 
@@ -29,16 +29,6 @@ remove_job(Urls) ->
         error_logger:info_report({"Deleting all job files at", Node, JobRoot}),
         remove_dir(filename:join([Root, "data", JobRoot])),
         remove_dir(filename:join([Root, "temp", JobRoot]))
-    end).
-
-remove_map_results(Urls) ->
-    spawn_remote(Urls, fun (File, JobRoot, _) ->
-        Root = os:getenv("DISCO_ROOT"),
-        lists:foreach(fun(F) ->
-            C = "rm -Rf " ++
-                filename:join([Root, "data", JobRoot, F]),
-            os:cmd(C)
-        end, parse_dir(File, JobRoot))
     end).
 
 move_results(Urls) ->

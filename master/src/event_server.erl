@@ -78,6 +78,17 @@ handle_call({get_results, JobName}, _From, {Events, _MsgBuf} = S) ->
                  end, Pid}, S}
     end;
 
+handle_call({get_map_results, JobName}, _From, {Events, _MsgBuf} = S) ->
+    case dict:find(JobName, Events) of
+        error ->
+            {reply, invalid_job, S};
+        {ok, {EventList, _JobStart, _Pid}} ->
+            case event_filter(map_ready, EventList) of
+                [] -> {reply, not_ready, S};
+                [Res] -> {reply, {ok, Res}, S}
+            end
+    end;
+
 handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0}) ->
     JobName = unique_key(JobPrefix, Events0),
     Events = dict:store(JobName, {[], now(), Pid}, Events0),

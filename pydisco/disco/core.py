@@ -256,6 +256,10 @@ class Disco(object):
             return []
         return event_iter(r)
 
+    def mapresults(self, name):
+        return json.loads(
+            self.request('/disco/ctrl/get_mapresults?name=%s' % name))
+
     def results(self, jobspec, timeout=2000):
         """
         Returns a list of results for a single job or for many
@@ -921,6 +925,7 @@ class Job(object):
                        'profile_stats',
                        'purge',
                        'results',
+                       'mapresults',
                        'wait')
 
     def __init__(self, master, name):

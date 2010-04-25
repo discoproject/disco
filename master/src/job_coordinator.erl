@@ -276,36 +276,30 @@ job_coordinator(Name, Job) ->
     end,
 
     RedInputs = if Job#jobinfo.map ->
-    event_server:event(Name, "Map phase", [], {}),
-    MapResults = run_task(map_input(Job#jobinfo.inputs),
-        "map", Name, Job),
-    event_server:event(Name, "Map phase done", [], []),
-    MapResults;
+        event_server:event(Name, "Map phase", [], {}),
+        MapResults = run_task(map_input(Job#jobinfo.inputs),
+            "map", Name, Job),
+        event_server:event(Name, "Map phase done", [], {map_ready, MapResults}),
+        MapResults;
     true ->
-    Job#jobinfo.inputs
+        Job#jobinfo.inputs
     end,
 
     if Job#jobinfo.reduce ->
-    event_server:event(Name, "Starting reduce phase", [], {}),
-    RedResults = run_task(reduce_input(
-        Name, RedInputs, Job#jobinfo.nr_reduce),
-        "reduce", Name,
-        Job#jobinfo{force_local = false, force_remote = false}),
-    if Job#jobinfo.map ->
-        %FIXME: Old code doesn't remove URLs correctly
-        ok;
-        %garbage_collect:remove_map_results(RedInputs);
-    true -> ok
-    end,
+        event_server:event(Name, "Starting reduce phase", [], {}),
+        RedResults = run_task(reduce_input(
+            Name, RedInputs, Job#jobinfo.nr_reduce),
+            "reduce", Name,
+            Job#jobinfo{force_local = false, force_remote = false}),
 
-    event_server:event(Name, "Reduce phase done", [], []),
-    event_server:event(Name, "READY: Job finished in " ++
-        disco_server:format_time(Started),
-        [], {ready, RedResults});
+        event_server:event(Name, "Reduce phase done", [], []),
+        event_server:event(Name, "READY: Job finished in " ++
+            disco_server:format_time(Started),
+            [], {ready, RedResults});
     true ->
-    event_server:event(Name, "READY: Job finished in " ++
-        disco_server:format_time(Started),
-        [], {ready, RedInputs})
+        event_server:event(Name, "READY: Job finished in " ++
+            disco_server:format_time(Started),
+            [], {ready, RedInputs})
     end,
     gen_server:cast(event_server, {job_done, Name}).
 

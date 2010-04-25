@@ -136,6 +136,14 @@ getop("get_settings", _Query) ->
             end
         end, L))}};
 
+getop("get_mapresults", {_Query, Name}) ->
+    case gen_server:call(event_server, {get_map_results, Name}) of
+        {ok, Res} ->
+            {ok, Res};
+        _ ->
+            not_found
+    end;
+
 getop(_, _) -> not_found.
 
 postop("kill_job", Json) ->
