@@ -81,6 +81,11 @@ class Disco(object):
 
     config = property(get_config, set_config)
 
+    @property
+    def ddfs(self):
+        from disco.ddfs import DDFS
+        return DDFS(self.master)
+
     def nodeinfo(self):
         """
         Returns a dictionary describing status of the nodes that are managed by
@@ -766,8 +771,10 @@ class JobDict(util.DefaultDict):
             self['ext_reduce'] = True
 
         # -- input --
+        ddfs = self.pop('ddfs', None)
         self['input'] = [url for i in self['input']
-                         for url in util.urllist(i, listdirs=bool(self['map']))]
+                         for url in util.urllist(i, listdirs=bool(self['map']),
+                                                 ddfs=ddfs)]
 
         # -- scheduler --
         scheduler = self.__class__.defaults['scheduler'].copy()
@@ -926,6 +933,17 @@ class Job(object):
             return partial(getattr(self.master, attr), self.name)
         raise AttributeError("%r has no attribute %r" % (self, attr))
 
+    class JobDict(JobDict):
+        def __init__(self, job, *args, **kwargs):
+            self.job = job
+            super(Job.JobDict, self).__init__(*args, **kwargs)
+
+        def default_factory(self, attr):
+            try:
+                return getattr(self.job, attr)
+            except AttributeError:
+                return self.defaults.__getitem__(attr)
+
     def run(self, **kwargs):
         """
         Returns the job immediately after the request has been submitted.
@@ -943,7 +961,10 @@ class Job(object):
 
         A :class:`JobError` is raised if an error occurs while starting the job.
         """
-        jobpack = JobDict(prefix=self.name, **kwargs).pack()
+        jobpack = Job.JobDict(self,
+                              prefix=self.name,
+                              ddfs=self.master.master,
+                              **kwargs).pack()
         reply = json.loads(self.master.request('/disco/job/new', jobpack))
         if reply[0] != 'ok':
             raise DiscoError("Failed to start a job. Server replied: " + reply)

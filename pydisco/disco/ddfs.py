@@ -117,7 +117,7 @@ class DDFS(object):
         return self.tag(tag, urls), urls
 
     def tag(self, tag, urls):
-        return self._request('/ddfs/tag/%s' % tag, json.dumps(urls))
+        return self._request('/ddfs/tag/%s' % tagname(tag), json.dumps(urls))
 
     def walk(self, tag, ignore_missing=True, tagpath=()):
         """

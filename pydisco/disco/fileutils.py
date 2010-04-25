@@ -2,7 +2,7 @@
 import sys, time, os, cPickle, cStringIO, struct, zlib
 import errno, fcntl
 
-from disco.util import data_err, err, msg
+from disco.error import DataError
 
 class DiscoOutput(object):
     VERSION = 1
@@ -21,7 +21,7 @@ class DiscoOutput(object):
 
     def dump(self):
         encoded_data = self.chunk.getvalue()
-        checksum = zlib.crc32(encoded_data)
+        checksum = zlib.crc32(encoded_data) & 0xFFFFFFFF
         if self.compress_level:
             encoded_data = zlib.compress(encoded_data, self.compress_level)
         self.stream.write(struct.pack('<BBIQ',
@@ -131,10 +131,8 @@ def _safe_fileop(op, mode, outfile, timeout):
                 outstream.close()
                 return r
             except Exception, x:
-                # output file is inconsistent state
-                # we must crash the job
-                err("Updating file %s failed: %s" %\
-                    (outfile, x))
+                # output file is inconsistent state, but might be recoverable
+                raise DataError("Updating file failed: %s" % (x), outfile)
         except IOError, x:
             # Python / BSD doc guides us to check for these errors
             if x.errno in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
@@ -142,7 +140,7 @@ def _safe_fileop(op, mode, outfile, timeout):
                 timeout -= 0.1
             else:
                 raise
-    data_err("Timeout when updating file %s" % outfile, outfile)
+    raise DataError("Timeout when updating file", outfile)
 
 
 def ensure_file(fname, data = None, timeout = 60, mode = 500):
@@ -163,9 +161,8 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
                 time.sleep(1)
                 timeout -= 1
             else:
-                data_err("Writing external file %s failed"\
-                     % fname, fname)
-    data_err("Timeout in writing external file %s" % fname, fname)
+                raise DataError("Writing external file failed", fname)
+    raise DataError("Timeout in writing external file", fname)
 
 
 def write_files(ext_data, path):
@@ -175,7 +172,6 @@ def write_files(ext_data, path):
         # make sure that no files are written outside the given path
         p = os.path.abspath(os.path.join(path, fname))
         if os.path.dirname(p) == path:
-            ensure_file(path + "/" + fname, data = data)
+            ensure_file(path + "/" + fname, data=data)
         else:
-            err("Unsafe filename %s" % fname)
-
+            raise ValueError("Unsafe filename %s" % fname)

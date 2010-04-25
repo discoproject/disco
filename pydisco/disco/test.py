@@ -101,6 +101,7 @@ class DiscoTestCase(TestCase):
 
 class DiscoJobTestFixture(object):
     jobargs = ('input',
+               'combiner',
                'map',
                'map_init',
                'map_input_stream',

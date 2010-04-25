@@ -64,7 +64,7 @@ These functions are provided by Disco to help :class:`disco.core.Job` creation:
 .. autofunction:: reduce_output_stream
 """
 import re, cPickle
-from disco.util import err, data_err, msg
+from disco.error import DataError
 
 def map(entry, params):
     """
@@ -223,24 +223,23 @@ def old_netstr_reader(fd, size, fname, head = ''):
 
         i = data.find(" ", idx, idx + 11)
         if i == -1:
-            data_err("Corrupted input (%s). Could not "\
-                   "parse a value length at %d bytes."\
-                    % (fname, tot), fname)
+            raise DataError("Corrupted input: "\
+                            "Could not parse a value length at %d bytes."\
+                            % (tot), fname)
         else:
             lenstr = data[idx:i + 1]
             idx = i + 1
 
         if ldata < i + 1:
-            data_err("Truncated input (%s). "\
-                "Expected %d bytes, got %d" %\
-                (fname, size, tot), fname)
+            raise DataError("Truncated input: "\
+                            "Expected %d bytes, got %d" % (size, tot), fname)
 
         try:
             llen = int(lenstr)
         except ValueError:
-            data_err("Corrupted input (%s). Could not "\
-                "parse a value length at %d bytes."\
-                    % (fname, tot), fname)
+            raise DataError("Corrupted input: "\
+                            "Could not parse a value length at %d bytes."\
+                            % (tot), fname)
 
         tot += len(lenstr)
 
@@ -252,10 +251,9 @@ def old_netstr_reader(fd, size, fname, head = ''):
         msg = data[idx:idx + llen]
 
         if idx + llen + 1 > ldata:
-            data_err("Truncated input (%s). "\
-                "Expected a value of %d bytes "\
-                "(offset %u bytes)" %\
-                (fname, llen + 1, tot), fname)
+            raise DataError("Truncated input: "\
+                            "Expected a value of %d bytes (offset %u bytes)"\
+                            % (llen + 1, tot), fname)
 
         tot += llen + 1
         idx += llen + 1
@@ -327,17 +325,14 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
 
         if not len(r) or (size!=None and tot >= size):
             if size != None and tot < size:
-                data_err("Truncated input (%s). "\
-                     "Expected %d bytes, got %d" %\
-                     (fname, size, tot), fname)
+                raise DataError("Truncated input: "\
+                "Expected %d bytes, got %d" % (size, tot), fname)
             if len(buf):
                 if output_tail:
                     yield [buf]
                 else:
-                    msg("Couldn't match the last %d "\
-                        "bytes in %s. Some bytes may be "\
-                        "missing from input." %\
-                        (len(buf), fname))
+                    print "Couldn't match the last %d bytes in %s. "\
+                    "Some bytes may be missing from input." % (len(buf), fname)
             break
 
 
@@ -454,7 +449,8 @@ def reduce_output_stream(stream, partition, url, params):
 # remove when readers and writers are gone
 
 def reader_wrapper(reader):
-    if reader.func_code.co_argcount == 3:
+    from util import argcount
+    if argcount(reader) == 3:
         # old style reader without params
         def reader_input_stream(stream, size, url, params):
             return reader(stream, size, url)
@@ -491,19 +487,19 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
             is_compressed, checksum, chunk_size =\
                 struct.unpack('<BIQ', stream.read(13))
         except:
-            data_err("Truncated data at %d bytes" % offset)
+            raise DataError("Truncated data at %d bytes" % offset, url)
         if not chunk_size:
             return
         chunk = stream.read(chunk_size)
         data = ''
         try:
             data = zlib.decompress(chunk) if is_compressed else chunk
-            if checksum != zlib.crc32(data):
-                raise Exception()
-        except:
+            if checksum != (zlib.crc32(data) & 0xFFFFFFFF):
+                raise ValueError("Checksum does not match")
+        except (ValueError, zlib.error), e:
             if not ignore_corrupt:
-                data_err("Corrupted data between bytes %d-%d" %
-                    (offset, offset + chunk_size), url)
+                raise DataError("Corrupted data between bytes %d-%d: %s" %
+                                (offset, offset + chunk_size, e), url)
         offset += chunk_size
         chunk = cStringIO.StringIO(data)
         while True:
@@ -513,11 +509,3 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 break
 
 chain_reader = netstr_reader = disco_input_stream
-
-
-
-
-
-
-
-

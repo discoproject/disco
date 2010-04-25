@@ -87,6 +87,7 @@ Functions
 ---------
 """
 import re, struct, sys, os, imp, modulefinder
+import functools
 from os.path import abspath, dirname
 from opcode import opname
 
@@ -118,6 +119,8 @@ def parse_function(function):
 
     are not detected correctly.
     """
+    if isinstance(function, functools.partial):
+        return parse_function(function.func)
     code = function.func_code
     mod = re.compile(r'\x%.2x(..)\x%.2x' % (opname.index('LOAD_GLOBAL'),
                         opname.index('LOAD_ATTR')), re.DOTALL)

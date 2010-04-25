@@ -1,4 +1,5 @@
 import hashlib, os, random, re, subprocess, sys
+import functools
 
 from itertools import chain
 from types import FunctionType
@@ -227,6 +228,8 @@ class Task(object):
 
     def insert_globals(self, functions):
         for fn in functions:
+            if isinstance(fn, functools.partial):
+                fn=fn.func
             if isinstance(fn, FunctionType):
                 fn.func_globals.setdefault('Task', self)
                 for module in self.required_modules:

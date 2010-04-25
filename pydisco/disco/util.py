@@ -10,6 +10,7 @@ external interface.
 """
 import os
 import cPickle, marshal, sys, time, traceback
+import copy_reg, functools
 
 from collections import defaultdict
 from itertools import chain, repeat
@@ -75,20 +76,43 @@ def rapply(iterable, fn):
         else:
             yield fn(item)
 
+def argcount(object):
+    if hasattr(object, 'func_code'):
+        return object.func_code.co_argcount
+    argcount = object.func.func_code.co_argcount
+    return argcount - len(object.args or ()) - len(object.keywords or ())
+
+def unpickle_partial(func, args, kwargs):
+    return functools.partial(unpack(func), *unpack(args), **unpack(kwargs))
+
+def pickle_partial(p):
+    return unpickle_partial, (pack(p.func), pack(p.args), pack(p.keywords or {}))
+
+# support functools.partial also on Pythons prior to 3.1
+if sys.version_info < (3,1):
+    copy_reg.pickle(functools.partial, pickle_partial)
+
 def pack(object):
     if hasattr(object, 'func_code'):
+        if object.func_closure != None:
+            raise TypeError("Function must not have closures: "\
+                            "%s (try using functools.partial instead)"\
+                            % object.func_name)
         defs = [pack(x) for x in object.func_defaults]\
                     if object.func_defaults else None
         return marshal.dumps((object.func_code, defs))
-    return cPickle.dumps(object)
+    return cPickle.dumps(object, cPickle.HIGHEST_PROTOCOL)
 
-def unpack(string, globals={}):
+def unpack(string, globals={'__builtins__': __builtins__}):
     try:
         return cPickle.loads(string)
-    except Exception:
-        code, defs = marshal.loads(string)
-        defs = tuple([unpack(x) for x in defs]) if defs else None
-        return FunctionType(code, globals, argdefs = defs)
+    except Exception, err:
+        try:
+           code, defs = marshal.loads(string)
+           defs = tuple([unpack(x) for x in defs]) if defs else None
+           return FunctionType(code, globals, argdefs = defs)
+        except:
+            raise err
 
 def pack_stack(stack):
     return pack([pack(object) for object in stack])
