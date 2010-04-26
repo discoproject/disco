@@ -54,7 +54,7 @@ class DiscoSettings(dict):
     @property
     def env(self):
         settings = os.environ.copy()
-        settings.update(dict((k, str(self[k])) for k in self.defaults))
+        settings.update((k, str(self[k])) for k in self.defaults)
         return settings
 
 def guess_erlang():
