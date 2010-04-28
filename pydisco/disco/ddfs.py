@@ -12,12 +12,11 @@ class BlobSource(object):
     def __init__(self, source):
         if hasattr(source, 'read'):
             data = source.read()
+            self.size = len(data)
             self.makefile = lambda: cStringIO.StringIO(data)
-            self.size = lambda: len(data)
         else:
-            size = os.stat(source).st_size
+            self.size = os.stat(source).st_size
             self.makefile = lambda: open(source, 'r')
-            self.size = lambda: size
 
 def canonizetags(tags):
     return [tagname(tag) for tag in iterify(tags)]
