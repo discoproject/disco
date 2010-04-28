@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+import sys
+from os import environ
+from disco.ddfs import DDFS, partition, tagname
+from disco.error import CommError
+
+if 'DDFS_HOST' not in environ:
+    print >> sys.stderr, "Usage: ddfs-ls"
+    print >> sys.stderr, "       List all top-level tags"
+    print >> sys.stderr, "       ddfs-ls <prefix>"
+    print >> sys.stderr, "       List all tags starting with prefix"
+    print >> sys.stderr, "       ddfs-ls <tag>"
+    print >> sys.stderr, "       List tag contents"
+    print >> sys.stderr, "Requires DDFS_HOST=disco://<hostname> environment variable"
+    sys.exit(1)
+
+def compact(tags, factor=10):
+    def pref(tag):
+        if tag and tag[0]==':':
+            return ':'+pref(tag[1:])
+        if ':' in tag:
+            return tag.split(':',1)[0]+':*'
+        return tag
+    prefixes=set(pref(t) for t in tags)
+    if len(tags)>factor*len(prefixes):
+        return prefixes
+    return tags
+
+ddfs = DDFS(environ['DDFS_HOST'])
+try:
+    prefix=sys.argv[1]
+except IndexError:
+    prefix=''
+
+try:
+    tags=ddfs.list(prefix)
+except CommError, x:
+    if x.code == 404:
+        sys.exit(0) # no such tag
+    raise
+
+if prefix:
+    tags=[t.split(prefix,1)[-1] for t in tags]
+tags=[prefix+t for t in compact(tags)]
+for tag in sorted(tags):
+    if tag.endswith(':*'):
+        print tag # prefix
+    else:
+        res=ddfs.get(tag)
+        tags, blobs = partition(res.get('urls',[]), tagname)
+        print "v%d %s %5d blob(s) %2d tag(s) %s"%(res['version'],
+                                                  res['last-modified'],
+                                                  len(blobs),
+                                                  len(tags),
+                                                  tag)
