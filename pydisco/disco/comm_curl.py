@@ -74,18 +74,19 @@ def download(url,
 class MultiPut:
     def __init__(self, urls):
         self.handles = dict(
-            (url, self.init_handle(url, fd)) for url, fd in urls)
+            (url, self.init_handle(url, source)) for url, source in urls)
         self.multi = CurlMulti()
-        [self.multi.add_handle(handle) for handle, out in self.handles.values()]
+        for handle, out, source in self.handles.values():
+            self.multi.add_handle(handle)
 
-    def init_handle(self, url, fd):
+    def init_handle(self, url, source):
         handle = new_handle(url)
         out = cStringIO.StringIO()
         handle.setopt(WRITEFUNCTION, out.write)
-        handle.setopt(READFUNCTION, fd.read)
+        handle.setopt(READFUNCTION, source.makefile().read)
+        handle.setopt(INFILESIZE, source.size())
         handle.setopt(UPLOAD, 1)
-        #handle.setopt(INFILESIZE, size)
-        return handle, out
+        return handle, out, source
 
     def perform(self):
         num_handles = True
@@ -100,12 +101,12 @@ class MultiPut:
         success = []
         retry = []
         fail = []
-        for url, (handle, out) in self.handles.iteritems():
+        for url, (handle, out, source) in self.handles.iteritems():
             ret = handle.getinfo(HTTP_CODE)
             if ret == 201:
                 success.append(out.getvalue())
             elif ret == 503:
-                retry.append(url)
+                retry.append((url, source))
             else:
                 fail.append((url, ret, out.getvalue()))
         return success, retry, fail

@@ -1,5 +1,4 @@
 import os, re
-from cStringIO import StringIO
 from urllib import urlencode
 
 from disco.comm import upload, download, json, open_remote
@@ -8,6 +7,17 @@ from disco.settings import DiscoSettings
 from disco.util import iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
+
+class BlobSource(object):
+    def __init__(self, source):
+        if hasattr(source, 'read'):
+            data = source.read()
+            self.makefile = lambda: cStringIO.StringIO(data)
+            self.size = lambda: len(data)
+        else:
+            size = os.stat(source).st_size
+            self.makefile = lambda: open(source, 'r')
+            self.size = lambda: size
 
 def canonizetags(tags):
     return [tagname(tag) for tag in iterify(tags)]
@@ -102,16 +112,10 @@ class DDFS(object):
         def aim(tuple_or_path):
             if isinstance(tuple_or_path, basestring):
                 source = tuple_or_path
-                src_fd = lambda: open(source, 'r')
                 target = self.safe_name(os.path.basename(source))
             else:
                 source, target = tuple_or_path
-                if hasattr(source, 'read'):
-                    data   = source.read()
-                    src_fd = lambda: StringIO(data)
-                else:
-                    src_fd = lambda: open(source, 'r')
-            return src_fd, target
+            return BlobSource(source), target
 
         urls = [self._push(aim(f), replicas, retries) for f in files]
         return self.tag(tag, urls), urls
@@ -149,10 +153,10 @@ class DDFS(object):
             return '%s/proxy/%s/%s/%s' % (self.proxy, host, method, path)
         return url
 
-    def _push(self, (src_fd, target), replicas=None, retries=None, exclude=[]):
+    def _push(self, (source, target), replicas=None, retries=None, exclude=[]):
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
-        urls = [(url, src_fd())
+        urls = [(url, source)
             for url in self._request('/ddfs/new_blob/%s?%s' % (target, qs))]
 
         try:
@@ -160,7 +164,7 @@ class DDFS(object):
                 for url in self._upload(urls, retries=retries)]
         except CommError, e:
             scheme, (host, port), path = urlsplit(e.url)
-            return self._push((src_fd, target),
+            return self._push((source, target),
                               replicas=replicas,
                               retries=retries,
                               exclude=exclude + [host])

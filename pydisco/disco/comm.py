@@ -17,7 +17,8 @@ except ImportError:
 if nocurl:
     from disco.comm_httplib import download as real_download
     def upload(urls, retries = 10):
-        return [download(url, data=fd.read(), method='PUT') for url, fd in urls]
+        return [download(url, data=source.makefile().read(), method='PUT')
+                    for url, source in urls]
 else:
     from disco.comm_curl import upload, download as real_download
 
