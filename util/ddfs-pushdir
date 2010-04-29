@@ -3,17 +3,22 @@ import sys
 from os import environ, listdir
 from os.path import join, basename, abspath
 from disco.ddfs import DDFS
+from optparse import OptionParser
 
-if len(sys.argv) < 2 or ('DDFS_HOST' not in environ and len(sys.argv) < 4):
-    print >> sys.stderr, "Usage: ddfs-pushdir dir [tag] [ddfs_host]"
-    print >> sys.stderr, "       or specify DDFS_HOST"
+parser = OptionParser(usage = 'usage: %prog [options] directory [ddfs-host]')
+parser.add_option('-t', '--tag', default='',
+    help='Tag name (default: directory name)')
+
+(options, args) = parser.parse_args()
+host = args[1] if len(args) > 1 else environ.get('DDFS_HOST', None)
+if not (args and host):
+    parser.print_help()
     sys.exit(1)
 
-host = environ['DDFS_HOST'] if 'DDFS_HOST' in environ else sys.argv[3]
 ddfs = DDFS(host)
-dir = sys.argv[1]
-tag = ddfs.safe_name(sys.argv[2] if len(sys.argv) > 2
-                                 else "data:" + basename(abspath(dir)))
+dir = args[0]
+tag = parser.values.tag
+tag = tag if tag else "data:" + DDFS.safe_name(basename(abspath(dir)))
 
 blobs = [join(dir, p) for p in listdir(dir)]
 print "Pushing %d blobs at '%s' under tag '%s'." % (len(blobs), dir, tag)
