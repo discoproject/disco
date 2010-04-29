@@ -84,7 +84,7 @@ class MultiPut:
         out = cStringIO.StringIO()
         handle.setopt(WRITEFUNCTION, out.write)
         handle.setopt(READFUNCTION, source.makefile().read)
-        handle.setopt(INFILESIZE, source.size())
+        handle.setopt(INFILESIZE, source.size)
         handle.setopt(UPLOAD, 1)
         return handle, out, source
 
