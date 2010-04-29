@@ -128,5 +128,6 @@ def upload(urls, retries=None):
             time.sleep(1)
     if urls:
         raise CommError("Maximum number of PUT retries reached. "
-            "The following URLs were unreachable: %s" % " ".join(urls), urls[0])
+            "The following URLs were unreachable: %s" %
+                " ".join(url for url, source in urls), urls[0][0])
     return success
