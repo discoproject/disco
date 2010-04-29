@@ -1,4 +1,4 @@
-import os, re
+import os, re, cStringIO
 from urllib import urlencode
 
 from disco.comm import upload, download, json, open_remote
