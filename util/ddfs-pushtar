@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+import tarfile, sys, gzip, cStringIO, os
+from disco.ddfs import DDFS
+from optparse import OptionParser
+
+def copy(src, dst):
+    s = 0
+    while True:
+        b = src.read(8192)
+        if not b:
+            break
+        s += len(b)
+        dst.write(b)
+    return s
+
+def main(host, tarball, tag, compress, include, exclude):
+    tar = tarfile.open(tarball)
+    ddfs = DDFS(host)
+    for member in tar:
+        if not member.isfile():
+            continue
+        if include and include not in member.name:
+            continue
+        if exclude and exclude in member.name:
+            continue
+        print "Extracting", member.name
+        if compress:
+            buf = cStringIO.StringIO()
+            gz = gzip.GzipFile(mode='w', compresslevel=2, fileobj=buf)
+            size = copy(tar.extractfile(member), gz)
+            print "    size %1.3fMB" % (size / 1024**2)
+            gz.close()
+            buf.seek(0)
+            suffix = '_gz'
+        else:
+            buf = tar.extractfile(member)
+            suffix = ''
+        name = DDFS.safe_name(member.name) + suffix
+        ddfs.push(tag, [(buf, name)])
+        print "    %s pushed to %s" % (name, tag)
+
+parser = OptionParser(usage = 'usage: %prog [options] tarball [ddfs-host]')
+parser.add_option('-t', '--tag', default='',
+    help='Tag name (default: tarball name)')
+parser.add_option('-n', '--no-compress', default=True, dest='compress',
+    action='store_false', help='Do not compress files')
+parser.add_option('-e', '--exclude', metavar='X',
+    help='Exclude files that match substring X')
+parser.add_option('-i', '--include', metavar='X',
+    help='Include only files that match substring X')
+
+(options, args) = parser.parse_args()
+host = args[1] if len(args) > 1 else os.environ.get('DDFS_HOST', None)
+if not (args and host):
+    parser.print_help()
+    sys.exit(1)
+
+tag = parser.values.tag
+tag = tag if tag else "data:" + DDFS.safe_name(os.path.basename(args[0]))
+
+main(host, args[0], tag, parser.values.compress,
+    parser.values.include, parser.values.exclude)
+
