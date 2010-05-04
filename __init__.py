@@ -23,7 +23,7 @@ command ('sub_command',)
 import optparse, os, re, sys
 from functools import partial
 
-from cli.settings import Settings
+from clx.settings import Settings
 
 class OptionParser(optparse.OptionParser):
     def __init__(self, **kwargs):
