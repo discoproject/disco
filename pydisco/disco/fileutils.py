@@ -7,7 +7,7 @@ from disco.error import DataError
 class DiscoOutput(object):
     VERSION = 1
     def __init__(self, stream, compress_level = 2,
-                 min_chunk = 64 * 1024**2, version = -1):
+                 min_chunk = 1024**2, version = -1):
         self.compress_level = compress_level
         self.min_chunk = min_chunk
         self.version = self.VERSION if version < 0 else version
