@@ -20,7 +20,7 @@ command ('sub_command',)
 >>> list(x[0] for x in walk(ConcreteProgram.commands))
 ['test', 'test subcommand']
 """
-import optparse, os, sys
+import optparse, os, re, sys
 from functools import partial
 
 from cli.settings import Settings
@@ -58,6 +58,14 @@ def search(receiver, commands):
         receiver = receiver.commands[command]
     return receiver, ()
 
+def usage(name, command):
+    usage_re = re.compile(r'^\s*:?usage:\s*(?P<usage>.*)\s*$', re.I)
+    for line in str(command).splitlines():
+        match = usage_re.match(line)
+        if match:
+            return '%s %s' % (name, match.group('usage'))
+    return '%s [options]' % name
+
 class Command(object):
     subcommand = command
 
@@ -93,9 +101,10 @@ class Program(object):
 
     @property
     def usage(self):
-        names = [' %s' % name for name, command in walk(self.commands)]
-        return ''.join('\n\t%s%s [options]' % (self.name, name)
-                       for name in [''] + names)
+        return ''.join('\n\t%s' % usage for usage in
+                       [usage(self.name, self.default)] +
+                       [usage('%s %s' % (self.name, name), command)
+                        for name, command in walk(self.commands)])
 
     def default(self, *args, **opts):
         print("No default command set. Override the default command in your program subclass.")
@@ -122,7 +131,7 @@ class Program(object):
         command, args = search(self, argv)
 
         if options.help:
-            print("%s" % command)
+            print(str(command))
         else:
             command(*args, **options.__dict__)
 
