@@ -5,6 +5,8 @@
 -export([start/2, init/1, next_task/3, handle_call/3, handle_cast/2, 
     handle_info/2, terminate/2, code_change/3]).
 
+-define(SCHEDULE_TIMEOUT, 30000).
+
 -include("task.hrl").
 
 start(JobName, JobCoord) ->
@@ -43,23 +45,25 @@ init({JobName, JobCoord}) ->
 % MAIN FUNCTION:
 % Return a next task to be executed from this Job.
 next_task(Job, Jobs, AvailableNodes) ->
+    schedule(schedule_local, Job, Jobs, AvailableNodes).
+
+schedule(Mode, Job, Jobs, AvailableNodes) ->
     % First try to find a node-local or remote task to execute
-    case catch gen_server:call(Job, {schedule_local, AvailableNodes}) of
+    case catch gen_server:call(Job, {Mode, AvailableNodes}, ?SCHEDULE_TIMEOUT) of
         {run, Node, Task} ->
             {ok, {Node, Task}};
+        nonodes ->
+            none;
         nolocal ->
             % No locals, if empty nodes (i.e. nodes where no job
             % has any tasks assigned) are available, we can assign
             % a task to one of them.
             Empty = all_empty_nodes(Jobs, AvailableNodes),
-            case catch gen_server:call(Job, 
-                    {schedule_remote, Empty}) of
-                {run, Node, Task} ->
-                    {ok, {Node, Task}};
-                _ ->
-                    none
-            end;
-        _ -> none
+            schedule(schedule_remote, Job, Jobs, Empty);
+        Error ->
+            error_logger:warning_report({"Scheduling timeout!", Error}),
+            gen_server:cast(Job, {die, "Scheduling timeout (system busy?)"}),
+            none
     end.
 
 % Return an often empty subset of AvailableNodes that don't have any tasks 
@@ -88,7 +92,12 @@ handle_cast({update_nodes, NewNodes}, {Tasks, Running, _}) ->
 handle_cast({task_started, Node, Worker}, {Tasks, Running, Nodes}) ->
     erlang:monitor(process, Worker),
     NewRunning = gb_trees:insert(Worker, Node, Running),
-    {noreply, {Tasks, NewRunning, Nodes}}.
+    {noreply, {Tasks, NewRunning, Nodes}};
+
+handle_cast({die, Msg}, S) ->
+    event_server:event(get(jobname),
+        "ERROR: Job killed due to an internal exception: ~s", [Msg], {}),
+    {stop, normal, S}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
