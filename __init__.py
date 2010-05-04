@@ -107,7 +107,8 @@ class Program(object):
                         for name, command in walk(self.commands)])
 
     def default(self, *args, **opts):
-        print("No default command set. Override the default command in your program subclass.")
+        raise Exception("No default command set."
+                        "Override ``default`` in your program subclass.")
 
     def dispatch(self, options, argv):
         if options.settings:
@@ -117,13 +118,14 @@ class Program(object):
         options.settings = self.settings = self.settings_class()
 
         if options.verbose:
-            print(
+            sys.stdout.write(
                 """
                 %s settings are:
 
                 %s
 
                 If this is not what you want, see the `--help` option
+
                 """ % (self.name,
                        '\n\t\t'.join('%s = %s' % item
                                      for item in sorted(self.settings.env.iteritems()))))
@@ -131,7 +133,7 @@ class Program(object):
         command, args = search(self, argv)
 
         if options.help:
-            print(str(command))
+            sys.stdout.write("%s\n" % command)
         else:
             command(*args, **options.__dict__)
 
@@ -139,4 +141,4 @@ class Program(object):
         try:
             return self.dispatch(self.options, self.argv)
         except Exception, e:
-            print e
+            sys.exit(e)
