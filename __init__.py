@@ -73,8 +73,8 @@ class Command(object):
         self.commands = {}
         self.function = function
 
-    def __call__(self, *args, **opts):
-        return self.function(*args, **opts)
+    def __call__(self, program, *args):
+        return self.function(program, *args)
 
     def __str__(self):
         return self.function.__doc__ or 'Not documented'
@@ -89,8 +89,8 @@ class Program(object):
         self.option_parser      = option_parser
         self.options, self.argv = option_parser.parse_args(argv)
 
-    def __call__(self, *args, **opts):
-        return self.default(*args, **opts)
+    def __call__(self, *args):
+        return self.default(*args)
 
     def __str__(self):
         return self.default.__doc__ or self.option_parser.format_help()
@@ -106,18 +106,18 @@ class Program(object):
                        [usage('%s %s' % (self.name, name), command)
                         for name, command in walk(self.commands)])
 
-    def default(self, *args, **opts):
+    def default(self, *args):
         raise Exception("No default command set."
                         "Override ``default`` in your program subclass.")
 
-    def dispatch(self, options, argv):
-        if options.settings:
+    def dispatch(self):
+        if self.options.settings:
             if not self.settings_class.settings_file_var:
                 raise Exception("%s does not use a settings file" % self.settings_class)
-            os.setenv(self.settings_class.settings_file_var, options.settings)
-        options.settings = self.settings = self.settings_class()
+            os.setenv(self.settings_class.settings_file_var, self.options.settings)
+        self.settings = self.settings_class()
 
-        if options.verbose:
+        if self.options.verbose:
             sys.stdout.write(
                 """
                 %s settings are:
@@ -130,15 +130,15 @@ class Program(object):
                        '\n\t\t'.join('%s = %s' % item
                                      for item in sorted(self.settings.env.iteritems()))))
 
-        command, args = search(self, argv)
+        command, args = search(self, self.argv)
 
-        if options.help:
+        if self.options.help:
             sys.stdout.write("%s\n" % command)
         else:
-            command(*args, **options.__dict__)
+            command(self, *args)
 
     def main(self):
         try:
-            return self.dispatch(self.options, self.argv)
+            return self.dispatch()
         except Exception, e:
             sys.exit(e)
