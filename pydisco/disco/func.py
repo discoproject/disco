@@ -424,15 +424,14 @@ def map_output_stream(stream, partition, url, params):
     The handle ensures that if a task fails, partially written data is ignored.
     """
     from disco.fileutils import AtomicFile, PartitionFile
-    BUFFER_SIZE = int(1024**2)
     mpath, murl = Task.map_output(partition)
     if not Task.ispartitioned:
         Task.add_blob(mpath)
-        return AtomicFile(mpath, 'w', BUFFER_SIZE), murl
+        return AtomicFile(mpath, 'w'), murl
     else:
         ppath, purl = Task.partition_output(partition)
         Task.add_blob(ppath)
-        return PartitionFile(ppath, mpath, 'w', BUFFER_SIZE), purl
+        return PartitionFile(ppath, mpath, 'w'), purl
 
 def reduce_output_stream(stream, partition, url, params):
     """
@@ -440,10 +439,9 @@ def reduce_output_stream(stream, partition, url, params):
     The handle ensures that if a task fails, partially written data is ignored.
     """
     from disco.fileutils import AtomicFile
-    BUFFER_SIZE = int(1024**2)
     path, url = Task.reduce_output()
     Task.add_blob(path)
-    return AtomicFile(path, 'w', BUFFER_SIZE), url
+    return AtomicFile(path, 'w'), url
 
 # backwards compatibility for readers and writers
 # remove when readers and writers are gone
@@ -465,7 +463,7 @@ def writer_wrapper(writer):
     return writer_output_stream
 
 def disco_output_stream(stream, partition, url, params, version = -1,
-                        compress_level = 2, min_chunk = 64 * 1024**2):
+                        compress_level = 2, min_chunk = 1 * 1024**2):
     from disco.fileutils import DiscoOutput
     return DiscoOutput(stream,
                        version = version,
