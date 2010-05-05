@@ -141,4 +141,4 @@ class Program(object):
         try:
             return self.dispatch()
         except Exception, e:
-            sys.exit(e)
+            sys.exit('%s' % e)
