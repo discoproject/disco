@@ -6,8 +6,7 @@
 
 -include("config.hrl").
 
--record(state, {nodename, root, volumes, put_max,
-                put_active, get_max, get_active, tags}).
+-record(state, {nodename, root, volumes, putq, getq, tags}).
 
 start_link(Config) ->
     process_flag(trap_exit, true),
@@ -61,10 +60,8 @@ init(Config) ->
                 root = DdfsRoot,
                 volumes = [{0, V} || V <- Vol],
                 tags = Tags,
-                put_max = PutMax,
-                put_active = [],
-                get_max = GetMax,
-                get_active = []}}.
+                putq = http_queue:new(PutMax, ?HTTP_QUEUE_LENGTH),
+                getq = http_queue:new(GetMax, ?HTTP_QUEUE_LENGTH)}}.
 
 handle_call(get_tags, _, #state{tags = Tags} = S) ->
     {reply, gb_trees:keys(Tags), S};
@@ -72,29 +69,34 @@ handle_call(get_tags, _, #state{tags = Tags} = S) ->
 handle_call(get_volumes, _, #state{volumes = Volumes, root = Root} = S) ->
     {reply, {Volumes, Root}, S};
 
-handle_call(get_blob, _, #state{get_max = Max, get_active = Act} = S)
-        when length(Act) >= Max ->
-    {reply, busy, S};
-
-handle_call(get_blob, {Pid, _}, S) ->
-    erlang:monitor(process, Pid),
-    {reply, ok, S#state{get_active = [Pid|S#state.get_active]}};
-
-handle_call({put_blob, _}, _, #state{put_max = Max, put_active = Act} = S)
-        when length(Act) >= Max ->
-    {reply, busy, S};
-
-handle_call({put_blob, BlobName}, {Pid, _}, S) ->
-    Vol = choose_volume(S#state.volumes),
-    {ok, Local, Url} = ddfs_util:hashdir(list_to_binary(BlobName),
-        S#state.nodename, "blob", S#state.root, Vol),
-    case ddfs_util:ensure_dir(Local) of
-        ok ->
+handle_call(get_blob, {Pid, _Ref} = From, #state{getq = Q} = S) ->
+    Reply = fun() -> gen_server:reply(From, ok) end,
+    case http_queue:add({Pid, Reply}, Q) of
+        full ->
+            {reply, full, S};
+        {_, NewQ} ->
             erlang:monitor(process, Pid),
-            {reply, {ok, Local, Url},
-                S#state{put_active = [Pid|S#state.put_active]}};
-        {error, E} ->
-            {reply, {error, Local, E}, S}
+            {noreply, S#state{getq = NewQ}}
+    end;
+
+handle_call({put_blob, BlobName}, {Pid, _Ref} = From, #state{putq = Q} = S) ->
+    Reply = fun() ->
+        Vol = choose_volume(S#state.volumes),
+        {ok, Local, Url} = ddfs_util:hashdir(list_to_binary(BlobName),
+            S#state.nodename, "blob", S#state.root, Vol),
+        case ddfs_util:ensure_dir(Local) of
+            ok ->
+                gen_server:reply(From, {ok, Local, Url});
+            {error, E} ->
+                gen_server:reply(From, {error, Local, E})
+        end
+    end,
+    case http_queue:add({Pid, Reply}, Q) of
+        full ->
+            {reply, full, S};
+        {_, NewQ} ->
+            erlang:monitor(process, Pid),
+            {noreply, S#state{putq = NewQ}}
     end;
 
 handle_call({get_tag_timestamp, TagName}, _From, S) ->
@@ -149,13 +151,13 @@ handle_cast({update_volumestats, NewVol}, #state{volumes = Vol} = S) ->
 handle_cast({update_tags, Tags}, S) ->
     {noreply, S#state{tags = Tags}}.
 
-handle_info({'DOWN', _, _, Pid, _}, S) ->
-    case S#state.put_active -- [Pid] of
-        L when L == S#state.put_active ->
-            {noreply, S#state{get_active = S#state.get_active -- [Pid]}};
-        L ->
-            {noreply, S#state{put_active = L}}
-    end.
+handle_info({'DOWN', _, _, Pid, _}, #state{putq = PutQ, getq = GetQ} = S) ->
+    % We don't know if Pid refers to a put or get request.
+    % We can safely try to remove it both the queues: It can exist in
+    % one of the queues at most.
+    {_, NewPutQ} = http_queue:remove(Pid, PutQ),
+    {_, NewGetQ} = http_queue:remove(Pid, GetQ),
+    {noreply, S#state{putq = NewPutQ, getq = NewGetQ}}.
 
 % callback stubs
 terminate(_Reason, _State) -> {}.

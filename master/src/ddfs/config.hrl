@@ -21,6 +21,15 @@
 % (>NODE_TIMEOUT)
 -define(NODEOP_TIMEOUT, 1 * ?MINUTE).
 
+% How many HTTP connections are kept in queue if the system is busy
+-define(HTTP_QUEUE_LENGTH, 100).
+
+% How long to keep a PUT request in queue if the system is busy
+-define(PUT_WAIT_TIMEOUT, 1 * ?MINUTE).
+
+% How long to keep a GET request in queue if the system is busy
+-define(GET_WAIT_TIMEOUT, 1 * ?MINUTE).
+
 % Tag cache expires in TAG_EXPIRES milliseconds.
 % Note that must be TAG_EXPIRES < GC_INTERVAL, otherwise tags never expire
 -define(TAG_EXPIRES, 10 * ?HOUR).

@@ -3,6 +3,8 @@
 
 -include_lib("kernel/include/file.hrl").
 
+-include("config.hrl").
+
 -export([start/2, serve_ddfs_file/2, serve_disco_file/2]).
 
 start(MochiConfig, Roots) ->
@@ -36,7 +38,8 @@ send_file(Req, Path, Root) ->
         {'GET', undefined} ->
             Req:not_found();
         {'GET', SafePath} ->
-            case catch gen_server:call(ddfs_node, get_blob) of
+            case catch gen_server:call(ddfs_node, get_blob,
+                    ?GET_WAIT_TIMEOUT) of
                 ok ->
                     send_file(Req, filename:join(Root, SafePath));
                 _ -> 

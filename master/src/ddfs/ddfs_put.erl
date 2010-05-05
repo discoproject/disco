@@ -3,12 +3,12 @@
 
 -include_lib("kernel/include/file.hrl").
 
+-include("config.hrl").
+
 -export([start/1]).
 
 % maximum file size: 1T
 -define(MAX_RECV_BODY, (1024*1024*1024*1024)).
-% blob mode u=r
--define(FILE_MODE, 8#00400).
 
 start(MochiConfig) ->
     error_logger:info_report({"START PID", self()}),
@@ -30,7 +30,8 @@ loop("/ddfs/" ++ BlobName, Req) ->
     case {Req:get(method),
             valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
         {'PUT', true} ->
-            case catch gen_server:call(ddfs_node, {put_blob, BlobName}) of
+            case catch gen_server:call(ddfs_node,
+                    {put_blob, BlobName}, ?PUT_WAIT_TIMEOUT) of
                 {ok, Path, Url} ->
                     receive_blob(Req, {Path, BlobName}, Url);
                 {error, Path, Error} ->
