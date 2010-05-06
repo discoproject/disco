@@ -70,6 +70,7 @@ class Worker(object):
         WorkerDone("Worker done")
 
 # XXX: deprecate these functions and fully remove global Task
+from disco.util import msg, err, data_err
 
 def get(*args, **kwargs):
     return Task.get(*args, **kwargs)
