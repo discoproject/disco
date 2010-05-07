@@ -24,6 +24,9 @@ class DDFSOptionParser(OptionParser):
         self.add_option('-r', '--recursive',
                         action='store_true',
                         help='recursively perform operations')
+        self.add_option('-w', '--warn-missing',
+                        action='store_true',
+                        help='warn about missing tags')
         self.add_option('-x', '--tarballs',
                         action='store_true',
                         help='extract files as tarballs when pushing')
@@ -74,8 +77,9 @@ def cat(program, *tags):
     """
     from subprocess import call
     from disco.comm import download
-    from disco.util import urlresolve
+
     ignore_missing = program.options.ignore_missing
+
     def curl(replicas):
         for replica in replicas:
             try:
@@ -121,12 +125,26 @@ def exists(program, tag):
     print "True"
 
 @DDFS.command
-def find(program, *args):
-    """Usage: [-i] tag ...
+def find(program, *tags):
+    """Usage: [-i|-w] tag ...
 
     ...
     """
-    pass
+    ignore_missing = program.options.ignore_missing
+    warn_missing   = program.options.warn_missing
+
+    if warn_missing:
+        ignore_missing = True
+
+    for tag in program.prefix_mode(*tags):
+        found = program.ddfs.walk(tag, ignore_missing=ignore_missing)
+        for tagpath, tags, blobs in found:
+            if tags == blobs == None:
+                print "Tag not found: %s" % (tagpath, )
+            elif tags == blobs == () and warn_missing:
+                print "Tag not found: %s" % (tagpath, )
+            else:
+                print "\t".join(tagpath)
 
 @DDFS.command
 def help(program, *args):
@@ -258,7 +276,6 @@ def urls(program, *tags):
         print '\n'.join('\t'.join(replicas)
                         for replicas in program.ddfs.get(tag)['urls'])
 
-@DDFS.command
 def walk(program, *args):
     """Walks the tag hierarchy..."""
     pass
