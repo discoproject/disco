@@ -18,6 +18,9 @@ class DDFSOptionParser(OptionParser):
                         help='ignore missing tags')
         self.add_option('-n', '--replicas',
                         help='number of replicas to create when pushing')
+        self.add_option('-p', '--prefix',
+                        action='store_true',
+                        help='prefix mode for commands that take it.')
         self.add_option('-r', '--recursive',
                         action='store_true',
                         help='recursively perform operations')
@@ -44,20 +47,28 @@ class DDFS(Program):
         from disco.ddfs import DDFS
         return DDFS(self.settings['DISCO_MASTER'])
 
+    def prefix_mode(self, *tags):
+        from itertools import chain
+        if self.options.prefix:
+            return chain(match
+                         for tag in tags
+                         for match in self.ddfs.list(tag))
+        return tags
+
 @DDFS.command
 def blobs(program, *tags):
-    """Usage: [-i] tag ...
+    """Usage: [-i] [-p] tag ...
 
     List all blobs reachable from tag[s].
     """
     ignore_missing = program.options.ignore_missing
-    for tag in tags:
+    for tag in program.prefix_mode(*tags):
         for replicas in program.ddfs.blobs(tag, ignore_missing=ignore_missing):
             print '\t'.join(replicas)
 
 @DDFS.command
 def cat(program, *tags):
-    """Usage: [-i] tag ...
+    """Usage: [-i] [-p] tag ...
 
     Print all blobs reachable from tag[s] to stdout.
     """
@@ -72,7 +83,7 @@ def cat(program, *tags):
             except Exception, e:
                 sys.stderr.write("%s\n" % e)
         raise Exception("Failed downloading all replicas: %s" % replicas)
-    for tag in tags:
+    for tag in program.prefix_mode(*tags):
         for replicas in program.ddfs.blobs(tag, ignore_missing=ignore_missing):
             sys.stdout.write(curl(replicas))
 
@@ -239,11 +250,11 @@ def touch(program, *tags):
 
 @DDFS.command
 def urls(program, *tags):
-    """Usage: tag ...
+    """Usage: [-p] tag ...
 
     List the urls pointed to by the tag[s].
     """
-    for tag in tags:
+    for tag in program.prefix_mode(*tags):
         print '\n'.join('\t'.join(replicas)
                         for replicas in program.ddfs.get(tag)['urls'])
 
