@@ -138,11 +138,11 @@ def find(program, *tags):
 
     for tag in program.prefix_mode(*tags):
         found = program.ddfs.walk(tag, ignore_missing=ignore_missing)
-        for tagpath, tags, blobs in found:
-            if tags == blobs == None:
-                print "Tag not found: %s" % (tagpath, )
-            elif tags == blobs == () and warn_missing:
-                print "Tag not found: %s" % (tagpath, )
+        for tagpath, subtags, blobs in found:
+            if subtags == blobs == None:
+                print "Tag not found: %s" % "\t".join(tagpath)
+            elif subtags == blobs == () and warn_missing:
+                print "Tag not found: %s" % "\t".join(tagpath)
             else:
                 print "\t".join(tagpath)
 

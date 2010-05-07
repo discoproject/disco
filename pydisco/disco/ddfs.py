@@ -154,19 +154,20 @@ class DDFS(object):
 
         Yields a 3-tuple `(tagpath, tags, blobs)`.
         """
-        tags = blobs = None
+        tagpath += (tagname(tag),)
+
         try:
-            tagpath    += (tagname(tag),)
             urls        = self.get(tag).get('urls', [])
             tags, blobs = partition(urls, tagname)
             tags        = canonizetags(tags)
+            yield tagpath, tags, blobs
         except CommError, e:
             if ignore_missing and e.code == 404:
                 tags = blobs = ()
+                yield tagpath, tags, blobs
             else:
-                raise
-        finally:
-            yield tagpath, tags, blobs
+                yield tagpath, None, None
+                raise e
 
         for next_tag in tags:
             for child in self.walk(next_tag,
