@@ -47,8 +47,9 @@ class DDFS(object):
         Yields only the terminal nodes of the graph (`blobs`).
         """
         for path, tags, blobs in self.walk(tag, ignore_missing=ignore_missing):
-            for replicas in blobs:
-                yield replicas
+            if tags != blobs:
+                for replicas in blobs:
+                    yield replicas
 
     def delete(self, tag):
         return self._request('/ddfs/tag/%s' % tagname(tag), method='DELETE')
