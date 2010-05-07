@@ -237,10 +237,6 @@ def main():
     if not os.path.exists(DISCO_CONF):
         DISCO_CONF = "/etc/disco"
 
-    # disco.py and the disco package are ambiguous. Move the local directory
-    # to the end of the list, to make sure that the disco package is preferred
-    # over disco.py.
-    sys.path.append(sys.path.pop(0))
     # Prefer local Disco over system-wide installation
     sys.path.insert(0, DISCO_PATH)
 

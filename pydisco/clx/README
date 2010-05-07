@@ -1,0 +1,6 @@
+another command line interface library for Python, that does more of the things we want it to:
+
+- decorator-based cli-specification
+- automatic help/usage from docstrings
+- builtin settings mechanism
+- support for controlling pidfile-based servers (e.g. lighttpd or djangoscgi)

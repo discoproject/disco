@@ -122,6 +122,31 @@ class DDFS(object):
     def tag(self, tag, urls):
         return self._request('/ddfs/tag/%s' % tagname(tag), json.dumps(urls))
 
+    def tarblobs(self, tarball, compress=True, include=None, exclude=None):
+        import tarfile, sys, gzip, cStringIO, os
+
+        tar = tarfile.open(tarball)
+
+        for member in tar:
+            if member.isfile():
+                if include and include not in member.name:
+                    continue
+                if exclude and exclude in member.name:
+                    continue
+                if compress:
+                    buf    = cStringIO.StringIO()
+                    gz     = gzip.GzipFile(mode='w', compresslevel=2, fileobj=buf)
+                    size   = self._copy(tar.extractfile(member), gz)
+                    gz.close()
+                    buf.seek(0)
+                    suffix = '_gz'
+                else:
+                    buf    = tar.extractfile(member)
+                    size   = len(buf)
+                    suffix = ''
+                name = DDFS.safe_name(member.name) + suffix
+                yield name, buf, size
+
     def walk(self, tag, ignore_missing=True, tagpath=()):
         """
         Walks the tag graph starting at `tag`.
@@ -145,6 +170,16 @@ class DDFS(object):
                                    ignore_missing=ignore_missing,
                                    tagpath=tagpath):
                 yield child
+
+    def _copy(self, src, dst):
+        s = 0
+        while True:
+            b = src.read(8192)
+            if not b:
+                break
+            s += len(b)
+            dst.write(b)
+        return s
 
     def _maybe_proxy(self, url, method='GET'):
         if self.proxy:
