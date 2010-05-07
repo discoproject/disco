@@ -33,8 +33,8 @@ def tagname(tag):
 class DDFS(object):
     def __init__(self, master=None, proxy=None):
         settings    = DiscoSettings()
-        self.master = master or settings['DISCO_MASTER']
-        self.proxy  = proxy  or settings['DISCO_PROXY']
+        self.proxy  = proxy or settings['DISCO_PROXY']
+        self.master = self.proxy or master or settings['DISCO_MASTER']
 
     @classmethod
     def safe_name(cls, name):
