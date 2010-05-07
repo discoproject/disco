@@ -74,7 +74,7 @@ install-node: master install-ebin install-config install-bin
 
 install-bin:
 	install -d $(TARGETBIN)
-	install -m 0755 bin/disco.py $(TARGETBIN)/disco
+	install -m 0755 bin/discocli.py $(TARGETBIN)/disco
 
 install-pydisco:
 	(cd pydisco; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
