@@ -140,5 +140,7 @@ class Program(object):
     def main(self):
         try:
             return self.dispatch()
+        except KeyboardInterrupt:
+            sys.exit(1)
         except Exception, e:
             sys.exit("%s" % e)
