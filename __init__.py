@@ -104,7 +104,7 @@ class Program(object):
         return ''.join('\n\t%s' % usage for usage in
                        [usage(self.name, self.default)] +
                        [usage('%s %s' % (self.name, name), command)
-                        for name, command in walk(self.commands)])
+                        for name, command in sorted(walk(self.commands))])
 
     def default(self, *args):
         raise Exception("No default command set."
@@ -141,4 +141,4 @@ class Program(object):
         try:
             return self.dispatch()
         except Exception, e:
-            sys.exit('%s' % e)
+            sys.exit("%s" % e)
