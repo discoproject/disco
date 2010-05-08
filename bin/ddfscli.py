@@ -128,7 +128,12 @@ def exists(program, tag):
 def find(program, *tags):
     """Usage: [-i|-w] tag ...
 
-    ...
+    Walk the tag hierarchy starting at tag[s].
+    Prints each path as it is encountered.
+
+    e.g. to walk all tags with prefix 'data:' and warn about broken links:
+
+        ddfs find -wp data:
     """
     ignore_missing = program.options.ignore_missing
     warn_missing   = program.options.warn_missing
@@ -148,6 +153,9 @@ def find(program, *tags):
 
 @DDFS.command
 def help(program, *args):
+    """
+    Print program help.
+    """
     print program
 
 @DDFS.command
@@ -275,10 +283,6 @@ def urls(program, *tags):
     for tag in program.prefix_mode(*tags):
         print '\n'.join('\t'.join(replicas)
                         for replicas in program.ddfs.get(tag)['urls'])
-
-def walk(program, *args):
-    """Walks the tag hierarchy..."""
-    pass
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()

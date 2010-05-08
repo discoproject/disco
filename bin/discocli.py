@@ -102,7 +102,7 @@ class Master(Server):
         return '%s@%s' % (self.name, self.host.split('.', 1)[0])
 
     def nodaemon(self):
-        return ('' for x in self.start(self.basic_args))
+        return ('' for x in self.start(*self.basic_args))
 
     def setid(self):
         user = self.settings['DISCO_USER']
@@ -120,6 +120,11 @@ class Master(Server):
 
 @Disco.command
 def debug(program, host=''):
+    """Usage: [host]
+
+    Connect to master Erlang process via remote shell.
+    Host is only necessary when master is running on a remote machine.
+    """
     master = program.master
     nodename = '%s@%s' % (master.name, host) if host else master.nodename
     args = program.settings['DISCO_ERLANG'].split() + \
@@ -130,27 +135,50 @@ def debug(program, host=''):
     print "closing remote shell to %s (%s)" % (host, nodename)
 
 @Disco.command
+def help(program):
+    """
+    Print program help.
+    """
+    print program
+
+@Disco.command
 def nodaemon(program):
-    for message in program.master.restart():
+    """
+    Start the master in the current process.
+    Note: quitting the shell will stop the master.
+    """
+    for message in program.master.nodaemon():
         print message
 
 @Disco.command
 def restart(program):
+    """
+    Restart the master.
+    """
     for message in program.master.restart():
         print message
 
 @Disco.command
 def start(program):
+    """
+    Start the master.
+    """
     for message in program.master.start():
         print message
 
 @Disco.command
 def status(program):
+    """
+    Display running state of the master.
+    """
     for message in program.master.status():
         print message
 
 @Disco.command
 def stop(program):
+    """
+    Stop the master.
+    """
     for message in program.master.stop():
         print message
 

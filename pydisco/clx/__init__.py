@@ -64,7 +64,7 @@ def usage(name, command):
         match = usage_re.match(line)
         if match:
             return '%s %s' % (name, match.group('usage'))
-    return '%s [options]' % name
+    return name
 
 class Command(object):
     subcommand = command
