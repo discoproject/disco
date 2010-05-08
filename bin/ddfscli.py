@@ -281,8 +281,8 @@ def urls(program, *tags):
     List the urls pointed to by the tag[s].
     """
     for tag in program.prefix_mode(*tags):
-        print '\n'.join('\t'.join(replicas)
-                        for replicas in program.ddfs.get(tag)['urls'])
+        for replicas in program.ddfs.get(tag)['urls']:
+            print '\t'.join(replicas)
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()
