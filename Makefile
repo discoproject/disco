@@ -41,12 +41,12 @@ clean:
 	- rm -Rf master/ebin/*.beam
 	- rm -Rf master/ebin/mochiweb/*.beam
 	- rm -Rf master/ebin/ddfs/*.beam
-	- rm -Rf pydisco/build
-	- rm -Rf pydisco/disco.egg-info
+	- rm -Rf lib/build
+	- rm -Rf lib/disco.egg-info
 	- rm -Rf node/build
 	- rm -Rf node/disco_node.egg-info
 
-install: install-master install-pydisco install-node
+install: install-master install-lib install-node
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
@@ -68,8 +68,8 @@ install-bin:
 	install -m 0755 bin/discocli.py $(TARGETBIN)/disco
 	install -m 0755 bin/ddfscli.py $(TARGETBIN)/ddfs
 
-install-pydisco:
-	(cd pydisco; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
+install-lib:
+	(cd lib; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
 
 install-config:
 	install -d $(TARGETCFG)

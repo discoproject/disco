@@ -206,7 +206,7 @@ that the supervisor is running correctly, the problem might be in the
 
 See what happens with the following command::
 
-        ssh localhost "PATH=~/disco/node PYTHONPATH=~/disco/node:~/disco/pydisco disco-worker"
+        ssh localhost "PATH=~/disco/node PYTHONPATH=~/disco/node:~/disco/lib disco-worker"
 
 It should respond with an error message that includes::
 

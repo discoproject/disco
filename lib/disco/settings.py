@@ -127,8 +127,8 @@ class DiscoSettings(Settings):
         'DISCO_MASTER_ROOT':     "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
         'DISCO_MASTER_CONFIG':   "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
         'DISCO_NAME':            "'disco_%s' % DISCO_PORT",
+        'DISCO_LIB':             "os.path.join(DISCO_HOME, 'lib')",
         'DISCO_LOG_DIR':         "os.path.join(DISCO_HOME, 'log')",
-        'DISCO_PATH':            "os.path.join(DISCO_HOME, 'pydisco')",
         'DISCO_PID_DIR':         "os.path.join(DISCO_HOME, 'run')",
         'DISCO_PORT':            "8989",
         'DISCO_ROOT':            "os.path.join(DISCO_HOME, 'root')",
@@ -138,7 +138,7 @@ class DiscoSettings(Settings):
         'DISCO_USER':            "os.getenv('LOGNAME')",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
-        'PYTHONPATH':            "DISCO_PATH",
+        'PYTHONPATH':            "DISCO_LIB",
 # PROXY
         'DISCO_PROXY':           "''",
         'DISCO_PROXY_PORT':      "8999",
