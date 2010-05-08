@@ -41,10 +41,10 @@ class Server(object):
     def restart(self):
         return chain(self.stop(), self.start())
 
-    def start(self, **kwargs):
+    def start(self, *args, **kwargs):
         if self._status == 'running':
             raise ServerError("%s already started" % self)
-        process = subprocess.Popen(self.args, env=self.env, **kwargs)
+        process = subprocess.Popen(args or self.args, env=self.env, **kwargs)
         if process.wait():
             raise ServerError("Failed to start %s" % self)
         yield '%s started' % self
