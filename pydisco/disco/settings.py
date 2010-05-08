@@ -34,7 +34,7 @@ Possible settings are as follows:
 
         *DISCO_NAME*
                 A unique name for the Disco cluster.
-                Default obtained using ``'disco_%s' % DISCO_SCGI_PORT``.
+                Default obtained using ``'disco_%s' % DISCO_PORT``.
 
         *DISCO_PID_DIR*
                 Directory where pid-files are created.
@@ -50,10 +50,6 @@ Possible settings are as follows:
                 Root directory for Disco-written data and metadata.
                 Default is ``/srv/disco``.
                 ``conf/settings.py.template`` provides a reasonable override.
-
-        *DISCO_SCGI_PORT*
-                The port the Disco master uses for `SCGI` communication.
-                Default is 4444.
 
         *DISCO_ULIMIT*
                 *Temporarily unsupported*.
@@ -71,7 +67,7 @@ Possible settings are as follows:
                 Directory to use for writing master data.
                 Default obtained using ``os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)``.
 
-        *DISCO_CONFIG*
+        *DISCO_MASTER_CONFIG*
                 Directory to use for writing cluster configuration.
                 Default obtained using ``os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)``.
 
@@ -111,32 +107,36 @@ Possible settings are as follows:
                 Parameter controlling how much the ``fair`` scheduler punishes long-running jobs vs. short ones.
                 Default is .001 and should usually not need to be changed.
 """
-
 import os, socket
 
-class DiscoSettings(dict):
+from clx.settings import Settings
+
+class DiscoSettings(Settings):
     defaults = {
-        'DISCO_SETTINGS':        "''",
+        'DISCO_DATA':            "os.path.join(DISCO_ROOT, 'data')",
         'DISCO_DEBUG':           "'off'",
+        'DISCO_ERLANG':          "guess_erlang()",
         'DISCO_EVENTS':          "''",
         'DISCO_FLAGS':           "''",
-        'DISCO_LOG_DIR':         "'/var/log/disco'",
+        'DISCO_HOME':            "guess_home()",
+        'DISCO_HTTPD':           "'lighttpd'",
+        'DISCO_LOCAL_DIR':       "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_MASTER':          "'http://%s:%s' % (DISCO_MASTER_HOST, DISCO_PORT)",
-        'DISCO_MASTER_HOME':     "'/usr/lib/disco'",
+        'DISCO_MASTER_HOME':     "os.path.join(DISCO_HOME, 'master')",
         'DISCO_MASTER_HOST':     "socket.gethostname()",
+        'DISCO_MASTER_ROOT':     "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
+        'DISCO_MASTER_CONFIG':   "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
         'DISCO_NAME':            "'disco_%s' % DISCO_PORT",
-        'DISCO_PID_DIR':         "'/var/run'",
+        'DISCO_LOG_DIR':         "os.path.join(DISCO_HOME, 'log')",
+        'DISCO_PATH':            "os.path.join(DISCO_HOME, 'pydisco')",
+        'DISCO_PID_DIR':         "os.path.join(DISCO_HOME, 'run')",
         'DISCO_PORT':            "8989",
-        'DISCO_ROOT':            "'/srv/disco'",
+        'DISCO_ROOT':            "os.path.join(DISCO_HOME, 'root')",
+        'DISCO_SETTINGS':        "''",
+        'DISCO_SETTINGS_FILE':   "guess_settings()",
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
-        'DISCO_DATA':            "os.path.join(DISCO_ROOT, 'data')",
-        'DISCO_MASTER_ROOT':     "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
-        'DISCO_CONFIG':          "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
-        'DISCO_LOCAL_DIR':       "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
-        'DISCO_ERLANG':          "guess_erlang()",
-        'DISCO_HTTPD':           "'lighttpd'",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_PATH",
 # PROXY
@@ -155,12 +155,14 @@ class DiscoSettings(dict):
         'DDFS_ENABLED':          "'on'",
         'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_PUT_PORT':         "8990",
-        'DDFS_TAG_MIN_REPLICAS': "3",
-        'DDFS_TAG_REPLICAS':     "3",
-        'DDFS_BLOB_REPLICAS':    "3",
+        'DDFS_TAG_MIN_REPLICAS': "1",
+        'DDFS_TAG_REPLICAS':     "1",
+        'DDFS_BLOB_REPLICAS':    "1",
         'DDFS_PUT_MAX':          "3",
         'DDFS_GET_MAX':          "3"
         }
+
+    globals = globals()
 
     must_exist = ('DISCO_DATA',
                   'DISCO_ROOT',
@@ -170,17 +172,7 @@ class DiscoSettings(dict):
                   'DISCO_PID_DIR',
                   'DDFS_ROOT')
 
-    def __init__(self, filename=None, **kwargs):
-        super(DiscoSettings, self).__init__(kwargs)
-        if filename:
-            execfile(filename, {}, self)
-
-    def __getitem__(self, key):
-        if key in os.environ:
-            return os.environ[key]
-        if key not in self:
-            return eval(self.defaults[key], globals(), self)
-        return super(DiscoSettings, self).__getitem__(key)
+    settings_file_var = 'DISCO_SETTINGS_FILE'
 
     @property
     def env(self):
@@ -189,7 +181,26 @@ class DiscoSettings(dict):
         settings['DISCO_SETTINGS'] = ','.join(self.defaults)
         return settings
 
+    def ensuredirs(self):
+        for name in self.must_exist:
+            self.safedir(name)
+
 def guess_erlang():
     if os.uname()[0] == 'Darwin':
         return '/usr/libexec/StartupItemContext erl'
     return 'erl'
+
+def guess_home():
+    from disco.error import DiscoError
+    disco_lib  = os.path.dirname(os.path.realpath(__file__))
+    disco_home = os.path.dirname(os.path.dirname(disco_lib))
+    if os.path.exists(os.path.join(disco_home, '.disco-home')):
+        return disco_home
+    raise DiscoError("DISCO_HOME is not specified, where should Disco live?")
+
+def guess_settings():
+    for settings_file in (os.path.expanduser('~/.disco'),
+                          '/etc/disco/settings.py'):
+        if os.path.exists(settings_file):
+            return settings_file
+    return ''

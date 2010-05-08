@@ -33,7 +33,7 @@ DDFS_TARGET = $(addsuffix .beam, $(basename \
 
 UNAME = $(shell uname)
 
-build: master config
+build: master
 
 master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
 
@@ -49,28 +49,19 @@ clean:
 install: install-master install-pydisco install-node
 
 install-ebin:
-	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb 
+	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
 	install -m 0755 $(MOCHI_TARGET) $(TARGETDIR)/ebin/mochiweb
 	install -m 0755 $(DDFS_TARGET) $(TARGETDIR)/ebin/ddfs
 
 install-master: master install-ebin install-config install-bin
 	install -m 0755 master/ebin/disco.app $(TARGETDIR)/ebin
-	install -m 0755 master/make-lighttpd-proxyconf.py $(TARGETDIR)
 
 	cp -r master/www $(TARGETDIR)
 	chmod -R u=rwX,g=rX,o=rX $(TARGETDIR)/www
 
-	$(if $(wildcard $(TARGETCFG)/lighttpd-master.conf),\
-		$(info lighttpd-master config already exists, skipping),\
-		install -m 0644 conf/lighttpd-master.conf $(TARGETCFG))
-
 install-node: master install-ebin install-config install-bin
 	install -m 0755 node/disco-worker $(TARGETBIN)
-
-	$(if $(wildcard $(TARGETCFG)/lighttpd-worker.conf),\
-		$(info lighttpd-worker config already exists, skipping),\
-		install -m 0644 conf/lighttpd-worker.conf $(TARGETCFG))
 
 install-bin:
 	install -d $(TARGETBIN)
@@ -101,9 +92,3 @@ $(EBIN)/ddfs:
 
 $(EBIN)/mochiweb:
 	- mkdir $(EBIN)/mochiweb
-
-
-config:
-	$(if $(wildcard conf/settings.py),\
-	        $(info not overwriting existing conf/settings.py),\
-                 cp conf/settings.py.template conf/settings.py)

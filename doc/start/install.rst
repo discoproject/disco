@@ -26,8 +26,8 @@ system, to get an idea what should go where and why. To make a long
 story short, Disco works as follows:
 
  * Disco users start Disco jobs in Python scripts.
- * Jobs requests are sent over HTTP to the master that sits behind a Lighttpd web server.
- * Master is an Erlang process that receives requests from Lighttpd over SCGI.
+ * Jobs requests are sent over HTTP to the master.
+ * Master is an Erlang process that receives requests over HTTP.
  * Master launches another Erlang process, worker supervisor, on each node over
    SSH.
  * Worker supervisors run Disco jobs as Python processes.

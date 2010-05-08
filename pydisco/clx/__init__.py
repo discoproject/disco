@@ -89,6 +89,13 @@ class Program(object):
         self.option_parser      = option_parser
         self.options, self.argv = option_parser.parse_args(argv)
 
+        if self.options.settings:
+            if not self.settings_class.settings_file_var:
+                raise Exception("%s does not use a settings file" % self.settings_class)
+            open(self.options.settings)
+            os.environ[self.settings_class.settings_file_var] = self.options.settings
+        self.settings = self.settings_class()
+
     def __call__(self, *args):
         return self.default(*args)
 
@@ -111,12 +118,6 @@ class Program(object):
                         "Override ``default`` in your program subclass.")
 
     def dispatch(self):
-        if self.options.settings:
-            if not self.settings_class.settings_file_var:
-                raise Exception("%s does not use a settings file" % self.settings_class)
-            os.setenv(self.settings_class.settings_file_var, self.options.settings)
-        self.settings = self.settings_class()
-
         if self.options.verbose:
             sys.stdout.write(
                 """
