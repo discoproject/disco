@@ -1,0 +1,16 @@
+#!/bin/bash
+
+src=../src
+
+gcc -O3 -g -Wall -fnested-functions -I $src -c \
+    $src/ddb.c \
+    $src/ddb_cons.c \
+    $src/ddb_valuemap.c \
+    $src/ddb_cnf.c \
+    $src/util.c
+gcc -O3 -g -Wall -fnested-functions -I $src -o create_discodb -lcmph \
+    create_discodb.c \
+    *.o
+gcc -O3 -g -Wall -fnested-functions -I $src -o query_discodb  -lcmph \
+    query_discodb.c \
+    *.o

@@ -9,12 +9,12 @@ else:
 
 discodb_module = Extension('discodb._discodb',
                            sources=['src/discodbmodule.c',
-                                    '../ddb.c',
-                                    '../ddb_cons.c',
-                                    '../ddb_cnf.c',
-                                    '../ddb_valuemap.c',
-                                    '../util.c'],
-                           include_dirs=['..'],
+                                    'src/ddb.c',
+                                    'src/ddb_cons.c',
+                                    'src/ddb_cnf.c',
+                                    'src/ddb_valuemap.c',
+                                    'src/util.c'],
+                           include_dirs=['src'],
                            libraries=['cmph'],
                            extra_compile_args=extra_compile_args,)
 

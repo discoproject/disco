@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-//#include <sys/types.h>
 #include <fcntl.h>
 
 #include <discodb.h>
@@ -43,7 +42,7 @@ static struct ddb_query_clause *parse_cnf(char **tokens, int num, int *num_claus
                 sizeof(struct ddb_query_clause));
 
         clauses[0].terms = terms;
-        
+
         for (t = 0, k = 0, j = 0, i = 0; i < num; i++){
                 if (!strcmp(tokens[i], "&")){
                         clauses[j++].num_terms = i - k;
@@ -81,7 +80,7 @@ static struct ddb *open_discodb(const char *file)
 {
         struct ddb *db;
         int fd;
-        
+
         if (!(db = ddb_new())){
                 fprintf(stderr, "Couldn't initialize discodb: Out of memory\n");
                 exit(1);
@@ -113,13 +112,13 @@ int main(int argc, char **argv)
                 usage();
 
         struct ddb *db = open_discodb(argv[1]);
-        
+
         if (!strcmp(argv[2], "-keys"))
                 print_cursor(db, ddb_keys(db));
-        
+
         else if (!strcmp(argv[2], "-values"))
                 print_cursor(db, ddb_values(db));
-        
+
         else if (!strcmp(argv[2], "-item")){
                 if (argc < 4){
                         fprintf(stderr, "Specify query\n");
