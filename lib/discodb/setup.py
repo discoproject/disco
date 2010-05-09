@@ -1,5 +1,4 @@
 import sys
-
 from distutils.core import setup, Extension
 
 if sys.platform == 'darwin':
@@ -20,10 +19,8 @@ discodb_module = Extension('discodb._discodb',
 
 setup(name='discodb',
       version='0.1',
-      url='',
       description='An efficient, immutable, persistent mapping object.',
       author='Nokia Research Center',
-      author_email='',
       ext_modules=[discodb_module],
       packages=['discodb'],
       package_dir={'discodb': 'src/discodb'})
