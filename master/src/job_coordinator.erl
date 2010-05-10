@@ -223,25 +223,6 @@ kill_job(Name, Msg, P, Type) ->
     gen_server:cast(event_server, {job_done, Name}),
     exit(Type).
 
-move_to_resultfs(_, _, false) -> ok;
-move_to_resultfs(Name, R, _) ->
-    event_server:event(Name, "Moving results to resultfs", [], []),
-    case catch garbage_collect:move_results(R) of
-    ok -> ok;
-    {error, Node, Error} ->
-        kill_job(Name,
-        "ERROR: Moving to resultfs failed on ~s: ~s",
-        [Node, Error], logged_error);
-    timeout ->
-        kill_job(Name,
-        "ERROR: Moving to resultfs failed (timeout)",
-        [], logged_error);
-    Error ->
-        kill_job(Name,
-        "ERROR: Moving to resultfs failed: ~p",
-        [Error], unknown_error)
-    end.
-
 % run_task() is a common supervisor for both the map and reduce tasks.
 % Its main function is to catch and report any errors that occur during
 % work() calls.
@@ -258,10 +239,7 @@ run_task(Inputs, Mode, Name, Job) ->
         "ERROR: Job coordinator failed unexpectedly: ~p",
         [Error], unknown_error)
     end,
-
-    R = [list_to_binary(X) || X <- gb_trees:keys(Results)],
-    move_to_resultfs(Name, R, disco:is_resultfs_enabled()),
-    R.
+    [list_to_binary(X) || X <- gb_trees:keys(Results)].
 
 job_coordinator(Name, Job) ->
     Started = now(),

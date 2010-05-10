@@ -238,9 +238,6 @@ def parse_dir(dir_url, partid = None):
             if partid is None or partid == int(id)]
     settings = DiscoSettings()
     scheme, netloc, path = urlsplit(dir_url)
-    if 'resultfs' in settings['DISCO_FLAGS']:
-        path = '%s/data/%s' % (settings['DISCO_ROOT'], path)
-        return parse_index(open(path))
     url = proxy_url(path, netloc)
     return parse_index(download(url).splitlines())
 
@@ -250,11 +247,6 @@ def load_oob(host, name, key):
           'key': key,
           'proxy': '1' if settings['DISCO_PROXY'] else '0'}
     url = '%s/disco/ctrl/oob_get?%s' % (host, urlencode(params))
-    if 'resultfs' in settings['DISCO_FLAGS']:
-        size, fd = open_remote(url)
-        location = fd.getheader('location').split('/', 3)[-1]
-        path = '%s/data/%s' % (settings['DISCO_ROOT'], location)
-        return open(path).read()
     return download(url, redir=True)
 
 def ddfs_name(jobname):

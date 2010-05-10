@@ -66,11 +66,6 @@ class Task(object):
         raise AttributeError("%s has no attribute %s" % (self, key))
 
     @property
-    def datadir(self):
-        dir = 'temp' if self.has_flag('resultfs') else 'data'
-        return os.path.join(self.root, dir)
-
-    @property
     def dataroot(self):
         return self.settings['DISCO_DATA']
 
@@ -96,7 +91,7 @@ class Task(object):
 
     @property
     def jobroot(self):
-        return os.path.join(self.root, self.datadir, self.home)
+        return os.path.join(self.root, self.dataroot, self.home)
 
     @property
     def port(self):

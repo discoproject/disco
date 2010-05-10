@@ -236,19 +236,7 @@ prepare_environment(Name) ->
     Home = disco_server:jobhome(Name),
     [Path, _] = filename:split(Home),
     check_mkdir(file:make_dir(filename:join(Root, Path))),
-    check_mkdir(file:make_dir(filename:join(Root, Home))),
-    case (disco:is_resultfs_enabled()) of
-        true ->
-            LocalRoot = disco:get_setting("DISCO_LOCAL_DIR"),
-            [Path, _] = filename:split(Home),
-            check_mkdir(file:make_dir(filename:join(LocalRoot, Path))),
-            check_mkdir(file:make_dir(filename:join(LocalRoot, Home))),
-            Dst = filename:join([LocalRoot, Home, "events"]),
-            Src = filename:join([Root, Home, "events"]),
-            ok = file:make_symlink(Dst, Src);
-        false ->
-            ok
-    end.
+    check_mkdir(file:make_dir(filename:join(Root, Home))).
 
 delete_jobdir(Name) ->
     Safe = string:chr(Name, $.) + string:chr(Name, $/),

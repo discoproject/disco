@@ -75,9 +75,6 @@ Possible settings are as follows:
                 Directory to use for writing cluster configuration.
                 Default obtained using ``os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)``.
 
-        *DISCO_LOCAL_DIR*
-                Default obtained using ``os.path.join(DISCO_ROOT, local, '_%s' % DISCO_NAME)``.
-
         *DISCO_WORKER*
                 Executable which launches the Disco worker process.
                 Default obtained using ``os.path.join(DISCO_HOME, node, disco-worker)``.
@@ -133,7 +130,6 @@ class DiscoSettings(dict):
         'DISCO_DATA':            "os.path.join(DISCO_ROOT, 'data')",
         'DISCO_MASTER_ROOT':     "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
         'DISCO_CONFIG':          "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
-        'DISCO_LOCAL_DIR':       "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_ERLANG':          "guess_erlang()",
         'DISCO_HTTPD':           "'lighttpd'",

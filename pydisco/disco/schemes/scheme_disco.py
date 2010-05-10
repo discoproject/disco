@@ -8,7 +8,7 @@ def input_stream(fd, size, url, params):
     """
     scheme, netloc, rest = urlsplit(url)
     prefix, fname = rest.split('/', 1)
-    if netloc == Task.netloc or Task.has_flag('resultfs'):
+    if netloc == Task.netloc:
         if prefix == 'ddfs':
             root = Task.ddfsroot
         else:
