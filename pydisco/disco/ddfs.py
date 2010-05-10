@@ -1,10 +1,10 @@
-import os, re, cStringIO
+import os, re, cStringIO, random
 from urllib import urlencode
 
 from disco.comm import upload, download, json, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
-from disco.util import iterify, partition, urlsplit
+from disco.util import iterify, partition, urlsplit, urlresolve
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
@@ -39,6 +39,10 @@ class DDFS(object):
     @classmethod
     def safe_name(cls, name):
         return unsafe_re.sub('_', name)
+
+    @classmethod
+    def blob_name(cls, url):
+        return url.split('/')[-1].split('$')[0]
 
     def blobs(self, tag, ignore_missing=True):
         """
@@ -95,11 +99,18 @@ class DDFS(object):
     def list(self, prefix=''):
         return self._request('/ddfs/tags/%s' % prefix)
 
-    def pull(self, tag, retries=None):
-        """
-        Pulls the blobs associated with `tag`.
-        """
-        pass
+    def pull(self, tag, blobfilter=lambda x: True):
+        for repl in self.get(tag)['urls']:
+            if blobfilter(self.blob_name(repl[0])):
+                random.shuffle(repl)
+                for url in repl:
+                    try:
+                        yield open_remote(urlresolve(url))
+                        break
+                    except CommError, error:
+                        continue
+                else:
+                    raise error
 
     def push(self, tag, files, replicas=None, retries=None):
         """
