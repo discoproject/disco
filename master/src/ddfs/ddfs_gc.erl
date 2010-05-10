@@ -72,7 +72,6 @@ start_gc() ->
 
 start_gc(DeletedAges) ->
     spawn(fun() -> gc_objects(DeletedAges) end),
-    timer:sleep(100000),
     timer:sleep(?GC_INTERVAL),
     start_gc(DeletedAges).
 
@@ -196,8 +195,8 @@ check_blobsets([Repl|T], {IsFixed, NRepl}) ->
 ddfs_url(<<"disco://", _/binary>> = Url) ->
     {_, Host, Path, _, _} = mochiweb_util:urlsplit(binary_to_list(Url)),
     BlobName = list_to_binary(filename:basename(Path)),
-    case catch erlang:list_to_existing_atom(lists:flatten(["ddfs@", Host])) of
-        {'EXIT', _} ->
+    case node_mon:slave_node_safe(Host) of
+        false ->
             error_logger:warning_report({"GC: Unknown host", Host}),
             {BlobName, unknown};
         Node ->
@@ -313,36 +312,34 @@ process_deleted(Tags, Ages) ->
 
     % Let's start with the current list of deleted tags
     {ok, Deleted} = gen_server:call(ddfs_master,
-        {tag, get_urls, <<"+deleted">>}, ?NODEOP_TIMEOUT),
-   
-    FDeleted = lists:flatten(Deleted),
+        {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT),
+
     % Update the time of death for newly deleted tags
-    [ets:insert_new(Ages, {Tag, Now}) || Tag <- FDeleted],
+    gb_sets:fold(fun(Tag, none) ->
+        ets:insert_new(Ages, {Tag, Now}), none
+    end, none, Deleted),
     % Remove those tags from the candidate set which still have
     % active copies around.
-    DelSet = gb_sets:subtract(gb_sets:from_ordset(FDeleted), TagSet),
-    
-    Remove = 
-        lists:flatten(lists:map(fun({Tag, Age}) ->
-            Diff = timer:now_diff(Now, Age) / 1000,
-            case gb_sets:is_member(Tag, DelSet) of
-                false ->
-                    % Copies of tag still alive, remove from Ages
-                    ets:delete(Ages, Tag),
-                    [];
-                true when Diff > ?DELETED_TAG_EXPIRES ->
-                    % Tag ready to be removed from +deleted
-                    Tag;
-                true ->
-                    % Tag hasn't been dead long enough to 
-                    % be removed from +deleted
-                    []
-            end
-        end, ets:tab2list(Ages))),
+    DelSet = gb_sets:subtract(Deleted, TagSet),
+    error_logger:info_report({"DELE", DelSet}),
 
-    if Remove == [] -> ok;
-    true ->
-        gen_server:call(ddfs_master,
-            {tag, {remove, Remove}, <<"+deleted">>}, ?NODEOP_TIMEOUT)
-    end.
-
+    lists:foreach(fun({Tag, Age}) ->
+        Diff = timer:now_diff(Now, Age) / 1000,
+        error_logger:info_report({"TAG", Tag, "Diff", Diff}),
+        case gb_sets:is_member(Tag, DelSet) of
+            false ->
+                error_logger:info_report({"TAG", Tag, "alive"}),
+                % Copies of tag still alive, remove from Ages
+                ets:delete(Ages, Tag);
+            true when Diff > ?DELETED_TAG_EXPIRES ->
+                % Tag ready to be removed from +deleted
+                error_logger:info_report({"REMOVE DELETED", Tag}),
+                gen_server:call(ddfs_master, {tag, {remove_deleted, Tag},
+                    <<"+deleted">>}, ?TAG_UPDATE_TIMEOUT);
+            true ->
+                error_logger:info_report({"TAG", Tag, "too young"}),
+                ok
+                % Tag hasn't been dead long enough to
+                % be removed from +deleted
+        end
+    end, ets:tab2list(Ages)).

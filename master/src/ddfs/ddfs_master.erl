@@ -137,13 +137,21 @@ get_tags(all, Nodes) ->
 get_tags(filter, Nodes) ->
     {OkNodes, Failed, Tags} = get_tags(all, Nodes),
     {ok, Deleted} = gen_server:call(ddfs_master,
-        {tag, get_urls, <<"+deleted">>}, ?NODEOP_TIMEOUT),
-    TagSet = gb_sets:from_ordset(Tags),
-    DelSet0 = gb_sets:from_ordset(
-        [T || [<<"tag://", T/binary>>] <- Deleted]),
-    DelSet = gb_sets:insert(<<"+deleted">>, DelSet0),
-    {OkNodes, Failed, gb_sets:to_list(gb_sets:subtract(TagSet, DelSet))}.
-    
+        {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT),
+    TagSet = gb_sets:from_ordset([[<<"tag://", T/binary>>] || T <- Tags]),
+    DelSet = gb_sets:insert([<<"tag://+deleted">>], Deleted),
+    {OkNodes, Failed, [T || [<<"tag://", T/binary>>]
+        <- gb_sets:to_list(gb_sets:subtract(TagSet, DelSet))]};
+
+get_tags(safe, Nodes) ->
+    TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
+    case get_tags(filter, Nodes) of
+        {_OkNodes, Failed, Tags} when length(Failed) < TagMinK ->
+            {ok, Tags};
+        _ ->
+            too_many_failed_nodes
+    end.
+
 monitor_diskspace() ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     {Replies, _} = gen_server:multi_call(Nodes,
