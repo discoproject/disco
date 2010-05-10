@@ -135,13 +135,11 @@ wait_workers(0, _Res, _Name, _Mode) ->
 
 wait_workers(N, Results, Name, Mode) ->
     receive
-    {{job_ok, {OobKeys, Result}}, Task, Node} ->
+    {{job_ok, Result}, Task, Node} ->
         event_server:event(Name,
         "Received results from ~s:~B @ ~s.",
             [Task#task.mode, Task#task.taskid, Node],
             {task_ready, Mode}),
-        gen_server:cast(oob_server,
-        {store, Name, Node, OobKeys}),
         % We may get a multiple instances of the same result
         % address but only one of them must be taken into
         % account. That's why we use gb_trees instead of a list.

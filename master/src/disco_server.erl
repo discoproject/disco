@@ -67,7 +67,7 @@ init(_Args) ->
     {ok, _} = fair_scheduler:start_link(),
     {ok, #state{workers = gb_trees:empty(),
                 nodes = gb_trees:empty(),
-                purged = gb_sets:empty()}}.
+                purged = gb_trees:empty()}}.
 
 update_nodes(Nodes) ->
     WhiteNodes = [{N#dnode.name, N#dnode.slots} ||
@@ -149,8 +149,16 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
 
 handle_cast({purge_job, JobName}, #state{purged = Purged} = S) ->
     handle_call({clean_job, JobName}, none, S),
-    {noreply, S#state{purged =
-        gb_sets:add({list_to_binary(JobName), now()}, Purged)}};
+    ddfs:delete(ddfs_master, disco:oob_name(JobName)),
+    Key = list_to_binary(JobName),
+    NPurged =
+        case gb_trees:is_defined(Key, Purged) of
+            true ->
+                Purged;
+            false ->
+                gb_trees:insert(Key, now(), Purged)
+        end,
+    {noreply, S#state{purged = NPurged}};
 
 handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
     V = gb_trees:lookup(Pid, S#state.workers),
@@ -225,10 +233,10 @@ handle_call({get_nodeinfo, all}, _From, S) ->
 
 handle_call(get_purged, _, #state{purged = Purged} = S) ->
     Now = now(),
-    NPurged = gb_sets:filter(fun({_Job, TStamp}) ->
-        timer:now_diff(Now, TStamp) > ?PURGE_TIMEOUT * 1000
-    end, Purged),
-    {reply, {ok, NPurged}, S#state{purged = NPurged}};
+    NPurged = gb_trees:from_orddict(
+        [{Job, TStamp} || {Job, TStamp} <- gb_trees:to_list(Purged),
+            timer:now_diff(Now, TStamp) < ?PURGE_TIMEOUT * 1000]),
+    {reply, {ok, gb_trees:keys(NPurged)}, S#state{purged = NPurged}};
 
 handle_call(get_num_cores, _, #state{nodes = Nodes} = S) ->
     NumCores = lists:sum([N#dnode.slots || N <- gb_trees:values(Nodes)]),

@@ -9,7 +9,7 @@ The :func:`external` function below comes in handy if you use the Disco
 external interface.
 """
 import os
-import cPickle, marshal, sys, time, traceback
+import cPickle, cStringIO, marshal, sys, time, traceback, random
 import copy_reg, functools
 
 from collections import defaultdict
@@ -18,7 +18,7 @@ from types import CodeType, FunctionType
 from urllib import urlencode
 
 from disco.comm import download, open_remote
-from disco.error import DiscoError, DataError
+from disco.error import DiscoError, DataError, CommError
 from disco.events import Message
 from disco.settings import DiscoSettings
 
@@ -241,16 +241,23 @@ def parse_dir(dir_url, partid = None):
     url = proxy_url(path, netloc)
     return parse_index(download(url).splitlines())
 
+def save_oob(host, name, key, value):
+    from disco.ddfs import DDFS
+    DDFS(host).push(ddfs_oobname(name), [(cStringIO.StringIO(value), key)])
+
 def load_oob(host, name, key):
-    settings = DiscoSettings()
-    params = {'name': name,
-          'key': key,
-          'proxy': '1' if settings['DISCO_PROXY'] else '0'}
-    url = '%s/disco/ctrl/oob_get?%s' % (host, urlencode(params))
-    return download(url, redir=True)
+    from disco.ddfs import DDFS
+    # NB: this assumes that blobs are listed in LIFO order.
+    # We want to return the latest version
+    for fd, sze, url in DDFS(host).pull(ddfs_oobname(name),
+                                        blobfilter=lambda x: x == key):
+        return fd.read()
 
 def ddfs_name(jobname):
     return 'disco:job:results:%s' % jobname
+
+def ddfs_oobname(jobname):
+    return 'disco:job:oob:%s' % jobname
 
 def ddfs_save(blobs, name, master):
     from disco.ddfs import DDFS

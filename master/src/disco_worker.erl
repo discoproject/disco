@@ -14,8 +14,7 @@
         linecount, errlines,
         results,
         debug,
-        last_event, event_counter,
-        oob, oob_counter}).
+        last_event, event_counter}).
 
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
@@ -89,8 +88,6 @@ init([Id, EventServer, Master, JobUrl, Task, Node, Debug]) ->
             start_time = now(),
             last_event = now(),
             event_counter = 0,
-            oob = [],
-            oob_counter = 0,
             errlines = message_buffer:new(?ERRLINES_MAX),
             debug = Debug,
             results = []}}.
@@ -144,7 +141,7 @@ handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
 
 handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, S) ->
     event({"END", "Task finished in " ++ disco_server:format_time(S#state.start_time)}, S),
-    {stop, worker_exit(S, {job_ok, {S#state.oob, S#state.results}}), S};
+    {stop, worker_exit(S, {job_ok, S#state.results}), S};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
     error(Message, S);
@@ -152,16 +149,6 @@ handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
 handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
     % event({"PID", "Child PID is " ++ ChildPID}, S),
     {noreply, S#state{child_pid = ChildPID}};
-
-handle_event({event, {<<"OOB">>, _Time, _Tags, {_Key, _Path}}}, S)
-        when S#state.oob_counter >= ?OOB_MAX ->
-    Reason = "OOB message limit exceeded. Too many put() calls.",
-    error(Reason, S);
-
-handle_event({event, {<<"OOB">>, _Time, _Tags, {Key, Path}}}, S) ->
-    event({"OOB", "OOB put " ++ Key ++ " at " ++ Path}, S),
-    {noreply, S#state{oob = [{Key, Path}|S#state.oob],
-              oob_counter = S#state.oob_counter + 1}};
 
 handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
     % event({"OUT", "Results at " ++ Results}, S),

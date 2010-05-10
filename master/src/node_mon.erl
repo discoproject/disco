@@ -89,7 +89,7 @@ start_temp_gc(NodeAtom, Node) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
     GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
     spawn_link(NodeAtom, temp_gc, start_link,
-        [whereis(disco_server), whereis(event_server),
+        [whereis(disco_server), whereis(event_server), whereis(ddfs_master),
          DataRoot, Node, GCAfter]).
 
 start_ddfs_node(NodeAtom, {GetEnabled, PutEnabled}) ->

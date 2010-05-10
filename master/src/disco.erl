@@ -1,6 +1,9 @@
 -module(disco).
 
--export([get_setting/1, has_setting/1, settings/0]).
+-export([get_setting/1, has_setting/1, settings/0, oob_name/1]).
+
+oob_name(JobName) ->
+    lists:flatten(["disco:job:oob:", JobName]).
 
 get_setting(SettingName) ->
     case os:getenv(SettingName) of

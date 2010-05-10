@@ -75,29 +75,6 @@ getop("parameters", {_Query, Name}) ->
 getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");
 
-getop("oob_get", {Query, Name}) ->
-    {value, {_, Key}} = lists:keysearch("key", 1, Query),
-    Proxy = lists:keysearch("proxy", 1, Query),
-    case {Proxy, gen_server:call(oob_server, {fetch,
-            list_to_binary(Name), list_to_binary(Key)})} of
-        {P, {ok, {Node, Path}}} when P == false;
-                P == {value, {"proxy", "0"}} ->
-            {relo, ["http://", Node, ":",
-                os:getenv("DISCO_PORT"), "/disco/", Path]};
-        {_, {ok, {Node, Path}}} ->
-            {ok, MasterUrl} = application:get_env(disco_url),
-            [_, H|_] = string:tokens(MasterUrl, "/"),
-            {relo, ["http://", H,
-                "/disco/node/", Node, "/", Path]};
-        {_, error} -> not_found
-    end;
-
-getop("oob_list", {_Query, Name}) ->
-    case gen_server:call(oob_server, {list, list_to_binary(Name)}) of
-        {ok, Keys} -> {ok, Keys};
-        error -> not_found
-    end;
-
 getop("jobevents", {Query, Name}) ->
     {value, {_, NumS}} = lists:keysearch("num", 1, Query),
     Num = list_to_integer(NumS),
