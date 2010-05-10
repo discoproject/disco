@@ -10,7 +10,9 @@
 -record(dnode, {name, node_mon, blacklisted, slots, num_running,
         stats_ok, stats_failed, stats_crashed}).
 
--record(state, {workers, nodes}).
+-record(state, {workers, nodes, purged}).
+
+-define(PURGE_TIMEOUT, 86400000). % 24h
 
 start_link() ->
     error_logger:info_report([{"DISCO SERVER STARTS"}]),
@@ -63,7 +65,9 @@ format_time(T) ->
 init(_Args) ->
     process_flag(trap_exit, true),
     {ok, _} = fair_scheduler:start_link(),
-    {ok, #state{workers = gb_trees:empty(), nodes = gb_trees:empty()}}.
+    {ok, #state{workers = gb_trees:empty(),
+                nodes = gb_trees:empty(),
+                purged = gb_sets:empty()}}.
 
 update_nodes(Nodes) ->
     WhiteNodes = [{N#dnode.name, N#dnode.slots} ||
@@ -143,33 +147,10 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
     true -> {noreply, S}
     end;
 
-handle_cast({purge_job, JobName}, S) ->
-    % SECURITY NOTE! This function leads to the following command
-    % being executed:
-    %
-    % os:cmd("rm -Rf " ++ filename:join([Root, JobName]))
-    %
-    % Evidently, if JobName is not checked correctly, this function
-    % can be used to remove any directory in the system. This function
-    % is totally unsuitable for untrusted environments!
-    C0 = string:chr(JobName, $.) + string:chr(JobName, $/),
-    C1 = string:chr(JobName, $@),
-    if C0 =/= 0 orelse C1 == 0 ->
-        error_logger:warning_report(
-            {"Tried to purge an invalid job", JobName});
-    true ->
-        spawn_link(fun() ->
-            Root = disco:get_setting("DISCO_MASTER_ROOT"),
-            handle_call({clean_job, JobName}, none, S),
-            Nodes = [lists:flatten(["dir://", Node, "/", Node, "/",
-                jobhome(JobName), "/null"]) || #dnode{name = Node}
-                    <- gb_trees:values(S#state.nodes)],
-            garbage_collect:remove_job(Nodes),
-            garbage_collect:remove_dir(
-                filename:join([Root, jobhome(JobName)]))
-        end)
-    end,
-    {noreply, S};
+handle_cast({purge_job, JobName}, #state{purged = Purged} = S) ->
+    handle_call({clean_job, JobName}, none, S),
+    {noreply, S#state{purged =
+        gb_sets:add({list_to_binary(JobName), now()}, Purged)}};
 
 handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
     V = gb_trees:lookup(Pid, S#state.workers),
@@ -241,6 +222,13 @@ handle_call({get_nodeinfo, all}, _From, S) ->
                            {blacklisted, not (N#dnode.blacklisted == false)}]}
                     || N <- gb_trees:values(S#state.nodes)],
     {reply, {ok, {Available, Active}}, S};
+
+handle_call(get_purged, _, #state{purged = Purged} = S) ->
+    Now = now(),
+    NPurged = gb_sets:filter(fun({_Job, TStamp}) ->
+        timer:now_diff(Now, TStamp) > ?PURGE_TIMEOUT * 1000
+    end, Purged),
+    {reply, {ok, NPurged}, S#state{purged = NPurged}};
 
 handle_call(get_num_cores, _, #state{nodes = Nodes} = S) ->
     NumCores = lists:sum([N#dnode.slots || N <- gb_trees:values(Nodes)]),

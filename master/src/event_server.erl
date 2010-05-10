@@ -137,6 +137,7 @@ handle_cast({job_done, JobName}, {Events, MsgBuf} = S) ->
 
 handle_cast({clean_job, JobName}, {Events, _MsgBuf} = S) ->
     {_, {_, MsgBufN}} = handle_cast({job_done, JobName}, S),
+    delete_jobdir(JobName),
     {noreply, {dict:erase(JobName, Events), MsgBufN}}.
 
 handle_info(Msg, State) ->
@@ -247,6 +248,15 @@ prepare_environment(Name) ->
             ok = file:make_symlink(Dst, Src);
         false ->
             ok
+    end.
+
+delete_jobdir(Name) ->
+    Safe = string:chr(Name, $.) + string:chr(Name, $/),
+    if Safe =:= 0 ->
+        Root = disco:get_setting("DISCO_MASTER_ROOT"),
+        Home = disco_server:jobhome(Name),
+        os:cmd("rm -Rf " ++ filename:join(Root, Home));
+    true -> ok
     end.
 
 job_event_handler(JobName, JobCoordinator) ->

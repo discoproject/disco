@@ -74,6 +74,7 @@ node_monitor(Node, WebConfig) ->
     process_flag(trap_exit, true),
     NodeAtom = slave_node(Node),
     start_ddfs_node(NodeAtom, WebConfig),
+    start_temp_gc(NodeAtom, Node),
     monitor_node(NodeAtom, true),
     receive
         {'EXIT', _, Reason} ->
@@ -83,6 +84,13 @@ node_monitor(Node, WebConfig) ->
         E ->
             error_logger:info_report({"Erroneous message (node_mon)", E})
     end.
+
+start_temp_gc(NodeAtom, Node) ->
+    DataRoot = disco:get_setting("DISCO_DATA"),
+    GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
+    spawn_link(NodeAtom, temp_gc, start_link,
+        [whereis(disco_server), whereis(event_server),
+         DataRoot, Node, GCAfter]).
 
 start_ddfs_node(NodeAtom, {GetEnabled, PutEnabled}) ->
     Enabled = disco:get_setting("DDFS_ENABLED"),

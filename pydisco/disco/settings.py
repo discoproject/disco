@@ -139,6 +139,8 @@ class DiscoSettings(dict):
         'DISCO_HTTPD':           "'lighttpd'",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_PATH",
+# GC
+        'DISCO_GC_AFTER':        "3153600000",
 # PROXY
         'DISCO_PROXY':           "''",
         'DISCO_PROXY_PORT':      "8999",
