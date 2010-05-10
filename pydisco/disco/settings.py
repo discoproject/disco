@@ -55,10 +55,6 @@ Possible settings are as follows:
                 The port the Disco master uses for `SCGI` communication.
                 Default is 4444.
 
-        *DISCO_ULIMIT*
-                *Temporarily unsupported*.
-                Default is 16000000.
-
         *DISCO_USER*
                 The user Disco should run as.
                 Default obtained using ``os.getenv(LOGNAME)``.
@@ -125,7 +121,6 @@ class DiscoSettings(dict):
         'DISCO_PID_DIR':         "'/var/run'",
         'DISCO_PORT':            "8989",
         'DISCO_ROOT':            "'/srv/disco'",
-        'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
         'DISCO_DATA':            "os.path.join(DISCO_ROOT, 'data')",
         'DISCO_MASTER_ROOT':     "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
