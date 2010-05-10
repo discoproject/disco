@@ -56,10 +56,10 @@ getop("load_config_table", _Query) ->
     disco_config:get_config_table();
 
 getop("joblist", _Query) ->
-    {ok, JobNames} = gen_server:call(event_server, get_jobnames),
-    {ok, [[1000000 * MSec + Sec, job_status(JobName), list_to_binary(JobName)]
-            || {{MSec, Sec, _USec}, JobName, _} <-
-                lists:reverse(lists:keysort(1, JobNames))]};
+    {ok, Jobs} = gen_server:call(event_server, get_jobs),
+    {ok, [[1000000 * MSec + Sec, list_to_binary(atom_to_list(Status)), Name] ||
+        {Name, Status, {MSec, Sec, _USec}, _Pid}
+            <- lists:reverse(lists:keysort(3, Jobs))]};
 
 getop("jobinfo", {_Query, Name}) ->
     {ok, {Nodes, Tasks}} =
@@ -194,13 +194,6 @@ job_file(Name, File) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
     Home = disco_server:jobhome(Name),
     {file, File, filename:join([Root, Home])}.
-
-job_status(JobName) ->
-    case gen_server:call(event_server, {get_results, JobName}) of
-        {active, _} -> <<"job_active">>;
-        {dead, _} -> <<"job_died">>;
-        {ready, _, _} -> <<"job_ready">>
-    end.
 
 update_setting("max_failure_rate", Val, App) ->
     ok = application:set_env(App, max_failure_rate,
