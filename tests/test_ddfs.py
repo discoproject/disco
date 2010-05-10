@@ -38,7 +38,8 @@ class DDFSReadTestCase(DiscoTestCase):
     def setUp(self):
         from cStringIO import StringIO
         self.ddfs = DDFS(self.disco_master_url)
-        self.ddfs.push('disco:test:blobs', [(StringIO('blobdata'), 'blobdata')])
+        self.ddfs.push('disco:test:blobs', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:blobs', [(StringIO('datablob2'), 'blobdata2')])
         self.ddfs.tag('disco:test:tag', [['urls']])
         self.ddfs.tag('disco:test:metatag',
                       [['tag://disco:test:tag'], ['tag://disco:test:metatag']])
@@ -48,9 +49,20 @@ class DDFSReadTestCase(DiscoTestCase):
         blobs = list(self.ddfs.blobs('disco:test:blobs'))
         self.assert_(basename(blobs[0][0]).startswith('blobdata'))
         self.assertCommErrorCode(404,
-                                 lambda: self.ddfs.blobs('disco:test:notag',
-                                                         ignore_missing=False))
+                                 lambda: list(self.ddfs.blobs('disco:test:notag',
+                                                         ignore_missing=False)))
         self.assertEquals(list(self.ddfs.blobs('disco:test:notag')), [])
+
+    def test_pull(self):
+        self.assertEquals([(self.ddfs.blob_name(url), fd.read())
+            for fd, sze, url in self.ddfs.pull('disco:test:blobs')],
+                [('blobdata2', 'datablob2'), ('blobdata', 'datablob')])
+        self.assertEquals([(self.ddfs.blob_name(url), fd.read())
+            for fd, sze, url in self.ddfs.pull('disco:test:blobs',
+                blobfilter=lambda b: '2' in b)],
+                    [('blobdata2', 'datablob2')])
+        self.assertCommErrorCode(404,
+            lambda: list(self.ddfs.pull('disco:test:notag')))
 
     def test_exists(self):
         self.assertEquals(self.ddfs.exists(''), False)
@@ -73,9 +85,6 @@ class DDFSReadTestCase(DiscoTestCase):
         self.assert_('disco:test:tag' in self.ddfs.list())
         self.assert_('disco:test:tag' in self.ddfs.list('disco:test'))
         self.assertEquals(self.ddfs.list('disco:test:notag'), [])
-
-    def test_pull(self):
-        self.ddfs.pull('disco:test:tag')
 
     def test_walk(self):
         list(self.ddfs.walk('disco:test:tag'))

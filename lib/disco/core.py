@@ -133,8 +133,8 @@ class Disco(object):
         OOB data is stored by the tasks of job *name*,
         using the :func:`disco_worker.put` function.
         """
-        r = self.request('/disco/ctrl/oob_list?name=%s' % name, redir=True)
-        return json.loads(r)
+        return list(set(self.ddfs.blob_name(repl[0])
+            for repl in self.ddfs.get(util.ddfs_oobname(name))['urls']))
 
     def profile_stats(self, name, mode=''):
         """

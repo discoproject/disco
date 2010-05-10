@@ -51,10 +51,6 @@ Possible settings are as follows:
                 Default is ``/srv/disco``.
                 ``conf/settings.py.template`` provides a reasonable override.
 
-        *DISCO_ULIMIT*
-                *Temporarily unsupported*.
-                Default is 16000000.
-
         *DISCO_USER*
                 The user Disco should run as.
                 Default obtained using ``os.getenv(LOGNAME)``.
@@ -70,9 +66,6 @@ Possible settings are as follows:
         *DISCO_MASTER_CONFIG*
                 Directory to use for writing cluster configuration.
                 Default obtained using ``os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)``.
-
-        *DISCO_LOCAL_DIR*
-                Default obtained using ``os.path.join(DISCO_ROOT, local, '_%s' % DISCO_NAME)``.
 
         *DISCO_WORKER*
                 Executable which launches the Disco worker process.
@@ -139,6 +132,8 @@ class DiscoSettings(Settings):
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_LIB",
+# GC
+        'DISCO_GC_AFTER':        "3153600000",
 # PROXY
         'DISCO_PROXY':           "''",
         'DISCO_PROXY_PORT':      "8999",
@@ -152,7 +147,6 @@ class DiscoSettings(Settings):
         'DISCO_SCHEDULER':       "'fair'",
         'DISCO_SCHEDULER_ALPHA': ".001",
 # DDFS
-        'DDFS_ENABLED':          "'on'",
         'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_PUT_PORT':         "8990",
         'DDFS_TAG_MIN_REPLICAS': "1",

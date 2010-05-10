@@ -5,7 +5,7 @@ from discodb import DiscoDB, Q
 def input_stream(fd, size, url, params):
     scheme, netloc, rest = util.urlsplit(url)
 
-    if netloc == Task.netloc or Task.has_flag('resultfs'):
+    if netloc == Task.netloc:
         path, rest   = rest.split('!', 1) if '!' in rest else (rest, '')
         Task.discodb = DiscoDB.load(open(os.path.join(Task.root, path)))
 

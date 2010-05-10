@@ -113,12 +113,7 @@ handle_cast({{put, Urls}, ReplyTo}, S) ->
             end,
             gen_server:reply(ReplyTo, {ok, DestUrls}),
             S1 = S#state{data = TagData, replicas = DestNodes},
-            if S#state.url_cache == false ->
-                {noreply, S1, ?TAG_EXPIRES};
-            true ->
-                {noreply, S1#state{url_cache = lists:usort(Urls)},
-                    ?TAG_EXPIRES}
-            end;
+            {noreply, S1, ?TAG_EXPIRES};
         {error, _} = E ->
             gen_server:reply(ReplyTo, E),
             {noreply, S, ?TAG_EXPIRES_ONERROR}
@@ -126,28 +121,26 @@ handle_cast({{put, Urls}, ReplyTo}, S) ->
 
 % Special operations for the +deleted metatag
 
-handle_cast({get_urls, ReplyTo}, #state{data = notfound} = S) ->
-    gen_server:reply(ReplyTo, {ok, []}),
+handle_cast(M, #state{url_cache = false, data = notfound} = S) ->
+    handle_cast(M, S#state{url_cache = gb_sets:empty()});
+
+handle_cast(M, #state{url_cache = false, data = Data} = S) ->
+    {ok, Urls} = parse_tagurls(Data),
+    handle_cast(M, S#state{url_cache = gb_sets:from_list(Urls)});
+
+handle_cast({{insert_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
+    DeletedU = gb_sets:add(Url, Deleted),
+    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo},
+        S#state{url_cache = DeletedU});
+
+handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
+    gen_server:reply(ReplyTo, {ok, Deleted}),
     {noreply, S, S#state.timeout};
 
-handle_cast({get_urls, _} = M, #state{url_cache = false} = S) ->
-    {ok, Urls} = parse_tagurls(S#state.data),
-    handle_cast(M, S#state{url_cache = lists:usort(Urls)});
-
-handle_cast({get_urls, ReplyTo}, #state{url_cache = Urls} = S) ->
-    gen_server:reply(ReplyTo, {ok, Urls}),
-    {noreply, S, S#state.timeout};
-
-handle_cast({{remove, Urls}, ReplyTo}, S) ->
-    {ok, OldUrls} =
-        if S#state.url_cache == false ->
-            parse_tagurls(S#state.data);
-        true ->
-            {ok, S#state.url_cache}
-        end,
-    NewUrls = [U || [_|_] = U <- [R -- Urls || R <- OldUrls]],
-    handle_cast({{put, NewUrls}, ReplyTo}, S).
-
+handle_cast({{remove_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
+    DeletedU = gb_sets:delete_any(Url, Deleted),
+    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo},
+        S#state{url_cache = DeletedU}).
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -267,22 +260,13 @@ put_commit({TagName, TagData}, TagVol) ->
 is_tag_deleted(<<"+deleted">>) -> false;
 is_tag_deleted(Tag) ->
     case gen_server:call(ddfs_master,
-            {tag, get_urls, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
+            {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
         {ok, Deleted} ->
-            lists:member(Tag, [T || [<<"tag://", T/binary>>] <- Deleted]);
+            gb_sets:is_member([<<"tag://", Tag/binary>>], Deleted);
         E -> E
     end.
 
 remove_from_deleted(Tag) ->
-    gen_server:call(ddfs_master, {tag, {remove, [<<"tag://", Tag/binary>>]},
+    gen_server:call(ddfs_master, {tag, {remove_deleted, [<<"tag://", Tag/binary>>]},
         <<"+deleted">>}, ?NODEOP_TIMEOUT).
-    
-
-
-    
-    
-    
-
-
-                    
 

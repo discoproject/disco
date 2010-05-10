@@ -74,6 +74,7 @@ node_monitor(Node, WebConfig) ->
     process_flag(trap_exit, true),
     NodeAtom = slave_node(Node),
     start_ddfs_node(NodeAtom, WebConfig),
+    start_temp_gc(NodeAtom, Node),
     monitor_node(NodeAtom, true),
     receive
         {'EXIT', _, Reason} ->
@@ -84,24 +85,27 @@ node_monitor(Node, WebConfig) ->
             error_logger:info_report({"Erroneous message (node_mon)", E})
     end.
 
+start_temp_gc(NodeAtom, Node) ->
+    DataRoot = disco:get_setting("DISCO_DATA"),
+    GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
+    spawn_link(NodeAtom, temp_gc, start_link,
+        [whereis(disco_server), whereis(event_server), whereis(ddfs_master),
+         DataRoot, Node, GCAfter]).
+
 start_ddfs_node(NodeAtom, {GetEnabled, PutEnabled}) ->
-    Enabled = disco:get_setting("DDFS_ENABLED"),
-    if Enabled =:= "on" ->
-        DdfsRoot = disco:get_setting("DDFS_ROOT"),
-        DiscoRoot = disco:get_setting("DISCO_DATA"),
-        PutMax = list_to_integer(disco:get_setting("DDFS_PUT_MAX")),
-        GetMax = list_to_integer(disco:get_setting("DDFS_GET_MAX")),
-        PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
-        GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
-        Args = [{nodename, string:sub_word(atom_to_list(NodeAtom), 2, $@)},
-                {ddfs_root, DdfsRoot}, {disco_root, DiscoRoot},
-                {put_max, PutMax}, {get_max, GetMax},
-                {put_port, PutPort}, {get_port, GetPort},
-                {get_enabled, GetEnabled},
-                {put_enabled, PutEnabled}],
-        spawn_link(NodeAtom, ddfs_node, start_link, [Args]);
-    true -> ok
-    end.
+    DdfsRoot = disco:get_setting("DDFS_ROOT"),
+    DiscoRoot = disco:get_setting("DISCO_DATA"),
+    PutMax = list_to_integer(disco:get_setting("DDFS_PUT_MAX")),
+    GetMax = list_to_integer(disco:get_setting("DDFS_GET_MAX")),
+    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
+    GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
+    Args = [{nodename, string:sub_word(atom_to_list(NodeAtom), 2, $@)},
+            {ddfs_root, DdfsRoot}, {disco_root, DiscoRoot},
+            {put_max, PutMax}, {get_max, GetMax},
+            {put_port, PutPort}, {get_port, GetPort},
+            {get_enabled, GetEnabled},
+            {put_enabled, PutEnabled}],
+    spawn_link(NodeAtom, ddfs_node, start_link, [Args]).
 
 blacklist(Node) ->
     error_logger:info_report({"Blacklisting", Node,

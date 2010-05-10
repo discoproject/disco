@@ -89,9 +89,13 @@ class DiscoTestCase(TestCase):
     def assertCommErrorCode(self, code, callable):
         from disco.error import CommError
         try:
-            callable()
+            ret = callable()
         except CommError, e:
-            self.assertEquals(code, e.code)
+            return self.assertEquals(code, e.code)
+        except Exception, e:
+            raise AssertionError('CommError not raised, got %s' % e)
+        raise AssertionError('CommError not raised (expected %d), '
+            'returned %s' % (code, ret))
 
     def run(self, result=None):
         self.is_running = True

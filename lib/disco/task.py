@@ -5,6 +5,7 @@ from itertools import chain
 from types import FunctionType
 
 from disco import func, comm
+from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError
 from disco.events import Message, OutputURL, OOBData, TaskFailed
@@ -12,7 +13,8 @@ from disco.fileutils import AtomicFile
 from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
-from disco.util import ddfs_save, iskv, load_oob, netloc, urllist
+from disco.util import ddfs_oobname, ddfs_save, iskv,\
+                       save_oob, load_oob, netloc, urllist
 
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
@@ -66,11 +68,6 @@ class Task(object):
         raise AttributeError("%s has no attribute %s" % (self, key))
 
     @property
-    def datadir(self):
-        dir = 'temp' if self.has_flag('resultfs') else 'data'
-        return os.path.join(self.root, dir)
-
-    @property
     def dataroot(self):
         return self.settings['DISCO_DATA']
 
@@ -96,7 +93,7 @@ class Task(object):
 
     @property
     def jobroot(self):
-        return os.path.join(self.root, self.datadir, self.home)
+        return os.path.join(self.root, self.dataroot, self.home)
 
     @property
     def port(self):
@@ -171,13 +168,11 @@ class Task(object):
         """
         Stores an out-of-band result *value* with the key *key*. Key must be unique in
         this job. Maximum key length is 256 characters. Only characters in the set
-        ``[a-zA-Z_\-:0-9]`` are allowed in the key.
+        ``[a-zA-Z_\-:0-9@]`` are allowed in the key.
         """
-        if oob_chars.match(key):
+        if DDFS.safe_name(key) != key:
             raise DiscoError("OOB key contains invalid characters (%s)" % key)
-        if value is not None:
-            file(self.oob_file(key), 'w').write(value)
-        OOBData(key, self)
+        save_oob(self.master, self.jobname, key, value)
 
     def get(self, key, job=None):
         """

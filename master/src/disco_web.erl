@@ -56,10 +56,10 @@ getop("load_config_table", _Query) ->
     disco_config:get_config_table();
 
 getop("joblist", _Query) ->
-    {ok, JobNames} = gen_server:call(event_server, get_jobnames),
-    {ok, [[1000000 * MSec + Sec, job_status(JobName), list_to_binary(JobName)]
-            || {{MSec, Sec, _USec}, JobName, _} <-
-                lists:reverse(lists:keysort(1, JobNames))]};
+    {ok, Jobs} = gen_server:call(event_server, get_jobs),
+    {ok, [[1000000 * MSec + Sec, list_to_binary(atom_to_list(Status)), Name] ||
+        {Name, Status, {MSec, Sec, _USec}, _Pid}
+            <- lists:reverse(lists:keysort(3, Jobs))]};
 
 getop("jobinfo", {_Query, Name}) ->
     {ok, {Nodes, Tasks}} =
@@ -74,29 +74,6 @@ getop("parameters", {_Query, Name}) ->
 
 getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");
-
-getop("oob_get", {Query, Name}) ->
-    {value, {_, Key}} = lists:keysearch("key", 1, Query),
-    Proxy = lists:keysearch("proxy", 1, Query),
-    case {Proxy, gen_server:call(oob_server, {fetch,
-            list_to_binary(Name), list_to_binary(Key)})} of
-        {P, {ok, {Node, Path}}} when P == false;
-                P == {value, {"proxy", "0"}} ->
-            {relo, ["http://", Node, ":",
-                os:getenv("DISCO_PORT"), "/disco/", Path]};
-        {_, {ok, {Node, Path}}} ->
-            {ok, MasterUrl} = application:get_env(disco_url),
-            [_, H|_] = string:tokens(MasterUrl, "/"),
-            {relo, ["http://", H,
-                "/disco/node/", Node, "/", Path]};
-        {_, error} -> not_found
-    end;
-
-getop("oob_list", {_Query, Name}) ->
-    case gen_server:call(oob_server, {list, list_to_binary(Name)}) of
-        {ok, Keys} -> {ok, Keys};
-        error -> not_found
-    end;
 
 getop("jobevents", {Query, Name}) ->
     {value, {_, NumS}} = lists:keysearch("num", 1, Query),
@@ -194,13 +171,6 @@ job_file(Name, File) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
     Home = disco_server:jobhome(Name),
     {file, File, filename:join([Root, Home])}.
-
-job_status(JobName) ->
-    case gen_server:call(event_server, {get_results, JobName}) of
-        {active, _} -> <<"job_active">>;
-        {dead, _} -> <<"job_died">>;
-        {ready, _, _} -> <<"job_ready">>
-    end.
 
 update_setting("max_failure_rate", Val, App) ->
     ok = application:set_env(App, max_failure_rate,

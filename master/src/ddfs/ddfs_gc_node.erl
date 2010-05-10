@@ -63,7 +63,6 @@ handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
 
 handle_file(Obj, _, Vol, Ets, _) ->
     % We could check a checksum of Obj here
-    error_logger:info_report({"Found file", Obj}),
     ets:insert(Ets, {list_to_binary(Obj), Vol, false}).
 
 %%%
