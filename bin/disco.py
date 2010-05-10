@@ -179,10 +179,7 @@ class worker(server):
         return '%s_slave' % self.disco_settings['DISCO_NAME']
 
     def send(self, command):
-        if not self.disco_settings['DDFS_ENABLED']:
-            return self.lighttpd.send(command)
-        else:
-            return []
+        return self.lighttpd.send(command)
 
 class debug(object):
     def __init__(self, disco_settings):

@@ -145,7 +145,6 @@ class DiscoSettings(dict):
         'DISCO_SCHEDULER':       "'fair'",
         'DISCO_SCHEDULER_ALPHA': ".001",
 # DDFS
-        'DDFS_ENABLED':          "'on'",
         'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_PUT_PORT':         "8990",
         'DDFS_TAG_MIN_REPLICAS': "3",
