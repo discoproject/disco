@@ -21,7 +21,7 @@
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 
--define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
+-define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~w' ~s").
 
 port_options() ->
     [{line, 100000}, binary, exit_status,
@@ -101,8 +101,8 @@ init([Id, EventServer, Master, JobUrl, Task, Node, Debug]) ->
             debug = Debug,
             results = []}}.
 
-spawn_cmd(#state{task = T, node = Node, job_url = JobUrl}) ->
-    Args = [T#task.mode, T#task.jobname, Node, JobUrl, T#task.taskid, T#task.chosen_input],
+spawn_cmd(#state{task = T, node = Node}) ->
+    Args = [T#task.mode, T#task.jobname, Node, T#task.taskid, T#task.chosen_input],
     lists:flatten(io_lib:fwrite(?CMD, Args)).
 
 worker_exit(#state{id = Id, master = Master}, Msg) ->

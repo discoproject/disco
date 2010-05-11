@@ -41,14 +41,12 @@ class Task(object):
                  inputs=None,
                  jobdict=None,
                  jobname='',
-                 master=None,
                  settings=DiscoSettings()):
         self.netloc   = netloc.parse(netlocstr)
         self.id       = int(id)
         self.inputs   = inputs
         self.jobdict  = jobdict
         self.jobname  = jobname
-        self.master   = master
         self.settings = settings
         self._blobs   = []
 
@@ -94,6 +92,10 @@ class Task(object):
     @property
     def jobroot(self):
         return os.path.join(self.root, self.dataroot, self.home)
+
+    @property
+    def master(self):
+        return self.settings['DISCO_MASTER']
 
     @property
     def port(self):
