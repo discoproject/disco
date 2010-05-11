@@ -8,7 +8,7 @@ ESRC = master/src
 EBIN = master/ebin
 
 DESTDIR=/
-PREFIX=/usr
+PREFIX=/usr/local
 SYSCONFDIR=/etc
 BIN_DIR = $(PREFIX)/bin/
 INSTALL_DIR = $(PREFIX)/lib/disco/
@@ -46,7 +46,7 @@ clean:
 	- rm -Rf node/build
 	- rm -Rf node/disco_node.egg-info
 
-install: install-master install-lib install-node
+install: install-master install-lib install-node install-discodb
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
@@ -70,6 +70,10 @@ install-bin:
 
 install-lib:
 	(cd lib; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
+
+install-discodb:
+	(cd contrib/discodb; \
+	$(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
 
 install-config:
 	install -d $(TARGETCFG)
