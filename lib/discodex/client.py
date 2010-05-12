@@ -1,9 +1,7 @@
-import fileinput, httplib, urllib, urlparse
-
-from discodb import Q
+import httplib, urllib, urlparse
 
 from core import DiscodexError
-from objects import json, DataSet, MetaSet, Indices, Index, Results, Query
+from objects import DataSet, MetaSet, Indices, Index, Results, Query
 
 class ResourceNotFound(DiscodexError):
     pass
@@ -16,10 +14,9 @@ class DiscodexServerError(DiscodexError):
     pass
 
 class DiscodexClient(object):
-    def __init__(self, host, port, options=None):
+    def __init__(self, host, port):
         self.host = host
         self.port = port
-        self.options = options
 
     @property
     def netloc(self):
@@ -77,32 +74,3 @@ class DiscodexClient(object):
     def query(self, indexspec, query):
         query = Query(query_path=query.urlformat())
         return Results.loads(self.request('POST', '%s/query/' % self.indexurl(indexspec), query.dumps()).read())
-
-class CommandLineClient(DiscodexClient):
-    def put(self, indexspec, *args):
-        index = Index.loads(''.join(fileinput.input(args)))
-        return super(CommandLineClient, self).put(indexspec, index)
-
-    def index(self, *args):
-        dataset = DataSet(options=self.options,
-                          input=[line.strip() for line in fileinput.input(args)])
-        return super(CommandLineClient, self).index(dataset)
-
-    def metaindex(self, indexspec):
-        metaset = MetaSet(options=self.options,
-                          urls=self.get(indexspec).ichunks)
-        return super(CommandLineClient, self).metaindex(metaset)
-
-    def clone(self, indexaspec, indexbspec):
-        index = self.get(indexaspec)
-        index['origin'] = self.indexurl(indexaspec)
-        super(CommandLineClient, self).put(indexbspec, index)
-
-    def query(self, indexspec, *args):
-        query = Q.scan(' '.join(args), and_op=' ', or_op=',')
-        return super(CommandLineClient, self).query(indexspec, query)
-
-    def send(self, command, *args):
-        result = getattr(self, command)(*args)
-        if result is not None:
-            yield json.dumps(result)
