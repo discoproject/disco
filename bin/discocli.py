@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import optparse, os, subprocess, signal, socket, sys
+import os, subprocess, socket, sys
 
 from clx import OptionParser, Program
 from clx.server import Server
