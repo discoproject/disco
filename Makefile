@@ -75,6 +75,10 @@ install-discodb:
 	(cd contrib/discodb; \
 	$(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
 
+install-discodex:
+	(cd contrib/discodex; \
+	$(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
+
 install-config:
 	install -d $(TARGETCFG)
 
