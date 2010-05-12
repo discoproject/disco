@@ -1,4 +1,5 @@
 *.pyc
+build/
 doc/.build/
 etc/purge
 etc/settings.py
