@@ -46,7 +46,7 @@ clean:
 	- rm -Rf node/build
 	- rm -Rf node/disco_node.egg-info
 
-install: install-master install-lib install-node install-discodb
+install: install-master install-lib install-node
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
