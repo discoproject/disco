@@ -3,8 +3,8 @@ import errno, os
 from django.db import models
 from django.http import Http404, HttpResponse, HttpResponseServerError
 
-from restapi.resource import Resource, Collection
-from restapi.resource import (HttpResponseAccepted,
+from discodex.restapi.resource import Resource, Collection
+from discodex.restapi.resource import (HttpResponseAccepted,
                               HttpResponseCreated,
                               HttpResponseNoContent,
                               HttpResponseServiceUnavailable)

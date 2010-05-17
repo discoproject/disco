@@ -1,15 +1,24 @@
 import os
 
-class DiscodexSettings(dict):
+from clx.settings import Settings
+from disco.settings import guess_settings
+
+def guess_home():
+    from discodex.core import DiscodexError
+    discodex_lib  = os.path.dirname(os.path.realpath(__file__))
+    discodex_home = os.path.dirname(os.path.dirname(discodex_lib))
+    if os.path.exists(os.path.join(discodex_home, '.discodex-home')):
+        return discodex_home
+    raise DiscodexError("DISCODEX_HOME is not specified, where should Discodex live?")
+
+class DiscodexSettings(Settings):
     defaults = {
-        'DISCODEX_MODULE':       "os.path.dirname(os.path.realpath(__file__))",
-        'DISCODEX_LIB':          "os.path.dirname(DISCODEX_MODULE)",
-        'DISCODEX_HOME':         "os.path.dirname(DISCODEX_LIB)",
+        'DISCODEX_HOME':         "guess_home()",
+        'DISCODEX_SETTINGS':     "guess_settings()",
         'DISCODEX_ETC_DIR':      "os.path.join(DISCODEX_HOME, 'etc')",
         'DISCODEX_LOG_DIR':      "os.path.join(DISCODEX_HOME, 'log')",
         'DISCODEX_PID_DIR':      "os.path.join(DISCODEX_HOME, 'run')",
         'DISCODEX_WWW_ROOT':     "os.path.join(DISCODEX_HOME, 'www')",
-        'DISCODEX_SETTINGS':     "os.path.join(DISCODEX_ETC_DIR, 'settings.py')",
         'DISCODEX_PURGE_FILE':   "os.path.join(DISCODEX_ETC_DIR, 'purge')",
         'DISCODEX_HTTP_HOST':    "'localhost'",
         'DISCODEX_HTTP_PORT':    "8080",
@@ -21,25 +30,5 @@ class DiscodexSettings(dict):
         'DISCODEX_INDEX_PREFIX': "'discodex'",
         }
 
-    def __init__(self, **kwargs):
-        super(DiscodexSettings, self).__init__(kwargs)
-        execfile(self['DISCODEX_SETTINGS'], {}, self)
-
-    def __getitem__(self, key):
-        if key in os.environ:
-            return os.environ[key]
-        if key not in self:
-            return eval(self.defaults[key], globals(), self)
-        return super(DiscodexSettings, self).__getitem__(key)
-
-    def safedir(self, key):
-        path = self[key]
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
-
-    @property
-    def env(self):
-        settings = os.environ.copy()
-        settings.update(dict((k, str(self[k])) for k in self.defaults))
-        return settings
+    globals = globals()
+    settings_file_var = 'DISCODEX_SETTINGS'
