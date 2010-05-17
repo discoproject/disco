@@ -1,8 +1,8 @@
-# Disco settings
+#!/bin/bash
 # This file is used by "make install" on Linux.
-# If you modify DISCO_HOME below, be sure to modify INSTALL_DIR accordingly
-# in Makefile and vice versa.
 
+cat << EOF
+# Disco settings
 import os
 
 DISCO_USER = "disco"
@@ -11,8 +11,7 @@ DISCO_USER = "disco"
 # -- You can modify these directories as you wish
 # --
 
-# This must equal to the INSTALL_DIR in Makefile
-DISCO_HOME = "/usr/lib/disco"
+DISCO_HOME = "${INSTALL_DIR}"
 
 # Root directory for Disco data.
 DISCO_ROOT = "/srv/disco/"
@@ -28,7 +27,7 @@ DISCO_PID_DIR = "/var/run/disco/"
 # --
 
 # disco_worker is installed by setuptools to the system default bin directory
-DISCO_WORKER = "/usr/bin/disco-worker"
+DISCO_WORKER = "${BIN_DIR}/disco-worker"
 
 DISCO_MASTER_HOME = DISCO_HOME
 
@@ -43,3 +42,5 @@ DISCO_PORT = 8989
 DDFS_TAG_MIN_REPLICAS = 3
 DDFS_TAG_REPLICAS     = 3
 DDFS_BLOB_REPLICAS    = 3
+
+EOF

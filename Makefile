@@ -84,7 +84,10 @@ install-config:
 
 	$(if $(wildcard $(TARGETCFG)/settings.py),\
 		$(info disco config already exists, skipping),\
-		install -m 0644 conf/settings.py.sys-$(UNAME) $(TARGETCFG)/settings.py)
+		(INSTALL_DIR=$(INSTALL_DIR) BIN_DIR=$(BIN_DIR) \
+		 conf/gen.settings.sys-$(UNAME) > $(TARGETCFG)/settings.py || \
+		 rm $(TARGETCFG)/settings.py; \
+                 chmod 644  $(TARGETCFG)/settings.py))
 
 $(EBIN)/mochiweb/%.beam: $(ESRC)/mochiweb/%.erl
 	$(CC) $(OPT) -o $(EBIN)/mochiweb/ $<
