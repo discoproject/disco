@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import os, subprocess, socket, sys
+import os, sys
+import fileinput
 
 from clx import OptionParser, Program
 from clx.server import Server
@@ -18,13 +19,14 @@ class Disco(Program):
             raise Exception("unrecognized command: %s" % ' '.join(args))
         print "Disco master located at %s" % self.settings['DISCO_MASTER']
 
-    def disco(self):
-        from disco.core import Disco
-        return Disco(self.settings['DISCO_MASTER'])
-
     def main(self):
         self.settings.ensuredirs()
         super(Disco, self).main()
+
+    @property
+    def disco(self):
+        from disco.core import Disco
+        return Disco(self.settings['DISCO_MASTER'])
 
     @property
     def master(self):
@@ -73,7 +75,8 @@ class Master(Server):
 
     @property
     def host(self):
-        return socket.gethostname()
+        from socket import gethostname
+        return gethostname()
 
     @property
     def port(self):
@@ -125,21 +128,23 @@ def debug(program, host=''):
     Connect to master Erlang process via remote shell.
     Host is only necessary when master is running on a remote machine.
     """
+    from subprocess import Popen
     master = program.master
     nodename = '%s@%s' % (master.name, host) if host else master.nodename
     args = program.settings['DISCO_ERLANG'].split() + \
            ['-remsh', nodename,
             '-sname', '%s_remsh' % os.getpid()]
-    if subprocess.Popen(args).wait():
+    if Popen(args).wait():
         raise Exception("Could not connect to %s (%s)" % (host, nodename))
     print "closing remote shell to %s (%s)" % (host, nodename)
 
 @Disco.command
-def help(program):
+def help(program, *args):
     """
-    Print program help.
+    Print program or command help.
     """
-    print program
+    command, leftover = program.search(args)
+    print command
 
 @Disco.command
 def nodaemon(program):
@@ -194,6 +199,37 @@ def test(program, *tests):
     os.environ.update(program.settings.env)
     sys.path.insert(0, program.tests_path)
     DiscoTestRunner(program.settings).run(*tests)
+
+@Disco.command
+def deref(program, *files):
+    """Usage: [file ...]
+
+    Dereference the dir:// urls in file[s] or stdin and print them to stdout.
+    """
+    from disco.util import parse_dir
+    for line in fileinput.input(files):
+        for url in parse_dir(line.strip()):
+            print url
+
+@Disco.command
+def mapresults(program, jobname):
+    """Usage: jobname
+
+    Print the list of results from the map phase of a job.
+    This is useful for resuming a job which has failed during reduce.
+    """
+    for result in program.disco.mapresults(jobname):
+        print result
+
+@Disco.command
+def results(program, jobname):
+    """Usage: jobname
+
+    Print the list of results for a completed job.
+    """
+    status, results = program.disco.results(jobname)
+    for result in results:
+           print result
 
 if __name__ == '__main__':
     Disco(option_parser=DiscoOptionParser()).main()
