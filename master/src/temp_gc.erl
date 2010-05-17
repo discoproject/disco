@@ -18,10 +18,15 @@ loop() ->
     case catch {gen_server:call(get(master), get_purged),
                 gen_server:call(get(events), get_jobs)} of
         {{ok, Purged}, {ok, Jobs}} ->
-            {ok, Dirs} = prim_file:list_dir(get(root)),
-            Active = gb_sets:from_list(
-                [Name || {Name, active, _Start, _Pid} <- Jobs]),
-            process_dir(Dirs, gb_sets:from_ordset(Purged), Active);
+            case prim_file:list_dir(get(root)) of
+                {ok, Dirs} ->
+                    Active = gb_sets:from_list(
+                        [Name || {Name, active, _Start, _Pid} <- Jobs]),
+                    process_dir(Dirs, gb_sets:from_ordset(Purged), Active);
+                _ ->
+                    % fresh install, try again after GC_INTERVAL
+                    ok
+            end;
         _ ->
             % master busy, try again after GC_INTERVAL
             ok
