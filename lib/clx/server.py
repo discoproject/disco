@@ -4,10 +4,6 @@ from itertools import chain
 class ServerError(Exception):
     pass
 
-def safedir(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
-
 class Server(object):
     """
     Server is an abstract base class.

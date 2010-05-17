@@ -131,7 +131,7 @@ class Program(object):
                        '\n\t\t'.join('%s = %s' % item
                                      for item in sorted(self.settings.env.iteritems()))))
 
-        command, args = search(self, self.argv)
+        command, args = self.search(self.argv)
 
         if self.options.help:
             sys.stdout.write("%s\n" % command)
@@ -145,3 +145,6 @@ class Program(object):
             sys.exit(1)
         except Exception, e:
             sys.exit("%s" % e)
+
+    def search(self, args):
+        return search(self, args)
