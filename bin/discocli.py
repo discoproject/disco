@@ -9,9 +9,9 @@ from clx.server import Server
 class DiscoOptionParser(OptionParser):
     def __init__(self, **kwargs):
         OptionParser.__init__(self, **kwargs)
-        self.add_option('-p', '--print-env',
+        self.add_option('-S', '--status',
                         action='store_true',
-                        help='print the parsed disco environment and exit')
+                        help='show job status when printing jobs')
 
 class Disco(Program):
     def default(self, program, *args):
@@ -201,6 +201,15 @@ def test(program, *tests):
     DiscoTestRunner(program.settings).run(*tests)
 
 @Disco.command
+def config(program):
+    """Usage:
+
+    Print the disco master configuration.
+    """
+    for config in program.disco.config:
+        print "\t".join(config)
+
+@Disco.command
 def deref(program, *files):
     """Usage: [file ...]
 
@@ -212,6 +221,34 @@ def deref(program, *files):
             print url
 
 @Disco.command
+def jobdict(program, jobname):
+    """Usage: jobname
+
+    Print the jobdict for the named job.
+    """
+    print jobname
+    for key, value in program.disco.jobdict(jobname).iteritems():
+        print "\t%s\t%s" % (key, value)
+
+@Disco.command
+def jobs(program):
+    """Usage: [-S]
+
+    Print a list of disco jobs and optionally their statuses.
+    """
+    for offset, status, job in program.disco.joblist():
+        print "%s\t%s" % (job, status) if program.options.status else job
+
+@Disco.command
+def kill(program, *jobnames):
+    """Usage: jobname ...
+
+    Kill the named jobs.
+    """
+    for jobname in jobnames:
+        program.disco.kill(jobname)
+
+@Disco.command
 def mapresults(program, jobname):
     """Usage: jobname
 
@@ -220,6 +257,24 @@ def mapresults(program, jobname):
     """
     for result in program.disco.mapresults(jobname):
         print result
+
+@Disco.command
+def pstats(program, jobname):
+    """Usage: jobname
+
+    Print the profiling statistics for the named job.
+    Assumes the job was run with profile flag enabled.
+    """
+    program.disco.profile_stats(jobname).print_stats()
+
+@Disco.command
+def purge(program, *jobnames):
+    """Usage: jobname ...
+
+    Purge the named jobs.
+    """
+    for jobname in jobnames:
+        program.disco.purge(jobname)
 
 @Disco.command
 def results(program, jobname):
