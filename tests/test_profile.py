@@ -27,4 +27,4 @@ class ProfileTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @property
     def answers(self):
-        return {'gutta': '10', 'cavat': '20', 'capidem': '10'}
+        return {'gutta': 10, 'cavat': 20, 'capidem': 10}
