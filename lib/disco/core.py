@@ -27,7 +27,7 @@ newly started job.
         :members:
 .. autofunction:: result_iterator
 """
-import sys, os, time, cStringIO, marshal
+import sys, os, time, marshal
 from tempfile import NamedTemporaryFile
 from itertools import chain
 
@@ -200,7 +200,8 @@ class Disco(object):
         self.request('/disco/ctrl/purge_job', '"%s"' % name)
 
     def jobdict(self, name):
-        return JobDict.unpack(self.jobpack(name))
+        from cStringIO import StringIO
+        return JobDict.unpack(StringIO(self.jobpack(name)))
 
     def jobpack(self, name):
         return self.request('/disco/ctrl/parameters?name=%s' % name, redir=True)
@@ -835,6 +836,7 @@ class JobDict(util.DefaultDict):
     @classmethod
     def unpack(cls, jobpack, globals={}):
         """Unpack the previously packed :class:`JobDict`."""
+
         jobdict = cls.defaults.copy()
         jobdict.update(**decode_netstring_fd(jobpack))
 
