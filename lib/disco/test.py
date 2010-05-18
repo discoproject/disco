@@ -149,6 +149,10 @@ class DiscoJobTestFixture(object):
                 int(self.disco_settings['DISCO_TEST_PORT']))
 
     @property
+    def profile(self):
+        return bool(self.disco_settings['DISCO_TEST_PROFILE'])
+
+    @property
     def results(self):
         return result_iterator(self.job.wait(), reader=self.result_reader)
 

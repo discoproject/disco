@@ -142,6 +142,7 @@ class DiscoSettings(Settings):
 # TESTING
         'DISCO_TEST_HOST':       "socket.gethostname()",
         'DISCO_TEST_PORT':       "9444",
+        'DISCO_TEST_PROFILE':    "''",
         'DISCO_TEST_PURGE':      "'purge'",
 # SCHEDULER
         'DISCO_SCHEDULER':       "'fair'",
