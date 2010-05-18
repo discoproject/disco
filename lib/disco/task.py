@@ -255,7 +255,7 @@ class Task(object):
         filename = 'profile-%s-%s' % (self.__class__.__name__, self.id)
         path     = self.path('OOB_FILE', filename)
         prof.runctx('self._run()', globals(), locals(), path)
-        self.put(filename, None)
+        self.put(filename, file(path).read())
 
 class Map(Task):
     def _run(self):
