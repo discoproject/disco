@@ -259,6 +259,25 @@ def mapresults(program, jobname):
         print result
 
 @Disco.command
+def oob(program, jobname):
+    """Usage: jobname
+
+    Print the oob keys for the named job.
+    """
+    from disco.core import Job
+    for key in Job(program.disco, jobname).oob_list():
+        print key
+
+@oob.subcommand
+def get(program, key, jobname):
+    """Usage: key jobname
+
+    Print the oob value for the given key and jobname.
+    """
+    from disco.core import Job
+    print Job(program.disco, jobname).oob_get(key)
+
+@Disco.command
 def pstats(program, jobname):
     """Usage: jobname
 

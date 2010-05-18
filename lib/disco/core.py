@@ -133,8 +133,9 @@ class Disco(object):
         OOB data is stored by the tasks of job *name*,
         using the :func:`disco_worker.put` function.
         """
-        return list(set(self.ddfs.blob_name(repl[0])
-            for repl in self.ddfs.get(util.ddfs_oobname(name))['urls']))
+        urls = self.ddfs.get(util.ddfs_oobname(name))['urls']
+        return list(set(self.ddfs.blob_name(replicas[0])
+                        for replicas in urls))
 
     def profile_stats(self, name, mode=''):
         """
@@ -1049,7 +1050,6 @@ def disk_buffer(tempdir, in_stream):
 
 class Stats(object):
     def __init__(self, prof_data):
-        import marshal
         self.stats = marshal.loads(prof_data)
 
     def create_stats(self):
