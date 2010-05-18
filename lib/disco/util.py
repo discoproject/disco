@@ -8,10 +8,11 @@ internally.
 The :func:`external` function below comes in handy if you use the Disco
 external interface.
 """
-import os
-import cPickle, cStringIO, marshal, sys, time, traceback, random
+import os, sys
+import cPickle, marshal, time
 import copy_reg, functools
 
+from cStringIO import StringIO
 from collections import defaultdict
 from itertools import chain, repeat
 from types import CodeType, FunctionType
@@ -243,7 +244,7 @@ def parse_dir(dir_url, partid = None):
 
 def save_oob(host, name, key, value):
     from disco.ddfs import DDFS
-    DDFS(host).push(ddfs_oobname(name), [(cStringIO.StringIO(value), key)])
+    DDFS(host).push(ddfs_oobname(name), [(StringIO(value), key)])
 
 def load_oob(host, name, key):
     from disco.ddfs import DDFS
