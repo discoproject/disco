@@ -199,6 +199,9 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
     def result_reader(self, m):
         return disco.func.netstr_reader
 
+    def profile(self, m):
+        return bool(self.disco_settings['DISCO_TEST_PROFILE'])
+
     def results(self, m):
         return result_iterator(self.jobs[m].wait(),
                        reader=getattr(self, 'result_reader_%d' % (m + 1)))
@@ -210,7 +213,7 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
         try:
             return super(DiscoMultiJobTestFixture, self).__getattribute__(name)
         except AttributeError:
-            for prefix in ('input', 'results', 'result_reader'):
+            for prefix in ('input', 'profile', 'results', 'result_reader'):
                 if name.startswith('%s_' % prefix):
                     attribute, n = name.rsplit('_', 1)
                     return getattr(self, attribute)(int(n) - 1)
