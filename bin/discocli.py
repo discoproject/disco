@@ -9,6 +9,10 @@ from clx.server import Server
 class DiscoOptionParser(OptionParser):
     def __init__(self, **kwargs):
         OptionParser.__init__(self, **kwargs)
+        self.add_option('-k', '--sort-stats',
+                        action='append',
+                        default=[],
+                        help='keys to use for sorting profiling statistics')
         self.add_option('-S', '--status',
                         action='store_true',
                         help='show job status when printing jobs')
@@ -284,7 +288,8 @@ def pstats(program, jobname):
     Print the profiling statistics for the named job.
     Assumes the job was run with profile flag enabled.
     """
-    program.disco.profile_stats(jobname).print_stats()
+    sort_stats = program.options.sort_stats or ['cumulative']
+    program.disco.profile_stats(jobname).sort_stats(*sort_stats).print_stats()
 
 @Disco.command
 def purge(program, *jobnames):
