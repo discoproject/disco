@@ -135,6 +135,7 @@ class DiscoSettings(Settings):
 # GC
         'DISCO_GC_AFTER':        "3153600000",
 # PROXY
+        'DISCO_PROXY_ENABLED':   "'off'",
         'DISCO_PROXY':           "''",
         'DISCO_PROXY_PORT':      "8999",
         'DISCO_PROXY_PID':       "os.path.join(DISCO_ROOT, '%s-proxy.pid' % DISCO_NAME)",
