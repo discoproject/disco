@@ -1,7 +1,7 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_link/1, start_link_remote/4]).
+-export([start_link/1, start_link_remote/5]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
     terminate/2, code_change/3]).
 
@@ -29,10 +29,11 @@ port_options() ->
      {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}] ++
       [{Setting, disco:get_setting(Setting)} || Setting <- disco:settings()]}].
 
-start_link_remote(Master, Eventserver, Node, Task) ->
+start_link_remote(Master, Eventserver, Node, NodeMon, Task) ->
     {ok, JobUrl} = application:get_env(disco_url),
     Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
     NodeAtom = node_mon:slave_node(Node),
+    wait_until_node_ready(NodeMon),
     spawn_link(NodeAtom, disco_worker, start_link,
            [[self(), Eventserver, Master, JobUrl, Task, Node, Debug]]),
     process_flag(trap_exit, true),
@@ -46,6 +47,14 @@ start_link_remote(Master, Eventserver, Node, Task) ->
         exit({worker_dies, {"Worker did not start in 60s", []}})
     end,
     wait_for_exit().
+
+wait_until_node_ready(NodeMon) ->
+    NodeMon ! {is_ready, self()},
+    receive
+        node_ready -> ok
+    after 30000 ->
+        exit({worker_dies, {"Node unavailable", []}})
+    end.
 
 wait_for_exit() ->
     receive
