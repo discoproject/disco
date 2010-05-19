@@ -94,7 +94,10 @@ install-config:
 install-examples:
 	cp -r examples $(TARGETDIR)/examples
 
-install-tests:
+install-ext:
+	cp -r ext $(TARGETDIR)/ext
+
+install-tests: install-ext
 	cp -r tests $(TARGETDIR)/tests
 
 $(EBIN)/mochiweb/%.beam: $(ESRC)/mochiweb/%.erl
