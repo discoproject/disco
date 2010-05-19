@@ -16,11 +16,11 @@ class ExternalTestCase(DiscoJobTestFixture, DiscoTestCase):
         else:
             home = self.disco_settings['DISCO_HOME']
             check_call(['gcc', '-g', '-O3', '-static', '-Wall',
-                        '-l', 'Judy',
                         '-I', path.join(home, 'ext'),
                         '-o', path.join(home, 'tests', 'test_external'),
                         path.join(home, 'ext', 'disco.c'),
-                        path.join(home, 'tests', 'test_external.c')],
+                        path.join(home, 'tests', 'test_external.c'),
+                        '-l', 'Judy'],
                        stderr=STDOUT)
             self.map = external([path.join(home, 'tests', 'test_external')])
             super(ExternalTestCase, self).setUp()
