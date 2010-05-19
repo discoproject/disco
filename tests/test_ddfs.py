@@ -40,6 +40,7 @@ class DDFSReadTestCase(DiscoTestCase):
         self.ddfs = DDFS(self.disco_master_url)
         self.ddfs.push('disco:test:blobs', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.push('disco:test:blobs', [(StringIO('datablob2'), 'blobdata2')])
+        self.ddfs.push('disco:test:emptyblob', [(StringIO(''), 'empty')])
         self.ddfs.tag('disco:test:tag', [['urls']])
         self.ddfs.tag('disco:test:metatag',
                       [['tag://disco:test:tag'], ['tag://disco:test:metatag']])
@@ -61,6 +62,8 @@ class DDFSReadTestCase(DiscoTestCase):
             for fd, sze, url in self.ddfs.pull('disco:test:blobs',
                 blobfilter=lambda b: '2' in b)],
                     [('blobdata2', 'datablob2')])
+        self.assertEquals([(sze, fd.read()) for fd, sze, url in
+            self.ddfs.pull('disco:test:emptyblob')], [(0, '')])
         self.assertCommErrorCode(404,
             lambda: list(self.ddfs.pull('disco:test:notag')))
 
@@ -91,5 +94,6 @@ class DDFSReadTestCase(DiscoTestCase):
 
     def tearDown(self):
         self.ddfs.delete('disco:test:blobs')
+        self.ddfs.delete('disco:test:emptyblob')
         self.ddfs.delete('disco:test:tag')
         self.ddfs.delete('disco:test:metatag')
