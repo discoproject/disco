@@ -49,9 +49,13 @@ class Task(object):
         return os.path.join(str(self.host), self.hex_key, self.name)
 
     @property
+    def datadir(self):
+        dir = 'temp' if self.has_flag('resultfs') else 'data'
+        return os.path.join(self.root, dir)
+
+    @property
     def jobroot(self):
-        datadir = 'temp' if self.has_flag('resultfs') else 'data'
-        return os.path.join(self.root, datadir, self.home)
+        return os.path.join(self.root, self.datadir, self.home)
 
     def has_flag(self, flag):
         return flag.lower() in self.flags
