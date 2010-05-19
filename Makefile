@@ -91,6 +91,9 @@ install-config:
 		 rm $(TARGETCFG)/settings.py; \
                  chmod 644  $(TARGETCFG)/settings.py))
 
+install-examples:
+	cp -r examples $(TARGETDIR)/examples
+
 install-tests:
 	cp -r tests $(TARGETDIR)/tests
 
