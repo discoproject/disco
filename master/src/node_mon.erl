@@ -5,35 +5,11 @@
 -define(RESTART_DELAY, 10000).
 -define(SLAVE_ARGS, "+K true").
 
-spawn_node(Node) ->
-    process_flag(trap_exit, true),
-    spawn_link(fun() ->
-        case slave_start(Node) of
-            {true, {ok, _Node}} ->
-                % start a dummy ddfs_node process for the master, no get or put
-                start_ddfs_node(node(), {false, false}),
-                % start ddfs_node for the slave on the master node.
-                % put enabled, but no get, which is handled by master
-                node_monitor(Node, {false, true});
-            {false, {ok, _SlaveNode}} ->
-                % normal remote ddfs_node, both put and get enabled
-                node_monitor(Node, {true, true});
-            {_, {error, {already_running, _SlaveNode}}} ->
-                % normal remote ddfs_node, both put and get enabled
-                node_monitor(Node, {true, true});
-            {_, {error, timeout}} ->
-                blacklist(Node);
-            Error ->
-                error_logger:warning_report(
-                    {"Spawning node", Node, "failed for unknown reason", Error}),
-                blacklist(Node)
-        end
-    end),
-    receive
-        {'EXIT', _Pid, _Reason} ->
-            timer:sleep(?RESTART_DELAY),
-            spawn_node(Node)
-    end.
+slave_node(Node) ->
+    list_to_atom(slave_name() ++ "@" ++ Node).
+
+slave_name() ->
+    disco:get_setting("DISCO_NAME") ++ "_slave".
 
 slave_node_safe(Node) ->
     case catch list_to_existing_atom(slave_name() ++ "@" ++ Node) of
@@ -41,11 +17,50 @@ slave_node_safe(Node) ->
         X -> X
     end.
 
-slave_node(Node) ->
-    list_to_atom(slave_name() ++ "@" ++ Node).
+spawn_node(Node) ->
+    process_flag(trap_exit, true),
+    case catch slave_start(Node) of
+        {true, {ok, _Node}} ->
+            % start a dummy ddfs_node process for the master, no get or put
+            start_ddfs_node(node(), {false, false}),
+            % start ddfs_node for the slave on the master node.
+            % put enabled, but no get, which is handled by master
+            node_monitor(Node, {false, true});
+        {false, {ok, _SlaveNode}} ->
+            % normal remote ddfs_node, both put and get enabled
+            node_monitor(Node, {true, true});
+        {_, {error, {already_running, _SlaveNode}}} ->
+            % normal remote ddfs_node, both put and get enabled
+            node_monitor(Node, {true, true});
+        {_, {error, timeout}} ->
+            blacklist(Node);
+        Error ->
+            error_logger:warning_report(
+                {"Spawning node", Node, "failed for unknown reason", Error}),
+            blacklist(Node)
+    end,
+    timer:sleep(?RESTART_DELAY),
+    spawn_node(Node).
 
-slave_name() ->
-    disco:get_setting("DISCO_NAME") ++ "_slave".
+node_monitor(Node, WebConfig) ->
+    NodeAtom = slave_node(Node),
+    monitor_node(NodeAtom, true),
+    start_ddfs_node(NodeAtom, WebConfig),
+    start_temp_gc(NodeAtom, Node),
+    wait(Node).
+
+wait(Node) ->
+    receive
+        {is_ready, Pid} ->
+            Pid ! node_ready,
+            wait(Node);
+        {'EXIT', _, Reason} ->
+            error_logger:info_report({"Node failed", Node, Reason});
+        {nodedown, _Node} ->
+            error_logger:info_report({"Node", Node, "down"});
+        E ->
+            error_logger:info_report({"Erroneous message (node_mon)", E})
+    end.
 
 slave_env() ->
     Home = disco:get_setting("DISCO_MASTER_HOME"),
@@ -68,21 +83,6 @@ is_master_node(Node) ->
             lists:keymember(Master, 1, Names);
         _ ->
             false
-    end.
-
-node_monitor(Node, WebConfig) ->
-    process_flag(trap_exit, true),
-    NodeAtom = slave_node(Node),
-    start_ddfs_node(NodeAtom, WebConfig),
-    start_temp_gc(NodeAtom, Node),
-    monitor_node(NodeAtom, true),
-    receive
-        {'EXIT', _, Reason} ->
-            error_logger:info_report({"DDFS failed on node", Node, Reason});
-        {nodedown, _Node} ->
-            error_logger:info_report({"Node", Node, "down"});
-        E ->
-            error_logger:info_report({"Erroneous message (node_mon)", E})
     end.
 
 start_temp_gc(NodeAtom, Node) ->

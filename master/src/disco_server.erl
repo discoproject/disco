@@ -126,14 +126,13 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
     if AvailableNodes =/= [] ->
         case gen_server:call(scheduler, {next_task, AvailableNodes}) of
             {ok, {JobSchedPid, {Node, Task}}} ->
-
-                WorkerPid = start_worker(Node, Task),
+                M = gb_trees:get(Node, Nodes),
+                WorkerPid = start_worker(Node, M#dnode.node_mon, Task),
                 UWorkers = gb_trees:insert(
                     WorkerPid, {Node, Task}, Workers),
                 gen_server:cast(JobSchedPid,
                     {task_started, Node, WorkerPid}),
 
-                M = gb_trees:get(Node, Nodes),
                 UNodes = gb_trees:update(Node,
                     M#dnode{num_running =
                         M#dnode.num_running + 1},
@@ -315,11 +314,11 @@ toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
     update_nodes(UpdatedNodes),
     UpdatedNodes.
 
-start_worker(Node, T) ->
+start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
         [T#task.mode, T#task.taskid, Node], []),
     spawn_link(disco_worker, start_link_remote,
-        [self(), whereis(event_server), Node, T]).
+        [self(), whereis(event_server), Node, NodeMon, T]).
 
 % callback stubs
 terminate(Reason, _State) ->
