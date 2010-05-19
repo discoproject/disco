@@ -328,7 +328,7 @@ reassign_tasks(Tasks, NewNodes) ->
         NodeStats = [{random:uniform(100), Input} || Input <- Task#task.input],
         assign_task(Task, NodeStats, NTasks0, NewNodes)
     end, gb_trees:insert(nopref, {0, 0, []}, NTasks),
-        lists:flatten([L || {_, L} <- gb_trees:values(OTasks)])).
+        lists:flatten([L || {_, _, L} <- gb_trees:values(OTasks)])).
 
 
 get_default(Key, Tree, Default) ->
