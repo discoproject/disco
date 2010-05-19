@@ -92,13 +92,13 @@ install-config:
                  chmod 644  $(TARGETCFG)/settings.py))
 
 install-examples:
-	cp -r examples $(TARGETDIR)/examples
+	cp -r examples $(TARGETDIR)
 
 install-ext:
-	cp -r ext $(TARGETDIR)/ext
+	cp -r ext $(TARGETDIR)
 
 install-tests: install-ext
-	cp -r tests $(TARGETDIR)/tests
+	cp -r tests $(TARGETDIR)
 
 $(EBIN)/mochiweb/%.beam: $(ESRC)/mochiweb/%.erl
 	$(CC) $(OPT) -o $(EBIN)/mochiweb/ $<
