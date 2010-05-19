@@ -42,7 +42,10 @@ send_file(Req, Path, Root) ->
                     ?GET_WAIT_TIMEOUT) of
                 ok ->
                     send_file(Req, filename:join(Root, SafePath));
-                _ -> 
+                {'EXIT', {noproc, _}} ->
+                    Req:respond({403, [],
+                        ["Disco node is not running on this host"]});
+                _ ->
                     Req:respond({503, [],
                         ["Maximum number of downloaders reached. ",
                             "Try again later"]})
