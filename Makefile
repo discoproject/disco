@@ -46,7 +46,7 @@ clean:
 	- rm -Rf node/build
 	- rm -Rf node/disco_node.egg-info
 
-install: install-master install-lib install-node
+install: install-master install-lib install-node install-tests
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
@@ -84,10 +84,15 @@ install-config:
 
 	$(if $(wildcard $(TARGETCFG)/settings.py),\
 		$(info disco config already exists, skipping),\
-		(INSTALL_DIR=$(INSTALL_DIR) BIN_DIR=$(BIN_DIR) \
+		(DESTDIR=$(DESTDIR) \
+		 TARGETDIR=$(TARGETDIR) \
+		 TARGETBIN=$(TARGETBIN) \
 		 conf/gen.settings.sys-$(UNAME) > $(TARGETCFG)/settings.py || \
 		 rm $(TARGETCFG)/settings.py; \
                  chmod 644  $(TARGETCFG)/settings.py))
+
+install-tests:
+	cp -r tests $(TARGETDIR)/tests
 
 $(EBIN)/mochiweb/%.beam: $(ESRC)/mochiweb/%.erl
 	$(CC) $(OPT) -o $(EBIN)/mochiweb/ $<

@@ -11,23 +11,23 @@ DISCO_USER = "disco"
 # -- You can modify these directories as you wish
 # --
 
-DISCO_HOME = "${INSTALL_DIR}"
+DISCO_HOME = "${TARGETDIR}"
 
 # Root directory for Disco data.
-DISCO_ROOT = "/srv/disco/"
+DISCO_ROOT = "${DESTDIR}/srv/disco/"
 
 # Root directory for Disco logs.
-DISCO_LOG_DIR = "/var/log/disco/"
+DISCO_LOG_DIR = "${DESTDIR}/var/log/disco/"
 
 # Root directory for the Disco PID file.
-DISCO_PID_DIR = "/var/run/disco/"
+DISCO_PID_DIR = "${DESTDIR}/var/run/disco/"
 
 # --
 # -- Variables below this line rarely need to be modified
 # --
 
 # disco_worker is installed by setuptools to the system default bin directory
-DISCO_WORKER = "${BIN_DIR}/disco-worker"
+DISCO_WORKER = "${TARGETBIN}/disco-worker"
 
 DISCO_MASTER_HOME = DISCO_HOME
 
