@@ -144,7 +144,8 @@ def debug(program, host=''):
 
 @Disco.command
 def help(program, *args):
-    """
+    """Usage: [command]
+
     Print program or command help.
     """
     command, leftover = program.search(args)

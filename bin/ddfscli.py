@@ -153,10 +153,12 @@ def find(program, *tags):
 
 @DDFS.command
 def help(program, *args):
+    """Usage: [command]
+
+    Print program or command help.
     """
-    Print program help.
-    """
-    print program
+    command, leftover = program.search(args)
+    print command
 
 @DDFS.command
 def get(program, tag):
