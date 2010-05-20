@@ -4,7 +4,7 @@ from urllib import urlencode
 from disco.comm import upload, download, json, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
-from disco.util import iterify, partition, urlsplit, urlresolve
+from disco.util import iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
@@ -31,8 +31,7 @@ def tagname(tag):
         return tag
 
 class DDFS(object):
-    def __init__(self, master=None, proxy=None):
-        settings    = DiscoSettings()
+    def __init__(self, master=None, proxy=None, settings=DiscoSettings()):
         self.proxy  = proxy or settings['DISCO_PROXY']
         self.master = self.proxy or master or settings['DISCO_MASTER']
 
@@ -106,7 +105,7 @@ class DDFS(object):
                 random.shuffle(repl)
                 for url in repl:
                     try:
-                        yield open_remote(urlresolve(url))
+                        yield open_remote(url)
                         break
                     except CommError, error:
                         continue

@@ -31,7 +31,7 @@ def download_handle(url, data, redir, offset, method, header):
         try:
             k, v = h.strip().split(":", 1)
             header[k.lower()] = v
-        except:
+        except Exception, e:
             pass
     dl_handle = new_handle(url)
     outbuf = cStringIO.StringIO()

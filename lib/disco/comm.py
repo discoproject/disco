@@ -2,6 +2,7 @@ import os, time, cStringIO, struct
 
 from disco.error import CommError
 from disco.settings import DiscoSettings
+from disco.util import urlresolve
 
 BUFFER_SIZE = int(1024**2)
 CHUNK_SIZE = int(10 * 1024**2)
@@ -37,7 +38,6 @@ except ImportError:
         json.dumps = cjson.encode
 
 def download(url, **kwargs):
-    from disco.util import urlresolve
     code, body = real_download(urlresolve(url), **kwargs)
     if code == 503:
         sleep = kwargs.get('sleep', 0)
@@ -59,8 +59,8 @@ def open_local(path, url):
     return (fd, sze, 'file://' + path)
 
 def open_remote(url):
-    conn = Conn(url)
-    return conn, conn.length(), url
+    conn = Conn(urlresolve(url))
+    return conn, conn.length(), conn.url
 
 class Conn(object):
     def __init__(self, url):

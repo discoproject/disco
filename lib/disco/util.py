@@ -18,7 +18,6 @@ from itertools import chain, repeat
 from types import CodeType, FunctionType
 from urllib import urlencode
 
-from disco.comm import download, open_remote
 from disco.error import DiscoError, DataError, CommError
 from disco.events import Message
 from disco.settings import DiscoSettings
@@ -234,6 +233,7 @@ def parse_dir(dir_url, partid = None):
                   The address of a proxy server is typically specified in the
                   :ref:`settings` ``DISCO_PROXY``.
     """
+    from disco.comm import download
     def parse_index(index):
         return [url for id, url in (line.split() for line in index)
             if partid is None or partid == int(id)]
