@@ -73,7 +73,8 @@ def blobs(program, *tags):
 def cat(program, *tags):
     """Usage: [-i] [-p] tag ...
 
-    Print all blobs reachable from tag[s] to stdout.
+    Concatenate the contents of all blobs reachable from tag[s],
+    and print to stdout.
     """
     from subprocess import call
     from disco.comm import download
@@ -285,6 +286,17 @@ def urls(program, *tags):
     for tag in program.prefix_mode(*tags):
         for replicas in program.ddfs.get(tag)['urls']:
             print '\t'.join(replicas)
+
+@DDFS.command
+def xcat(program, *urls):
+    """Usage: [urls ...]
+
+    Concatenate the extracted results stored in url[s],
+    and print to stdout.
+    """
+    from disco.core import result_iterator
+    for result in result_iterator(urls):
+        print result
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()
