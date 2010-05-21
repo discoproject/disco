@@ -54,8 +54,9 @@ class DiscoOutput(object):
 
 class AtomicFile(file):
     def __init__(self, fname, *args, **kw):
-        ensure_path(os.path.dirname(fname))
-        ensure_free_space(fname)
+        dir = os.path.dirname(fname)
+        ensure_path(dir)
+        ensure_free_space(dir)
         self.fname = fname
         self.isopen = True
         super(AtomicFile, self).__init__(
@@ -124,7 +125,7 @@ def safe_update(outfile, lines, timeout = 60):
     return _safe_fileop(update, "a+", outfile, timeout = timeout)
 
 def _safe_fileop(op, mode, outfile, timeout):
-    ensure_free_space(outfile)
+    ensure_free_space(os.path.dirname(outfile))
     outstream = file(outfile, mode)
     while timeout > 0:
         try:
