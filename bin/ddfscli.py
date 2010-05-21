@@ -1,4 +1,35 @@
 #!/usr/bin/env python
+"""
+:mod:`ddfs <ddfscli>` -- DDFS command line utility
+==================================================
+
+`ddfs` is a tool for manipulating data stored in :ref:`ddfs`.
+Some of the `ddfs` utilities also work with data stored in Disco's temporary filesystem.
+
+.. note::
+
+   This is the manpage for the ``ddfs`` command.
+   Please see :ref:`ddfs` for more general information on DDFS.
+
+.. hint::
+
+   The documentation assumes that the executable ``$DISCO_HOME/bin/ddfs`` is on your system path.
+   If it is not on your path, you can add it::
+
+        ln -s $DISCO_HOME/bin/ddfs /usr/local/bin
+
+   If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
+   Doing so allows you to simply call the command ``ddfs``, instead of specifying the complete path.
+
+
+Run ``ddfs help`` for information on using the command line utility.
+
+SEE ALSO
+--------
+
+:mod:`disco.settings`
+
+"""
 
 import os, sys
 import fileinput
