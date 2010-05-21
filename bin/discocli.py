@@ -13,6 +13,9 @@ class DiscoOptionParser(OptionParser):
                         action='append',
                         default=[],
                         help='keys to use for sorting profiling statistics')
+        self.add_option('-o', '--offset',
+                        default=0,
+                        help='offset to use in requests to disco master')
         self.add_option('-S', '--status',
                         action='store_true',
                         help='show job status when printing jobs')
@@ -224,6 +227,14 @@ def deref(program, *files):
     for line in fileinput.input(files):
         for url in parse_dir(line.strip()):
             print url
+
+@Disco.command
+def events(program, jobname):
+    """Usage: [-o offset] jobname
+
+    Print the events for the named job.
+    """
+    print program.disco.rawevents(jobname, offset=int(program.options.offset))
 
 @Disco.command
 def jobdict(program, jobname):

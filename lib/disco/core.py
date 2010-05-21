@@ -243,20 +243,15 @@ class Disco(object):
                     # HTTP range request doesn't like empty ranges:
                     # Let's ensure that at least the last newline
                     # is always retrieved.
-                    #if i == len(lines) - 1 and\
-                    #    events.endswith('\n'):
-                    #    offs -= 1
+                    if i == len(lines) - 1 and events.endswith('\n'):
+                       offs -= 1
                     yield offs, event
-        try:
-            r = self.request("/disco/ctrl/rawevents?name=%s" % name,
-                     redir = True,
-                     offset = offset)
-        except Exception, x:
-            return []
+        return event_iter(self.rawevents(name, offset=offset))
 
-        if len(r) < 2:
-            return []
-        return event_iter(r)
+    def rawevents(self, name, offset=0):
+        return self.request("/disco/ctrl/rawevents?name=%s" % name,
+                            redir=True,
+                            offset=offset)
 
     def mapresults(self, name):
         return json.loads(
