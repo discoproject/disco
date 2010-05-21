@@ -55,6 +55,7 @@ class DiscoOutput(object):
 class AtomicFile(file):
     def __init__(self, fname, *args, **kw):
         ensure_path(os.path.dirname(fname))
+        ensure_free_space(fname)
         self.fname = fname
         self.isopen = True
         super(AtomicFile, self).__init__(
