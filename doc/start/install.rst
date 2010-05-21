@@ -102,8 +102,7 @@ See :ref:`settings` for more information on the various settings and their defau
 --------------
 
 Disco now uses a streamlined command-line interface (see :ref:`disco`).
-On the master node, start the Disco master by executing ``disco master start``.
-On all the servers you want to utilize as workers, execute ``disco worker start``.
+On the master node, start the Disco master by executing ``disco start``.
 
 You can easily integrate ``disco`` into your system's startup sequence.
 For instance, you can see how ``debian/disco-master.init`` and
@@ -114,8 +113,8 @@ If Disco has started up properly, you should see processes ``lighttpd``
 and ``beam.smp`` running on your master node, and ``lighttpd`` on the
 other servers.
 
-An easy way to test if Disco is starting up properly is to run ``disco master nodaemon``
-instead of ``disco master start``.
+An easy way to test if Disco is starting up properly is to run ``disco nodaemon``
+instead of ``disco start``.
 This will start the master node and bring you right to its Erlang shell,
 without redirecting the log to a file.
 

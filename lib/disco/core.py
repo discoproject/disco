@@ -225,7 +225,7 @@ class Disco(object):
         The iterator returns tuples ``(offset, event)``. You can pass an *offset* value
         to this function, to make the iterator skip over the events before the specified
         *offset*. This provides an efficient way to monitor job events continuously.
-        See ``DISCO_EVENTS`` in :ref:`settings` for more information on how to enable
+        See ``DISCO_EVENTS`` in :mod:`disco.settings` for more information on how to enable
         the console output of job events.
 
         (*Added in version 0.2.3*)
@@ -350,7 +350,7 @@ class Disco(object):
         :param show: enables console output of job events.
                      You can control this parameter also using the environment
                      variable ``DISCO_EVENTS``, which provides the default.
-                     See ``DISCO_EVENTS`` in :ref:`settings`.
+                     See ``DISCO_EVENTS`` in :mod:`disco.settings`.
                      (*Added in version 0.2.3*)
         """
         event_monitor = EventMonitor(Job(self, name=name),

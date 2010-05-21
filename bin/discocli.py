@@ -1,4 +1,35 @@
 #!/usr/bin/env python
+"""
+:mod:`disco <discocli>` -- Disco command line utility
+=====================================================
+
+`disco` is a fully-Python startup/configuration script which supports several exciting features.
+The new startup script makes it even easier to get up and running with a Disco cluster.
+
+.. note::
+
+   This is the manpage for the ``disco`` command.
+   Please see :ref:`setup` for more information on installing Disco.
+
+.. hint::
+
+   The documentation assumes that the executable ``$DISCO_HOME/bin/disco`` is on your system path.
+   If it is not on your path, you can add it::
+
+        ln -s $DISCO_HOME/bin/disco /usr/local/bin
+
+   If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
+   Doing so allows you to simply call the command ``disco``, instead of specifying the complete path.
+
+
+Run ``disco help`` for information on using the command line utility.
+
+SEE ALSO
+--------
+
+:mod:`disco.settings`
+
+"""
 
 import os, sys
 import fileinput
@@ -158,6 +189,7 @@ def help(program, *args):
 def nodaemon(program):
     """
     Start the master in the current process.
+    The Erlang shell is opened and log messages are printed to stdout.
     Note: quitting the shell will stop the master.
     """
     for message in program.master.nodaemon():
@@ -200,6 +232,10 @@ def test(program, *tests):
     """Usage: [testname ...]
 
     Run the specified tests or the entire test suite if none are specified.
+
+    Assumes Disco master is already running and configured.
+    Test names is an optional list of names of modules in the ``$DISCO_HOME/tests`` directory (e.g. ``test_simple``).
+    Test names may also include the names of specific test cases (e.g. ``test_sort.MemorySortTestCase``).
     """
     from disco.test import DiscoTestRunner
     if not tests:
