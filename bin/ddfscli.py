@@ -127,7 +127,7 @@ def exists(program, tag):
 
 @DDFS.command
 def find(program, *tags):
-    """Usage: [-i|-w] tag ...
+    """Usage: [-i|-w] [-p] tag ...
 
     Walk the tag hierarchy starting at tag[s].
     Prints each path as it is encountered.
@@ -150,16 +150,7 @@ def find(program, *tags):
             elif subtags == blobs == () and warn_missing:
                 print "Tag not found: %s" % "\t".join(tagpath)
             else:
-                print "\t".join(tagpath)
-
-@DDFS.command
-def help(program, *args):
-    """Usage: [command]
-
-    Print program or command help.
-    """
-    command, leftover = program.search(args)
-    print command
+                print os.path.join(*tagpath)
 
 @DDFS.command
 def get(program, tag):
@@ -175,6 +166,15 @@ def grep(program, *args):
     Print lines matching a pattern.
     """
     raise NotImplementedError("Distributed grep not yet implemented.")
+
+@DDFS.command
+def help(program, *args):
+    """Usage: [command]
+
+    Print program or command help.
+    """
+    command, leftover = program.search(args)
+    print command
 
 @DDFS.command
 def ls(program, *prefixes):
