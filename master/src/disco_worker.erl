@@ -6,7 +6,7 @@
     terminate/2, code_change/3]).
 
 -include("task.hrl").
--record(state, {id, master, job_url, port, task,
+-record(state, {id, master, port, task,
         start_time,
         eventserver,
         eventstream,
@@ -30,12 +30,11 @@ port_options() ->
       [{Setting, disco:get_setting(Setting)} || Setting <- disco:settings()]}].
 
 start_link_remote(Master, Eventserver, Node, NodeMon, Task) ->
-    {ok, JobUrl} = application:get_env(disco_url),
     Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
     NodeAtom = node_mon:slave_node(Node),
     wait_until_node_ready(NodeMon),
     spawn_link(NodeAtom, disco_worker, start_link,
-           [[self(), Eventserver, Master, JobUrl, Task, Node, Debug]]),
+           [[self(), Eventserver, Master, Task, Node, Debug]]),
     process_flag(trap_exit, true),
     receive
         ok -> ok;
@@ -82,12 +81,11 @@ start_link([Parent|_] = Args) ->
     end,
     wait_for_exit().
 
-init([Id, EventServer, Master, JobUrl, Task, Node, Debug]) ->
+init([Id, EventServer, Master, Task, Node, Debug]) ->
     process_flag(trap_exit, true),
     erlang:monitor(process, Task#task.from),
     {ok, #state{id = Id,
             master = Master,
-            job_url = JobUrl,
             task = Task,
             node = Node,
             child_pid = none,
