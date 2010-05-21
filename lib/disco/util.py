@@ -231,7 +231,7 @@ def parse_dir(dir_url, partid = None):
                   The addresses are translated to point at the proxy,
                   and prefixed with ``/disco/node/``.
                   The address of a proxy server is typically specified in the
-                  :ref:`settings` ``DISCO_PROXY``.
+                  :mod:`disco.settings` ``DISCO_PROXY``.
     """
     from disco.comm import download
     def parse_index(index):

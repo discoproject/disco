@@ -96,12 +96,12 @@ Open ``DISCO_HOME/conf/settings.py``. This file sets a number of environment
 variables that define the runtime environment for Disco.
 Most likely you do not need to modify this file right away.
 You can change the paths if the defaults are not suitable for your system.
-See :ref:`settings` for more information on the various settings and their default values.
+See :mod:`disco.settings` for more information on the various settings and their default values.
 
 3. Start Disco
 --------------
 
-Disco now uses a streamlined command-line interface (see :ref:`disco`).
+Disco now uses a streamlined command-line interface (see :mod:`discocli`).
 On the master node, start the Disco master by executing ``disco start``.
 
 You can easily integrate ``disco`` into your system's startup sequence.
