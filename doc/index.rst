@@ -32,7 +32,6 @@ Getting started
    start/troubleshoot
    start/getinvolved
 
-
 References
 ----------
 
@@ -41,7 +40,8 @@ References
 
    py/index
    external
-   disco command line interface <man/disco>
+   man/disco
+   man/ddfs
    py/settings
 
 Indices and tables

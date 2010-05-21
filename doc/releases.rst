@@ -36,7 +36,7 @@ Disco 0.2.3 (September 9th 2009)
 New features
 ''''''''''''
 
- - The :ref:`disco` control script makes setting up and running Disco much easier than
+ - The :mod:`disco.settings` control script makes setting up and running Disco much easier than
    before.
  - Console output of job events (`screenshot
    <http://discoproject.org/img/disco-events.png>`_). You can now follow progress of a job

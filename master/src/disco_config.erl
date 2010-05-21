@@ -27,7 +27,7 @@ update_config_table(Json) ->
         lists:flatten([parse_row(R) || R <- Json])}).
 
 get_config_table() ->
-    case file:read_file(os:getenv("DISCO_CONFIG")) of
+    case file:read_file(os:getenv("DISCO_MASTER_CONFIG")) of
         {ok, Config} -> ok;
         {error, enoent} ->
             Config = "[]"
@@ -42,7 +42,8 @@ save_config_table(Json) ->
     USorted = lists:usort(Nodes),
     if
         length(Sorted) == length(USorted) ->
-            ok = file:write_file(os:getenv("DISCO_CONFIG"), mochijson2:encode(Json)),
+            ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
+                                 mochijson2:encode(Json)),
             update_config_table(Json),
             {ok, <<"table saved!">>};
         true ->

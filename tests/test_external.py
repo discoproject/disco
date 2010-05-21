@@ -1,6 +1,9 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.util import external
 
+from subprocess import check_call, STDOUT
+from os import uname, path
+
 class ExternalTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs     = ["ape", "cat", "dog"]
     params     = {"test1": "1,2,3", "one two three": "dim\ndam\n", "dummy": "value"}
@@ -8,19 +11,18 @@ class ExternalTestCase(DiscoJobTestFixture, DiscoTestCase):
     ext_map    = True
 
     def setUp(self):
-        from subprocess import check_call, STDOUT
-        from os import uname
         if uname()[0] == 'Darwin':
             self.skipTest('Cannot build static test_external on OS X')
         else:
+            home = self.disco_settings['DISCO_HOME']
             check_call(['gcc', '-g', '-O3', '-static', '-Wall',
-                        '-l', 'Judy',
-                        '-I', 'ext/',
-                        '-o', 'tests/test_external',
-                        'ext/disco.c',
-                        'tests/test_external.c'],
+                        '-I', path.join(home, 'ext'),
+                        '-o', path.join(home, 'tests', 'test_external'),
+                        path.join(home, 'ext', 'disco.c'),
+                        path.join(home, 'tests', 'test_external.c'),
+                        '-l', 'Judy'],
                        stderr=STDOUT)
-            self.map = external(['tests/test_external'])
+            self.map = external([path.join(home, 'tests', 'test_external')])
             super(ExternalTestCase, self).setUp()
 
     @staticmethod

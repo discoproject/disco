@@ -18,4 +18,4 @@ class RedundantTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @property
     def answers(self):
-        yield '6040', ''
+        yield 6040, ''

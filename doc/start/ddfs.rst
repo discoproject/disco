@@ -189,7 +189,7 @@ not result in any data loss.
 A regular garbage collection process makes sure that the required number of
 replicas is maintained, orphaned blobs are deleted and deleted tags are
 eventually removed from the system. The desired number of replicas is defined in
-the configuration file, see :ref:`settings` for details.
+the configuration file, see :mod:`disco.settings` for details.
 
 Blobs can be accessed either over HTTP, using DDFS's built-in web server on each
 storage node, or directly on local disk. The latter feature is heavily utilized
@@ -200,7 +200,7 @@ Settings
 ''''''''
 
 DDFS can be configured using the normal Disco settings file. See
-:ref:`settings`.
+:mod:`disco.settings`.
 
 .. _ddfsapi:
 

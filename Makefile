@@ -8,7 +8,7 @@ ESRC = master/src
 EBIN = master/ebin
 
 DESTDIR=/
-PREFIX=/usr
+PREFIX=/usr/local
 SYSCONFDIR=/etc
 BIN_DIR = $(PREFIX)/bin/
 INSTALL_DIR = $(PREFIX)/lib/disco/
@@ -33,7 +33,7 @@ DDFS_TARGET = $(addsuffix .beam, $(basename \
 
 UNAME = $(shell uname)
 
-build: master config
+build: master
 
 master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
 
@@ -41,50 +41,64 @@ clean:
 	- rm -Rf master/ebin/*.beam
 	- rm -Rf master/ebin/mochiweb/*.beam
 	- rm -Rf master/ebin/ddfs/*.beam
-	- rm -Rf pydisco/build
-	- rm -Rf pydisco/disco.egg-info
+	- rm -Rf lib/build
+	- rm -Rf lib/disco.egg-info
 	- rm -Rf node/build
 	- rm -Rf node/disco_node.egg-info
 
-install: install-master install-pydisco install-node
+install: install-master install-lib install-node install-tests
 
 install-ebin:
-	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb 
+	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
 	install -m 0755 $(MOCHI_TARGET) $(TARGETDIR)/ebin/mochiweb
 	install -m 0755 $(DDFS_TARGET) $(TARGETDIR)/ebin/ddfs
 
 install-master: master install-ebin install-config install-bin
 	install -m 0755 master/ebin/disco.app $(TARGETDIR)/ebin
-	install -m 0755 master/make-lighttpd-proxyconf.py $(TARGETDIR)
 
 	cp -r master/www $(TARGETDIR)
 	chmod -R u=rwX,g=rX,o=rX $(TARGETDIR)/www
 
-	$(if $(wildcard $(TARGETCFG)/lighttpd-master.conf),\
-		$(info lighttpd-master config already exists, skipping),\
-		install -m 0644 conf/lighttpd-master.conf $(TARGETCFG))
-
 install-node: master install-ebin install-config install-bin
 	install -m 0755 node/disco-worker $(TARGETBIN)
 
-	$(if $(wildcard $(TARGETCFG)/lighttpd-worker.conf),\
-		$(info lighttpd-worker config already exists, skipping),\
-		install -m 0644 conf/lighttpd-worker.conf $(TARGETCFG))
-
 install-bin:
 	install -d $(TARGETBIN)
-	install -m 0755 bin/disco.py $(TARGETBIN)/disco
+	install -m 0755 bin/discocli.py $(TARGETBIN)/disco
+	install -m 0755 bin/ddfscli.py $(TARGETBIN)/ddfs
 
-install-pydisco:
-	(cd pydisco; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
+install-lib:
+	(cd lib; $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
+
+install-discodb:
+	(cd contrib/discodb; \
+	$(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
+
+install-discodex:
+	(cd contrib/discodex; \
+	$(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
 
 install-config:
 	install -d $(TARGETCFG)
 
 	$(if $(wildcard $(TARGETCFG)/settings.py),\
 		$(info disco config already exists, skipping),\
-		install -m 0644 conf/settings.py.sys-$(UNAME) $(TARGETCFG)/settings.py)
+		(DESTDIR=$(DESTDIR) \
+		 TARGETDIR=$(TARGETDIR) \
+		 TARGETBIN=$(TARGETBIN) \
+		 conf/gen.settings.sys-$(UNAME) > $(TARGETCFG)/settings.py || \
+		 rm $(TARGETCFG)/settings.py; \
+                 chmod 644  $(TARGETCFG)/settings.py))
+
+install-examples:
+	cp -r examples $(TARGETDIR)
+
+install-ext:
+	cp -r ext $(TARGETDIR)
+
+install-tests: install-ext
+	cp -r tests $(TARGETDIR)
 
 $(EBIN)/mochiweb/%.beam: $(ESRC)/mochiweb/%.erl
 	$(CC) $(OPT) -o $(EBIN)/mochiweb/ $<
@@ -100,9 +114,3 @@ $(EBIN)/ddfs:
 
 $(EBIN)/mochiweb:
 	- mkdir $(EBIN)/mochiweb
-
-
-config:
-	$(if $(wildcard conf/settings.py),\
-	        $(info not overwriting existing conf/settings.py),\
-                 cp conf/settings.py.template conf/settings.py)
