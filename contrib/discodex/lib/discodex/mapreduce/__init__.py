@@ -37,7 +37,7 @@ class DiscodexJob(object):
     save                 = False
     scheduler            = {}
     sort                 = False
-    nr_reduces           = 1
+    partitions           = 1
 
     @staticmethod
     def map(*args, **kwargs):
@@ -59,7 +59,7 @@ class DiscodexJob(object):
                    'map_output_stream': self.map_output_stream,
                    'map_reader':        self.map_reader,
                    'map_writer':        self.map_writer,
-                   'nr_reduces':        self.nr_reduces,
+                   'partitions':        self.partitions,
                    'params':            self.params,
                    'partition':         self.partition,
                    'profile':           self.profile,
@@ -90,7 +90,7 @@ class Indexer(DiscodexJob):
         self.map        = dataset.demuxer
         self.partition  = dataset.balancer
         self.profile    = dataset.profile
-        self.nr_reduces = dataset.nr_ichunks
+        self.partitions = dataset.nr_ichunks
         self.sort       = dataset.sort
         self.params     = Params(n=0)
 
@@ -111,7 +111,7 @@ class Indexer(DiscodexJob):
 
 class MetaIndexer(DiscodexJob):
     """A discodex mapreduce job used to build a metaindex over an index, given a :class:`discodex.objects.MetaSet`."""
-    nr_reduces = 0
+    partitions = 0
     save       = True
     scheduler  = {'force_local': True}
 
@@ -176,7 +176,7 @@ class DiscoDBIterator(DiscodexJob):
                              reducefilters=reducefilters or self.reducefilters)
 
         if reducefilters:
-            self.nr_reduces = max(1, len(self.ichunks) / 8)
+            self.partitions = max(1, len(self.ichunks) / 8)
             self.reduce     = self._reduce
             self.sort       = True
             self.reduce_writer = json_writer

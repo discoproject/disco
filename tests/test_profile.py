@@ -4,7 +4,7 @@ from cStringIO import StringIO
 
 class ProfileTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs     = [''] * 1
-    nr_reduces = 30
+    partitions = 30
     profile    = True
     sort       = False
 

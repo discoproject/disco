@@ -8,7 +8,7 @@ class FiveTestCase(DiscoJobTestFixture, DiscoTestCase):
         return "Gutta cavat cavat capidem\n" * 100
 
     @property
-    def nr_reduces(self):
+    def partitions(self):
         return min(self.num_workers * 10, 300)
 
     @staticmethod

@@ -4,7 +4,7 @@ from random import sample
 
 class AsyncTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs      = 5
-    nr_reduces = 11
+    partitions = 11
     sort       = False
 
     def input(self, m):

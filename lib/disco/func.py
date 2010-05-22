@@ -346,7 +346,7 @@ def make_range_partition(min_val, max_val):
     Returns a new partitioning function that partitions keys in the range
     *[min_val:max_val]* into equal sized partitions.
 
-    The number of partitions is defined by *nr_reduces*
+    The number of partitions is defined by *partitions*
     in :class:`disco.core.JobDict`.
     """
     r = max_val - min_val

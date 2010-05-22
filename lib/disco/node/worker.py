@@ -96,7 +96,7 @@ def this_partition():
     in each map task. There are no guarantees about how ids are assigned
     for map tasks.
 
-    For a reduce task, returns an integer between *[0..nr_reduces]* that
+    For a reduce task, returns an integer between *[0..partitions]* that
     identifies this partition. You can use a custom partitioning function to
     assign key-value pairs to a particular partition.
     """

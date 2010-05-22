@@ -134,7 +134,7 @@ def urlsplit(url):
 def urlresolve(url):
     return '%s://%s/%s' % urlsplit(url)
 
-def urllist(url, partid=None, listdirs=True, ddfs=None):
+def urllist(url, partid=None, listdirs=True, ddfs=None, numpartitions=None):
     if isiterable(url):
         return [list(url)]
     scheme, netloc, path = urlsplit(url)
@@ -218,7 +218,7 @@ def proxy_url(path, node='x'):
         return '%s://%s/disco/node/%s/%s' % (scheme, netloc, node, path)
     return 'http://%s:%s/%s' % (node, port, path)
 
-def parse_dir(dir_url, partid = None):
+def parse_dir(dir_url, partid=None, numpartitions=None):
     """
     Translates a directory URL to a list of normal URLs.
 
@@ -226,21 +226,20 @@ def parse_dir(dir_url, partid = None):
     results returned by :meth:`disco.core.Disco.wait`, for instance.
 
     :param dir_url: a directory url, such as ``dir://nx02/test_simple@12243344``
-
-    :param proxy: address of a proxy server, typically the Disco master's.
-                  The addresses are translated to point at the proxy,
-                  and prefixed with ``/disco/node/``.
-                  The address of a proxy server is typically specified in the
-                  :mod:`disco.settings` ``DISCO_PROXY``.
     """
     from disco.comm import download
     def parse_index(index):
         return [url for id, url in (line.split() for line in index)
-            if partid is None or partid == int(id)]
+                if partid is None or partid == int(id)]
     settings = DiscoSettings()
     scheme, netloc, path = urlsplit(dir_url)
     url = proxy_url(path, netloc)
-    return parse_index(download(url).splitlines())
+    urls = parse_index(download(url).splitlines())
+    # XXX: This should be fixed with dir://
+    # we shouldn't need to know the number of partitions here
+    if numpartitions and numpartitions != len(urls):
+        raise ValueError("Invalid number of partitions!")
+    return urls
 
 def save_oob(host, name, key, value):
     from disco.ddfs import DDFS

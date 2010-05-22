@@ -4,7 +4,7 @@ import functools
 from itertools import chain
 from types import FunctionType
 
-from disco import func, comm
+from disco import func, comm, util
 from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError
@@ -13,8 +13,6 @@ from disco.fileutils import AtomicFile
 from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
-from disco.util import ddfs_oobname, ddfs_save, iskv,\
-                       save_oob, load_oob, netloc, urllist
 
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
@@ -42,7 +40,7 @@ class Task(object):
                  jobdict=None,
                  jobname='',
                  settings=DiscoSettings()):
-        self.netloc   = netloc.parse(netlocstr)
+        self.netloc   = util.netloc.parse(netlocstr)
         self.id       = int(id)
         self.inputs   = inputs
         self.jobdict  = jobdict
@@ -160,11 +158,11 @@ class Task(object):
 
     @property
     def ispartitioned(self):
-        return self.jobdict['nr_reduces'] > 0
+        return bool(self.jobdict['partitions'])
 
     @property
     def num_partitions(self):
-        return max(1, self.jobdict['nr_reduces'])
+        return max(1, int(self.jobdict['partitions'] or 0))
 
     def put(self, key, value):
         """
@@ -174,7 +172,7 @@ class Task(object):
         """
         if DDFS.safe_name(key) != key:
             raise DiscoError("OOB key contains invalid characters (%s)" % key)
-        save_oob(self.master, self.jobname, key, value)
+        util.save_oob(self.master, self.jobname, key, value)
 
     def get(self, key, job=None):
         """
@@ -185,7 +183,7 @@ class Task(object):
         value is only good for the reduce phase which can access results produced
         in the preceding map phase.
         """
-        return load_oob(self.master, job or self.jobname, key)
+        return util.load_oob(self.master, job or self.jobname, key)
 
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval
@@ -230,7 +228,7 @@ class Task(object):
             if isinstance(fn, FunctionType):
                 fn.func_globals.setdefault('Task', self)
                 for module in self.required_modules:
-                    mod_name = module[0] if iskv(module) else module
+                    mod_name = module[0] if util.iskv(module) else module
                     mod = __import__(mod_name, fromlist=[mod_name])
                     fn.func_globals.setdefault(mod_name.split('.')[-1], mod)
 
@@ -293,7 +291,7 @@ class Map(Task):
             if self.ispartitioned:
                 TaskFailed("Storing partitioned outputs in DDFS is not yet supported")
             else:
-                OutputURL(ddfs_save(self.blobs, self.jobname, self.master))
+                OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
                 Message("Results pushed to DDFS")
         else:
             OutputURL(index_url)
@@ -355,7 +353,7 @@ class Reduce(Task):
         external.close_ext()
 
         if self.save:
-            OutputURL(ddfs_save(self.blobs, self.jobname, self.master))
+            OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
             Message("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
@@ -378,7 +376,8 @@ class ReduceReader(object):
     def __init__(self, task):
         self.task   = task
         self.inputs = [url for input in task.inputs
-                       for url in urllist(input, partid=task.id)]
+                       for url in util.urllist(input, partid=task.id,
+                                               numpartitions=task.jobdict['nr_reduces'])]
         random.shuffle(self.inputs)
 
     def connect_input(self, url):
