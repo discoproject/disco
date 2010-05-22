@@ -263,7 +263,7 @@ class Map(Task):
             TaskFailed("Map can only handle one input. Got: %s" % ' '.join(self.inputs))
 
         if self.ext_map:
-            external.prepare(self.map, self.params, self.path('EXT_MAP'))
+            external.prepare(self.map, self.ext_params, self.path('EXT_MAP'))
             self.map = FunctionType(external.ext_map.func_code,
                                     globals=external.__dict__)
             self.insert_globals([self.map])
@@ -300,8 +300,6 @@ class Map(Task):
 
     @property
     def params(self):
-        if self.ext_map:
-            return self.ext_params or '0\n'
         return self.jobdict['params']
 
 class MapOutput(object):
@@ -341,7 +339,7 @@ class Reduce(Task):
 
         if self.ext_reduce:
             path = self.path('EXT_REDUCE')
-            external.prepare(self.reduce, self.params, path)
+            external.prepare(self.reduce, self.ext_params, path)
             self.reduce = FunctionType(external.ext_reduce.func_code,
                                        globals=external.__dict__)
             self.insert_globals([self.reduce])

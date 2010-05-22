@@ -3,7 +3,7 @@ from disco.util import external
 
 class ExternalTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs     = ["ape", "cat", "dog"]
-    params     = {"test1": "1,2,3", "one two three": "dim\ndam\n", "dummy": "value"}
+    ext_params = {"test1": "1,2,3", "one two three": "dim\ndam\n", "dummy": "value"}
     sort       = False
     ext_map    = True
 
@@ -14,11 +14,11 @@ class ExternalTestCase(DiscoJobTestFixture, DiscoTestCase):
             self.skipTest('Cannot build static test_external on OS X')
         else:
             check_call(['gcc', '-g', '-O3', '-static', '-Wall',
-                        '-l', 'Judy',
                         '-I', 'ext/',
                         '-o', 'tests/test_external',
                         'ext/disco.c',
-                        'tests/test_external.c'],
+                        'tests/test_external.c',
+                        '-l', 'Judy'],
                        stderr=STDOUT)
             self.map = external(['tests/test_external'])
             super(ExternalTestCase, self).setUp()
@@ -39,5 +39,5 @@ class ExternalTestCase(DiscoJobTestFixture, DiscoTestCase):
         results = sorted((v, k) for k, v in self.results)
         for n, (v, k) in enumerate(results):
             self.assertEquals(k, 'red_dkey')
-            self.assertEquals(v, 'red_test_%s' % self.inputs[i / 3])
+            self.assertEquals(v, 'red_test_%s' % self.inputs[n / 3])
         self.assertEquals(len(results), 9)

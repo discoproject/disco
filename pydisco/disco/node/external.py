@@ -1,6 +1,6 @@
 import os, os.path, time, struct, marshal
 from subprocess import Popen, PIPE
-from disco.netstring import decode_netstring_str
+from disco.netstring import decode_netstring_str, encode_netstring_fd
 from disco.fileutils import write_files
 from disco.util import msg
 from disco.error import DiscoError
@@ -72,6 +72,8 @@ def ext_reduce(red_in, red_out, params):
                 return
 
 def prepare(ext_task, params, path):
+    params = encode_netstring_fd(params)\
+        if params and isinstance(params, dict) else "0\n"
     write_files(ext_task, path)
     open_ext(path + "/op", params)
 
