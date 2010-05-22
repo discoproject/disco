@@ -29,6 +29,7 @@ def tagname(tag):
         return tag[6:]
     elif '://' not in tag:
         return tag
+    raise ValueError("Invalid tag: %s" % tag)
 
 class DDFS(object):
     def __init__(self, master=None, proxy=None, settings=DiscoSettings()):
@@ -130,8 +131,14 @@ class DDFS(object):
         urls = [self._push(aim(f), replicas, retries) for f in files]
         return self.tag(tag, urls), urls
 
+    def put(self, tag, urls):
+        return self._request('/ddfs/tag/%s' % tagname(tag),
+                             json.dumps(urls),
+                             method='PUT')
+
     def tag(self, tag, urls):
-        return self._request('/ddfs/tag/%s' % tagname(tag), json.dumps(urls))
+        return self._request('/ddfs/tag/%s' % tagname(tag),
+                             json.dumps(urls))
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):
         import tarfile, sys, gzip, cStringIO, os
