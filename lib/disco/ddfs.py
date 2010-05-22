@@ -29,7 +29,6 @@ def tagname(tag):
         return tag[6:]
     elif '://' not in tag:
         return tag
-    raise ValueError("Invalid tag: %s" % tag)
 
 class DDFS(object):
     def __init__(self, master=None, proxy=None, settings=DiscoSettings()):

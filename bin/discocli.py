@@ -34,6 +34,9 @@ SEE ALSO
 import os, sys
 import fileinput
 
+if '.disco-home' in os.listdir('.'):
+    sys.path.append('lib')
+
 from clx import OptionParser, Program
 from clx.server import Server
 
