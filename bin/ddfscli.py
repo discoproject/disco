@@ -34,6 +34,9 @@ SEE ALSO
 import os, sys
 from itertools import chain
 
+if '.disco-home' in os.listdir('.'):
+    sys.path.append('lib')
+
 from clx import OptionParser, Program
 
 class DDFSOptionParser(OptionParser):
