@@ -10,8 +10,8 @@ class ChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs        = 2
     inputs_1     = [''] * 100
     map_reader_2 = chain_reader
-    nr_reduces_1 = 4
-    nr_reduces_2 = 4
+    partitions_1 = 4
+    partitions_2 = 4
     params_1     = {'suffix': '0'}
     params_2     = {'suffix': '1'}
     sort_1       = False
@@ -52,7 +52,8 @@ class DavinChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     input_2      = ['raw://3', 'raw://4', 'raw://5']
     map_reader_3 = chain_reader
     reduce_3     = nop_reduce
-    nr_reduces_3 = 2
+    # assert this fails sometime:
+    # partitions_3 = 2
 
     def map_1(e, params):
         yield e, ''

@@ -100,7 +100,7 @@ the results using :func:`disco.core.result_iterator`.
 Since :meth:`homedisco.HomeDisco.new_job` runs only single instance of
 the given task, the map task accepts only one input, in contrast to
 :meth:`disco.core.Disco.new_job` that can take several. Similarly,
-if you have several partitions (i.e. *nr_reduces* is larger than one),
+if you have several partitions (i.e. *partitions* is larger than one),
 only one of them will be processed by the reduce task, as specified by
 the *partition* parameter in :class:`homedisco.HomeDisco`. However, the
 reduce task may take several inputs in which case only data belonging to

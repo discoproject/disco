@@ -6,8 +6,8 @@ from disco.ddfs import DDFS
 class SaveTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs = 2
     inputs_1 = ['huey', 'dewey', 'louie']
-    nr_reduces_1 = 3
-    nr_reduces_2 = 1
+    partitions_1 = 3
+    partitions_2 = 1
     map_reader_2 = chain_reader
     save_1 = True
     save_2 = True

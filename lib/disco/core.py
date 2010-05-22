@@ -433,8 +433,6 @@ class JobSpecifier(list):
 
 class JobDict(util.DefaultDict):
     """
-    .. todo:: deprecate nr_reduces, move to nr_partitions
-
     :meth:`Disco.new_job` and :meth:`Job.run`
     accept the same set of keyword arguments as specified below.
 
@@ -510,7 +508,6 @@ class JobDict(util.DefaultDict):
 
                    *Changed in version 0.2*:
                    It is possible to define only *reduce* without *map*.
-                   In this case the *nr_reduces* parameter is required as well.
                    For more information, see the FAQ entry :ref:`reduceonly`.
 
     :type  reduce_init: :func:`disco.func.init`
@@ -544,28 +541,18 @@ class JobDict(util.DefaultDict):
                           that can read the format produced by *reduce_writer*.
                           (*Added in version 0.2*)
 
-    :type  partition: :func:`disco.func.partition`
-    :param partition: decides how the map output is distributed to reduce.
-
     :type  combiner: :func:`disco.func.combiner`
     :param combiner: called after the partitioning function, for each partition.
 
-    :type  nr_maps: integer
-    :param nr_maps: the number of parallel map operations.
-                    By default, ``nr_maps = len(input_files)``.
+    :type  partition: :func:`disco.func.partition`
+    :param partition: decides how the map output is distributed to reduce.
 
-                    .. note::
+    :type  partitions: integer or None
+    :param partitions: number of partitions.
+                       *partitions* defaults to 1.
 
-                        Making this value larger than ``len(input_files)``
-                        has no effect.
-                        You can only save resources by making the value
-                        smaller.
-
-
-                    (*Deprecated in version 0.2.4, use "scheduler" instead*)
-
-    :type  nr_reduces: integer
-    :param nr_reduces: number of partitions.
+    :type  nr_reduces: *Deprecated in version 0.3* integer
+    :param nr_reduces: Use *partitions* instead.
 
                        *Changed in version 0.2.4*:
                        *nr_reduces* defaults to 1.
@@ -704,8 +691,10 @@ class JobDict(util.DefaultDict):
                 'ext_reduce': False,
                 'ext_params': None,
                 'mem_sort_limit': 256 * 1024**2,
+                'merge_partitions': False,
                 'nr_reduces': 1,
                 'params': Params(),
+                'partitions': 1,
                 'prefix': '',
                 'profile': False,
                 'required_files': None,
@@ -755,9 +744,6 @@ class JobDict(util.DefaultDict):
         if 'input_files' in kwargs and 'input' not in self:
             self['input'] = self.pop('input_files')
 
-        if 'chunked' in self:
-            raise DeprecationWarning("Argument 'chunked' is deprecated") # XXX: Deprecate properly
-
         # -- required modules and files --
         if self['required_modules'] is None:
             functions = util.flatten(util.iterify(self[f])
@@ -777,14 +763,31 @@ class JobDict(util.DefaultDict):
                          for url in util.urllist(i, listdirs=bool(self['map']),
                                                  ddfs=ddfs)]
 
+        ispartitioned = all(url.startswith('dir://')
+                            for urls in self['input']
+                            for url in util.iterify(urls))
+
+        self['partitions'] = self['nr_reduces']
+
+        if 'partitions' in kwargs:
+            if 'map' in self:
+                self['nr_reduces'] = self['partitions']
+            else:
+                raise DiscoError("Can't specify partitions without map")
+        else:
+            if 'map' not in self:
+                if ispartitioned and not self['merge_partitions']:
+                    self['nr_reduces'] = len(util.parse_dir(self['input'][0]))
+
+        if 'merge_partitions' in self:
+            if 'map' in self or ispartitioned:
+                self['nr_reduces'] = 1
+            else:
+                raise DiscoError("Can't merge partitions without partitions")
+
         # -- scheduler --
         scheduler = self.__class__.defaults['scheduler'].copy()
         scheduler.update(self['scheduler'])
-        if 'nr_maps' in self:
-            # XXX: Deprecate properly
-            raise DeprecationWarning("Use scheduler = {'max_cores': N} instead or nr_maps.")
-            if 'max_cores' not in scheduler:
-                scheduler['max_cores'] = self['nr_maps']
         if int(scheduler['max_cores']) < 1:
             raise DiscoError("max_cores must be >= 1")
         self['scheduler'] = scheduler
@@ -964,6 +967,12 @@ class Job(object):
 
         A :class:`JobError` is raised if an error occurs while starting the job.
         """
+        if 'nr_reduces' in kwargs:
+            from warnings import warn
+            warn("Use partitions instead of nr_reduces", DeprecationWarning)
+            if 'partitions' in kwargs or 'merge_partitions' in kwargs:
+                raise DeprecationWarning("Cannot specify nr_reduces with "
+                                         "partitions and/or merge_partitions")
         jobpack = Job.JobDict(self,
                               prefix=self.name,
                               ddfs=self.master.master,

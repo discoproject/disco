@@ -7,12 +7,12 @@ Balancers are essentially the partition function for the :class:`discodex.mapred
 The balancer is called for every `(key, value)` pair (see :mod:`discodex.mapreduce.demuxers`) and returns an integer indicating which partition it belongs in.
 """
 
-def nchunksbalance(key, nr_reduces, params):
+def nchunksbalance(key, partitions, params):
     """Randomly chooses a partition."""
     from random import randint
-    return randint(0, nr_reduces - 1)
+    return randint(0, partitions - 1)
 
-def roundrobinbalance(key, nr_reduces, params):
+def roundrobinbalance(key, partitions, params):
     """Cycles through the partitions in a round robin fashion."""
     params.n += 1
-    return params.n % nr_reduces
+    return params.n % partitions

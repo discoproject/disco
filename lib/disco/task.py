@@ -1,10 +1,10 @@
-import hashlib, os, random, re, subprocess, sys
+import hashlib, os, random, re, subprocess, sys, cPickle
 import functools
 
 from itertools import chain
 from types import FunctionType
 
-from disco import func, comm
+from disco import func, comm, util
 from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError
@@ -13,8 +13,6 @@ from disco.fileutils import AtomicFile
 from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
-from disco.util import ddfs_oobname, ddfs_save, iskv,\
-                       save_oob, load_oob, netloc, urllist
 
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
@@ -42,7 +40,7 @@ class Task(object):
                  jobdict=None,
                  jobname='',
                  settings=DiscoSettings()):
-        self.netloc   = netloc.parse(netlocstr)
+        self.netloc   = util.netloc.parse(netlocstr)
         self.id       = int(id)
         self.inputs   = inputs
         self.jobdict  = jobdict
@@ -160,11 +158,11 @@ class Task(object):
 
     @property
     def ispartitioned(self):
-        return self.jobdict['nr_reduces'] > 0
+        return bool(self.jobdict['partitions'])
 
     @property
     def num_partitions(self):
-        return max(1, self.jobdict['nr_reduces'])
+        return max(1, int(self.jobdict['partitions'] or 0))
 
     def put(self, key, value):
         """
@@ -174,7 +172,7 @@ class Task(object):
         """
         if DDFS.safe_name(key) != key:
             raise DiscoError("OOB key contains invalid characters (%s)" % key)
-        save_oob(self.master, self.jobname, key, value)
+        util.save_oob(self.master, self.jobname, key, value)
 
     def get(self, key, job=None):
         """
@@ -185,7 +183,7 @@ class Task(object):
         value is only good for the reduce phase which can access results produced
         in the preceding map phase.
         """
-        return load_oob(self.master, job or self.jobname, key)
+        return util.load_oob(self.master, job or self.jobname, key)
 
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval
@@ -230,7 +228,7 @@ class Task(object):
             if isinstance(fn, FunctionType):
                 fn.func_globals.setdefault('Task', self)
                 for module in self.required_modules:
-                    mod_name = module[0] if iskv(module) else module
+                    mod_name = module[0] if util.iskv(module) else module
                     mod = __import__(mod_name, fromlist=[mod_name])
                     fn.func_globals.setdefault(mod_name.split('.')[-1], mod)
 
@@ -263,7 +261,7 @@ class Map(Task):
             TaskFailed("Map can only handle one input. Got: %s" % ' '.join(self.inputs))
 
         if self.ext_map:
-            external.prepare(self.map, self.params, self.path('EXT_MAP'))
+            external.prepare(self.map, self.ext_params, self.path('EXT_MAP'))
             self.map = FunctionType(external.ext_map.func_code,
                                     globals=external.__dict__)
             self.insert_globals([self.map])
@@ -293,15 +291,13 @@ class Map(Task):
             if self.ispartitioned:
                 TaskFailed("Storing partitioned outputs in DDFS is not yet supported")
             else:
-                OutputURL(ddfs_save(self.blobs, self.jobname, self.master))
+                OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
                 Message("Results pushed to DDFS")
         else:
             OutputURL(index_url)
 
     @property
     def params(self):
-        if self.ext_map:
-            return self.ext_params or '0\n'
         return self.jobdict['params']
 
 class MapOutput(object):
@@ -341,7 +337,7 @@ class Reduce(Task):
 
         if self.ext_reduce:
             path = self.path('EXT_REDUCE')
-            external.prepare(self.reduce, self.params, path)
+            external.prepare(self.reduce, self.ext_params, path)
             self.reduce = FunctionType(external.ext_reduce.func_code,
                                        globals=external.__dict__)
             self.insert_globals([self.reduce])
@@ -355,7 +351,7 @@ class Reduce(Task):
         external.close_ext()
 
         if self.save:
-            OutputURL(ddfs_save(self.blobs, self.jobname, self.master))
+            OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
             Message("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
@@ -378,12 +374,30 @@ class ReduceReader(object):
     def __init__(self, task):
         self.task   = task
         self.inputs = [url for input in task.inputs
-                       for url in urllist(input, partid=task.id)]
+                       for url in util.urllist(input, partid=task.id,
+                                               numpartitions=task.jobdict['nr_reduces'])]
         random.shuffle(self.inputs)
 
     def connect_input(self, url):
         fd, sze, url = self.task.connect_input(url)
         return fd
+
+    def sort_reader(self, url):
+        fd, sze, url = comm.open_local(url, url)
+        for k, v in func.re_reader("(?s)(.*?)\xff(.*?)\x00", fd, sze, url):
+            yield k, cPickle.loads(v)
+
+    def sort_writer(self, fd, key, value):
+        # key should not contain \xff
+        # value pickled using protocol 0 will always be printable ASCII
+        # (can't contain \0)
+        if not isinstance(key, basestring):
+            TaskFailed("Keys must be strings for external sort")
+        if '\xff' in key or '\x00' in key:
+            TaskFailed("0xFF or 0x00 bytes are not allowed "
+                "in keys with external sort")
+        else:
+            fd.write("%s\xff%s\x00" % (key, cPickle.dumps(value, 0)))
 
     def __iter__(self):
         if self.task.sort:
@@ -407,14 +421,7 @@ class ReduceReader(object):
         for url in self.inputs:
             reader, sze, url = self.task.connect_input(url)
             for k, v in reader:
-                if ' ' in k:
-                    TaskFailed("Spaces are not allowed in keys "\
-                               "with external sort.")
-                if '\0' in v:
-                    TaskFailed("Zero bytes are not allowed in "\
-                               "values with external sort. "\
-                               "Consider using base64 encoding.")
-                out_fd.write('%s %s\0' % (k, v))
+                self.sort_writer(out_fd, k, v)
         out_fd.close()
         Message("Reduce input downloaded ok")
 
@@ -422,7 +429,7 @@ class ReduceReader(object):
         sortname = self.task.path('REDUCE_SORTED', self.task.id)
         ensure_path(os.path.dirname(sortname))
         cmd = ['sort', '-n', '-k', '1,1', '-T', '.',
-                       '-z', '-t', ' ', '-o', sortname, dlname]
+                       '-z', '-t', '\xff', '-o', sortname, dlname]
 
         proc = subprocess.Popen(cmd)
         ret = proc.wait()
@@ -430,10 +437,7 @@ class ReduceReader(object):
             TaskFailed("Sorting %s to %s failed (%d)" % (dlname, sortname, ret))
 
         Message("External sort done: %s" % sortname)
-        def connect(url):
-            fd, sze, url = comm.open_local(url, url)
-            return func.re_reader('(?s)(.*?) (.*?)\000', fd, sze, url)
-        return self.multi_file_iterator(connect, inputs=[sortname])
+        return self.multi_file_iterator(self.sort_reader, inputs=[sortname])
 
     def memory_sort(self):
         Message("Sorting in memory")

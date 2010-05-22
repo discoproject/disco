@@ -113,8 +113,10 @@ class DiscoJobTestFixture(object):
                'map_reader',
                'map_writer',
                'mem_sort_limit',
+               'merge_partitions',
                'params',
                'partition',
+               'partitions',
                'profile',
                'save',
                'scheduler',
@@ -127,10 +129,9 @@ class DiscoJobTestFixture(object):
                'reduce_writer',
                'required_files',
                'required_modules',
+               'ext_params',
                'ext_map',
-               'ext_reduce',
-               'nr_maps',
-               'nr_reduces')
+               'ext_reduce')
     result_reader = staticmethod(disco.func.netstr_reader)
 
     @property

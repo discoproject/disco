@@ -4,8 +4,8 @@ from disco.error import JobError
 class MapResultsTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs = 2
     inputs_1 = ['huey', 'dewey', 'louie']
-    nr_reduces_1 = 3
-    nr_reduces_2 = 3
+    partitions_1 = 3
+    partitions_2 = 3
 
     def getdata(self, path):
         return path + "\n"
