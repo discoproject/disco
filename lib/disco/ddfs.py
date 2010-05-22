@@ -1,3 +1,7 @@
+"""
+:mod:`disco.ddfs` --- Client interface for Disco Distributed Filesystem
+=======================================================================
+"""
 import os, re, cStringIO, random
 from urllib import urlencode
 
