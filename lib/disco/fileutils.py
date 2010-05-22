@@ -4,6 +4,8 @@ import errno, fcntl
 
 from disco.error import DataError
 
+MIN_DISK_SPACE = 1024**2
+
 class DiscoOutput(object):
     VERSION = 1
     def __init__(self, stream, compress_level, min_chunk, version):
@@ -52,7 +54,9 @@ class DiscoOutput(object):
 
 class AtomicFile(file):
     def __init__(self, fname, *args, **kw):
-        ensure_path(os.path.dirname(fname))
+        dir = os.path.dirname(fname)
+        ensure_path(dir)
+        ensure_free_space(dir)
         self.fname = fname
         self.isopen = True
         super(AtomicFile, self).__init__(
@@ -121,17 +125,14 @@ def safe_update(outfile, lines, timeout = 60):
     return _safe_fileop(update, "a+", outfile, timeout = timeout)
 
 def _safe_fileop(op, mode, outfile, timeout):
+    ensure_free_space(os.path.dirname(outfile))
     outstream = file(outfile, mode)
     while timeout > 0:
         try:
             fcntl.flock(outstream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            try:
-                r = op(outstream)
-                outstream.close()
-                return r
-            except Exception, x:
-                # output file is inconsistent state, but might be recoverable
-                raise DataError("Updating file failed: %s" % (x), outfile)
+            r = op(outstream)
+            outstream.close()
+            return r
         except IOError, x:
             # Python / BSD doc guides us to check for these errors
             if x.errno in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
@@ -174,3 +175,12 @@ def write_files(ext_data, path):
             ensure_file(path + "/" + fname, data=data)
         else:
             raise ValueError("Unsafe filename %s" % fname)
+
+def ensure_free_space(fname):
+    s = os.statvfs(fname)
+    free = s.f_bsize * s.f_bavail
+    if free < MIN_DISK_SPACE:
+        raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
+
+
+

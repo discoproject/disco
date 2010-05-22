@@ -1,4 +1,4 @@
-import hashlib, os, random, re, subprocess, sys
+import hashlib, os, random, re, subprocess, sys, cPickle
 import functools
 
 from itertools import chain
@@ -261,7 +261,7 @@ class Map(Task):
             TaskFailed("Map can only handle one input. Got: %s" % ' '.join(self.inputs))
 
         if self.ext_map:
-            external.prepare(self.map, self.params, self.path('EXT_MAP'))
+            external.prepare(self.map, self.ext_params, self.path('EXT_MAP'))
             self.map = FunctionType(external.ext_map.func_code,
                                     globals=external.__dict__)
             self.insert_globals([self.map])
@@ -298,8 +298,6 @@ class Map(Task):
 
     @property
     def params(self):
-        if self.ext_map:
-            return self.ext_params or '0\n'
         return self.jobdict['params']
 
 class MapOutput(object):
@@ -339,7 +337,7 @@ class Reduce(Task):
 
         if self.ext_reduce:
             path = self.path('EXT_REDUCE')
-            external.prepare(self.reduce, self.params, path)
+            external.prepare(self.reduce, self.ext_params, path)
             self.reduce = FunctionType(external.ext_reduce.func_code,
                                        globals=external.__dict__)
             self.insert_globals([self.reduce])
@@ -384,6 +382,23 @@ class ReduceReader(object):
         fd, sze, url = self.task.connect_input(url)
         return fd
 
+    def sort_reader(self, url):
+        fd, sze, url = comm.open_local(url, url)
+        for k, v in func.re_reader("(?s)(.*?)\xff(.*?)\x00", fd, sze, url):
+            yield k, cPickle.loads(v)
+
+    def sort_writer(self, fd, key, value):
+        # key should not contain \xff
+        # value pickled using protocol 0 will always be printable ASCII
+        # (can't contain \0)
+        if not isinstance(key, basestring):
+            TaskFailed("Keys must be strings for external sort")
+        if '\xff' in key or '\x00' in key:
+            TaskFailed("0xFF or 0x00 bytes are not allowed "
+                "in keys with external sort")
+        else:
+            fd.write("%s\xff%s\x00" % (key, cPickle.dumps(value, 0)))
+
     def __iter__(self):
         if self.task.sort:
             total_size = 0
@@ -406,14 +421,7 @@ class ReduceReader(object):
         for url in self.inputs:
             reader, sze, url = self.task.connect_input(url)
             for k, v in reader:
-                if ' ' in k:
-                    TaskFailed("Spaces are not allowed in keys "\
-                               "with external sort.")
-                if '\0' in v:
-                    TaskFailed("Zero bytes are not allowed in "\
-                               "values with external sort. "\
-                               "Consider using base64 encoding.")
-                out_fd.write('%s %s\0' % (k, v))
+                self.sort_writer(out_fd, k, v)
         out_fd.close()
         Message("Reduce input downloaded ok")
 
@@ -421,7 +429,7 @@ class ReduceReader(object):
         sortname = self.task.path('REDUCE_SORTED', self.task.id)
         ensure_path(os.path.dirname(sortname))
         cmd = ['sort', '-n', '-k', '1,1', '-T', '.',
-                       '-z', '-t', ' ', '-o', sortname, dlname]
+                       '-z', '-t', '\xff', '-o', sortname, dlname]
 
         proc = subprocess.Popen(cmd)
         ret = proc.wait()
@@ -429,10 +437,7 @@ class ReduceReader(object):
             TaskFailed("Sorting %s to %s failed (%d)" % (dlname, sortname, ret))
 
         Message("External sort done: %s" % sortname)
-        def connect(url):
-            fd, sze, url = comm.open_local(url, url)
-            return func.re_reader('(?s)(.*?) (.*?)\000', fd, sze, url)
-        return self.multi_file_iterator(connect, inputs=[sortname])
+        return self.multi_file_iterator(self.sort_reader, inputs=[sortname])
 
     def memory_sort(self):
         Message("Sorting in memory")

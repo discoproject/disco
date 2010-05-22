@@ -18,20 +18,9 @@ write_pid(PidFile) ->
             exit(["Could not write PID to ", PidFile, ":", Error])
     end.
 
-gethostname() ->
-    {ok, Hostname} = inet:gethostname(),
-    {ok, Hostent}  = inet:gethostbyname(Hostname),
-    Hostent#hostent.h_name.
-
-set_disco_url(Port) ->
-    Hostname = gethostname(),
-    DiscoUrl = lists:flatten(["http://", Hostname, ":", Port]),
-    application:set_env(disco, disco_url, DiscoUrl).
-
 start(_Type, _Args) ->
     write_pid(disco:get_setting("DISCO_MASTER_PID")),
     Port = disco:get_setting("DISCO_PORT"),
-    set_disco_url(Port),
     supervisor:start_link(disco_main, [list_to_integer(Port)]).
 
 init([Port]) ->
