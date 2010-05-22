@@ -393,6 +393,8 @@ def object_reader(fd, sze, fname):
     A wrapper for :func:`netstr_reader` that uses Python's ``cPickle``
     module to serialize arbitrary Python objects to strings.
     """
+    print"NOTE! Object_reader and object_writer are deprecated. "\
+         "Python objects are now serialized by default."
     for k, v in netstr_reader(fd, sze, fname):
         yield (cPickle.loads(k), cPickle.loads(v))
 

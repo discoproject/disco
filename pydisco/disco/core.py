@@ -30,6 +30,7 @@ newly started job.
 import sys, os, time, cStringIO, marshal
 from tempfile import NamedTemporaryFile
 from itertools import chain
+from warnings import warn
 
 from disco import func, util
 from disco.comm import download, json
@@ -757,6 +758,10 @@ class JobDict(util.DefaultDict):
 
         if 'input_files' in kwargs and 'input' not in self:
             self['input'] = self.pop('input_files')
+
+        if 'reduce_writer' in self or 'map_writer' in self:
+            warn("Writers are deprecated - use output_stream.add() instead",
+                    DeprecationWarning)
 
         if 'chunked' in self:
             raise DeprecationWarning("Argument 'chunked' is deprecated") # XXX: Deprecate properly
