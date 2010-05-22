@@ -1,5 +1,5 @@
+from disco import modutil
 from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.core import modutil
 from disco.error import ModUtilImportError
 
 import sys, os
@@ -70,12 +70,12 @@ class ModUtilTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        x, y = map(float, e.split('|'))
+        x, y = [float(x) for x in e.split('|')]
         return [(mod1.plusceil(x, y) + math.ceil(1.5), '')]
 
     @property
     def answers(self):
-        yield '4.0', ''
+        yield 4.0, ''
 
     def setUp(self):
         self.sys_path = sys.path

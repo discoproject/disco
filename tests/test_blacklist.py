@@ -16,22 +16,22 @@ class BlacklistTestCase(DiscoJobTestFixture, DiscoTestCase):
             self.whitelist[path] = (n - 1, next)
         return path
 
-    @staticmethod
     def map_input_stream(stream, size, url, params):
         from disco.util import urlsplit
         from disco import comm
         scheme, netloc, path = urlsplit(url)
         # test that scheduler preserved data locality
-        msg("NODE %s GOT URL %s" % (Task.host, url))
-        assert netloc == Task.host
+        msg("NODE %s GOT URL %s" % (Task.netloc, url))
+        assert netloc == Task.netloc
         return comm.open_remote("http://%s/%s" % (path, netloc))
+    map_input_stream = [map_input_stream]
 
     def map(e, params):
         return [(e, '')]
 
     def setUp(self):
         host, port = self.test_server_address
-        # assumption: scheduler starts scheduling tasks in the 
+        # assumption: scheduler starts scheduling tasks in the
         # order specified by self.input
         self.blacklisted = sorted(self.nodes.keys())
         self.input = flatten([N * ['http://%s/%s:%d' % (node, host, port)]

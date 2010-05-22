@@ -22,4 +22,4 @@ class RequiredFilesTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @property
     def answers(self):
-        yield '', str(int(self.inputs[0]) ** 2 + 2)
+        yield '', int(self.inputs[0]) ** 2 + 2

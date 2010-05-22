@@ -3,7 +3,6 @@
 -export([new/0, feed/2]).
 
 -define(MESSAGES_MAX, 100).
--define(OOB_KEY_MAX, 256).
 -define(EVENT_OPEN,  "**<", EventType:3/binary, ">").
 -define(EVENT_CLOSE, "<>**").
 -define(TIMESTAMP,
@@ -67,17 +66,6 @@ event({EventType, Time, Tags, Messages}) ->
 finalize_event({<<"PID">>, _Time, _Tags, Messages}) ->
     [ChildPID] = message_buffer:to_list(Messages),
     {ok, ChildPID};
-
-finalize_event({<<"OOB">>, _Time, _Tags, Messages}) ->
-    [Message] = message_buffer:to_list(Messages),
-    [Key|Path] = string:tokens(Message, " "),
-    case length(Key) > ?OOB_KEY_MAX of
-        true ->
-            {error, "OOB key too long: " ++ Key ++ ". Max " ++
-             integer_to_list(?OOB_KEY_MAX) ++ " characters"};
-        false ->
-            {ok, {Key, Path}}
-    end;
 
 finalize_event({<<"OUT">>, _Time, _Tags, Messages}) ->
     [Results] = message_buffer:to_list(Messages),

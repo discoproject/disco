@@ -40,11 +40,14 @@ unique_key(Prefix, Dict) ->
             unique_key(Prefix, Dict)
     end.
 
-handle_call(get_jobnames, _From, {Events, _MsgBuf} = S) ->
-    JobList = dict:fold(fun(JobName, {_EventList, JobStart, Pid}, Acc) ->
-        [{JobName, JobStart, Pid}|Acc]
+handle_call(get_jobs, _From, {Events, _MsgBuf} = S) ->
+    Jobs = dict:fold(fun
+        (Name, {[{ready, _Results}|_], Start, Pid}, Acc) ->
+            [{list_to_binary(Name), ready, Start, Pid}|Acc];
+        (Name, {_Events, Start, Pid}, Acc) ->
+            [{list_to_binary(Name), process_status(Pid), Start, Pid}|Acc]
     end, [], Events),
-    {reply, {ok, JobList}, S};
+    {reply, {ok, Jobs}, S};
 
 handle_call({get_job_events, JobName, Query, N0}, _From, {_Events, MsgBuf} = S) ->
     N = if
@@ -70,12 +73,18 @@ handle_call({get_results, JobName}, _From, {Events, _MsgBuf} = S) ->
         {ok, {[{ready, Results}|_EventList], _JobStart, Pid}} ->
             {reply, {ready, Pid, Results}, S};
         {ok, {_EventList, _JobStart, Pid}} ->
-            {reply, {case is_process_alive(Pid) of
-                     true ->
-                         active;
-                     false ->
-                         dead
-                 end, Pid}, S}
+            {reply, {process_status(Pid), Pid}, S}
+    end;
+
+handle_call({get_map_results, JobName}, _From, {Events, _MsgBuf} = S) ->
+    case dict:find(JobName, Events) of
+        error ->
+            {reply, invalid_job, S};
+        {ok, {EventList, _JobStart, _Pid}} ->
+            case event_filter(map_ready, EventList) of
+                [] -> {reply, not_ready, S};
+                [Res] -> {reply, {ok, Res}, S}
+            end
     end;
 
 handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0}) ->
@@ -128,6 +137,7 @@ handle_cast({job_done, JobName}, {Events, MsgBuf} = S) ->
 
 handle_cast({clean_job, JobName}, {Events, _MsgBuf} = S) ->
     {_, {_, MsgBufN}} = handle_cast({job_done, JobName}, S),
+    delete_jobdir(JobName),
     {noreply, {dict:erase(JobName, Events), MsgBufN}}.
 
 handle_info(Msg, State) ->
@@ -151,6 +161,12 @@ grep_log(JobName, Query, N) ->
     Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ", FName,
                       " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
     lists:map(fun erlang:list_to_binary/1, lists:reverse(Lines)).
+
+process_status(Pid) ->
+    case is_process_alive(Pid) of
+        true -> active;
+        false -> dead
+    end.
 
 event_filter(Key, EventList) ->
     [V || {K, V} <- EventList, K == Key].
@@ -202,7 +218,7 @@ event(EventServer, Host, JobName, Format, Args, Params) ->
 		     true -> trunc_io:fprint(X, 10000);
 		     false -> X 
 		 end || X <- Args],
-    Msg = list_to_binary(json:encode(
+    Msg = list_to_binary(mochijson2:encode(
         list_to_binary(io_lib:fwrite(Format, SArgs)))),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
 
@@ -220,18 +236,15 @@ prepare_environment(Name) ->
     Home = disco_server:jobhome(Name),
     [Path, _] = filename:split(Home),
     check_mkdir(file:make_dir(filename:join(Root, Path))),
-    check_mkdir(file:make_dir(filename:join(Root, Home))),
-    case (disco:is_resultfs_enabled()) of
-        true ->
-            LocalRoot = disco:get_setting("DISCO_LOCAL_DIR"),
-            [Path, _] = filename:split(Home),
-            check_mkdir(file:make_dir(filename:join(LocalRoot, Path))),
-            check_mkdir(file:make_dir(filename:join(LocalRoot, Home))),
-            Dst = filename:join([LocalRoot, Home, "events"]),
-            Src = filename:join([Root, Home, "events"]),
-            ok = file:make_symlink(Dst, Src);
-        false ->
-            ok
+    check_mkdir(file:make_dir(filename:join(Root, Home))).
+
+delete_jobdir(Name) ->
+    Safe = string:chr(Name, $.) + string:chr(Name, $/),
+    if Safe =:= 0 ->
+        Root = disco:get_setting("DISCO_MASTER_ROOT"),
+        Home = disco_server:jobhome(Name),
+        os:cmd("rm -Rf " ++ filename:join(Root, Home));
+    true -> ok
     end.
 
 job_event_handler(JobName, JobCoordinator) ->

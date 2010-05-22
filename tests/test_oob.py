@@ -7,7 +7,7 @@ class OOBTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs    = 2
     inputs_1     = list(string.ascii_lowercase)
     inputs_2     = ['raw://a', 'raw://b', 'raw://c']
-    nr_reduces_1 = 10
+    partitions_1 = 10
 
     @property
     def params_2(self):
@@ -47,7 +47,7 @@ class OOBTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
 
     @property
     def answers_1(self):
-        return [('all', 'ok')] * self.nr_reduces_1
+        return [('all', 'ok')] * self.partitions_1
 
     @property
     def answers_2(self):
@@ -57,5 +57,5 @@ class OOBTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     def oob_data(self):
         for i in self.inputs_1:
             yield '%s' % i
-        for i in xrange(self.nr_reduces_1):
+        for i in xrange(self.partitions_1):
             yield 'reduce:%s' % i

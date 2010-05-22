@@ -4,7 +4,7 @@ from cStringIO import StringIO
 
 class ProfileTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs     = [''] * 1
-    nr_reduces = 30
+    partitions = 30
     profile    = True
     sort       = False
 
@@ -27,4 +27,4 @@ class ProfileTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @property
     def answers(self):
-        return {'gutta': '10', 'cavat': '20', 'capidem': '10'}
+        return {'gutta': 10, 'cavat': 20, 'capidem': 10}

@@ -3,8 +3,8 @@
 TESTS=$(grep TestCase test_*.py | grep class | sed "s/py\:class //g" | cut -d "("  -f 1 | grep -v InterruptTest)
 
 export DISCO_TEST_PURGE=
-export DISCO_MASTER_HOST=discomaster 
-export PYTHONPATH=$PYTHONPATH:../pydisco
+export DISCO_MASTER_HOST=discomaster
+export PYTHONPATH=$PYTHONPATH:../lib
 
 for i in $TESTS;
 do

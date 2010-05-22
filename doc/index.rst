@@ -16,6 +16,7 @@ Background
    FAQ <faq>
    releases
    glossary
+   screenshots
 
 Getting started
 ---------------
@@ -23,12 +24,13 @@ Getting started
 .. toctree::
    :maxdepth: 1
 
+   start/download
    start/install
    start/tutorial
    start/ec2setup
-   start/dfs
+   start/ddfs
    start/troubleshoot
-   man/disco
+   start/getinvolved
 
 References
 ----------
@@ -38,8 +40,9 @@ References
 
    py/index
    external
-   disco command line interface <man/disco>
-   man/settings
+   man/disco
+   man/ddfs
+   py/settings
 
 Indices and tables
 ------------------
