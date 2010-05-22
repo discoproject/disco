@@ -29,7 +29,7 @@ class DefaultDict(defaultdict):
 
 class MessageWriter(object):
     def write(self, string):
-        Message(string)
+        Message(string.strip())
 
 class netloc(tuple):
     @classmethod
