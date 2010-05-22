@@ -38,6 +38,6 @@ Support for distributed filesystems
 .. toctree::
    :maxdepth: 1
 
-   ddfs
+   ../start/ddfs
    gluster
 
