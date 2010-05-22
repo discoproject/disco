@@ -32,7 +32,6 @@ SEE ALSO
 """
 
 import os, sys
-import fileinput
 from itertools import chain
 
 from clx import OptionParser, Program
@@ -264,6 +263,14 @@ def push(program, tag, *files):
     program.ddfs.push(tag, blobs, replicas=replicas)
 
 @DDFS.command
+def put(program, tag, *urls):
+    """Usage: tag url ...
+
+    Put the urls[s] to the given tag.
+    """
+    program.ddfs.put(tag, [[url] for url in urls])
+
+@DDFS.command
 def rm(program, *tags):
     """Usage: [-i] [-r] tag ...
 
@@ -289,15 +296,6 @@ def tag(program, tag, *urls):
     Tags the urls[s] with the given tag.
     """
     program.ddfs.tag(tag, [[url] for url in urls])
-
-@DDFS.command
-def tagf(program, tag, *files):
-    """Usage: tag [file ...]
-
-    Reads a list of urls from file[s] or stdin and tags them with the given tag.
-    """
-    urls = [line.strip().split('\t') for line in fileinput.input(files)]
-    program.ddfs.tag(tag, urls)
 
 @DDFS.command
 def touch(program, *tags):
