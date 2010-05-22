@@ -1,6 +1,6 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.core import result_iterator
-from disco.func import map_input_stream
+from disco.func import map_input_stream, netstr_writer
 
 def map_input_stream1(stream, size, url, params):
     r = stream.read()
@@ -22,6 +22,7 @@ def reduce_output_stream2(stream, size, url, params):
 
 class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs           = ['apple', 'orange', 'pear']
+    reduce_writer        = netstr_writer
     map_input_stream     = [map_input_stream, map_input_stream1, map_input_stream2]
     reduce_output_stream = [reduce_output_stream1, reduce_output_stream2]
 

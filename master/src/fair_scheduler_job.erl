@@ -60,9 +60,11 @@ schedule(Mode, Job, Jobs, AvailableNodes) ->
             % a task to one of them.
             Empty = all_empty_nodes(Jobs, AvailableNodes),
             schedule(schedule_remote, Job, Jobs, Empty);
-        Error ->
+        {'EXIT', {timeout, _}} = Error ->
             error_logger:warning_report({"Scheduling timeout!", Error}),
             gen_server:cast(Job, {die, "Scheduling timeout (system busy?)"}),
+            none;
+        {'EXIT', _} ->
             none
     end.
 
