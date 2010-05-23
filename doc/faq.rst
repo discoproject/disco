@@ -76,14 +76,8 @@ See also the next question.
 How to debug programs in Disco?
 '''''''''''''''''''''''''''''''
 
-Use :mod:`homedisco`. It allows you to run Disco jobs locally, as any other
-Python program. This means that you can use any Python debugger or profiler for
-analyzing your code.
-
-:mod:`homedisco` is not only great for debugging and profiling but
-also for development in general. It is highly recommended that you test
-your functions first locally with :mod:`homedisco`, before running them
-in the normal distributed Disco environment.
+Set up a single node Disco cluster locally on your laptop or desktop. It makes
+debugging a Disco job almost as easy as debugging any Python script.
 
 .. _outputtypes:
 
