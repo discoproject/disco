@@ -1,9 +1,3 @@
-"""
-:mod:`discodb` -- An efficient, immutable, persistent mapping object
-====================================================================
-
-"""
-
 from ._discodb import DiscoDB, DiscoDBError
 from .metadb import MetaDB
 from .query import Q

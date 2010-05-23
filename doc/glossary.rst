@@ -11,7 +11,10 @@ Glossary
         manage separate sets of resources (CPUs).
 
    ichunk
-        An immutable piece of a distributed :term:`index`, stored in a file.
+        An :term:`immutable` piece of a distributed :term:`index`, stored in a file.
+
+   immutable
+        See http://en.wikipedia.org/wiki/Immutable_object
 
    index
         A mapping from each key in a set of keys to a multiset of values.
@@ -28,6 +31,9 @@ Glossary
         :func:`disco.job`. Currently, the functions *map*, *reduce*,
         *combiner*, *partitioner* are referred as job functions. A job
         function needs to be a :term:`pure function`.
+
+   persistent
+        See http://en.wikipedia.org/wiki/Persistent_data_structure
 
    pure function
         The pure function always evaluates the same result value given
