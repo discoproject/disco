@@ -24,12 +24,3 @@ Runtime environment for Disco jobs
    :maxdepth: 1
 
    node/worker
-
-Utilities
----------
-
-.. toctree::
-   :maxdepth: 1
-
-   homedisco
-
