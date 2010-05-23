@@ -1,5 +1,5 @@
-Discodex Documentation
-======================
+Discodex - Distributed indices for Disco
+========================================
 
 Getting Started
 ---------------
