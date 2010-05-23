@@ -34,6 +34,7 @@ For instance, the following fully working example computes word
 frequencies in a large text corpus using 100 CPUs in parallel:
 
 ::
+
     from disco.core import Disco, result_iterator
 
     def fun_map(e, params):
