@@ -1,24 +1,4 @@
 """
-A MetaDB is a file containing two DiscoDBs where one is an index over the keys of the other.
-
-Lookups into the MetaDB are first performed in the metadb and then keys are dereferenced in the datadb.
-
-metadb:
-
-======= ======
-ks      vs
-======= ======
-metakey keys
-======= ======
-
-datadb:
-
-=== ======
-ks  vs
-=== ======
-key values
-=== ======
-
 >>> datadb = DiscoDB({'a': 'bcd', 'e': 'bfg'})
 >>> metadb = MetaDB(datadb, {'metakey': 'ae'})
 >>> for metakey, metaval in metadb.items():
@@ -28,6 +8,27 @@ key values
 from discodb import DiscoDB
 
 class MetaDB(object):
+    """
+    A MetaDB is a file containing two DiscoDBs where one is an index over the keys of the other.
+
+    Lookups into the MetaDB are first performed in the metadb and then keys are dereferenced in the datadb.
+
+    metadb:
+
+    ======= ======
+    ks      vs
+    ======= ======
+    metakey keys
+    ======= ======
+
+    datadb:
+
+    === ======
+    ks  vs
+    === ======
+    key values
+    === ======
+    """
     VERSION = '00' # 2 bytes
 
     def __init__(self, datadb, metadb):

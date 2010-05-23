@@ -13,5 +13,10 @@ def key(kv):
     return k
 
 def kvgroup(kviter):
+    """Like itertools.groupby, but iterates over (k, vs) instead of (k, k-vs).
+
+    The result can be used to construct a :class:`discodb.DiscoDB`,
+    iff ``kviter`` is in sorted order.
+    """
     for k, kvs in groupby(kviter, key):
         yield k, (v for _k, v in kvs)
