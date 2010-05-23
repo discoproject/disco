@@ -1,4 +1,4 @@
-discodex documentation
+Discodex Documentation
 ======================
 
 Getting Started
@@ -6,6 +6,7 @@ Getting Started
 
 .. toctree::
 
+   overview
    tutorial
 
 API Reference

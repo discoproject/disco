@@ -9,6 +9,15 @@ Glossary
         scheduling them and distributing tasks to the cluster. There
         may be many Disco masters running in parallel, as long as they
         manage separate sets of resources (CPUs).
+
+   ichunk
+        An immutable piece of a distributed :term:`index`, stored in a file.
+
+   index
+        A mapping from each key in a set of keys to a multiset of values.
+        Indices provide random access into a set of data.
+        As an example, search engines are usually implemented using a `web index`_
+
    job
         A sequence of the map :term:`task` and the
         reduce :term:`task`. Started by calling the
@@ -31,3 +40,5 @@ Glossary
    task
         A Disco :term:`job` is made of map and reduce *tasks*. A task consists
         of many map or reduce *instances*.
+
+.. _web index: http://en.wikipedia.org/wiki/Index_(search_engine)
