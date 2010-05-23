@@ -4,7 +4,7 @@
 `discodb` is comprised of a low-level data structure implemented in C,
 and a high-level :class:`discodb.DiscoDB` class which exposes a dict-like
 interface for using the low-level data structure from Python. In contrast
-to Python's default dictionary, discodb can handle tens of millions
+to Python's builtin dict object, discodb can handle tens of millions
 of key-value pairs without consuming gigabytes of memory.
 
 In addition to basic key-value mappings, discodb supports evaluation of
