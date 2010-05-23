@@ -24,10 +24,7 @@ Some of the `ddfs` utilities also work with data stored in Disco's temporary fil
 
 Run ``ddfs help`` for information on using the command line utility.
 
-SEE ALSO
---------
-
-:mod:`disco.settings`
+See also: :mod:`disco.settings`
 
 """
 

@@ -1,4 +1,4 @@
-discodex documentation
+Discodex Documentation
 ======================
 
 Getting Started
@@ -6,14 +6,16 @@ Getting Started
 
 .. toctree::
 
+   discodex
    tutorial
 
-API Reference
--------------
+Reference
+---------
 
 .. toctree::
    :glob:
 
+   man/discodex
    api/rest
    api/discodex/*
    api/discodex/mapreduce/index

@@ -1,6 +1,30 @@
 #!/usr/bin/env python
 """
-Module/script for controlling discodex from the command line.
+:mod:`discodex <discodexcli>` -- Discodex command line utility
+==============================================================
+
+`discodex` is a command line tool for controlling and communicating with the discodex server.
+
+.. note::
+
+   This is the manpage for the ``discodex`` command.
+   Please see :ref:`discodex` for more information on Discodex.
+
+.. hint::
+
+   The documentation assumes that the executable ``$DISCO_HOME/bin/discodex`` is on your system path.
+   If it is not on your path, you can add it::
+
+        ln -s $DISCO_HOME/bin/discodex /usr/local/bin
+
+   If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
+   Doing so allows you to simply call the command ``discodex``, instead of specifying the complete path.
+
+
+Run ``discodex help`` for information on using the command line utility.
+
+See also: :mod:`discodex.settings`
+
 """
 
 import os, sys

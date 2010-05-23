@@ -1,4 +1,6 @@
 
+.. _disco:
+
 What is Disco?
 ==============
 

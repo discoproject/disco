@@ -1,7 +1,3 @@
-.. Disco documentation master file, created by sphinx-quickstart on Sun Jul  6 17:23:01 2008.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Disco Documentation
 ===================
 
@@ -32,6 +28,15 @@ Getting started
    start/troubleshoot
    start/getinvolved
 
+Batteries Included
+------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   contrib/discodex/index
+   contrib/discodb/discodb
+
 References
 ----------
 
@@ -50,4 +55,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

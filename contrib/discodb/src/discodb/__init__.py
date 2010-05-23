@@ -1,4 +1,4 @@
-from ._discodb import DiscoDB
+from ._discodb import DiscoDB, DiscoDBError
 from .metadb import MetaDB
 from .query import Q
 from .tools import kvgroup

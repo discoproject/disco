@@ -9,6 +9,7 @@ Disco client
    :maxdepth: 1
 
    core
+   ddfs
    func
    error
    modutil
@@ -39,5 +40,4 @@ Support for distributed filesystems
    :maxdepth: 1
 
    gluster
-
 

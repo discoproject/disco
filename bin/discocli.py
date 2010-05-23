@@ -24,10 +24,7 @@ The new startup script makes it even easier to get up and running with a Disco c
 
 Run ``disco help`` for information on using the command line utility.
 
-SEE ALSO
---------
-
-:mod:`disco.settings`
+See also: :mod:`disco.settings`
 
 """
 
