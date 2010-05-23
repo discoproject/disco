@@ -33,11 +33,3 @@ Utilities
 
    homedisco
 
-Support for distributed filesystems
------------------------------------
-
-.. toctree::
-   :maxdepth: 1
-
-   gluster
-
