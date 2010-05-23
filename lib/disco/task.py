@@ -364,12 +364,6 @@ class Reduce(Task):
             return self.ext_params or '0\n'
         return self.jobdict['params']
 
-def num_cmp(x, y):
-    if x[0].isdigit() and y[0].isdigit():
-        x = int(x[0]), x[1]
-        y = int(y[0]), y[1]
-    return cmp(x, y)
-
 class ReduceReader(object):
     def __init__(self, task):
         self.task   = task
@@ -442,8 +436,7 @@ class ReduceReader(object):
     def memory_sort(self):
         Message("Sorting in memory")
         m = list(self.multi_file_iterator(self.connect_input, progress=False))
-        return self.task.track_status(sorted(m, cmp=num_cmp),
-                                      "%s entries reduced")
+        return self.task.track_status(sorted(m), "%s entries reduced")
 
     def multi_file_iterator(self, connect_input, progress=True, inputs=None):
         inputs = inputs or self.inputs
