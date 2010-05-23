@@ -8,8 +8,7 @@ to Python's default dictionary, discodb can handle tens of millions
 of key-value pairs without consuming gigabytes of memory.
 
 In addition to basic key-value mappings, discodb supports evaluation of
-Boolean queries expressed in `Conjunctive Normal Form
-<http://en.wikipedia.org/wiki/Conjunctive_normal_form>`_ (see :class:`discodb.Q`
+Boolean queries expressed in :term:`Conjunctive Normal Form` (see :class:`discodb.Q`
 below). All queries are evaluated lazily using iterators, so you can handle
 gigabytes of data in Python with ease.
 

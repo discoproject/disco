@@ -4,6 +4,9 @@ Glossary
 
 .. glossary::
 
+   conjunctive normal form
+        See http://en.wikipedia.org/wiki/Conjunctive_normal_form
+
    disco master
         Master process that takes care of receiving Disco jobs,
         scheduling them and distributing tasks to the cluster. There
@@ -20,6 +23,10 @@ Glossary
         A mapping from each key in a set of keys to a multiset of values.
         Indices provide random access into a set of data.
         As an example, search engines are usually implemented using a `web index`_
+
+   metaindex
+        A mapping of metakeys to values which are keys in another index.
+        A metaindex is also an index, that wraps around another index.
 
    job
         A sequence of the map :term:`task` and the

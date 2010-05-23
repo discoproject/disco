@@ -2,8 +2,24 @@
 :mod:`disco.settings` -- Disco Settings
 =======================================
 
-Settings can be specified in a file and/or using environment variables.
+Settings can be specified in a Python file and/or using environment variables.
+Settings specified in environment variables override those stored in a file.
+
+Disco looks in the following places for a settings file:
+
+        - The settings file specified using the command line utility
+          ``--settings`` option.
+        - ``~/.disco``
+        - ``/etc/disco/settings.py``
+
 Possible settings are as follows:
+
+        *DISCO_HOME*
+                The directory which Disco runs out of.
+                If you run Disco out of the source directory,
+                you shouldn't need to change this.
+                If you use ``make install`` to install Disco,
+                it will be set properly for you in ``/etc/disco/settings.py``.
 
         *DISCO_DEBUG*
                 Sets the debugging level for Disco.

@@ -2,9 +2,11 @@
 :mod:`discodex.mapreduce.demuxers` -- builtin demuxers
 ======================================================
 
-Demuxers are essentially the map function for the :class:`discodex.mapreduce.Indexer`.
+Demuxers are essentially the :func:`map <disco.func.map>` function for the
+:class:`discodex.mapreduce.Indexer`.
 
-A demuxer takes a record (see :mod:`discodex.mapreduce.parsers`) and produces zero or more `(key, value)` pairs to be stored in  the index.
+A demuxer takes a record (see :mod:`discodex.mapreduce.parsers`) and produces
+zero or more `(key, value)` pairs to be stored in  the index.
 """
 
 def nodemux(kvrecord, params):

@@ -2,9 +2,11 @@
 :mod:`discodex.mapreduce.metakeyers` -- builtin metakeyers
 ==========================================================
 
-Metakeyers are essentially the map function for the :class:`discodex.mapreduce.MetaIndexer`.
+Metakeyers are essentially the :func:`map <disco.func.map>` function
+for the :class:`discodex.mapreduce.MetaIndexer`.
 
-The metakeyer is called for every `key` in the index and produces zero or more `(metakey, value)` pairs.
+The metakeyer is called for every `key` in the index and produces
+zero or more `(metakey, value)` pairs.
 """
 
 def prefixkeyer(key, params):

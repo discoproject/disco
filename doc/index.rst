@@ -34,7 +34,7 @@ Batteries Included
 .. toctree::
    :maxdepth: 1
 
-   contrib/discodex/index
+   Discodex -- Distributed Indexing System <contrib/discodex/index>
    contrib/discodb/discodb
 
 References
