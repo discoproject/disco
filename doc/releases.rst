@@ -87,8 +87,7 @@ New features
    in particular `GlusterFS <http://gluster.com>`_. Two modes are available: Disco
    can read input data from a distributed filesystem while preserving data locality
    (aka *inputfs*). Disco can also use a DFS for internal communication,
-   replacing the need for node-specific web servers (aka *resultfs*). For more
-   information, see :ref:`dfs`.
+   replacing the need for node-specific web servers (aka *resultfs*).
 
 
 Bugfixes
