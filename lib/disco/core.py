@@ -693,7 +693,6 @@ class JobDict(util.DefaultDict):
                 'ext_params': None,
                 'mem_sort_limit': 256 * 1024**2,
                 'merge_partitions': False,
-                'nr_reduces': 1,
                 'params': Params(),
                 'partitions': 1,
                 'prefix': '',
@@ -706,6 +705,7 @@ class JobDict(util.DefaultDict):
                 'status_interval': 100000,
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
+                'nr_reduces': None,
                 'map_writer': None,
                 'reduce_writer': None
                 }
@@ -772,23 +772,31 @@ class JobDict(util.DefaultDict):
                             for urls in self['input']
                             for url in util.iterify(urls))
 
-        self['partitions'] = self['nr_reduces']
+        if 'nr_reduces' in kwargs:
+            # old nr_reduces overrides partitions if specified
+            self['partitions'] = self['nr_reduces']
 
-        if 'partitions' in kwargs:
-            if 'map' in self:
-                self['nr_reduces'] = self['partitions']
+        if 'map' in self:
+            if self['partitions']:
+                if self['merge_partitions']:
+                    # 0) Many partitions, but at most one reduce
+                    self['nr_reduces'] = 1
+                else:
+                    # 1) Normal partitioned map
+                    self['nr_reduces'] = self['partitions']
             else:
-                raise DiscoError("Can't specify partitions without map")
+                # 2) Non-partitioned map
+                self['nr_reduces'] = 0
+        elif 'partitions' in kwargs:
+            raise DiscoError("Can't specify partitions without map")
+        elif not ispartitioned and self['merge_partitions']:
+            raise DiscoError("Can't merge non-partitioned inputs")
+        elif ispartitioned and not self['merge_partitions']:
+            # 3) Only reduce, dir:// specifies nr_reduces
+            self['nr_reduces'] = len(util.parse_dir(self['input'][0]))
         else:
-            if 'map' not in self:
-                if ispartitioned and not self['merge_partitions']:
-                    self['nr_reduces'] = len(util.parse_dir(self['input'][0]))
-
-        if 'merge_partitions' in self:
-            if 'map' in self or ispartitioned:
-                self['nr_reduces'] = 1
-            else:
-                raise DiscoError("Can't merge partitions without partitions")
+            # 4) Only reduce, non-partitioned input or merge_partitions=True
+            self['nr_reduces'] = 1
 
         # -- scheduler --
         scheduler = self.__class__.defaults['scheduler'].copy()
