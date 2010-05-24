@@ -113,7 +113,6 @@ class DiscoSettings(Settings):
         'DISCO_FLAGS':           "''",
         'DISCO_HOME':            "guess_home()",
         'DISCO_HTTPD':           "'lighttpd'",
-        'DISCO_LOCAL_DIR':       "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_MASTER':          "'http://%s:%s' % (DISCO_MASTER_HOST, DISCO_PORT)",
         'DISCO_MASTER_HOME':     "os.path.join(DISCO_HOME, 'master')",
         'DISCO_MASTER_HOST':     "socket.gethostname()",
