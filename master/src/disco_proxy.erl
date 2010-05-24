@@ -17,7 +17,7 @@
 
 start() ->
     Proxy = disco:get_setting("DISCO_PROXY_ENABLED"),
-    if Proxy =:= "off" ->
+    if Proxy =:= "" ->
         error_logger:info_report({"Disco proxy disabled"}),
         ignore;
     true ->
