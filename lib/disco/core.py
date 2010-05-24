@@ -550,7 +550,7 @@ class JobDict(util.DefaultDict):
 
     :type  partitions: integer or None
     :param partitions: number of partitions.
-                       *partitions* defaults to 1.
+                       *partitions* defaults to None.
 
     :type  nr_reduces: *Deprecated in version 0.3* integer
     :param nr_reduces: Use *partitions* instead.
@@ -693,7 +693,6 @@ class JobDict(util.DefaultDict):
                 'ext_params': None,
                 'mem_sort_limit': 256 * 1024**2,
                 'merge_partitions': False,
-                'nr_reduces': 1,
                 'params': Params(),
                 'partitions': None,
                 'prefix': '',
@@ -706,6 +705,7 @@ class JobDict(util.DefaultDict):
                 'status_interval': 100000,
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
+                'nr_reduces': None,
                 'map_writer': None,
                 'reduce_writer': None
                 }
@@ -773,15 +773,20 @@ class JobDict(util.DefaultDict):
                                    for urls in self['input']
                                    for url in urls)
 
+        # set nr_reduces: ignored if there is not actually a reduce specified
         if self['map']:
+            # partitioned map has N reduces; non-partitioned map has 1 reduce
             self['nr_reduces'] = self['partitions'] or 1
         elif self['partitions']:
             raise DiscoError("Can't specify partitions without map")
         elif input_is_partitioned:
+            # Only reduce, with partitions: len(dir://) specifies nr_reduces
             self['nr_reduces'] = len(util.parse_dir(self['input'][0][0]))
         else:
+            # Only reduce, without partitions can only have 1 reduce
             self['nr_reduces'] = 1
 
+        # merge_partitions iff the inputs to reduce are partitioned
         if self['merge_partitions']:
             if self['partitions'] or input_is_partitioned:
                 self['nr_reduces'] = 1 # how does the input get merged?

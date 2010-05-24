@@ -63,7 +63,6 @@ class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map_1(e, params):
-        print e
         yield e, None
 
     @property
@@ -72,7 +71,6 @@ class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
 
     def reduce_2(iter, out, params):
         for k, v in iter:
-            print k, v
             out.add(k, v)
 
     def runTest(self):

@@ -129,7 +129,6 @@ class DiscoSettings(Settings):
         'DISCO_FLAGS':           "''",
         'DISCO_HOME':            "guess_home()",
         'DISCO_HTTPD':           "'lighttpd'",
-        'DISCO_LOCAL_DIR':       "os.path.join(DISCO_ROOT, 'local', '_%s' % DISCO_NAME)",
         'DISCO_MASTER':          "'http://%s:%s' % (DISCO_MASTER_HOST, DISCO_PORT)",
         'DISCO_MASTER_HOME':     "os.path.join(DISCO_HOME, 'master')",
         'DISCO_MASTER_HOST':     "socket.gethostname()",
@@ -151,7 +150,7 @@ class DiscoSettings(Settings):
 # GC
         'DISCO_GC_AFTER':        "3153600000",
 # PROXY
-        'DISCO_PROXY_ENABLED':   "'off'",
+        'DISCO_PROXY_ENABLED':   "''",
         'DISCO_PROXY':           "''",
         'DISCO_PROXY_PORT':      "8999",
         'DISCO_PROXY_PID':       "os.path.join(DISCO_ROOT, '%s-proxy.pid' % DISCO_NAME)",
