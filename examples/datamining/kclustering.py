@@ -14,9 +14,9 @@ from os import getenv
 # class support in Params has been added to Disco.
 mean_point_center = {
     'create':(lambda x,w: { '_x':x, 'w':w }),
-    'update':(lambda p,q: { '_x':[ p['_x'][i]+q['_x'][i] for i in range(len(q['_x']))], 'w':p['w']+q['w'] }),
+    'update':(lambda p,q: { '_x':[ pxi+qxi for pxi,qxi in zip(p['_x'],q['_x']) ], 'w':p['w']+q['w'] }),
     'finalize':(lambda p: { 'x':[v/p['w'] for v in p['_x']],'_x':p['_x'], 'w':p['w'] }),
-    'dist':(lambda p,x: sum((p['x'][i]-x[i])**2 for i in range(len(x))))
+    'dist':(lambda p,x: sum((pxi-xi)**2 for pxi,xi in zip(p['x'],x)) )
     }
 
 
