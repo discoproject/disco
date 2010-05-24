@@ -1,0 +1,1 @@
+.. automodule:: disco.node.worker

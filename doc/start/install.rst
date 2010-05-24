@@ -26,8 +26,8 @@ system, to get an idea what should go where and why. To make a long
 story short, Disco works as follows:
 
  * Disco users start Disco jobs in Python scripts.
- * Jobs requests are sent over HTTP to the master that sits behind a Lighttpd web server.
- * Master is an Erlang process that receives requests from Lighttpd over SCGI.
+ * Jobs requests are sent over HTTP to the master.
+ * Master is an Erlang process that receives requests over HTTP.
  * Master launches another Erlang process, worker supervisor, on each node over
    SSH.
  * Worker supervisors run Disco jobs as Python processes.
@@ -96,14 +96,13 @@ Open ``DISCO_HOME/conf/settings.py``. This file sets a number of environment
 variables that define the runtime environment for Disco.
 Most likely you do not need to modify this file right away.
 You can change the paths if the defaults are not suitable for your system.
-See :ref:`settings` for more information on the various settings and their default values.
+See :mod:`disco.settings` for more information on the various settings and their default values.
 
 3. Start Disco
 --------------
 
-Disco now uses a streamlined command-line interface (see :ref:`disco`).
-On the master node, start the Disco master by executing ``disco master start``.
-On all the servers you want to utilize as workers, execute ``disco worker start``.
+Disco now uses a streamlined command-line interface (see :mod:`discocli`).
+On the master node, start the Disco master by executing ``disco start``.
 
 You can easily integrate ``disco`` into your system's startup sequence.
 For instance, you can see how ``debian/disco-master.init`` and
@@ -114,8 +113,8 @@ If Disco has started up properly, you should see processes ``lighttpd``
 and ``beam.smp`` running on your master node, and ``lighttpd`` on the
 other servers.
 
-An easy way to test if Disco is starting up properly is to run ``disco master nodaemon``
-instead of ``disco master start``.
+An easy way to test if Disco is starting up properly is to run ``disco nodaemon``
+instead of ``disco start``.
 This will start the master node and bring you right to its Erlang shell,
 without redirecting the log to a file.
 

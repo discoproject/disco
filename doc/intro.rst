@@ -1,4 +1,6 @@
 
+.. _disco:
+
 What is Disco?
 ==============
 
@@ -33,26 +35,29 @@ frequencies in a large text corpus using 100 CPUs in parallel:
 
 ::
 
-    import disco
+    from disco.core import Disco, result_iterator
 
     def fun_map(e, params):
-            return [(w, 1) for w in re.sub("\W", " ", e).lower().split()]
+        return [(w, 1) for w in re.sub("\W", " ", e).lower().split()]
 
     def fun_reduce(iter, out, params):
-            s = {}
-            for k, v in iter:
-                    if k in s:
-                            s[k] += int(v)
-                    else:
-                            s[k] = int(v)
-            for k, v in s.iteritems():
-                    out.add(k, v)
+        s = {}
+        for k, v in iter:
+            if k in s:
+                s[k] += int(v)
+            else:
+                s[k] = int(v)
+        for k, v in s.iteritems():
+            out.add(k, v)
 
-    results = disco.job("disco://localhost:5000", "wordcount",
-                ["http://localhost/text-block-1", "http://localhost/text-block-2"],
-                fun_map, reduce = fun_reduce, nr_maps = 100, sort = False)
+    results = Disco("disco://localhost").new_job(
+                name = 'wordcount',
+                map = fun_map,
+                reduce = fun_reduce,
+                input = ['http://localhost/text-block-1', 'http://localhost/text-block-2'],
+                partitions = 100).wait()
 
-    for key, value in disco.result_iterator(results):
+    for key, value in result_iterator(results):
 	    print key, value
 
 Disco is designed to integrate easily in larger applications, such as
@@ -73,7 +78,7 @@ an automatic provisioning mechanism, such as the `Fully Automatic
 Installation for Debian <http://www.informatik.uni-koeln.de/fai/>`_,
 even a large HPC cluster can be maintained with only a minimal amount
 of manual work. As a proof of concept, `Nokia Research Center in Palo
-Alto <http://research.nokia.com>`_ maintains a 240-core cluster running
+Alto <http://research.nokia.com>`_ maintains a 800-core cluster running
 Disco using this setup.
 
 
@@ -83,7 +88,7 @@ Main features
 - Proven to scale to hundreds of CPUs and tens of thousands of simulataneous
   tasks.
 
-- Used to process datasets in the scale of tens of gigabytes.
+- Used to process datasets in the scale of tens of terabytes.
 
 - Extremely simple to use: A typical tasks consists of two functions written
   in Python and two calls to the Disco API.
@@ -105,3 +110,7 @@ Main features
 
 - Easy to integrate to larger applications using the standard Disco module
   and the Web APIs.
+
+- Comes with a built-in distributed storage system (:ref:`ddfs`) and
+  a distributed indexing subsystem (:ref:`discodex`), enabling ad-hoc
+  querying of terabytes of data.

@@ -9,9 +9,11 @@ Disco client
    :maxdepth: 1
 
    core
+   ddfs
    func
    error
    modutil
+   settings
    schemes
    util
 
@@ -21,22 +23,4 @@ Runtime environment for Disco jobs
 .. toctree::
    :maxdepth: 1
 
-   disco_worker
-
-Utilities
----------
-
-.. toctree::
-   :maxdepth: 1
-
-   homedisco
-
-Support for distributed filesystems
------------------------------------
-
-.. toctree::
-   :maxdepth: 1
-
-   gluster
-
-
+   node/worker

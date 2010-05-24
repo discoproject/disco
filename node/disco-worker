@@ -1,69 +1,28 @@
 #!/usr/bin/env python
 import os, sys, traceback
 
-from disco.error import CommError, DiscoError, DataError
-from disco.events import AnnouncePID, DataUnavailable, EndOfJob, TaskFailed
-from disco.fileutils import ensure_file
-from disco.netstring import decode_netstring_fd
-from disco.node import worker
-from disco.comm import download
+from disco.error import DataError
+from disco.events import DataUnavailable, TaskFailed
+from disco.node.worker import Worker
 from disco.util import MessageWriter
 
-def run(task, jobpack):
-        method = getattr(worker, 'op_%s' % task.mode)
-
-        if not int(jobpack['profile']):
-                return method(jobpack)
-
-        try:
-                import cProfile as prof
-        except ImportError:
-                import profile as prof
-
-        filename = 'profile-%s-%s' % (task.mode, task.id)
-        path     = task.path('OOB_FILE', filename)
-        prof.runctx('method(jobpack)', globals(), locals(), path)
-        worker.put(filename, None)
-
-def main(inputs, mode, name, host, master_job, part):
-        AnnouncePID(os.getpid())
-
-        master = master_job.split('/')[2]
-        worker.init(mode, host, master, name, part, inputs)
-        task = worker.Task
-
-        try:
-                if task.has_flag('resultfs'):
-                        url = '%s/data/%s/params' % (task.root, '/'.join(master_job.strip('/').split('/')[-3:]))
-                        fn = lambda: file(url).read()
-                else:
-                        url = '%s/params' % master_job
-                        fn = lambda: download(url)
-                ensure_file(task.path('PARAMS_FILE'), fn, mode = 444)
-        except Exception, e:
-                raise DataError("Failed to get url: %s" % e, url)
-
-        try:
-                m = decode_netstring_fd(file(task.path('PARAMS_FILE')))
-        except Exception, e:
-                raise DiscoError("Decoding the job description failed: %s" % e)
-
-        assert m['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
-
-        run(task, m)
-        EndOfJob("Worker done")
+def main(inputs, mode, jobname, netlocstr, id):
+    Worker(mode,
+           netlocstr=netlocstr,
+           id=id,
+           inputs=inputs,
+           jobname=jobname)
 
 if __name__ == '__main__':
-        try:
-                sys.stdout = MessageWriter()
-                main(sys.argv[6:], *sys.argv[1:6])
-        except (DataError, EnvironmentError), e:
-                # check the number of open file descriptors (under proc), warn
-                # if close to max
-                # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
-                # also check for other known reasons for error, such as if disk is full
-                DataUnavailable(traceback.format_exc())
-                raise
-        except Exception, e:
-                TaskFailed(traceback.format_exc())
-                raise
+    try:
+        sys.stdout = MessageWriter()
+        main(sys.argv[5:], *sys.argv[1:5])
+    except (DataError, EnvironmentError), e:
+        # check the number of open file descriptors (under proc), warn if close to max
+        # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
+        # also check for other known reasons for error, such as if disk is full
+        DataUnavailable(traceback.format_exc())
+        raise
+    except Exception, e:
+        TaskFailed(traceback.format_exc())
+        raise

@@ -247,12 +247,6 @@ As you saw, creating a new Disco job is pretty straightforward. Next you could
 write functions for a bit more complex job, which could, for instance, count
 only words that are provided as a parameter to the map function.
 
-It is highly recommended that you take a look in :mod:`homedisco`. It is
-a simple replacement for :func:`disco.core.Job` that lets you to debug,
-profile and test your Disco functions on your local machine, instead of
-running them in the cluster. It is an invaluable tool when developing
-new programs for Disco.
-
 You can also experiment with providing custom partitioning and reader
 functions. They are written in the same way as map and reduce functions.
 Just see some examples in the :mod:`disco.func` module. After that,

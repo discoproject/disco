@@ -1,0 +1,2 @@
+class DiscodexError(Exception):
+    pass

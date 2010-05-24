@@ -2,4 +2,4 @@
 TWO = 2
 
 def magic(x):
-        return x ** TWO
+    return x ** TWO

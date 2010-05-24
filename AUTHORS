@@ -6,7 +6,7 @@ This file lists Disco authors based on
 
         git shortlog -s | sort -rn
 
-For full details, run 
+For full details, run
 
         git shortlog
 
@@ -14,6 +14,7 @@ Contributor's username in GitHub, if known, is in parentheses.
 
 Ville Tuulos / Nokia Research Center (tuulos)
 Jared Flatow / Nokia Research Center (jflatow)
+Ruslan Spivak (rspivak)
 Valentino Volonghi (dialtone)
 Roberto Aguilar (rca)
 Jerry Zhou (zhou)
@@ -23,12 +24,13 @@ Jarno Seppanen / Nokia Research Center (jarnsepp)
 Paul Smith (paulsmith)
 Eran Sandler (erans)
 Attila Babo (issuu)
+Jan Tore Morken (jantore)
 Jiri Kaiser
 
 Other patches by:
 
 Wes Chow
-Jason R. Surratt (jsurratt)
+Rich Hankins / Nokia Research Center
 Kostis Sagonas
-
-
+Tomaz Solc
+Jason R. Surratt (jsurratt)

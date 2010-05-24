@@ -19,7 +19,7 @@ Here we assume that you have installed Disco locally with the following steps:
  * Downloaded the latest source package from `discoproject.org <http://discoproject.org/download.html>`_ or from the `GitHub repository <http://github.com/tuulos/disco>`_.
  * Extracted the package to your home directory, say ``~/disco/``.
  * Compiled the sources by writing ``make`` in ``~/disco/``.
- * Started Disco with ``disco master start`` and ``disco worker start``.
+ * Started Disco with ``disco start``.
  * Tried to run the ``count_words.py`` example from :ref:`setup` as follows ``python count_words.py http://localhost:8989``.
 
 but the script crashed and/or didn't produce any results.
@@ -29,7 +29,7 @@ Let's find out what goes wrong. Follow the next steps in order.
 0. Start Disco locally
 ----------------------
 
-If you have started Disco earlier, try to stop the master using ``disco master stop``.
+If you have started Disco earlier, try to stop the master using ``disco stop``.
 If you cannot seem to stop Disco, kill the previous processes with
 ``killall -9 lighttpd`` and ``killall -9 beam`` (or ``killall -9
 beam.smp`` if you have a multi-core system). Note that this kills all
@@ -39,7 +39,7 @@ you have some other Erlang / Lighttpd processes running besides Disco.
 Then, restart Disco by saying::
 
         cd ~/disco
-        disco master nodaemon
+        disco nodaemon
 
 Here we assume that you've extracted Disco under ``~/disco``. If you
 extracted Disco to some other directory, replace ``~/disco/`` with your
@@ -62,13 +62,13 @@ If the master is running, you should see something like this::
         disco 6848 0.0 0.7 317220 125960 ? Sl Oct07 3:46
         /usr/lib/erlang/erts-5.6.3/bin/beam.smp -K true -- -root
         /usr/lib/erlang -progname erl -- -home /srv/disco -heart -noshell
-        -sname disco_4444_master -rsh ssh -pa /usr/lib/disco//ebin
+        -sname disco_8989_master -rsh ssh -pa /usr/lib/disco//ebin
         -boot /usr/lib/disco//disco -kernel error_logger {file,
-        "/var/log/disco//disco_4444.log"} -eval [handle_job,
-        handle_ctrl] -disco disco_name "disco_4444" -disco disco_root
-        "/srv/disco//data/_disco_4444" -disco disco_master_host "" -disco
-        disco_slaves_os "linux" -disco scgi_port 4444 -disco disco_config
-        "/srv/disco//disco_4444.config
+        "/var/log/disco//disco_8989.log"} -eval [handle_job,
+        handle_ctrl] -disco disco_name "disco_8989" -disco disco_root
+        "/srv/disco//data/_disco_8989" -disco disco_master_host "" -disco
+        disco_slaves_os "linux" -disco scgi_port 8989 -disco disco_config
+        "/srv/disco//disco_8989.config
 
 If you do see output like above, the master is running correctly and
 you can proceed to the next step.
@@ -95,7 +95,7 @@ compilation fails for some reason.
 If the binaries exist but the master doesn't start, run::
 
         cd ~/disco
-        disco master nodaemon
+        disco nodaemon
 
 This assumes ``DISCO_HOME`` is ``~/disco``.
 This command tries to start the Erlang virtual machine with the Disco
@@ -129,7 +129,7 @@ the following command initializes a configuration file with one node::
 
 Remember to restart the master after editing the config file by hand::
 
-         disco master restart
+         disco restart
 
 3. Is worker supervisor running?
 --------------------------------
@@ -206,7 +206,7 @@ that the supervisor is running correctly, the problem might be in the
 
 See what happens with the following command::
 
-        ssh localhost "PATH=~/disco/node PYTHONPATH=~/disco/node:~/disco/pydisco disco-worker"
+        ssh localhost "PATH=~/disco/node PYTHONPATH=~/disco/node:~/disco/lib disco-worker"
 
 It should respond with an error message that includes::
 
@@ -222,26 +222,6 @@ You can find out what exactly Disco tries to execute as follows::
 In the log, you should see lines starting with ``Spawn cmd: nice -19 disco-worker...``.
 You can copy-paste one of the lines and try to execute it by hand.
 This way you can easily see how ``disco-worker`` fails.
-
-5. Are Lighttpd instances running?
-----------------------------------
-
-If the Disco master, worker supervisors and ``disco-worker`` processes all
-seem to work properly, there are not many more places that could fail.
-
-Disco uses HTTP for data transfer, so it needs a web server running
-on each node. The web server is started by the ``disco worker start``
-command. You can make sure that the server is actually running by pointing
-your browser at `http://localhost:8989/localhost <http://localhost:8989/localhost>`_
-which should show a default directory listing provided by the server.
-
-If the server doesn't respond, try to restart it by running
-``disco worker restart``.
-
-.. note::
-   When using Disco on a single computer,
-   you need separate web servers running for the workers and the master.
-
 
 Still no success?
 -----------------

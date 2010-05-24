@@ -1,92 +1,103 @@
-import os, sys, math, random, os
-from subprocess import *
+import os
+import sys
+import math
+import random
 
-if len(sys.argv) < 3:
-        print >> sys.stderr, "\nUsage: distrfiles.py <dataset-path> <nodes-file>\n"
-        print >> sys.stderr, "DISCO_ROOT must specify the disco home directory (e.g. /srv/disco/)."
-        print >> sys.stderr, "SSH_KEY can specify a value for the -i flag of ssh / scp."
-        print >> sys.stderr, "SSH_USER can specify the user name."
-        print >> sys.stderr, "REMOVE_FIRST if set, removes previous dataset of the "\
-                             "same name before copying.\n"
-        sys.exit(1)
+from subprocess import Popen, call, PIPE
 
-if "DISCO_ROOT" not in os.environ:
-        print >> sys.stderr, "Specify DISCO_ROOT "\
-                "(data lives at $DISCO_ROOT/data)"
-        sys.exit(1)
+USAGE_INFO = """
+Usage: distrfiles.py <dataset-path> <nodes-file>\n
+DISCO_ROOT must specify the disco home directory (e.g. /srv/disco/).
+SSH_KEY can specify a value for the -i flag of ssh / scp.
+SSH_USER can specify the user name.
+REMOVE_FIRST if set, removes previous dataset of the same name before copying.
+DISABLE_IONICE if set, disables ionice even if it is found.
+"""
 
-root = os.environ["DISCO_ROOT"]
-ssh = []
-if "SSH_KEY" in os.environ:
-        ssh += ["-i", os.environ["SSH_KEY"]]
+def log(s):
+    sys.stderr.write(s + '\n')
 
-user = os.environ.get("SSH_USER", "")
 
-files = os.listdir(sys.argv[1])
-if sys.argv[1][-1] == "/":
-        name = os.path.basename(sys.argv[1][:-1])
-else:
-        name = os.path.basename(sys.argv[1])
+def copy_files(name, files, nodes):
+    """Copy files over SSH to the specified nodes.
 
-# check to see if ionice is installed on this system
-status = Popen('which ionice'.split()).wait()
-if status == 0:
-    ionice = 'ionice -n 7'
-else:
+    @name - dataset name
+    """
+    fno = int(math.ceil(max(1, float(len(files)) / len(nodes))))
+    log('%d files and %d nodes: %d files per node' %
+        (len(files), len(nodes), fno))
+
+    root = os.environ['DISCO_ROOT']
+    ssh = ['-i', os.environ['SSH_KEY']] if 'SSH_KEY' in os.environ else []
+    ssh_user = os.environ.get('SSH_USER', '')
+
+    # check to see if ionice is installed on this system
     ionice = ''
+    if 'DISABLE_IONICE' not in os.environ:
+        status = Popen('which ionice'.split(), stdout=PIPE).wait()
+        ionice = 'ionice -n 7' if status == 0 else ''
 
-nodes = []
-hostname = {}
-for l in file(sys.argv[2]):
-        s = l.strip().split()
-        if len(s) > 1:
-                hostname[s[0]] = s[1]
+    fgroups = (files[idx:idx+fno] for idx in range(0, len(files), fno))
+    procs = []
+
+    for fnames, node in zip(fgroups, nodes):
+        unode = node
+        if ssh_user:
+            unode = '%s@%s' % (ssh_user, node)
+
+        if 'REMOVE_FIRST' in os.environ:
+            call(['ssh'] + ssh + [unode, 'rm -Rf %s/data/%s' % (root, name)])
+
+        if call(['ssh'] + ssh + [unode, 'mkdir /%s/data/%s' % (root, name)]):
+            log("Couldn't mkdir %s:%s/data/%s" % (node, root, name))
+
+        log('Copying %d files to %s' % (len(fnames), node))
+        p = Popen('nice -19 %s scp %s %s %s:%s/data/%s/' %
+                  (ionice, ' '.join(ssh), ' '.join(fnames), unode, root, name),
+                  shell=True)
+        procs.append((p, node, fnames))
+
+    return procs
+
+
+def main():
+    dataset_path, nodes_path = sys.argv[1:]
+    files = [os.path.join(dataset_path, fname)
+             for fname in os.listdir(dataset_path)]
+    name = os.path.basename(dataset_path.rstrip('/'))
+
+    nodes, hostname = [], {}
+    for line in open(nodes_path):
+        s = line.strip().split()
+        node = s[0].strip()
+        hostname[node] = s[1] if len(s) > 1 else node
+        nodes.append(node)
+
+    log('Dataset name: %s' % name)
+
+    random.shuffle(nodes)
+    procs = copy_files(name, files, nodes)
+
+    log('Waiting for copiers to finish..')
+
+    for process, node, fnames in procs:
+        if process.wait():
+            log('Copying to %s failed' % node)
         else:
-                hostname[s[0]] = s[0]
-        nodes.append(s[0])
-
-fno = int(math.ceil(max(1, float(len(files)) / len(nodes))))
-
-print >> sys.stderr, "Dataset name: %s" % name
-print >> sys.stderr, "%d files and %d nodes: %d files per node" %\
-                (len(files), len(nodes), fno)
-
-random.shuffle(nodes)
-nodes = iter(nodes)
-procs = []
-
-while True:
-        nset = [sys.argv[1] + "/" + f  for f  in files[:fno]]
-        if not nset:
-                break
-        files = files[fno:]
-        node = unode = nodes.next().strip()
-        if user:
-                unode = "%s@%s" % (user, node)
-
-        if "REMOVE_FIRST" in os.environ:
-                call(["ssh"] + ssh + [unode, "rm -Rf %s/data/%s" % (root, name)])
-
-        if call(["ssh"] + ssh + [unode, "mkdir /%s/data/%s" % (root, name)]):
-                print >> sys.stderr, "Couldn't mkdir %s:%s/data/%s" % (node, root, name)
-
-        print >> sys.stderr, "Copying %d files to %s" % (len(nset), node)
-        p = Popen("nice -19 %s scp %s %s %s:%s/data/%s/" % 
-                (ionice, " ".join(ssh), " ".join(nset), unode, root, name),
-                        shell = True)
-        procs.append((node, p, nset))
-
-print >> sys.stderr, "Waiting for copyers to finish.."
-
-for node, p, nset in procs:
-        if p.wait():
-                print >> sys.stderr, "Copying to %s failed" % node
-        else:
-                print >> sys.stderr, "%s ok" % node
-                print "\n".join(("disco://%s/%s/%s" %
-                        (hostname[node], name, os.path.basename(f))
-                                for f in nset))
-
-print >> sys.stderr, "Done"
+            log('%s ok' % node)
+            print '\n'.join(('disco://%s/%s/%s' %
+                             (hostname[node], name, os.path.basename(f))
+                             for f in fnames))
+    log('Done')
 
 
+if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        log(USAGE_INFO)
+        sys.exit(1)
+
+    if 'DISCO_ROOT' not in os.environ:
+        log('Specify DISCO_ROOT (data lives at $DISCO_ROOT/data)')
+        sys.exit(1)
+
+    main()

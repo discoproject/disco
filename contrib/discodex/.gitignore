@@ -1,0 +1,8 @@
+*.pyc
+build/
+doc/.build/
+etc/purge
+etc/settings.py
+log/
+run/
+www/data/

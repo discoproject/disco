@@ -19,11 +19,11 @@ def estimate_combiner(k, v, w, done, params):
 
 
 def estimate_reduce(iter, out, params):
-        w=None
-        for key,value in iter:
-                v=map(float,value.split(' '))
-                if w==None: w=[params.learning_rate*a for a in v]
-                else: w=[w[i]+params.learning_rate*v[i] for i in range(len(v))]
+    w=None
+    for key,value in iter:
+        v=map(float,value.split(' '))
+        if w==None: w=[params.learning_rate*a for a in v]
+        else: w=[w[i]+params.learning_rate*v[i] for i in range(len(v))]
 
 	if w!=None: out.add('', ' '.join(map(repr,w)))
 

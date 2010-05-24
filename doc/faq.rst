@@ -76,14 +76,8 @@ See also the next question.
 How to debug programs in Disco?
 '''''''''''''''''''''''''''''''
 
-Use :mod:`homedisco`. It allows you to run Disco jobs locally, as any other
-Python program. This means that you can use any Python debugger or profiler for
-analyzing your code.
-
-:mod:`homedisco` is not only great for debugging and profiling but
-also for development in general. It is highly recommended that you test
-your functions first locally with :mod:`homedisco`, before running them
-in the normal distributed Disco environment.
+Set up a single node Disco cluster locally on your laptop or desktop. It makes
+debugging a Disco job almost as easy as debugging any Python script.
 
 .. _outputtypes:
 
@@ -114,13 +108,7 @@ It is somewhat less typical to specify only the reduce function. This case
 mainly arises when you want to merge results from many independent map jobs, 
 or you want to join several input files without going through the map phase.
 
-Note that for the reduce-only case, the *nr_reduces* parameter, which specifies
-the number of partitions in the input data, is required. If your inputs are
-results from previous map jobs, specified using the ``dir://`` protocol, 
-*nr_reduces* must match to the *nr_reduces* specified for the map jobs. 
-
-If your inputs are other arbitrary files, *nr_reduces* must be 1, as the inputs
-files are not partitioned. You can of course run many independent reduce-jobs
+You can of course run many independent reduce-jobs
 for different sets of input files, if your input files belong to different
 "partitions". In this case you probably want to set *reduce_reader* in
 :meth:`disco.core.Disco.new_job` to match with the format of your input files.
