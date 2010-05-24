@@ -5,7 +5,6 @@ class MapResultsTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs = 2
     inputs_1 = ['huey', 'dewey', 'louie']
     partitions_1 = 3
-    partitions_2 = 3
 
     def getdata(self, path):
         return path + "\n"

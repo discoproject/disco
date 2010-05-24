@@ -19,6 +19,7 @@ class MapPartitionedOutputTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
+        assert Task.jobdict['partitions'] == 2
         yield e, 'against_me'
 
     @property
@@ -28,8 +29,18 @@ class MapPartitionedOutputTestCase(DiscoJobTestFixture, DiscoTestCase):
 class MapNonPartitionedOutputTestCase(MapPartitionedOutputTestCase):
     partitions = None
 
+    @staticmethod
+    def map(e, params):
+        assert Task.jobdict['partitions'] == None
+        yield e, 'against_me'
+
 class MapNonPartitionedOutputTestCase2(MapPartitionedOutputTestCase):
     partitions = 0
+
+    @staticmethod
+    def map(e, params):
+        assert Task.jobdict['partitions'] == 0
+        yield e, 'against_me'
 
 class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs = ['test']

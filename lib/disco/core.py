@@ -695,7 +695,7 @@ class JobDict(util.DefaultDict):
                 'merge_partitions': False,
                 'nr_reduces': 1,
                 'params': Params(),
-                'partitions': 1,
+                'partitions': None,
                 'prefix': '',
                 'profile': False,
                 'required_files': None,
@@ -764,29 +764,27 @@ class JobDict(util.DefaultDict):
 
         # -- input --
         ddfs = self.pop('ddfs', None)
-        self['input'] = [url for i in self['input']
+        self['input'] = [list(util.iterify(url))
+                         for i in self['input']
                          for url in util.urllist(i, listdirs=bool(self['map']),
                                                  ddfs=ddfs)]
 
-        ispartitioned = all(url.startswith('dir://')
-                            for urls in self['input']
-                            for url in util.iterify(urls))
+        input_is_partitioned = all(url.startswith('dir://')
+                                   for urls in self['input']
+                                   for url in urls)
 
-        self['partitions'] = self['nr_reduces']
-
-        if 'partitions' in kwargs:
-            if 'map' in self:
-                self['nr_reduces'] = self['partitions']
-            else:
-                raise DiscoError("Can't specify partitions without map")
+        if self['map']:
+            self['nr_reduces'] = self['partitions'] or 1
+        elif self['partitions']:
+            raise DiscoError("Can't specify partitions without map")
+        elif input_is_partitioned:
+            self['nr_reduces'] = len(util.parse_dir(self['input'][0][0]))
         else:
-            if 'map' not in self:
-                if ispartitioned and not self['merge_partitions']:
-                    self['nr_reduces'] = len(util.parse_dir(self['input'][0]))
+            self['nr_reduces'] = 1
 
-        if 'merge_partitions' in self:
-            if 'map' in self or ispartitioned:
-                self['nr_reduces'] = 1
+        if self['merge_partitions']:
+            if self['partitions'] or input_is_partitioned:
+                self['nr_reduces'] = 1 # how does the input get merged?
             else:
                 raise DiscoError("Can't merge partitions without partitions")
 
@@ -978,6 +976,7 @@ class Job(object):
             if 'partitions' in kwargs or 'merge_partitions' in kwargs:
                 raise DeprecationWarning("Cannot specify nr_reduces with "
                                          "partitions and/or merge_partitions")
+            kwargs['partitions'] = kwargs.pop('nr_reduces')
         jobpack = Job.JobDict(self,
                               prefix=self.name,
                               ddfs=self.master.master,
