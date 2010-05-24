@@ -114,6 +114,24 @@ You could have also done::
 
 .. warning:: Be careful, these commands will delete all your indices!
 
+If you ran the queries against Discodex,
+you should still see the query jobs Discodex ran on the Disco web interface.
+If you want Discodex to cleanup after itself automatically,
+`touch` the file stored in the `DISCODEX_PURGE_FILE` setting.
+If you don't know what file that is, just run::
+
+        discodex -v
+
+If the purge file exists, Discodex will purge query jobs after they complete.
+If you ever need to know why a query job fails,
+its a good idea to turn off purging.
+If you have :mod:`disco <discocli>` installed,
+you can clean up any remaining jobs using::
+
+        disco jobs | xargs disco purge
+
+.. warning:: Be careful, this command will purge all of your Disco jobs!
+
 3. Querying the index
 ---------------------
 
@@ -173,15 +191,36 @@ make our documentation search engine slightly more robust::
 Using the ``prefixkeyer``, we mapped all possible prefixes of all of the keys
 in our index to the keys themselves, and stored them in the metaindex,
 along with the original index.
+Convince yourself that all the prefixes are actually there::
+
+        discodex keys metawords | sort | less
+
 Now if we query our metaindex,
 we can see not only the files which contain the exact words we are querying,
 but any files which contain words *starting* with our query words::
 
+        discodex query metawords discodex
+
+First, notice how the metaindex returns both the original keys from your index,
+and an iterator over the values of each of those keys.
+Also notice what happens when you execute more complicated queries::
+
         discodex query metawords discodex build
+
+You shouldn't see any results.
+This is because the query first gets executed on the :class:`discodb.MetaDB`,
+and there aren't any words that begin with both ``discodex`` *and* ``build``.
+Finally, let's see which documents contain words starting with *either*
+``discodex`` *or* ``build``::
+
+        discodex query metawords discodex,build
 
 Hopefully at this point, you can imagine writing
 :mod:`discodex.mapreduce.metakeyers`, that allow you to query your data in
 all kinds of interesting ways.
+
+Remember, Discodex scales automatically with the size of your cluster,
+so don't be afraid to try it out with millions or billions of keys and values!
 
 6. Advanced Querying Using Filters
 ----------------------------------
