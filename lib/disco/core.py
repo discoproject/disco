@@ -769,17 +769,13 @@ class JobDict(util.DefaultDict):
                          for url in util.urllist(i, listdirs=bool(self['map']),
                                                  ddfs=ddfs)]
 
-        input_is_partitioned = all(url.startswith('dir://')
-                                   for urls in self['input']
-                                   for url in urls)
-
         # set nr_reduces: ignored if there is not actually a reduce specified
         if self['map']:
             # partitioned map has N reduces; non-partitioned map has 1 reduce
             self['nr_reduces'] = self['partitions'] or 1
         elif self['partitions']:
             raise DiscoError("Can't specify partitions without map")
-        elif input_is_partitioned:
+        elif self.input_is_partitioned:
             # Only reduce, with partitions: len(dir://) specifies nr_reduces
             self['nr_reduces'] = len(util.parse_dir(self['input'][0][0]))
         else:
@@ -788,8 +784,8 @@ class JobDict(util.DefaultDict):
 
         # merge_partitions iff the inputs to reduce are partitioned
         if self['merge_partitions']:
-            if self['partitions'] or input_is_partitioned:
-                self['nr_reduces'] = 1 # how does the input get merged?
+            if self['partitions'] or self.input_is_partitioned:
+                self['nr_reduces'] = 1
             else:
                 raise DiscoError("Can't merge partitions without partitions")
 
@@ -870,6 +866,12 @@ class JobDict(util.DefaultDict):
             if jobdict[oldio]:
                 jobdict[stream].append(wrapper(jobdict[oldio]))
         return cls(**jobdict)
+
+    @property
+    def input_is_partitioned(self):
+        return all(url.startswith('dir://')
+                   for urls in self['input']
+                   for url in urls)
 
 class Job(object):
     """
