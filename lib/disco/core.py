@@ -766,6 +766,9 @@ class JobDict(util.DefaultDict):
                          for url in util.urllist(i, listdirs=bool(self['map']),
                                                  ddfs=ddfs)]
 
+        # partitions must be an integer internally
+        self['partitions'] = self['partitions'] or 0
+
         # set nr_reduces: ignored if there is not actually a reduce specified
         if self['map']:
             # partitioned map has N reduces; non-partitioned map has 1 reduce
@@ -979,11 +982,6 @@ class Job(object):
                 raise DeprecationWarning("Cannot specify nr_reduces with "
                                          "partitions and/or merge_partitions")
             kwargs['partitions'] = kwargs.pop('nr_reduces')
-
-        if 'partitions' in kwargs:
-            if 'map' not in kwargs:
-                raise DiscoError("Can't specify partitions without map")
-            kwargs['partitions'] = kwargs.get('partitions') or 0
 
         jobpack = Job.JobDict(self,
                               prefix=self.name,
