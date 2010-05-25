@@ -39,6 +39,14 @@ Glossary
         *combiner*, *partitioner* are referred as job functions. A job
         function needs to be a :term:`pure function`.
 
+   partitioning
+        The process of dividing the key-space which results from
+        :func:`disco.func.map`.
+        By default it is usually assumed that the same key will
+        always fall within the same partition.
+        How the key-space is actually divided is determined by the
+        :func:`disco.func.partition` function.
+
    persistent
         See http://en.wikipedia.org/wiki/Persistent_data_structure
 
