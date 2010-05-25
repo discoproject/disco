@@ -48,6 +48,7 @@ References
    man/disco
    man/ddfs
    py/settings
+   howto/dataflow
 
 Indices and tables
 ------------------
