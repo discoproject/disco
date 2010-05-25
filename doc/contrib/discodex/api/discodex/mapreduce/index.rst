@@ -1,12 +1,6 @@
 :mod:`discodex.mapreduce` --  mapreduce jobs and utilities
 ==========================================================
 
-.. toctree::
-   :glob:
-   :hidden:
-
-   *
-
 .. automodule:: discodex.mapreduce
    :members:
 

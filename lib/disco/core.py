@@ -548,15 +548,15 @@ class JobDict(util.DefaultDict):
     :type  partition: :func:`disco.func.partition`
     :param partition: decides how the map output is distributed to reduce.
 
-    :type  partitions: integer or None
-    :param partitions: number of partitions.
+    :type  partitions: int or None
+    :param partitions: number of partitions, if any.
                        *partitions* defaults to 1.
+
+    :type  merge_partitions: bool
+    :param merge_partitions: whether or not to merge partitioned inputs during reduce.
 
     :type  nr_reduces: *Deprecated in version 0.3* integer
     :param nr_reduces: Use *partitions* instead.
-
-                       *Changed in version 0.2.4*:
-                       *nr_reduces* defaults to 1.
 
     :type  scheduler: dict
     :param scheduler: options for the job scheduler.
@@ -705,7 +705,7 @@ class JobDict(util.DefaultDict):
                 'status_interval': 100000,
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
-                'nr_reduces': None,
+                'nr_reduces': 0,
                 'map_writer': None,
                 'reduce_writer': None
                 }
@@ -764,39 +764,31 @@ class JobDict(util.DefaultDict):
 
         # -- input --
         ddfs = self.pop('ddfs', None)
-        self['input'] = [url for i in self['input']
+        self['input'] = [list(util.iterify(url))
+                         for i in self['input']
                          for url in util.urllist(i, listdirs=bool(self['map']),
                                                  ddfs=ddfs)]
 
-        ispartitioned = all(url.startswith('dir://')
-                            for urls in self['input']
-                            for url in util.iterify(urls))
+        # partitions must be an integer internally
+        self['partitions'] = self['partitions'] or 0
 
-        if 'nr_reduces' in kwargs:
-            # old nr_reduces overrides partitions if specified
-            self['partitions'] = self['nr_reduces']
-
-        if 'map' in self:
-            if self['partitions']:
-                if self['merge_partitions']:
-                    # 0) Many partitions, but at most one reduce
-                    self['nr_reduces'] = 1
-                else:
-                    # 1) Normal partitioned map
-                    self['nr_reduces'] = self['partitions']
-            else:
-                # 2) Non-partitioned map
-                self['nr_reduces'] = 0
-        elif 'partitions' in kwargs:
-            raise DiscoError("Can't specify partitions without map")
-        elif not ispartitioned and self['merge_partitions']:
-            raise DiscoError("Can't merge non-partitioned inputs")
-        elif ispartitioned and not self['merge_partitions']:
-            # 3) Only reduce, dir:// specifies nr_reduces
-            self['nr_reduces'] = len(util.parse_dir(self['input'][0]))
+        # set nr_reduces: ignored if there is not actually a reduce specified
+        if self['map']:
+            # partitioned map has N reduces; non-partitioned map has 1 reduce
+            self['nr_reduces'] = self['partitions'] or 1
+        elif self.input_is_partitioned:
+            # Only reduce, with partitions: len(dir://) specifies nr_reduces
+            self['nr_reduces'] = len(util.parse_dir(self['input'][0][0]))
         else:
-            # 4) Only reduce, non-partitioned input or merge_partitions=True
+            # Only reduce, without partitions can only have 1 reduce
             self['nr_reduces'] = 1
+
+        # merge_partitions iff the inputs to reduce are partitioned
+        if self['merge_partitions']:
+            if self['partitions'] or self.input_is_partitioned:
+                self['nr_reduces'] = 1
+            else:
+                raise DiscoError("Can't merge partitions without partitions")
 
         # -- scheduler --
         scheduler = self.__class__.defaults['scheduler'].copy()
@@ -875,6 +867,12 @@ class JobDict(util.DefaultDict):
             if jobdict[oldio]:
                 jobdict[stream].append(wrapper(jobdict[oldio]))
         return cls(**jobdict)
+
+    @property
+    def input_is_partitioned(self):
+        return all(url.startswith('dir://')
+                   for urls in self['input']
+                   for url in urls)
 
 class Job(object):
     """
@@ -986,6 +984,8 @@ class Job(object):
             if 'partitions' in kwargs or 'merge_partitions' in kwargs:
                 raise DeprecationWarning("Cannot specify nr_reduces with "
                                          "partitions and/or merge_partitions")
+            kwargs['partitions'] = kwargs.pop('nr_reduces')
+
         jobpack = Job.JobDict(self,
                               prefix=self.name,
                               ddfs=self.master.master,

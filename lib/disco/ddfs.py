@@ -1,6 +1,13 @@
 """
 :mod:`disco.ddfs` --- Client interface for Disco Distributed Filesystem
 =======================================================================
+
+See also: :ref:`DDFS`.
+
+.. note::
+
+        Parameters below which are indicated as tags can be specified as
+        a `tag://` URL, or the name of the tag.
 """
 import os, re, cStringIO, random
 from urllib import urlencode
@@ -35,6 +42,12 @@ def tagname(tag):
         return tag
 
 class DDFS(object):
+    """
+    Opens and encapsulates a connection to a DDFS master.
+
+    :param master: address of the master,
+                   for instance ``disco://localhost``.
+    """
     def __init__(self, master=None, proxy=None, settings=DiscoSettings()):
         self.proxy  = proxy or settings['DISCO_PROXY']
         self.master = self.proxy or master or settings['DISCO_MASTER']
@@ -52,6 +65,10 @@ class DDFS(object):
         Walks the tag graph starting at `tag`.
 
         Yields only the terminal nodes of the graph (`blobs`).
+
+        :type  ignore_missing: bool
+        :param ignore_missing: Whether or not missing tags will raise a
+                               :class:`disco.error.CommError`.
         """
         for path, tags, blobs in self.walk(tag, ignore_missing=ignore_missing):
             if tags != blobs:
@@ -59,9 +76,11 @@ class DDFS(object):
                     yield replicas
 
     def delete(self, tag):
+        """Delete ``tag``."""
         return self._request('/ddfs/tag/%s' % tagname(tag), method='DELETE')
 
     def exists(self, tag):
+        """Returns whether or not ``tag`` exists."""
         try:
             if open_remote('%s/ddfs/tag/%s' % (self.master, tagname(tag))):
                 return True
@@ -98,9 +117,11 @@ class DDFS(object):
                         raise
 
     def get(self, tag):
+        """Return the tag object stored at ``tag``."""
         return self._request('/ddfs/tag/%s' % tagname(tag))
 
     def list(self, prefix=''):
+        """Return a list of all tags starting wtih ``prefix``."""
         return self._request('/ddfs/tags/%s' % prefix)
 
     def pull(self, tag, blobfilter=lambda x: True):
@@ -120,8 +141,12 @@ class DDFS(object):
         """
         Pushes a bunch of files to ddfs and tags them with `tag`.
 
-        `files` can either be a list of paths, (path, name)-tuples, or
-        (fileobject, name)-tuples.
+        :type  files: a list of ``paths``, ``(path, name)``-tuples, or
+                      ``(fileobject, name)``-tuples.
+        :param files: the files to push as blobs to DDFS.
+                      If names are provided,
+                      they will be used as prefixes by DDFS for the blobnames.
+                      Names may only contain chars in ``r'[^A-Za-z0-9_\-@:]'``.
         """
         def aim(tuple_or_path):
             if isinstance(tuple_or_path, basestring):
@@ -135,11 +160,19 @@ class DDFS(object):
         return self.tag(tag, urls), urls
 
     def put(self, tag, urls):
+        """Put the list of ``urls`` to the tag ``tag``.
+
+        .. warning::
+
+                Generally speaking, concurrent applications should use
+                :meth:`DDFS.tag` instead.
+        """
         return self._request('/ddfs/tag/%s' % tagname(tag),
                              json.dumps(urls),
                              method='PUT')
 
     def tag(self, tag, urls):
+        """Append the list of ``urls`` to the ``tag``."""
         return self._request('/ddfs/tag/%s' % tagname(tag),
                              json.dumps(urls))
 
@@ -173,6 +206,10 @@ class DDFS(object):
         Walks the tag graph starting at `tag`.
 
         Yields a 3-tuple `(tagpath, tags, blobs)`.
+
+        :type  ignore_missing: bool
+        :param ignore_missing: Whether or not missing tags will raise a
+                               :class:`disco.error.CommError`.
         """
         tagpath += (tagname(tag),)
 

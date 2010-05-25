@@ -147,7 +147,7 @@ class IndexResource(Collection):
 
             if status == OK:
                 _prefix, type, id = self.name.split(':', 2)
-                ddfs.tag(self.tag, [[url.replace('disco://', '%s://' % type, 1)
+                ddfs.put(self.tag, [[url.replace('disco://', '%s://' % type, 1)
                                      for url in urls]
                                     for urls in Index(ddfs.get(results)).ichunks])
                 disco_master.purge(self.jobname)
@@ -165,7 +165,7 @@ class IndexResource(Collection):
         raise Http404
 
     def update(self, request, *args, **kwargs):
-        ddfs.tag(self.tag, Index.loads(request.raw_post_data).ichunks)
+        ddfs.put(self.tag, Index.loads(request.raw_post_data).ichunks)
         return HttpResponseCreated(self.url)
 
     def delete(self, request, *args, **kwargs):

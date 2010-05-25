@@ -139,7 +139,7 @@ def urllist(url, partid=None, listdirs=True, ddfs=None, numpartitions=None):
         return [list(url)]
     scheme, netloc, path = urlsplit(url)
     if scheme == 'dir' and listdirs:
-        return parse_dir(url, partid=partid)
+        return parse_dir(url, partid=partid, numpartitions=numpartitions)
     elif scheme == 'tag':
         from disco.ddfs import DDFS
         ret = []
@@ -229,17 +229,17 @@ def parse_dir(dir_url, partid=None, numpartitions=None):
     """
     from disco.comm import download
     def parse_index(index):
-        return [url for id, url in (line.split() for line in index)
+        # XXX: This should be fixed with dir://
+        # we shouldn't need to know the number of partitions here
+        lines = [line.split() for line in index]
+        if partid is not None and numpartitions != len(lines):
+            raise ValueError("Invalid number of partitions!")
+        return [url for id, url in lines
                 if partid is None or partid == int(id)]
     settings = DiscoSettings()
     scheme, netloc, path = urlsplit(dir_url)
     url = proxy_url(path, netloc)
-    urls = parse_index(download(url).splitlines())
-    # XXX: This should be fixed with dir://
-    # we shouldn't need to know the number of partitions here
-    if numpartitions and numpartitions != len(urls):
-        raise ValueError("Invalid number of partitions!")
-    return urls
+    return parse_index(download(url).splitlines())
 
 def save_oob(host, name, key, value):
     from disco.ddfs import DDFS

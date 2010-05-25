@@ -79,7 +79,6 @@ install-discodb:
 install-discodex:
 	(cd contrib/discodex; \
 	$(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(PREFIX))
-	install -m 0755 contrib/discodex/bin/discodexcli.py $(TARGETBIN)/discodex
 
 install-config:
 	install -d $(TARGETCFG)

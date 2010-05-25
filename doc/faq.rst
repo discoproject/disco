@@ -113,6 +113,8 @@ for different sets of input files, if your input files belong to different
 "partitions". In this case you probably want to set *reduce_reader* in
 :meth:`disco.core.Disco.new_job` to match with the format of your input files.
 
+See also: :ref:`dataflow`
+
 How many maps can I have? Does higher number of maps lead to better performance?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 

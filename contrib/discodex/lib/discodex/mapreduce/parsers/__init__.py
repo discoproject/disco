@@ -2,9 +2,11 @@
 :mod:`discodex.mapreduce.parsers` -- builtin parsers
 ====================================================
 
-Parsers are essentially the map_reader function for the :class:`discodex.mapreduce.Indexer`.
+Parsers are essentially the :func:`map_reader <disco.func.reader>` function
+for the :class:`discodex.mapreduce.Indexer`.
 
-A parser takes a chunk of a dataset and produces zero or more records (see :mod:`discodex.mapreduce.demuxers`).
+A parser takes a chunk of a dataset and produces zero or more records
+(see :mod:`discodex.mapreduce.demuxers`).
 """
 
 def noparse(iterable, size, fname):
@@ -21,6 +23,11 @@ def rawparse(iterable, size, fname):
         for item in line.strip('/').split('/'):
             for kv in item.split(','):
                 yield kv.split(':', 1)
+
+def wordparse(iterable, size, fname):
+    """Splits lines of input by whitespace and uses them as keys for the value ``fname``"""
+    for word in set(word for line in iterable for word in line.split()):
+        yield word, fname
 
 def netstrparse(fd, size, fname):
     """Reads (key, value) pairs directly from `netstr` input."""
@@ -44,4 +51,3 @@ def enumfieldparse(iterable, size, fname):
     from discodex.mapreduce import Record
     for line in iterable:
         yield Record(**dict((str(n), f) for n, f in enumerate(line.split())))
-

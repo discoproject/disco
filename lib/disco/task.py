@@ -162,7 +162,7 @@ class Task(object):
 
     @property
     def num_partitions(self):
-        return max(1, int(self.jobdict['partitions'] or 0))
+        return max(1, int(self.jobdict['partitions']))
 
     def put(self, key, value):
         """
@@ -364,19 +364,19 @@ class Reduce(Task):
             return self.ext_params or '0\n'
         return self.jobdict['params']
 
-def num_cmp(x, y):
-    if x[0].isdigit() and y[0].isdigit():
-        x = int(x[0]), x[1]
-        y = int(y[0]), y[1]
-    return cmp(x, y)
-
 class ReduceReader(object):
     def __init__(self, task):
         self.task   = task
         self.inputs = [url for input in task.inputs
-                       for url in util.urllist(input, partid=task.id,
+                       for url in util.urllist(input, partid=self.partid,
                                                numpartitions=task.jobdict['nr_reduces'])]
         random.shuffle(self.inputs)
+
+    @property
+    def partid(self):
+        if self.task.jobdict.input_is_partitioned:
+            if not self.task.jobdict['merge_partitions']:
+                return self.task.id
 
     def connect_input(self, url):
         fd, sze, url = self.task.connect_input(url)
@@ -442,8 +442,7 @@ class ReduceReader(object):
     def memory_sort(self):
         Message("Sorting in memory")
         m = list(self.multi_file_iterator(self.connect_input, progress=False))
-        return self.task.track_status(sorted(m, cmp=num_cmp),
-                                      "%s entries reduced")
+        return self.task.track_status(sorted(m), "%s entries reduced")
 
     def multi_file_iterator(self, connect_input, progress=True, inputs=None):
         inputs = inputs or self.inputs

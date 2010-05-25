@@ -37,6 +37,32 @@ f(v) -> v, ...
 
 In all cases, if the initial filter is also the final filter, `v = k, v`.
 The default map filter for most resources is `kvify`, which gives the value an empty key if it is not already a (k, v) pair.
+
+pipelines
+---------
+
+/keys
+'', k1
+'', k2
+
+/values
+'', v1
+'', v2
+
+/values|kvify|kvswap
+v1, ''
+v2, ''
+
+/values}count
+'', n
+
+/values|kvify|kvswap}count
+v1, n1
+v2, n2
+
+/indices/[metaindex]/items
+metakey, ((key, vs), ...)
+
 """
 from discodb import kvgroup
 from itertools import chain

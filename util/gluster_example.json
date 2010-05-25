@@ -1,8 +1,0 @@
-{
-        "nodes": ["node01", "node02", "node03"],
-        "volumes": ["/mnt/disk1", "/mnt/disk2"],
-        "replicas": 2,
-        "master": "nxfront",
-        "config_dir": "/tmp/config"
-}
-

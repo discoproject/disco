@@ -3,12 +3,12 @@
 :mod:`disco <discocli>` -- Disco command line utility
 =====================================================
 
-`disco` is a fully-Python startup/configuration script which supports several exciting features.
+:program:`disco` is a fully-Python startup/configuration script which supports several exciting features.
 The new startup script makes it even easier to get up and running with a Disco cluster.
 
 .. note::
 
-   This is the manpage for the ``disco`` command.
+   This is the manpage for the :program:`disco` command.
    Please see :ref:`setup` for more information on installing Disco.
 
 .. hint::
@@ -19,10 +19,10 @@ The new startup script makes it even easier to get up and running with a Disco c
         ln -s $DISCO_HOME/bin/disco /usr/local/bin
 
    If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
-   Doing so allows you to simply call the command ``disco``, instead of specifying the complete path.
+   Doing so allows you to simply call :program:`disco`, instead of specifying the complete path.
 
 
-Run ``disco help`` for information on using the command line utility.
+Run :command:`disco help` for information on using the command line utility.
 
 See also: :mod:`disco.settings`
 

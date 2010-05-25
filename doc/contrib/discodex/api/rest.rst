@@ -46,28 +46,3 @@ discodex ReST API
 
 
 `query` resources always look like their associated `values` resources.
-
-pipelines
----------
-
-/keys
-'', k1
-'', k2
-
-/values
-'', v1
-'', v2
-
-/values|kvify|kvswap
-v1, ''
-v2, ''
-
-/values}count
-'', n
-
-/values|kvify|kvswap}count
-v1, n1
-v2, n2
-
-/indices/[metaindex]/items
-metakey, ((key, vs), ...)

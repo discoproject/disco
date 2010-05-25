@@ -4,6 +4,9 @@ Glossary
 
 .. glossary::
 
+   conjunctive normal form
+        See http://en.wikipedia.org/wiki/Conjunctive_normal_form
+
    disco master
         Master process that takes care of receiving Disco jobs,
         scheduling them and distributing tasks to the cluster. There
@@ -21,6 +24,10 @@ Glossary
         Indices provide random access into a set of data.
         As an example, search engines are usually implemented using a `web index`_
 
+   metaindex
+        A mapping of metakeys to values which are keys in another index.
+        A metaindex is also an index, that wraps around another index.
+
    job
         A sequence of the map :term:`task` and the
         reduce :term:`task`. Started by calling the
@@ -31,6 +38,14 @@ Glossary
         :func:`disco.job`. Currently, the functions *map*, *reduce*,
         *combiner*, *partitioner* are referred as job functions. A job
         function needs to be a :term:`pure function`.
+
+   partitioning
+        The process of dividing the key-space which results from
+        :func:`disco.func.map`.
+        By default it is usually assumed that the same key will
+        always fall within the same partition.
+        How the key-space is actually divided is determined by the
+        :func:`disco.func.partition` function.
 
    persistent
         See http://en.wikipedia.org/wiki/Persistent_data_structure

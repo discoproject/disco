@@ -1,0 +1,2 @@
+.. automodule:: discodex.settings
+   :members:
