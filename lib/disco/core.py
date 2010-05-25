@@ -550,13 +550,10 @@ class JobDict(util.DefaultDict):
 
     :type  partitions: integer or None
     :param partitions: number of partitions.
-                       *partitions* defaults to None.
+                       *partitions* defaults to 1.
 
     :type  nr_reduces: *Deprecated in version 0.3* integer
     :param nr_reduces: Use *partitions* instead.
-
-                       *Changed in version 0.2.4*:
-                       *nr_reduces* defaults to 1.
 
     :type  scheduler: dict
     :param scheduler: options for the job scheduler.
@@ -694,7 +691,7 @@ class JobDict(util.DefaultDict):
                 'mem_sort_limit': 256 * 1024**2,
                 'merge_partitions': False,
                 'params': Params(),
-                'partitions': None,
+                'partitions': 1,
                 'prefix': '',
                 'profile': False,
                 'required_files': None,
@@ -705,7 +702,7 @@ class JobDict(util.DefaultDict):
                 'status_interval': 100000,
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
-                'nr_reduces': None,
+                'nr_reduces': 0,
                 'map_writer': None,
                 'reduce_writer': None
                 }
@@ -773,8 +770,6 @@ class JobDict(util.DefaultDict):
         if self['map']:
             # partitioned map has N reduces; non-partitioned map has 1 reduce
             self['nr_reduces'] = self['partitions'] or 1
-        elif self['partitions']:
-            raise DiscoError("Can't specify partitions without map")
         elif self.input_is_partitioned:
             # Only reduce, with partitions: len(dir://) specifies nr_reduces
             self['nr_reduces'] = len(util.parse_dir(self['input'][0][0]))
@@ -984,6 +979,12 @@ class Job(object):
                 raise DeprecationWarning("Cannot specify nr_reduces with "
                                          "partitions and/or merge_partitions")
             kwargs['partitions'] = kwargs.pop('nr_reduces')
+
+        if 'partitions' in kwargs:
+            if 'map' not in kwargs:
+                raise DiscoError("Can't specify partitions without map")
+            kwargs['partitions'] = kwargs.get('partitions') or 0
+
         jobpack = Job.JobDict(self,
                               prefix=self.name,
                               ddfs=self.master.master,

@@ -31,7 +31,7 @@ class MapNonPartitionedOutputTestCase(MapPartitionedOutputTestCase):
 
     @staticmethod
     def map(e, params):
-        assert Task.jobdict['partitions'] == None
+        assert Task.jobdict['partitions'] == 0
         yield e, 'against_me'
 
 class MapNonPartitionedOutputTestCase2(MapPartitionedOutputTestCase):

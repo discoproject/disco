@@ -162,7 +162,7 @@ class Task(object):
 
     @property
     def num_partitions(self):
-        return max(1, int(self.jobdict['partitions'] or 0))
+        return max(1, int(self.jobdict['partitions']))
 
     def put(self, key, value):
         """
