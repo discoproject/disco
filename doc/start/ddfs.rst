@@ -204,8 +204,11 @@ DDFS can be configured using the normal Disco settings file. See
 
 .. _ddfsapi:
 
-DDFS API
---------
+DDFS APIs
+---------
+
+Python API
+''''''''''
 
 DDFS can be used either through the native Web API or with a Python
 module, :mod:`disco.ddfs`, which hides the Web API behind Python

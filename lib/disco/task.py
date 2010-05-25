@@ -162,7 +162,7 @@ class Task(object):
 
     @property
     def num_partitions(self):
-        return max(1, int(self.jobdict['partitions'] or 0))
+        return max(1, int(self.jobdict['partitions']))
 
     def put(self, key, value):
         """
@@ -368,9 +368,15 @@ class ReduceReader(object):
     def __init__(self, task):
         self.task   = task
         self.inputs = [url for input in task.inputs
-                       for url in util.urllist(input, partid=task.id,
+                       for url in util.urllist(input, partid=self.partid,
                                                numpartitions=task.jobdict['nr_reduces'])]
         random.shuffle(self.inputs)
+
+    @property
+    def partid(self):
+        if self.task.jobdict.input_is_partitioned:
+            if not self.task.jobdict['merge_partitions']:
+                return self.task.id
 
     def connect_input(self, url):
         fd, sze, url = self.task.connect_input(url)

@@ -491,6 +491,8 @@ class JobDict(util.DefaultDict):
                        If you want to use outputs of an earlier job as inputs,
                        use :func:`disco.func.chain_reader` as the *map_reader*.
 
+                       Default is :func:`disco.func.map_line_reader`.
+
     :type  map_writer: :func:`disco.func.writer`
     :param map_writer: This function comes in handy e.g. when *reduce* is not
                        specified and you want *map* output in a specific format.
@@ -534,6 +536,8 @@ class JobDict(util.DefaultDict):
                           similar to *map_reader*.
                           (*Added in version 0.2*)
 
+                          Default is :func:`disco.func.chain_reader`.
+
     :type  reduce_writer: :func:`disco.func.writer`
     :param reduce_writer: You can use this function to output results
                           in an arbitrary format from your map/reduce job.
@@ -548,15 +552,20 @@ class JobDict(util.DefaultDict):
     :type  partition: :func:`disco.func.partition`
     :param partition: decides how the map output is distributed to reduce.
 
-    :type  partitions: integer or None
-    :param partitions: number of partitions.
-                       *partitions* defaults to 1.
+                      Default is :func:`disco.func.default_partition`.
+
+    :type  partitions: int or None
+    :param partitions: number of partitions, if any.
+
+                       Default is ``1``.
+
+    :type  merge_partitions: bool
+    :param merge_partitions: whether or not to merge partitioned inputs during reduce.
+
+                             Default is ``False``.
 
     :type  nr_reduces: *Deprecated in version 0.3* integer
     :param nr_reduces: Use *partitions* instead.
-
-                       *Changed in version 0.2.4*:
-                       *nr_reduces* defaults to 1.
 
     :type  scheduler: dict
     :param scheduler: options for the job scheduler.
@@ -564,6 +573,8 @@ class JobDict(util.DefaultDict):
 
                        * *max_cores* - use this many cores at most
                                        (applies to both map and reduce).
+
+                                       Default is ``2**31``.
 
                        * *force_local* - always run task on the node where
                                          input data is located;
@@ -590,6 +601,8 @@ class JobDict(util.DefaultDict):
                  If it is larger, the external program ``sort`` is used
                  to sort the input on disk.
 
+                 Default is ``False``.
+
     :type  params: :class:`Params`
     :param params: object that is passed to worker tasks to store state
                    The object is serialized using the *pickle* module,
@@ -603,6 +616,8 @@ class JobDict(util.DefaultDict):
     :type  mem_sort_limit: integer
     :param mem_sort_limit: maximum size of data that can be sorted in memory.
                            The larger inputs are sorted on disk.
+
+                           Default is ``256 * 1024**2``.
 
     :param ext_params: if either map or reduce function is an external program,
                        typically specified using :func:`disco.util.external`,
@@ -669,9 +684,13 @@ class JobDict(util.DefaultDict):
                             Decrease the value if you want more messages or
                             you don't have that many data items.
 
+                            Default is ``100000``.
+
     :type  profile: boolean
     :param profile: enable tasks profiling.
                     Retrieve profiling results with :meth:`Disco.profile_stats`.
+
+                    Default is ``False``.
     """
     defaults = {'input': (),
                 'map': None,
@@ -693,7 +712,6 @@ class JobDict(util.DefaultDict):
                 'ext_params': None,
                 'mem_sort_limit': 256 * 1024**2,
                 'merge_partitions': False,
-                'nr_reduces': 1,
                 'params': Params(),
                 'partitions': 1,
                 'prefix': '',
@@ -706,6 +724,7 @@ class JobDict(util.DefaultDict):
                 'status_interval': 100000,
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
+                'nr_reduces': 0,
                 'map_writer': None,
                 'reduce_writer': None
                 }
@@ -764,28 +783,28 @@ class JobDict(util.DefaultDict):
 
         # -- input --
         ddfs = self.pop('ddfs', None)
-        self['input'] = [url for i in self['input']
+        self['input'] = [list(util.iterify(url))
+                         for i in self['input']
                          for url in util.urllist(i, listdirs=bool(self['map']),
                                                  ddfs=ddfs)]
 
-        ispartitioned = all(url.startswith('dir://')
-                            for urls in self['input']
-                            for url in util.iterify(urls))
+        # partitions must be an integer internally
+        self['partitions'] = self['partitions'] or 0
 
-        self['partitions'] = self['nr_reduces']
-
-        if 'partitions' in kwargs:
-            if 'map' in self:
-                self['nr_reduces'] = self['partitions']
-            else:
-                raise DiscoError("Can't specify partitions without map")
+        # set nr_reduces: ignored if there is not actually a reduce specified
+        if self['map']:
+            # partitioned map has N reduces; non-partitioned map has 1 reduce
+            self['nr_reduces'] = self['partitions'] or 1
+        elif self.input_is_partitioned:
+            # Only reduce, with partitions: len(dir://) specifies nr_reduces
+            self['nr_reduces'] = len(util.parse_dir(self['input'][0][0]))
         else:
-            if 'map' not in self:
-                if ispartitioned and not self['merge_partitions']:
-                    self['nr_reduces'] = len(util.parse_dir(self['input'][0]))
+            # Only reduce, without partitions can only have 1 reduce
+            self['nr_reduces'] = 1
 
-        if 'merge_partitions' in self:
-            if 'map' in self or ispartitioned:
+        # merge_partitions iff the inputs to reduce are partitioned
+        if self['merge_partitions']:
+            if self['partitions'] or self.input_is_partitioned:
                 self['nr_reduces'] = 1
             else:
                 raise DiscoError("Can't merge partitions without partitions")
@@ -867,6 +886,12 @@ class JobDict(util.DefaultDict):
             if jobdict[oldio]:
                 jobdict[stream].append(wrapper(jobdict[oldio]))
         return cls(**jobdict)
+
+    @property
+    def input_is_partitioned(self):
+        return all(url.startswith('dir://')
+                   for urls in self['input']
+                   for url in urls)
 
 class Job(object):
     """
@@ -978,6 +1003,8 @@ class Job(object):
             if 'partitions' in kwargs or 'merge_partitions' in kwargs:
                 raise DeprecationWarning("Cannot specify nr_reduces with "
                                          "partitions and/or merge_partitions")
+            kwargs['partitions'] = kwargs.pop('nr_reduces')
+
         jobpack = Job.JobDict(self,
                               prefix=self.name,
                               ddfs=self.master.master,

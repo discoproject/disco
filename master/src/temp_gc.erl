@@ -55,11 +55,10 @@ process_job(JobPath, Purged) ->
             GCAfter = get(gcafter),
             if IsPurged; Now - T > GCAfter ->
                 ddfs:delete(get(ddfs), disco:oob_name(Job)),
-                os:cmd("rm -Rf " ++ Job);
+                os:cmd("rm -Rf " ++ JobPath);
             true ->
                 ok
             end;
         _ ->
             ok
     end.
-

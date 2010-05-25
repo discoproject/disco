@@ -8,10 +8,13 @@ indices with Discodex.
 To install Discodex on a server or using a remote Disco master, you should
 only need to change a few :mod:`discodex.settings`.
 
+Using Discodex
+''''''''''''''
+
 0. Install Discodex
 -------------------
 
-To run Discodex, the Python package and command line utility must be installed.
+To run Discodex, the Python package and :program:`discodex` command line utility must be installed.
 See :mod:`discodex <discodexcli>` for information on installing the command line utility.
 You can install the Python package either using a symlink, or by running::
 
@@ -21,7 +24,7 @@ You can install the Python package either using a symlink, or by running::
 --------------
 
 If you haven't already started a Disco master, you will need to do so now.
-Discodex requires that a Disco master be running at ``DISCODEX_DISCO_MASTER``,
+Discodex requires that a Disco master be running at :envvar:`DISCODEX_DISCO_MASTER`,
 so that it can submit jobs to it.
 
 Usually, you can start Disco simply by running::
@@ -57,12 +60,12 @@ If you see the 'green light' next to the job, you've successfully built
 your first index!
 The job will remain there until you read it for the first time.
 Officially, it won't become an index until you read it using
-``discodex get`` or some other command (such as ``discodex clone``).
+:command:`discodex get` or some other command (such as :command:`discodex clone`).
 You can confirm that you don't see it yet when you do::
 
         discodex list
 
-Using the name of the job returned from the ``discodex index`` command,
+Using the name of the job returned from the :command:`discodex index` command,
 let's go ahead and make it official::
 
         discodex get <INDEX>
@@ -81,9 +84,9 @@ Once more, let's see whats available::
         discodex list
 
 Notice the prefix.
-This is the prefix stored in the settings `DISCODEX_INDEX_PREFIX`.
+This is the prefix stored in the settings :envvar:`DISCODEX_INDEX_PREFIX`.
 Generally speaking, you can ignore this prefix and just use the name you gave it.
-The reason it exists is to provide `discodex` with its own namespace in :ref:`ddfs`, where the indices are stored.
+The reason it exists is to provide Discodex with its own namespace in :ref:`ddfs`, where the indices are stored.
 
 Let's try seeing the keys stored in the index::
 
@@ -113,6 +116,24 @@ You could have also done::
         ddfs ls discodex: | xargs ddfs rm
 
 .. warning:: Be careful, these commands will delete all your indices!
+
+If you ran the queries against Discodex,
+you should still see the query jobs Discodex ran on the Disco web interface.
+If you want Discodex to cleanup after itself automatically,
+:command:`touch` the file stored in the :envvar:`DISCODEX_PURGE_FILE` setting.
+If you don't know what file that is, just run::
+
+        discodex -v
+
+If the purge file exists, Discodex will purge query jobs after they complete.
+If you ever need to know why a query job fails,
+its a good idea to turn off purging.
+If you have :mod:`disco <discocli>` installed,
+you can clean up any remaining jobs using::
+
+        disco jobs | xargs disco purge
+
+.. warning:: Be careful, this command will purge all of your Disco jobs!
 
 3. Querying the index
 ---------------------
@@ -173,17 +194,44 @@ make our documentation search engine slightly more robust::
 Using the ``prefixkeyer``, we mapped all possible prefixes of all of the keys
 in our index to the keys themselves, and stored them in the metaindex,
 along with the original index.
+Convince yourself that all the prefixes are actually there::
+
+        discodex keys metawords | sort | less
+
 Now if we query our metaindex,
 we can see not only the files which contain the exact words we are querying,
 but any files which contain words *starting* with our query words::
 
+        discodex query metawords discodex
+
+First, notice how the metaindex returns both the original keys from your index,
+and an iterator over the values of each of those keys.
+Also notice what happens when you execute more complicated queries::
+
         discodex query metawords discodex build
+
+You shouldn't see any results.
+This is because the query first gets executed on the :class:`discodb.MetaDB`,
+and there aren't any words that begin with both ``discodex`` *and* ``build``.
+Finally, let's see which documents contain words starting with *either*
+``discodex`` *or* ``build``::
+
+        discodex query metawords discodex,build
 
 Hopefully at this point, you can imagine writing
 :mod:`discodex.mapreduce.metakeyers`, that allow you to query your data in
 all kinds of interesting ways.
 
-6. Advanced Querying Using Filters
-----------------------------------
+Remember, Discodex scales automatically with the size of your cluster,
+so don't be afraid to try it out with millions or billions of keys and values!
+
+What's Next?
+''''''''''''
+
+Using Discodex from Disco Jobs
+------------------------------
+
+Advanced Querying Using Filters
+-------------------------------
 
 .. todo:: query filters not covered yet

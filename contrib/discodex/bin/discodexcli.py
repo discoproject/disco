@@ -3,11 +3,11 @@
 :mod:`discodex <discodexcli>` -- Discodex command line utility
 ==============================================================
 
-`discodex` is a command line tool for controlling and communicating with the discodex server.
+:program:`discodex` is a command line tool for controlling and communicating with the discodex server.
 
 .. note::
 
-   This is the manpage for the ``discodex`` command.
+   This is the manpage for the :program:`discodex` command.
    Please see :ref:`discodex` for more information on Discodex.
 
 .. hint::
@@ -18,10 +18,10 @@
         ln -s $DISCO_HOME/bin/discodex /usr/local/bin
 
    If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
-   Doing so allows you to simply call the command ``discodex``, instead of specifying the complete path.
+   Doing so allows you to simply call :program:`discodex`, instead of specifying the complete path.
 
 
-Run ``discodex help`` for information on using the command line utility.
+Run :command:`discodex help` for information on using the command line utility.
 
 See also: :mod:`discodex.settings`
 

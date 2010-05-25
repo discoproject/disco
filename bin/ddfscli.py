@@ -3,12 +3,12 @@
 :mod:`ddfs <ddfscli>` -- DDFS command line utility
 ==================================================
 
-`ddfs` is a tool for manipulating data stored in :ref:`ddfs`.
-Some of the `ddfs` utilities also work with data stored in Disco's temporary filesystem.
+:program:`ddfs` is a tool for manipulating data stored in :ref:`ddfs`.
+Some of the :program:`ddfs` utilities also work with data stored in Disco's temporary filesystem.
 
 .. note::
 
-   This is the manpage for the ``ddfs`` command.
+   This is the manpage for the :program:`ddfs` command.
    Please see :ref:`ddfs` for more general information on DDFS.
 
 .. hint::
@@ -19,10 +19,10 @@ Some of the `ddfs` utilities also work with data stored in Disco's temporary fil
         ln -s $DISCO_HOME/bin/ddfs /usr/local/bin
 
    If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
-   Doing so allows you to simply call the command ``ddfs``, instead of specifying the complete path.
+   Doing so allows you to simply call :command:`ddfs`, instead of specifying the complete path.
 
 
-Run ``ddfs help`` for information on using the command line utility.
+Run :command:`ddfs help` for information on using the command line utility.
 
 See also: :mod:`disco.settings`
 

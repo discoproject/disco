@@ -1,6 +1,6 @@
 from disco.test import DiscoMultiJobTestFixture
 from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.error import DiscoError
+from disco.error import JobError
 
 class EmptyInputTestCase(DiscoJobTestFixture, DiscoTestCase):
     input = []
@@ -19,6 +19,7 @@ class MapPartitionedOutputTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
+        assert Task.jobdict['partitions'] == 2
         yield e, 'against_me'
 
     @property
@@ -28,8 +29,18 @@ class MapPartitionedOutputTestCase(DiscoJobTestFixture, DiscoTestCase):
 class MapNonPartitionedOutputTestCase(MapPartitionedOutputTestCase):
     partitions = None
 
+    @staticmethod
+    def map(e, params):
+        assert Task.jobdict['partitions'] == 0
+        yield e, 'against_me'
+
 class MapNonPartitionedOutputTestCase2(MapPartitionedOutputTestCase):
     partitions = 0
+
+    @staticmethod
+    def map(e, params):
+        assert Task.jobdict['partitions'] == 0
+        yield e, 'against_me'
 
 class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs = ['test']
@@ -47,27 +58,42 @@ class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
         yield 'smoothies', 'mmm'
 
 class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
-    input_1  = ['raw://sam_adams', 'raw://trader_jose', 'raw://boont_esb']
-    njobs    = 2
+    input_1      = ['raw://sam_adams', 'raw://trader_jose', 'raw://boont_esb']
+    input_2      = input_1
+    njobs        = 3
+    partitions_1 = 3
+    partitions_2 = 3
 
     @staticmethod
     def map_1(e, params):
-        print e
+        yield e, None
+
+    @staticmethod
+    def map_2(e, params):
         yield e, None
 
     @property
-    def input_2(self):
-        return self.job_1.wait()
+    def input_3(self):
+        return self.job_1.wait() + self.job_2.wait()
 
-    def reduce_2(iter, out, params):
+    def reduce_3(iter, out, params):
         for k, v in iter:
-            print k, v
             out.add(k, v)
 
     def runTest(self):
-        for k, v in self.results_2:
+        for k, v in self.results_3:
             self.assert_('raw://%s' % k in self.input_1)
             self.assertEquals(v, None)
 
+class MismatchedPartitionedInputTestCase(ReducePartitionedInputTestCase):
+    partitions_1 = 2
+
+    def runTest(self):
+        self.assertRaises(JobError, self.job_3.wait)
+
 class MergeReducePartitionedInputTestCase(ReducePartitionedInputTestCase):
-    merge_partitions = True
+    merge_partitions_3 = True
+
+class MergeReducePartitionedInputTestCase2(ReducePartitionedInputTestCase):
+    merge_partitions_3 = True
+    partitions_1 = 2

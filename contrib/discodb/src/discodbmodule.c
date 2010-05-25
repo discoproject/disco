@@ -818,7 +818,7 @@ DiscoDBIter_format(DiscoDBIter *self, PyObject *format, int N)
   if (string == NULL)
     goto Done;
 
-  for (i = 0; i < N; i++) {
+  for (i = 0; i < N + 1; i++) {
     item = PyIter_Next(iterator);
     if (item == NULL) {
       if (PyErr_Occurred())
@@ -830,15 +830,16 @@ DiscoDBIter_format(DiscoDBIter *self, PyObject *format, int N)
     if (i > 0)
       PyString_ConcatAndDel(&string, PyString_FromString(", "));
 
-    PyString_ConcatAndDel(&string, PyString_Format(format, item));
+    if (i < N)
+      PyString_ConcatAndDel(&string, PyString_Format(format, item));
+    else
+      PyString_ConcatAndDel(&string, PyString_FromString("..."));
+
     if (string == NULL)
       goto Done;
 
     Py_CLEAR(item);
   }
-
-  if (DiscoDBIter_length(self) > N)
-    PyString_ConcatAndDel(&string, PyString_FromString(", ..."));
 
  Done:
   Py_CLEAR(iterator);

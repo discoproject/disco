@@ -37,6 +37,14 @@ Batteries Included
    Discodex -- Distributed Indexing System <contrib/discodex/index>
    contrib/discodb/discodb
 
+HOWTO
+-----
+
+.. toctree::
+   :maxdepth: 1
+
+   howto/dataflow
+
 References
 ----------
 
