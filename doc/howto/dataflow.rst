@@ -21,6 +21,13 @@ which contain the URLs of each individual output partition:
 In the diagrams below, it should be clear when Disco is relying on
 either reading partitioned input or writing partitioned output.
 
+The overall data flow in a Disco job is controlled by four :class:`disco.core.JobDict` parameters.
+The presence of ``map`` and ``reduce``, determine the overall structure of the job
+(i.e. whether its `mapreduce`, `map-only`, or `reduce-only`).
+The ``partitions`` parameter determines whether or not the map output is partitioned,
+and the number of partitions.
+The ``merge_partitions`` parameter determines whether partitioned input to reduce is merged.
+
 Map Flows
 ---------
 
