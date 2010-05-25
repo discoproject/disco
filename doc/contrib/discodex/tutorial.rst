@@ -8,10 +8,13 @@ indices with Discodex.
 To install Discodex on a server or using a remote Disco master, you should
 only need to change a few :mod:`discodex.settings`.
 
+Using Discodex
+''''''''''''''
+
 0. Install Discodex
 -------------------
 
-To run Discodex, the Python package and command line utility must be installed.
+To run Discodex, the Python package and :program:`discodex` command line utility must be installed.
 See :mod:`discodex <discodexcli>` for information on installing the command line utility.
 You can install the Python package either using a symlink, or by running::
 
@@ -57,12 +60,12 @@ If you see the 'green light' next to the job, you've successfully built
 your first index!
 The job will remain there until you read it for the first time.
 Officially, it won't become an index until you read it using
-``discodex get`` or some other command (such as ``discodex clone``).
+:command:`discodex get` or some other command (such as :command:`discodex clone`).
 You can confirm that you don't see it yet when you do::
 
         discodex list
 
-Using the name of the job returned from the ``discodex index`` command,
+Using the name of the job returned from the :command:`discodex index` command,
 let's go ahead and make it official::
 
         discodex get <INDEX>
@@ -83,7 +86,7 @@ Once more, let's see whats available::
 Notice the prefix.
 This is the prefix stored in the settings `DISCODEX_INDEX_PREFIX`.
 Generally speaking, you can ignore this prefix and just use the name you gave it.
-The reason it exists is to provide `discodex` with its own namespace in :ref:`ddfs`, where the indices are stored.
+The reason it exists is to provide Discodex with its own namespace in :ref:`ddfs`, where the indices are stored.
 
 Let's try seeing the keys stored in the index::
 
@@ -117,7 +120,7 @@ You could have also done::
 If you ran the queries against Discodex,
 you should still see the query jobs Discodex ran on the Disco web interface.
 If you want Discodex to cleanup after itself automatically,
-`touch` the file stored in the `DISCODEX_PURGE_FILE` setting.
+:command:`touch` the file stored in the `DISCODEX_PURGE_FILE` setting.
 If you don't know what file that is, just run::
 
         discodex -v
@@ -222,7 +225,13 @@ all kinds of interesting ways.
 Remember, Discodex scales automatically with the size of your cluster,
 so don't be afraid to try it out with millions or billions of keys and values!
 
-6. Advanced Querying Using Filters
-----------------------------------
+What's Next?
+''''''''''''
+
+Using Discodex from Disco Jobs
+------------------------------
+
+Advanced Querying Using Filters
+-------------------------------
 
 .. todo:: query filters not covered yet
