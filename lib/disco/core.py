@@ -548,9 +548,12 @@ class JobDict(util.DefaultDict):
     :type  partition: :func:`disco.func.partition`
     :param partition: decides how the map output is distributed to reduce.
 
-    :type  partitions: integer or None
-    :param partitions: number of partitions.
+    :type  partitions: int or None
+    :param partitions: number of partitions, if any.
                        *partitions* defaults to 1.
+
+    :type  merge_partitions: bool
+    :param merge_partitions: whether or not to merge partitioned inputs during reduce.
 
     :type  nr_reduces: *Deprecated in version 0.3* integer
     :param nr_reduces: Use *partitions* instead.
