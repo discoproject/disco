@@ -24,7 +24,7 @@ You can install the Python package either using a symlink, or by running::
 --------------
 
 If you haven't already started a Disco master, you will need to do so now.
-Discodex requires that a Disco master be running at ``DISCODEX_DISCO_MASTER``,
+Discodex requires that a Disco master be running at :envvar:`DISCODEX_DISCO_MASTER`,
 so that it can submit jobs to it.
 
 Usually, you can start Disco simply by running::
@@ -84,7 +84,7 @@ Once more, let's see whats available::
         discodex list
 
 Notice the prefix.
-This is the prefix stored in the settings `DISCODEX_INDEX_PREFIX`.
+This is the prefix stored in the settings :envvar:`DISCODEX_INDEX_PREFIX`.
 Generally speaking, you can ignore this prefix and just use the name you gave it.
 The reason it exists is to provide Discodex with its own namespace in :ref:`ddfs`, where the indices are stored.
 
@@ -120,7 +120,7 @@ You could have also done::
 If you ran the queries against Discodex,
 you should still see the query jobs Discodex ran on the Disco web interface.
 If you want Discodex to cleanup after itself automatically,
-:command:`touch` the file stored in the `DISCODEX_PURGE_FILE` setting.
+:command:`touch` the file stored in the :envvar:`DISCODEX_PURGE_FILE` setting.
 If you don't know what file that is, just run::
 
         discodex -v
