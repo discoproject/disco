@@ -88,19 +88,19 @@ fi
 
 
 running() {
-    [ -z "$(disco master status | grep stopped)" ]
+    [ -z "$($DAEMON status | grep stopped)" ]
     errcode=$?
     return $errcode
 }
 
 start_server() {
-        disco master start 
+        $DAEMON start 
         errcode=$?
 	return $errcode
 }
 
 stop_server() {
-        disco master stop
+        $DAEMON stop
         errcode=$?
 	return $errcode
 }

@@ -13,6 +13,7 @@ SYSCONFDIR=/etc
 BIN_DIR = $(PREFIX)/bin/
 INSTALL_DIR = $(PREFIX)/lib/disco/
 CONFIG_DIR = $(SYSCONFDIR)/disco/
+ARCH = $(shell uname)
 
 TARGETDIR = $(DESTDIR)/$(INSTALL_DIR)
 TARGETBIN = $(DESTDIR)/$(BIN_DIR)
@@ -31,7 +32,6 @@ SRC3 = $(wildcard $(ESRC)/ddfs/*.erl)
 DDFS_TARGET = $(addsuffix .beam, $(basename \
              $(addprefix $(EBIN)/ddfs/, $(notdir $(SRC3)))))
 
-UNAME = $(shell uname)
 
 build: master
 
@@ -60,7 +60,8 @@ install-master: master install-ebin install-config install-bin
 	cp -r master/www $(TARGETDIR)
 	chmod -R u=rwX,g=rX,o=rX $(TARGETDIR)/www
 
-install-node: master install-ebin install-config install-bin
+install-node: master install-ebin
+	install -d $(TARGETBIN)
 	install -m 0755 node/disco-worker $(TARGETBIN)
 
 install-bin:
@@ -85,10 +86,12 @@ install-config:
 
 	$(if $(wildcard $(TARGETCFG)/settings.py),\
 		$(info disco config already exists, skipping),\
-		(DESTDIR=$(DESTDIR) \
-		 TARGETDIR=$(TARGETDIR) \
-		 TARGETBIN=$(TARGETBIN) \
-		 conf/gen.settings.sys-$(UNAME) > $(TARGETCFG)/settings.py || \
+		(INSTALL_DIR=$(INSTALL_DIR) \
+                 BIN_DIR=$(BIN_DIR) \
+                 DESTDIR=$(DESTDIR) \
+                 TARGETDIR=$(TARGETDIR) \
+                 TARGETBIN=$(TARGETBIN) \
+		 conf/gen.settings.sys-$(ARCH) > $(TARGETCFG)/settings.py || \
 		 rm $(TARGETCFG)/settings.py; \
                  chmod 644  $(TARGETCFG)/settings.py))
 

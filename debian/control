@@ -2,29 +2,30 @@ Source: disco
 Section: admin
 Priority: extra
 Maintainer: Ville Tuulos <ville.h.tuulos@nokia.com>
-Build-depends: debhelper (>= 7), python-support, python-setuptools, erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a
+Build-depends: debhelper (>= 7), python-support, erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a
 Standards-Version: 3.7.3
 Homepage: http://www.discoproject.org
 
 Package: python-disco
 Architecture: all
 Section: python
-Build-Depends: python-support
-Depends: ${misc:Depends}, python (>= 2.4), python-cjson
+Build-Depends: python-support (>= 0.5.3), python (>= 2.5)
+Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.5), python-cjson
+Recommends: python-pycurl
 Description: Disco client
  This is Disco client.
 
 Package: disco-node
 Architecture: all
-Depends: ${misc:Depends}, adduser, lighttpd, erlang-base (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a, python (>= 2.4), python-disco (= ${source:Version})
-Conflicts: disco-master
+Depends: ${misc:Depends}, adduser, erlang-base (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a,  python-disco (= ${source:Version})
+Recommends: python-pycurl
 Description: Disco node
  This is Disco node.
 
 Package: disco-master
 Architecture: all
 Depends: ${misc:Depends}, erlang-base (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a, python-disco (= ${source:Version})
-Conflicts: disco-node
+Recommends: lighttpd
 Description: Disco master
  This is Disco master.
 
