@@ -466,24 +466,24 @@ class JobDict(util.DefaultDict):
     :param map_init: initialization function for the map task.
                      This function is called once before the task starts.
 
-    :type  map_input_stream: :func:`disco.func.input_stream` or list of
-                             :func:`disco.func.input_stream`
-    :param map_input_stream: If a list of functions are supplied,
-                             they are chained together and the final resulting
-                             file handle is passed to the ``map_reader``.
-                             Chaining can be used, for example,
-                             to produce compressed input/output streams.
+    :type  map_input_stream: list of :func:`disco.func.input_stream`
+    :param map_input_stream: The given functions are chained together and the final resulting
+                             :class:`disco.func.InputStream` object is used
+                             to iterate over input entries.
+
                              (*Added in version 0.2.4*)
 
-    :type  map_output_stream: :func:`disco.func.output_stream` or list of
-                              :func:`disco.func.output_stream`
-    :param map_output_stream: If a list of functions are supplied,
-                              they are chained together and the final resulting
-                              file handle is passed to the ``map_writer``.
+    :type  map_output_stream: list of :func:`disco.func.output_stream`
+    :param map_output_stream: The given functions are chained together and the 
+                              :meth:`disco.func.OutputStream.add` method of the last
+                              returned :class:`disco.func.OutputStream` object is used
+                              to serialize key, value pairs output by the map.
                               (*Added in version 0.2.4*)
 
-    :type  map_reader: :func:`disco.func.reader`
-    :param map_reader: parses the stream and yields input entries to *map*.
+    :type  map_reader: :func:`disco.func.input_stream`
+    :param map_reader: Convenience function to define the last :func:`disco.func.input_stream`
+                       function in the *map_input_stream* chain.
+    
                        Disco worker provides a convenience function
                        :func:`disco.func.re_reader` that can be used to create
                        a reader using regular expressions.
@@ -493,8 +493,8 @@ class JobDict(util.DefaultDict):
 
                        Default is :func:`disco.func.map_line_reader`.
 
-    :type  map_writer: :func:`disco.func.writer`
-    :param map_writer: This function comes in handy e.g. when *reduce* is not
+    :param map_writer: (*Deprecated in version 0.3*) This function comes in 
+                       handy e.g. when *reduce* is not
                        specified and you want *map* output in a specific format.
                        Another typical case is to use
                        :func:`disco.func.object_writer` as *map_writer* and
@@ -517,18 +517,19 @@ class JobDict(util.DefaultDict):
     :param reduce_init: initialization function for the reduce task.
                         This function is called once before the task starts.
 
-    :type  reduce_input_stream: :func:`disco.func.input_stream`
-    :param reduce_input_stream: same as in *map_input_stream*,
-                                but used for the reduce task.
-                                (*Added in version 0.2.4*)
+    :type  reduce_input_stream: list of :func:`disco.func.output_stream`
+    :param reduce_input_stream: The given functions are chained together and the last
+                              returned :class:`disco.func.InputStream` object is 
+                              given to *reduce* as its first argument.
+                              (*Added in version 0.2.4*)
+    
+    :type  reduce_output_stream: list of :func:`disco.func.output_stream`
+    :param reduce_output_stream: The given functions are chained together and the last
+                              returned :class:`disco.func.OutputStream` object is 
+                              given to *reduce* as its second argument.
+                              (*Added in version 0.2.4*)
 
-
-    :type  reduce_output_stream: :func:`disco.func.output_stream`
-    :param reduce_output_stream: same as in *map_output_stream*,
-                                 but used for the reduce task.
-                                 (*Added in version 0.2.4*)
-
-    :type  reduce_reader: :func:`disco.func.reader`
+    :type  reduce_reader: :func:`disco.func.input_stream`
     :param reduce_reader: This function needs to match with *map_writer*,
                           if *map* is specified.
                           If *map* is not specified,
@@ -538,8 +539,7 @@ class JobDict(util.DefaultDict):
 
                           Default is :func:`disco.func.chain_reader`.
 
-    :type  reduce_writer: :func:`disco.func.writer`
-    :param reduce_writer: You can use this function to output results
+    :param reduce_writer: (*Deprecated in version 0.3*) You can use this function to output results
                           in an arbitrary format from your map/reduce job.
                           If you use :func:`result_iterator` to read results,
                           set its *reader* parameter to a function

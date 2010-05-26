@@ -40,8 +40,15 @@ The following types of functions can be provided by the user:
 .. autofunction:: init
 .. autofunction:: input_stream
 .. autofunction:: output_stream
-.. autofunction:: reader
-.. autofunction:: writer
+
+
+Interfaces
+----------
+
+.. autoclass:: InputStream
+    :members: __iter__, read
+.. autoclass:: OutputStream
+    :members: 
 
 Default/Utility Functions
 -------------------------
@@ -123,13 +130,14 @@ def combiner(key, value, buffer, done, params):
     This is the last opportunity for the combiner to return something.
     """
 
-def reduce(iter, out, params):
+def reduce(input_stream, output_stream, params):
     """
     Takes three parameters, and adds reduced output to an output object.
 
-    :param iter: an iterator to the intermediate ``(key, value)`` pairs
-                 produced by :func:`map`.
-    :param out: an output object that handles the results
+    :param input_stream: :class:`disco.func.InputStream` object that is used
+        to iterate through input entries.
+    :param output_stream: :class:`disco.func.InputStream` object that is used
+        to output results.
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
 
@@ -164,42 +172,74 @@ def init(input_iter, params):
 
 def input_stream(stream, size, url, params):
     """
-    Returns a file-like object for a given url.
+    :param stream: :class:`disco.func.InputStream` object
+    :param size: size of the input (may be ``None``)
+    :param url: url of the input
 
-    Using an :func:`input_stream` allows you to customize
+    Returns a triplet (:class:`disco.func.InputStream`, size, url) that is
+    passed to the next *input_stream* function in the chain. The
+    last :class:`disco.func.InputStream` object returned by the chain is used
+    to iterate through input entries.
+
+    Using an :func:`disco.func.input_stream` allows you to customize
     how input urls are opened.
     """
 
 def output_stream(stream, partition, url, params):
     """
-    Returns a file-like object for a given partition.
-
-    Using an :func:`output_stream` allows you to customize
-    how output handles are opened.
-    The default should almost always be used.
-    """
-
-def reader(fd, size, url):
-    """
-    Returns entries from an input handle.
-
-    :param fd: a file object connected to the input
-    :param size: size of the input (may be ``None``)
+    :param stream: :class:`disco.func.OutputStream` object
+    :param partition: partition id
     :param url: url of the input
-
-    The reader function may read at most *size* bytes from *fd*.
-    """
-
-def writer(fd, key, value, params):
-    """
-    Returns a serialized form of *key*, *value* (as a string).
-
-    :param fd: a file object connected to the output
-    :param key: a key object emitted by a task function
-    :param value: a value object emitted by a task function
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
+    
+    Returns a triplet (:class:`disco.func.OutputStream`, size, url) that is
+    passed to the next *output_stream* function in the chain. The
+    :meth:`disco.func.OutputStream.add` method of the last
+    :class:`disco.func.OutputStream` object returned by the chain is used
+    to output entries from map or reduce.
+
+    Using an :func:`output_stream` allows you to customize where and how
+    output is stored. The default should almost always be used.
     """
+
+class OutputStream:
+    """
+    A file-like object returned by the ``map_output_stream`` or 
+    ``reduce_output_stream`` chain of :func:`disco.func.output_stream` functions.
+    Used to encode key, value pairs add write them to the underlying file object.
+    """
+    def write(data):
+        """
+        Writes serialized key, value pairs to the underlying file object.
+        """
+
+    def add(key, value):
+        """
+        Adds a key, value pair to the output stream. This method typically
+        calls *self.write()* to write a serialized pair to the actual 
+        file object.
+        """
+
+class InputStream:
+    """
+    A file-like object returned by the ``map_input_stream`` or 
+    ``reduce_input_stream`` chain of :func:`disco.func.input_stream` functions.
+    Used either to read bytes from the input source or to iterate through input
+    entries.
+    """
+    def __iter__():
+        """
+        Iterates through input entries. Typically calls *self.read()* to read
+        bytes from the underlying file object, which are deserialized to the
+        actual input entries.
+        """
+    
+    def read(num_bytes=None):
+        """
+        Reads at most *num_bytes* from the input source, or until EOF if *num_bytes*
+        is not specified.
+        """
 
 def old_netstr_reader(fd, size, fname, head = ''):
     """
@@ -381,6 +421,7 @@ def netstr_writer(fd, key, value, params):
 
 def object_writer(fd, key, value, params):
     """
+    *(Deprecated in 0.3)*
     A wrapper for :func:`netstr_writer` that uses Python's ``cPickle``
     module to deserialize strings to Python objects.
    """
@@ -390,6 +431,7 @@ def object_writer(fd, key, value, params):
 
 def object_reader(fd, sze, fname):
     """
+    *(Deprecated in 0.3)*
     A wrapper for :func:`netstr_reader` that uses Python's ``cPickle``
     module to serialize arbitrary Python objects to strings.
     """
