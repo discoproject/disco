@@ -184,9 +184,7 @@ class DiscoJobTestFixture(object):
             self.job.purge()
 
     def runTest(self):
-        from itertools import izip_longest
-        for result, answer in izip_longest(self.results, self.answers,
-                                           fillvalue=ValueError):
+        for result, answer in zip(self.results, self.answers):
             self.assertEquals(result, answer)
 
     def skipTest(self, message):
