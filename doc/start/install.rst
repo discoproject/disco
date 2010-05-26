@@ -68,6 +68,8 @@ This is often the easiest and the least intrusive way to get started with Disco.
 
 You should repeat the above command on all servers that belong to your
 Disco cluster. Note that Disco should be found on the same path on all the servers.
+Alternatively, you can use a (NFS) shared home directory on all the nodes, which
+makes development really straightforward.
 
 To install system-wide, run make install as root::
 
@@ -75,6 +77,22 @@ To install system-wide, run make install as root::
 
 This will build and install Disco to your system (see ``Makefile`` for exact
 directories).
+
+.. note::
+
+    ``make install`` installs a configuration file to
+    ``/etc/disco/settings.py`` that is tuned for clusters, not a single
+    machine.
+    
+    By default, the settings assume that you have at least three nodes in your
+    cluster, so DDFS can use three-way replication. If you have less nodes,
+    you need to lower the number of replicas in ``/etc/disco/settings.py``::
+
+        DDFS_TAG_MIN_REPLICAS=1
+        DDFS_TAG_REPLICAS=1
+        DDFS_BLOB_REPLICAS=1
+
+    See :mod:`disco.settings` for more information.
 
 2. Prepare the runtime environment
 ----------------------------------
