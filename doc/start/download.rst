@@ -11,14 +11,6 @@ Download the latest development version from `github`_::
 
         git clone git://github.com/tuulos/disco.git
 
-Amazon EC2
-----------
-
-For a few dollars you can rent a server or a cluster of servers at
-the Amazon's Elastic Computing Cloud (`EC2`_).
-This is an easy way to get started with Disco as you don't have to install anything manually.
-Download the `setup-instances.py`_ script and follow the :doc:`ec2setup` instructions.
-
 Debian packages
 ---------------
 
@@ -34,10 +26,17 @@ The `python-disco` package is required on all machines where Disco scripts are r
 
 After installation, see steps 4-6 in :ref:`Setting up Disco <configauth>` that describe how to configure and test Disco.
 
+Following distributions are supported
+
+ - `python-disco` works on Debian stable (Lenny) and newer
+ - `disco-master` and `disco-node` work on Debian testing (Squeeze) and newer
+ - All packages should work on recent Ubuntu releases
+
+This means that Debian stable can be used to submit Disco jobs but not to run
+Disco master or nodes.
+
 .. warning:: **Our Debian packages are experimental!**
         They may not play nicely with other packages or they may destroy your computer.
-        They are best to be used in a secure, sandboxed environment where nodes can be re-installed automatically if needed.
-        If unsure, try first the Amazon EC2 option above which is based on our Debian packages.
 
 .. _official releases: http://github.com/tuulos/disco/downloads
 .. _github: http://github.com/tuulos/disco
