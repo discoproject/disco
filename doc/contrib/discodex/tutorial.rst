@@ -8,11 +8,28 @@ indices with Discodex.
 To install Discodex on a server or using a remote Disco master, you should
 only need to change a few :mod:`discodex.settings`.
 
-Using Discodex
-''''''''''''''
+Installation
+''''''''''''
 
-0. Install Discodex
--------------------
+Install Django
+--------------
+
+Discodex uses the Python web framework, `Django`_,
+to handle requests coming to the HTTP server and map them to Disco Jobs.
+The Django server acts as a Disco client for you,
+so that you can use Discodex from thin clients, such as web applications.
+
+Follow the instructions `here <http://docs.djangoproject.com/en/1.2/intro/install/#install-django>`_.
+You must also have `lighttpd <http://www.lighttpd.net/download/>`_ installed,
+as well as `flup <http://trac.saddi.com/flup>`_.
+
+If you want to understand why these other projects are used,
+read `this <http://docs.djangoproject.com/en/dev/howto/deployment/fastcgi/>`_.
+
+.. _Django: http://www.djangoproject.com
+
+Install Discodex
+----------------
 
 To run Discodex, the Python package and :program:`discodex` command line utility must be installed.
 See :mod:`discodex <discodexcli>` for information on installing the command line utility.
@@ -20,8 +37,11 @@ You can install the Python package either using a symlink, or by running::
 
         make install-discodex
 
-1. Start Disco
---------------
+Using Discodex
+''''''''''''''
+
+Start Disco
+-----------
 
 If you haven't already started a Disco master, you will need to do so now.
 Discodex requires that a Disco master be running at :envvar:`DISCODEX_DISCO_MASTER`,
@@ -33,8 +53,8 @@ Usually, you can start Disco simply by running::
 
 For more information on starting Disco, see :ref:`setup`.
 
-2. Start Discodex
------------------
+Start Discodex
+--------------
 
 Discodex runs its own HTTP server which translates HTTP requests into
 Disco jobs.
@@ -42,8 +62,8 @@ In order to use Discodex, you will need to start the server::
 
          discodex start
 
-3. Build an Index
------------------
+Build an Index
+--------------
 
 Discodex makes it easy to build indices from data, assuming you know how you
 want to create keys and values from your data.
@@ -135,8 +155,8 @@ you can clean up any remaining jobs using::
 
 .. warning:: Be careful, this command will purge all of your Disco jobs!
 
-3. Querying the index
----------------------
+Querying the index
+------------------
 
 Let's build a slightly more complicated index and try querying it::
 
@@ -155,8 +175,8 @@ Discodex queries the underlying :mod:`discodb` objects using
 In queries from the command line, you can use spaces to separate clauses,
 and commas to separate literals.
 
-4. Index the docs
------------------
+Index the docs
+--------------
 
 Let's try indexing some real files now.
 We can use the Disco documentation::
@@ -180,8 +200,8 @@ We can also see which files contain the words ``discodex`` *and* ``build``::
 
 Congratulations, you've built a basic search engine!
 
-5. Build a Metaindex
---------------------
+Build a Metaindex
+-----------------
 
 A :term:`metaindex` is an index built on top of the keys of another index.
 The easiest way to understand what it does is probably just to build one.
@@ -225,13 +245,14 @@ all kinds of interesting ways.
 Remember, Discodex scales automatically with the size of your cluster,
 so don't be afraid to try it out with millions or billions of keys and values!
 
-What's Next?
-''''''''''''
+.. todo::
 
-Using Discodex from Disco Jobs
-------------------------------
+        What's Next?
 
-Advanced Querying Using Filters
--------------------------------
+        Using Discodex from Disco Jobs
 
-.. todo:: query filters not covered yet
+        explain e.g. inputs with ``discodb://`` scheme
+
+        Advanced Querying Using Filters
+
+        query filters not covered yet

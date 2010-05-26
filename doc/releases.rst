@@ -2,6 +2,75 @@
 Release notes
 =============
 
+Disco 0.3 (May 26th 2010)
+-------------------------
+
+New features
+''''''''''''
+
+ - :ref:`ddfs` - distributed and replicated data storage for Disco.
+ - :ref:`discodex` - distributed indices for efficient querying of data.
+ - :mod:`discodb` - lightning fast and scalable mapping data structure.
+ - New internal data format, supporting compression and pickling 
+   of Python objects by default.
+ - Clarified the partitioning logic in Disco, see :ref:`dataflow`.
+ - Integrated web server (Mochiweb) replaces Lighttpd, making installation
+   easier and allows more fine-grained data flow control.
+ - Chunked data transfer and improved handling of network congestion.
+ - Support for `partial job functions <http://docs.python.org/library/functools.html#functools.partial>`_ (Thanks to Jarno Seppänen)
+ - Unified interface for readers and input streams, writers deprecated. See :meth:`disco.core.Disco.new_job`.
+ - New ``save=True`` parameter for :meth:`disco.core.Disco.new_job` which
+   persists job results in DDFS.
+ - New garbage collector deletes job data ``DISCO_GC_AFTER`` seconds
+   after the job has finished (see :mod:`disco.settings`). Defaults to 100
+   years. Use ``save=True``, if you want to keep the results permanently.
+ - Support for Out-of-band (OOB) results implemented using DDFS.
+ - ``disco-worker`` checks that there is enough disk space before it starts up.
+ - :mod:`discocli` - Command line interface for Disco
+ - :mod:`ddfscli` - Command line interface for DDFS
+ - Improved load balancing in scheduler.
+ - Integrated Disco proxy based on Lighttpd.
+ - Debian packaging: ``disco-master`` and ``disco-node`` do not conflict
+   anymore, making it possible to run Disco locally from Debian packages.
+
+Deprecated 
+''''''''''
+These features will be removed in the coming releases:
+  - *object_reader* and *object_writer* - Disco supports now pickling by
+    default.
+  - *map_writer* and *reduce_writer* (use output streams instead).
+  - *nr_reduces* (use `partitions`)
+  - `fun_map` and `input_files` (use `map` and `input`)
+
+Backwards incompatible changes
+''''''''''''''''''''''''''''''
+
+ - Experimental support for GlusterFS removed
+ - ``homedisco`` removed - use a local Disco instead
+ - Deprecated ``chunked`` parameter removed from :meth:`disco.core.Disco.new_job`.
+ - If you have been using a custom output stream with the default writer,
+   you need to specify the writer now explictly, or upgrade your 
+   output stream to support the `.out(k, v)`` method which replaces 
+   writers in 0.3.
+
+Bugfixes
+''''''''
+
+ - Jobs should disappear from list immediately after deleted (bug #43)
+ - Running jobs with empty input gives "Jobs status dead" (bug #92)
+ - Full disk may crash a job in `_safe_fileop()` (bug #120)
+ - Eventmonitor shows each job multiple times when tracking multiple jobs (bug #94)
+ - Change eventmonitor default output handle to sys.stderr (bug #83)
+ - Tell user what the spawn command was if the task fails right away (bug #113)
+ - Normalize pathnames on PYTHONPATH (bug #134)
+ - Timeouts were handled incorrectly in wait() (bug #96)
+ - Cast unicode urls to strings in comm_curl (bug #52)
+ - External sort handles objects in values correctly. Thanks to Tomaž Šolc for the patch!
+ - Scheduler didn't handle node changes correctly - this solves the hanging jobs issue
+ - Several bug fixes in `comm_*.py`
+ - Duplicate nodes on the node config table crashed master
+ - Handle timeout correctly in fair_scheduler_job (if system is under heavy load)
+
 Disco 0.2.4 (February 8th 2010)
 -------------------------------
 

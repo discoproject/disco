@@ -5,8 +5,6 @@ cat << EOF
 # Disco settings
 import os
 
-DISCO_USER = "disco"
-
 # --
 # -- You can modify these directories as you wish
 # --
