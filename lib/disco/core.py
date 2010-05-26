@@ -299,7 +299,7 @@ class Disco(object):
         data = json.dumps([timeout, list(jobspecifier.jobnames)])
         results = json.loads(self.request('/disco/ctrl/get_results', data))
 
-        if type(jobspec) == str:
+        if isinstance(jobspec, basestring):
             return results[0][1]
 
         others, active = [], []
