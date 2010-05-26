@@ -58,7 +58,6 @@ class Disco(Program):
         print "Disco master located at %s" % self.settings['DISCO_MASTER']
 
     def main(self):
-        self.settings.ensuredirs()
         super(Disco, self).main()
 
     @property
@@ -68,7 +67,9 @@ class Disco(Program):
 
     @property
     def master(self):
-        return Master(self.settings)
+        master = Master(self.settings)
+        self.settings.ensuredirs()
+        return master
 
     @property
     def settings_class(self):

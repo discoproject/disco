@@ -299,7 +299,7 @@ class Disco(object):
         data = json.dumps([timeout, list(jobspecifier.jobnames)])
         results = json.loads(self.request('/disco/ctrl/get_results', data))
 
-        if type(jobspec) == str:
+        if isinstance(jobspec, basestring):
             return results[0][1]
 
         others, active = [], []
@@ -491,6 +491,8 @@ class JobDict(util.DefaultDict):
                        If you want to use outputs of an earlier job as inputs,
                        use :func:`disco.func.chain_reader` as the *map_reader*.
 
+                       Default is :func:`disco.func.map_line_reader`.
+
     :type  map_writer: :func:`disco.func.writer`
     :param map_writer: This function comes in handy e.g. when *reduce* is not
                        specified and you want *map* output in a specific format.
@@ -534,6 +536,8 @@ class JobDict(util.DefaultDict):
                           similar to *map_reader*.
                           (*Added in version 0.2*)
 
+                          Default is :func:`disco.func.chain_reader`.
+
     :type  reduce_writer: :func:`disco.func.writer`
     :param reduce_writer: You can use this function to output results
                           in an arbitrary format from your map/reduce job.
@@ -548,12 +552,17 @@ class JobDict(util.DefaultDict):
     :type  partition: :func:`disco.func.partition`
     :param partition: decides how the map output is distributed to reduce.
 
+                      Default is :func:`disco.func.default_partition`.
+
     :type  partitions: int or None
     :param partitions: number of partitions, if any.
-                       *partitions* defaults to 1.
+
+                       Default is ``1``.
 
     :type  merge_partitions: bool
     :param merge_partitions: whether or not to merge partitioned inputs during reduce.
+
+                             Default is ``False``.
 
     :type  nr_reduces: *Deprecated in version 0.3* integer
     :param nr_reduces: Use *partitions* instead.
@@ -564,6 +573,8 @@ class JobDict(util.DefaultDict):
 
                        * *max_cores* - use this many cores at most
                                        (applies to both map and reduce).
+
+                                       Default is ``2**31``.
 
                        * *force_local* - always run task on the node where
                                          input data is located;
@@ -590,6 +601,8 @@ class JobDict(util.DefaultDict):
                  If it is larger, the external program ``sort`` is used
                  to sort the input on disk.
 
+                 Default is ``False``.
+
     :type  params: :class:`Params`
     :param params: object that is passed to worker tasks to store state
                    The object is serialized using the *pickle* module,
@@ -603,6 +616,8 @@ class JobDict(util.DefaultDict):
     :type  mem_sort_limit: integer
     :param mem_sort_limit: maximum size of data that can be sorted in memory.
                            The larger inputs are sorted on disk.
+
+                           Default is ``256 * 1024**2``.
 
     :param ext_params: if either map or reduce function is an external program,
                        typically specified using :func:`disco.util.external`,
@@ -669,9 +684,13 @@ class JobDict(util.DefaultDict):
                             Decrease the value if you want more messages or
                             you don't have that many data items.
 
+                            Default is ``100000``.
+
     :type  profile: boolean
     :param profile: enable tasks profiling.
                     Retrieve profiling results with :meth:`Disco.profile_stats`.
+
+                    Default is ``False``.
     """
     defaults = {'input': (),
                 'map': None,

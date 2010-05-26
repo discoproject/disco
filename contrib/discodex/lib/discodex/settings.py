@@ -8,26 +8,26 @@ For more information on disco settings, see :mod:`disco.settings`.
 
 The most important Discodex settings are:
 
-        *DISCODEX_HOME*
+        :envvar:`DISCODEX_HOME`
                 The directory which Discodex runs out of.
                 If you install :mod:`discodex <discodexcli>` using a symlink
                 (recommended), you shouldn't need to change this.
 
-        *DISCODEX_PURGE_FILE*
+        :envvar:`DISCODEX_PURGE_FILE`
                 The path of a file whose existence determines whether or not
                 Discodex should purge the results of queries after they have
                 been executed.
                 Default is ``os.path.join(DISCODEX_HOME, 'etc', 'purge')``.
 
-        *DISCODEX_HTTP_HOST*
+        :envvar:`DISCODEX_HTTP_HOST`
                 The hostname that the Discodex server should bind to.
                 Default is ``localhost``.
 
-        *DISCODEX_HTTP_PORT*
+        :envvar:`DISCODEX_HTTP_PORT`
                 The port that the Discodex server should bind to.
                 Default is ``8080``.
 
-        *DISCODEX_DISCO_MASTER*
+        :envvar:`DISCODEX_DISCO_MASTER`
                 The url of the Disco master that Discodex should submit jobs to.
                 Default is ``disco://localhost``.
 """

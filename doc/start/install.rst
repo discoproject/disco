@@ -31,10 +31,8 @@ story short, Disco works as follows:
  * Master launches another Erlang process, worker supervisor, on each node over
    SSH.
  * Worker supervisors run Disco jobs as Python processes.
- * Data is accessed through HTTP using Lighttpd as HTTP server.
 
-In the following we set up SSH, Erlang, Python, and Lighttpd to work
-for Disco.
+In the following we set up SSH, Erlang, Python to work for Disco.
 
 0. Prerequisites
 ----------------
@@ -44,11 +42,13 @@ You need at least one Linux/Unix server. Any distribution should work (including
 On each server the following applications / libraries are required:
 
  * `SSH daemon and client <http://www.openssh.com>`_
- * `Erlang/OTP R12B or newer <http://www.erlang.org>`_
- * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
- * `Python 2.4 or newer <http://www.python.org>`_
- * `Python setuptools <http://pypi.python.org/pypi/setuptools>`_ (optional)
+ * `Erlang/OTP R13B or newer <http://www.erlang.org>`_
+ * `Python 2.5 or newer <http://www.python.org>`_
  * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_ (for Python < 2.6)
+
+Optionally, ``DISCO_PROXY`` needs
+ 
+ * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
 
 1. Install Disco
 ----------------
@@ -71,7 +71,7 @@ Disco cluster. Note that Disco should be found on the same path on all the serve
 
 To install system-wide, run make install as root::
 
-        make install DESTDIR=/
+        make install
 
 This will build and install Disco to your system (see ``Makefile`` for exact
 directories).
@@ -109,9 +109,8 @@ For instance, you can see how ``debian/disco-master.init`` and
 ``debian/disco-node.init`` are implemented in the Disco's ``debian``
 branch.
 
-If Disco has started up properly, you should see processes ``lighttpd``
-and ``beam.smp`` running on your master node, and ``lighttpd`` on the
-other servers.
+If Disco has started up properly, you should see ``beam.smp`` running on your
+master node.
 
 An easy way to test if Disco is starting up properly is to run ``disco nodaemon``
 instead of ``disco start``.
