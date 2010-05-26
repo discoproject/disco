@@ -1,6 +1,7 @@
 from disco.test import DiscoMultiJobTestFixture
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.error import JobError
+from disco import func
 
 class EmptyInputTestCase(DiscoJobTestFixture, DiscoTestCase):
     input = []
@@ -43,9 +44,10 @@ class MapNonPartitionedOutputTestCase2(MapPartitionedOutputTestCase):
         yield e, 'against_me'
 
 class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = ['test']
+    inputs        = ['test']
+    reduce_reader = func.map_line_reader
 
-    def getdata_1(self, path):
+    def getdata(self, path):
         return 'smoothies'
 
     @staticmethod
@@ -57,8 +59,22 @@ class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
     def answers(self):
         yield 'smoothies', 'mmm'
 
+class MapReducePartitionedTestCase(ReduceNonPartitionedInputTestCase):
+    partitions = 8
+    reduce_reader = func.chain_reader
+
+    @staticmethod
+    def map(e, params):
+        yield 'smoothies', 'mmm'
+
+    @staticmethod
+    def reduce(iter, out, params):
+        for e in iter:
+            out.add(*e)
+
 class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
-    input_1      = ['raw://sam_adams', 'raw://trader_jose', 'raw://boont_esb']
+    beers        = ['sam_adams', 'trader_jose', 'boont_esb']
+    input_1      = ['raw://%s' % beer for beer in beers]
     input_2      = input_1
     njobs        = 3
     partitions_1 = 3
@@ -81,9 +97,11 @@ class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
             out.add(k, v)
 
     def runTest(self):
-        for k, v in self.results_3:
-            self.assert_('raw://%s' % k in self.input_1)
-            self.assertEquals(v, None)
+        answers = sorted(self.beers * 2)
+        results = sorted(k for k, v in self.results_3 if v is None)
+        for answer, result in zip(answers, results):
+            self.assertEquals(answer, result)
+        self.assertEquals(len(answers), len(results))
 
 class MismatchedPartitionedInputTestCase(ReducePartitionedInputTestCase):
     partitions_1 = 2

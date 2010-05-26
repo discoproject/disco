@@ -59,14 +59,14 @@ class IndexCollection(Collection):
     def create(self, request, *args, **kwargs):
         try:
             dataset = DataSet.loads(request.raw_post_data)
-            job     = Indexer(dataset)
             prefix  = '%s:discodb:' % disco_prefix
+            job     = Indexer(disco_master, prefix, dataset)
         except TypeError:
             metaset = MetaSet.loads(request.raw_post_data)
-            job     = MetaIndexer(metaset)
             prefix  = '%s:metadb:' % disco_prefix
+            job     = MetaIndexer(disco_master, prefix, metaset)
         try:
-            job.run(disco_master, prefix)
+            job.run()
         except ImportError, e:
             return HttpResponseServerError("Callable object not found: %s" % e)
         except DiscoError, e:
@@ -181,7 +181,9 @@ class DiscoDBResource(Resource):
 
     @property
     def job(self):
-        return self.job_type(self.index.ichunks,
+        return self.job_type(disco_master,
+                             disco_prefix,
+                             self.index.ichunks,
                              self.target,
                              self.mapfilters,
                              self.reducefilters,
@@ -193,7 +195,7 @@ class DiscoDBResource(Resource):
             self.mapfilters     = filter(None, kwargs.pop('mapfilters').split('|'))
             self.reducefilters  = filter(None, kwargs.pop('reducefilters').split('}'))
             self.resultsfilters = filter(None, kwargs.pop('resultsfilters').split(']'))
-            job = self.job.run(disco_master, disco_prefix)
+            job = self.job.run()
         except DiscoError, e:
             return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
 
@@ -240,7 +242,9 @@ class QueryResource(DiscoDBResource):
 
     @property
     def job(self):
-        return Queryer(self.index.ichunks,
+        return Queryer(disco_master,
+                       disco_prefix,
+                       self.index.ichunks,
                        self.target,
                        self.mapfilters,
                        self.reducefilters,

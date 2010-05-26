@@ -15,76 +15,20 @@ Discodex uses mapreduce jobs to build and query indices...
                                                  | ichunkbuilder
         ichunker: (p, (k, v)) ... -> ichunks    /
 """
-
 from disco import func
-from disco.core import result_iterator, Params
+from disco.core import result_iterator, Job, Params
 
-class DiscodexJob(object):
-    combiner             = None
-    map_input_stream     = [func.map_input_stream]
-    map_output_stream    = [func.map_output_stream]
-    map_reader           = staticmethod(func.map_line_reader)
-    map_writer           = staticmethod(func.netstr_writer)
-    params               = Params()
-    partition            = staticmethod(func.default_partition)
-    profile              = False
-    reduce               = None
-    reduce_reader        = staticmethod(func.netstr_reader)
-    reduce_writer        = staticmethod(func.netstr_writer)
-    reduce_output_stream = [func.reduce_output_stream]
-    result_reader        = [func.netstr_reader]
-    required_modules     = []
-    save                 = False
-    scheduler            = {}
-    sort                 = False
-    partitions           = 1
-
-    @staticmethod
-    def map(*args, **kwargs):
-        raise NotImplementedError
-
-    @property
-    def name(self):
-        return self._job.name
-
+class DiscodexJob(Job):
     @property
     def results(self):
-        return result_iterator(self._job.wait(), reader=self.result_reader)
-
-    def run(self, disco_master, prefix):
-        jobargs = {'name':              prefix,
-                   'input':             self.input,
-                   'map':               self.map,
-                   'map_input_stream':  self.map_input_stream,
-                   'map_output_stream': self.map_output_stream,
-                   'map_reader':        self.map_reader,
-                   'map_writer':        self.map_writer,
-                   'params':            self.params,
-                   'partitions':        self.partitions,
-                   'partition':         self.partition,
-                   'profile':           self.profile,
-                   'required_modules':  self.required_modules,
-                   'save':              self.save,
-                   'scheduler':         self.scheduler,
-                   'sort':              self.sort}
-
-        if self.combiner:
-            jobargs.update({'combiner': self.combiner})
-
-        if self.reduce:
-            jobargs.update({'reduce':        self.reduce,
-                            'reduce_reader': self.reduce_reader,
-                            'reduce_writer': self.reduce_writer,
-                            'reduce_output_stream': self.reduce_output_stream})
-
-        self._job = disco_master.new_job(**jobargs)
-        return self
+        return result_iterator(self.wait(), reader=self.result_reader)
 
 class Indexer(DiscodexJob):
     """A discodex mapreduce job used to build an index from a dataset."""
     save = True
 
-    def __init__(self, dataset):
+    def __init__(self, master, name, dataset):
+        super(Indexer, self).__init__(master, name)
         self.input      = dataset.input
         self.map_reader = dataset.parser
         self.map        = dataset.demuxer
@@ -115,7 +59,8 @@ class MetaIndexer(DiscodexJob):
     save       = True
     scheduler  = {'force_local': True}
 
-    def __init__(self, metaset):
+    def __init__(self, master, name, metaset):
+        super(MetaIndexer, self).__init__(master, name)
         self.input = metaset.ichunks
         self.map   = metaset.metakeyer
 
@@ -123,7 +68,7 @@ class MetaIndexer(DiscodexJob):
     def map_reader(fd, size, fname):
         if hasattr(fd, '__iter__'):
             return fd
-        return func.map_line_reader(fd, size, fname)
+        return disco.func.map_line_reader(fd, size, fname)
 
     @staticmethod
     def combiner(metakey, key, buf, done, params):
@@ -168,7 +113,15 @@ class DiscoDBIterator(DiscodexJob):
     resultsfilters = ['kv_or_v']
     result_reader  = staticmethod(json_reader)
 
-    def __init__(self, ichunks, target, mapfilters, reducefilters, resultsfilters):
+    def __init__(self,
+                 master,
+                 name,
+                 ichunks,
+                 target,
+                 mapfilters,
+                 reducefilters,
+                 resultsfilters):
+        super(DiscoDBIterator, self).__init__(master, name)
         self.ichunks = ichunks
         if target:
             self.method = '%s/%s' % (target, self.method)
@@ -195,7 +148,7 @@ class DiscoDBIterator(DiscodexJob):
     def map_reader(fd, size, fname):
         if hasattr(fd, '__iter__'):
             return fd
-        return func.map_line_reader(fd, size, fname)
+        return disco.func.map_line_reader(fd, size, fname)
 
     @staticmethod
     def map(entry, params):
@@ -215,7 +168,7 @@ class DiscoDBIterator(DiscodexJob):
     def results(self):
         from discodex.mapreduce.func import filterchain, funcify, kvgroup
         filterfn = filterchain(funcify(name) for name in self.resultsfilters)
-        results  = result_iterator(self._job.wait(), reader=self.result_reader)
+        results  = result_iterator(self.wait(), reader=self.result_reader)
         return filterfn(results)
 
 class KeyIterator(DiscoDBIterator):
@@ -231,8 +184,22 @@ class ItemsIterator(DiscoDBIterator):
 class Queryer(DiscoDBIterator):
     method = 'query'
 
-    def __init__(self, ichunks, target, mapfilters, reducefilters, resultsfilters, query):
-        super(Queryer, self).__init__(ichunks, target, mapfilters, reducefilters, resultsfilters)
+    def __init__(self,
+                 master,
+                 name,
+                 ichunks,
+                 target,
+                 mapfilters,
+                 reducefilters,
+                 resultsfilters,
+                 query):
+        super(Queryer, self).__init__(master,
+                                      name,
+                                      ichunks,
+                                      target,
+                                      mapfilters,
+                                      reducefilters,
+                                      resultsfilters)
         self.params.discodb_query = query
 
 class Record(object):

@@ -374,7 +374,7 @@ class ReduceReader(object):
 
     @property
     def partid(self):
-        if self.task.jobdict.input_is_partitioned:
+        if self.task.ispartitioned or self.task.jobdict.input_is_partitioned:
             if not self.task.jobdict['merge_partitions']:
                 return self.task.id
 

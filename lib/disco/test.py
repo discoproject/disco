@@ -132,7 +132,7 @@ class DiscoJobTestFixture(object):
                'ext_params',
                'ext_map',
                'ext_reduce')
-    result_reader = staticmethod(disco.func.netstr_reader)
+    result_reader = staticmethod(disco.func.chain_reader)
 
     @property
     def nodes(self):
