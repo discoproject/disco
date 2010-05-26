@@ -151,7 +151,7 @@ Settings used by DDFS:
         :envvar:`DDFS_PUT_PORT`
                 The port to use for writing to DDFS nodes.
                 Must be open to the Disco client unless proxying is used.
-                Default is ``8990`.
+                Default is ``8990``.
 
         :envvar:`DDFS_PUT_MAX`
                 The maximum default number of retries for a `PUT` operation.
