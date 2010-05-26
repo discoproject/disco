@@ -132,7 +132,7 @@ class DiscoJobTestFixture(object):
                'ext_params',
                'ext_map',
                'ext_reduce')
-    result_reader = staticmethod(disco.func.netstr_reader)
+    result_reader = staticmethod(disco.func.chain_reader)
 
     @property
     def nodes(self):
@@ -184,7 +184,9 @@ class DiscoJobTestFixture(object):
             self.job.purge()
 
     def runTest(self):
-        for result, answer in zip(self.results, self.answers):
+        from itertools import izip_longest
+        for result, answer in izip_longest(self.results, self.answers,
+                                           fillvalue=ValueError):
             self.assertEquals(result, answer)
 
     def skipTest(self, message):

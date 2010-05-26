@@ -1,7 +1,7 @@
 from disco.test import DiscoMultiJobTestFixture
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.error import JobError
-from disco.func import map_line_reader
+from disco import func
 
 class EmptyInputTestCase(DiscoJobTestFixture, DiscoTestCase):
     input = []
@@ -45,10 +45,10 @@ class MapNonPartitionedOutputTestCase2(MapPartitionedOutputTestCase):
 
 class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs        = ['test']
-    reduce_reader = map_line_reader
+    reduce_reader = func.map_line_reader
 
     def getdata(self, path):
-        return 'smoothies\n'
+        return 'smoothies'
 
     @staticmethod
     def reduce(iter, out, params):
@@ -61,10 +61,16 @@ class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
 
 class MapReducePartitionedTestCase(ReduceNonPartitionedInputTestCase):
     partitions = 8
+    reduce_reader = func.chain_reader
 
     @staticmethod
     def map(e, params):
-        yield 'key', 'value'
+        yield 'smoothies', 'mmm'
+
+    @staticmethod
+    def reduce(iter, out, params):
+        for e in iter:
+            out.add(*e)
 
 class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     beers        = ['sam_adams', 'trader_jose', 'boont_esb']
