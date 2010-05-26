@@ -167,9 +167,11 @@ class DDFS(object):
                 Generally speaking, concurrent applications should use
                 :meth:`DDFS.tag` instead.
         """
-        return self._request('/ddfs/tag/%s' % tagname(tag),
-                             json.dumps(urls),
-                             method='PUT')
+        from comm_httplib import download
+        status, body = download('%s/ddfs/tag/%s' % (self.master, tagname(tag)),
+                                data=json.dumps(urls),
+                                method='PUT')
+        return json.loads(body)
 
     def tag(self, tag, urls):
         """Append the list of ``urls`` to the ``tag``."""
