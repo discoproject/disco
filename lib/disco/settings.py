@@ -23,7 +23,7 @@ Possible settings for Disco are as follows:
 
         :envvar:`DISCO_DEBUG`
                 Sets the debugging level for Disco.
-                Default is 1.
+                Default is ``1``.
 
         :envvar:`DISCO_ERLANG`
                 Command used to launch Erlang on all nodes in the cluster.
@@ -33,6 +33,7 @@ Possible settings for Disco are as follows:
                 If set, events are logged to `stdout`.
                 If set to ``json``, events will be written as JSON strings.
                 If set to ``nocolor``, ANSI color escape sequences will not be used, even if the terminal supports it.
+                Default is unset (the empty string).
 
         :envvar:`DISCO_FLAGS`
                 Default is the empty string.
@@ -50,8 +51,7 @@ Possible settings for Disco are as follows:
 
         :envvar:`DISCO_MASTER_HOME`
                 Directory containing the Disco ``master`` directory.
-                Default is ``/usr/lib/disco``.
-                ``conf/settings.py.template`` provides a reasonable override.
+                Default is obtained using ``os.path.join(DISCO_HOME, 'master')``.
 
         :envvar:`DISCO_MASTER_HOST`
                 The hostname of the master.
@@ -72,23 +72,20 @@ Possible settings for Disco are as follows:
         :envvar:`DISCO_LOG_DIR`
                 Directory where log-files are created.
                 The same path is used for all nodes in the cluster.
-                Default is ``/var/log/disco``.
-                ``conf/settings.py.template`` provides a reasonable override.
+                Default is obtained using ``os.path.join(DISCO_HOME, 'log')``.
 
         :envvar:`DISCO_PID_DIR`
                 Directory where pid-files are created.
                 The same path is used for all nodes in the cluster.
-                Default is ``/var/run``.
-                ``conf/settings.py.template`` provides a reasonable override.
+                Default is obtained using ``os.path.join(DISCO_HOME, 'run')``.
 
         :envvar:`DISCO_PORT`
                 The port the workers use for `HTTP` communication.
-                Default is 8989.
+                Default is ``8989``.
 
         :envvar:`DISCO_ROOT`
                 Root directory for Disco-written data and metadata.
-                Default is ``/srv/disco``.
-                ``conf/settings.py.template`` provides a reasonable override.
+                Default is obtained using ``os.path.join(DISCO_HOME, 'root')``.
 
         :envvar:`DISCO_USER`
                 The user Disco should run as.
@@ -140,13 +137,13 @@ Settings used by the testing environment:
 
         :envvar:`DISCO_TEST_PORT`
                 The port that the test data server should bind to.
-                Default is 9444.
+                Default is ``9444``.
 
 Settings used by DDFS:
 
         :envvar:`DDFS_ROOT`
                 The root data directory for DDFS.
-                Default is ``os.path.join(DISCO_ROOT, 'ddfs')``.
+                Default is obtained using ``os.path.join(DISCO_ROOT, 'ddfs')``.
 
         :envvar:`DDFS_PUT_PORT`
                 The port to use for writing to DDFS nodes.
