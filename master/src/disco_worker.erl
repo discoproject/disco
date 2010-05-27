@@ -1,12 +1,12 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_link/1, start_link_remote/4, remote_worker/1]).
+-export([start_link/1, start_link_remote/5]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-    terminate/2, code_change/3, slave_name/1]).
+    terminate/2, code_change/3]).
 
 -include("task.hrl").
--record(state, {id, master, job_url, port, task,
+-record(state, {id, master, port, task,
         start_time,
         eventserver,
         eventstream,
@@ -14,67 +14,28 @@
         linecount, errlines,
         results,
         debug,
-        last_event, event_counter,
-        oob, oob_counter}).
+        last_event, event_counter}).
 
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 
--define(SLAVE_ARGS, "+K true").
--define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~s' '~w' ~s").
--define(PORT_OPT, [{line, 100000}, binary, exit_status,
-           use_stdio, stderr_to_stdout,
-           {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}]}]).
+-define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~w' ~s").
 
-slave_env() ->
-    lists:flatten([?SLAVE_ARGS,
-           io_lib:format(" -pa ~s/ebin", [disco:get_setting("DISCO_MASTER_HOME")]),
-           [case disco:get_setting(Setting) of
-                ""  -> "";
-                Val -> io_lib:format(" -env ~s '~s'", [Setting, Val])
-            end
-            || Setting <- ["DISCO_FLAGS",
-                   "DISCO_PORT",
-                   "DISCO_PROXY",
-                   "DISCO_ROOT",
-                   "DISCO_WORKER",
-                   "PYTHONPATH"]]]).
+port_options() ->
+    [{line, 100000}, binary, exit_status,
+     use_stdio, stderr_to_stdout,
+     {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}] ++
+      [{Setting, disco:get_setting(Setting)} || Setting <- disco:settings()]}].
 
-slave_name(Node) ->
-    SName = lists:flatten([disco:get_setting("DISCO_NAME"), "_slave"]),
-    list_to_atom(SName ++ "@" ++ Node).
-
-start_link_remote(Master, Eventserver, Node, Task) ->
-    NodeAtom = slave_name(Node),
-    JobName = Task#task.jobname,
-
-    case net_adm:ping(NodeAtom) of
-        pong -> ok;
-        pang ->
-            slave_master ! {start, self(), Node, slave_env()},
-            receive
-                slave_started -> ok;
-                {slave_failed, X} ->
-                    exit({worker_dies,
-                          {"Node failure: ~p", [X]}});
-                X ->
-                    exit({worker_dies,
-                          {"Unknown node failure: ~p", [X]}})
-            after 60000 ->
-                exit({worker_dies, {"Node timeout", []}})
-            end
-    end,
-    process_flag(trap_exit, true),
-
-    {ok, JobUrl_} = application:get_env(disco_url),
-    JobUrl = JobUrl_ ++ disco_server:jobhome(JobName),
-
+start_link_remote(Master, Eventserver, Node, NodeMon, Task) ->
     Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
-    spawn_link(NodeAtom, disco_worker, remote_worker,
-           [[self(), Eventserver, Master, JobUrl, Task, Node, Debug]]),
-
+    NodeAtom = node_mon:slave_node(Node),
+    wait_until_node_ready(NodeMon),
+    spawn_link(NodeAtom, disco_worker, start_link,
+           [[self(), Eventserver, Master, Task, Node, Debug]]),
+    process_flag(trap_exit, true),
     receive
         ok -> ok;
         {'EXIT', _, Reason} ->
@@ -86,10 +47,13 @@ start_link_remote(Master, Eventserver, Node, Task) ->
     end,
     wait_for_exit().
 
-remote_worker(Args) ->
-    process_flag(trap_exit, true),
-    start_link(Args),
-    wait_for_exit().
+wait_until_node_ready(NodeMon) ->
+    NodeMon ! {is_ready, self()},
+    receive
+        node_ready -> ok
+    after 30000 ->
+        exit({worker_dies, {"Node unavailable", []}})
+    end.
 
 wait_for_exit() ->
     receive
@@ -98,6 +62,7 @@ wait_for_exit() ->
     end.
 
 start_link([Parent|_] = Args) ->
+    process_flag(trap_exit, true),
     Worker = case catch gen_server:start_link(disco_worker, Args, []) of
              {ok, Server} ->
                  Server;
@@ -113,14 +78,14 @@ start_link([Parent|_] = Args) ->
         Reason1 ->
             exit({worker_dies, {"Worker startup failed: ~p",
                 [Reason1]}})
-    end.
+    end,
+    wait_for_exit().
 
-init([Id, EventServer, Master, JobUrl, Task, Node, Debug]) ->
+init([Id, EventServer, Master, Task, Node, Debug]) ->
     process_flag(trap_exit, true),
     erlang:monitor(process, Task#task.from),
     {ok, #state{id = Id,
             master = Master,
-            job_url = JobUrl,
             task = Task,
             node = Node,
             child_pid = none,
@@ -130,14 +95,12 @@ init([Id, EventServer, Master, JobUrl, Task, Node, Debug]) ->
             start_time = now(),
             last_event = now(),
             event_counter = 0,
-            oob = [],
-            oob_counter = 0,
             errlines = message_buffer:new(?ERRLINES_MAX),
             debug = Debug,
             results = []}}.
 
-spawn_cmd(#state{task = T, node = Node, job_url = JobUrl}) ->
-    Args = [T#task.mode, T#task.jobname, Node, JobUrl, T#task.taskid, T#task.chosen_input],
+spawn_cmd(#state{task = T, node = Node}) ->
+    Args = [T#task.mode, T#task.jobname, Node, T#task.taskid, T#task.chosen_input],
     lists:flatten(io_lib:fwrite(?CMD, Args)).
 
 worker_exit(#state{id = Id, master = Master}, Msg) ->
@@ -174,7 +137,7 @@ handle_call(start_worker, _From, S) ->
         true ->
             ok
     end,
-    Port = open_port({spawn, Cmd}, ?PORT_OPT),
+    Port = open_port({spawn, Cmd}, port_options()),
     {reply, ok, S#state{port = Port}, 30000}.
 
 handle_cast(kill_worker, S) ->
@@ -185,7 +148,7 @@ handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
 
 handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, S) ->
     event({"END", "Task finished in " ++ disco_server:format_time(S#state.start_time)}, S),
-    {stop, worker_exit(S, {job_ok, {S#state.oob, S#state.results}}), S};
+    {stop, worker_exit(S, {job_ok, S#state.results}), S};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
     error(Message, S);
@@ -193,16 +156,6 @@ handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
 handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
     % event({"PID", "Child PID is " ++ ChildPID}, S),
     {noreply, S#state{child_pid = ChildPID}};
-
-handle_event({event, {<<"OOB">>, _Time, _Tags, {_Key, _Path}}}, S)
-        when S#state.oob_counter >= ?OOB_MAX ->
-    Reason = "OOB message limit exceeded. Too many put() calls.",
-    error(Reason, S);
-
-handle_event({event, {<<"OOB">>, _Time, _Tags, {Key, Path}}}, S) ->
-    event({"OOB", "OOB put " ++ Key ++ " at " ++ Path}, S),
-    {noreply, S#state{oob = [{Key, Path}|S#state.oob],
-              oob_counter = S#state.oob_counter + 1}};
 
 handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
     % event({"OUT", "Results at " ++ Results}, S),
@@ -244,7 +197,8 @@ handle_info({_Port, {data, Data}}, #state{eventstream = EventStream} = S) ->
                      linecount   = S#state.linecount + 1});
 
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
-    Reason =  "Worker didn't start:\n" ++ message_buffer:to_string(S#state.errlines),
+    Reason = "Worker didn't start.\nSpawn command was: " ++ spawn_cmd(S) ++
+        "Last words:\n" ++ message_buffer:to_string(S#state.errlines),
     error(recoverable, Reason, S);
 
 handle_info({_, {exit_status, _Status}}, S) ->

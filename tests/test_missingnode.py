@@ -20,8 +20,8 @@ class MissingNodeTestCase(DiscoJobTestFixture, DiscoTestCase):
         return [(int(e), '')]
 
     def setUp(self):
-        self.config       = self.disco.config
-        nodenames     = set(name for name, workers in self.config)
+        self.config = self.disco.config
+        nodenames   = set(name for name, workers in self.config)
         self.disco.config = self.config + [[unique_nodename(nodenames), '1']]
         super(MissingNodeTestCase, self).setUp()
 

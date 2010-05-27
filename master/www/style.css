@@ -140,15 +140,15 @@ input{
         float: left;
 }
 
-.joblist .job .job_active{
+.joblist .job .active{
         background: #FFDE00;
 }
 
-.joblist .job .job_died{
+.joblist .job .dead{
         background: #FF9280;
 }
 
-.joblist .job .job_ready{
+.joblist .job .ready{
         background: #00BA4B;
 }
 

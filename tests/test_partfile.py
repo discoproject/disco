@@ -25,5 +25,5 @@ class PartitionFileTestCase(DiscoJobTestFixture, DiscoTestCase):
 
 class MultiPartitionFileTestCase(PartitionFileTestCase):
     @property
-    def nr_reduces(self):
+    def partitions(self):
         return len(self.inputs)

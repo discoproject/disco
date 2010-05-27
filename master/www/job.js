@@ -18,6 +18,10 @@ $(document).ready(function(){
         "&num=100", update_events); 
 });
 
+function show_status(){
+    document.location.href='/index.html';
+}
+
 function kill_job(){
     Name = document.location.search.substr(6);
     if (confirm("Do you really want to kill " + Name + "?"))
@@ -27,13 +31,13 @@ function kill_job(){
 function clean_job(){
     Name = document.location.search.substr(6);
     if (confirm("Do you really want to clean the job records of " + Name + "?"))
-        post_req("/disco/ctrl/clean_job", JSON.stringify(Name));
+        post_req("/disco/ctrl/clean_job", JSON.stringify(Name), show_status);
 }
 
 function purge_job(){
     Name = document.location.search.substr(6);
     if (confirm("Do you really want to delete all data of " + Name + "?"))
-        post_req("/disco/ctrl/purge_job", JSON.stringify(Name));
+        post_req("/disco/ctrl/purge_job", JSON.stringify(Name), show_status);
 }
 
 function make_jobinfo_row(dlist, mode){

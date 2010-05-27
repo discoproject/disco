@@ -27,7 +27,7 @@ class MemorySortTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @property
     def answers(self):
-        return dict((str(k), '1000') for k in list(string.ascii_lowercase) + range(10))
+        return dict((str(k), 1000) for k in list(string.ascii_lowercase) + range(10))
 
     def runTest(self):
         answers = self.answers

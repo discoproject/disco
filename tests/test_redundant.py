@@ -5,7 +5,7 @@ class RedundantTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     def getdata(self, path):
         if 'fail' in path:
-            raise tserver.FailedReply()
+            raise FailedReply()
         return '%s\n' % (int(path) * 10)
 
     @staticmethod
@@ -18,4 +18,4 @@ class RedundantTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @property
     def answers(self):
-        yield '6040', ''
+        yield 6040, ''

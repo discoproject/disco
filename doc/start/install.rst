@@ -26,15 +26,13 @@ system, to get an idea what should go where and why. To make a long
 story short, Disco works as follows:
 
  * Disco users start Disco jobs in Python scripts.
- * Jobs requests are sent over HTTP to the master that sits behind a Lighttpd web server.
- * Master is an Erlang process that receives requests from Lighttpd over SCGI.
+ * Jobs requests are sent over HTTP to the master.
+ * Master is an Erlang process that receives requests over HTTP.
  * Master launches another Erlang process, worker supervisor, on each node over
    SSH.
  * Worker supervisors run Disco jobs as Python processes.
- * Data is accessed through HTTP using Lighttpd as HTTP server.
 
-In the following we set up SSH, Erlang, Python, and Lighttpd to work
-for Disco.
+In the following we set up SSH, Erlang, Python to work for Disco.
 
 0. Prerequisites
 ----------------
@@ -44,11 +42,13 @@ You need at least one Linux/Unix server. Any distribution should work (including
 On each server the following applications / libraries are required:
 
  * `SSH daemon and client <http://www.openssh.com>`_
- * `Erlang/OTP R12B or newer <http://www.erlang.org>`_
- * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
- * `Python 2.4 or newer <http://www.python.org>`_
- * `Python setuptools <http://pypi.python.org/pypi/setuptools>`_ (optional)
+ * `Erlang/OTP R13B or newer <http://www.erlang.org>`_
+ * `Python 2.5 or newer <http://www.python.org>`_
  * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_ (for Python < 2.6)
+
+Optionally, ``DISCO_PROXY`` needs
+ 
+ * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
 
 1. Install Disco
 ----------------
@@ -68,13 +68,31 @@ This is often the easiest and the least intrusive way to get started with Disco.
 
 You should repeat the above command on all servers that belong to your
 Disco cluster. Note that Disco should be found on the same path on all the servers.
+Alternatively, you can use a (NFS) shared home directory on all the nodes, which
+makes development really straightforward.
 
 To install system-wide, run make install as root::
 
-        make install DESTDIR=/
+        make install
 
 This will build and install Disco to your system (see ``Makefile`` for exact
 directories).
+
+.. note::
+
+    ``make install`` installs a configuration file to
+    ``/etc/disco/settings.py`` that is tuned for clusters, not a single
+    machine.
+    
+    By default, the settings assume that you have at least three nodes in your
+    cluster, so DDFS can use three-way replication. If you have less nodes,
+    you need to lower the number of replicas in ``/etc/disco/settings.py``::
+
+        DDFS_TAG_MIN_REPLICAS=1
+        DDFS_TAG_REPLICAS=1
+        DDFS_BLOB_REPLICAS=1
+
+    See :mod:`disco.settings` for more information.
 
 2. Prepare the runtime environment
 ----------------------------------
@@ -96,26 +114,24 @@ Open ``DISCO_HOME/conf/settings.py``. This file sets a number of environment
 variables that define the runtime environment for Disco.
 Most likely you do not need to modify this file right away.
 You can change the paths if the defaults are not suitable for your system.
-See :ref:`settings` for more information on the various settings and their default values.
+See :mod:`disco.settings` for more information on the various settings and their default values.
 
 3. Start Disco
 --------------
 
-Disco now uses a streamlined command-line interface (see :ref:`disco`).
-On the master node, start the Disco master by executing ``disco master start``.
-On all the servers you want to utilize as workers, execute ``disco worker start``.
+Disco now uses a streamlined command-line interface (see :mod:`discocli`).
+On the master node, start the Disco master by executing ``disco start``.
 
 You can easily integrate ``disco`` into your system's startup sequence.
 For instance, you can see how ``debian/disco-master.init`` and
 ``debian/disco-node.init`` are implemented in the Disco's ``debian``
 branch.
 
-If Disco has started up properly, you should see processes ``lighttpd``
-and ``beam.smp`` running on your master node, and ``lighttpd`` on the
-other servers.
+If Disco has started up properly, you should see ``beam.smp`` running on your
+master node.
 
-An easy way to test if Disco is starting up properly is to run ``disco master nodaemon``
-instead of ``disco master start``.
+An easy way to test if Disco is starting up properly is to run ``disco nodaemon``
+instead of ``disco start``.
 This will start the master node and bring you right to its Erlang shell,
 without redirecting the log to a file.
 

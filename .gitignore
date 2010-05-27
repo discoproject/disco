@@ -5,4 +5,6 @@
 *.pyc
 conf/settings.py
 doc/.build/
+lib/build/
 root/
+tests/test_external
