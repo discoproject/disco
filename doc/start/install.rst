@@ -217,7 +217,7 @@ This table specifies that there are 30 nodes available in the cluster, from
 Now Disco should be ready for use.
 
 We can use the following simple Disco script that computes word
-frequencies in `a text file <http://discoproject.org/chekhov.txt>`_
+frequencies in `a text file <http://discoproject.org/media/text/chekhov.txt>`_
 to see that the system works correctly. Copy the following code to a
 file called ``count_words.py``::
 
@@ -239,7 +239,7 @@ file called ``count_words.py``::
         print "Go to %s to see status of the job." % master
         results = Disco(master).new_job(
                         name = "wordcount",
-                        input = ["http://discoproject.org/chekhov.txt"],
+                        input = ["http://discoproject.org/media/text/chekhov.txt"],
                         map = fun_map,
                         reduce = fun_reduce).wait()
 
