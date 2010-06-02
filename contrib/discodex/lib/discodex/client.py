@@ -48,6 +48,9 @@ class DiscodexClient(object):
     def get(self, indexspec):
         return Index.loads(self.request('GET', self.indexurl(indexspec)).read())
 
+    def append(self, indexspec, index):
+        self.request('POST', self.indexurl(indexspec), index.dumps())
+
     def put(self, indexspec, index):
         self.request('PUT', self.indexurl(indexspec), index.dumps())
 

@@ -5,9 +5,9 @@ from django.http import Http404, HttpResponse, HttpResponseServerError
 
 from discodex.restapi.resource import Resource, Collection
 from discodex.restapi.resource import (HttpResponseAccepted,
-                              HttpResponseCreated,
-                              HttpResponseNoContent,
-                              HttpResponseServiceUnavailable)
+                                       HttpResponseCreated,
+                                       HttpResponseNoContent,
+                                       HttpResponseServiceUnavailable)
 
 from discodex import settings
 from discodex.mapreduce import (Indexer,
@@ -77,10 +77,11 @@ class IndexCollection(Collection):
         return HttpResponse(Indices(self.names).dumps())
 
 class IndexResource(Collection):
-    allowed_methods = ('GET', 'PUT', 'DELETE') # add post/create for incremental updates
+    allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
 
     def __init__(self, name):
         self.name = name
+        self.responses['POST'] = 'append'
 
     def delegate(self, request, *args, **kwargs):
         if self.status == NOT_FOUND:
@@ -163,6 +164,10 @@ class IndexResource(Collection):
         if status == DEAD:
             return HttpResponseServerError("Indexing failed.")
         raise Http404
+
+    def append(self, request, *args, **kwargs):
+        ddfs.tag(self.tag, Index.loads(request.raw_post_data).ichunks)
+        return HttpResponseCreated(self.url)
 
     def update(self, request, *args, **kwargs):
         ddfs.put(self.tag, Index.loads(request.raw_post_data).ichunks)
