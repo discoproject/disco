@@ -22,7 +22,7 @@ case "$1" in
     configure)
         adduser --system --shell /bin/bash --no-create-home --home /srv/disco\
                 --disabled-password --quiet --group disco
-        chown disco:disco /var/run/disco /var/log/disco /srv/disco /srv/disco/data /srv/disco/ddfs
+        chown disco:disco /srv/disco /srv/disco/data /srv/disco/ddfs
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
