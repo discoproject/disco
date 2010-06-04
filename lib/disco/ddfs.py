@@ -9,7 +9,8 @@ See also: :ref:`DDFS`.
         Parameters below which are indicated as tags can be specified as
         a `tag://` URL, or the name of the tag.
 """
-import os, re, cStringIO, random
+import os, re, random
+from cStringIO import StringIO
 from urllib import urlencode
 
 from disco.comm import upload, download, json, open_remote
@@ -24,7 +25,7 @@ class BlobSource(object):
         if hasattr(source, 'read'):
             data = source.read()
             self.size = len(data)
-            self.makefile = lambda: cStringIO.StringIO(data)
+            self.makefile = lambda: StringIO(data)
         else:
             self.size = os.stat(source).st_size
             self.makefile = lambda: open(source, 'r')
@@ -77,7 +78,7 @@ class DDFS(object):
 
     def delete(self, tag):
         """Delete ``tag``."""
-        return self._request('/ddfs/tag/%s' % tagname(tag), method='DELETE')
+        return self._download('/ddfs/tag/%s' % tagname(tag), method='DELETE')
 
     def exists(self, tag):
         """Returns whether or not ``tag`` exists."""
@@ -118,11 +119,11 @@ class DDFS(object):
 
     def get(self, tag):
         """Return the tag object stored at ``tag``."""
-        return self._request('/ddfs/tag/%s' % tagname(tag))
+        return self._download('/ddfs/tag/%s' % tagname(tag))
 
     def list(self, prefix=''):
         """Return a list of all tags starting wtih ``prefix``."""
-        return self._request('/ddfs/tags/%s' % prefix)
+        return self._download('/ddfs/tags/%s' % prefix)
 
     def pull(self, tag, blobfilter=lambda x: True):
         for repl in self.get(tag)['urls']:
@@ -137,7 +138,7 @@ class DDFS(object):
                 else:
                     raise error
 
-    def push(self, tag, files, replicas=None, retries=None):
+    def push(self, tag, files, replicas=None, retries=10):
         """
         Pushes a bunch of files to ddfs and tags them with `tag`.
 
@@ -156,7 +157,8 @@ class DDFS(object):
                 source, target = tuple_or_path
             return BlobSource(source), target
 
-        urls = [self._push(aim(f), replicas, retries) for f in files]
+        urls = [self._push(aim(f), replicas=replicas, retries=retries)
+                for f in files]
         return self.tag(tag, urls), urls
 
     def put(self, tag, urls):
@@ -167,19 +169,16 @@ class DDFS(object):
                 Generally speaking, concurrent applications should use
                 :meth:`DDFS.tag` instead.
         """
-        from comm_httplib import download
-        status, body = download('%s/ddfs/tag/%s' % (self.master, tagname(tag)),
-                                data=json.dumps(urls),
-                                method='PUT')
-        return json.loads(body)
+        return self._upload('%s/ddfs/tag/%s' % (self.master, tagname(tag)),
+                            BlobSource(StringIO(json.dumps(urls))))
 
     def tag(self, tag, urls):
         """Append the list of ``urls`` to the ``tag``."""
-        return self._request('/ddfs/tag/%s' % tagname(tag),
+        return self._download('/ddfs/tag/%s' % tagname(tag),
                              json.dumps(urls))
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):
-        import tarfile, sys, gzip, cStringIO, os
+        import tarfile, sys, gzip, os
 
         tar = tarfile.open(tarball)
 
@@ -190,7 +189,7 @@ class DDFS(object):
                 if exclude and exclude in member.name:
                     continue
                 if compress:
-                    buf    = cStringIO.StringIO()
+                    buf    = StringIO()
                     gz     = gzip.GzipFile(mode='w', compresslevel=2, fileobj=buf)
                     size   = self._copy(tar.extractfile(member), gz)
                     gz.close()
@@ -250,26 +249,26 @@ class DDFS(object):
             return '%s/proxy/%s/%s/%s' % (self.proxy, host, method, path)
         return url
 
-    def _push(self, (source, target), replicas=None, retries=None, exclude=[]):
+    def _push(self, (source, target), replicas=None, exclude=[], **kwargs):
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
-        urls = [(url, source)
-            for url in self._request('/ddfs/new_blob/%s?%s' % (target, qs))]
+        urls = self._download('/ddfs/new_blob/%s?%s' % (target, qs))
+        sources = [source] * len(urls)
 
         try:
             return [json.loads(url)
-                for url in self._upload(urls, retries=retries)]
+                    for url in self._upload(urls, sources, **kwargs)]
         except CommError, e:
             scheme, (host, port), path = urlsplit(e.url)
             return self._push((source, target),
                               replicas=replicas,
-                              retries=retries,
-                              exclude=exclude + [host])
+                              exclude=exclude + [host],
+                              **kwargs)
 
-    def _request(self, url, data=None, method=None):
+    def _download(self, url, data=None, method='GET'):
         response = download(self.master + url, data=data, method=method)
         return json.loads(response)
 
-    def _upload(self, urls, retries=10):
-        urls = [(self._maybe_proxy(url, method='PUT'), fd) for url, fd in urls]
-        return upload(urls, retries=retries)
+    def _upload(self, urls, sources, **kwargs):
+        urls = [self._maybe_proxy(url, method='PUT') for url in iterify(urls)]
+        return upload(urls, sources, **kwargs)

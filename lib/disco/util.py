@@ -56,7 +56,7 @@ def iskv(object):
     return isinstance(object, tuple) and len(object) is 2
 
 def iterify(object):
-    if hasattr(object, '__iter__'):
+    if isiterable(object):
         return object
     return repeat(object, 1)
 
