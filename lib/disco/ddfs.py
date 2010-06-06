@@ -174,8 +174,7 @@ class DDFS(object):
 
     def tag(self, tag, urls):
         """Append the list of ``urls`` to the ``tag``."""
-        return self._download('/ddfs/tag/%s' % tagname(tag),
-                             json.dumps(urls))
+        return self._download('/ddfs/tag/%s' % tagname(tag), json.dumps(urls))
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):
         import tarfile, sys, gzip, os

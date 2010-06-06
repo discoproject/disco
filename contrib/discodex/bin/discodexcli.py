@@ -124,14 +124,12 @@ def stop(program):
     program.server_command('stop')
 
 @Discodex.command
-def append(program, indexspec, *files):
-    """Usage: <indexspec> file ...
+def append(program, indexaspec, indexbspec):
+    """Usage: <indexaspec> <indexbspec>
 
-    Read ichunk urls from file[s], and append them to an index at indexspec.
+    Append a pointer to indexbspec to the index at indexaspec.
     """
-    from discodex.objects import Index
-    index = Index(urls=[[line.strip()] for line in fileinput.input(files)])
-    program.client.append(indexspec, index)
+    program.client.append(indexaspec, indexbspec)
 
 @Discodex.command
 def clone(program, indexaspec, indexbspec):

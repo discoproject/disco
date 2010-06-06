@@ -120,7 +120,7 @@ class IndexResource(Collection):
 
     @property
     def ichunks(self):
-        return Index(ddfs.get(self.tag)).ichunks
+        return ddfs.blobs(self.tag)
 
     @property
     def keys(self):
@@ -150,7 +150,7 @@ class IndexResource(Collection):
                 _prefix, type, id = self.name.split(':', 2)
                 ddfs.put(self.tag, [[url.replace('disco://', '%s://' % type, 1)
                                      for url in urls]
-                                    for urls in Index(ddfs.get(results)).ichunks])
+                                    for urls in ddfs.blobs(results)])
                 disco_master.purge(self.jobname)
             return status
         return NOT_FOUND
@@ -160,13 +160,13 @@ class IndexResource(Collection):
         if status == OK:
             return HttpResponse(Index(ddfs.get(self.tag)).dumps())
         if status == ACTIVE:
-            return HttpResponseServiceUnavailable(100)
+            return HttpResponseServiceUnavailable(2)
         if status == DEAD:
             return HttpResponseServerError("Indexing failed.")
         raise Http404
 
     def append(self, request, *args, **kwargs):
-        ddfs.tag(self.tag, Index.loads(request.raw_post_data).ichunks)
+        ddfs.tag(self.tag, [['tag://%s' % IndexResource(request.raw_post_data).tag]])
         return HttpResponseCreated(self.url)
 
     def update(self, request, *args, **kwargs):

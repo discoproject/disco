@@ -4,7 +4,8 @@ from core import DiscodexError
 from objects import DataSet, MetaSet, Indices, Index, Results, Query
 
 class ResourceNotFound(DiscodexError):
-    pass
+    def __init__(self, resource):
+        super(ResourceNotFound, self).__init__("%s not found" % resource)
 
 class DiscodexServiceUnavailable(DiscodexError):
     def __init__(self, retry_after):
@@ -35,7 +36,7 @@ class DiscodexClient(object):
         conn.request(method, resource.path, body)
         response = conn.getresponse()
         if response.status == httplib.NOT_FOUND:
-            raise ResourceNotFound()
+            raise ResourceNotFound(url)
         if response.status == httplib.SERVICE_UNAVAILABLE:
             raise DiscodexServiceUnavailable(response.getheader('Retry-After'))
         if response.status == httplib.INTERNAL_SERVER_ERROR:
@@ -48,8 +49,8 @@ class DiscodexClient(object):
     def get(self, indexspec):
         return Index.loads(self.request('GET', self.indexurl(indexspec)).read())
 
-    def append(self, indexspec, index):
-        self.request('POST', self.indexurl(indexspec), index.dumps())
+    def append(self, indexaspec, indexbspec):
+        self.request('POST', self.indexurl(indexaspec), indexbspec)
 
     def put(self, indexspec, index):
         self.request('PUT', self.indexurl(indexspec), index.dumps())

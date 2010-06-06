@@ -41,7 +41,8 @@ class DataSet(dict, JSONSerialized):
 
     @property
     def input(self):
-        return [str(input) for input in self['input']]
+        from disco.util import iterify
+        return [[str(url) for url in iterify(input)] for input in self['input']]
 
     @property
     def parser(self):
