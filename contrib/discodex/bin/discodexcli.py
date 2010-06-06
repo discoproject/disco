@@ -215,8 +215,8 @@ def query(program, indexspec, *args):
 
     Query the specified index using the given clauses.
     """
-    from discodb import Q
-    query = Q.scan(' '.join(args), and_op=' ', or_op=',')
+    from discodb.query import Q, Clause
+    query = Q(Clause.scan(arg, or_op=',') for arg in args)
     for result in program.client.query(indexspec, query):
         print result
 
