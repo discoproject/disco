@@ -29,14 +29,15 @@ class Indexer(DiscodexJob):
 
     def __init__(self, master, name, dataset):
         super(Indexer, self).__init__(master, name)
-        self.input      = dataset.input
-        self.map_reader = dataset.parser
-        self.map        = dataset.demuxer
-        self.partition  = dataset.balancer
-        self.profile    = dataset.profile
-        self.partitions = dataset.nr_ichunks
-        self.sort       = dataset.sort
-        self.params     = Params(n=0)
+        self.input          = dataset.input
+        self.map_reader     = dataset.parser
+        self.map            = dataset.demuxer
+        self.partition      = dataset.balancer
+        self.profile        = dataset.profile
+        self.partitions     = dataset.nr_ichunks
+        self.required_files = dataset.required_files
+        self.sort           = dataset.sort
+        self.params         = Params(n=0)
 
         if dataset.k_viter:
             from discodex.mapreduce import demuxers

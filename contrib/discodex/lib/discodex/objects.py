@@ -61,6 +61,10 @@ class DataSet(dict, JSONSerialized):
         return bool(self.options.get('profile', False))
 
     @property
+    def required_files(self):
+        return self.options.get('required_files')
+
+    @property
     def sort(self):
         return not bool(self.options.get('no_sort', False))
 
