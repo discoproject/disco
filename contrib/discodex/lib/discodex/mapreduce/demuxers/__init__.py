@@ -33,7 +33,7 @@ def inverteddemux(record, params):
     Can be used to produce an inverted index.
     """
     for item in record:
-        yield '%s:%s' % item, record
+        yield '%s:%s' % item, '%s' % record
 
 def invertediddemux(record, params):
     """

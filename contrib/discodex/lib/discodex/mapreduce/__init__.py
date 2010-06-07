@@ -220,8 +220,20 @@ class Record(object):
                 return self[n]
         raise AttributeError('%r has no attribute %r' % (self, attr))
 
+    def __setattr__(self, attr, value):
+        if attr in self.__slots__:
+            return super(Record, self).__setattr__(attr, value)
+        for n, name in enumerate(self.fieldnames):
+            if attr == name:
+                self[n] = value
+                return
+        raise AttributeError('%r has no attribute %r' % (self, attr))
+
     def __getitem__(self, index):
         return self.fields[index]
+
+    def __setitem__(self, index, value):
+        self.fields[index] = value
 
     def __iter__(self):
         from itertools import izip
@@ -231,3 +243,6 @@ class Record(object):
         return 'Record(%s)' % ', '.join('%s=%r' % (n, f) if n else '%r' % f
                                       for f, n in zip(self.fields, self.fieldnames))
 
+    def __str__(self):
+        return '\t'.join('%s:%s' % (n, f) if n else '%s' % f
+                         for f, n in zip(self.fields, self.fieldnames))
