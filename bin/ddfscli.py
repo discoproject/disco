@@ -272,11 +272,11 @@ def put(program, tag, *urls):
 
 @DDFS.command
 def rm(program, *tags):
-    """Usage: [-i] [-r] tag ...
+    """Usage: [-i] [-r] [-p] tag ...
 
     Remove the tag[s].
     """
-    for tag in tags:
+    for tag in program.prefix_mode(*tags):
         print program.ddfs.delete(tag)
 
 @DDFS.command
