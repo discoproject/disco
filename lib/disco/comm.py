@@ -74,7 +74,7 @@ def upload(urls, sources, **kwargs):
                 for url, source in zip(urls, sources)]
     return list(commlib.upload(urls, sources, **kwargs))
 
-def open_local(path, url):
+def open_local(path):
     fd = open(path, 'r', BUFFER_SIZE)
     size = os.stat(path).st_size
     return fd, size, 'file://%s' % path
