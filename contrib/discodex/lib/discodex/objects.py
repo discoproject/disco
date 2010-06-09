@@ -22,6 +22,13 @@ class JSONSerialized(object):
     def dumps(self):
         return json.dumps(self, default=str)
 
+    def response(self, request):
+        from django.http import HttpResponse
+        if 'callback' in request.GET:
+            return HttpResponse('%s(%s)' % (request.GET['callback'], self.dumps()),
+                                content_type='application/javascript')
+        return HttpResponse(self.dumps(), content_type='application/json')
+
     def __getcallable__(self, module, name):
         if hasattr(module, name):
             return getattr(module, name)

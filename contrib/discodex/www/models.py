@@ -1,7 +1,7 @@
 import errno, os
 
 from django.db import models
-from django.http import Http404, HttpResponse, HttpResponseServerError
+from django.http import Http404, HttpResponseServerError
 
 from discodex.restapi.resource import Resource, Collection
 from discodex.restapi.resource import (HttpResponseAccepted,
@@ -74,7 +74,7 @@ class IndexCollection(Collection):
         return HttpResponseAccepted(job.name)
 
     def read(self, request, *args, **kwargs):
-        return HttpResponse(Indices(self.names).dumps())
+        return Indices(self.names).response(request)
 
 class IndexResource(Collection):
     allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
@@ -158,7 +158,7 @@ class IndexResource(Collection):
     def read(self, request, *args, **kwargs):
         status = self.status
         if status == OK:
-            return HttpResponse(Index(ddfs.get(self.tag)).dumps())
+            return Index(ddfs.get(self.tag)).response(request)
         if status == ACTIVE:
             return HttpResponseServiceUnavailable(2)
         if status == DEAD:
@@ -205,14 +205,14 @@ class DiscoDBResource(Resource):
             return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
 
         try:
-            results = Results(job.results).dumps()
+            results = Results(job.results)
         except DiscoError, e:
             return HttpResponseServerError("DiscoDB job failed: %s" % e)
         finally:
             if os.path.exists(purge_file):
                 disco_master.purge(job.name)
 
-        return HttpResponse(results)
+        return results.response(request)
 
 class KeysResource(DiscoDBResource):
     job_type    = KeyIterator
@@ -234,7 +234,7 @@ class QueryCollection(Collection):
         return QueryResource(self.index, query_path)(request, *args, **kwargs)
 
     def read(self, request, *args, **kwargs):
-        return HttpResponse(Results().dumps())
+        return Results().response(request)
 
     def create(self, request, *args, **kwargs):
         query = Query.loads(request.raw_post_data)
