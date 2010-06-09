@@ -64,8 +64,7 @@ class Discodex(Program):
     @property
     def client(self):
         from discodex.client import DiscodexClient
-        return DiscodexClient(self.options.host or self.settings['DISCODEX_HTTP_HOST'],
-                              self.options.port or self.settings['DISCODEX_HTTP_PORT'])
+        return DiscodexClient(self.options.host, self.options.port)
 
     @property
     def djangoscgi(self):

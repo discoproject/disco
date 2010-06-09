@@ -2,6 +2,7 @@ import httplib, urllib, urlparse
 
 from core import DiscodexError
 from objects import DataSet, MetaSet, Indices, Index, Results, Query
+from settings import DiscodexSettings
 
 class ResourceNotFound(DiscodexError):
     def __init__(self, resource):
@@ -15,9 +16,9 @@ class DiscodexServerError(DiscodexError):
     pass
 
 class DiscodexClient(object):
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
+    def __init__(self, host=None, port=None, settings=DiscodexSettings()):
+        self.host = host or settings['DISCODEX_HTTP_HOST']
+        self.port = port or settings['DISCODEX_HTTP_PORT']
 
     @property
     def netloc(self):
