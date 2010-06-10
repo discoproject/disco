@@ -32,8 +32,9 @@ def inverteddemux(record, params):
 
     Can be used to produce an inverted index.
     """
+    recstr = str(record)
     for item in record:
-        yield '%s:%s' % item, '%s' % record
+        yield '%s:%s' % item, recstr
 
 def invertediddemux(record, params):
     """
