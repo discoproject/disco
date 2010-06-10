@@ -25,6 +25,7 @@ class DiscodexJob(Job):
 
 class Indexer(DiscodexJob):
     """A discodex mapreduce job used to build an index from a dataset."""
+    mem_sort_limit = 0
     save = True
 
     def __init__(self, master, name, dataset):
@@ -56,6 +57,7 @@ class Indexer(DiscodexJob):
 
 class MetaIndexer(DiscodexJob):
     """A discodex mapreduce job used to build a metaindex over an index, given a :class:`discodex.objects.MetaSet`."""
+    mem_sort_limit = 0
     partitions = 0
     save       = True
     scheduler  = {'force_local': True}
