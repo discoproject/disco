@@ -123,7 +123,7 @@ class DiscoDBIterator(DiscodexJob):
                  reducefilters,
                  resultsfilters):
         super(DiscoDBIterator, self).__init__(master, name)
-        self.ichunks = ichunks
+        self.ichunks = list(ichunks)
         if target:
             self.method = '%s/%s' % (target, self.method)
         self.params = Params(mapfilters=mapfilters or self.mapfilters,
