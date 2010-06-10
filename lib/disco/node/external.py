@@ -43,7 +43,6 @@ def ext_reduce(red_in, red_out, params):
     eof = select.POLLHUP | select.POLLNVAL | select.POLLERR
     p.register(out_fd, select.POLLIN | eof)
     p.register(in_fd, select.POLLOUT | eof)
-    MAX_NUM_OUTPUT = MAX_NUM_OUTPUT
 
     tt = 0
     while True:
