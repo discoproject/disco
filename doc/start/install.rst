@@ -12,10 +12,9 @@ working quickly, you should consider trying out Disco in Amazon EC2
 
 **Shortcut for Debian / Ubuntu users:** If you run Debian testing or
 some recent version of Ubuntu on the AMD64 architecture, you may try
-out our **experimental** deb-packages which are available at `Disco
-download page <http://discoproject.org/download.html>`_. If you managed
-to install the packages, you can skip over the steps 0-3 below and go
-to :ref:`configauth` directly.
+out our **experimental** deb-packages which are available at :doc:`Disco
+download page <download>`. If you managed to install the packages,
+you can skip over the steps 0-3 below and go to :ref:`configauth` directly.
 
 
 Background
@@ -187,8 +186,8 @@ replaced with the actual hostname of your machine or ``localhost``
 if you run Disco locally or through an SSH tunnel.
 The default port is ``8989``.
 
-You should see the Disco main screen (see `a screenshot here
-<http://discoproject.org/doc/screenshots.html>`_). Click ``configure`` on
+You should see the Disco main screen (see 
+:doc:`a screenshot here </screenshots>`). Click ``configure`` on
 the right side of the page. On the configuration page, click ``add row``
 to add a new set of available nodes. Click the cells on the new empty
 row, and add hostname of an available server (or a range of hostnames,
