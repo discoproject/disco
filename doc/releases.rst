@@ -108,7 +108,7 @@ New features
  - The :mod:`disco.settings` control script makes setting up and running Disco much easier than
    before.
  - Console output of job events (`screenshot
-   <http://discoproject.org/img/disco-events.png>`_). You can now follow progress of a job
+   <_static/screenshots/disco-events.png>`_). You can now follow progress of a job
    on the console instead of the web UI by setting ``DISCO_EVENTS=1``. 
    See :meth:`disco.core.Disco.events` and :meth:`disco.core.Disco.wait`.
  - Automatic inference and distribution of dependent modules. See :mod:`disco.modutil`.

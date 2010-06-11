@@ -118,7 +118,7 @@ be able to configure the system. Open your web browser and go to
 page should open.
 
 Do you see any boxes with black title bars on the status page (like `in
-this screenshot <http://discoproject.org/img/disco-main.png>`_)? If not,
+this screenshot <../_static/screenshots/disco-main.png>`_)? If not,
 add nodes to the system as instructed in :ref:`setup`, section 5.
 
 If adding nodes through the web interface fails, it may be a bug in
