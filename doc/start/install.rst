@@ -85,7 +85,7 @@ directories).
     machine.
     
     By default, the settings assume that you have at least three nodes in your
-    cluster, so DDFS can use three-way replication. If you have less nodes,
+    cluster, so DDFS can use three-way replication. If you have fewer nodes,
     you need to lower the number of replicas in ``/etc/disco/settings.py``::
 
         DDFS_TAG_MIN_REPLICAS=1

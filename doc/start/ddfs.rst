@@ -48,7 +48,7 @@ to denote data type.
 
 DDFS is **schema-free**, so you can use it to store arbitrary,
 non-normalized data. However, it is not suitable for storing data items
-that are very small (less than 4K) or that need to be updated often,
+that are very small (fewer than 4K) or that need to be updated often,
 such as user passwords or status indicators. You can store frequently
 changing data in a key-value store or a relational database.
 If you need to analyze this data with Disco, you can dump a snapshot

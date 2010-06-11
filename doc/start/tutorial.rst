@@ -33,9 +33,9 @@ are stored.  Let's call it ``bigtxt``::
 
 After running these lines, the directory ``bigtxt`` contains many files, named
 like ``bigtxt-aa``, ``bigtxt-ab`` etc. which each contain 100,000 lines (except
-the last chunk that might contain less).
+the last chunk that might contain fewer).
 
-If your ``bigfile.txt`` contains less than 100,000 lines, you can make the chunk
+If your ``bigfile.txt`` contains fewer than 100,000 lines, you can make the chunk
 size smaller. The more chunks you have, the more processes you can run in
 parallel. However, since launching a new process is not free, you shouldn't make
 the chunks too small.

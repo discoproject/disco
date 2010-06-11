@@ -32,7 +32,7 @@ the task than Java. We feel much more productive with Python than with
 Java. We also feel that Erlang is a perfect match for the Disco core
 that needs to handle tens of thousands of tasks in parallel.
 
-Thanks to Erlang, the Disco core remarkably compact, currently less
+Thanks to Erlang, the Disco core is remarkably compact, currently less
 than 2000 lines of code. It is relatively easy to understand how
 the core works, and start experimenting with it or adapt it to new
 environments. Thanks to Python, it is easy to add new features around
