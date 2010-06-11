@@ -63,10 +63,6 @@ If you want to install Disco locally, just run make::
 
         make
 
-And add get the python modules installed into your current python environment::
-
-        python lib/setup.py install
-
 This is often the easiest and the least intrusive way to get started with Disco.
 
 You should repeat the above command on all servers that belong to your
@@ -224,6 +220,7 @@ frequencies in `a text file <http://discoproject.org/chekhov.txt>`_
 to see that the system works correctly.
 
 .. literalinclude:: ../../examples/util/count_words.py
+   :language: python
 
 Run the script as follows from ``DISCO_HOME``::
 
