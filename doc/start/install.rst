@@ -184,7 +184,7 @@ if you run Disco locally or through an SSH tunnel.
 The default port is ``8989``.
 
 You should see the Disco main screen (see `a screenshot here
-<http://discoproject.org/screenshots.html>`_). Click ``configure`` on
+<http://discoproject.org/doc/screenshots.html>`_). Click ``configure`` on
 the right side of the page. On the configuration page, click ``add row``
 to add a new set of available nodes. Click the cells on the new empty
 row, and add hostname of an available server (or a range of hostnames,
