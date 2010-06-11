@@ -64,6 +64,10 @@ If you want to install Disco locally, just run make::
 
         make
 
+And add get the python modules installed into your current python environment::
+
+        python lib/setup.py install
+
 This is often the easiest and the least intrusive way to get started with Disco.
 
 You should repeat the above command on all servers that belong to your
@@ -218,46 +222,23 @@ Now Disco should be ready for use.
 
 We can use the following simple Disco script that computes word
 frequencies in `a text file <http://discoproject.org/chekhov.txt>`_
-to see that the system works correctly. Copy the following code to a
-file called ``count_words.py``::
+to see that the system works correctly.
 
-        import sys
-        from disco.core import Disco, result_iterator
+.. literalinclude:: ../../examples/util/count_words.py
 
-        def fun_map(e, params):
-            return [(w, 1) for w in e.split()]
+Run the script as follows from ``DISCO_HOME``::
 
-        def fun_reduce(iter, out, params):
-            s = {}
-            for w, f in iter:
-                s[w] = s.get(w, 0) + int(f)
-            for w, f in s.iteritems():
-                out.add(w, f)
+        python examples/utils/count_words.py
 
-        master = sys.argv[1]
-        print "Starting Disco job.."
-        print "Go to %s to see status of the job." % master
-        results = Disco(master).new_job(
-                        name = "wordcount",
-                        input = ["http://discoproject.org/chekhov.txt"],
-                        map = fun_map,
-                        reduce = fun_reduce).wait()
+Disco attempts to use the current hostname as ``DISCO_MASTER_HOST`` if it is not
+defined in any settings file.
 
-        print "Job done. Results:"
-        for word, frequency in result_iterator(results):
-                print word, frequency
+If you are runing Disco on multiple machines you must use the same version of
+Python for running Disco scripts as you use on the server side.
 
-Run the script as follows::
-
-        python count_words.py http://master:8989
-
-Replace the address above with the same address you used to
-configure Disco earlier. You must use the same version of Python for
-running Disco scripts as you use on the server side.
-
-You can run the script on any machine that can access Disco on the
-specified address. The safest bet is to run the script on
-the master node itself.
+You can run the script on any machine that can access Disco on the configured
+``DISCO_MASTER_HOST``. The safest bet is to run the script on the master node
+itself.
 
 If the machine where you run the script can access the master node but
 not other nodes in the cluster, you need to set the environment variable
