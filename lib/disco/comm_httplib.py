@@ -27,7 +27,7 @@ def download(url,
             method = 'POST' if data != None else 'GET'
         http.request(method, '/%s' % path, data, headers = h)
         fd = http.getresponse()
-        if fd.status == 302:
+        if fd.status in (301, 302, 303, 307):
             loc = fd.getheader('location')
             if loc.startswith('http://'):
                 url = loc
