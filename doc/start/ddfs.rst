@@ -25,7 +25,7 @@ filesystem. Rather, it is a special purpose storage layer similar to `the
 Google filesystem <http://labs.google.com/papers/gfs.html>`_ or related
 open-source projects such as `Hadoop Distributed Filesystem (HDFS)
 <http://hadoop.apache.org/common/docs/current/hdfs_design.html>`_,
-`MogileFS <danga.com/mogilefs/>`_ or `Tabled
+`MogileFS <http://danga.com/mogilefs/>`_ or `Tabled
 <https://hail.wiki.kernel.org/index.php/Tabled>`_.
 
 DDFS is a low-level component in the Disco stack, taking care of data
