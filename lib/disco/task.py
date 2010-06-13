@@ -104,6 +104,10 @@ class Task(object):
         return self.settings['DISCO_ROOT']
 
     @property
+    def sort_buffer_size(self):
+        return self.settings['DISCO_SORT_BUFFER_SIZE']
+
+    @property
     def blobs(self):
         return self._blobs
 
@@ -368,8 +372,7 @@ class ReduceReader(object):
     def __init__(self, task):
         self.task   = task
         self.inputs = [url for input in task.inputs
-                       for url in util.urllist(input, partid=self.partid,
-                                               numpartitions=task.jobdict['nr_reduces'])]
+                       for url in util.urllist(input, partid=self.partid)]
         random.shuffle(self.inputs)
 
     @property
@@ -429,7 +432,8 @@ class ReduceReader(object):
         sortname = self.task.path('REDUCE_SORTED', self.task.id)
         ensure_path(os.path.dirname(sortname))
         cmd = ['sort', '-n', '-k', '1,1', '-T', '.',
-                       '-z', '-t', '\xff', '-o', sortname, dlname]
+               '-S', self.task.sort_buffer_size, '-z',
+               '-t', '\xff', '-o', sortname, dlname]
 
         proc = subprocess.Popen(cmd)
         ret = proc.wait()

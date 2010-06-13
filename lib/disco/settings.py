@@ -104,6 +104,11 @@ Possible settings for Disco are as follows:
                 Only results explictly saved to DDFS won't be garbage collected.
                 Default is ``100 * 365 * 24 * 60 * 60`` (100 years).
 
+        :envvar:`DISCO_SORT_BUFFER_SIZE`
+                How much memory can be used by external sort. Passed as the '-S'
+                parameter for the Unix `sort` command (see *man sort*). Default
+                is ``10%`` i.e. 10% of the total available memory.
+
 Settings to control the proxying behavior:
 
         :envvar:`DISCO_PROXY_ENABLED`
@@ -203,6 +208,7 @@ class DiscoSettings(Settings):
         'DISCO_USER':            "os.getenv('LOGNAME')",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
+        'DISCO_SORT_BUFFER_SIZE':"'10%'",
         'PYTHONPATH':            "DISCO_LIB",
 # GC
         'DISCO_GC_AFTER':        "100 * 365 * 24 * 60 * 60",

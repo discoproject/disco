@@ -788,14 +788,14 @@ class JobDict(util.DefaultDict):
 
         # partitions must be an integer internally
         self['partitions'] = self['partitions'] or 0
-
         # set nr_reduces: ignored if there is not actually a reduce specified
         if self['map']:
             # partitioned map has N reduces; non-partitioned map has 1 reduce
             self['nr_reduces'] = self['partitions'] or 1
         elif self.input_is_partitioned:
             # Only reduce, with partitions: len(dir://) specifies nr_reduces
-            self['nr_reduces'] = len(util.parse_dir(self['input'][0][0]))
+            self['nr_reduces'] = 1 + max(id for dir in self['input']\
+                                        for id, url in util.read_index(dir[0]))
         else:
             # Only reduce, without partitions can only have 1 reduce
             self['nr_reduces'] = 1
