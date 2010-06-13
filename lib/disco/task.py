@@ -7,7 +7,7 @@ from types import FunctionType
 from disco import func, comm, util
 from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
-from disco.error import DiscoError
+from disco.error import DiscoError, DataError
 from disco.events import Message, OutputURL, OOBData, TaskFailed
 from disco.fileutils import AtomicFile
 from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
@@ -394,7 +394,7 @@ class ReduceReader(object):
         # key should not contain \xff
         # value pickled using protocol 0 will always be printable ASCII
         # (can't contain \0)
-        if not isinstance(key, basestring):
+        if not isinstance(key, str):
             TaskFailed("Keys must be strings for external sort")
         if '\xff' in key or '\x00' in key:
             TaskFailed("0xFF or 0x00 bytes are not allowed "
@@ -438,7 +438,8 @@ class ReduceReader(object):
         proc = subprocess.Popen(cmd)
         ret = proc.wait()
         if ret:
-            TaskFailed("Sorting %s to %s failed (%d)" % (dlname, sortname, ret))
+            raise DataError("Sorting %s to %s failed (%d)" %
+                (dlname, sortname, ret), dlname)
 
         Message("External sort done: %s" % sortname)
         return self.multi_file_iterator(self.sort_reader, inputs=[sortname])
