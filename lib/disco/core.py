@@ -617,7 +617,7 @@ class JobDict(util.DefaultDict):
     :param mem_sort_limit: maximum size of data that can be sorted in memory.
                            The larger inputs are sorted on disk.
 
-                           Default is ``256 * 1024**2``.
+                           Default is ``0`` (due to issue #145).
 
     :param ext_params: if either map or reduce function is an external program,
                        typically specified using :func:`disco.util.external`,
@@ -710,7 +710,7 @@ class JobDict(util.DefaultDict):
                 'ext_map': False,
                 'ext_reduce': False,
                 'ext_params': None,
-                'mem_sort_limit': 256 * 1024**2,
+                'mem_sort_limit': 0,
                 'merge_partitions': False,
                 'params': Params(),
                 'partitions': 1,
