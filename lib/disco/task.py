@@ -368,8 +368,7 @@ class ReduceReader(object):
     def __init__(self, task):
         self.task   = task
         self.inputs = [url for input in task.inputs
-                       for url in util.urllist(input, partid=self.partid,
-                                               numpartitions=task.jobdict['nr_reduces'])]
+                       for url in util.urllist(input, partid=self.partid)]
         random.shuffle(self.inputs)
 
     @property

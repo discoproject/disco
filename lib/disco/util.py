@@ -134,12 +134,12 @@ def urlsplit(url):
 def urlresolve(url):
     return '%s://%s/%s' % urlsplit(url)
 
-def urllist(url, partid=None, listdirs=True, ddfs=None, numpartitions=None):
+def urllist(url, partid=None, listdirs=True, ddfs=None):
     if isiterable(url):
         return [list(url)]
     scheme, netloc, path = urlsplit(url)
     if scheme == 'dir' and listdirs:
-        return parse_dir(url, partid=partid, numpartitions=numpartitions)
+        return parse_dir(url, partid=partid)
     elif scheme == 'tag':
         from disco.ddfs import DDFS
         ret = []
@@ -218,7 +218,15 @@ def proxy_url(path, node='x'):
         return '%s://%s/disco/node/%s/%s' % (scheme, netloc, node, path)
     return 'http://%s:%s/%s' % (node, port, path)
 
-def parse_dir(dir_url, partid=None, numpartitions=None):
+def read_index(dir_url):
+    from disco.comm import download
+    scheme, netloc, path = urlsplit(dir_url)
+    url = proxy_url(path, netloc)
+    for line in download(url).splitlines():
+        id, url = line.split()
+        yield int(id), url
+
+def parse_dir(dir_url, partid=None):
     """
     Translates a directory URL to a list of normal URLs.
 
@@ -227,19 +235,8 @@ def parse_dir(dir_url, partid=None, numpartitions=None):
 
     :param dir_url: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
-    from disco.comm import download
-    def parse_index(index):
-        # XXX: This should be fixed with dir://
-        # we shouldn't need to know the number of partitions here
-        lines = [line.split() for line in index]
-        if partid is not None and numpartitions != len(lines):
-            raise ValueError("Invalid number of partitions!")
-        return [url for id, url in lines
+    return [url for id, url in read_index(dir_url)
                 if partid is None or partid == int(id)]
-    settings = DiscoSettings()
-    scheme, netloc, path = urlsplit(dir_url)
-    url = proxy_url(path, netloc)
-    return parse_index(download(url).splitlines())
 
 def save_oob(host, name, key, value):
     from disco.ddfs import DDFS
