@@ -32,6 +32,7 @@ class CurlResponse(object):
 
 class HTTPConnection(object):
     defaults = {'CONNECTTIMEOUT': 20,
+                'FOLLOWLOCATION': 1,
                 'FRESH_CONNECT': 1,
                 'LOW_SPEED_LIMIT': 1024, # 1kbps
                 'LOW_SPEED_TIME': 2 * 60,

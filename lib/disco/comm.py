@@ -35,12 +35,26 @@ except ImportError:
         json.loads = cjson.decode
         json.dumps = cjson.encode
 
+def isredirection(status):
+    return str(status).startswith('3')
+
+def issuccessful(status):
+    return str(status).startswith('2')
+
 def range_header(offset):
     def httprange(start='', end=''):
         return '%s-%s' % (start, end)
     if offset:
         return {'Range': 'bytes=%s' % httprange(*tuple(iterify(offset)))}
     return {}
+
+def resolveuri(baseuri, uri):
+    if uri.startswith(baseuri):
+        return uri
+    if uri.startswith('/'):
+        scheme, netloc, _path = urlsplit(baseuri)
+        return '%s://%s%s' % (scheme, netloc, uri)
+    return '%s/%s' % (baseuri, uri)
 
 def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
@@ -57,7 +71,13 @@ def request(method, url, data=None, headers={}, sleep=0):
             raise CommError("Service unavailable", url)
         time.sleep(2**sleep)
         return request(method, url, data=data, headers=headers, sleep=sleep + 1)
-    elif not str(response.status).startswith('2'):
+    elif isredirection(response.status):
+        return request(method,
+                       resolveuri(url, response.getheader('location')),
+                       data=data,
+                       headers=headers,
+                       sleep=sleep)
+    elif not issuccessful(response.status):
         raise CommError(response.read(), url, response.status)
     return response
 
