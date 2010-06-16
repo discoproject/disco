@@ -1,5 +1,6 @@
 import struct, time, sys, os, random
 from cStringIO import StringIO
+from httplib import HTTPException
 
 import pycurl
 
@@ -79,7 +80,7 @@ class HTTPConnection(object):
         try:
             self.handle.perform()
         except pycurl.error, e:
-            raise CommError("Transfer failed: %s" % self.handle.errstr(), url)
+            raise HTTPException(self.handle.errstr())
 
 class MultiPut(object):
     def __init__(self, pending):
