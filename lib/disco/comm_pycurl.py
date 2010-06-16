@@ -20,8 +20,8 @@ class CurlResponse(object):
 
     def header_function(self, header):
         if ':' in header:
-            k, v = header.strip().split(':', 1)
-            self.headers[k.lower()] = v
+            k, v = header.split(':', 1)
+            self.headers[k.lower().strip()] = v.strip()
 
     def read(self):
         return self.buffer.getvalue()
@@ -32,7 +32,6 @@ class CurlResponse(object):
 
 class HTTPConnection(object):
     defaults = {'CONNECTTIMEOUT': 20,
-                'FOLLOWLOCATION': 1,
                 'FRESH_CONNECT': 1,
                 'LOW_SPEED_LIMIT': 1024, # 1kbps
                 'LOW_SPEED_TIME': 2 * 60,
