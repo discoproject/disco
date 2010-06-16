@@ -22,6 +22,13 @@ class JSONSerialized(object):
     def dumps(self):
         return json.dumps(self, default=str)
 
+    def response(self, request):
+        from django.http import HttpResponse
+        if 'callback' in request.GET:
+            return HttpResponse('%s(%s)' % (request.GET['callback'], self.dumps()),
+                                content_type='application/javascript')
+        return HttpResponse(self.dumps(), content_type='application/json')
+
     def __getcallable__(self, module, name):
         if hasattr(module, name):
             return getattr(module, name)
@@ -41,7 +48,8 @@ class DataSet(dict, JSONSerialized):
 
     @property
     def input(self):
-        return [str(input) for input in self['input']]
+        from disco.util import iterify
+        return [[str(url) for url in iterify(input)] for input in self['input']]
 
     @property
     def parser(self):
@@ -58,6 +66,10 @@ class DataSet(dict, JSONSerialized):
     @property
     def profile(self):
         return bool(self.options.get('profile', False))
+
+    @property
+    def required_files(self):
+        return self.options.get('required_files')
 
     @property
     def sort(self):

@@ -75,11 +75,11 @@ def funcify(maybe_curry):
         return partial(reify(dotted_name), unquote(arg))
     return reify(maybe_curry)
 
-def reify(dotted_name):
+def reify(dotted_name, globals=globals()):
     if '.' in dotted_name:
         package, name = dotted_name.rsplit('.', 1)
         return getattr(__import__(package, fromlist=[name]), name)
-    return eval(dotted_name)
+    return eval(dotted_name, globals)
 
 def iskv(object):
     return isinstance(object, tuple) and len(object) is 2

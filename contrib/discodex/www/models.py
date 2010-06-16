@@ -1,13 +1,13 @@
 import errno, os
 
 from django.db import models
-from django.http import Http404, HttpResponse, HttpResponseServerError
+from django.http import Http404, HttpResponseServerError
 
 from discodex.restapi.resource import Resource, Collection
 from discodex.restapi.resource import (HttpResponseAccepted,
-                              HttpResponseCreated,
-                              HttpResponseNoContent,
-                              HttpResponseServiceUnavailable)
+                                       HttpResponseCreated,
+                                       HttpResponseNoContent,
+                                       HttpResponseServiceUnavailable)
 
 from discodex import settings
 from discodex.mapreduce import (Indexer,
@@ -74,13 +74,14 @@ class IndexCollection(Collection):
         return HttpResponseAccepted(job.name)
 
     def read(self, request, *args, **kwargs):
-        return HttpResponse(Indices(self.names).dumps())
+        return Indices(self.names).response(request)
 
 class IndexResource(Collection):
-    allowed_methods = ('GET', 'PUT', 'DELETE') # add post/create for incremental updates
+    allowed_methods = ('GET', 'POST', 'PUT', 'DELETE')
 
     def __init__(self, name):
         self.name = name
+        self.responses['POST'] = 'append'
 
     def delegate(self, request, *args, **kwargs):
         if self.status == NOT_FOUND:
@@ -119,7 +120,7 @@ class IndexResource(Collection):
 
     @property
     def ichunks(self):
-        return Index(ddfs.get(self.tag)).ichunks
+        return ddfs.blobs(self.tag)
 
     @property
     def keys(self):
@@ -149,7 +150,7 @@ class IndexResource(Collection):
                 _prefix, type, id = self.name.split(':', 2)
                 ddfs.put(self.tag, [[url.replace('disco://', '%s://' % type, 1)
                                      for url in urls]
-                                    for urls in Index(ddfs.get(results)).ichunks])
+                                    for urls in ddfs.blobs(results)])
                 disco_master.purge(self.jobname)
             return status
         return NOT_FOUND
@@ -157,12 +158,16 @@ class IndexResource(Collection):
     def read(self, request, *args, **kwargs):
         status = self.status
         if status == OK:
-            return HttpResponse(Index(ddfs.get(self.tag)).dumps())
+            return Index(ddfs.get(self.tag)).response(request)
         if status == ACTIVE:
-            return HttpResponseServiceUnavailable(100)
+            return HttpResponseServiceUnavailable(2)
         if status == DEAD:
             return HttpResponseServerError("Indexing failed.")
         raise Http404
+
+    def append(self, request, *args, **kwargs):
+        ddfs.tag(self.tag, [['tag://%s' % IndexResource(request.raw_post_data).tag]])
+        return HttpResponseCreated(self.url)
 
     def update(self, request, *args, **kwargs):
         ddfs.put(self.tag, Index.loads(request.raw_post_data).ichunks)
@@ -200,14 +205,14 @@ class DiscoDBResource(Resource):
             return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
 
         try:
-            results = Results(job.results).dumps()
+            results = Results(job.results)
         except DiscoError, e:
             return HttpResponseServerError("DiscoDB job failed: %s" % e)
         finally:
             if os.path.exists(purge_file):
                 disco_master.purge(job.name)
 
-        return HttpResponse(results)
+        return results.response(request)
 
 class KeysResource(DiscoDBResource):
     job_type    = KeyIterator
@@ -229,7 +234,7 @@ class QueryCollection(Collection):
         return QueryResource(self.index, query_path)(request, *args, **kwargs)
 
     def read(self, request, *args, **kwargs):
-        return HttpResponse(Results().dumps())
+        return Results().response(request)
 
     def create(self, request, *args, **kwargs):
         query = Query.loads(request.raw_post_data)

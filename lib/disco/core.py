@@ -53,7 +53,7 @@ class Disco(object):
     def __init__(self, master):
         self.master = master
 
-    def request(self, url, data=None, redir=False, offset=0):
+    def request(self, url, data=None, offset=0):
         """
         Requests *url* at the master.
 
@@ -66,7 +66,6 @@ class Disco(object):
         try:
             return download('%s%s' % (self.master, url),
                             data=data,
-                            redir=redir,
                             offset=offset)
         except CommError, e:
             e.msg += " (is disco master running at %s?)" % self.master
@@ -206,7 +205,7 @@ class Disco(object):
         return JobDict.unpack(StringIO(self.jobpack(name)))
 
     def jobpack(self, name):
-        return self.request('/disco/ctrl/parameters?name=%s' % name, redir=True)
+        return self.request('/disco/ctrl/parameters?name=%s' % name)
 
     def jobspec(self, name):
         """
@@ -251,7 +250,6 @@ class Disco(object):
 
     def rawevents(self, name, offset=0):
         return self.request("/disco/ctrl/rawevents?name=%s" % name,
-                            redir=True,
                             offset=offset)
 
     def mapresults(self, name):

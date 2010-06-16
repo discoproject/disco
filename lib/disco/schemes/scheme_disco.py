@@ -14,5 +14,5 @@ def input_stream(fd, size, url, params):
         else:
             root = Task.dataroot
         path = os.path.join(root, fname)
-        return comm.open_local(path, url)
+        return comm.open_local(path)
     return comm.open_remote('http://%s/%s/%s' % (netloc, prefix, fname))

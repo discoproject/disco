@@ -46,7 +46,7 @@ On each server the following applications / libraries are required:
  * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_ (for Python < 2.6)
 
 Optionally, ``DISCO_PROXY`` needs
- 
+
  * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
 
 1. Install Disco
@@ -82,7 +82,7 @@ directories).
     ``make install`` installs a configuration file to
     ``/etc/disco/settings.py`` that is tuned for clusters, not a single
     machine.
-    
+
     By default, the settings assume that you have at least three nodes in your
     cluster, so DDFS can use three-way replication. If you have fewer nodes,
     you need to lower the number of replicas in ``/etc/disco/settings.py``::
@@ -182,14 +182,13 @@ replaced with the actual hostname of your machine or ``localhost``
 if you run Disco locally or through an SSH tunnel.
 The default port is ``8989``.
 
-You should see the Disco main screen (see 
-:doc:`a screenshot here </screenshots>`). Click ``configure`` on
-the right side of the page. On the configuration page, click ``add row``
-to add a new set of available nodes. Click the cells on the new empty
-row, and add hostname of an available server (or a range of hostnames,
-see below) in the left cell and the number of available cores (CPUs)
-on that server in the right cell. Once you have entered a value, click
-the cell again to save it.
+You should see the Disco main screen (see :ref:`a screenshot <screenshots>`).
+Click ``configure`` on the right side of the page.
+On the configuration page, click ``add row`` to add a new set of available nodes.
+Click the cells on the new empty row, and add hostname of an available server
+(or a range of hostnames, see below) in the left cell and the number of
+available cores (CPUs) on that server in the right cell.
+Once you have entered a value, click the cell again to save it.
 
 You can add as many rows as needed to fully specify your cluster, which may
 have varying number of cores on different nodes. Click ``save table``
@@ -216,7 +215,7 @@ This table specifies that there are 30 nodes available in the cluster, from
 Now Disco should be ready for use.
 
 We can use the following simple Disco script that computes word
-frequencies in `a text file <http://discoproject.org/chekhov.txt>`_
+frequencies in `a text file <http://discoproject.org/media/text/chekhov.txt>`_
 to see that the system works correctly.
 
 .. literalinclude:: ../../examples/util/count_words.py

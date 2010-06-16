@@ -50,7 +50,7 @@ class DataError(DiscoError):
         if self.code == None:
             return 'Unable to access resource (%s): %s' % (self.url, self.msg)
         else:
-            return 'Unable to access resource (%s): %s (HTTP error %d)' %\
+            return 'Unable to access resource (%s): %s (HTTP status %d)' %\
                 (self.url, self.msg, self.code)
 
 class CommError(DataError):

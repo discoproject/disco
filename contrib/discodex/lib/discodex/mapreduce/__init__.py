@@ -25,18 +25,20 @@ class DiscodexJob(Job):
 
 class Indexer(DiscodexJob):
     """A discodex mapreduce job used to build an index from a dataset."""
+    mem_sort_limit = 0
     save = True
 
     def __init__(self, master, name, dataset):
         super(Indexer, self).__init__(master, name)
-        self.input      = dataset.input
-        self.map_reader = dataset.parser
-        self.map        = dataset.demuxer
-        self.partition  = dataset.balancer
-        self.profile    = dataset.profile
-        self.partitions = dataset.nr_ichunks
-        self.sort       = dataset.sort
-        self.params     = Params(n=0)
+        self.input          = dataset.input
+        self.map_reader     = dataset.parser
+        self.map            = dataset.demuxer
+        self.partition      = dataset.balancer
+        self.profile        = dataset.profile
+        self.partitions     = dataset.nr_ichunks
+        self.required_files = dataset.required_files
+        self.sort           = dataset.sort
+        self.params         = Params(n=0)
 
         if dataset.k_viter:
             from discodex.mapreduce import demuxers
@@ -55,6 +57,7 @@ class Indexer(DiscodexJob):
 
 class MetaIndexer(DiscodexJob):
     """A discodex mapreduce job used to build a metaindex over an index, given a :class:`discodex.objects.MetaSet`."""
+    mem_sort_limit = 0
     partitions = 0
     save       = True
     scheduler  = {'force_local': True}
@@ -122,7 +125,7 @@ class DiscoDBIterator(DiscodexJob):
                  reducefilters,
                  resultsfilters):
         super(DiscoDBIterator, self).__init__(master, name)
-        self.ichunks = ichunks
+        self.ichunks = list(ichunks)
         if target:
             self.method = '%s/%s' % (target, self.method)
         self.params = Params(mapfilters=mapfilters or self.mapfilters,
@@ -219,8 +222,20 @@ class Record(object):
                 return self[n]
         raise AttributeError('%r has no attribute %r' % (self, attr))
 
+    def __setattr__(self, attr, value):
+        if attr in self.__slots__:
+            return super(Record, self).__setattr__(attr, value)
+        for n, name in enumerate(self.fieldnames):
+            if attr == name:
+                self[n] = value
+                return
+        raise AttributeError('%r has no attribute %r' % (self, attr))
+
     def __getitem__(self, index):
         return self.fields[index]
+
+    def __setitem__(self, index, value):
+        self.fields[index] = value
 
     def __iter__(self):
         from itertools import izip
@@ -230,3 +245,6 @@ class Record(object):
         return 'Record(%s)' % ', '.join('%s=%r' % (n, f) if n else '%r' % f
                                       for f, n in zip(self.fields, self.fieldnames))
 
+    def __str__(self):
+        return '\t'.join('%s:%s' % (n, f) if n else '%s' % f
+                         for f, n in zip(self.fields, self.fieldnames))

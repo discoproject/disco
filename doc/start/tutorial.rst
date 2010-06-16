@@ -8,8 +8,7 @@ This tutorial shows how to create and run a Disco job that counts
 words in a large text file. To start with, you need nothing but a
 single large text file.  Let's call the file ``bigfile.txt``. If
 you don't happen to have a suitable file at hand, you can
-download one from `http://discoproject.org/bigfile.txt
-<http://discoproject.org/bigfile.txt>`_.
+download one from `here <http://discoproject.org/media/text/bigfile.txt>`_.
 
 Some steps are executed slightly differently on a local cluster (or on
 a single machine) and Amazon EC2. In these cases, you can find separate

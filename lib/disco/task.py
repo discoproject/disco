@@ -386,7 +386,7 @@ class ReduceReader(object):
         return fd
 
     def sort_reader(self, url):
-        fd, sze, url = comm.open_local(url, url)
+        fd, sze, url = comm.open_local(url)
         for k, v in func.re_reader("(?s)(.*?)\xff(.*?)\x00", fd, sze, url):
             yield k, cPickle.loads(v)
 

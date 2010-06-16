@@ -64,16 +64,15 @@ class DDFSReadTestCase(DiscoTestCase):
 
     def test_pull(self):
         self.assertEquals([(self.ddfs.blob_name(url), fd.read())
-            for fd, sze, url in self.ddfs.pull('disco:test:blobs')],
-                [('blobdata2', 'datablob2'), ('blobdata', 'datablob')])
+                           for fd, sze, url in self.ddfs.pull('disco:test:blobs')],
+                          [('blobdata2', 'datablob2'), ('blobdata', 'datablob')])
         self.assertEquals([(self.ddfs.blob_name(url), fd.read())
-            for fd, sze, url in self.ddfs.pull('disco:test:blobs',
-                blobfilter=lambda b: '2' in b)],
-                    [('blobdata2', 'datablob2')])
+                           for fd, sze, url in self.ddfs.pull('disco:test:blobs',
+                                                              blobfilter=lambda b: '2' in b)],
+                          [('blobdata2', 'datablob2')])
         self.assertEquals([(sze, fd.read()) for fd, sze, url in
-            self.ddfs.pull('disco:test:emptyblob')], [(0, '')])
-        self.assertCommErrorCode(404,
-            lambda: list(self.ddfs.pull('disco:test:notag')))
+                           self.ddfs.pull('disco:test:emptyblob')], [(0, '')])
+        self.assertCommErrorCode(404, self.ddfs.pull('disco:test:notag').next)
 
     def test_exists(self):
         self.assertEquals(self.ddfs.exists(''), False)

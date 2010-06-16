@@ -64,8 +64,7 @@ class Discodex(Program):
     @property
     def client(self):
         from discodex.client import DiscodexClient
-        return DiscodexClient(self.options.host or self.settings['DISCODEX_HTTP_HOST'],
-                              self.options.port or self.settings['DISCODEX_HTTP_PORT'])
+        return DiscodexClient(self.options.host, self.options.port)
 
     @property
     def djangoscgi(self):
@@ -122,6 +121,14 @@ def status(program):
 @Discodex.command
 def stop(program):
     program.server_command('stop')
+
+@Discodex.command
+def append(program, indexaspec, indexbspec):
+    """Usage: <indexaspec> <indexbspec>
+
+    Append a pointer to indexbspec to the index at indexaspec.
+    """
+    program.client.append(indexaspec, indexbspec)
 
 @Discodex.command
 def clone(program, indexaspec, indexbspec):
@@ -207,8 +214,8 @@ def query(program, indexspec, *args):
 
     Query the specified index using the given clauses.
     """
-    from discodb import Q
-    query = Q.scan(' '.join(args), and_op=' ', or_op=',')
+    from discodb.query import Q, Clause
+    query = Q(Clause.scan(arg, or_op=',') for arg in args)
     for result in program.client.query(indexspec, query):
         print result
 
