@@ -265,3 +265,8 @@ def ddfs_save(blobs, name, master):
     ddfs.push(tag, blobs, retries=600)
     return "tag://%s" % tag
 
+def format_size(num):
+    for unit in ['bytes','KB','MB','GB','TB']:
+        if num < 1024.:
+            return "%3.1f%s" % (num, unit)
+        num /= 1024.

@@ -594,10 +594,8 @@ class JobDict(util.DefaultDict):
                  sorting ensures that keys are returned in the ascending order.
                  No other assumptions should be made on the comparison function.
 
-                 Sorting is performed in memory, if the total size of the data
-                 is less than *mem_sort_limit* bytes.
-                 If it is larger, the external program ``sort`` is used
-                 to sort the input on disk.
+                 The external program ``sort`` is used to sort the input on disk.
+                 In-memory sort can easily be performed by the tasks themselves.
 
                  Default is ``False``.
 
@@ -610,12 +608,6 @@ class JobDict(util.DefaultDict):
                    provides an easy way to encapsulate a set of parameters.
                    :class:`Params` allows including
                    :term:`pure functions <pure function>` in the parameters.
-
-    :type  mem_sort_limit: integer
-    :param mem_sort_limit: maximum size of data that can be sorted in memory.
-                           The larger inputs are sorted on disk.
-
-                           Default is ``0`` (due to issue #145).
 
     :param ext_params: if either map or reduce function is an external program,
                        typically specified using :func:`disco.util.external`,
@@ -708,7 +700,6 @@ class JobDict(util.DefaultDict):
                 'ext_map': False,
                 'ext_reduce': False,
                 'ext_params': None,
-                'mem_sort_limit': 0,
                 'merge_partitions': False,
                 'params': Params(),
                 'partitions': 1,
@@ -724,6 +715,7 @@ class JobDict(util.DefaultDict):
                 # deprecated
                 'nr_reduces': 0,
                 'map_writer': None,
+                'mem_sort_limit': 0,
                 'reduce_writer': None
                 }
     default_factory = defaults.__getitem__
@@ -996,12 +988,15 @@ class Job(object):
         A :class:`JobError` is raised if an error occurs while starting the job.
         """
         if 'nr_reduces' in kwargs:
-            from warnings import warn
             warn("Use partitions instead of nr_reduces", DeprecationWarning)
             if 'partitions' in kwargs or 'merge_partitions' in kwargs:
                 raise DeprecationWarning("Cannot specify nr_reduces with "
                                          "partitions and/or merge_partitions")
             kwargs['partitions'] = kwargs.pop('nr_reduces')
+
+        if 'mem_sort_limit' in kwargs:
+            warn("mem_sort_limit deprecated: sort=True always uses disk sort",
+                 DeprecationWarning)
 
         jobpack = Job.JobDict(self,
                               prefix=self.name,

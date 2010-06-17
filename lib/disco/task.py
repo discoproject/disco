@@ -228,7 +228,7 @@ class Task(object):
     def insert_globals(self, functions):
         for fn in functions:
             if isinstance(fn, functools.partial):
-                fn=fn.func
+                fn = fn.func
             if isinstance(fn, FunctionType):
                 fn.func_globals.setdefault('Task', self)
                 for module in self.required_modules:
@@ -335,9 +335,9 @@ class MapOutput(object):
 
 class Reduce(Task):
     def _run(self):
+        red_in = self.track_status(self, "%s entries reduced")
         red_out, out_url, fd_list = self.connect_output()
-        red_in                    = iter(ReduceReader(self))
-        params                    = self.params
+        params = self.params
 
         if self.ext_reduce:
             path = self.path('EXT_REDUCE')
@@ -346,10 +346,11 @@ class Reduce(Task):
                                        globals=external.__dict__)
             self.insert_globals([self.reduce])
 
-        Message("Starting reduce")
+        total_size = sum(size for fd, size, url in self.connected_inputs)
+        Message("Input is %s" % (util.format_size(total_size)))
+
         self.init(red_in, params)
         self.reduce(red_in, red_out, params)
-        Message("Reduce done")
 
         self.close_output(fd_list)
         external.close_ext()
@@ -362,96 +363,70 @@ class Reduce(Task):
             safe_update(index, {'%d %s' % (self.id, out_url): True})
             OutputURL(index_url)
 
+    def __iter__(self):
+        if self.sort:
+            return self.sorted_entries
+        return self.entries
+
+    @property
+    def connected_inputs(self):
+        inputs = [url for input in self.inputs
+                  for url in util.urllist(input, partid=self.partid)]
+        random.shuffle(inputs)
+        for input in inputs:
+            yield self.connect_input(input)
+
+    @property
+    def entries(self):
+        for fd, size, url in self.connected_inputs:
+            for entry in fd:
+                yield entry
+
+    @property
+    def sorted_entries(self):
+        dlname   = self.path('REDUCE_DL',     self.id)
+        sortname = self.path('REDUCE_SORTED', self.id)
+
+        Message("Downloading %s" % dlname)
+        out_fd = AtomicFile(dlname, 'w')
+        for key, value in self.entries:
+            if not isinstance(key, str):
+                raise ValueError("Keys must be strings for external sort")
+            if '\xff' in key or '\x00' in key:
+                raise ValueError("Cannot sort keys with 0xFF or 0x00 bytes")
+            else:
+                # value pickled using protocol 0 will always be printable ASCII
+                out_fd.write("%s\xff%s\x00" % (key, cPickle.dumps(value, 0)))
+        out_fd.close()
+        Message("Downloaded OK")
+
+        try:
+            Message("Starting external sort")
+            subprocess.check_call(['sort',
+                                   '-z',
+                                   '-t', '\xff',
+                                   '-k', '1,1',
+                                   '-T', '.',
+                                   '-S', self.sort_buffer_size,
+                                   '-o', sortname,
+                                   dlname])
+            Message("External sort done: %s" % sortname)
+        except subprocess.CalledProcessError, e:
+            raise DataError("Sorting %s failed: %s" % (dlname, e))
+
+        os.remove(dlname)
+        fd, size, url = comm.open_local(sortname)
+        for k, v in func.re_reader("(?s)(.*?)\xff(.*?)\x00", fd, size, url):
+            yield k, cPickle.loads(v)
+
     @property
     def params(self):
         if self.ext_reduce:
             return self.ext_params or '0\n'
         return self.jobdict['params']
 
-class ReduceReader(object):
-    def __init__(self, task):
-        self.task   = task
-        self.inputs = [url for input in task.inputs
-                       for url in util.urllist(input, partid=self.partid)]
-        random.shuffle(self.inputs)
-
     @property
     def partid(self):
-        if self.task.ispartitioned or self.task.jobdict.input_is_partitioned:
-            if not self.task.jobdict['merge_partitions']:
-                return self.task.id
-
-    def connect_input(self, url):
-        fd, sze, url = self.task.connect_input(url)
-        return fd
-
-    def sort_reader(self, url):
-        fd, sze, url = comm.open_local(url)
-        for k, v in func.re_reader("(?s)(.*?)\xff(.*?)\x00", fd, sze, url):
-            yield k, cPickle.loads(v)
-
-    def sort_writer(self, fd, key, value):
-        # key should not contain \xff
-        # value pickled using protocol 0 will always be printable ASCII
-        # (can't contain \0)
-        if not isinstance(key, str):
-            TaskFailed("Keys must be strings for external sort")
-        if '\xff' in key or '\x00' in key:
-            TaskFailed("0xFF or 0x00 bytes are not allowed "
-                "in keys with external sort")
-        else:
-            fd.write("%s\xff%s\x00" % (key, cPickle.dumps(value, 0)))
-
-    def __iter__(self):
-        if self.task.sort:
-            total_size = 0
-            for input in self.inputs:
-                fd, sze, url = self.task.connect_input(input)
-                total_size += sze
-
-            Message("Reduce[%d] input is %.2fMB" % (self.task.id,
-                                                    total_size / 1024.0**2))
-
-            if total_size > self.task.mem_sort_limit:
-                return self.download_and_sort()
-            return self.memory_sort()
-        return self.multi_file_iterator(self.connect_input)
-
-    def download_and_sort(self):
-        dlname = self.task.path('REDUCE_DL', self.task.id)
-        Message("Reduce will be downloaded to %s" % dlname)
-        out_fd = AtomicFile(dlname, 'w')
-        for url in self.inputs:
-            reader, sze, url = self.task.connect_input(url)
-            for k, v in reader:
-                self.sort_writer(out_fd, k, v)
-        out_fd.close()
-        Message("Reduce input downloaded ok")
-
-        Message("Starting external sort")
-        sortname = self.task.path('REDUCE_SORTED', self.task.id)
-        ensure_path(os.path.dirname(sortname))
-        cmd = ['sort', '-n', '-k', '1,1', '-T', '.',
-               '-S', self.task.sort_buffer_size, '-z',
-               '-t', '\xff', '-o', sortname, dlname]
-
-        proc = subprocess.Popen(cmd)
-        ret = proc.wait()
-        if ret:
-            raise DataError("Sorting %s to %s failed (%d)" %
-                (dlname, sortname, ret), dlname)
-
-        Message("External sort done: %s" % sortname)
-        return self.multi_file_iterator(self.sort_reader, inputs=[sortname])
-
-    def memory_sort(self):
-        Message("Sorting in memory")
-        m = list(self.multi_file_iterator(self.connect_input, progress=False))
-        return self.task.track_status(sorted(m), "%s entries reduced")
-
-    def multi_file_iterator(self, connect_input, progress=True, inputs=None):
-        inputs = inputs or self.inputs
-        entries = (e for url in inputs for e in connect_input(url))
-        if progress:
-            return self.task.track_status(entries, "%s entries reduced")
-        return entries
+        if self.ispartitioned or self.jobdict.input_is_partitioned:
+            if not self.jobdict['merge_partitions']:
+                return self.id
