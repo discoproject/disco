@@ -1,5 +1,7 @@
 import httplib, urllib, urlparse
 
+from disco.comm import HTTPConnection
+
 from core import DiscodexError
 from objects import DataSet, MetaSet, Indices, Index, Results, Query
 from settings import DiscodexSettings
@@ -33,7 +35,7 @@ class DiscodexClient(object):
 
     def request(self, method, url, body=None):
         resource = urlparse.urlparse(url)
-        conn     = httplib.HTTPConnection(resource.netloc or self.netloc)
+        conn     = HTTPConnection(resource.netloc or self.netloc)
         conn.request(method, resource.path, body)
         response = conn.getresponse()
         if response.status == httplib.NOT_FOUND:

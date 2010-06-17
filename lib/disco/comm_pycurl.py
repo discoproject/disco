@@ -1,6 +1,5 @@
-import struct, time, sys, os, random
+import httplib, time
 from cStringIO import StringIO
-from httplib import HTTPException
 
 import pycurl
 
@@ -58,19 +57,25 @@ class HTTPConnection(object):
         return self.response
 
     def prepare(self, method, url, body=None, headers={}):
-        self['CUSTOMREQUEST'] = method
         self['URL'] = '%s%s' % (self.netloc, url)
 
+        if method == 'DELETE':
+            self['CUSTOMREQUEST'] = method
+        elif method == 'PUT':
+            self['UPLOAD'] = 1
+        elif method == 'POST':
+            self['POST'] = 1
+
         if body is not None:
+            size = len(body) if hasattr(body, '__len__') else None
+            read = body.read if hasattr(body, 'read') else StringIO(body).read
+
             if method == 'PUT':
-                self.source = body
-                self['READFUNCTION'] = body.makefile().read
-                self['INFILESIZE']   = body.size
-                self['UPLOAD'] = 1
-            else:
-                self['READFUNCTION']  = StringIO(body).read
-                self['POSTFIELDSIZE'] = len(body)
-                self['POST'] = 1
+                if size:
+                    self['INFILESIZE'] = size
+            elif method == 'POST':
+                self['POSTFIELDSIZE'] = size if size is not None else -1
+            self['READFUNCTION'] = read
 
         self['HTTPHEADER'] = ['%s:%s' % item for item in headers.items()]
         return self
@@ -80,19 +85,18 @@ class HTTPConnection(object):
         try:
             self.handle.perform()
         except pycurl.error, e:
-            raise HTTPException(self.handle.errstr())
+            raise httplib.HTTPException(self.handle.errstr())
 
 class MultiPut(object):
-    def __init__(self, pending):
+    def __init__(self, urls, source):
         from disco.util import urlresolve
         self.multi = pycurl.CurlMulti()
-        self.connections = dict((url,
-                                 HTTPConnection('').prepare('PUT',
-                                                            urlresolve(url),
-                                                            body=source))
-                                for url, source in pending)
-        for connection in self.connections.values():
-            self.multi.add_handle(connection.handle)
+        self.pending = [(url, HTTPConnection('').prepare('PUT',
+                                                         urlresolve(url),
+                                                         body=source))
+                        for url in urls]
+        for url, conn in self.pending:
+            self.multi.add_handle(conn.handle)
 
     def perform(self):
         num_handles = True
@@ -104,35 +108,23 @@ class MultiPut(object):
                 ret, num_handles = self.multi.perform()
                 if ret != pycurl.E_CALL_MULTI_PERFORM:
                     break
+        for url, conn in self.pending:
+            yield url, conn.getresponse()
 
-        success, retry, fail = [], [], []
-        for url, conn in self.connections.iteritems():
-            response = conn.getresponse()
-            ret = response.status
-            if str(ret).startswith('2'):
-                success.append((url, response))
-            elif ret == 503:
-                retry.append((url, conn.source))
-            else:
-                fail.append((url, response))
-        return success, retry, fail
+def upload(urls, source, retries=10):
+    unavailable = []
 
-def upload(urls, sources, retries=10):
-    rounds = 0
-    pending = zip(urls, sources)
-    while pending and rounds <= retries:
-        successful, pending, failed = MultiPut(pending).perform()
-        rounds = 0 if successful else rounds + 1
-        for url, response in successful:
+    for url, response in MultiPut(urls, source).perform():
+        status = response.status
+        if str(status).startswith('2'):
             yield response.read()
-        if failed:
-            url, response = failed[0]
-            raise CommError("Upload failed: %s" % response.read(),
-                            url, response.status)
-        if pending:
-            time.sleep(1)
-    if pending:
-        raise CommError("Maximum number of retries reached. "
-                        "The following URLs were unreachable: %s" %
-                        " ".join(url for url, source in pending), pending[0][0])
+        elif status == httplib.SERVICE_UNAVAILABLE:
+            if not retries:
+                raise CommError("Maximum number of retries reached", url)
+            unavailable.append(url)
+        else:
+            raise CommError("Upload failed: %s" % response.read(), url, status)
 
+    if unavailable:
+        for response in upload(unavailable, source, retries=retries-1):
+            yield response
