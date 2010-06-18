@@ -9,7 +9,7 @@
     "server.document-root = \"/dev/null\"\n"
     "server.port = ~s\n"
     "server.pid-file = \"~s\"\n"
-    "proxy.server = (~s \"\" => ((\"host\" => \"127.0.0.1\", \"port\" => 8989)))\n"
+    "proxy.server = (~s \"\" => ((\"host\" => \"127.0.0.1\", \"port\" => ~s)))\n"
 ).
 -define(HOST_TEMPLATE,
     "\"/proxy/~s/~s/\" => ((\"host\" => \"~b.~b.~b.~b\", \"port\" => ~s)),\n"
@@ -31,11 +31,12 @@ start() ->
 
 update_nodes(Nodes) ->
     Port = disco:get_setting("DISCO_PROXY_PORT"),
+    DiscoPort = disco:get_setting("DISCO_PORT"),
     PidFile = disco:get_setting("DISCO_PROXY_PID"),
     Config = disco:get_setting("DISCO_PROXY_CONFIG"),
     Body = io_lib:format(?CONFIG_TEMPLATE, [Port, PidFile,
         lists:flatten([[host_line(Node, "GET"), host_line(Node, "PUT")]
-            || Node <- Nodes])]),
+            || Node <- Nodes]), DiscoPort]),
     ok = file:write_file(Config, Body),
     case whereis(disco_proxy) of
         undefined -> ok;
