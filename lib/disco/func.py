@@ -470,11 +470,11 @@ def map_output_stream(stream, partition, url, params):
     from disco.fileutils import AtomicFile, PartitionFile
     mpath, murl = Task.map_output(partition)
     if not Task.ispartitioned:
-        Task.add_blob(mpath)
+        Task.blobs.append(mpath)
         return AtomicFile(mpath, 'w'), murl
     else:
         ppath, purl = Task.partition_output(partition)
-        Task.add_blob(ppath)
+        Task.blobs.append(ppath)
         return PartitionFile(ppath, mpath, 'w'), purl
 
 def reduce_output_stream(stream, partition, url, params):
@@ -484,7 +484,7 @@ def reduce_output_stream(stream, partition, url, params):
     """
     from disco.fileutils import AtomicFile
     path, url = Task.reduce_output()
-    Task.add_blob(path)
+    Task.blobs.append(path)
     return AtomicFile(path, 'w'), url
 
 # backwards compatibility for readers and writers

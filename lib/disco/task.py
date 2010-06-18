@@ -1,6 +1,6 @@
 import hashlib, os, random, re, subprocess, sys, cPickle
-import functools
 
+from functools import partial
 from itertools import chain
 from types import FunctionType
 
@@ -18,17 +18,12 @@ oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
 class Task(object):
     default_paths = {
-        'CHDIR_PATH':    '',
-        'JOBPACK':       'params.dl',
-        'REQ_FILES':     'lib',
         'EXT_MAP':       'ext.map',
         'EXT_REDUCE':    'ext.reduce',
         'MAP_OUTPUT':    'map-disco-%d-%.9d',
         'PART_OUTPUT':   'part-disco-%.9d',
         'REDUCE_DL':     'reduce-in-%d.dl',
-        'REDUCE_SORTED': 'reduce-in-%d.sorted',
         'REDUCE_OUTPUT': 'reduce-disco-%d',
-        'OOB_FILE':      'oob/%s',
         'MAP_INDEX':     'map-index.txt',
         'REDUCE_INDEX':  'reduce-index.txt'
     }
@@ -46,7 +41,7 @@ class Task(object):
         self.jobdict  = jobdict
         self.jobname  = jobname
         self.settings = settings
-        self._blobs   = []
+        self.blobs   = []
 
         if not jobdict:
             if netlocstr:
@@ -63,59 +58,66 @@ class Task(object):
             return self.jobdict[task_key]
         raise AttributeError("%s has no attribute %s" % (self, key))
 
-    @property
-    def dataroot(self):
-        return self.settings['DISCO_DATA']
-
-    @property
-    def ddfsroot(self):
-        return self.settings['DDFS_ROOT']
-
-    @property
-    def flags(self):
-        return self.settings['DISCO_FLAGS'].lower().split()
+    def __iter__(self):
+        if self.sort:
+            return self.sorted_entries
+        return self.entries
 
     @property
     def hex_key(self):
         return hashlib.md5(self.jobname).hexdigest()[:2]
 
     @property
-    def home(self):
-        return os.path.join(self.host, self.hex_key, self.jobname)
-
-    @property
     def host(self):
         return self.netloc[0]
 
     @property
+    def ispartitioned(self):
+        return bool(self.jobdict['partitions'])
+
+    @property
+    def jobpack(self):
+        jobpack = os.path.join(self.jobroot, 'jobpack.dl')
+        def data():
+            return Disco(self.master).jobpack(self.jobname)
+        ensure_path(self.jobroot)
+        ensure_file(jobpack, data=data, mode=444)
+        return jobpack
+
+    @property
+    def jobpath(self):
+        return os.path.join(self.host, self.hex_key, self.jobname)
+
+    @property
     def jobroot(self):
-        return os.path.join(self.root, self.dataroot, self.home)
+        return os.path.join(self.settings['DISCO_DATA'], self.jobpath)
+
+    @property
+    def lib(self):
+        return os.path.join(self.jobroot, 'lib')
 
     @property
     def master(self):
         return self.settings['DISCO_MASTER']
 
     @property
+    def oob_dir(self):
+        return os.path.join(self.jobroot, 'oob')
+
+    def oob_file(self, name):
+        return os.path.join(self.oobdir, name)
+
+    @property
+    def partid(self):
+        return None
+
+    @property
     def port(self):
         return self.settings['DISCO_PORT']
 
     @property
-    def root(self):
-        return self.settings['DISCO_ROOT']
-
-    @property
     def sort_buffer_size(self):
         return self.settings['DISCO_SORT_BUFFER_SIZE']
-
-    @property
-    def blobs(self):
-        return self._blobs
-
-    def add_blob(self, blob):
-        self._blobs.append(blob)
-
-    def has_flag(self, flag):
-        return flag.lower() in self.flags
 
     def path(self, name, *args):
         path = self.default_paths[name] % args
@@ -124,7 +126,7 @@ class Task(object):
     def url(self, name, *args, **kwargs):
         path = self.default_paths[name] % args
         scheme = kwargs.get('scheme', 'disco')
-        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.home, path)
+        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.jobpath, path)
 
     @property
     def map_index(self):
@@ -148,50 +150,24 @@ class Task(object):
         return (self.path('REDUCE_OUTPUT', self.id),
                 self.url('REDUCE_OUTPUT', self.id))
 
-    def oob_file(self, key):
-        return self.path('OOB_FILE', key)
-
-    @property
-    def jobpack(self):
-        jobpack = self.path('JOBPACK')
-        ensure_path(os.path.dirname(jobpack))
-        def data():
-            return Disco(self.master).jobpack(self.jobname)
-        ensure_file(jobpack, data=data, mode=444)
-        return jobpack
-
-    @property
-    def ispartitioned(self):
-        return bool(self.jobdict['partitions'])
-
-    @property
-    def num_partitions(self):
-        return max(1, int(self.jobdict['partitions']))
-
-    def put(self, key, value):
-        """
-        Stores an out-of-band result *value* with the key *key*. Key must be unique in
-        this job. Maximum key length is 256 characters. Only characters in the set
-        ``[a-zA-Z_\-:0-9@]`` are allowed in the key.
-        """
-        if DDFS.safe_name(key) != key:
-            raise DiscoError("OOB key contains invalid characters (%s)" % key)
-        util.save_oob(self.master, self.jobname, key, value)
-
-    def get(self, key, job=None):
-        """
-        Gets an out-of-band result assigned with the key *key*. The job name *job*
-        defaults to the current job.
-
-        Given the semantics of OOB results (see above), this means that the default
-        value is only good for the reduce phase which can access results produced
-        in the preceding map phase.
-        """
-        return util.load_oob(self.master, job or self.jobname, key)
+    def disk_sort(self, filename):
+        Message("Sorting %s..." % filename)
+        try:
+            subprocess.check_call(['sort',
+                                   '-z',
+                                   '-t', '\xff',
+                                   '-k', '1,1',
+                                   '-T', '.',
+                                   '-S', self.sort_buffer_size,
+                                   '-o', filename,
+                                   filename])
+        except subprocess.CalledProcessError, e:
+            raise DataError("Sorting %s failed: %s" % (filename, e))
+        Message("Finished sorting")
 
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval
-        n = 0
+        n = -1
         for n, item in enumerate(iterator):
             if status_interval and (n + 1) % status_interval == 0:
                 Message(message_template % (n + 1))
@@ -219,6 +195,24 @@ class Task(object):
                 fd.close()
 
     @property
+    def connected_inputs(self):
+        inputs = [url for input in self.inputs
+                  for url in util.urllist(input, partid=self.partid)]
+        random.shuffle(inputs)
+        for input in inputs:
+            yield self.connect_input(input)
+
+    @property
+    def entries(self):
+        for fd, size, url in self.connected_inputs:
+            for entry in fd:
+                yield entry
+
+    @property
+    def sorted_entries(self):
+        return iter(sorted(self.entries))
+
+    @property
     def functions(self):
         for fn in chain((getattr(self, name) for name in self.jobdict.functions),
                         *(getattr(self, stack) for stack in self.jobdict.stacks)):
@@ -227,7 +221,7 @@ class Task(object):
 
     def insert_globals(self, functions):
         for fn in functions:
-            if isinstance(fn, functools.partial):
+            if isinstance(fn, partial):
                 fn = fn.func
             if isinstance(fn, FunctionType):
                 fn.func_globals.setdefault('Task', self)
@@ -238,31 +232,48 @@ class Task(object):
 
     def run(self):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
-        ensure_path(os.path.dirname(self.path('OOB_FILE', '')))
-        os.chdir(self.path('CHDIR_PATH'))
-        path = self.path('REQ_FILES')
-        write_files(self.required_files, path)
-        sys.path.insert(0, path)
+        os.chdir(self.jobroot)
+        ensure_path(self.oob_dir)
+        sys.path.insert(0, self.lib)
+        write_files(self.required_files, self.lib)
         self.insert_globals(self.functions)
-        if self.profile:
-            self._run_profile()
-        else:
-            self._run()
+        self._run_profile() if self.profile else self._run()
 
     def _run_profile(self):
-        try:
-            import cProfile as prof
-        except ImportError:
-            import profile as prof
-        filename = 'profile-%s-%s' % (self.__class__.__name__, self.id)
-        path     = self.path('OOB_FILE', filename)
-        prof.runctx('self._run()', globals(), locals(), path)
-        self.put(filename, file(path).read())
+        from cProfile import runctx
+        name = 'profile-%s-%s' % (self.__class__.__name__, self.id)
+        path = self.oob_file(name)
+        runctx('self._run()', globals(), locals(), path)
+        self.put(name, file(path).read())
+
+    def get(self, key, job=None):
+        """
+        Gets an out-of-band result assigned with the key *key*. The job name *job*
+        defaults to the current job.
+
+        Given the semantics of OOB results (see above), this means that the default
+        value is only good for the reduce phase which can access results produced
+        in the preceding map phase.
+        """
+        return util.load_oob(self.master, job or self.jobname, key)
+
+    def put(self, key, value):
+        """
+        Stores an out-of-band result *value* with the key *key*. Key must be unique in
+        this job. Maximum key length is 256 characters. Only characters in the set
+        ``[a-zA-Z_\-:0-9@]`` are allowed in the key.
+        """
+        if DDFS.safe_name(key) != key:
+            raise DiscoError("OOB key contains invalid characters (%s)" % key)
+        util.save_oob(self.master, self.jobname, key, value)
 
 class Map(Task):
     def _run(self):
         if len(self.inputs) != 1:
-            TaskFailed("Map can only handle one input. Got: %s" % ' '.join(self.inputs))
+            TaskFailed("Map takes 1 input, got: %s" % ' '.join(self.inputs))
+
+        if self.save and not self.reduce and self.ispartitioned:
+            TaskFailed("Storing partitioned outputs in DDFS is not yet supported")
 
         if self.ext_map:
             external.prepare(self.map, self.ext_params, self.path('EXT_MAP'))
@@ -270,45 +281,33 @@ class Map(Task):
                                     globals=external.__dict__)
             self.insert_globals([self.map])
 
-        partitions = [MapOutput(self, i) for i in xrange(self.num_partitions)]
-        reader, sze, url = self.connect_input(self.inputs[0])
-        params = self.params
-        self.init(reader, params)
+        entries = self.track_status(self, "%s entries mapped")
+        params  = self.params
+        outputs = [MapOutput(self, i)
+                   for i in xrange(max(1, int(self.jobdict['partitions'])))]
 
-        entries = (self.map(entry, params) for entry in reader)
-        for kvs in self.track_status(entries, "%s entries mapped"):
-            for k, v in kvs:
-                p = self.partition(k, self.num_partitions, params)
-                partitions[p].add(k, v)
+        self.init(entries, params)
+        for entry in entries:
+            for k, v in self.map(entry, params):
+                outputs[self.partition(k, len(outputs), params)].add(k, v)
 
         external.close_ext()
 
-        urls = {}
-        for i, partition in enumerate(partitions):
-            partition.close()
-            urls['%d %s' % (i, partition.url)] = True
-
         index, index_url = self.map_index
-        safe_update(index, urls)
+        safe_update(index, ['%d %s' % (i, o.close())
+                            for i, o in enumerate(outputs)])
 
         if self.save and not self.reduce:
-            if self.ispartitioned:
-                TaskFailed("Storing partitioned outputs in DDFS is not yet supported")
-            else:
-                OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
-                Message("Results pushed to DDFS")
+            OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
+            Message("Results pushed to DDFS")
         else:
             OutputURL(index_url)
 
-    @property
-    def params(self):
-        return self.jobdict['params']
-
 class MapOutput(object):
-    def __init__(self, task, partition):
+    def __init__(self, task, id):
         self.task = task
         self.comb_buffer = {}
-        self.fd, self.url, self.fd_list = task.connect_output(partition)
+        self.fd, self.url, self.fd_list = task.connect_output(id)
 
     def add(self, key, value):
         if self.task.combiner:
@@ -332,16 +331,16 @@ class MapOutput(object):
                 for key, value in ret:
                     self.fd.add(key, value)
         self.task.close_output(self.fd_list)
+        return self.url
 
 class Reduce(Task):
     def _run(self):
-        red_in = self.track_status(self, "%s entries reduced")
+        entries = self.track_status(self, "%s entries reduced")
         red_out, out_url, fd_list = self.connect_output()
         params = self.params
 
         if self.ext_reduce:
-            path = self.path('EXT_REDUCE')
-            external.prepare(self.reduce, self.ext_params, path)
+            external.prepare(self.reduce, self.ext_params, self.path('EXT_REDUCE'))
             self.reduce = FunctionType(external.ext_reduce.func_code,
                                        globals=external.__dict__)
             self.insert_globals([self.reduce])
@@ -349,8 +348,8 @@ class Reduce(Task):
         total_size = sum(size for fd, size, url in self.connected_inputs)
         Message("Input is %s" % (util.format_size(total_size)))
 
-        self.init(red_in, params)
-        self.reduce(red_in, red_out, params)
+        self.init(entries, params)
+        self.reduce(entries, red_out, params)
 
         self.close_output(fd_list)
         external.close_ext()
@@ -363,30 +362,9 @@ class Reduce(Task):
             safe_update(index, {'%d %s' % (self.id, out_url): True})
             OutputURL(index_url)
 
-    def __iter__(self):
-        if self.sort:
-            return self.sorted_entries
-        return self.entries
-
-    @property
-    def connected_inputs(self):
-        inputs = [url for input in self.inputs
-                  for url in util.urllist(input, partid=self.partid)]
-        random.shuffle(inputs)
-        for input in inputs:
-            yield self.connect_input(input)
-
-    @property
-    def entries(self):
-        for fd, size, url in self.connected_inputs:
-            for entry in fd:
-                yield entry
-
     @property
     def sorted_entries(self):
-        dlname   = self.path('REDUCE_DL',     self.id)
-        sortname = self.path('REDUCE_SORTED', self.id)
-
+        dlname = self.path('REDUCE_DL', self.id)
         Message("Downloading %s" % dlname)
         out_fd = AtomicFile(dlname, 'w')
         for key, value in self.entries:
@@ -400,22 +378,8 @@ class Reduce(Task):
         out_fd.close()
         Message("Downloaded OK")
 
-        try:
-            Message("Starting external sort")
-            subprocess.check_call(['sort',
-                                   '-z',
-                                   '-t', '\xff',
-                                   '-k', '1,1',
-                                   '-T', '.',
-                                   '-S', self.sort_buffer_size,
-                                   '-o', sortname,
-                                   dlname])
-            Message("External sort done: %s" % sortname)
-        except subprocess.CalledProcessError, e:
-            raise DataError("Sorting %s failed: %s" % (dlname, e))
-
-        os.remove(dlname)
-        fd, size, url = comm.open_local(sortname)
+        self.disk_sort(dlname)
+        fd, size, url = comm.open_local(dlname)
         for k, v in func.re_reader("(?s)(.*?)\xff(.*?)\x00", fd, size, url):
             yield k, cPickle.loads(v)
 

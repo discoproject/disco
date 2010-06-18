@@ -236,7 +236,7 @@ def parse_dir(dir_url, partid=None):
     :param dir_url: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
     return [url for id, url in read_index(dir_url)
-                if partid is None or partid == int(id)]
+            if partid is None or partid == int(id)]
 
 def save_oob(host, name, key, value):
     from disco.ddfs import DDFS
