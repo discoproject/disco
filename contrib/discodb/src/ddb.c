@@ -165,6 +165,28 @@ struct ddb_cursor *ddb_keys(struct ddb *db)
         return c;
 }
 
+static const struct ddb_entry *unique_values_cursor_next(struct ddb_cursor *c)
+{
+        if (c->cursor.uvalues.i > c->db->num_uniq_values)
+                return NULL;
+        ddb_resolve_valueid(c->db, c->cursor.uvalues.i++, &c->ent);
+        return &c->ent;
+}
+
+struct ddb_cursor *ddb_unique_values(struct ddb *db)
+{
+        struct ddb_cursor *c = NULL;
+        if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+                db->errno = DDB_ERR_OUT_OF_MEMORY;
+                return NULL;
+        }
+        c->db = db;
+        c->cursor.uvalues.i = 1;
+        c->next = unique_values_cursor_next;
+        c->num_items = db->num_uniq_values;
+        return c;
+}
+
 static const struct ddb_entry *values_cursor_next(struct ddb_cursor *c)
 {
         while (!c->cursor.values.cur.num_left){

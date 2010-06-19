@@ -52,6 +52,7 @@ char *ddb_dumps(struct ddb *db, uint64_t *length);
 
 struct ddb_cursor *ddb_keys(struct ddb *db);
 struct ddb_cursor *ddb_values(struct ddb *db);
+struct ddb_cursor *ddb_unique_values(struct ddb *db);
 struct ddb_cursor *ddb_getitem(struct ddb *db,
         const struct ddb_entry *key);
 struct ddb_cursor *ddb_query(struct ddb *db,

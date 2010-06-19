@@ -62,6 +62,10 @@ struct ddb_key_cursor{
         uint32_t i; 
 };
 
+struct ddb_unique_values_cursor{
+        uint32_t i; 
+};
+
 struct ddb_values_cursor{
         uint32_t i;
         struct ddb_value_cursor cur;
@@ -106,6 +110,7 @@ struct ddb_cursor{
         union{
                 struct ddb_value_cursor value;
                 struct ddb_values_cursor values;
+                struct ddb_unique_values_cursor uvalues;
                 struct ddb_key_cursor keys;
                 struct ddb_cnf_cursor cnf;
         } cursor;
