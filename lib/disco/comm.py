@@ -50,8 +50,6 @@ def range_header(offset):
     return {}
 
 def resolveuri(baseuri, uri):
-    if uri.startswith(baseuri):
-        return uri
     if uri.startswith('/'):
         scheme, netloc, _path = urlsplit(baseuri)
         return '%s://%s%s' % (scheme, netloc, uri)
@@ -73,8 +71,9 @@ def request(method, url, data=None, headers={}, sleep=0):
         time.sleep(2**sleep)
         return request(method, url, data=data, headers=headers, sleep=sleep + 1)
     elif isredirection(response.status):
+        loc = response.getheader('location')
         return request(method,
-                       resolveuri(url, response.getheader('location')),
+                       loc if loc.startswith('http:') else resolveuri(url, loc),
                        data=data,
                        headers=headers,
                        sleep=sleep)
