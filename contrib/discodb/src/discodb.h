@@ -23,24 +23,24 @@ struct ddb;
 struct ddb_cursor;
 
 struct ddb_entry{
-        const char *data;
-        uint32_t length;
+    const char *data;
+    uint32_t length;
 };
 
 struct ddb_query_term{
-        struct ddb_entry key;
-        int not;
+    struct ddb_entry key;
+    int not;
 };
 
 struct ddb_query_clause{
-        struct ddb_query_term *terms;
-        uint32_t num_terms;
+    struct ddb_query_term *terms;
+    uint32_t num_terms;
 };
 
 struct ddb_cons *ddb_cons_new(void);
 
 int ddb_add(struct ddb_cons *db, const struct ddb_entry *key,
-        const struct ddb_entry *values, uint32_t num_values);
+    const struct ddb_entry *values, uint32_t num_values);
 char *ddb_finalize(struct ddb_cons *c, uint64_t *length);
 
 struct ddb *ddb_new(void);
@@ -54,9 +54,9 @@ struct ddb_cursor *ddb_keys(struct ddb *db);
 struct ddb_cursor *ddb_values(struct ddb *db);
 struct ddb_cursor *ddb_unique_values(struct ddb *db);
 struct ddb_cursor *ddb_getitem(struct ddb *db,
-        const struct ddb_entry *key);
+    const struct ddb_entry *key);
 struct ddb_cursor *ddb_query(struct ddb *db,
-        const struct ddb_query_clause *clauses, uint32_t num_clauses);
+    const struct ddb_query_clause *clauses, uint32_t num_clauses);
 
 void ddb_free(struct ddb *db);
 int ddb_error(struct ddb *db, const char **errstr);
