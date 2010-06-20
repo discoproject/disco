@@ -4,6 +4,9 @@ OPT = -W
 CC  = erlc
 
 PYTHON = python
+DIALYZER = dialyzer
+TYPER = typer
+
 ESRC = master/src
 EBIN = master/ebin
 
@@ -114,3 +117,9 @@ $(EBIN)/ddfs:
 
 $(EBIN)/mochiweb:
 	- mkdir $(EBIN)/mochiweb
+
+dialyzer:
+	$(DIALYZER) -c --src -r $(ESRC)
+
+typer:
+	$(TYPER) -r $(ESRC)
