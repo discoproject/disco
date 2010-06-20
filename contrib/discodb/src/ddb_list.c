@@ -7,37 +7,39 @@
 struct ddb_list{
     uint32_t size;
     uint32_t i;
-    uint32_t list[0];
+    uint64_t list[0];
 };
 
 struct ddb_list *ddb_list_new()
 {
     struct ddb_list *list;
-    if (!(list = malloc(sizeof(struct ddb_list) + 4)))
+    if (!(list = malloc(sizeof(struct ddb_list) + 8)))
         return NULL;
     list->size = 1;
     list->i = 0;
     return list;
 }
 
-int ddb_list_append(struct ddb_list *list, uint32_t e)
+void ddb_list_free(struct ddb_list *list)
 {
-    if (list->i == list->size){
-        struct ddb_list *new =
-            realloc(list, sizeof(struct ddb_list) + list->size * 8);
-        if (new == list)
-            return -1;
-        list->size *= 2;
-        list = new;
-    }
-    list->list[list->i++] = e;
-    return 0;
+    free(list);
 }
 
-uint32_t *ddb_list_pointer(const struct ddb_list *list, uint32_t *length)
+struct ddb_list *ddb_list_append(struct ddb_list *list, uint64_t e)
+{
+    if (list->i == list->size){
+        list->size *= 2;
+        if (!(list = realloc(list, sizeof(struct ddb_list) + list->size * 8)))
+            return NULL;
+    }
+    list->list[list->i++] = e;
+    return list;
+}
+
+uint64_t *ddb_list_pointer(const struct ddb_list *list, uint32_t *length)
 {
     *length = list->i;
-    return (uint32_t*)list->list;
+    return (uint64_t*)list->list;
 }
 
 
