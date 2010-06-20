@@ -43,8 +43,6 @@ reply({ok, Data}, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)});
 reply({raw, Data}, Req) ->
     Req:ok({"text/plain", [], Data});
-reply({relo, Loc}, Req) ->
-    Req:respond({302, [{"Location", Loc}], <<>>});
 reply({file, File, Docroot}, Req) ->
     Req:serve_file(File, Docroot);
 reply(not_found, Req) ->

@@ -10,7 +10,6 @@
 
 -export([init/1, start/2, stop/1]).
 
-write_pid(false) -> ok;
 write_pid(PidFile) ->
     case file:write_file(PidFile, os:getpid()) of
         ok -> ok;
