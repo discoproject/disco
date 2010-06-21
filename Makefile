@@ -118,6 +118,8 @@ $(EBIN)/ddfs:
 $(EBIN)/mochiweb:
 	- mkdir $(EBIN)/mochiweb
 
+.PHONY: dialyzer typer
+
 dialyzer:
 	$(DIALYZER) -c --src -r $(ESRC)
 
