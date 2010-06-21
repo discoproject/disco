@@ -26,6 +26,7 @@ update_config_table(Json) ->
     gen_server:cast(disco_server, {update_config_table,
         lists:flatten([parse_row(R) || R <- Json])}).
 
+-spec get_config_table() -> {'ok', [[binary(), ...]]}.
 get_config_table() ->
     case file:read_file(os:getenv("DISCO_MASTER_CONFIG")) of
         {ok, Config} -> ok;
@@ -36,6 +37,7 @@ get_config_table() ->
     update_config_table(Json),
     {ok, Json}.
 
+-spec save_config_table([[binary(), ...]]) -> {'error' | 'ok', binary()}.
 save_config_table(Json) ->
     {Nodes, _Cores} = lists:unzip(lists:flatten([parse_row(R) || R <- Json])),
     Sorted = lists:sort(Nodes),
