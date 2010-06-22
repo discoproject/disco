@@ -18,6 +18,7 @@ start(MochiConfig) ->
                                 end}
                          | MochiConfig]).
 
+-spec loop(nonempty_string(), atom()) -> _.
 loop("/proxy/" ++ Path, Req) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
@@ -52,10 +53,12 @@ loop("/ddfs/" ++ BlobName, Req) ->
 loop(_, Req) ->
     Req:not_found().
 
+-spec valid_blob({'EXIT' | binary(),_}) -> boolean().
 valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
 
+-spec receive_blob(atom(), {nonempty_string(), nonempty_string()}, nonempty_string()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
     Dir = filename:join(Path, Fname),
     case prim_file:read_file_info(Dir) of
@@ -70,6 +73,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
             error_reply(Req, "File exists", Dir, Dir)
     end.
 
+-spec receive_blob(atom(), file:io_device(), nonempty_string(), nonempty_string()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
     case receive_body(Req, IO) of
         ok ->
@@ -95,6 +99,7 @@ receive_blob(Req, IO, Dst, Url) ->
             error_reply(Req, "Write failed", Dst, Error)
     end.
 
+-spec receive_body(atom(), file:io_device()) -> _.
 receive_body(Req, IO) ->
     R0 = Req:stream_body(?MAX_RECV_BODY, fun
             ({_, Buf}, ok) -> file:write(IO, Buf);
@@ -110,6 +115,7 @@ receive_body(Req, IO) ->
         Error -> Error
     end.
 
+-spec error_reply(atom(), nonempty_string(), nonempty_string(), _) -> _.
 error_reply(Req, Msg, Dst, Err) ->
     M = io_lib:format("~s (path: ~s): ~p", [Msg, Dst, Err]),
     error_logger:warning_report(M),
