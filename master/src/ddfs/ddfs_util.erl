@@ -71,11 +71,29 @@ format_timestamp() ->
     TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
     list_to_binary([DateStr, TimeStr]).
 
-% FIXME: Figure out why dialyzer doesn't like hashdir().
+-spec to_hex_helper(non_neg_integer(), string()) -> string().
+to_hex_helper(Int, L) ->
+    case {Int, L} of
+        {0, []} -> "00";
+        {0, _ } -> L;
+        _ ->
+            D = Int div 16,
+            R = Int rem 16,
+            C = if R < 10 -> $0 + R;
+                   true   -> $A + R - 10
+                end,
+            to_hex_helper(D, [C|L])
+    end.
+
+-spec to_hex(non_neg_integer()) -> string().
+to_hex(Int) ->
+    to_hex_helper(Int, []).
+
+-spec hashdir(binary(), nonempty_string(), nonempty_string(), nonempty_string(), nonempty_string()) -> {'ok', string(), binary()}.
 hashdir(Name, Node, Mode, Root, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
-    [D1] = io_lib:format("~.16b", [D0]),
-    Dir = [if length(D1) == 1 -> "0"; true -> "" end, D1],
+    D1 = to_hex(D0),
+    Dir = lists:flatten([if length(D1) == 1 -> "0"; true -> "" end, D1]),
     Path = filename:join([Vol, Mode, Dir]),
     Url = list_to_binary(["disco://", Node, "/ddfs/", Path, "/", Name]),
     Local = filename:join(Root, Path),
