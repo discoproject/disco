@@ -77,7 +77,8 @@ class HTTPConnection(object):
                 self['POSTFIELDSIZE'] = size if size is not None else -1
             self['READFUNCTION'] = read
 
-        self['HTTPHEADER'] = ['%s:%s' % item for item in headers.items()]
+        self['HTTPHEADER'] = ['%s:%s' % item for item in headers.items()] +\
+                             ['Expect:'] # work-around for lighttpd
         return self
 
     def request(self, method, url, body=None, headers={}):
