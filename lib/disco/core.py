@@ -232,7 +232,7 @@ class Disco(object):
         """
         def event_iter(events):
             offs = offset
-            lines = events.splitlines()
+            lines = events.split('\n')
             for i, line in enumerate(lines):
                 if len(line):
                     offs += len(line) + 1
