@@ -14,7 +14,7 @@ import copy_reg, functools
 
 from cStringIO import StringIO
 from collections import defaultdict
-from itertools import chain, repeat
+from itertools import chain, groupby, izip, repeat
 from types import CodeType, FunctionType
 from urllib import urlencode
 
@@ -62,6 +62,28 @@ def iterify(object):
 
 def ilen(iter):
     return sum(1 for _ in iter)
+
+def izip_longest(*args, **kwds):
+    # python2.6 itertools has izip_longest
+    # http://docs.python.org/library/itertools.html#itertools.izip_longest
+    fillvalue = kwds.get('fillvalue')
+    def sentinel(counter=([fillvalue] * (len(args) - 1)).pop):
+        yield counter()         # yields the fillvalue, or raises IndexError
+    fillers = repeat(fillvalue)
+    iters = [chain(it, sentinel(), fillers) for it in args]
+    try:
+        for tup in izip(*iters):
+            yield tup
+    except IndexError:
+        pass
+
+def key(kv):
+    k, v = kv
+    return k
+
+def kvgroup(kviter):
+    for k, kvs in groupby(kviter, key):
+        yield k, (v for _k, v in kvs)
 
 def partition(iterable, fn):
     t, f = [], []

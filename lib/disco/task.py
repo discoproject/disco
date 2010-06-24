@@ -17,17 +17,6 @@ from disco.settings import DiscoSettings
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
 class Task(object):
-    default_paths = {
-        'EXT_MAP':       'ext.map',
-        'EXT_REDUCE':    'ext.reduce',
-        'MAP_OUTPUT':    'map-disco-%d-%.9d',
-        'PART_OUTPUT':   'part-disco-%.9d',
-        'REDUCE_DL':     'reduce-in-%d.dl',
-        'REDUCE_OUTPUT': 'reduce-disco-%d',
-        'MAP_INDEX':     'map-index.txt',
-        'REDUCE_INDEX':  'reduce-index.txt'
-    }
-
     def __init__(self,
                  netlocstr='',
                  id=-1,
@@ -44,11 +33,9 @@ class Task(object):
         self.blobs   = []
 
         if not jobdict:
-            if netlocstr:
-                self.jobdict = JobDict.unpack(open(self.jobpack),
-                                              globals=worker.__dict__)
-            else:
-                self.jobdict = JobDict(map=func.noop)
+            self.jobdict = JobDict.unpack(open(self.jobpack),
+                                          globals=worker.__dict__)
+        self.insert_globals(self.functions)
 
     def __getattr__(self, key):
         if key in self.jobdict:
@@ -59,8 +46,6 @@ class Task(object):
         raise AttributeError("%s has no attribute %s" % (self, key))
 
     def __iter__(self):
-        if self.sort:
-            return self.sorted_entries
         return self.entries
 
     @property
@@ -116,54 +101,41 @@ class Task(object):
         return self.settings['DISCO_PORT']
 
     @property
+    def root(self):
+        return self.settings['DISCO_ROOT']
+
+    @property
     def sort_buffer_size(self):
         return self.settings['DISCO_SORT_BUFFER_SIZE']
 
-    def path(self, name, *args):
-        path = self.default_paths[name] % args
-        return os.path.join(self.jobroot, path)
-
-    def url(self, name, *args, **kwargs):
-        path = self.default_paths[name] % args
-        scheme = kwargs.get('scheme', 'disco')
-        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.jobpath, path)
-
     @property
     def map_index(self):
-        return (self.path('MAP_INDEX'),
-                self.url('MAP_INDEX', scheme='dir'))
+        filename = 'map-index.txt'
+        return self.path(filename), self.url(filename, scheme='dir')
 
     @property
     def reduce_index(self):
-        return (self.path('REDUCE_INDEX'),
-                self.url('REDUCE_INDEX', scheme='dir'))
+        filename = 'reduce-index.txt'
+        return self.path(filename), self.url(filename, scheme='dir')
+
+    @property
+    def reduce_output(self):
+        filename = 'reduce-disco-%d' % self.id
+        return self.path(filename), self.url(filename)
 
     def map_output(self, partition):
-        return (self.path('MAP_OUTPUT', self.id, partition),
-                self.url('MAP_OUTPUT', self.id, partition))
+        filename = 'map-disco-%d-%.9d' % (self.id, partition)
+        return self.path(filename), self.url(filename)
 
     def partition_output(self, partition):
-        return (self.path('PART_OUTPUT', partition),
-                self.url('PART_OUTPUT', partition))
+        filename = 'part-disco-%.9d' % partition
+        return self.path(filename), self.url(filename)
 
-    def reduce_output(self):
-        return (self.path('REDUCE_OUTPUT', self.id),
-                self.url('REDUCE_OUTPUT', self.id))
+    def path(self, filename):
+        return os.path.join(self.jobroot, filename)
 
-    def disk_sort(self, filename):
-        Message("Sorting %s..." % filename)
-        try:
-            subprocess.check_call(['sort',
-                                   '-z',
-                                   '-t', '\xff',
-                                   '-k', '1,1',
-                                   '-T', '.',
-                                   '-S', self.sort_buffer_size,
-                                   '-o', filename,
-                                   filename])
-        except subprocess.CalledProcessError, e:
-            raise DataError("Sorting %s failed: %s" % (filename, e))
-        Message("Finished sorting")
+    def url(self, filename, scheme='disco'):
+        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.jobpath, filename)
 
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval
@@ -174,19 +146,32 @@ class Task(object):
             yield item
         Message("Done: %s" % (message_template % (n + 1)))
 
-    def connect_input(self, url):
-        fd = sze = None
-        for input_stream in self.input_stream:
-            ret = input_stream(fd, sze, url, self.params)
-            fd, sze, url = ret if type(ret) == tuple else (ret, sze, url)
-        return fd, sze, url
+    def connect_input(self, url, fd=None, size=None):
+        def fd_tuple(object, *args):
+            if isinstance(object, tuple):
+                return object
+            return (object,) + args
 
-    def connect_output(self, part=0):
-        fd = url = None
+        for input_stream in self.input_stream:
+            fd, size, url = fd_tuple(input_stream(fd, size, url, self.params),
+                                     size, url)
+
+        # backwards compatibility for readers
+        if self.reader:
+            if util.argcount(self.reader) == 3:
+                return fd_tuple(self.reader(fd, size, url), size, url)
+            return fd_tuple(self.reader(fd, size, url, self.params), size, url)
+        return fd, size, url
+
+    def connect_output(self, part=0, fd=None, url=None):
         fd_list = []
         for output_stream in self.output_stream:
             fd, url = output_stream(fd, part, url, self.params)
             fd_list.append(fd)
+
+        # backwards compatibility for writers
+        if self.writer:
+            fd.add = lambda k, v: self.writer(fd, k, v, self.params)
         return fd, url, fd_list
 
     def close_output(self, fd_list):
@@ -207,10 +192,6 @@ class Task(object):
         for fd, size, url in self.connected_inputs:
             for entry in fd:
                 yield entry
-
-    @property
-    def sorted_entries(self):
-        return iter(sorted(self.entries))
 
     @property
     def functions(self):
@@ -236,7 +217,6 @@ class Task(object):
         ensure_path(self.oob_dir)
         sys.path.insert(0, self.lib)
         write_files(self.required_files, self.lib)
-        self.insert_globals(self.functions)
         self._run_profile() if self.profile else self._run()
 
     def _run_profile(self):
@@ -276,7 +256,7 @@ class Map(Task):
             TaskFailed("Storing partitioned outputs in DDFS is not yet supported")
 
         if self.ext_map:
-            external.prepare(self.map, self.ext_params, self.path('EXT_MAP'))
+            external.prepare(self.map, self.ext_params, self.path('ext.map'))
             self.map = FunctionType(external.ext_map.func_code,
                                     globals=external.__dict__)
             self.insert_globals([self.map])
@@ -340,7 +320,7 @@ class Reduce(Task):
         params = self.params
 
         if self.ext_reduce:
-            external.prepare(self.reduce, self.ext_params, self.path('EXT_REDUCE'))
+            external.prepare(self.reduce, self.ext_params, self.path('ext.reduce'))
             self.reduce = FunctionType(external.ext_reduce.func_code,
                                        globals=external.__dict__)
             self.insert_globals([self.reduce])
@@ -362,9 +342,39 @@ class Reduce(Task):
             safe_update(index, {'%d %s' % (self.id, out_url): True})
             OutputURL(index_url)
 
+    def __iter__(self):
+        if self.sort == 'merge':
+            return self.merge_sorted_entries
+        elif self.sort:
+            return self.sorted_entries
+        return self.entries
+
+    def disk_sort(self, filename):
+        Message("Sorting %s..." % filename)
+        try:
+            subprocess.check_call(['sort',
+                                   '-z',
+                                   '-t', '\xff',
+                                   '-k', '1,1',
+                                   '-T', '.',
+                                   '-S', self.sort_buffer_size,
+                                   '-o', filename,
+                                   filename])
+        except subprocess.CalledProcessError, e:
+            raise DataError("Sorting %s failed: %s" % (filename, e))
+        Message("Finished sorting")
+
+    @property
+    def merge_sorted_entries(self):
+        inputs = (util.kvgroup(fd) for fd, size, url in self.connected_inputs)
+        for k_vss in util.izip_longest(*inputs, fillvalue=(None, ())):
+            for k, vs in sorted(k_vss, key=util.key):
+                for v in vs:
+                    yield k, v
+
     @property
     def sorted_entries(self):
-        dlname = self.path('REDUCE_DL', self.id)
+        dlname = self.path('reduce-in-%d.dl' % self.id)
         Message("Downloading %s" % dlname)
         out_fd = AtomicFile(dlname, 'w')
         for key, value in self.entries:
@@ -374,7 +384,7 @@ class Reduce(Task):
                 raise ValueError("Cannot sort keys with 0xFF or 0x00 bytes")
             else:
                 # value pickled using protocol 0 will always be printable ASCII
-                out_fd.write("%s\xff%s\x00" % (key, cPickle.dumps(value, 0)))
+                out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
         out_fd.close()
         Message("Downloaded OK")
 

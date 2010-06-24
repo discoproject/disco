@@ -472,7 +472,7 @@ class JobDict(util.DefaultDict):
                              (*Added in version 0.2.4*)
 
     :type  map_output_stream: list of :func:`disco.func.output_stream`
-    :param map_output_stream: The given functions are chained together and the 
+    :param map_output_stream: The given functions are chained together and the
                               :meth:`disco.func.OutputStream.add` method of the last
                               returned :class:`disco.func.OutputStream` object is used
                               to serialize key, value pairs output by the map.
@@ -481,7 +481,7 @@ class JobDict(util.DefaultDict):
     :type  map_reader: :func:`disco.func.input_stream`
     :param map_reader: Convenience function to define the last :func:`disco.func.input_stream`
                        function in the *map_input_stream* chain.
-    
+
                        Disco worker provides a convenience function
                        :func:`disco.func.re_reader` that can be used to create
                        a reader using regular expressions.
@@ -491,7 +491,7 @@ class JobDict(util.DefaultDict):
 
                        Default is :func:`disco.func.map_line_reader`.
 
-    :param map_writer: (*Deprecated in version 0.3*) This function comes in 
+    :param map_writer: (*Deprecated in version 0.3*) This function comes in
                        handy e.g. when *reduce* is not
                        specified and you want *map* output in a specific format.
                        Another typical case is to use
@@ -517,13 +517,13 @@ class JobDict(util.DefaultDict):
 
     :type  reduce_input_stream: list of :func:`disco.func.output_stream`
     :param reduce_input_stream: The given functions are chained together and the last
-                              returned :class:`disco.func.InputStream` object is 
+                              returned :class:`disco.func.InputStream` object is
                               given to *reduce* as its first argument.
                               (*Added in version 0.2.4*)
-    
+
     :type  reduce_output_stream: list of :func:`disco.func.output_stream`
     :param reduce_output_stream: The given functions are chained together and the last
-                              returned :class:`disco.func.OutputStream` object is 
+                              returned :class:`disco.func.OutputStream` object is
                               given to *reduce* as its second argument.
                               (*Added in version 0.2.4*)
 
@@ -733,12 +733,6 @@ class JobDict(util.DefaultDict):
 
     scheduler_keys = set(['force_local', 'force_remote', 'max_cores'])
 
-    io_mappings =\
-        [('map_reader', 'map_input_stream', func.reader_wrapper),
-         ('map_writer', 'map_output_stream', func.writer_wrapper),
-         ('reduce_reader', 'reduce_input_stream', func.reader_wrapper),
-         ('reduce_writer', 'reduce_output_stream', func.writer_wrapper)]
-
     stacks = set(['map_input_stream',
                   'map_output_stream',
                   'reduce_input_stream',
@@ -786,8 +780,8 @@ class JobDict(util.DefaultDict):
             self['nr_reduces'] = self['partitions'] or 1
         elif self.input_is_partitioned:
             # Only reduce, with partitions: len(dir://) specifies nr_reduces
-            self['nr_reduces'] = 1 + max(id for dir in self['input']\
-                                        for id, url in util.read_index(dir[0]))
+            self['nr_reduces'] = 1 + max(id for dir in self['input']
+                                         for id, url in util.read_index(dir[0]))
         else:
             # Only reduce, without partitions can only have 1 reduce
             self['nr_reduces'] = 1
@@ -807,12 +801,12 @@ class JobDict(util.DefaultDict):
         self['scheduler'] = scheduler
 
         # -- sanity checks --
-        if not self['map'] and not self['reduce']:
-            raise DiscoError("Must specify map and/or reduce")
-
         for key in self:
             if key not in self.defaults:
                 raise DiscoError("Unknown job argument: %s" % key)
+
+    def __contains__(self, key):
+        return key in self.defaults
 
     def pack(self):
         """Pack up the :class:`JobDict` for sending over the wire."""
@@ -871,17 +865,14 @@ class JobDict(util.DefaultDict):
                 jobdict[key] = util.unpack_stack(jobdict[key], globals=globals)
             else:
                 jobdict[key] = util.unpack(jobdict[key], globals=globals)
-        # map readers and writers to streams
-        for oldio, stream, wrapper in cls.io_mappings:
-            if jobdict[oldio]:
-                jobdict[stream].append(wrapper(jobdict[oldio]))
         return cls(**jobdict)
 
     @property
     def input_is_partitioned(self):
-        return all(url.startswith('dir://')
-                   for urls in self['input']
-                   for url in urls)
+        if self['input']:
+            return all(url.startswith('dir://')
+                       for urls in self['input']
+                       for url in urls)
 
 class Job(object):
     """
@@ -1042,40 +1033,32 @@ def result_iterator(results,
                     can be set with *tempdir="path"*. Temporary files can be disabled
                     with *tempdir=False*, in which case results are read in memory.
     """
-    from disco.task import Task
-    task = Task()
-    task.params = params
-    task.input_stream = list(input_stream)
-    if reader:
-        task.input_stream.append(func.reader_wrapper(reader))
-    task.insert_globals(task.input_stream)
+    from disco.task import Map
+    task = Map(jobdict=JobDict(map_input_stream=input_stream,
+                               map_reader=reader,
+                               params=params))
     for result in results:
         for url in util.urllist(result, ddfs=ddfs):
-            if notifier:
-                notifier(url)
-            if type(url) == list:
-                iter = process_url_safe(url, tempdir, task)
-            else:
-                iter, sze, url = task.connect_input(url)
-            for x in iter:
-                yield x
+            for obj in process_url_safe(list(util.iterify(url)), tempdir, task):
+                yield obj
 
 def process_url_safe(urls, tempdir, task):
     while urls:
         try:
-            in_stream, sze, url = task.connect_input(urls[0])
-            return list(in_stream) if tempdir == False\
-                else disk_buffer(tempdir, in_stream)
-        except:
-            urls = urls[1:]
+            in_stream, size, url = task.connect_input(urls.pop(0))
+            if tempdir is False:
+                return iter(in_stream)
+            return disk_buffer(tempdir, in_stream)
+        except Exception:
             if not urls:
                 raise
 
 def disk_buffer(tempdir, in_stream):
+    from cPickle import dump, load
     fd = NamedTemporaryFile(prefix='discores-', dir=tempdir)
-    n = util.ilen(marshal.dump(x, fd.file) for x in in_stream)
+    n = util.ilen(dump(x, fd.file) for x in in_stream)
     fd.seek(0)
-    return (marshal.load(fd.file) for i in range(n))
+    return (load(fd.file) for i in xrange(n))
 
 class Stats(object):
     def __init__(self, prof_data):

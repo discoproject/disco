@@ -184,6 +184,7 @@ class DiscoJobTestFixture(object):
             self.job.purge()
 
     def runTest(self):
+        from disco.util import izip_longest as zip
         for result, answer in zip(self.results, self.answers):
             self.assertEquals(result, answer)
 
