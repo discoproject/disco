@@ -13,7 +13,7 @@ class CurlResponse(object):
         self.buffer = StringIO()
 
     def getheader(self, header, default=None):
-        return self.headers.get(header, default)
+        return self.headers.get(header.lower(), default)
 
     def getheaders(self):
         return self.headers.items()
