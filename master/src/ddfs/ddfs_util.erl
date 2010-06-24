@@ -8,7 +8,7 @@
 
 -include("config.hrl").
 
--spec is_valid_name([char()]) -> boolean().
+-spec is_valid_name(string()) -> boolean().
 is_valid_name([]) -> false;
 is_valid_name(Name) when length(Name) > ?NAME_MAX -> false;
 is_valid_name(Name) ->

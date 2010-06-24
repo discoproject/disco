@@ -9,7 +9,10 @@
 
 -include("config.hrl").
 
--record(state, {nodes, put_port, tags, tag_cache, blacklisted}).
+-record(state, {nodes :: [{node(), non_neg_integer()}],
+                tags :: gb_tree(),
+                tag_cache :: 'false' | gb_set(),
+                blacklisted :: [node()]}).
 
 start_link() ->
     error_logger:info_report([{"DDFS master starts"}]),
@@ -128,6 +131,8 @@ terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+-spec get_tags('all' | 'filter', [node()]) -> {[node()], [node()], [binary()]};
+              ('safe', [node()]) -> {'ok', [binary()]} | 'too_many_failed_nodes'.
 get_tags(all, Nodes) ->
     {Replies, Failed} = gen_server:multi_call(Nodes, 
         ddfs_node, get_tags, ?NODE_TIMEOUT),
@@ -152,6 +157,7 @@ get_tags(safe, Nodes) ->
             too_many_failed_nodes
     end.
 
+-spec monitor_diskspace() -> no_return().
 monitor_diskspace() ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     {Replies, _} = gen_server:multi_call(Nodes,
@@ -162,12 +168,14 @@ monitor_diskspace() ->
     timer:sleep(?DISKSPACE_INTERVAL),
     monitor_diskspace().
 
+-spec refresh_tag_cache_proc() -> no_return().
 refresh_tag_cache_proc() ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     refresh_tag_cache(Nodes),
     timer:sleep(?TAG_CACHE_INTERVAL),
     refresh_tag_cache_proc().
 
+-spec refresh_tag_cache([node()]) -> 'ok'.
 refresh_tag_cache(Nodes) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     {Replies, Failed} = gen_server:multi_call(Nodes, 
@@ -178,5 +186,3 @@ refresh_tag_cache(Nodes) ->
             {update_tag_cache, gb_sets:from_list(lists:flatten(Tags))});
     true -> ok
     end.
-
-    
