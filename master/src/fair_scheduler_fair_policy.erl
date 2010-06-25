@@ -123,7 +123,7 @@ bias_priority(Job, PrioQ, Jobs, NumCores) ->
 prioq_insert(Item, R) -> prioq_insert(Item, R, []).
 -spec prioq_insert(prioq_item(), prioq(), prioq()) -> prioq().
 prioq_insert(Item, [], H) -> lists:reverse([Item|H]);
-prioq_insert({Prio, _, _} = Item, [{P, _} = E|R], H) when Prio > P ->
+prioq_insert({Prio, _, _} = Item, [{P, _, _} = E|R], H) when Prio > P ->
     prioq_insert(Item, R, [E|H]);
 prioq_insert(Item, L, H) ->
     lists:reverse(H) ++ [Item|L].
