@@ -50,7 +50,7 @@ send_blob(Obj, DstUrl, Root) ->
         DstUrl, ?GC_PUT_TIMEOUT).
 
 -spec traverse(timer:timestamp(), nonempty_string(),
-    nonempty_string()], nonempty_string(), atom()) -> _.
+    nonempty_string(), nonempty_string(), atom()) -> _.
 traverse(Now, Root, Vols, Mode, Ets) ->
     lists:foldl(fun(Vol, _) ->
         ddfs_util:fold_files(filename:join([Root, Vol, Mode]),
