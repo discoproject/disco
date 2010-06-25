@@ -30,6 +30,7 @@ json_list([X], L) ->
 json_list([X|R], L) ->
     json_list(R, [<<X/binary, ",">>|L]).
 
+-spec unique_key(nonempty_string(), dict()) -> nonempty_string().
 unique_key(Prefix, Dict) ->
     {MegaSecs, Secs, MicroSecs} = now(),
     Key = lists:flatten(io_lib:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs])),
@@ -207,12 +208,15 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
              MsgBufN}
     end.
 
+%-spec event(nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(JobName, Format, Args, Params) ->
     event("master", JobName, Format, Args, Params).
 
+%-spec event(nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(Host, JobName, Format, Args, Params) ->
     event(event_server, Host, JobName, Format, Args, Params).
 
+%-spec event(atom(), nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(EventServer, Host, JobName, Format, Args, Params) ->
     SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 10000 of
 		     true -> trunc_io:fprint(X, 10000);

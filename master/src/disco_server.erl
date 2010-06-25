@@ -7,10 +7,18 @@
     terminate/2, code_change/3]).
 
 -include("task.hrl").
--record(dnode, {name, node_mon, blacklisted, slots, num_running,
-        stats_ok, stats_failed, stats_crashed}).
+-record(dnode, {name :: nonempty_string(),
+                node_mon :: pid(),
+                blacklisted :: boolean() | 'manual' | timer:timestamp(),
+                slots :: non_neg_integer(),
+                num_running :: non_neg_integer(),
+                stats_ok :: non_neg_integer(),
+                stats_failed :: non_neg_integer(),
+                stats_crashed :: non_neg_integer()}).
 
--record(state, {workers, nodes, purged}).
+-record(state, {workers :: gb_tree(),
+                nodes :: gb_tree(),
+                purged :: gb_tree()}).
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
 

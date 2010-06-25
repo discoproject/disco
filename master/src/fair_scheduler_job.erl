@@ -29,6 +29,7 @@ start(JobName, JobCoord) ->
             end
     end.
 
+-spec init({nonempty_string(), pid()}) -> _.
 init({JobName, JobCoord}) ->
     process_flag(trap_exit, true),
     put(jobname, JobName),
