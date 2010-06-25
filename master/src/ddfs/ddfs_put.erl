@@ -58,7 +58,8 @@ valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
 
--spec receive_blob(module(), {nonempty_string(), nonempty_string()}, nonempty_string()) -> _.
+-spec receive_blob(module(), {nonempty_string(), nonempty_string()},
+    nonempty_string()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
     Dir = filename:join(Path, Fname),
     case prim_file:read_file_info(Dir) of
@@ -73,7 +74,8 @@ receive_blob(Req, {Path, Fname}, Url) ->
             error_reply(Req, "File exists", Dir, Dir)
     end.
 
--spec receive_blob(module(), file:io_device(), nonempty_string(), nonempty_string()) -> _.
+-spec receive_blob(module(), file:io_device(), nonempty_string(),
+    nonempty_string()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
     case receive_body(Req, IO) of
         ok ->

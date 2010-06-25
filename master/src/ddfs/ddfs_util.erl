@@ -89,7 +89,8 @@ to_hex_helper(Int, L) ->
 to_hex(Int) ->
     to_hex_helper(Int, []).
 
--spec hashdir(binary(), nonempty_string(), nonempty_string(), nonempty_string(), nonempty_string()) -> {'ok', string(), binary()}.
+-spec hashdir(binary(), nonempty_string(), nonempty_string(),
+    nonempty_string(), nonempty_string()) -> {'ok', string(), binary()}.
 hashdir(Name, Node, Mode, Root, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
     D1 = to_hex(D0),
@@ -99,7 +100,8 @@ hashdir(Name, Node, Mode, Root, Vol) ->
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
 
--spec safe_rename(string(), string()) -> 'ok' | {'error', 'file_exists' | {'chmod_failed', _} | {'rename_failed', _}}.
+-spec safe_rename(string(), string()) -> 'ok' | {'error', 'file_exists'
+    | {'chmod_failed', _} | {'rename_failed', _}}.
 safe_rename(Src, Dst) ->
     case prim_file:read_file_info(Dst) of
         {error, enoent} ->
@@ -115,7 +117,8 @@ safe_rename(Src, Dst) ->
         _ -> {error, file_exists}
     end.
 
--spec diskspace(string()) -> {'error', 'invalid_output' | 'invalid_path'} | {'ok', integer()}.
+-spec diskspace(string()) ->
+    {'error', 'invalid_output' | 'invalid_path'} | {'ok', integer()}.
 diskspace(Path) ->
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
         [_, _, Free|_] ->

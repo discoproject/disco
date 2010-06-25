@@ -6,7 +6,8 @@
 -define(CONNECT_TIMEOUT, 60000).
 -define(BUFFER_SIZE, 8192).
 
--spec http_put(nonempty_string(), nonempty_string(), integer()) -> 'ok' | {'error', 'crashed' | 'timeout'}.
+-spec http_put(nonempty_string(), nonempty_string(), integer()) ->
+    'ok' | {'error', 'crashed' | 'timeout'}.
 http_put(SrcPath, DstUrl, Timeout) ->
     % We use a middleman process to prevent messages received after timeout
     % reaching the original caller.
@@ -73,7 +74,8 @@ send_body(Socket, IO, {ok, Data}) ->
     ok = gen_tcp:send(Socket, Data),
     send_body(Socket, IO).
 
--spec read_response(port()) -> {'error', 'invalid_response'} | {'ok', [_]} | {'error', integer(), [_]}.
+-spec read_response(port()) ->
+    {'error', 'invalid_response'} | {'ok', [_]} | {'error', integer(), [_]}.
 read_response(Socket) ->
     {ok, RBin} = recv_all(Socket),
     Resp = binary_to_list(RBin),

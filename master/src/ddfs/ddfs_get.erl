@@ -22,7 +22,8 @@ serve_disco_file(Path, Req) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     loop(Path, Req, {none, DiscoRoot}).
 
--spec loop(nonempty_string(), module(), {nonempty_string() | 'none', nonempty_string() | 'none'}) -> _.
+-spec loop(nonempty_string(), module(),
+    {nonempty_string() | 'none', nonempty_string() | 'none'}) -> _.
 loop("/proxy/" ++ Path, Req, Roots) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),

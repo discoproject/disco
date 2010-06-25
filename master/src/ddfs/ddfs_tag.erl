@@ -9,9 +9,11 @@
 
 -type replica() :: {timer:timestamp(), nonempty_string()}.
 -record(state, {tag, % :: binary(),
-                data :: 'false'  | 'notfound' | 'deleted' | {'error', _} | binary(),
+                data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
+                    | binary(),
                 timeout :: non_neg_integer(),
-                replicas :: 'false' | 'too_many_failed_nodes' | [{replica(), node()}],
+                replicas :: 'false' | 'too_many_failed_nodes'
+                    | [{replica(), node()}],
                 url_cache :: 'false' | gb_set()}).
 
 % THOUGHT: Eventually we want to partition tag keyspace instead

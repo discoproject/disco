@@ -41,14 +41,16 @@ node_server(Root) ->
 take_key(Key, Ets) ->
     ets:update_element(Ets, Key, {3, true}).
 
--spec send_blob(binary(), nonempty_string(), nonempty_string()) -> 'ok' | {'error', 'crashed' | 'timeout'}.
+-spec send_blob(binary(), nonempty_string(), nonempty_string()) ->
+    'ok' | {'error', 'crashed' | 'timeout'}.
 send_blob(Obj, DstUrl, Root) ->
     [{_, Vol, _}] = ets:lookup(blob, Obj),
     {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", "blob", Root, Vol),
     ddfs_http:http_put(filename:join(Path, binary_to_list(Obj)),
         DstUrl, ?GC_PUT_TIMEOUT).
 
--spec traverse(timer:timestamp(), nonempty_string(), [nonempty_string()], nonempty_string(), atom()) -> _.
+-spec traverse(timer:timestamp(), nonempty_string(),
+    nonempty_string()], nonempty_string(), atom()) -> _.
 traverse(Now, Root, Vols, Mode, Ets) ->
     lists:foldl(fun(Vol, _) ->
         ddfs_util:fold_files(filename:join([Root, Vol, Mode]),
@@ -61,7 +63,8 @@ traverse(Now, Root, Vols, Mode, Ets) ->
 %%%
 %%% O1) Remove leftover !partial. files
 %%%
--spec handle_file(nonempty_string(), nonempty_string(), nonempty_string(), atom(), timer:timestamp()) -> _.
+-spec handle_file(nonempty_string(), nonempty_string(),
+    nonempty_string(), atom(), timer:timestamp()) -> _.
 handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     [_, Obj] = string:tokens(File, "."),
     {_, Time} = ddfs_util:unpack_objname(Obj),
@@ -75,7 +78,8 @@ handle_file(Obj, _, Vol, Ets, _) ->
 %%% O2) Remove orphaned tags
 %%% O3) Remove orphaned blobs
 %%%
--spec delete_orphaned(pid(), timer:timestamp(), nonempty_string(), nonempty_string(), atom(), non_neg_integer()) -> _.
+-spec delete_orphaned(pid(), timer:timestamp(), nonempty_string(),
+    nonempty_string(), atom(), non_neg_integer()) -> _.
 delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
     error_logger:info_report(
         {"GC: # orphaned", Mode, ets:info(Ets, size)}),
@@ -97,7 +101,8 @@ is_really_orphan(Master, Obj) ->
                 orphans_failed)
     end.
 
--spec delete_if_expired(nonempty_string(), timer:timestamp(), timer:timestamp(), non_neg_integer()) -> _.
+-spec delete_if_expired(nonempty_string(), timer:timestamp(),
+    timer:timestamp(), non_neg_integer()) -> _.
 delete_if_expired(Path, Now, Time, Expires) ->
     Diff = timer:now_diff(Now, Time) / 1000,
     if Diff > Expires ->
