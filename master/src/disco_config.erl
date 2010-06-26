@@ -1,7 +1,7 @@
 -module(disco_config).
 -export([get_config_table/0, save_config_table/1, expand_range/2]).
 
--spec expand_range(nonempty_string(), nonempty_string()) -> [char()].
+-spec expand_range(nonempty_string(), nonempty_string()) -> [nonempty_string()].
 expand_range(FirstNode, Max) ->
     Len = string:len(FirstNode),
     FieldLen = string:len(Max),

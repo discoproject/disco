@@ -93,6 +93,7 @@ is_master_node(Node) ->
             false
     end.
 
+-spec start_temp_gc(atom(), nonempty_string()) -> pid().
 start_temp_gc(NodeAtom, Node) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
     GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
@@ -100,6 +101,7 @@ start_temp_gc(NodeAtom, Node) ->
         [whereis(disco_server), whereis(event_server), whereis(ddfs_master),
          DataRoot, Node, GCAfter]).
 
+-spec start_ddfs_node(atom(), {boolean(), boolean()}) -> pid().
 start_ddfs_node(NodeAtom, {GetEnabled, PutEnabled}) ->
     DdfsRoot = disco:get_setting("DDFS_ROOT"),
     DiscoRoot = disco:get_setting("DISCO_DATA"),
@@ -122,9 +124,3 @@ blacklist(Node) ->
     gen_server:call(disco_server, {blacklist, Node, Token}),
     timer:sleep(?BLACKLIST_PERIOD),
     gen_server:call(disco_server, {whitelist, Node, Token}).
-
-
-
-
-
-

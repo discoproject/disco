@@ -6,6 +6,8 @@
 
 -define(GC_INTERVAL, 600000).
 
+-spec start_link(pid(), pid(), pid(), nonempty_string(), nonempty_string(),
+    non_neg_integer()) -> no_return().
 start_link(Master, EventServer, DdfsMaster, DataRoot, Node, GCAfter) ->
     put(master, Master),
     put(events, EventServer),
@@ -14,6 +16,7 @@ start_link(Master, EventServer, DdfsMaster, DataRoot, Node, GCAfter) ->
     put(gcafter, GCAfter),
     loop().
 
+-spec loop() -> no_return().
 loop() ->
     case catch {gen_server:call(get(master), get_purged),
                 gen_server:call(get(events), get_jobs)} of
@@ -34,6 +37,7 @@ loop() ->
     timer:sleep(?GC_INTERVAL),
     loop().
 
+-spec process_dir([string()], gb_set(), gb_set()) -> 'ok'.
 process_dir([], _Purged, _Active) -> ok;
 process_dir([Dir|R], Purged, Active) ->
     Path = filename:join(get(root), Dir),
@@ -42,9 +46,11 @@ process_dir([Dir|R], Purged, Active) ->
         Job <- Jobs, ifdead(Job, Active)],
     process_dir(R, Purged, Active).
 
+-spec ifdead(string(), gb_set()) -> boolean().
 ifdead(Job, Active) ->
     not gb_sets:is_member(list_to_binary(Job), Active).
 
+-spec process_job(string(), gb_set()) -> 'ok' | string().
 process_job(JobPath, Purged) ->
     case prim_file:read_file_info(JobPath) of
         {ok, #file_info{type = directory, mtime = TStamp}} ->
