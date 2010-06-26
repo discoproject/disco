@@ -12,15 +12,15 @@
                 task :: task(),
                 start_time :: timer:timestamp(),
                 eventserver :: pid(),
-                eventstream,
+                eventstream :: event_stream:event_stream(),
                 child_pid :: 'none' | string(),
                 node :: node(),
                 linecount :: non_neg_integer(),
-                errlines,
+                errlines :: message_buffer:message_buffer(),
                 results :: string(),
                 debug :: boolean(),
                 last_event :: timer:timestamp(),
-                event_counter}).
+                event_counter :: non_neg_integer()}).
 
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
