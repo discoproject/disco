@@ -2,6 +2,7 @@
 #OPT = -W +native +"{hipe, [o3]}"
 OPT = -W
 CC  = erlc
+ERL = erl
 
 PYTHON = python
 DIALYZER = dialyzer
@@ -9,6 +10,7 @@ TYPER = typer
 
 ESRC = master/src
 EBIN = master/ebin
+ETEST = master/tests
 
 DESTDIR=/
 PREFIX=/usr/local
@@ -36,16 +38,20 @@ SRC3 = $(wildcard $(ESRC)/ddfs/*.erl)
 DDFS_TARGET = $(addsuffix .beam, $(basename \
              $(addprefix $(EBIN)/ddfs/, $(notdir $(SRC3)))))
 
+TESTSRC = $(wildcard $(ETEST)/*.erl)
+TEST_TARGET = $(addsuffix .beam, $(basename $(TESTSRC)))
+
 UNAME = $(shell uname)
 
 build: master
 
-master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
+master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET) $(TEST_TARGET)
 
 clean:
 	- rm -Rf master/ebin/*.beam
 	- rm -Rf master/ebin/mochiweb/*.beam
 	- rm -Rf master/ebin/ddfs/*.beam
+	- rm -Rf master/tests/*.beam
 	- rm -Rf lib/build
 	- rm -Rf lib/disco.egg-info
 	- rm -Rf node/build
@@ -114,6 +120,9 @@ $(EBIN)/ddfs/%.beam: $(ESRC)/ddfs/%.erl
 $(EBIN)/%.beam: $(ESRC)/%.erl
 	$(CC) $(OPT) -o $(EBIN) $<
 
+$(ETEST)/%.beam: $(ETEST)/%.erl
+	$(CC) $(OPT) -o $(ETEST) $<
+
 $(EBIN)/ddfs:
 	- mkdir $(EBIN)/ddfs
 
@@ -139,3 +148,7 @@ typer:
 
 realclean: clean
 	-rm -f $(DIALYZER_PLT)
+
+master-tests: $(TEST_TARGET)
+	$(ERL) -noshell -pa $(ETEST) -s master_tests main -s init stop
+
