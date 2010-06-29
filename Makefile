@@ -150,5 +150,5 @@ realclean: clean
 	-rm -f $(DIALYZER_PLT)
 
 master-tests: $(TEST_TARGET)
-	$(ERL) -noshell -pa $(ETEST) -s master_tests main -s init stop
+	$(ERL) -noshell -pa $(ETEST) -pa $(EBIN) -pa $(EBIN)/ddfs -s master_tests main -s init stop
 
