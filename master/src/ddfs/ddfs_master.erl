@@ -141,12 +141,17 @@ get_tags(all, Nodes) ->
 
 get_tags(filter, Nodes) ->
     {OkNodes, Failed, Tags} = get_tags(all, Nodes),
-    {ok, Deleted} = gen_server:call(ddfs_master,
-        {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT),
-    TagSet = gb_sets:from_ordset([[<<"tag://", T/binary>>] || T <- Tags]),
-    DelSet = gb_sets:insert([<<"tag://+deleted">>], Deleted),
-    {OkNodes, Failed, [T || [<<"tag://", T/binary>>]
-        <- gb_sets:to_list(gb_sets:subtract(TagSet, DelSet))]};
+    case gen_server:call(ddfs_master,
+            {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
+        {ok, Deleted} ->
+            TagSet = gb_sets:from_ordset(
+                [[<<"tag://", T/binary>>] || T <- Tags]),
+            DelSet = gb_sets:insert([<<"tag://+deleted">>], Deleted),
+            {OkNodes, Failed, [T || [<<"tag://", T/binary>>]
+                <- gb_sets:to_list(gb_sets:subtract(TagSet, DelSet))]};
+        E ->
+            E
+    end;
 
 get_tags(safe, Nodes) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
