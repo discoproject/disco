@@ -41,6 +41,7 @@ docroot() ->
     disco:get_setting("DISCO_WWW_ROOT").
 
 dispatch(Req, Module) ->
+    erlang:put(mochiweb_request_force_close, true),
     case catch Module:op(Req:get(method), Req:get(path), Req) of
         {'EXIT', E} ->
             error_logger:error_report({"Request failed", Req:get(path), E}),
