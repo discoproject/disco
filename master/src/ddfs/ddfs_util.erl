@@ -80,7 +80,7 @@ to_hex_helper(Int, L) ->
             D = Int div 16,
             R = Int rem 16,
             C = if R < 10 -> $0 + R;
-                   true   -> $A + R - 10
+                   true   -> $a + R - 10
                 end,
             to_hex_helper(D, [C|L])
     end.

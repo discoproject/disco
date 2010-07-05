@@ -119,7 +119,7 @@ handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
         "tag", S#state.root, Vol),
     case ddfs_util:ensure_dir(Local) of
         ok ->
-            F = filename:join([Local, "!partial.", binary_to_list(Tag)]),
+            F = filename:join(Local, ["!partial.", binary_to_list(Tag)]),
             {reply, case prim_file:write_file(F, Data) of
                 ok -> {ok, Vol};
                 {error, _} = E -> E
@@ -135,7 +135,7 @@ handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
 
     TagL = binary_to_list(Tag),
-    Src = filename:join([Local, "!partial.", TagL]),
+    Src = filename:join(Local, ["!partial.", TagL]),
     Dst = filename:join(Local,  TagL),
     case ddfs_util:safe_rename(Src, Dst) of
         ok ->
