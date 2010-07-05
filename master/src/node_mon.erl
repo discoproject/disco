@@ -3,7 +3,7 @@
 
 -define(BLACKLIST_PERIOD, 600000).
 -define(RESTART_DELAY, 10000).
--define(SLAVE_ARGS, "+K true").
+-define(SLAVE_ARGS, "+K true -connect_all false").
 
 slave_node(Node) ->
     list_to_atom(slave_name() ++ "@" ++ Node).
