@@ -192,7 +192,7 @@ get_tagdata(Tag) ->
             end
     end.
 
--spec validate_urls([binary()]) -> boolean().
+-spec validate_urls([binary()]) -> bool().
 validate_urls(Urls) ->
     [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
 
@@ -221,7 +221,7 @@ parse_tagurls(TagData) ->
 % 6. if all fail, fail
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
--spec put_transaction(boolean(), [binary()], #state{}) ->
+-spec put_transaction(bool(), [binary()], #state{}) ->
     {'error', _} | {'ok', [node()], [binary()], binary()}.
 put_transaction(false, _, _) -> {error, invalid_url_object};
 put_transaction(true, Urls, S) ->

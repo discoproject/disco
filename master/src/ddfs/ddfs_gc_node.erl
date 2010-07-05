@@ -37,7 +37,7 @@ node_server(Root) ->
                 requests_failed)
     end.
 
--spec take_key(binary(), atom()) -> boolean().
+-spec take_key(binary(), atom()) -> bool().
 take_key(Key, Ets) ->
     ets:update_element(Ets, Key, {3, true}).
 
@@ -91,7 +91,7 @@ delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
                 Now, Time, Expires)
     end, ets:match(Ets, {'$1', '$2', false})).
 
--spec is_really_orphan(pid(), binary()) -> boolean().
+-spec is_really_orphan(pid(), binary()) -> bool().
 is_really_orphan(Master, Obj) ->
     Master ! {is_orphan, self(), Obj},
     receive

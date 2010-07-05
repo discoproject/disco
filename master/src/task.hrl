@@ -6,15 +6,15 @@
                input :: [{binary(), nonempty_string()}],
                from :: pid(),
                chosen_input :: binary(),
-               force_local :: boolean() ,
-               force_remote :: boolean()}).
+               force_local :: bool() ,
+               force_remote :: bool()}).
 -type task() :: #task{}.
 
 -record(jobinfo, {nr_reduce :: non_neg_integer(),
-                  map :: boolean(),
-                  reduce :: boolean(),
+                  map :: bool(),
+                  reduce :: bool(),
                   inputs :: [binary()] | [[binary()]],
                   max_cores :: non_neg_integer(),
-                  force_local :: boolean(),
-                  force_remote :: boolean()}).
+                  force_local :: bool(),
+                  force_remote :: bool()}).
 -type jobinfo() :: #jobinfo{}.

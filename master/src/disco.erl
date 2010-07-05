@@ -17,7 +17,7 @@ get_setting(SettingName) ->
             Val
     end.
 
--spec has_setting(string()) -> boolean().
+-spec has_setting(string()) -> bool().
 has_setting(SettingName) ->
     case os:getenv(SettingName) of
         false -> false;

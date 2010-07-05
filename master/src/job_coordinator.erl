@@ -62,7 +62,7 @@ save_params(Name, PostData) ->
     Home = disco_server:jobhome(Name),
     ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
--spec field_exists([binary()], binary()) -> boolean().
+-spec field_exists([binary()], binary()) -> bool().
 field_exists(Msg, Opt) ->
     lists:keysearch(Opt, 1, Msg) =/= false.
 

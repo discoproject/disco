@@ -55,7 +55,7 @@ loop("/ddfs/" ++ BlobName, Req) ->
 loop(_, Req) ->
     Req:not_found().
 
--spec valid_blob({'EXIT' | binary(),_}) -> boolean().
+-spec valid_blob({'EXIT' | binary(),_}) -> bool().
 valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).

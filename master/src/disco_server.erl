@@ -9,7 +9,7 @@
 -include("task.hrl").
 -record(dnode, {name :: nonempty_string(),
                 node_mon :: pid(),
-                blacklisted :: boolean() | 'manual' | timer:timestamp(),
+                blacklisted :: bool() | 'manual' | timer:timestamp(),
                 slots :: non_neg_integer(),
                 num_running :: non_neg_integer(),
                 stats_ok :: non_neg_integer(),

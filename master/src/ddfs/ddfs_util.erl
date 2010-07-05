@@ -8,7 +8,7 @@
 
 -include("config.hrl").
 
--spec is_valid_name(string()) -> boolean().
+-spec is_valid_name(string()) -> bool().
 is_valid_name([]) -> false;
 is_valid_name(Name) when length(Name) > ?NAME_MAX -> false;
 is_valid_name(Name) ->
@@ -27,7 +27,7 @@ replace([C|R], A, B, L) when C == A ->
 replace([C|R], A, B, L) ->
     replace(R, A, B, [C|L]).
 
--spec startswith(binary(), binary()) -> boolean().
+-spec startswith(binary(), binary()) -> bool().
 startswith(B, Prefix) when size(B) < size(Prefix) ->
     false;
 startswith(B, Prefix) ->

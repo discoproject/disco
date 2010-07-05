@@ -46,7 +46,7 @@ spawn_node(Node) ->
     timer:sleep(?RESTART_DELAY),
     spawn_node(Node).
 
--spec node_monitor(nonempty_string(), {boolean(), boolean()}) -> _.
+-spec node_monitor(nonempty_string(), {bool(), bool()}) -> _.
 node_monitor(Node, WebConfig) ->
     NodeAtom = slave_node(Node),
     monitor_node(NodeAtom, true),
@@ -76,14 +76,14 @@ slave_env() ->
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 
--spec slave_start(nonempty_string()) -> {boolean(), {'ok', node()} | {'error', _}}.
+-spec slave_start(nonempty_string()) -> {bool(), {'ok', node()} | {'error', _}}.
 slave_start(Node) ->
     error_logger:info_report({"starting node", Node}),
     {is_master_node(Node),
         slave:start(list_to_atom(Node), slave_name(), slave_env(), self(),
                 disco:get_setting("DISCO_ERLANG"))}.
 
--spec is_master_node(nonempty_string()) -> boolean().
+-spec is_master_node(nonempty_string()) -> bool().
 is_master_node(Node) ->
     case net_adm:names(Node) of
         {ok, Names} ->
@@ -101,7 +101,7 @@ start_temp_gc(NodeAtom, Node) ->
         [whereis(disco_server), whereis(event_server), whereis(ddfs_master),
          DataRoot, Node, GCAfter]).
 
--spec start_ddfs_node(atom(), {boolean(), boolean()}) -> pid().
+-spec start_ddfs_node(atom(), {bool(), bool()}) -> pid().
 start_ddfs_node(NodeAtom, {GetEnabled, PutEnabled}) ->
     DdfsRoot = disco:get_setting("DDFS_ROOT"),
     DiscoRoot = disco:get_setting("DISCO_DATA"),

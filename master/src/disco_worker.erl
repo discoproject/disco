@@ -18,7 +18,7 @@
                 linecount :: non_neg_integer(),
                 errlines :: message_buffer:message_buffer(),
                 results :: string(),
-                debug :: boolean(),
+                debug :: bool(),
                 last_event :: timer:timestamp(),
                 event_counter :: non_neg_integer()}).
 
