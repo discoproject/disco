@@ -58,7 +58,14 @@ op('GET', "/ddfs/tag/" ++ Tag0, Req) ->
     end;
 
 op('POST', "/ddfs/tag/" ++ Tag, Req) ->
-    tag_update(fun(Urls) -> ddfs:update_tag(ddfs_master, Tag, Urls) end, Req);
+    tag_update(fun(Urls) ->
+        case lists:keysearch("delayed", 1, Req:parse_qs()) of
+            false ->
+                ddfs:update_tag(ddfs_master, Tag, Urls);
+            _ ->
+                ddfs:update_tag_delayed(ddfs_master, Tag, Urls)
+        end
+    end, Req);
 
 op('PUT', "/ddfs/tag/" ++ Tag, Req) ->
     tag_update(fun(Urls) -> ddfs:replace_tag(ddfs_master, Tag, Urls) end, Req);

@@ -240,7 +240,7 @@ def parse_dir(dir_url, partid=None):
 
 def save_oob(host, name, key, value):
     from disco.ddfs import DDFS
-    DDFS(host).push(ddfs_oobname(name), [(StringIO(value), key)])
+    DDFS(host).push(ddfs_oobname(name), [(StringIO(value), key)], delayed=True)
 
 def load_oob(host, name, key):
     from disco.ddfs import DDFS
@@ -262,6 +262,6 @@ def ddfs_save(blobs, name, master):
     blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
              for blob in blobs]
     tag = ddfs_name(name)
-    ddfs.push(tag, blobs, retries=600)
+    ddfs.push(tag, blobs, retries=600, delayed=True)
     return "tag://%s" % tag
 

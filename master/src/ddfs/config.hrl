@@ -45,6 +45,14 @@
 % cache. It doesn't harm to have a long interval).
 -define(TAG_CACHE_INTERVAL, 10 * ?MINUTE).
 
+% How often buffered (delayed) updates need to be flushed. Tradeoff: The
+% longer the interval, the more updates are bundled in a single commit.
+% On the other hand, in the worst case the requester has to wait for the
+% full interval before getting a reply. A long interval also increases
+% the likelihood that the server crashes before the commit has finished
+% successfully, making requests more unreliable.
+-define(DELAYED_FLUSH_INTERVAL, 1 * ?SECOND).
+
 % Time to wait between garbage collection runs
 -define(GC_INTERVAL, ?DAY).
 

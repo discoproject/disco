@@ -11,6 +11,7 @@
 -record(state, {tag, % :: binary(),
                 data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
                     | binary(),
+                delayed :: {[{pid(), _}], [[binary()]]},
                 timeout :: non_neg_integer(),
                 replicas :: 'false' | 'too_many_failed_nodes'
                     | [{replica(), node()}],
@@ -38,6 +39,7 @@ init({TagName, Status}) ->
 
     {ok, #state{tag = TagName,
                 data = Status,
+                delayed = {[], []},
                 replicas = false,
                 url_cache = false,
                 timeout =
@@ -48,6 +50,14 @@ init({TagName, Status}) ->
                     end
     }}.
 
+
+%%% Note to the reader!
+%%%
+%%% handle_casts below form a state machine. The order in which the functions
+%%% are specified is very significant. The easiest way to understand the state
+%%% machine is to follow the logic from the top to the bottom.
+%%%
+
 % We don't want to cache requests made by garbage collector
 handle_cast({gc_get, ReplyTo}, #state{data = false} = S) ->
     handle_cast({gc_get0, ReplyTo}, S#state{timeout = 100});
@@ -57,6 +67,7 @@ handle_cast({gc_get, ReplyTo}, #state{data = false} = S) ->
 handle_cast({gc_get, ReplyTo}, S) ->
     handle_cast({gc_get0, ReplyTo}, S);
 
+% First request for this tag: No tag data loaded - load it
 handle_cast(M, #state{data = false} = S) ->
     {Data, Replicas, Timeout} =
         case is_tag_deleted(S#state.tag) of
@@ -77,6 +88,37 @@ handle_cast(M, #state{data = false} = S) ->
                 replicas = Replicas,
                 timeout = lists:min([Timeout, S#state.timeout])});
 
+% Delayed update requested but loading tag data failed, reply an error
+handle_cast({{delayed_update, _}, ReplyTo}, #state{data = {error, _}} = S) ->
+    gen_server:reply(ReplyTo, S#state.data),
+    {noreply, S, S#state.timeout};
+
+% Normal delayed update: Append urls to the buffer and exit.
+% The requester will get a reply later.
+handle_cast({{delayed_update, Urls}, ReplyTo},
+        #state{delayed = {Waiters, OldUrls}, tag = Tag} = S) ->
+    if OldUrls =:= [] ->
+        spawn(fun() ->
+            timer:sleep(?DELAYED_FLUSH_INTERVAL),
+            ddfs:get_tag(ddfs_master, binary_to_list(Tag))
+        end);
+    true -> ok
+    end,
+    case validate_urls(Urls) of
+        true ->
+            {noreply, S#state{delayed = {[ReplyTo|Waiters], Urls ++ OldUrls}},
+                S#state.timeout};
+        false ->
+            gen_server:reply(ReplyTo, {error, invalid_url_object}),
+            {noreply, S, S#state.timeout}
+    end;
+
+% Before handling any other requests, flush pending delayed updates
+handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
+    {noreply, S, _} = handle_cast({{update, Urls}, Waiters},
+        S0#state{delayed = {[], []}}),
+    handle_cast(M, S);
+
 handle_cast({die, _}, S) ->
     {stop, normal, S};
 
@@ -85,7 +127,8 @@ handle_cast({get, ReplyTo}, S) ->
     {noreply, S, S#state.timeout};
 
 handle_cast({_, ReplyTo}, #state{data = {error, _}} = S) ->
-    handle_cast({get, ReplyTo}, S);
+    gen_server:reply(ReplyTo, S#state.data),
+    {noreply, S, S#state.timeout};
 
 handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
@@ -101,15 +144,15 @@ handle_cast({{update, Urls}, ReplyTo}, #state{data = D} = S) ->
     % XXX: decompress data here!
     case parse_tagurls(D) of
         {error, _} = E ->
-            gen_server:reply(ReplyTo, E),
-            {noreply, S, ?TAG_EXPIRES_ONERROR};
+            send_replies(ReplyTo, E),
+            {noreply, S, S#state.timeout};
         {ok, OldUrls} ->
             case validate_urls(Urls) of
                 true ->
                     handle_cast({{put, Urls ++ OldUrls}, ReplyTo}, S);
                 false ->
-                    gen_server:reply(ReplyTo, {error, invalid_url_object}),
-                    {noreply, S, ?TAG_EXPIRES_ONERROR}
+                    send_replies(ReplyTo, {error, invalid_url_object}),
+                    {noreply, S, S#state.timeout}
             end
     end;
 
@@ -120,12 +163,12 @@ handle_cast({{put, Urls}, ReplyTo}, S) ->
                 {ok, _} = remove_from_deleted(S#state.tag);
             true -> ok
             end,
-            gen_server:reply(ReplyTo, {ok, DestUrls}),
+            send_replies(ReplyTo, {ok, DestUrls}),
             S1 = S#state{data = TagData, replicas = DestNodes},
-            {noreply, S1, ?TAG_EXPIRES};
+            {noreply, S1, S#state.timeout};
         {error, _} = E ->
-            gen_server:reply(ReplyTo, E),
-            {noreply, S, ?TAG_EXPIRES_ONERROR}
+            send_replies(ReplyTo, E),
+            {noreply, S, S#state.timeout}
     end;
 
 % Special operations for the +deleted metatag
@@ -157,12 +200,17 @@ handle_call(dbg_get_state, _, S) ->
 handle_call(_, _, S) -> {reply, ok, S}.
 
 handle_info(timeout, S) ->
-    {stop, normal, S}.
+    handle_cast({die, none}, S).
 
 % callback stubs
 terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
+    send_replies([ReplyTo], Message);
+send_replies(ReplyToList, Message) ->
+    [gen_server:reply(Re, Message) || Re <- ReplyToList].
 
 -spec get_tagdata(binary()) -> 'notfound' | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.

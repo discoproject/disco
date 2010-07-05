@@ -138,7 +138,7 @@ class DDFS(object):
                 else:
                     raise error
 
-    def push(self, tag, files, replicas=None, retries=10):
+    def push(self, tag, files, replicas=None, retries=10, delayed=False):
         """
         Pushes a bunch of files to ddfs and tags them with `tag`.
 
@@ -159,7 +159,7 @@ class DDFS(object):
 
         urls = [self._push(aim(f), replicas=replicas, retries=retries)
                 for f in files]
-        return self.tag(tag, urls), urls
+        return self.tag(tag, urls, delayed=delayed), urls
 
     def put(self, tag, urls):
         """Put the list of ``urls`` to the tag ``tag``.
@@ -172,9 +172,11 @@ class DDFS(object):
         return self._upload('%s/ddfs/tag/%s' % (self.master, tagname(tag)),
                             BlobSource(StringIO(json.dumps(urls))))
 
-    def tag(self, tag, urls):
+    def tag(self, tag, urls, delayed=False):
         """Append the list of ``urls`` to the ``tag``."""
-        return self._download('/ddfs/tag/%s' % tagname(tag), json.dumps(urls))
+        return self._download('/ddfs/tag/%s?%s' %
+            (tagname(tag), "delayed=1" if delayed else ""),
+                json.dumps(urls))
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):
         import tarfile, sys, gzip, os
