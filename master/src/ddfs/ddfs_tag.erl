@@ -7,7 +7,14 @@
 -export([start/2, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
--record(state, {tag, data, timeout, replicas, url_cache}).
+-type replica() :: {timer:timestamp(), nonempty_string()}.
+-record(state, {tag, % :: binary(),
+                data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
+                    | binary(),
+                timeout :: non_neg_integer(),
+                replicas :: 'false' | 'too_many_failed_nodes'
+                    | [{replica(), node()}],
+                url_cache :: 'false' | gb_set()}).
 
 % THOUGHT: Eventually we want to partition tag keyspace instead
 % of using a single global keyspace. This can be done relatively 
@@ -20,9 +27,11 @@
 % Correspondingly GC'ing must ensure that K replicas for a tag
 % are found within its partition rather than globally.
 
+-spec start(binary(), 'notfound' | 'false') -> _.
 start(TagName, Status) ->
     gen_server:start(ddfs_tag, {TagName, Status}, []).
 
+-spec init({binary(), 'notfound' | 'false'}) -> {'ok', #state{}}.
 init({TagName, Status}) ->
     put(min_tagk, list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS"))),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
@@ -155,6 +164,8 @@ terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+-spec get_tagdata(binary()) -> 'notfound' | {'error', _}
+                             | {'ok', binary(), [{replica(), node()}]}.
 get_tagdata(Tag) ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     {Replies, Failed} = gen_server:multi_call(Nodes, ddfs_node,
@@ -181,9 +192,11 @@ get_tagdata(Tag) ->
             end
     end.
 
+-spec validate_urls([binary()]) -> boolean().
 validate_urls(Urls) ->
     [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
 
+-spec parse_tagurls(binary()) -> {'error', _} | {'ok', [binary()]}.
 parse_tagurls(TagData) ->
     case catch mochijson2:decode(TagData) of
         {'EXIT', _} ->
@@ -208,6 +221,8 @@ parse_tagurls(TagData) ->
 % 6. if all fail, fail
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
+-spec put_transaction(boolean(), [binary()], #state{}) ->
+    {'error', _} | {'ok', [node()], [binary()], binary()}.
 put_transaction(false, _, _) -> {error, invalid_url_object};
 put_transaction(true, Urls, S) ->
     % XXX: compress data here!
@@ -221,12 +236,17 @@ put_transaction(true, Urls, S) ->
                 ]})),
     put_distribute({TagName, TagData}).
 
+-spec put_distribute({binary(), binary()}) ->
+    {'error', _} | {'ok', [node()], [binary()], binary()}.
 put_distribute(Msg) ->
     case put_distribute(Msg, get(tagk), [], []) of
         {ok, TagVol} -> put_commit(Msg, TagVol);
         {error, _} = E -> E
     end.
 
+-spec put_distribute({binary(), binary()}, non_neg_integer(),
+    [{node(), binary()}], [node()]) ->
+        {'error', _} | {'ok', [{node(), binary()}]}.
 put_distribute(_, K, OkNodes, _) when K == length(OkNodes) ->
     {ok, OkNodes};
 
@@ -245,6 +265,9 @@ put_distribute(Msg, K, OkNodes, Exclude) ->
             OkNodes ++ [{N, Vol} || {N, {ok, Vol}} <- Replies],
             Exclude ++ [N || {N, _} <- Replies] ++ Failed)
     end.
+
+-spec put_commit({binary(), binary()}, [{node(), binary()}]) ->
+    {'error', 'commit_failed'} | {'ok', [node()], [binary()], binary()}.
 
 put_commit({TagName, TagData}, TagVol) ->
     {Nodes, _} = lists:unzip(TagVol),

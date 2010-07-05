@@ -5,6 +5,7 @@
 
 -export([op/3]).
 
+-spec op(atom(), string(), module()) -> _.
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     QS = Req:parse_qs(),
@@ -76,6 +77,7 @@ op('GET', Path, Req) ->
 op(_, _, Req) ->
     Req:not_found().
 
+-spec error(_, module()) -> _.
 error(timeout, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});
 error({error, E}, Req) when is_atom(E) ->
@@ -83,9 +85,11 @@ error({error, E}, Req) when is_atom(E) ->
 error(_, Req) ->
     Req:respond({500, [], ["Internal server error"]}).
 
+-spec okjson([binary()], module()) -> _.
 okjson(Data, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)}).
 
+-spec tag_update(fun(([binary()]) -> _), module()) -> _.
 tag_update(Fun, Req) ->
     case catch mochijson2:decode(Req:recv_body(?MAX_TAG_BODY_SIZE)) of
         {'EXIT', _} ->
@@ -99,6 +103,7 @@ tag_update(Fun, Req) ->
             end
     end.
 
+-spec parse_exclude('false' | {'value', {_, string()}}) -> [node()].
 parse_exclude(false) -> [];
 parse_exclude({value, {_, ExcStr}}) ->
     [node_mon:slave_node_safe(Node) || Node <- string:tokens(ExcStr, ",")].

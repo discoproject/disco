@@ -29,6 +29,7 @@ start() ->
         end)}
     end.
 
+-spec update_nodes([nonempty_string()]) -> 'ok'.
 update_nodes(Nodes) ->
     Port = disco:get_setting("DISCO_PROXY_PORT"),
     DiscoPort = disco:get_setting("DISCO_PORT"),
@@ -43,6 +44,7 @@ update_nodes(Nodes) ->
         Pid -> exit(Pid, restart)
     end.
 
+-spec host_line(nonempty_string(), nonempty_string()) -> nonempty_string().
 host_line(Node, Method) ->
     case inet:getaddr(Node, inet) of
         {ok, Ip} ->

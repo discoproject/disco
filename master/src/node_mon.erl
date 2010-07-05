@@ -5,18 +5,22 @@
 -define(RESTART_DELAY, 10000).
 -define(SLAVE_ARGS, "+K true -connect_all false").
 
+-spec slave_node(nonempty_string()) -> node().
 slave_node(Node) ->
     list_to_atom(slave_name() ++ "@" ++ Node).
 
+-spec slave_name() -> string().
 slave_name() ->
     disco:get_setting("DISCO_NAME") ++ "_slave".
 
+-spec slave_node_safe(nonempty_string()) -> node().
 slave_node_safe(Node) ->
     case catch list_to_existing_atom(slave_name() ++ "@" ++ Node) of
         {'EXIT', _} -> false;
         X -> X
     end.
 
+-spec spawn_node(nonempty_string()) -> no_return().
 spawn_node(Node) ->
     process_flag(trap_exit, true),
     case catch slave_start(Node) of
@@ -42,6 +46,7 @@ spawn_node(Node) ->
     timer:sleep(?RESTART_DELAY),
     spawn_node(Node).
 
+-spec node_monitor(nonempty_string(), {boolean(), boolean()}) -> _.
 node_monitor(Node, WebConfig) ->
     NodeAtom = slave_node(Node),
     monitor_node(NodeAtom, true),
@@ -49,6 +54,7 @@ node_monitor(Node, WebConfig) ->
     start_temp_gc(NodeAtom, Node),
     wait(Node).
 
+-spec wait(nonempty_string()) -> _.
 wait(Node) ->
     receive
         {is_ready, Pid} ->
@@ -70,12 +76,14 @@ slave_env() ->
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 
+-spec slave_start(nonempty_string()) -> {boolean(), {'ok', node()} | {'error', _}}.
 slave_start(Node) ->
     error_logger:info_report({"starting node", Node}),
     {is_master_node(Node),
         slave:start(list_to_atom(Node), slave_name(), slave_env(), self(),
                 disco:get_setting("DISCO_ERLANG"))}.
 
+-spec is_master_node(nonempty_string()) -> boolean().
 is_master_node(Node) ->
     case net_adm:names(Node) of
         {ok, Names} ->
@@ -85,6 +93,7 @@ is_master_node(Node) ->
             false
     end.
 
+-spec start_temp_gc(atom(), nonempty_string()) -> pid().
 start_temp_gc(NodeAtom, Node) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
     GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
@@ -92,6 +101,7 @@ start_temp_gc(NodeAtom, Node) ->
         [whereis(disco_server), whereis(event_server), whereis(ddfs_master),
          DataRoot, Node, GCAfter]).
 
+-spec start_ddfs_node(atom(), {boolean(), boolean()}) -> pid().
 start_ddfs_node(NodeAtom, {GetEnabled, PutEnabled}) ->
     DdfsRoot = disco:get_setting("DDFS_ROOT"),
     DiscoRoot = disco:get_setting("DISCO_DATA"),
@@ -114,9 +124,3 @@ blacklist(Node) ->
     gen_server:call(disco_server, {blacklist, Node, Token}),
     timer:sleep(?BLACKLIST_PERIOD),
     gen_server:call(disco_server, {whitelist, Node, Token}).
-
-
-
-
-
-

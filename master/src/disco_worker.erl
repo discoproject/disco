@@ -6,15 +6,21 @@
     terminate/2, code_change/3]).
 
 -include("task.hrl").
--record(state, {id, master, port, task,
-        start_time,
-        eventserver,
-        eventstream,
-        child_pid, node,
-        linecount, errlines,
-        results,
-        debug,
-        last_event, event_counter}).
+-record(state, {id :: pid(),
+                master :: pid(),
+                port :: port(),
+                task :: task(),
+                start_time :: timer:timestamp(),
+                eventserver :: pid(),
+                eventstream :: event_stream:event_stream(),
+                child_pid :: 'none' | string(),
+                node :: node(),
+                linecount :: non_neg_integer(),
+                errlines :: message_buffer:message_buffer(),
+                results :: string(),
+                debug :: boolean(),
+                last_event :: timer:timestamp(),
+                event_counter :: non_neg_integer()}).
 
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).

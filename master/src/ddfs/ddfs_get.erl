@@ -16,14 +16,18 @@ start(MochiConfig, Roots) ->
                 end}
         | MochiConfig]).
 
+-spec serve_ddfs_file(nonempty_string(), module()) -> _.
 serve_ddfs_file(Path, Req) ->
     DdfsRoot = disco:get_setting("DDFS_ROOT"),
     loop(Path, Req, {DdfsRoot, none}).
 
+-spec serve_disco_file(nonempty_string(), module()) -> _.
 serve_disco_file(Path, Req) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     loop(Path, Req, {none, DiscoRoot}).
 
+-spec loop(nonempty_string(), module(),
+    {nonempty_string() | 'none', nonempty_string() | 'none'}) -> _.
 loop("/proxy/" ++ Path, Req, Roots) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
@@ -35,6 +39,7 @@ loop("/ddfs/" ++ Path, Req, {DdfsRoot, _DiscoRoot}) ->
 loop("/disco/" ++ Path, Req, {_DdfsRoot, DiscoRoot}) ->
     send_file(Req, Path, DiscoRoot).
 
+-spec send_file(module(), nonempty_string(), nonempty_string()) -> _.
 send_file(Req, Path, Root) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
@@ -58,6 +63,7 @@ send_file(Req, Path, Root) ->
             Req:respond({501, [], ["Method not supported"]})
     end. 
 
+-spec send_file(module(), nonempty_string()) -> _.
 send_file(Req, Path) ->
     case prim_file:read_file_info(Path) of
         {ok, #file_info{type = regular}} ->
@@ -74,4 +80,3 @@ send_file(Req, Path) ->
         _ ->
             Req:respond({500, [], ["Access failed"]})
     end.
-
