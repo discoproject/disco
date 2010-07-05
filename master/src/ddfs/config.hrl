@@ -24,6 +24,12 @@
 % How many HTTP connections are kept in queue if the system is busy
 -define(HTTP_QUEUE_LENGTH, 100).
 
+% Maximum number of simultaneous HTTP connections. Note that
+% HTTP_MAX_CONNS * 2 * 2 + 32 < Maximum number of file descriptors, where
+% 2 = Get and put, 2 = two FDs required for each connection (connection
+% itself + a file it accesses), 32 = a guess how many extra fds is needed.
+-define(HTTP_MAX_CONNS, 128).
+
 % How long to keep a PUT request in queue if the system is busy
 -define(PUT_WAIT_TIMEOUT, 1 * ?MINUTE).
 

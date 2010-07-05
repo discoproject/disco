@@ -4,11 +4,14 @@
 -export([start/1]).
 -define(HANDLERS, ["ddfs", "disco"]).
 
+-include("config.hrl").
+
 start(Port) ->
     Conf = [{loop, fun loop/1},
             {name, web_server},
+            {max, ?MAX_HTTP_CONNECTIONS},
             {port, Port}],
-
+    error_logger:info_report({"web_server starts"}),
     case catch mochiweb_http:start(Conf) of
         {ok, Pid} ->
             error_logger:info_report({"mochiweb starts"}),

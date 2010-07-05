@@ -60,7 +60,14 @@ host_line(Node, Method) ->
     end.
             
 proxy_monitor(Pid) ->
-    case string:str(os:cmd(["ps -p", Pid]), Pid) of
+    case catch string:str(os:cmd(["ps -p", Pid]), Pid) of
+        {'EXIT', {emfile, _}} ->
+            error_logger:warning_report({"Out of file descriptors! Sleeping.."}),
+            sleep(?LIGHTY_CHECK_INTERVAL),
+            proxy_monitor(Pid);
+        {'EXIT', Error} ->
+            error_logger:warning_report({"ps failed", Error}),
+            exit(ps_failed);
         0 ->
             error_logger:warning_report({"Lighty died. PID", Pid}),
             sleep(?LIGHTY_RESTART_DELAY),

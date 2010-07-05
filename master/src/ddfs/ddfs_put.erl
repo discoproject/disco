@@ -12,11 +12,13 @@
 
 start(MochiConfig) ->
     error_logger:info_report({"START PID", self()}),
-    mochiweb_http:start([{name, ddfs_put},
-                         {loop, fun(Req) ->
-                                        loop(Req:get(path), Req)
-                                end}
-                         | MochiConfig]).
+    mochiweb_http:start([
+        {name, ddfs_put},
+        {max, ?HTTP_MAX_CONNS},
+        {loop, fun(Req) ->
+                    loop(Req:get(path), Req)
+                end}
+        | MochiConfig]).
 
 loop("/proxy/" ++ Path, Req) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
