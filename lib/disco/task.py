@@ -274,7 +274,10 @@ class Map(Task):
         external.close_ext()
 
         index, index_url = self.map_index
-        safe_update(index, ['%d %s' % (i, o.close())
+
+        for output in outputs:
+            output.close()
+        safe_update(index, ['%d %s' % (i, output.url)
                             for i, o in enumerate(outputs)])
 
         if self.save and not self.reduce:
@@ -311,7 +314,6 @@ class MapOutput(object):
                 for key, value in ret:
                     self.fd.add(key, value)
         self.task.close_output(self.fd_list)
-        return self.url
 
 class Reduce(Task):
     def _run(self):
@@ -339,7 +341,7 @@ class Reduce(Task):
             Message("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
-            safe_update(index, {'%d %s' % (self.id, out_url): True})
+            safe_update(index, ['%d %s' % (self.id, out_url)])
             OutputURL(index_url)
 
     def __iter__(self):
