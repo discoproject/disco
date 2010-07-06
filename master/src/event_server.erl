@@ -104,7 +104,11 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _MsgBuf} = S) ->
         error ->
             {reply, invalid_job, S};
         {ok, {EventList, JobStart, Pid}} ->
-            [JobNfo] = event_filter(job_data, EventList),
+            JobNfo =
+                case event_filter(job_data, EventList) of
+                    [] -> [];
+                    [N] -> N
+                end,
             Results = event_filter(ready, EventList),
             Ready = event_filter(task_ready, EventList),
             Failed = event_filter(task_failed, EventList),
