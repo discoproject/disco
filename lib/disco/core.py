@@ -999,66 +999,65 @@ class Job(object):
         self.name = reply[1]
         return self
 
-def result_iterator(results,
-                    notifier=None,
-                    reader=func.chain_reader,
-                    input_stream=(func.map_input_stream, ),
-                    params=None,
-                    ddfs=None,
-                    tempdir=None):
+class ResultIter(object):
     """
-    Iterates the key-value pairs in job results. *results* is a list of
-    results, as returned by :meth:`Disco.wait`.
+    Produces an iterator over job results.
 
-    :param notifier: a function called when the iterator moves to the
-                     next result file::
+    :type  results: list of urls
+    :param results: result urls as returned by :meth:`Disco.wait`.
 
-                      def notifier(url):
+    :type  notifier: function
+    :param notifier: called when the iterator moves to the next result url::
+
+                      def notifier(url[s]):
                           ...
 
-                     *url* may be a list if results are replicated.
+                     .. note::
 
-    :param reader: a custom reader function.
-                   Specify this to match with a custom *map_writer* or *reduce_writer*.
-                   By default, *reader* is :func:`disco.func.netstr_reader`.
+                         notifier argument is a list if results are replicated.
 
-    :param tempdir: if results are replicated, *result_iterator* ensures that only
-                    valid replicas are used. By default, this is done by downloading
-                    and parsing results first to a temporary file. If the temporary
-                    file was created succesfully, the results are returned,
-                    otherwise an alternative replica is used.
-
-                    If *tempdir=None* (default), the system default temporary
-                    directory is used (typically ``/tmp``). An alternative path
-                    can be set with *tempdir="path"*. Temporary files can be disabled
-                    with *tempdir=False*, in which case results are read in memory.
+    :type  reader: :func:`disco.func.input_stream`
+    :param reader: used to read from a custom :func:`disco.func.output_stream`.
     """
-    from disco.task import Map
-    task = Map(jobdict=JobDict(map_input_stream=input_stream,
-                               map_reader=reader,
-                               params=params))
-    for result in results:
-        for url in util.urllist(result, ddfs=ddfs):
-            for obj in process_url_safe(list(util.iterify(url)), tempdir, task):
-                yield obj
+    def __init__(self, results,
+                 notifier=func.noop,
+                 reader=func.chain_reader,
+                 input_stream=(func.map_input_stream, ),
+                 params=None,
+                 ddfs=None):
+        from disco.task import Map
+        self.task = Map(jobdict=JobDict(map_input_stream=input_stream,
+                                        map_reader=reader,
+                                        params=params))
+        self.results = results
+        self.notifier = notifier
+        self.ddfs = ddfs
 
-def process_url_safe(urls, tempdir, task):
-    while urls:
-        try:
-            in_stream, size, url = task.connect_input(urls.pop(0))
-            if tempdir is False:
-                return iter(in_stream)
-            return disk_buffer(tempdir, in_stream)
-        except Exception:
-            if not urls:
-                raise
+    def __iter__(self):
+        for result in self.results:
+            for urls in util.urllist(result, ddfs=self.ddfs):
+                self.notifier(urls)
+                for entry in self.try_replicas(list(util.iterify(urls))):
+                    yield entry
 
-def disk_buffer(tempdir, in_stream):
-    from cPickle import dump, load
-    fd = NamedTemporaryFile(prefix='discores-', dir=tempdir)
-    n = util.ilen(dump(x, fd.file) for x in in_stream)
-    fd.seek(0)
-    return (load(fd.file) for i in xrange(n))
+    def try_replicas(self, urls, start=0):
+        while urls:
+            try:
+                for entry in self.entries(urls.pop(0), start=start):
+                    yield entry
+                    start += 1
+            except Exception:
+                if not urls:
+                    raise
+
+    def entries(self, url, start=0):
+        fd, _size, _url = self.task.connect_input(url)
+        for n, entry in enumerate(fd):
+            if n >= start:
+                yield entry
+
+def result_iterator(*args, **kwargs):
+    return ResultIter(*args, **kwargs)
 
 class Stats(object):
     def __init__(self, prof_data):
