@@ -368,11 +368,8 @@ class Reduce(Task):
 
     @property
     def merge_sorted_entries(self):
-        inputs = (util.kvgroup(fd) for fd, size, url in self.connected_inputs)
-        for k_vss in util.izip_longest(*inputs, fillvalue=(None, ())):
-            for k, vs in sorted(k_vss, key=util.key):
-                for v in vs:
-                    yield k, v
+        from disco.future import merge
+        return merge(*(fd for fd, size, url in self.connected_inputs))
 
     @property
     def sorted_entries(self):
