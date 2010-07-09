@@ -83,12 +83,15 @@ safe_rename(Src, Dst) ->
         _ -> {error, file_exists}
     end.
 
-diskspace(Path) ->
+diskspace(Components) ->
+    Path = filename:join(Components),
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
         [_, _, Free|_] ->
             case catch list_to_integer(Free) of
-                X when is_integer(X) -> {ok, X};
-                _ -> {error, invalid_path}
+                X when is_integer(X) ->
+                    {ok, X};
+                _ ->
+                    {error, invalid_path}
             end;
         _ ->
             {error, invalid_output}

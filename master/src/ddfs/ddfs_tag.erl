@@ -10,13 +10,13 @@
 -record(state, {tag, data, timeout, replicas, url_cache}).
 
 % THOUGHT: Eventually we want to partition tag keyspace instead
-% of using a single global keyspace. This can be done relatively 
-% easily with consistent hashing: Each tag has a set of nodes 
+% of using a single global keyspace. This can be done relatively
+% easily with consistent hashing: Each tag has a set of nodes
 % (partition) which it operates on. If tag can't be found in its
 % partition (due to addition of many new nodes, for instance),
 % partition to be searched can be increased incrementally until
 % the tag is found.
-% 
+%
 % Correspondingly GC'ing must ensure that K replicas for a tag
 % are found within its partition rather than globally.
 
@@ -217,14 +217,16 @@ put_transaction(true, Urls, S) ->
                     {<<"id">>, TagName},
                     {<<"version">>, 1},
                     {<<"urls">>, Urls},
-                    {<<"last-modified">>, ddfs_util:format_timestamp()} 
+                    {<<"last-modified">>, ddfs_util:format_timestamp()}
                 ]})),
     put_distribute({TagName, TagData}).
 
 put_distribute(Msg) ->
     case put_distribute(Msg, get(tagk), [], []) of
-        {ok, TagVol} -> put_commit(Msg, TagVol);
-        {error, _} = E -> E
+        {ok, TagVol} ->
+            put_commit(Msg, TagVol);
+        {error, _} = E ->
+            E
     end.
 
 put_distribute(_, K, OkNodes, _) when K == length(OkNodes) ->
@@ -234,23 +236,29 @@ put_distribute(Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
     {ok, Nodes} = gen_server:call(ddfs_master, {choose_nodes, K0, Exclude}),
-    if Nodes =:= [], length(OkNodes) < TagMinK ->
-        {error, replication_failed};
-    Nodes =:= [] ->
-        {ok, OkNodes};
-    true ->
-        {Replies, Failed} = gen_server:multi_call(Nodes,
-                ddfs_node, {put_tag_data, Msg}, ?NODE_TIMEOUT),
-        put_distribute(Msg, K,
-            OkNodes ++ [{N, Vol} || {N, {ok, Vol}} <- Replies],
-            Exclude ++ [N || {N, _} <- Replies] ++ Failed)
+    if
+        Nodes =:= [], length(OkNodes) < TagMinK ->
+            {error, replication_failed};
+        Nodes =:= [] ->
+            {ok, OkNodes};
+        true ->
+            {Replies, Failed} = gen_server:multi_call(Nodes,
+                                                      ddfs_node,
+                                                      {put_tag_data, Msg},
+                                                      ?NODE_TIMEOUT),
+            put_distribute(Msg, K,
+                           OkNodes ++ [{Node, VolName}
+                                       || {Node, {ok, VolName}} <- Replies],
+                           Exclude ++ [Node || {Node, _} <- Replies] ++ Failed)
     end.
 
 put_commit({TagName, TagData}, TagVol) ->
     {Nodes, _} = lists:unzip(TagVol),
-    {Ok, _} = gen_server:multi_call(Nodes, ddfs_node,
-                {put_tag_commit, TagName, TagVol}, ?NODE_TIMEOUT),
-    case [U || {_, {ok, U}} <- Ok] of
+    {NodeUrls, _} = gen_server:multi_call(Nodes,
+                                          ddfs_node,
+                                          {put_tag_commit, TagName, TagVol},
+                                          ?NODE_TIMEOUT),
+    case [Url || {_Node, {ok, Url}} <- NodeUrls] of
         [] ->
             {error, commit_failed};
         Urls ->

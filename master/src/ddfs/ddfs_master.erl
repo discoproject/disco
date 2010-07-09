@@ -51,13 +51,13 @@ handle_call({new_blob, _, K, _}, _, #state{nodes = N} = S) when K > length(N) ->
 handle_call({new_blob, Obj, K, Exclude}, _, S) ->
     {_, {ok, Nodes}, _} = handle_call({choose_nodes, K, Exclude}, none, S),
     Urls = [["http://", string:sub_word(atom_to_list(N), 2, $@),
-                ":", get(put_port), "/ddfs/", Obj] || N <- Nodes], 
+                ":", get(put_port), "/ddfs/", Obj] || N <- Nodes],
     {reply, {ok, Urls}, S};
 
 % Tag request: Start a new tag server if one doesn't exist already. Forward
 % the request to the tag server.
 handle_call({tag, _M, _Tag}, _From, #state{nodes = []} = S) ->
-    {reply, {error, no_nodes}, S}; 
+    {reply, {error, no_nodes}, S};
 
 handle_call({tag, M, Tag}, From, #state{tags = Tags, tag_cache = Cache} = S) ->
     {Pid, TagsN} =
@@ -79,7 +79,7 @@ handle_call({tag, M, Tag}, From, #state{tags = Tags, tag_cache = Cache} = S) ->
         tag_cache = Cache =/= false andalso gb_sets:add(Tag, Cache)}};
 
 handle_call({get_tags, Mode}, From, #state{nodes = Nodes} = S) ->
-    spawn(fun() -> 
+    spawn(fun() ->
         gen_server:reply(From, get_tags(Mode, [N || {N, _} <- Nodes]))
     end),
     {noreply, S}.
@@ -129,7 +129,7 @@ terminate(_Reason, _State) -> {}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 get_tags(all, Nodes) ->
-    {Replies, Failed} = gen_server:multi_call(Nodes, 
+    {Replies, Failed} = gen_server:multi_call(Nodes,
         ddfs_node, get_tags, ?NODE_TIMEOUT),
     {OkNodes, Tags} = lists:unzip(Replies),
     {OkNodes, Failed, lists:usort(lists:flatten(Tags))};
@@ -154,11 +154,15 @@ get_tags(safe, Nodes) ->
 
 monitor_diskspace() ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
-    {Replies, _} = gen_server:multi_call(Nodes,
-        ddfs_node, get_volumes, ?NODE_TIMEOUT),
-    gen_server:cast(ddfs_master, {update_nodestats, gb_trees:from_orddict(
-        lists:keysort(1, [{N, lists:sum([S || {S, _} <- Vol])} ||
-            {N, {Vol, _}} <- Replies]))}),
+    {NodeVols, _} = gen_server:multi_call(Nodes,
+                                          ddfs_node,
+                                          get_vols,
+                                          ?NODE_TIMEOUT),
+    NodeSpace = [{Node, lists:sum([Space || {Space, _VolName} <- Vols])}
+                 || {Node, {Vols, _Root}} <- NodeVols],
+    gen_server:cast(ddfs_master,
+                    {update_nodestats,
+                     gb_trees:from_orddict(lists:keysort(1, NodeSpace))}),
     timer:sleep(?DISKSPACE_INTERVAL),
     monitor_diskspace().
 
@@ -170,13 +174,11 @@ refresh_tag_cache_proc() ->
 
 refresh_tag_cache(Nodes) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
-    {Replies, Failed} = gen_server:multi_call(Nodes, 
+    {Replies, Failed} = gen_server:multi_call(Nodes,
         ddfs_node, get_tags, ?NODE_TIMEOUT),
-    if Nodes =/= [], length(Failed) < TagMinK -> 
+    if Nodes =/= [], length(Failed) < TagMinK ->
         {_OkNodes, Tags} = lists:unzip(Replies),
         gen_server:cast(ddfs_master,
             {update_tag_cache, gb_sets:from_list(lists:flatten(Tags))});
     true -> ok
     end.
-
-    
