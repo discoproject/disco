@@ -447,8 +447,8 @@ def map_input_stream(stream, size, url, params):
     If no scheme is found in the url, ``file`` is used.
     The resulting input stream is then used.
     """
-    m = re.match('(\w+)://', url)
-    scheme = m.group(1) if m else 'file'
+    from disco.util import schemesplit
+    scheme, _url = schemesplit(url)
     mod = __import__('disco.schemes.scheme_%s' % scheme,
                      fromlist=['scheme_%s' % scheme])
     Task.insert_globals([mod.input_stream])
