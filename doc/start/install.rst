@@ -12,7 +12,7 @@ working quickly, you should consider trying out Disco in Amazon EC2
 
 **Shortcut for Debian / Ubuntu users:** If you run Debian testing or
 some recent version of Ubuntu on the AMD64 architecture, you may try
-out our **experimental** deb-packages which are available at :doc:`Disco
+out our **experimental** deb-packages which are available at the :doc:`Disco
 download page <download>`. If you managed to install the packages,
 you can skip over the steps 0-3 below and go to :ref:`configauth` directly.
 
@@ -52,9 +52,7 @@ Optionally, ``DISCO_PROXY`` needs
 1. Install Disco
 ----------------
 
-Download `the latest Disco package from discoproject.org
-<http://discoproject.org/download.html>`_. Alternatively you can download `the
-latest development snapshot from GitHub <http://github.com/tuulos/disco>`_.
+Download :doc:`a recent version of Disco <download>`.
 
 Extract the package (if necessary) and ``cd`` into it.
 We will refer to this directory as ``DISCO_HOME``.

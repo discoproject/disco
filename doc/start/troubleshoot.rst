@@ -16,7 +16,7 @@ straightforward.
 
 Here we assume that you have installed Disco locally with the following steps:
 
- * Downloaded the latest source package from `discoproject.org <http://discoproject.org/download.html>`_ or from the `GitHub repository <http://github.com/tuulos/disco>`_.
+ * Downloaded :doc:`a recent version of Disco <download>`.
  * Extracted the package to your home directory, say ``~/disco/``.
  * Compiled the sources by writing ``make`` in ``~/disco/``.
  * Started Disco with ``disco start``.
@@ -24,7 +24,7 @@ Here we assume that you have installed Disco locally with the following steps:
 
 but the script crashed and/or didn't produce any results.
 
-Let's find out what goes wrong. Follow the next steps in order.
+Let's find out what went wrong. Follow the next steps in order.
 
 0. Start Disco locally
 ----------------------
@@ -224,11 +224,11 @@ You can copy-paste one of the lines and try to execute it by hand.
 This way you can easily see how ``disco-worker`` fails.
 
 Still no success?
------------------
+=================
 
-If the problem persists, or you can't get one of the steps above
-work correctly, do not feel desperate! Report your problem to
-friendly Disco developers `either on IRC or on the mailing list
-<http://discoproject.org/getinvolved.html>`_. Please mention in your
-report the steps that you've tried and the results you got.
+If the problem persists, or you can't get one of the steps above working,
+do not despair!
+Report your problem to friendly Disco developers
+:doc:`on IRC or the mailing list <getinvolved>`.
+Please mention in your report the steps you followed and the results you got.
 
