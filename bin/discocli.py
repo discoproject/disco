@@ -312,6 +312,15 @@ def mapresults(program, jobname):
         print result
 
 @Disco.command
+def nodeinfo(program):
+    """Usage:
+
+    Print the node information.
+    """
+    for item in program.disco.nodeinfo().iteritems():
+        print '%s\t%s' % item
+
+@Disco.command
 def oob(program, jobname):
     """Usage: jobname
 
