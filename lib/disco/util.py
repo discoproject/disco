@@ -63,13 +63,15 @@ def iterify(object):
 def ilen(iter):
     return sum(1 for _ in iter)
 
-def key(kv):
-    k, v = kv
+def key((k, v)):
     return k
 
 def kvgroup(kviter):
     for k, kvs in groupby(kviter, key):
         yield k, (v for _k, v in kvs)
+
+def kvify(entry):
+    return entry if iskv(entry) else ('', entry)
 
 def partition(iterable, fn):
     t, f = [], []
