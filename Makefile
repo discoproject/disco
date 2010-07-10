@@ -14,6 +14,8 @@ DESTDIR=/
 PREFIX=/usr/local
 SYSCONFDIR=/etc
 BIN_DIR = $(PREFIX)/bin/
+ERL_LIBDIR = /usr/lib/erlang
+
 INSTALL_DIR = $(PREFIX)/lib/disco/
 CONFIG_DIR = $(SYSCONFDIR)/disco/
 
@@ -118,10 +120,22 @@ $(EBIN)/ddfs:
 $(EBIN)/mochiweb:
 	- mkdir $(EBIN)/mochiweb
 
-.PHONY: dialyzer typer
+.PHONY: dialyzer typer realclean
 
-dialyzer:
-	$(DIALYZER) -c --src -r $(ESRC)
+DIALYZER_PLT = master/.dialyzer_plt
+
+$(DIALYZER_PLT):
+	$(DIALYZER) --build_plt --output_plt $(DIALYZER_PLT) -r \
+		$(ERL_LIBDIR)/lib/stdlib*/ebin $(ERL_LIBDIR)/lib/kernel*/ebin \
+		$(ERL_LIBDIR)/lib/erts*/ebin $(ERL_LIBDIR)/lib/mnesia*/ebin \
+		$(ERL_LIBDIR)/lib/compiler*/ebin $(ERL_LIBDIR)/lib/crypto*/ebin \
+		$(ERL_LIBDIR)/lib/inets*/ebin $(ERL_LIBDIR)/lib/xmerl*/ebin
+
+dialyzer: $(DIALYZER_PLT)
+	$(DIALYZER) --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
 
 typer:
-	$(TYPER) -r $(ESRC)
+	$(TYPER) --plt $(DIALYZER_PLT) -r $(ESRC)
+
+realclean: clean
+	-rm -f $(DIALYZER_PLT)
