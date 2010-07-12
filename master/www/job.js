@@ -3,7 +3,6 @@ $(document).ready(function () {
     var job = new Job(document.location.search.substr(6));
     $("#hd #title").append(job.name);
     $("#kill_job").click(job.kill);
-    $("#clean_job").click(job.clean);
     $("#purge_job").click(job.purge);
     $("#find_page").click(job.find);
 });
@@ -26,11 +25,6 @@ function Job(name) {
   self.kill = function () {
     if (confirm("Do you really want to kill " + self.name + "?"))
       post_req("/disco/ctrl/kill_job", JSON.stringify(self.name));
-  }
-
-  self.clean = function () {
-    if (confirm("Do you really want to clean the job records of " + self.name + "?"))
-      post_req("/disco/ctrl/clean_job", JSON.stringify(self.name), show_status);
   }
 
   self.purge = function () {
@@ -57,13 +51,10 @@ function Job(name) {
     self.status = data.active;
     self.started = data.timestamp;
 
-    if (self.isactive()) {
-      $("#clean_job").hide();
+    if (self.isactive())
       $("#kill_job").show();
-    } else {
-      $("#clean_job").show();
+    else
       $("#kill_job").hide();
-    }
 
     $("#nfo_status").text(self.status);
     $("#nfo_started").text(self.started);
