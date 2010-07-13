@@ -1,3 +1,4 @@
+/* General */
 
 body {
     background: #ffffff;
@@ -45,6 +46,19 @@ input {
 #hd img {
     margin-right: 100px;
 }
+
+.control {
+    color: #8f138b;
+    font-size: 120%;
+    margin-left: 10px;
+    clear: right;
+}
+
+.control a {
+    margin-right: 20px;
+}
+
+/* Nodes */
 
 .nodebox {
     width: 15em;
@@ -104,6 +118,9 @@ input {
 
 .nodebox .rval{}
 
+
+/* Job List */
+
 #joblist {
     border: 1px solid #666;
     text-align: center;
@@ -123,14 +140,13 @@ input {
     overflow: auto;
 }
 
-.job {
+#joblist .job {
     margin-left: 10px;
     margin-right: 10px;
     cursor: pointer;
 }
 
-
-.job .live {
+#joblist .job .live {
     width: 1em;
     height: 1.4em;
     border: 1px solid #000;
@@ -138,30 +154,22 @@ input {
     float: left;
 }
 
-.job .active {
+#joblist .job .active {
     background: #FFDE00;
 }
 
-.job .dead {
+#joblist .job .dead {
     background: #FF9280;
 }
 
-.job .ready {
+#joblist .job .ready {
     background: #00BA4B;
 }
 
-#jobctrl {
-    color: #8f138b;
-    font-size: 120%;
-    margin-left: 10px;
-    clear: right;
-}
 
-#jobctrl a {
-    margin-right: 20px;
-}
+/* Job Detail */
 
-.jobinfo {
+.job .infobox {
     width: 20em;
     height: 12em;
     border: 1px solid #666;
@@ -169,100 +177,102 @@ input {
     margin: 10px;
 }
 
-.jobinfo #title {
+.job .infobox > .title {
     background: #333;
     color: white;
     padding-left: 5px;
 }
 
-.jobinfo .jobbody {
+.job .infobox > .body {
     padding: 5px;
     height: 9.3em;
     overflow: auto;
 }
 
-.jobinfo .val {
+.job .infobox .val {
     font-weight: normal;
 }
 
-.jobinfo table .ttitle {
+.job .infobox table .title {
     font-size: 80%;
 }
 
-.jobinfo table {
+.job .infobox table {
     width: 100%;
     background: #eee;
 }
 
-.jobinfo .redun {
+.job .infobox .redundant {
     margin-left: 15px;
     color: #666;
 }
 
-#jobevents {
+.job .events {
     padding-top: 20px;
     margin: 10px;
     clear: left;
     width: 100%;
 }
 
-.event_nav {
+.job .event_nav {
     clear: left;
     font-size: 90%;
     width: 100%;
     margin-left: 10px;
 }
 
-.event_nav a {
+.job .event_nav a {
     margin-right: 10px;
 }
 
-.jobevent {
+.job .event {
     width: 90%;
 }
 
-.jobevent #ev_warning {
+.job .event .warning {
     background: #FFF7BF;
 }
 
-.jobevent #ev_error {
+.job .event .error {
     background: #FFC9BF;
 }
 
-.jobevent #ev_ready {
+.job .event .ready {
     background: #BFFFD9;
 }
 
-.jobevent .tstamp {
+.job .event .tstamp {
     font-weight: bold;
     padding: 2px;
     background: #eee;
+    display: inline;
 }
 
-.jobevent .node {
+.job .event .node {
     font-weight: bold;
     color: #8f138b;
     padding: 2px;
     background: #eee;
     cursor: pointer;
+    display: inline;
 }
 
-.jobevent .locked {
+.job .event .locked {
     background: #BFFFD9;
 }
 
-.smalltext {
-    font-size: 80%;
-}
-
-.jobevent .evtext {
+.job .event .text {
     padding-top: 5px;
     padding-bottom: 5px;
     overflow: auto;
 }
-.jobevent .evtext pre {
+
+.job .event .text pre {
     margin-left: 10px;
 }
+
+
+/* Config */
 
 .confbox {
     float: left;
