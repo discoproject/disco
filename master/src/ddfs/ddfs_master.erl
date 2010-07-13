@@ -40,13 +40,21 @@ handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
 handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
-    % NB: We should probably avoid choosing the same node many times in
-    % sequence (which is pretty much guaranteed to happen with the current
-    % implemention). This causes huge congestion on the frequently chosen
-    % node and it's bad for data distribution. Add a layer of randomization.
-    Nodes = lists:sublist([N || {N, _} <- lists:reverse(
-        lists:keysort(2, S#state.nodes))] -- (Exclude ++ BL), K),
-    {reply, {ok, Nodes}, S};
+    % Node selection algorithm:
+    % 1. try to choose K nodes randomly from all the nodes which have
+    %    more than ?MIN_FREE_SPACE bytes free space available and which
+    %    are not excluded or blacklisted.
+    % 2. if K nodes cannot be found this way, choose the K emptiest
+    %    nodes which are not excluded or blacklisted.
+    Primary = [Node || {Node, Free} <- S#state.nodes,
+                Free / 1024 > ?MIN_FREE_SPACE] -- (Exclude ++ BL),
+    if length(Primary) >= K ->
+        {reply, {ok, ddfs_util:choose_random(Primary, K)}, S};
+    true ->
+        Secondary = lists:sublist([N || {N, _} <- lists:reverse(
+            lists:keysort(2, S#state.nodes))] -- (Exclude ++ BL), K),
+        {reply, {ok, Secondary}, S}
+    end;
 
 handle_call({new_blob, _, K, _}, _, #state{nodes = N} = S) when K > length(N) ->
     {reply, too_many_replicas, S};

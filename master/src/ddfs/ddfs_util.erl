@@ -2,7 +2,7 @@
 -export([is_valid_name/1, timestamp/0, timestamp/1, timestamp_to_time/1,
          ensure_dir/1, hashdir/5, safe_rename/2, format_timestamp/0,
          diskspace/1, fold_files/3, pack_objname/2, unpack_objname/1,
-         choose_random/1, replace/3, startswith/2]).
+         choose_random/1, choose_random/2, replace/3, startswith/2]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -146,4 +146,14 @@ fold_files(Dir, Fun, Acc0) ->
 -spec choose_random(list(T)) -> T.
 choose_random(L) ->
     lists:nth(random:uniform(length(L)), L).
+
+-spec choose_random(list(T), non_neg_integer()) -> list(T).
+choose_random(L, N) ->
+    choose_random(L, [], N).
+
+choose_random([], R, _) -> R;
+choose_random(_, R, 0) -> R;
+choose_random(L, R, N) ->
+    C = choose_random(L),
+    choose_random(L -- [C], [C|R], N - 1).
 

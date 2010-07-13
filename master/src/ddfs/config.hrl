@@ -21,6 +21,10 @@
 % (>NODE_TIMEOUT)
 -define(NODEOP_TIMEOUT, 1 * ?MINUTE).
 
+% How much free space a node must have, to be considered a primary
+% candidate host for a new blob
+-define(MIN_FREE_SPACE, 1024 * ?MB).
+
 % How many HTTP connections are kept in queue if the system is busy
 -define(HTTP_QUEUE_LENGTH, 100).
 
