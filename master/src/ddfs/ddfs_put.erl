@@ -79,6 +79,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
 -spec receive_blob(module(), file:io_device(), nonempty_string(),
     nonempty_string()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
+    error_logger:info_report({"PUT BLOB", Req:get(path), Req:get_header_value("content-length")}),
     case receive_body(Req, IO) of
         ok ->
             [_, Fname] = string:tokens(Dst, "."),

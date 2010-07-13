@@ -47,7 +47,7 @@ handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
     % 2. if K nodes cannot be found this way, choose the K emptiest
     %    nodes which are not excluded or blacklisted.
     Primary = [Node || {Node, Free} <- S#state.nodes,
-                Free / 1024 > ?MIN_FREE_SPACE] -- (Exclude ++ BL),
+                Free > ?MIN_FREE_SPACE / 1024] -- (Exclude ++ BL),
     if length(Primary) >= K ->
         {reply, {ok, ddfs_util:choose_random(Primary, K)}, S};
     true ->
