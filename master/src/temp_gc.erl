@@ -9,6 +9,11 @@
 -spec start_link(pid(), pid(), pid(), nonempty_string(), nonempty_string(),
     non_neg_integer()) -> no_return().
 start_link(Master, EventServer, DdfsMaster, DataRoot, Node, GCAfter) ->
+    case catch register(temp_gc, self()) of
+        {'EXIT', {badarg, _}} ->
+            exit(already_started);
+        _ -> ok
+    end,
     put(master, Master),
     put(events, EventServer),
     put(ddfs, DdfsMaster),

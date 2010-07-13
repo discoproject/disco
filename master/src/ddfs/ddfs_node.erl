@@ -13,9 +13,12 @@ start_link(Config) ->
     error_logger:info_report([{"DDFS node starts"}]),
     case catch gen_server:start_link(
             {local, ddfs_node}, ddfs_node, Config, [{timeout, ?NODE_STARTUP}]) of
-        {ok, _Server} -> ok;
-        {error, {already_started, _Server}} -> ok;
-        {'EXIT', Reason} -> exit(Reason)
+        {ok, _Server} ->
+            ok;
+        {error, {already_started, _Server}} ->
+            exit(already_started);
+        {'EXIT', Reason} ->
+            exit(Reason)
     end,
     receive
         {'EXIT', _, Reason0} ->

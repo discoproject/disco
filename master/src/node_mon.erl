@@ -43,12 +43,14 @@ spawn_node(Node) ->
                 {"Spawning node", Node, "failed for unknown reason", Error}),
             blacklist(Node)
     end,
+    flush(),
     timer:sleep(?RESTART_DELAY),
     spawn_node(Node).
 
 -spec node_monitor(nonempty_string(), {bool(), bool()}) -> _.
 node_monitor(Node, WebConfig) ->
     NodeAtom = slave_node(Node),
+    monitor_node(NodeAtom, false),
     monitor_node(NodeAtom, true),
     start_ddfs_node(NodeAtom, WebConfig),
     start_temp_gc(NodeAtom, Node),
@@ -60,12 +62,22 @@ wait(Node) ->
         {is_ready, Pid} ->
             Pid ! node_ready,
             wait(Node);
+        {'EXIT', _, already_started} ->
+            error_logger:info_report({"Already started", Node, self()}),
+            wait(Node);
         {'EXIT', _, Reason} ->
             error_logger:info_report({"Node failed", Node, Reason});
         {nodedown, _Node} ->
             error_logger:info_report({"Node", Node, "down"});
         E ->
             error_logger:info_report({"Erroneous message (node_mon)", E})
+    end.
+
+flush() ->
+    receive
+        _ -> flush()
+    after
+        0 -> true
     end.
 
 slave_env() ->
