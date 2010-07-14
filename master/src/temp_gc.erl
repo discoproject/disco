@@ -6,11 +6,11 @@
 
 -define(GC_INTERVAL, 600000).
 
-start_link(Master, EventServer, DdfsMaster, DataRoot, Node, GCAfter) ->
+start_link(Master, EventServer, DdfsMaster, DataRoot, Host, GCAfter) ->
     put(master, Master),
     put(events, EventServer),
     put(ddfs, DdfsMaster),
-    put(root, filename:join(DataRoot, Node)),
+    put(root, filename:join(DataRoot, Host)),
     put(gcafter, GCAfter),
     loop().
 

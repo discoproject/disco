@@ -195,7 +195,7 @@ check_blobsets([Repl|T], {IsFixed, NRepl}) ->
 ddfs_url(<<"disco://", _/binary>> = Url) ->
     {_, Host, Path, _, _} = mochiweb_util:urlsplit(binary_to_list(Url)),
     BlobName = list_to_binary(filename:basename(Path)),
-    case node_mon:slave_node_safe(Host) of
+    case disco:node_safe(Host) of
         false ->
             error_logger:warning_report({"GC: Unknown host", Host}),
             {BlobName, unknown};

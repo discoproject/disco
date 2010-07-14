@@ -7,8 +7,14 @@
     terminate/2, code_change/3]).
 
 -include("task.hrl").
--record(dnode, {name, node_mon, blacklisted, slots, num_running,
-        stats_ok, stats_failed, stats_crashed}).
+-record(dnode, {name,
+                node_mon,
+                slots,
+                blacklisted=false,
+                num_running=0,
+                stats_ok=0,
+                stats_failed=0,
+                stats_crashed=0}).
 
 -record(state, {workers, nodes, purged}).
 
@@ -70,52 +76,42 @@ init(_Args) ->
                 purged = gb_trees:empty()}}.
 
 update_nodes(Nodes) ->
-    WhiteNodes = [{N#dnode.name, N#dnode.slots} ||
-                     #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
-    DdfsNodes = [{N#dnode.name, not (N#dnode.blacklisted == false)} ||
-                    N <- gb_trees:values(Nodes)],
-    gen_server:cast(ddfs_master, {update_nodes, DdfsNodes}),
+    WhiteNodes = [{N#dnode.name, N#dnode.slots}
+                  || #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
+    DDFSNodes = [{disco:node(N#dnode.name), not (N#dnode.blacklisted == false)}
+                 || N <- gb_trees:values(Nodes)],
+    gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
     gen_server:cast(self(), schedule_next).
 
+monitor(Host) ->
+    spawn_link(fun () -> node_mon:spawn_node(Host) end).
+
 handle_cast({update_config_table, Config}, S) ->
     error_logger:info_report([{"Config table update"}]),
-    NewNodes = lists:foldl(fun({Node, Slots}, NewNodes) ->
-        NewNode = case gb_trees:lookup(Node, S#state.nodes) of
-            none ->
-                Mon = spawn_link(fun() -> node_mon:spawn_node(Node) end),
-                #dnode{name = Node,
-                       slots = Slots,
-                       node_mon = Mon,
-                       blacklisted = false,
-                       stats_ok = 0,
-                       num_running = 0,
-                       stats_failed = 0,
-                       stats_crashed = 0};
-            {value, N} ->
-                #dnode{name = Node,
-                       slots = Slots,
-                       node_mon = N#dnode.node_mon,
-                       blacklisted = N#dnode.blacklisted,
-                       stats_ok = N#dnode.stats_ok,
-                       num_running = N#dnode.num_running,
-                       stats_failed = N#dnode.stats_failed,
-                       stats_crashed = N#dnode.stats_crashed}
-        end,
-        gb_trees:insert(Node, NewNode, NewNodes)
-    end, gb_trees:empty(), Config),
+    DNodes = lists:foldl(fun ({Host, Slots}, DNodes) ->
+                                 DNode = case gb_trees:lookup(Host, S#state.nodes) of
+                                             none ->
+                                                 #dnode{name = Host,
+                                                        slots = Slots,
+                                                        node_mon = monitor(Host)};
+                                             {value, N} ->
+                                                 N#dnode{slots = Slots}
+                                         end,
+                                 gb_trees:insert(Host, DNode, DNodes)
+                         end, gb_trees:empty(), Config),
 
-    lists:foreach(fun(Node) ->
-        case gb_trees:lookup(Node#dnode.name, NewNodes) of
-            none ->
-                unlink(Node#dnode.node_mon),
-                exit(Node#dnode.node_mon, kill);
-            _ -> ok
-        end
-    end, gb_trees:values(S#state.nodes)),
-    disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
-    update_nodes(NewNodes),
-    {noreply, S#state{nodes = NewNodes}};
+    lists:foreach(fun (DNode) ->
+                          case gb_trees:lookup(DNode#dnode.name, DNodes) of
+                              none ->
+                                  unlink(DNode#dnode.node_mon),
+                                  exit(DNode#dnode.node_mon, kill);
+                              _ -> ok
+                          end
+                  end, gb_trees:values(S#state.nodes)),
+    disco_proxy:update_nodes(gb_trees:keys(DNodes)),
+    update_nodes(DNodes),
+    {noreply, S#state{nodes = DNodes}};
 
 handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
 

@@ -7,14 +7,15 @@
 
 -include("task.hrl").
 -record(state, {id, master, port, task,
-        start_time,
-        eventserver,
-        eventstream,
-        child_pid, node,
-        linecount, errlines,
-        results,
-        debug,
-        last_event, event_counter}).
+                start_time,
+                eventserver,
+                eventstream,
+                child_pid,
+                host,
+                linecount, errlines,
+                results,
+                debug,
+                last_event, event_counter}).
 
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
@@ -29,12 +30,12 @@ port_options() ->
      {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}] ++
       [{Setting, disco:get_setting(Setting)} || Setting <- disco:settings()]}].
 
-start_link_remote(Master, Eventserver, Node, NodeMon, Task) ->
+start_link_remote(Master, EventServer, Host, NodeMon, Task) ->
     Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
-    NodeAtom = node_mon:slave_node(Node),
+    Node  = disco:node(Host),
     wait_until_node_ready(NodeMon),
-    spawn_link(NodeAtom, disco_worker, start_link,
-           [[self(), Eventserver, Master, Task, Node, Debug]]),
+    spawn_link(Node, disco_worker, start_link,
+               [[self(), EventServer, Master, Task, Host, Debug]]),
     process_flag(trap_exit, true),
     receive
         ok -> ok;
@@ -43,7 +44,7 @@ start_link_remote(Master, Eventserver, Node, NodeMon, Task) ->
         _ ->
             exit({error, invalid_reply})
     after 60000 ->
-        exit({worker_dies, {"Worker did not start in 60s", []}})
+            exit({worker_dies, {"Worker did not start in 60s", []}})
     end,
     wait_for_exit().
 
@@ -81,13 +82,13 @@ start_link([Parent|_] = Args) ->
     end,
     wait_for_exit().
 
-init([Id, EventServer, Master, Task, Node, Debug]) ->
+init([Id, EventServer, Master, Task, Host, Debug]) ->
     process_flag(trap_exit, true),
     erlang:monitor(process, Task#task.from),
     {ok, #state{id = Id,
             master = Master,
             task = Task,
-            node = Node,
+            host = Host,
             child_pid = none,
             eventserver = EventServer,
             eventstream = event_stream:new(),
@@ -99,8 +100,8 @@ init([Id, EventServer, Master, Task, Node, Debug]) ->
             debug = Debug,
             results = []}}.
 
-spawn_cmd(#state{task = T, node = Node}) ->
-    Args = [T#task.mode, T#task.jobname, Node, T#task.taskid, T#task.chosen_input],
+spawn_cmd(#state{task = T, host = Host}) ->
+    Args = [T#task.mode, T#task.jobname, Host, T#task.taskid, T#task.chosen_input],
     lists:flatten(io_lib:fwrite(?CMD, Args)).
 
 worker_exit(#state{id = Id, master = Master}, Msg) ->
@@ -111,9 +112,10 @@ event(Event, S) ->
     event(Event, S, []).
 
 event({_Type, Message}, #state{task = T,
-        eventserver = EventServer, node = Node}, Params) ->
-    event_server:event(EventServer, Node, T#task.jobname, "[~s:~B] ~s",
-        [T#task.mode, T#task.taskid, Message], Params).
+                               eventserver = EventServer,
+                               host = Host}, Params) ->
+    event_server:event(EventServer, Host, T#task.jobname, "[~s:~B] ~s",
+                       [T#task.mode, T#task.taskid, Message], Params).
 
 error(State) ->
     {stop, worker_exit(State, {job_error, "Worker killed"}), State}.
