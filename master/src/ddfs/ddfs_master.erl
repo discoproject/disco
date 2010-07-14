@@ -30,11 +30,14 @@ init(_Args) ->
                 nodes = [],
                 blacklisted = []}}.
 
-handle_call(get_nodes, _, S) ->
-    {reply, {ok, [N || {N, _} <- S#state.nodes]}, S};
-
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
+
+handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
+    {reply, {ok, Nodes}, S};
+
+handle_call(get_nodes, _From, #state{nodes = Nodes} = S) ->
+    {reply, {ok, [Node || {Node, _} <- Nodes]}, S};
 
 handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
     % NB: We should probably avoid choosing the same node many times in
