@@ -2,7 +2,7 @@
 -module(job_coordinator).
 -export([new/1]).
 
--include("task.hrl").
+-include("disco.hrl").
 
 -define(TASK_MAX_FAILURES, 100).
 -define(FAILED_TASK_PAUSE, 1000).

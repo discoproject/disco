@@ -2,7 +2,7 @@
 -module(disco_web).
 -export([op/3]).
 
--include("task.hrl").
+-include("disco.hrl").
 -include("config.hrl").
 
 op('POST', "/disco/job/" ++ _, Req) ->

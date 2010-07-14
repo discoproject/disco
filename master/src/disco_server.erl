@@ -6,15 +6,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
     terminate/2, code_change/3]).
 
--include("task.hrl").
--record(dnode, {name,
-                node_mon,
-                slots,
-                blacklisted=false,
-                num_running=0,
-                stats_ok=0,
-                stats_failed=0,
-                stats_crashed=0}).
+-include("disco.hrl").
 
 -record(state, {workers, nodes, purged}).
 

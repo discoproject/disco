@@ -7,7 +7,7 @@
 
 -define(SCHEDULE_TIMEOUT, 30000).
 
--include("task.hrl").
+-include("disco.hrl").
 
 start(JobName, JobCoord) ->
     case gen_server:start(fair_scheduler_job, {JobName, JobCoord}, 
