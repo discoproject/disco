@@ -157,15 +157,13 @@ get_tags(safe, Nodes) ->
 
 monitor_diskspace() ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
-    {NodeVols, _} = gen_server:multi_call(Nodes,
-                                          ddfs_node,
-                                          get_vols,
-                                          ?NODE_TIMEOUT),
-    NodeSpace = [{Node, lists:sum([Space || {Space, _VolName} <- Vols])}
-                 || {Node, {Vols, _Root}} <- NodeVols],
+    {Space, _F} = gen_server:multi_call(Nodes,
+                                        ddfs_node,
+                                        get_diskspace,
+                                        ?NODE_TIMEOUT),
     gen_server:cast(ddfs_master,
                     {update_nodestats,
-                     gb_trees:from_orddict(lists:keysort(1, NodeSpace))}),
+                     gb_trees:from_orddict(lists:keysort(1, Space))}),
     timer:sleep(?DISKSPACE_INTERVAL),
     monitor_diskspace().
 

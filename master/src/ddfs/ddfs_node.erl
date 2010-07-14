@@ -79,6 +79,9 @@ handle_call(get_blob, {Pid, _Ref} = From, #state{getq = Q} = S) ->
             {noreply, S#state{getq = NewQ}}
     end;
 
+handle_call(get_diskspace, _From, #state{vols = Vols} = S) ->
+    {reply, lists:sum([Space || {Space, _VolName} <- Vols]), S};
+
 handle_call({put_blob, BlobName}, {Pid, _Ref} = From, #state{putq = Q} = S) ->
     Reply = fun() ->
                     {_Space, VolName} = choose_vol(S#state.vols),
@@ -254,5 +257,3 @@ refresh_tags(Root, Vols) ->
     {ok, Tags} = find_tags(Root, Vols),
     gen_server:cast(ddfs_node, {update_tags, Tags}),
     refresh_tags(Root, Vols).
-
-
