@@ -96,7 +96,7 @@ handle_cast({update_nodes, NewNodes}, #state{nodes = Nodes, tags = Tags} = S) ->
     OldNodes = gb_trees:from_orddict(Nodes),
     UpdatedNodes = lists:keysort(1, [case gb_trees:lookup(Node, OldNodes) of
                                          none ->
-                                             {Node, 0};
+                                             {Node, {0, 0}};
                                          {value, OldStats} ->
                                              {Node, OldStats}
                                      end || {Node, _Blacklisted} <- NewNodes]),

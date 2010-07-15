@@ -86,10 +86,11 @@ safe_rename(Src, Dst) ->
 diskspace(Components) ->
     Path = filename:join(Components),
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
-        [_, _, Free|_] ->
-            case catch list_to_integer(Free) of
-                X when is_integer(X) ->
-                    {ok, X};
+        [_, _, Free, Used|_] ->
+            case catch {list_to_integer(Free),
+                        list_to_integer(Used)} of
+                {F, U} when is_integer(F), is_integer(U) ->
+                    {ok, {F, U}};
                 _ ->
                     {error, invalid_path}
             end;

@@ -101,10 +101,11 @@ getop("nodeinfo", _Query) ->
                                       {max_workers, N#dnode.slots},
                                       {blacklisted, N#dnode.blacklisted}]}
                                     || N <- DiscoNodes]),
-    NodeInfo = lists:foldl(fun ({Node, DiskSpace}, Dict) ->
-                                   dict:append(disco:host(Node),
-                                               {diskspace, DiskSpace},
-                                               Dict)
+    NodeInfo = lists:foldl(fun ({Node, {Free, Used}}, Dict) ->
+                                   dict:append_list(disco:host(Node),
+                                                    [{diskfree, Free},
+                                                     {diskused, Used}],
+                                                    Dict)
                            end,
                            dict:merge(fun (_Key, Tasks, Other) ->
                                               [{tasks, Tasks}|Other]

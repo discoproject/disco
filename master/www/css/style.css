@@ -102,11 +102,15 @@ input {
 }
 
 .nodebox .disk {
-    color: white;
-    background: #267CDB;
+    background: hotpink;
     border-bottom: 1px solid black;
     height: 1em;
-    line-height: 1.1em;
+    line-height: .9em;
+}
+
+.nodebox .disk .used {
+    background: turquoise;
+    color: darkgoldenrod;
 }
 
 .nodebox .val {

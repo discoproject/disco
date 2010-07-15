@@ -16,7 +16,10 @@ function Node(host, info) {
 
     var title = $.create("div", {"class": "title"}, [host]);
     var status = $.create("div", {"class": "status", "id": self.id}, jboxes);
-    var disk = $.create("div", {"class": "disk"}, [format_size(self.info.diskspace)]);
+    var diskp = 100 * self.info.diskfree / (self.info.diskfree + self.info.diskused);
+    var disk = $.create("div", {"class": "disk"});
+    var diskused = $(disk).append($.create("div", {"class": "disk used", "style": "width: " + diskp + "%"},
+                                           [format_size(self.info.diskfree)]));
     var val_ok = $.create("div", {"class": "val lval"},
                           [String(self.info.job_ok)]);
     var val_data = $.create("div", {"class": "val mval"},

@@ -80,7 +80,9 @@ handle_call(get_blob, {Pid, _Ref} = From, #state{getq = Q} = S) ->
     end;
 
 handle_call(get_diskspace, _From, #state{vols = Vols} = S) ->
-    {reply, lists:sum([Space || {Space, _VolName} <- Vols]), S};
+    {reply, lists:foldl(fun ({{Free, Used}, _VolName}, {TotalFree, TotalUsed}) ->
+                                {TotalFree + Free, TotalUsed + Used}
+                        end, {0, 0}, Vols), S};
 
 handle_call({put_blob, BlobName}, {Pid, _Ref} = From, #state{putq = Q} = S) ->
     Reply = fun() ->
@@ -196,7 +198,7 @@ init_vols(Root, VolNames) ->
                           prim_file:make_dir(filename:join([Root, VolName, "blob"])),
                           prim_file:make_dir(filename:join([Root, VolName, "tag"]))
                   end, VolNames),
-    {ok, [{0, VolName} || VolName <- lists:sort(VolNames)]}.
+    {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
 find_vols(Root) ->
     case prim_file:list_dir(Root) of
