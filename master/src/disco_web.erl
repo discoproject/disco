@@ -115,12 +115,9 @@ getop("nodeinfo", _Query) ->
     {ok, {struct, [{K, {struct, Vs}} || {K, Vs} <- dict:to_list(NodeInfo)]}};
 
 getop("get_blacklist", _Query) ->
-    {ok, {A, _}} = gen_server:call(disco_server, {get_nodeinfo, all}),
-    {ok, [N0 || {N0, true} <- lists:map(fun({struct, L}) ->
-        {value, {_, N}} = lists:keysearch(node, 1, L),
-        {value, {_, B}} = lists:keysearch(blacklisted, 1, L),
-        {N, B}
-    end, A)]};
+    {ok, DiscoNodes} = gen_server:call(disco_server, {get_nodeinfo, all}),
+    {ok, [list_to_binary(N#dnode.name)
+          || N <- DiscoNodes, not (N#dnode.blacklisted == false)]};
 
 getop("get_settings", _Query) ->
     L = [max_failure_rate],
