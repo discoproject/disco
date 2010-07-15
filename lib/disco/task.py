@@ -201,6 +201,8 @@ class Task(object):
                 yield fn
 
     def insert_globals(self, functions):
+        write_files(self.required_files, self.lib)
+        sys.path.insert(0, self.lib)
         for fn in functions:
             if isinstance(fn, partial):
                 fn = fn.func
@@ -215,8 +217,6 @@ class Task(object):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
         os.chdir(self.jobroot)
         ensure_path(self.oob_dir)
-        sys.path.insert(0, self.lib)
-        write_files(self.required_files, self.lib)
         self._run_profile() if self.profile else self._run()
 
     def _run_profile(self):

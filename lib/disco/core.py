@@ -705,7 +705,7 @@ class JobDict(util.DefaultDict):
                 'partitions': 1,
                 'prefix': '',
                 'profile': False,
-                'required_files': None,
+                'required_files': {},
                 'required_modules': None,
                 'scheduler': {'max_cores': '%d' % 2**31},
                 'save': False,
