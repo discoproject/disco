@@ -29,8 +29,7 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     end;
 
 op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
-    Prefix = list_to_binary(
-        ddfs_util:replace(string:strip(Prefix0, both, $/), $/, $:)),
+    Prefix = list_to_binary(string:strip(Prefix0, both, $/)),
     case ddfs:tags(ddfs_master, Prefix) of
         {ok, Tags} ->
             okjson(Tags, Req);
@@ -38,8 +37,7 @@ op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
             error(E, Req)
     end;
 
-op('GET', "/ddfs/tag/" ++ Tag0, Req) ->
-    Tag = ddfs_util:replace(Tag0, $/, $:),
+op('GET', "/ddfs/tag/" ++ Tag, Req) ->
     case ddfs:get_tag(ddfs_master, Tag) of
         {ok, TagData} ->
             Req:ok({"application/json", [], TagData});
