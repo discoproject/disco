@@ -38,6 +38,7 @@ function Node(host, info) {
     $(".status#" + self.id + " > .jbox#free:first")
     .attr("id", "")
     .addClass("busy")
+    .addClass("_job_" + task.replace("@", "_").split(":").join(""))
     .click(function () {
         $("#joblist input").val(task);
       });

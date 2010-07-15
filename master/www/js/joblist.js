@@ -29,8 +29,8 @@ function hslToRgb(h, s, l) {
 
 function job_mouseover() {
   $(this).css('background', '#FFF7BF');
-  $("._job_" + $(this).text().replace("@", "_")).
-    addClass("show_jbox");
+  $("._job_" + $(this).text().replace("@", "_").split(":").join(""))
+    .addClass("show_jbox");
 }
 
 function job_mouseout() {
