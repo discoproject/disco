@@ -160,14 +160,14 @@ process_tag(Tag, TagData, TagReplicas) ->
             % Run call in a separate process so post-timeout replies
             % won't pollute the gc process' inbox.
             spawn(fun() -> gen_server:call(ddfs_master,
-                    {tag, {put, NewUrls}, Tag}) end);
+                    {tag, {put, urls, NewUrls}, Tag}) end);
         %%%
         %%% O5) Re-replicate tags that don't have enough replicas
         %%%
         {ok, _} when length(OkReplicas) < TagK ->
             error_logger:info_report({"GC: Re-replicating tag", Tag}),
             spawn(fun() -> gen_server:call(ddfs_master,
-                {tag, {put, Urls}, Tag}) end);
+                {tag, {put, urls, Urls}, Tag}) end);
         _ -> 
             ok
     end, 

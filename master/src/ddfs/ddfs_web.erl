@@ -62,7 +62,9 @@ op('POST', "/ddfs/tag/" ++ Tag, Req) ->
     end, Req);
 
 op('PUT', "/ddfs/tag/" ++ Tag, Req) ->
-    tag_update(fun(Urls) -> ddfs:replace_tag(ddfs_master, Tag, Urls) end, Req);
+    tag_update(fun(Urls) ->
+                   ddfs:replace_tag(ddfs_master, Tag, urls, Urls)
+               end, Req);
 
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
     case ddfs:delete(ddfs_master, Tag) of

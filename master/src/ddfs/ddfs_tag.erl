@@ -135,10 +135,10 @@ handle_cast({gc_get0, ReplyTo}, S) ->
     {noreply, S, S#state.timeout};
 
 handle_cast({{update, Urls}, ReplyTo}, #state{data = notfound} = S) ->
-    handle_cast({{put, Urls}, ReplyTo}, S);
+    handle_cast({{put, urls, Urls}, ReplyTo}, S);
 
 handle_cast({{update, Urls}, ReplyTo}, #state{data = deleted} = S) ->
-    handle_cast({{put, Urls}, ReplyTo}, S);
+    handle_cast({{put, urls, Urls}, ReplyTo}, S);
 
 handle_cast({{update, Urls}, ReplyTo}, #state{data = D} = S) ->
     % XXX: decompress data here!
@@ -149,25 +149,30 @@ handle_cast({{update, Urls}, ReplyTo}, #state{data = D} = S) ->
         {ok, OldUrls} ->
             case validate_urls(Urls) of
                 true ->
-                    handle_cast({{put, Urls ++ OldUrls}, ReplyTo}, S);
+                    handle_cast({{put, urls, Urls ++ OldUrls}, ReplyTo}, S);
                 false ->
                     send_replies(ReplyTo, {error, invalid_url_object}),
                     {noreply, S, S#state.timeout}
             end
     end;
 
-handle_cast({{put, Urls}, ReplyTo}, S) ->
-    case put_transaction(validate_urls(Urls), Urls, S) of
-        {ok, DestNodes, DestUrls, TagData} ->
-            if S#state.data == deleted ->
-                {ok, _} = remove_from_deleted(S#state.tag);
-            true -> ok
-            end,
-            send_replies(ReplyTo, {ok, DestUrls}),
-            S1 = S#state{data = TagData, replicas = DestNodes},
-            {noreply, S1, S#state.timeout};
-        {error, _} = E ->
-            send_replies(ReplyTo, E),
+handle_cast({{put, Field, Value}, ReplyTo}, S) ->
+    case {Field, Value} of
+        {urls, Urls} ->
+            case put_transaction(validate_urls(Urls), Urls, S) of
+                {ok, DestNodes, DestUrls, TagData} ->
+                    if S#state.data == deleted ->
+                            {ok, _} = remove_from_deleted(S#state.tag);
+                       true -> ok
+                    end,
+                    send_replies(ReplyTo, {ok, DestUrls}),
+                    S1 = S#state{data = TagData, replicas = DestNodes},
+                    {noreply, S1, S#state.timeout};
+                {error, _} = E ->
+                    send_replies(ReplyTo, E),
+                    {noreply, S, S#state.timeout}
+            end;
+        _ ->
             {noreply, S, S#state.timeout}
     end;
 
@@ -182,7 +187,7 @@ handle_cast(M, #state{url_cache = false, data = Data} = S) ->
 
 handle_cast({{insert_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
     DeletedU = gb_sets:add(Url, Deleted),
-    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo},
+    handle_cast({{put, urls, gb_sets:to_list(DeletedU)}, ReplyTo},
         S#state{url_cache = DeletedU});
 
 handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
@@ -191,7 +196,7 @@ handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
 
 handle_cast({{remove_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
     DeletedU = gb_sets:delete_any(Url, Deleted),
-    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo},
+    handle_cast({{put, urls, gb_sets:to_list(DeletedU)}, ReplyTo},
         S#state{url_cache = DeletedU}).
 
 handle_call(dbg_get_state, _, S) ->
