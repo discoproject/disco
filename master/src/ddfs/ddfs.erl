@@ -28,7 +28,7 @@ tags(Host, Prefix) ->
     end.
 
 -spec get_tag(node(), string()) ->
-    'invalid_name' | {'ok', binary()} | {'error', _}.
+    'invalid_name' | 'notfound' | 'deleted' | {'ok', binary()} | {'error', _}.
 get_tag(Host, Tag) ->
     validate(Tag, fun() ->
         case gen_server:call(Host,
