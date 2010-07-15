@@ -136,9 +136,9 @@ class DiscoJobTestFixture(object):
 
     @property
     def nodes(self):
-        return dict((n['node'], n['max_workers'])
-                for n in self.disco.nodeinfo()['available']
-                if not n['blacklisted'])
+        return dict((host, info['max_workers'])
+                    for host, info in self.disco.nodeinfo().items()
+                    if not info['blacklisted'])
 
     @property
     def num_workers(self):
