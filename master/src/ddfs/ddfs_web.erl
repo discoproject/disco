@@ -40,11 +40,7 @@ op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
 
 op('GET', "/ddfs/tag/" ++ Tag0, Req) ->
     Tag = ddfs_util:replace(Tag0, $/, $:),
-    Op = case lists:keysearch("urls", 1, Req:parse_qs()) of
-            false -> fun() -> ddfs:get_tag(ddfs_master, Tag) end;
-            _ -> fun() -> ddfs:get_tag_replicas(ddfs_master, Tag) end
-    end,
-    case Op() of
+    case ddfs:get_tag(ddfs_master, Tag) of
         {ok, TagData} ->
             Req:ok({"application/json", [], TagData});
         invalid_name ->

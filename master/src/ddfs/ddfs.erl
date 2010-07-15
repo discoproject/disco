@@ -3,8 +3,7 @@
 -include("config.hrl").
 
 -export([new_blob/4, tags/2, get_tag/2, update_tag/3,
-         update_tag_delayed/3, replace_tag/3, get_tag_replicas/2,
-         delete/2]).
+         update_tag_delayed/3, replace_tag/3, delete/2]).
 
 -spec new_blob(node(), string(), non_neg_integer(), [node()]) ->
     'invalid_name' | 'too_many_replicas' | {'ok', [string()]} | _.
@@ -39,10 +38,6 @@ get_tag(Host, Tag) ->
             E -> E
         end
     end).
-
--spec get_tag_replicas(node(), string()) -> _.
-get_tag_replicas(Host, Tag) ->
-    tagop(Host, Tag, get_replicas).
 
 -spec update_tag(node(), string(), [binary()]) -> _.
 update_tag(Host, Tag, Urls) ->
