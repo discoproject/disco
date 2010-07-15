@@ -62,7 +62,7 @@ input {
 
 .nodebox {
     width: 15em;
-    height: 5em;
+    height: 6em;
     border: 1px solid #666;
     float: left;
     margin: 10px;
@@ -99,6 +99,14 @@ input {
 
 .nodebox .status .show_jbox {
     background: #BFFFD9;
+}
+
+.nodebox .disk {
+    color: white;
+    background: #267CDB;
+    border-bottom: 1px solid black;
+    height: 1em;
+    line-height: 1.1em;
 }
 
 .nodebox .val {

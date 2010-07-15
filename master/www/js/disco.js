@@ -7,6 +7,15 @@ $(document).ready(function() {
     $.ajaxSetup({cache: false});
   });
 
+function format_size(num) {
+  units = ['KB', 'MB', 'GB', 'TB'];
+  for (i = 0; i < units.length; i++) {
+    if (num < 1024)
+      return num.toPrecision(3) + units[i];
+    num /= 1024;
+  }
+}
+
 function show_msg(m){
   $("#msg").text(m.replace(/\"/g, "")).show().fadeOut(2000);
 }

@@ -3,45 +3,51 @@ $(document).ready(function () {
     $.getJSON("/disco/ctrl/nodeinfo", update_nodeboxes);
   });
 
-function update_nodeboxes(data) {
-    $("#nodes").html($.map(data.available, make_nodebox));
-    $.each(data.active, active_worker);
+function Node(host, info) {
+  self = this; /* cant actually use 'this' in methods since jquery binds it */
+  self.host = host;
+  self.info = info;
+  self.id = host.replace(/\./g, "-");
 
-    setTimeout(function() {
-        $.getJSON("/disco/ctrl/nodeinfo", update_nodeboxes);
-      }, 10000);
-}
-
-function active_worker(index, worker) {
-  var id = worker.node.replace(/\./g, "-");
-  var n = "_job_" + worker.jobname.replace("@", "_");
-  $(".status#" + id + " > .jbox#free:first")
-    .addClass("busy").addClass(n).attr("id", "").click(function () {
-        $(".joblist input").val(worker.jobname);
-      });
-}
-
-function make_nodebox(B, i)
-{
-    var jboxes = $.map(Array(B.max_workers), function(X, i){
+  self.append_to = function (elmt) {
+    var jboxes = $.map(Array(self.info.max_workers), function (X, i) {
         return $.create("div", {"class": "jbox", "id": "free"}, []);
+      });
+
+    var title = $.create("div", {"class": "title"}, [host]);
+    var status = $.create("div", {"class": "status", "id": self.id}, jboxes);
+    var disk = $.create("div", {"class": "disk"}, [format_size(self.info.diskspace)]);
+    var val_ok = $.create("div", {"class": "val lval"},
+                          [String(self.info.job_ok)]);
+    var val_data = $.create("div", {"class": "val mval"},
+                            [String(self.info.data_error)]);
+    var val_err = $.create("div", {"class": "val rval"},
+                           [String(self.info.error)]);
+    var blacklisted = self.info.blacklisted ? "blacklisted" : "";
+
+    elmt.append($.create("div",
+                         {"class": "nodebox " + blacklisted},
+                         [title, status, disk, val_ok, val_data, val_err]));
+    $.map(self.info.tasks || [], self.show_task);
+  }
+
+  self.show_task = function (task) {
+    $(".status#" + self.id + " > .jbox#free:first")
+    .attr("id", "")
+    .addClass("busy")
+    .click(function () {
+        $("#joblist input").val(task);
+      });
+  }
+}
+
+function update_nodeboxes(data) {
+  $("#nodes").empty();
+  $.each(data, function (host, info) {
+      new Node(host, info).append_to($("#nodes"));
     });
 
-    var id = B.node.replace(/\./g, "-");
-    var sta = $.create("div", {"class": "status", "id": id}, jboxes);
-    var tit = $.create("div", {"class": "title"}, [B.node]);
-    var val_ok = $.create("div", {"class": "val lval"},
-        [String(B.job_ok)]);
-    var val_data = $.create("div", {"class": "val mval"},
-        [String(B.data_error)]);
-    var val_err = $.create("div", {"class": "val rval"},
-        [String(B.error)]);
-
-    if (B.blacklisted)
-        bl = "blacklisted";
-    else
-        bl = "";
-
-    return $.create("div", {"class": "nodebox " + bl},
-        [tit, sta, val_ok, val_data, val_err]);
+  setTimeout(function() {
+      $.getJSON("/disco/ctrl/nodeinfo", update_nodeboxes);
+    }, 10000);
 }

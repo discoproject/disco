@@ -200,23 +200,16 @@ handle_call({new_task, Task}, _, S) ->
             {reply, failed, S}
     end;
 
-handle_call({get_active, JobName}, _From, #state{workers = Workers} = S) ->
-    {Nodes, Tasks} = lists:unzip([{N, M} ||
-        {N, #task{mode = M, jobname = X}} <- gb_trees:values(Workers),
-            X == JobName]),
-    {reply, {ok, {Nodes, Tasks}}, S};
+handle_call({get_active, all}, _From, #state{workers = Workers} = S) ->
+    {reply, {ok, gb_trees:values(Workers)}, S};
 
-handle_call({get_nodeinfo, all}, _From, S) ->
-    Active = [{N, Name} || {N, #task{jobname = Name}}
-                <- gb_trees:values(S#state.workers)],
-    Available = [{struct, [{node, list_to_binary(N#dnode.name)},
-		           {job_ok, N#dnode.stats_ok},
-                           {data_error, N#dnode.stats_failed},
-                           {error, N#dnode.stats_crashed},
-                           {max_workers, N#dnode.slots},
-                           {blacklisted, not (N#dnode.blacklisted == false)}]}
-                    || N <- gb_trees:values(S#state.nodes)],
-    {reply, {ok, {Available, Active}}, S};
+handle_call({get_active, JobName}, _From, #state{workers = Workers} = S) ->
+    Active = [{Host, Task} || {Host, #task{jobname = N} = Task}
+                                  <- gb_trees:values(Workers), N == JobName],
+    {reply, {ok, Active}, S};
+
+handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
+    {reply, {ok, gb_trees:values(Nodes)}, S};
 
 handle_call(get_purged, _, #state{purged = Purged} = S) ->
     Now = now(),

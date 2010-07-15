@@ -142,7 +142,7 @@ class DiscoJobTestFixture(object):
 
     @property
     def num_workers(self):
-        return sum(x['max_workers'] for x in self.disco.nodeinfo()['available'])
+        return sum(x['max_workers'] for x in self.disco.nodeinfo().values())
 
     @property
     def test_server_address(self):

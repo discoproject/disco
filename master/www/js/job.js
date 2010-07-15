@@ -62,7 +62,7 @@ function Job(name) {
     } else {
       $("#map_inputs").html(prepare_urls(data.inputs));
     }
-    $("#cur_nodes").html(data.nodes.join("<br/>"));
+    $("#cur_nodes").html(data.hosts.join("<br/>"));
     $("#results").html(prepare_urls(data.results));
 
     $(".url:odd").css({"background": "#eee"});
