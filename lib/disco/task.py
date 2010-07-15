@@ -278,7 +278,7 @@ class Map(Task):
         for output in outputs:
             output.close()
         safe_update(index, ['%d %s' % (i, output.url)
-                            for i, o in enumerate(outputs)])
+                            for i, output in enumerate(outputs)])
 
         if self.save and not self.reduce:
             OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
