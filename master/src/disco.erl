@@ -5,6 +5,7 @@
          oob_name/1,
          settings/0]).
 
+-spec get_setting(string()) -> string().
 get_setting(SettingName) ->
     case os:getenv(SettingName) of
         false ->
@@ -15,6 +16,7 @@ get_setting(SettingName) ->
             Val
     end.
 
+-spec has_setting(string()) -> bool().
 has_setting(SettingName) ->
     case os:getenv(SettingName) of
         false -> false;
@@ -37,9 +39,11 @@ node_safe(Host) ->
         Node -> Node
     end.
 
+-spec oob_name(string()) -> string().
 oob_name(JobName) ->
     lists:flatten(["disco:job:oob:", JobName]).
 
+-spec settings() -> [string()].
 settings() ->
     lists:filter(fun has_setting/1,
                  string:tokens(get_setting("DISCO_SETTINGS"), ",")).

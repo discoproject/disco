@@ -13,6 +13,7 @@
 % takes care of coordinating the whole map-reduce show, including
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
+-spec new(binary()) -> _.
 new(PostData) ->
     TMsg = "couldn't start a new job coordinator in 10s (master busy?)",
     S = self(),
@@ -30,6 +31,7 @@ new(PostData) ->
     end.
 
 % job_coordinator() orchestrates map/reduce tasks for a job
+-spec init_job_coordinator(pid(), binary()) -> _.
 init_job_coordinator(Parent, PostData) ->
     Msg = netstring:decode_netstring_fd(PostData),
     case catch find_values(Msg) of
@@ -39,6 +41,7 @@ init_job_coordinator(Parent, PostData) ->
         init_job_coordinator(Parent, Params, PostData)
     end.
 
+-spec init_job_coordinator(pid(), {nonempty_string(), jobinfo()}, binary()) -> _.
 init_job_coordinator(Parent, {Prefix, JobInfo}, PostData) ->
     C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
     if C > 0 ->
@@ -59,9 +62,12 @@ save_params(Name, PostData) ->
     Home = disco_server:jobhome(Name),
     ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
+-spec field_exists([binary()], binary()) -> bool().
 field_exists(Msg, Opt) ->
     lists:keysearch(Opt, 1, Msg) =/= false.
 
+% This specification gives spurious warnings.
+%-spec find_values(netstring:kvtable()) -> {nonempty_string(), jobinfo()}.
 find_values(Msg) ->
 
     {value, {_, PrefixBinary}} = lists:keysearch(<<"prefix">>, 1, Msg),
@@ -93,6 +99,10 @@ find_values(Msg) ->
 % work() is the heart of the map/reduce show. First it distributes tasks
 % to nodes. After that, it starts to wait for the results and finally
 % returns when it has gathered all the results.
+
+-spec work([{non_neg_integer(), [{binary(), nonempty_string()}]}],
+    nonempty_string(), nonempty_string(), non_neg_integer(),
+    jobinfo(), gb_tree()) -> {'ok', gb_tree()}.
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
@@ -128,6 +138,8 @@ work([], _Mode, _Name, 0, _Job, Res) -> {ok, Res}.
 
 % wait_workers receives messages from disco_server:clean_worker() that is
 % called when a worker exits.
+-spec wait_workers(non_neg_integer(), gb_tree(), nonempty_string(),
+    nonempty_string()) -> {non_neg_integer(), gb_tree()}.
 
 % Error condition: should not happen.
 wait_workers(0, _Res, _Name, _Mode) ->
@@ -166,6 +178,7 @@ wait_workers(N, Results, Name, Mode) ->
         throw(logged_error)
     end.
 
+-spec submit_task(task()) -> _.
 submit_task(Task) ->
     case catch gen_server:call(disco_server, {new_task, Task}, 30000) of
     ok -> ok;
@@ -182,6 +195,7 @@ submit_task(Task) ->
 % handle_data_error() schedules the failed task for a retry, with the
 % failing node in its blacklist. If a task fails too many times, as
 % determined by check_failure_rate(), the whole job will be terminated.
+-spec handle_data_error(task(), node()) -> _.
 handle_data_error(Task, Node) ->
     MaxFail = case application:get_env(max_failure_rate) of
     undefined -> ?TASK_MAX_FAILURES;
@@ -203,6 +217,7 @@ handle_data_error(Task, Node) ->
         submit_task(Task#task{taskblack = [Node|T], input = NInputs})
     end).
 
+-spec check_failure_rate(task(), non_neg_integer()) -> _.
 check_failure_rate(Task, MaxFail)
     when length(Task#task.taskblack) + 1 =< MaxFail -> ok;
 check_failure_rate(Task, MaxFail) ->
@@ -215,6 +230,7 @@ check_failure_rate(Task, MaxFail) ->
          MaxFail], []),
     throw(logged_error).
 
+-spec kill_job(nonempty_string(), nonempty_string(), [_], atom()) -> no_return().
 kill_job(Name, Msg, P, Type) ->
     event_server:event(Name, Msg, P, []),
     gen_server:call(disco_server, {kill_job, Name}, 30000),
@@ -224,6 +240,8 @@ kill_job(Name, Msg, P, Type) ->
 % run_task() is a common supervisor for both the map and reduce tasks.
 % Its main function is to catch and report any errors that occur during
 % work() calls.
+-spec run_task([{non_neg_integer(), {binary(), nonempty_string()}}],
+    nonempty_string(), nonempty_string(), jobinfo()) -> [binary()].
 run_task(Inputs, Mode, Name, Job) ->
     Results = case catch work(Inputs, Mode, Name,
         0, Job, gb_trees:empty()) of
@@ -239,6 +257,7 @@ run_task(Inputs, Mode, Name, Job) ->
     end,
     [list_to_binary(X) || X <- gb_trees:keys(Results)].
 
+-spec job_coordinator(nonempty_string(), jobinfo()) -> _.
 job_coordinator(Name, Job) ->
     Started = now(),
     event_server:event(Name, "Starting job", [], {job_data, Job}),
@@ -279,15 +298,20 @@ job_coordinator(Name, Job) ->
     end,
     gen_server:cast(event_server, {job_done, Name}).
 
+-spec map_input([binary()] | [[binary()]]) ->
+    [{non_neg_integer(), {binary(), nonempty_string()}}].
 map_input(Inputs) ->
     Prefs = [map_input1(I) || I <- Inputs],
     lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
 
+-spec map_input1(binary() | [binary()]) -> [{binary(), nonempty_string()}].
 map_input1(Inp) when is_list(Inp) ->
     [{<<"'", X/binary, "' ">>, pref_node(X)} || X <- Inp];
 map_input1(Inp) ->
     [{<<"'", Inp/binary, "' ">>, pref_node(Inp)}].
 
+-spec reduce_input(nonempty_string(), _, non_neg_integer()) ->
+    [{non_neg_integer(), [{binary(), nonempty_string()}]}].
 reduce_input(Name, Inputs, NRed) ->
     V = lists:any(fun erlang:is_list/1, Inputs),
     if V ->
@@ -305,6 +329,7 @@ reduce_input(Name, Inputs, NRed) ->
 % pref_node() suggests a preferred node for a task (one preserving locality)
 % given the url of its input.
 
+-spec pref_node(binary() | string()) -> 'false' | nonempty_string().
 pref_node(Url) when is_binary(Url) -> pref_node(binary_to_list(Url));
 pref_node(Url) ->
     case re:run(Url ++ "/", "[a-zA-Z0-9]+://(.*?)[/:]",

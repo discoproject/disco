@@ -13,9 +13,12 @@ start_link(Config) ->
     error_logger:info_report([{"DDFS node starts"}]),
     case catch gen_server:start_link(
             {local, ddfs_node}, ddfs_node, Config, [{timeout, ?NODE_STARTUP}]) of
-        {ok, _Server} -> ok;
-        {error, {already_started, _Server}} -> ok;
-        {'EXIT', Reason} -> exit(Reason)
+        {ok, _Server} ->
+            ok;
+        {error, {already_started, _Server}} ->
+            exit(already_started);
+        {'EXIT', Reason} ->
+            exit(Reason)
     end,
     receive
         {'EXIT', _, Reason0} ->
@@ -183,6 +186,8 @@ terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+-spec read_tag(binary(), nonempty_string(), nonempty_string(),
+               {_, nonempty_string()}, {pid(), reference()}) -> _.
 read_tag(Tag, NodeName, Root, {_, VolName}, From) ->
     {ok, D, _} = ddfs_util:hashdir(Tag, NodeName, "tag", Root, VolName),
     case prim_file:read_file(filename:join(D, binary_to_list(Tag))) of
@@ -193,6 +198,8 @@ read_tag(Tag, NodeName, Root, {_, VolName}, From) ->
             gen_server:reply(From, {error, read_failed})
     end.
 
+-spec init_vols(nonempty_string(), [nonempty_string()]) ->
+    {'ok', [nonempty_string()]}.
 init_vols(Root, VolNames) ->
     lists:foreach(fun(VolName) ->
                           prim_file:make_dir(filename:join([Root, VolName, "blob"])),
@@ -200,6 +207,8 @@ init_vols(Root, VolNames) ->
                   end, VolNames),
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
+-spec find_vols(nonempty_string()) ->
+    {'ok', [nonempty_string()]} | {'error', _}.
 find_vols(Root) ->
     case prim_file:list_dir(Root) of
         {ok, Files} ->
@@ -219,6 +228,8 @@ find_vols(Root) ->
             Error
     end.
 
+-spec find_tags(nonempty_string(), [nonempty_string(),...]) ->
+    {'ok', gb_tree()}.
 find_tags(Root, Vols) ->
     {ok,
      lists:foldl(fun({_Space, VolName}, Tags) ->
@@ -228,6 +239,7 @@ find_tags(Root, Vols) ->
                                               end, Tags)
                  end, gb_trees:empty(), Vols)}.
 
+-spec parse_tag(nonempty_string(), nonempty_string(), gb_tree()) -> gb_tree().
 parse_tag("!" ++ _, _, Tags) -> Tags;
 parse_tag(Tag, VolName, Tags) ->
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
@@ -240,11 +252,15 @@ parse_tag(Tag, VolName, Tags) ->
             Tags
     end.
 
+-spec choose_vol([{non_neg_integer(), nonempty_string()},...]) ->
+    nonempty_string().
 choose_vol(Vols) ->
     % Choose the volume with most available space
     [Vol|_] = lists:reverse(lists:keysort(1, Vols)),
     Vol.
 
+-spec monitor_diskspace(nonempty_string(), [nonempty_string(),...]) ->
+    no_return().
 monitor_diskspace(Root, Vols) ->
     timer:sleep(?DISKSPACE_INTERVAL),
     NewVols = [{Space, VolName}
@@ -254,6 +270,8 @@ monitor_diskspace(Root, Vols) ->
     gen_server:cast(ddfs_node, {update_vols, NewVols}),
     monitor_diskspace(Root, NewVols).
 
+-spec refresh_tags(nonempty_string(), [nonempty_string(),...]) ->
+    no_return().
 refresh_tags(Root, Vols) ->
     timer:sleep(?FIND_TAGS_INTERVAL),
     {ok, Tags} = find_tags(Root, Vols),

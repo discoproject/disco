@@ -8,7 +8,9 @@
 
 -include("disco.hrl").
 
--record(state, {workers, nodes, purged}).
+-record(state, {workers :: gb_tree(),
+                nodes :: gb_tree(),
+                purged :: gb_tree()}).
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
 

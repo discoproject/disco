@@ -1,16 +1,16 @@
 #include "discodb.h"
 
 typedef struct {
-  PyObject_VAR_HEAD
-  PyObject   *obuffer;
-  char       *cbuffer;
-  struct ddb *discodb;
+    PyObject_VAR_HEAD
+    PyObject   *obuffer;
+    char       *cbuffer;
+    struct ddb *discodb;
 } DiscoDB;
 
 typedef struct {
-  PyObject_HEAD
-  DiscoDB           *owner;
-  struct ddb_cursor *cursor;
+    PyObject_HEAD
+    DiscoDB           *owner;
+    struct ddb_cursor *cursor;
 } DiscoDBIter;
 
 

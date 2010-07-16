@@ -10,7 +10,7 @@
 
 -export([init/1, start/2, stop/1]).
 
-write_pid(false) -> ok;
+-spec write_pid(nonempty_string()) -> 'ok'.
 write_pid(PidFile) ->
     case file:write_file(PidFile, os:getpid()) of
         ok -> ok;
@@ -23,6 +23,7 @@ start(_Type, _Args) ->
     Port = disco:get_setting("DISCO_PORT"),
     supervisor:start_link(disco_main, [list_to_integer(Port)]).
 
+-spec init([non_neg_integer()]) -> {'ok', any()}.
 init([Port]) ->
     error_logger:info_report([{"DISCO BOOTS"}]),
     {ok, {{one_for_one, ?MAX_R, ?MAX_T}, [

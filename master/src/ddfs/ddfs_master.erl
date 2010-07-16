@@ -9,7 +9,10 @@
 
 -include("config.hrl").
 
--record(state, {nodes, put_port, tags, tag_cache, blacklisted}).
+-record(state, {nodes :: [{node(), non_neg_integer()}],
+                tags :: gb_tree(),
+                tag_cache :: 'false' | gb_set(),
+                blacklisted :: [node()]}).
 
 start_link() ->
     error_logger:info_report([{"DDFS master starts"}]),
@@ -40,13 +43,21 @@ handle_call(get_nodes, _From, #state{nodes = Nodes} = S) ->
     {reply, {ok, [Node || {Node, _} <- Nodes]}, S};
 
 handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
-    % NB: We should probably avoid choosing the same node many times in
-    % sequence (which is pretty much guaranteed to happen with the current
-    % implemention). This causes huge congestion on the frequently chosen
-    % node and it's bad for data distribution. Add a layer of randomization.
-    Nodes = lists:sublist([N || {N, _} <- lists:reverse(
-        lists:keysort(2, S#state.nodes))] -- (Exclude ++ BL), K),
-    {reply, {ok, Nodes}, S};
+    % Node selection algorithm:
+    % 1. try to choose K nodes randomly from all the nodes which have
+    %    more than ?MIN_FREE_SPACE bytes free space available and which
+    %    are not excluded or blacklisted.
+    % 2. if K nodes cannot be found this way, choose the K emptiest
+    %    nodes which are not excluded or blacklisted.
+    Primary = [Node || {Node, Free} <- S#state.nodes,
+                Free > ?MIN_FREE_SPACE / 1024] -- (Exclude ++ BL),
+    if length(Primary) >= K ->
+        {reply, {ok, ddfs_util:choose_random(Primary, K)}, S};
+    true ->
+        Secondary = lists:sublist([N || {N, _} <- lists:reverse(
+            lists:keysort(2, S#state.nodes))] -- (Exclude ++ BL), K),
+        {reply, {ok, Secondary}, S}
+    end;
 
 handle_call({new_blob, _, K, _}, _, #state{nodes = N} = S) when K > length(N) ->
     {reply, too_many_replicas, S};
@@ -132,6 +143,8 @@ terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+-spec get_tags('all' | 'filter', [node()]) -> {[node()], [node()], [binary()]};
+              ('safe', [node()]) -> {'ok', [binary()]} | 'too_many_failed_nodes'.
 get_tags(all, Nodes) ->
     {Replies, Failed} = gen_server:multi_call(Nodes,
         ddfs_node, get_tags, ?NODE_TIMEOUT),
@@ -140,12 +153,17 @@ get_tags(all, Nodes) ->
 
 get_tags(filter, Nodes) ->
     {OkNodes, Failed, Tags} = get_tags(all, Nodes),
-    {ok, Deleted} = gen_server:call(ddfs_master,
-        {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT),
-    TagSet = gb_sets:from_ordset([[<<"tag://", T/binary>>] || T <- Tags]),
-    DelSet = gb_sets:insert([<<"tag://+deleted">>], Deleted),
-    {OkNodes, Failed, [T || [<<"tag://", T/binary>>]
-        <- gb_sets:to_list(gb_sets:subtract(TagSet, DelSet))]};
+    case gen_server:call(ddfs_master,
+            {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
+        {ok, Deleted} ->
+            TagSet = gb_sets:from_ordset(
+                [[<<"tag://", T/binary>>] || T <- Tags]),
+            DelSet = gb_sets:insert([<<"tag://+deleted">>], Deleted),
+            {OkNodes, Failed, [T || [<<"tag://", T/binary>>]
+                <- gb_sets:to_list(gb_sets:subtract(TagSet, DelSet))]};
+        E ->
+            E
+    end;
 
 get_tags(safe, Nodes) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
@@ -156,6 +174,7 @@ get_tags(safe, Nodes) ->
             too_many_failed_nodes
     end.
 
+-spec monitor_diskspace() -> no_return().
 monitor_diskspace() ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     {Space, _F} = gen_server:multi_call(Nodes,
@@ -168,12 +187,14 @@ monitor_diskspace() ->
     timer:sleep(?DISKSPACE_INTERVAL),
     monitor_diskspace().
 
+-spec refresh_tag_cache_proc() -> no_return().
 refresh_tag_cache_proc() ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     refresh_tag_cache(Nodes),
     timer:sleep(?TAG_CACHE_INTERVAL),
     refresh_tag_cache_proc().
 
+-spec refresh_tag_cache([node()]) -> 'ok'.
 refresh_tag_cache(Nodes) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     {Replies, Failed} = gen_server:multi_call(Nodes,

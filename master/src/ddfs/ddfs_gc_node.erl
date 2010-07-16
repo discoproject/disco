@@ -5,6 +5,7 @@
 
 % see ddfs_gc.erl for comments
 
+-spec gc_node(pid(), timer:timestamp()) -> 'orphans_done'.
 gc_node(Master, Now) ->
     process_flag(priority, low),
     ets:new(tag, [named_table, set, private]),
@@ -20,6 +21,7 @@ gc_node(Master, Now) ->
     delete_orphaned(Master, Now, Root, "tag", tag, ?ORPHANED_TAG_EXPIRES),
     Master ! orphans_done.
 
+-spec node_server(nonempty_string()) -> 'ok'.
 node_server(Root) ->
     receive
         {{touch, Ets}, M, Obj} ->
@@ -35,15 +37,20 @@ node_server(Root) ->
                 requests_failed)
     end.
 
+-spec take_key(binary(), atom()) -> bool().
 take_key(Key, Ets) ->
     ets:update_element(Ets, Key, {3, true}).
 
+-spec send_blob(binary(), nonempty_string(), nonempty_string()) ->
+    'ok' | {'error', 'crashed' | 'timeout'}.
 send_blob(Obj, DstUrl, Root) ->
     [{_, VolName, _}] = ets:lookup(blob, Obj),
     {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", "blob", Root, VolName),
     ddfs_http:http_put(filename:join(Path, binary_to_list(Obj)),
         DstUrl, ?GC_PUT_TIMEOUT).
 
+-spec traverse(timer:timestamp(), nonempty_string(),
+    nonempty_string(), nonempty_string(), atom()) -> _.
 traverse(Now, Root, VolNames, Mode, Ets) ->
     lists:foldl(fun(VolName, _) ->
                         ddfs_util:fold_files(filename:join([Root, VolName, Mode]),
@@ -56,6 +63,8 @@ traverse(Now, Root, VolNames, Mode, Ets) ->
 %%%
 %%% O1) Remove leftover !partial. files
 %%%
+-spec handle_file(nonempty_string(), nonempty_string(),
+    nonempty_string(), atom(), timer:timestamp()) -> _.
 handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     [_, Obj] = string:tokens(File, "."),
     {_, Time} = ddfs_util:unpack_objname(Obj),
@@ -69,6 +78,8 @@ handle_file(Obj, _, VolName, Ets, _) ->
 %%% O2) Remove orphaned tags
 %%% O3) Remove orphaned blobs
 %%%
+-spec delete_orphaned(pid(), timer:timestamp(), nonempty_string(),
+    nonempty_string(), atom(), non_neg_integer()) -> _.
 delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
     error_logger:info_report({"GC: # orphaned", Mode, ets:info(Ets, size)}),
     lists:foreach(fun([Obj, VolName]) ->
@@ -79,6 +90,7 @@ delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
                                                 Now, Time, Expires)
                   end, ets:match(Ets, {'$1', '$2', false})).
 
+-spec is_really_orphan(pid(), binary()) -> bool().
 is_really_orphan(Master, Obj) ->
     Master ! {is_orphan, self(), Obj},
     receive
@@ -89,6 +101,8 @@ is_really_orphan(Master, Obj) ->
                           orphans_failed)
     end.
 
+-spec delete_if_expired(nonempty_string(), timer:timestamp(),
+    timer:timestamp(), non_neg_integer()) -> _.
 delete_if_expired(Path, Now, Time, Expires) ->
     Diff = timer:now_diff(Now, Time) / 1000,
     if Diff > Expires ->
@@ -97,4 +111,3 @@ delete_if_expired(Path, Now, Time, Expires) ->
     true ->
         ok
     end.
-

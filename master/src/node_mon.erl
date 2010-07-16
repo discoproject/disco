@@ -3,8 +3,9 @@
 
 -define(BLACKLIST_PERIOD, 600000).
 -define(RESTART_DELAY, 10000).
--define(SLAVE_ARGS, "+K true").
+-define(SLAVE_ARGS, "+K true -connect_all false").
 
+-spec spawn_node(nonempty_string()) -> no_return().
 spawn_node(Host) ->
     process_flag(trap_exit, true),
     case catch slave_start(Host) of
@@ -27,19 +28,25 @@ spawn_node(Host) ->
                 {"Spawning node @", Host, "failed for unknown reason", Error}),
             blacklist(Host)
     end,
+    flush(),
     timer:sleep(?RESTART_DELAY),
     spawn_node(Host).
 
+-spec node_monitor(node(), {bool(), bool()}) -> _.
 node_monitor(Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
     start_temp_gc(Node, disco:host(Node)),
     wait(Node).
 
+-spec wait(nonempty_string()) -> _.
 wait(Node) ->
     receive
         {is_ready, Pid} ->
             Pid ! node_ready,
+            wait(Node);
+        {'EXIT', _, already_started} ->
+            error_logger:info_report({"Already started", Node, self()}),
             wait(Node);
         {'EXIT', _, Reason} ->
             error_logger:info_report({"Node failed", Node, Reason});
@@ -47,6 +54,13 @@ wait(Node) ->
             error_logger:info_report({"Node", Node, "down"});
         E ->
             error_logger:info_report({"Erroneous message (node_mon)", E})
+    end.
+
+flush() ->
+    receive
+        _ -> flush()
+    after
+        0 -> true
     end.
 
 slave_env() ->
@@ -57,6 +71,7 @@ slave_env() ->
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 
+-spec slave_start(nonempty_string()) -> {bool(), {'ok', node()} | {'error', _}}.
 slave_start(Host) ->
     error_logger:info_report({"starting node @", Host}),
     {is_master(Host),
@@ -66,6 +81,7 @@ slave_start(Host) ->
                  self(),
                  disco:get_setting("DISCO_ERLANG"))}.
 
+-spec is_master(nonempty_string()) -> bool().
 is_master(Host) ->
     case net_adm:names(Host) of
         {ok, Names} ->
@@ -75,6 +91,7 @@ is_master(Host) ->
             false
     end.
 
+-spec start_temp_gc(node(), nonempty_string()) -> pid().
 start_temp_gc(Node, Host) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
     GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
@@ -84,6 +101,7 @@ start_temp_gc(Node, Host) ->
                 whereis(ddfs_master),
                 DataRoot, Host, GCAfter]).
 
+-spec start_ddfs_node(node(), {bool(), bool()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
     DdfsRoot = disco:get_setting("DDFS_ROOT"),
     DiscoRoot = disco:get_setting("DISCO_DATA"),
