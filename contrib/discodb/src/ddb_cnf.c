@@ -119,10 +119,10 @@ static const struct ddb_entry *next_isect_entry(struct ddb_cursor *c)
     struct ddb_cnf_cursor *cnf = &c->cursor.cnf;
     for(; cnf->isect_offset < WINDOW_SIZE; cnf->isect_offset++)
         if (test_bit(cnf->isect, cnf->isect_offset)){
-            ddb_resolve_valueid(c->db,
-                cnf->base_id + cnf->isect_offset, &c->ent);
+            if (ddb_get_valuestr(c, cnf->base_id + cnf->isect_offset))
+                return NULL;
             ++cnf->isect_offset;
-            return &c->ent;
+            return &c->entry;
         }
     return NULL;
 }
@@ -141,8 +141,8 @@ const struct ddb_entry *ddb_cnf_cursor_next(struct ddb_cursor *c)
         if (!find_max_clause(cnf))
             return NULL;
 #ifdef DEBUG
-        ddb_resolve_valueid(c->db, cnf->base_id, &c->ent);
-        printf("dbg MAX %.*s (%u)\n", c->ent.length, c->ent.data, cnf->base_id);
+        ddb_get_valuestr(c, cnf->base_id);
+        printf("dbg MAX %.*s (%u)\n", c->entry.length, c->entry.data, cnf->base_id);
 #endif
         if (!clause_unions(cnf))
             return NULL;
@@ -153,16 +153,16 @@ const struct ddb_entry *ddb_cnf_cursor_next(struct ddb_cursor *c)
 
 valueid_t ddb_not_next(struct ddb_cnf_term *t)
 {
-    struct ddb_value_cursor *v = &t->cursor->cursor.value;
+    struct ddb_delta_cursor *v = &t->cursor->cursor.value;
     if (t->empty)
         return 0;
     if (!t->cur_id++ && v->num_left)
         /* first step */
-        ddb_value_cursor_step(v);
+        ddb_delta_cursor_next(v);
     while (t->cur_id == v->cur_id){
         ++t->cur_id;
         if (v->num_left)
-            ddb_value_cursor_step(v);
+            ddb_delta_cursor_next(v);
     }
     if (t->cur_id >= t->cursor->db->num_values + 1){
         t->empty = 1;
@@ -176,7 +176,7 @@ valueid_t ddb_val_next(struct ddb_cnf_term *t)
     if (t->empty)
         return 0;
     else if (t->cursor->cursor.value.num_left){
-        ddb_value_cursor_step(&t->cursor->cursor.value);
+        ddb_delta_cursor_next(&t->cursor->cursor.value);
         t->cur_id = t->cursor->cursor.value.cur_id;
         return t->cur_id;
     }else{

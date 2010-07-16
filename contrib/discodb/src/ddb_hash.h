@@ -1,3 +1,7 @@
+
+#ifndef __DDB_HASH_H__
+#define __DDB_HASH_H__
+
 /* Paul Hsieh's SuperFastHash from http://www.azillionmonkeys.com/qed/hash.html */
 #include <stdlib.h>
 #include <stdint.h> /* Replace with <stdint.h> if appropriate */
@@ -12,9 +16,9 @@
                +(uint32_t)(((const uint8_t *)(d))[0]) )
 #endif
 
-uint32_t SuperFastHash (const char * data, int len) {
-uint32_t hash = len, tmp;
-int rem;
+static uint32_t SuperFastHash (const char * data, int len) {
+    uint32_t hash = len, tmp;
+    int rem;
 
     if (len <= 0 || data == NULL) return 0;
 
@@ -56,3 +60,5 @@ int rem;
 
     return hash;
 }
+
+#endif /* __DDB_HASH_H__ */

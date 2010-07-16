@@ -9,6 +9,8 @@
 #include <discodb.h>
 #include <ddb_internal.h>
 
+#include <ddb_huffman.h>
+
 #define PAGE_MASK (~(getpagesize() - 1))
 #define PAGE_ALIGN(addr) ((intptr_t)(addr) & PAGE_MASK)
 
@@ -25,18 +27,39 @@ static const char *ERR_STR[] = {
     "Write failed"
 };
 
-void ddb_value_cursor_step(struct ddb_value_cursor *c)
+int ddb_get_valuestr(struct ddb_cursor *c, valueid_t id)
 {
-    uint32_t v = read_bits(c->deltas, c->offset, c->bits);
-    c->cur_id += v;
-    c->num_left--;
-    c->offset += c->bits;
+    const struct ddb *db = c->db;
+    uint64_t len = db->id2value[id] - db->id2value[id - 1];
+    const char *data = &db->buf[db->id2value[id - 1]];
+
+    if (HASFLAG(db, F_COMPRESSED)){
+        if (ddb_decompress(db->codebook, data, len, &c->entry.length,
+                &c->decode_buf, &c->decode_buf_len)){
+            c->errno = DDB_ERR_OUT_OF_MEMORY;
+            c->entry.length = 0;
+            c->entry.data = NULL;
+        }
+        c->entry.data = c->decode_buf;
+    }else{
+        c->entry.length = len;
+        c->entry.data = data;
+    }
+    return c->errno;
 }
 
-void ddb_resolve_valueid(const struct ddb *db, valueid_t id, struct ddb_entry *e)
+static void get_item(struct ddb_cursor *c,
+                     keyid_t id,
+                     struct ddb_delta_cursor *delta)
 {
-    e->length = db->values_toc[id] - db->values_toc[id - 1];
-    e->data = &db->values[db->values_toc[id - 1]];
+    const struct ddb *db = c->db;
+    const char *p = &db->buf[db->key2values[id]];
+
+    c->entry.length = *(uint32_t*)p;
+    c->entry.data = &p[4];
+
+    if (delta)
+        ddb_delta_cursor(delta, &p[4 + c->entry.length]);
 }
 
 struct ddb *ddb_new()
@@ -61,13 +84,19 @@ int ddb_loado(struct ddb *db, int fd, off_t offset)
         db->errno = DDB_ERR_STAT_FAILED;
         return -1;
     }
-    db->mmap = mmap(0, nfo.st_size - mmap_offset, PROT_READ, MAP_SHARED, fd, mmap_offset);
+    db->mmap_size = nfo.st_size - mmap_offset;
+    db->mmap = mmap(0, db->mmap_size, PROT_READ, MAP_SHARED, fd, mmap_offset);
 
     if (db->mmap == MAP_FAILED){
         db->errno = DDB_ERR_MMAP_FAILED;
         return -1;
     }
     return ddb_loads(db, db->mmap + (offset - mmap_offset), nfo.st_size - offset);
+}
+
+static const uint64_t *load_sect(const struct ddb *db, uint64_t offset)
+{
+    return (const uint64_t*)&db->buf[offset];
 }
 
 int ddb_loads(struct ddb *db, const char *data, uint64_t length)
@@ -94,11 +123,11 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
     db->flags = head->flags;
     db->errno = 0;
 
-    db->toc = (const uint64_t*)&data[head->toc_offs];
-    db->values_toc = (const uint64_t*)&data[head->values_toc_offs];
-    db->data = &data[head->data_offs];
-    db->values = &data[head->values_offs];
-    db->hash = &data[head->hash_offs];
+    db->key2values = load_sect(db, head->key2values_offs);
+    db->id2value = load_sect(db, head->id2value_offs);
+    db->hash = load_sect(db, head->hash_offs);
+
+    db->codebook = head->codebook;
 
     return 0;
 }
@@ -106,7 +135,7 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
 void ddb_free(struct ddb *db)
 {
     if (db && db->mmap)
-        munmap(db->mmap, db->size);
+        munmap(db->mmap, db->mmap_size);
     free(db);
 }
 
@@ -141,14 +170,11 @@ int ddb_dump(struct ddb *db, int fd)
 
 static const struct ddb_entry *key_cursor_next(struct ddb_cursor *c)
 {
-    struct ddb_value_cursor tmp;
-
     if (c->cursor.keys.i == c->db->num_keys)
         return NULL;
 
-    ddb_fetch_item(c->cursor.keys.i++,
-        c->db->toc, c->db->data, &c->ent, &tmp);
-    return &c->ent;
+    get_item(c, c->cursor.keys.i++, NULL);
+    return &c->entry;
 }
 
 struct ddb_cursor *ddb_keys(struct ddb *db)
@@ -169,8 +195,9 @@ static const struct ddb_entry *unique_values_cursor_next(struct ddb_cursor *c)
 {
     if (c->cursor.uvalues.i > c->db->num_uniq_values)
         return NULL;
-    ddb_resolve_valueid(c->db, c->cursor.uvalues.i++, &c->ent);
-    return &c->ent;
+    if (ddb_get_valuestr(c, c->cursor.uvalues.i++))
+        return NULL;
+    return &c->entry;
 }
 
 struct ddb_cursor *ddb_unique_values(struct ddb *db)
@@ -189,15 +216,16 @@ struct ddb_cursor *ddb_unique_values(struct ddb *db)
 
 static const struct ddb_entry *values_cursor_next(struct ddb_cursor *c)
 {
+    /* skip empty values */
     while (!c->cursor.values.cur.num_left){
         if (c->cursor.values.i == c->db->num_keys)
             return NULL;
-        ddb_fetch_item(c->cursor.values.i++, c->db->toc, c->db->data,
-            &c->ent, &c->cursor.values.cur);
+        get_item(c, c->cursor.values.i++, &c->cursor.values.cur);
     }
-    ddb_value_cursor_step(&c->cursor.values.cur);
-    ddb_resolve_valueid(c->db, c->cursor.values.cur.cur_id, &c->ent);
-    return &c->ent;
+    ddb_delta_cursor_next(&c->cursor.values.cur);
+    if (ddb_get_valuestr(c, c->cursor.values.cur.cur_id))
+        return NULL;
+    return &c->entry;
 }
 
 struct ddb_cursor *ddb_values(struct ddb *db)
@@ -209,7 +237,6 @@ struct ddb_cursor *ddb_values(struct ddb *db)
     }
     c->db = db;
     c->cursor.values.i = 0;
-    c->cursor.values.cur.num_left = 0;
     c->next = values_cursor_next;
     c->num_items = db->num_values;
     return c;
@@ -218,9 +245,10 @@ struct ddb_cursor *ddb_values(struct ddb *db)
 static const struct ddb_entry *value_cursor_next(struct ddb_cursor *c)
 {
     if (c->cursor.value.num_left){
-        ddb_value_cursor_step(&c->cursor.value);
-        ddb_resolve_valueid(c->db, c->cursor.value.cur_id, &c->ent);
-        return &c->ent;
+        ddb_delta_cursor_next(&c->cursor.value);
+        if (ddb_get_valuestr(c, c->cursor.value.cur_id))
+            return NULL;
+        return &c->entry;
     }else
         return NULL;
 }
@@ -234,8 +262,8 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
 {
     int key_matches(const struct ddb_cursor *c)
     {
-        return c->ent.length == key->length &&
-            !memcmp(c->ent.data, key->data, key->length);
+        return c->entry.length == key->length &&
+            !memcmp(c->entry.data, key->data, key->length);
     }
 
     struct ddb_cursor *c = NULL;
@@ -249,14 +277,9 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
         /* hash exists, perform O(1) lookup */
         uint32_t id = cmph_search_packed((void*)db->hash,
             key->data, key->length);
-        /* XXX Bug in cmph? It seems to sometimes return
-         * IDs that were never hashed with it if given an
-         * unknown key. This shouldn't happen. */
         if (id < db->num_keys)
-            ddb_fetch_item(id, db->toc, db->data,
-            &c->ent, &c->cursor.value);
+            get_item(c, id, &c->cursor.value);
         if (id >= db->num_keys || !key_matches(c)){
-            c->cursor.value.num_left = 0;
             c->next = empty_next;
             return c;
         }
@@ -264,12 +287,10 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
         /* no hash, perform linear scan */
         uint32_t i = db->num_keys;
         while (i--){
-            ddb_fetch_item(i, db->toc, db->data,
-                &c->ent, &c->cursor.value);
+            get_item(c, i, &c->cursor.value);
             if (key_matches(c))
                 goto found;
         }
-        c->cursor.value.num_left = 0;
         c->next = empty_next;
         return c;
     }
@@ -341,21 +362,26 @@ err:
     return NULL;
 }
 
-void ddb_free_cursor(struct ddb_cursor *c)
+int ddb_free_cursor(struct ddb_cursor *c)
 {
-    if (c && c->next == ddb_cnf_cursor_next){
-        if (c->cursor.cnf.terms){
-            int i = c->cursor.cnf.num_terms;
-            while (i--)
-                free(c->cursor.cnf.terms[i].cursor);
+    if (c){
+        int errno = c->errno;
+        if(c->next == ddb_cnf_cursor_next){
+            if (c->cursor.cnf.terms){
+                int i = c->cursor.cnf.num_terms;
+                while (i--)
+                    free(c->cursor.cnf.terms[i].cursor);
+            }
+            free(c->cursor.cnf.clauses);
+            free(c->cursor.cnf.terms);
+            free(c->cursor.cnf.isect);
         }
-        free(c->cursor.cnf.clauses);
-        free(c->cursor.cnf.terms);
-        free(c->cursor.cnf.isect);
+        free(c->decode_buf);
+        free(c);
+        return errno;
     }
-    free(c);
+    return 0;
 }
-
 uint64_t ddb_resultset_size(const struct ddb_cursor *c)
 {
     return c->num_items;
@@ -366,35 +392,34 @@ int ddb_notfound(const struct ddb_cursor *c)
     return c->next == empty_next;
 }
 
-const struct ddb_entry *ddb_next(struct ddb_cursor *c)
+const struct ddb_entry *ddb_next(struct ddb_cursor *c, int *errno)
 {
-    return c->next(c);
-}
-
-int ddb_error(struct ddb *db, const char **errstr)
-{
-    if (errstr)
-        *errstr = ERR_STR[db->errno];
-    int e = db->errno;
-    db->errno = 0;
+    const struct ddb_entry *e = c->next(c);
+    *errno = c->errno;
     return e;
 }
 
-void ddb_fetch_item(uint32_t i, const uint64_t *toc, const char *data,
-    struct ddb_entry *key, struct ddb_value_cursor *val)
+int ddb_error(const struct ddb *db, const char **errstr)
 {
-    const char *p = &data[toc[i]];
+    if (errstr)
+        *errstr = ERR_STR[db->errno];
+    return db->errno;
+}
 
-    key->length = *(uint32_t*)p;
-    key->data = &p[4];
+void ddb_features(const struct ddb *db, ddb_features_t features)
+{
+    features[DDB_NUM_KEYS] = db->num_keys;
+    features[DDB_NUM_UNIQUE_VALUES] = db->num_uniq_values;
+    features[DDB_NUM_VALUES] = db->num_values;
+    features[DDB_TOTAL_SIZE] = db->size;
 
-    val->num_left = *(uint32_t*)&p[4 + key->length];
-    val->cur_id = 0;
+    features[DDB_VALUES_SIZE] =
+        db->id2value[db->num_uniq_values] - db->id2value[0];
+    features[DDB_ITEMS_SIZE] =
+        db->key2values[db->num_keys] - db->key2values[0];
 
-    if (val->num_left){
-        val->deltas = &p[8 + key->length];
-        val->bits = read_bits(val->deltas, 0, 5) + 1;
-        val->offset = 5;
-    }
+    features[DDB_IS_COMPRESSED] = HASFLAG(db, F_COMPRESSED);
+    features[DDB_IS_HASHED] = HASFLAG(db, F_HASH);
+    features[DDB_IS_MULTISET] = HASFLAG(db, F_MULTISET);
 }
 

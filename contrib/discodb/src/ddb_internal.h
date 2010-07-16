@@ -3,11 +3,14 @@
 #define __DDB_INTERNAL_H__
 
 #include <discodb.h>
+#include <ddb_huffman.h>
+#include <ddb_delta.h>
 
-#define DISCODB_MAGIC 0x4D85BE61D14DE59
+#define DISCODB_MAGIC 0x4D85BE61D14DE5A
 
 #define F_HASH 1
 #define F_MULTISET 2
+#define F_COMPRESSED 4
 
 #define HASFLAG(db, f) (db->flags & f)
 #define SETFLAG(db, f) (db->flags |= f)
@@ -20,42 +23,35 @@ struct ddb_header{
     uint64_t size;
 
     uint32_t num_keys;
-    uint64_t num_values;
     uint32_t num_uniq_values;
-    uint32_t flags;
+    uint64_t num_values;
+    uint64_t flags;
 
-    uint64_t toc_offs;
-    uint64_t values_toc_offs;
-    uint64_t data_offs;
-    uint64_t values_offs;
+    uint64_t key2values_offs;
+    uint64_t id2value_offs;
     uint64_t hash_offs;
+
+    struct ddb_codebook codebook[DDB_CODEBOOK_SIZE];
 } __attribute__((packed));
 
 struct ddb{
-    const char *buf;
     uint64_t size;
-
-    uint32_t num_keys;
-    uint64_t num_values;
-    uint32_t num_uniq_values;
-    uint32_t flags;
-
-    const uint64_t *toc;
-    const uint64_t *values_toc;
-    const char *data;
-    const char *hash;
-    const char *values;
+    uint64_t mmap_size;
 
     int errno;
-    void *mmap;
-};
+    uint32_t num_keys;
+    uint32_t num_uniq_values;
+    uint32_t flags;
+    uint64_t num_values;
 
-struct ddb_value_cursor{
-    valueid_t cur_id;
-    const char *deltas;
-    uint32_t bits;
-    uint32_t num_left;
-    uint64_t offset;
+    const uint64_t *key2values;
+    const uint64_t *id2value;
+    const uint64_t *hash;
+
+    const struct ddb_codebook *codebook;
+
+    const char *buf;
+    void *mmap;
 };
 
 struct ddb_key_cursor{
@@ -68,7 +64,7 @@ struct ddb_unique_values_cursor{
 
 struct ddb_values_cursor{
     uint32_t i;
-    struct ddb_value_cursor cur;
+    struct ddb_delta_cursor cur;
 };
 
 #ifdef DEBUG
@@ -105,26 +101,25 @@ struct ddb_cnf_cursor{
 
 struct ddb_cursor{
     const struct ddb *db;
-    struct ddb_entry ent;
-    uint32_t num_items;
+
+    char *decode_buf;
+    uint64_t decode_buf_len;
+    struct ddb_entry entry;
+
     union{
-        struct ddb_value_cursor value;
+        struct ddb_delta_cursor value;
         struct ddb_values_cursor values;
         struct ddb_unique_values_cursor uvalues;
         struct ddb_key_cursor keys;
         struct ddb_cnf_cursor cnf;
     } cursor;
     const struct ddb_entry *(*next)(struct ddb_cursor*);
+
+    uint32_t num_items;
+    int errno;
 };
 
-
-void ddb_fetch_item(uint32_t i, const uint64_t *toc, const char *data,
-    struct ddb_entry *key, struct ddb_value_cursor *val);
-
-void ddb_resolve_valueid(const struct ddb *db,
-    valueid_t id, struct ddb_entry *e);
-void ddb_value_cursor_step(struct ddb_value_cursor *c);
-
+int ddb_get_valuestr(struct ddb_cursor *c, valueid_t id);
 const struct ddb_entry *ddb_cnf_cursor_next(struct ddb_cursor *c);
 
 valueid_t ddb_val_next(struct ddb_cnf_term *t);
@@ -135,13 +130,5 @@ valueid_t ddb_not_next(struct ddb_cnf_term *t);
 uint32_t read_bits(const char *src, uint64_t offs, uint32_t bits);
 void write_bits(char *dst, uint64_t offs, uint32_t val);
 uint32_t bits_needed(uint32_t max);
-
-/* ddb_valuemap.c */
-
-void *ddb_valuemap_init(void);
-void ddb_valuemap_free(void *valmap);
-valueid_t *ddb_valuemap_lookup(void *valmap, const struct ddb_entry *value,
-    int (*eq)(const struct ddb_entry*, valueid_t));
-
 
 #endif /* __DDB_INTERNAL_H__ */
