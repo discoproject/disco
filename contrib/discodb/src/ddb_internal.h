@@ -125,10 +125,5 @@ const struct ddb_entry *ddb_cnf_cursor_next(struct ddb_cursor *c);
 valueid_t ddb_val_next(struct ddb_cnf_term *t);
 valueid_t ddb_not_next(struct ddb_cnf_term *t);
 
-/* util.c */
-
-uint32_t read_bits(const char *src, uint64_t offs, uint32_t bits);
-void write_bits(char *dst, uint64_t offs, uint32_t val);
-uint32_t bits_needed(uint32_t max);
 
 #endif /* __DDB_INTERNAL_H__ */

@@ -4,10 +4,12 @@
 #include <string.h>
 #include <limits.h>
 
+#include <ddb_profile.h>
 #include <ddb_internal.h>
 #include <ddb_queue.h>
 #include <ddb_huffman.h>
 #include <ddb_map.h>
+#include <ddb_bits.h>
 
 #define MIN(a,b) ((a)>(b)?(b):(a))
 #define MAX_CANDIDATES 16777216
@@ -241,18 +243,32 @@ struct ddb_map *ddb_create_codemap(const struct ddb_map *keys)
     struct ddb_map *book = NULL;
     uint64_t total_freq;
     int num_symbols;
+    DDB_TIMER_DEF
 
     if (!(nodes = calloc(DDB_CODEBOOK_SIZE, sizeof(struct hnode))))
         goto err;
+
+    DDB_TIMER_START
     if (!(freqs = collect_frequencies(keys)))
         goto err;
+    DDB_TIMER_END("huffman/collect_frequencies")
+
+    DDB_TIMER_START
     if ((num_symbols = sort_symbols(freqs, &total_freq, nodes)) < 0)
         goto err;
+    DDB_TIMER_END("huffman/sort_symbols")
+
+    DDB_TIMER_START
     if (huffman_code(nodes, num_symbols))
         goto err;
+    DDB_TIMER_END("huffman/huffman_code")
+
     if (getenv("DDB_DEBUG_HUFFMAN"))
         output_stats(nodes, num_symbols, total_freq);
+
+    DDB_TIMER_START
     book = make_codebook(nodes, num_symbols);
+    DDB_TIMER_END("huffman/make_codebook")
 err:
     ddb_map_free(freqs);
     free(nodes);

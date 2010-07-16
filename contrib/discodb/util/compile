@@ -6,12 +6,12 @@ if [ `uname` == "Darwin" ]; then
     FLAGS="-O3 -fnested-functions"
 else
 #    FLAGS="-DHUFFMAN_DEBUG"
-    FLAGS="-O3"
+#    FLAGS="-DDDB_PROFILE -O3"
+     FLAGS="-O3"
 fi
 
 gcc -g -Wall -I $src $FLAGS -c \
-    $src/ddb*.c \
-    $src/util.c
+    $src/ddb*.c
 gcc -g -Wall -I $src $FLAGS -o create_discodb -lcmph \
     create_discodb.c \
     *.o
