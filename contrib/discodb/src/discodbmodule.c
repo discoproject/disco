@@ -661,9 +661,9 @@ init_discodb(void)
     Py_INCREF(DiscoDBError);
     PyModule_AddObject(module, "DiscoDBError", DiscoDBError);
 
-    PyModule_AddIntConstant(module, "DDB_IS_COMPRESSED", DDB_IS_COMPRESSED);
-    PyModule_AddIntConstant(module, "DDB_IS_HASHED", DDB_IS_HASHED);
-    PyModule_AddIntConstant(module, "DDB_IS_MULTISET", DDB_IS_MULTISET);
+    PyModule_AddIntConstant(module,
+                            "DDB_OPT_DISABLE_COMPRESSION",
+                            DDB_OPT_DISABLE_COMPRESSION);
 }
 
 

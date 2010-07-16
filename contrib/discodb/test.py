@@ -2,6 +2,7 @@ import doctest, unittest
 from random import randint
 
 from discodb import DiscoDB, MetaDB, Q
+from discodb import DDB_OPT_DISABLE_COMPRESSION
 from discodb import query
 from discodb import tools
 
@@ -21,6 +22,12 @@ class TestConstructor(unittest.TestCase):
 
     def test_iter_constructor(self):
         discodb = DiscoDB(k_vs_iter(1000))
+
+    def test_kviter_constructor(self):
+        discodb = DiscoDB((k, v) for k, vs in k_vs_iter(1000) for v in vs)
+
+    def test_flags_constructor(self):
+        discodb = DiscoDB(k_vs_iter(1000), flags=DDB_OPT_DISABLE_COMPRESSION)
 
 class TestMappingProtocol(unittest.TestCase):
     numkeys = 1000
@@ -88,6 +95,17 @@ class TestSerializationProtocol(unittest.TestCase):
 
 class TestLargeSerializationProtocol(TestSerializationProtocol):
     numkeys = 10000
+
+class TestUncompressed(TestMappingProtocol, TestSerializationProtocol):
+    def setUp(self):
+        self.discodb = DiscoDB(k_vs_iter(self.numkeys),
+                               flags=DDB_OPT_DISABLE_COMPRESSION)
+        self.discodb_c = DiscoDB(self.discodb)
+
+    def test_compression(self):
+        self.assertNotEqual(self.discodb.dumps(), self.discodb_c.dumps())
+        self.assertEqual(dict((k, list(vs)) for k, vs in self.discodb.items()),
+                         dict((k, list(vs)) for k, vs in self.discodb_c.items()))
 
 class TestMetaDBMappingProtocol(TestMappingProtocol):
     def setUp(self):
