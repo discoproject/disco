@@ -7,10 +7,12 @@
 #include <discodb.h>
 #include <ddb_internal.h>
 
+#include <ddb_profile.h>
 #include <ddb_map.h>
 #include <ddb_list.h>
 #include <ddb_delta.h>
 #include <ddb_cmph.h>
+
 
 #define BUFFER_INC (1024 * 1024 * 64)
 
@@ -249,6 +251,7 @@ char *ddb_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
     struct ddb_packed pack;
     struct ddb_entry *order = NULL;
     int err = 1;
+    DDB_TIMER_DEF
 
     if (buffer_init(&pack))
         goto err;
@@ -256,14 +259,19 @@ char *ddb_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
     if (pack_header(&pack, cons))
         goto err;
 
+    DDB_TIMER_START
     pack.head->hash_offs = pack.offs;
     if (!(order = pack_hash(&pack, cons->keys_map)))
         goto err;
+    DDB_TIMER_END("hash")
 
+    DDB_TIMER_START
     pack.head->key2values_offs = pack.offs;
     if (pack_key2values(&pack, order, cons->keys_map))
         goto err;
+    DDB_TIMER_END("key2values")
 
+    DDB_TIMER_START
     pack.head->id2value_offs = pack.offs;
     if (pack_id2value(&pack, cons->values_map,
             flags & DDB_OPT_DISABLE_COMPRESSION))
@@ -272,6 +280,7 @@ char *ddb_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
         ddb_map_free(cons->values_map);
         cons->values_map = NULL;
     }
+    DDB_TIMER_END("id2values")
 
     pack.head->size = *length = pack.offs;
     buffer_shrink(&pack);
