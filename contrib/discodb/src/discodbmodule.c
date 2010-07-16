@@ -56,6 +56,8 @@ static PyMethodDef DiscoDB_methods[] = {
      "d.keys() an iterator over the keys of d."},
     {"values", (PyCFunction)DiscoDB_values, METH_NOARGS,
      "d.values() -> an iterator over the values of d."},
+    {"unique_values", (PyCFunction)DiscoDB_unique_values, METH_NOARGS,
+     "d.unique_values() -> an iterator over the unique values of d."},
     {"query", (PyCFunction)DiscoDB_query, METH_O,
      "d.query(q) -> an iterator over the values of d whose keys satisfy q."},
     {"dumps", (PyCFunction)DiscoDB_dumps, METH_NOARGS,
@@ -403,6 +405,16 @@ static PyObject *
 DiscoDB_values(DiscoDB *self)
 {
     struct ddb_cursor *cursor = ddb_values(self->discodb);
+    if (cursor == NULL)
+        if (ddb_has_error(self->discodb))
+            return NULL;
+    return DiscoDBIter_new(&DiscoDBIterEntryType, self, cursor);
+}
+
+static PyObject *
+DiscoDB_unique_values(DiscoDB *self)
+{
+    struct ddb_cursor *cursor = ddb_unique_values(self->discodb);
     if (cursor == NULL)
         if (ddb_has_error(self->discodb))
             return NULL;

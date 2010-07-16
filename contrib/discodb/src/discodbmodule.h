@@ -23,14 +23,15 @@ static PyObject * DiscoDB_str     (DiscoDB *);
 
 /* Mapping Formal / Informal Protocol */
 
-static int        DiscoDB_contains(DiscoDB *,      PyObject *);
-static Py_ssize_t DiscoDB_length  (DiscoDB *);
-static PyObject * DiscoDB_getitem (DiscoDB *,      PyObject *);
-static PyObject * DiscoDB_iter    (DiscoDB *);
-static PyObject * DiscoDB_items   (DiscoDB *);
-static PyObject * DiscoDB_keys    (DiscoDB *);
-static PyObject * DiscoDB_values  (DiscoDB *);
-static PyObject * DiscoDB_query   (DiscoDB *,      PyObject *);
+static int        DiscoDB_contains     (DiscoDB *,      PyObject *);
+static Py_ssize_t DiscoDB_length       (DiscoDB *);
+static PyObject * DiscoDB_getitem      (DiscoDB *,      PyObject *);
+static PyObject * DiscoDB_iter         (DiscoDB *);
+static PyObject * DiscoDB_items        (DiscoDB *);
+static PyObject * DiscoDB_keys         (DiscoDB *);
+static PyObject * DiscoDB_values       (DiscoDB *);
+static PyObject * DiscoDB_unique_values(DiscoDB *);
+static PyObject * DiscoDB_query        (DiscoDB *,      PyObject *);
 
 /* Serialization / Deserialization Informal Protocol */
 

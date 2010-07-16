@@ -55,6 +55,9 @@ class TestMappingProtocol(unittest.TestCase):
     def test_values(self):
         len(list(self.discodb.values()))
 
+    def test_unique_values(self):
+        len(list(self.discodb.unique_values()))
+
     def test_query(self):
         q = Q.parse('5 & 10 & (15 | 30)')
         list(self.discodb.query(q))

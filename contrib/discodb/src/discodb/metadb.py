@@ -67,6 +67,11 @@ class MetaDB(object):
         for key in self.metadb.values():
             yield key, self.datadb[key]
 
+    def unique_values(self):
+        """an iterator over the unique keys of all metakeys and their dereferenced values."""
+        for key in self.metadb.unique_values():
+            yield key, self.datadb[key]
+
     def query(self, q):
         """an iterator over the keys whose metakeys satisfy q and their dereferenced values."""
         for key in self.metadb.query(q):
