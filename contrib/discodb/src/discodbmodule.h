@@ -59,6 +59,7 @@ static struct ddb_cons         *ddb_cons_alloc          (void);
 static struct ddb_entry        *ddb_entry_alloc         (size_t);
 static struct ddb_query_clause *ddb_query_clause_alloc  (size_t);
 static struct ddb_query_term   *ddb_query_term_alloc    (size_t);
+static        void              ddb_cons_dealloc        (struct ddb_cons *);
 static        void              ddb_cursor_dealloc      (struct ddb_cursor *);
 static        void              ddb_query_clause_dealloc(struct ddb_query_clause *, uint32_t);
 static        int               ddb_has_error           (struct ddb *);

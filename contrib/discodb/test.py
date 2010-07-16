@@ -7,7 +7,7 @@ from discodb import tools
 
 def k_vs_iter(N, max_values=100):
     for x in xrange(N):
-        yield '%s' % x, ('%s' % v for v in xrange(randint(0, max_values)))
+        yield '%s' % x, ('%s' % v for v in xrange(randint(1, max_values)))
 
 class TestConstructor(unittest.TestCase):
     def test_null_constructor(self):
@@ -33,17 +33,17 @@ class TestMappingProtocol(unittest.TestCase):
         assert "key" not in self.discodb
 
     def test_length(self):
-        assert len(self.discodb) == self.numkeys
+        self.assertEquals(len(self.discodb), self.numkeys)
 
     def test_getitem(self):
         for x in xrange(self.numkeys):
             try:
                 list(self.discodb[str(x)])
             except KeyError:
-                assert x == self.numkeys
+                self.assertEquals(x, self.numkeys)
 
     def test_iter(self):
-        assert list(self.discodb) == list(self.discodb.keys())
+        self.assertEquals(list(self.discodb), list(self.discodb.keys()))
 
     def test_items(self):
         for key, values in self.discodb.items():
