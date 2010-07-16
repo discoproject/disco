@@ -109,7 +109,8 @@ static uint64_t *lookup_leaf(
 
 uint64_t *ddb_map_lookup_int(const struct ddb_map *map, uint32_t key)
 {
-    return lookup_leaf(map, key, NULL, key, NULL);
+    uint32_t hash = SuperFastHash((const char*)&key, 4);
+    return lookup_leaf(map, hash, NULL, key, NULL);
 }
 
 uint64_t *ddb_map_lookup_str(const struct ddb_map *map,
@@ -122,7 +123,8 @@ uint64_t *ddb_map_lookup_str(const struct ddb_map *map,
 uint64_t *ddb_map_insert_int(struct ddb_map *map, uint32_t key)
 {
     struct leaf *leaf = NULL;
-    uint64_t *v = lookup_leaf(map, key, NULL, key, &leaf);
+    uint32_t hash = SuperFastHash((const char*)&key, 4);
+    uint64_t *v = lookup_leaf(map, hash, NULL, key, &leaf);
     if (!v)
         v = new_item(map, leaf, NULL, key);
     return v;
