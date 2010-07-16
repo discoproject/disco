@@ -32,7 +32,7 @@ static uint32_t allocate_bits(char **buf, uint64_t *buf_size,
         if (!(*buf = realloc(*buf, *buf_size)))
             return 0;
     }
-    memset(*buf, 0, *buf_size);
+    memset(*buf, 0, len + 8);
     return len;
 }
 
@@ -83,7 +83,6 @@ int ddb_delta_encode(const struct ddb_list *values,
         *size = 0;
         return 0;
     }
-
     qsort(list, len, 8, id_cmp);
 
     /* find maximum delta -> bits needed per id */
