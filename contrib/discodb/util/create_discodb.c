@@ -57,7 +57,10 @@ int main(int argc, char **argv)
         fprintf(stderr, "Opening file %s failed\n", argv[1]);
         exit(1);
     }
-    fwrite(data, size, 1, out);
+    if (!fwrite(data, size, 1, out)){
+        fprintf(stderr, "Writing file %s failed\n", argv[1]);
+        exit(1);
+    }
     fclose(out);
 
     free(data);
