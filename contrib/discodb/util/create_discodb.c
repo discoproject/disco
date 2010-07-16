@@ -5,6 +5,45 @@
 
 #include <discodb.h>
 
+static void read_pairs(FILE *in, struct ddb_cons *db)
+{
+    char *key;
+    char *value;
+    uint32_t lc = 0;
+
+    while(fscanf(in, "%as %as\n", &key, &value) == 2){
+        struct ddb_entry key_e = {.data = key, .length = strlen(key)};
+        struct ddb_entry val_e = {.data = value, .length = strlen(value)};
+        if (ddb_add(db, &key_e, &val_e)){
+            fprintf(stderr, "Adding '%s':'%s' failed\n", key, value);
+            exit(1);
+        }
+        free(key);
+        free(value);
+        ++lc;
+    }
+    fclose(in);
+    fprintf(stderr, "%u key-value pairs read.\n", lc);
+}
+
+static void read_keys(FILE *in, struct ddb_cons *db)
+{
+    char *key;
+    uint32_t lc = 0;
+
+    while(fscanf(in, "%as\n", &key) == 1){
+        struct ddb_entry key_e = {.data = key, .length = strlen(key)};
+        if (ddb_add(db, &key_e, NULL)){
+            fprintf(stderr, "Adding '%s' failed\n", key);
+            exit(1);
+        }
+        free(key);
+        ++lc;
+    }
+    fclose(in);
+    fprintf(stderr, "%u keys read.\n", lc);
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2){
@@ -16,9 +55,6 @@ int main(int argc, char **argv)
 
     FILE *in;
     FILE *out;
-    char *key;
-    char *value;
-    uint32_t lc = 0;
     uint64_t size;
     char *data;
     struct ddb_cons *db = ddb_cons_new();
@@ -33,19 +69,12 @@ int main(int argc, char **argv)
             fprintf(stderr, "Couldn't open %s\n", argv[2]);
             exit(1);
     }
-    while(fscanf(in, "%as %as\n", &key, &value) == 2){
-        struct ddb_entry key_e = {.data = key, .length = strlen(key)};
-        struct ddb_entry val_e = {.data = value, .length = strlen(value)};
-        if (ddb_add(db, &key_e, &val_e)){
-            fprintf(stderr, "Adding '%s':'%s' failed\n", key, value);
-            exit(1);
-        }
-        free(key);
-        free(value);
-        ++lc;
-    }
-    fclose(in);
-    fprintf(stderr, "%u key-value pairs read. Packing the index..\n", lc);
+    if (getenv("KEYS_ONLY"))
+        read_keys(in, db);
+    else
+        read_pairs(in, db);
+
+    fprintf(stderr, "Packing the index..\n");
 
     if (!(data = ddb_finalize(db, &size, flags))){
         fprintf(stderr, "Packing the index failed\n");

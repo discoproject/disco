@@ -337,27 +337,29 @@ int ddb_add(struct ddb_cons *db,
             const struct ddb_entry *key,
             const struct ddb_entry *value)
 {
-    uint64_t *ptr;
+    uint64_t *val_ptr;
+    uint64_t *key_ptr;
     valueid_t value_id;
     struct ddb_list *value_list;
 
-    if (!(ptr = ddb_map_insert_str(db->values_map, value)))
+    if (!(key_ptr = ddb_map_insert_str(db->keys_map, key)))
         return -1;
-    if (!*ptr)
-        *ptr = ddb_map_num_items(db->values_map);
-    value_id = *ptr;
+    if (!*key_ptr && !(*key_ptr = (uint64_t)ddb_list_new()))
+        return -1;
+    value_list = (struct ddb_list*)*key_ptr;
 
-    if (!(ptr = ddb_map_insert_str(db->keys_map, key)))
-        return -1;
-    if (!*ptr && !(*ptr = (uint64_t)ddb_list_new()))
-        return -1;
-    value_list = (struct ddb_list*)*ptr;
+    if (value){
+        if (!(val_ptr = ddb_map_insert_str(db->values_map, value)))
+            return -1;
+        if (!*val_ptr)
+            *val_ptr = ddb_map_num_items(db->values_map);
+        value_id = *val_ptr;
 
-    if (!(value_list = ddb_list_append(value_list, value_id)))
-        return -1;
-    *ptr = (uint64_t)value_list;
-
-    ++db->num_values;
+        if (!(value_list = ddb_list_append(value_list, value_id)))
+            return -1;
+        *key_ptr = (uint64_t)value_list;
+        ++db->num_values;
+    }
     return 0;
 }
 
