@@ -249,6 +249,16 @@ get_tagdata(Tag) ->
 validate_urls(Urls) ->
     [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
 
+-spec make_tagdata(binary(), [binary()], binary()) -> binary().
+make_tagdata(TagName, Urls, LastModified) ->
+    list_to_binary(mochijson2:encode({struct,
+        [
+            {<<"id">>, TagName},
+            {<<"version">>, 1},
+            {<<"urls">>, Urls},
+            {<<"last-modified">>, LastModified}
+        ]})).
+
 -spec parse_tagurls(binary()) -> {'error', _} | {'ok', [binary()]}.
 parse_tagurls(TagData) ->
     case catch mochijson2:decode(TagData) of
@@ -280,13 +290,7 @@ put_transaction(false, _, _) -> {error, invalid_url_object};
 put_transaction(true, Urls, S) ->
     % XXX: compress data here!
     TagName = ddfs_util:pack_objname(S#state.tag, now()),
-    TagData = list_to_binary(mochijson2:encode({struct,
-                [
-                    {<<"id">>, TagName},
-                    {<<"version">>, 1},
-                    {<<"urls">>, Urls},
-                    {<<"last-modified">>, ddfs_util:format_timestamp()} 
-                ]})),
+    TagData = make_tagdata(TagName, Urls, ddfs_util:format_timestamp()),
     put_distribute({TagName, TagData}).
 
 -spec put_distribute({binary(), binary()}) ->
