@@ -5,7 +5,19 @@
 #include <ddb_list.h>
 #include <ddb_internal.h>
 
+#include <ddb_bits.h>
 #include <ddb_delta.h>
+
+static uint32_t bits_needed(uint32_t max)
+{
+    uint32_t x = max;
+    uint32_t bits = x ? 0: 1;
+    while (x){
+        x >>= 1;
+        ++bits;
+    }
+    return bits;
+}
 
 static uint32_t allocate_bits(char **buf, uint64_t *buf_size,
                               uint32_t size_in_bits)

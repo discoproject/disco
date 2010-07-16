@@ -9,6 +9,7 @@
 #include <ddb_queue.h>
 #include <ddb_huffman.h>
 #include <ddb_map.h>
+#include <ddb_bits.h>
 
 #define MIN(a,b) ((a)>(b)?(b):(a))
 #define MAX_CANDIDATES 16777216

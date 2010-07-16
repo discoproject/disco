@@ -10,8 +10,7 @@ else
 fi
 
 gcc -g -Wall -I $src $FLAGS -c \
-    $src/ddb*.c \
-    $src/util.c
+    $src/ddb*.c
 gcc -g -Wall -I $src $FLAGS -o create_discodb -lcmph \
     create_discodb.c \
     *.o
