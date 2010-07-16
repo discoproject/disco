@@ -90,7 +90,7 @@ class Task(object):
         return os.path.join(self.jobroot, 'oob')
 
     def oob_file(self, name):
-        return os.path.join(self.oobdir, name)
+        return os.path.join(self.oob_dir, name)
 
     @property
     def partid(self):
