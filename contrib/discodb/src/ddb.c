@@ -127,7 +127,7 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
     db->id2value = load_sect(db, head->id2value_offs);
     db->hash = load_sect(db, head->hash_offs);
 
-    db->codebook = head->codebook;
+    db->codebook = (const struct ddb_codebook*)&db->buf[head->codebook_offs];
 
     return 0;
 }
