@@ -1,7 +1,6 @@
 -module(ddfs_util_test).
--export([prop_test/0]).
 
--include_lib("proper/include/proper.hrl").
+-include_lib("triq/include/triq.hrl").
 
 of_hex_helper(H, Int) ->
     case H of
@@ -23,7 +22,7 @@ of_hex(H) ->
 
 
 prop_inttoint() ->
-    ?FORALL(Val, non_neg_integer(), Val == of_hex(ddfs_util:to_hex(Val))).
+    ?FORALL(Val, int(), ?IMPLIES(Val >= 0, Val == of_hex(ddfs_util:to_hex(Val)))).
 
 prop_test() ->
-    proper:check(prop_inttoint()).
+    triq:check(prop_inttoint()).
