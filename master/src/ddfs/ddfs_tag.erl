@@ -8,9 +8,13 @@
         handle_info/2, terminate/2, code_change/3]).
 
 -type replica() :: {timer:timestamp(), nonempty_string()}.
+-record(tagcontent, {id :: binary(),
+                     last_modified :: binary(),
+                     urls :: [binary()]}).
+-type tagcontent() :: #tagcontent{}.
 -record(state, {tag, % :: binary(),
                 data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
-                    | binary(),
+                    | #tagcontent{},
                 delayed :: {[{pid(), _}], [[binary()]]},
                 timeout :: non_neg_integer(),
                 replicas :: 'false' | 'too_many_failed_nodes'
@@ -76,7 +80,12 @@ handle_cast(M, #state{data = false} = S) ->
             false ->
                 case get_tagdata(S#state.tag) of
                     {ok, TagData, Repl} ->
-                        {TagData, Repl, S#state.timeout};
+                        case parse_tagcontent(TagData) of
+                            {ok, Content} ->
+                                {Content, Repl, S#state.timeout};
+                            E ->
+                                {E, false, ?TAG_EXPIRES_ONERROR}
+                        end;
                     E ->
                         {E, false, ?TAG_EXPIRES_ONERROR}
                 end;
@@ -122,6 +131,10 @@ handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
 handle_cast({die, _}, S) ->
     {stop, normal, S};
 
+handle_cast({get, ReplyTo}, #state{data = #tagcontent{}} = S) ->
+    gen_server:reply(ReplyTo, make_tagdata(S#state.data)),
+    {noreply, S, S#state.timeout};
+
 handle_cast({get, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, S#state.data),
     {noreply, S, S#state.timeout};
@@ -130,6 +143,9 @@ handle_cast({_, ReplyTo}, #state{data = {error, _}} = S) ->
     gen_server:reply(ReplyTo, S#state.data),
     {noreply, S, S#state.timeout};
 
+handle_cast({gc_get0, ReplyTo}, #state{data = #tagcontent{}} = S) ->
+    gen_server:reply(ReplyTo, {make_tagdata(S#state.data), S#state.replicas}),
+    {noreply, S, S#state.timeout};
 handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
     {noreply, S, S#state.timeout};
@@ -140,20 +156,13 @@ handle_cast({{update, Urls}, ReplyTo}, #state{data = notfound} = S) ->
 handle_cast({{update, Urls}, ReplyTo}, #state{data = deleted} = S) ->
     handle_cast({{put, urls, Urls}, ReplyTo}, S);
 
-handle_cast({{update, Urls}, ReplyTo}, #state{data = D} = S) ->
-    % XXX: decompress data here!
-    case parse_tagurls(D) of
-        {error, _} = E ->
-            send_replies(ReplyTo, E),
-            {noreply, S, S#state.timeout};
-        {ok, OldUrls} ->
-            case validate_urls(Urls) of
-                true ->
-                    handle_cast({{put, urls, Urls ++ OldUrls}, ReplyTo}, S);
-                false ->
-                    send_replies(ReplyTo, {error, invalid_url_object}),
-                    {noreply, S, S#state.timeout}
-            end
+handle_cast({{update, Urls}, ReplyTo}, #state{data = C} = S) ->
+    case validate_urls(Urls) of
+        true ->
+            handle_cast({{put, urls, Urls ++ C#tagcontent.urls}, ReplyTo}, S);
+        false ->
+            send_replies(ReplyTo, {error, invalid_url_object}),
+            {noreply, S, S#state.timeout}
     end;
 
 handle_cast({{put, Field, Value}, ReplyTo}, S) ->
@@ -182,8 +191,7 @@ handle_cast(M, #state{url_cache = false, data = notfound} = S) ->
     handle_cast(M, S#state{url_cache = gb_sets:empty()});
 
 handle_cast(M, #state{url_cache = false, data = Data} = S) ->
-    {ok, Urls} = parse_tagurls(Data),
-    handle_cast(M, S#state{url_cache = gb_sets:from_list(Urls)});
+    handle_cast(M, S#state{url_cache = gb_sets:from_list(Data#tagcontent.urls)});
 
 handle_cast({{insert_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
     DeletedU = gb_sets:add(Url, Deleted),
@@ -249,30 +257,40 @@ get_tagdata(Tag) ->
 validate_urls(Urls) ->
     [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
 
--spec make_tagdata(binary(), [binary()], binary()) -> binary().
-make_tagdata(TagName, Urls, LastModified) ->
+-spec make_tagdata(tagcontent()) -> binary().
+make_tagdata(D) ->
     list_to_binary(mochijson2:encode({struct,
         [
-            {<<"id">>, TagName},
+            {<<"id">>, D#tagcontent.id},
             {<<"version">>, 1},
-            {<<"urls">>, Urls},
-            {<<"last-modified">>, LastModified}
+            {<<"urls">>, D#tagcontent.urls},
+            {<<"last-modified">>, D#tagcontent.last_modified}
         ]})).
 
--spec parse_tagurls(binary()) -> {'error', _} | {'ok', [binary()]}.
-parse_tagurls(TagData) ->
+-spec tag_lookup(any(), [binary()], [any()]) ->
+     {'ok', [any()]} | {'error', _}.
+tag_lookup(_, [], Results) ->
+    {ok, lists:reverse(Results)};
+tag_lookup(JsonBody, [Key|Rest], Results) ->
+    case lists:keysearch(Key, 1, JsonBody) of
+        {value, {_, Attrib}} ->
+            tag_lookup(JsonBody, Rest, [Attrib|Results]);
+        _ -> {error, invalid_object}
+    end.
+
+-spec parse_tagcontent(binary()) -> {'error', _} | {'ok', tagcontent()}.
+parse_tagcontent(TagData) ->
     case catch mochijson2:decode(TagData) of
         {'EXIT', _} ->
             {error, corrupted_json};
         {struct, Body} ->
-            case lists:keysearch(<<"urls">>, 1, Body) of
-                {value, {_, Urls}} ->
-                    {ok, Urls};
-                _ ->
-                    {error, invalid_object}
-            end;
-        _ ->
-            {error, invalid_json}
+            case tag_lookup(Body, [<<"id">>, <<"urls">>, <<"last-modified">>], []) of
+                {ok, [Id, Urls, LastModified]} ->
+                    {ok, #tagcontent{id = Id,
+                                     last_modified = LastModified,
+                                     urls = Urls}};
+                _ -> {error, invalid_object}
+            end
     end.
 
 % Put transaction:
@@ -285,29 +303,32 @@ parse_tagurls(TagData) ->
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
 -spec put_transaction(bool(), [binary()], #state{}) ->
-    {'error', _} | {'ok', [node()], [binary()], binary()}.
+    {'error', _} | {'ok', [node()], [binary()], tagcontent()}.
 put_transaction(false, _, _) -> {error, invalid_url_object};
 put_transaction(true, Urls, S) ->
     % XXX: compress data here!
     TagName = ddfs_util:pack_objname(S#state.tag, now()),
-    TagData = make_tagdata(TagName, Urls, ddfs_util:format_timestamp()),
-    put_distribute({TagName, TagData}).
+    TagContent = #tagcontent{id = TagName,
+                             urls = Urls,
+                             last_modified = ddfs_util:format_timestamp()},
+    TagData = make_tagdata(TagContent),
+    put_distribute({TagName, TagData, TagContent}).
 
--spec put_distribute({binary(), binary()}) ->
-    {'error', _} | {'ok', [node()], [binary()], binary()}.
-put_distribute(Msg) ->
+-spec put_distribute({binary(), binary(), tagcontent()}) ->
+    {'error', _} | {'ok', [node()], [binary()], tagcontent()}.
+put_distribute({TagName, _, TagContent} = Msg) ->
     case put_distribute(Msg, get(tagk), [], []) of
-        {ok, TagVol} -> put_commit(Msg, TagVol);
+        {ok, TagVol} -> put_commit({TagName, TagContent}, TagVol);
         {error, _} = E -> E
     end.
 
--spec put_distribute({binary(), binary()}, non_neg_integer(),
+-spec put_distribute({binary(), binary(), tagcontent()}, non_neg_integer(),
     [{node(), binary()}], [node()]) ->
         {'error', _} | {'ok', [{node(), binary()}]}.
 put_distribute(_, K, OkNodes, _) when K == length(OkNodes) ->
     {ok, OkNodes};
 
-put_distribute(Msg, K, OkNodes, Exclude) ->
+put_distribute({TagName, TagData, _} = Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
     {ok, Nodes} = gen_server:call(ddfs_master, {choose_nodes, K0, Exclude}),
@@ -317,16 +338,16 @@ put_distribute(Msg, K, OkNodes, Exclude) ->
         {ok, OkNodes};
     true ->
         {Replies, Failed} = gen_server:multi_call(Nodes,
-                ddfs_node, {put_tag_data, Msg}, ?NODE_TIMEOUT),
+                ddfs_node, {put_tag_data, {TagName, TagData}}, ?NODE_TIMEOUT),
         put_distribute(Msg, K,
             OkNodes ++ [{N, Vol} || {N, {ok, Vol}} <- Replies],
             Exclude ++ [N || {N, _} <- Replies] ++ Failed)
     end.
 
--spec put_commit({binary(), binary()}, [{node(), binary()}]) ->
-    {'error', 'commit_failed'} | {'ok', [node()], [binary()], binary()}.
+-spec put_commit({binary(), tagcontent()}, [{node(), binary()}]) ->
+    {'error', 'commit_failed'} | {'ok', [node()], [binary()], tagcontent()}.
 
-put_commit({TagName, TagData}, TagVol) ->
+put_commit({TagName, TagContent}, TagVol) ->
     {Nodes, _} = lists:unzip(TagVol),
     {Ok, _} = gen_server:multi_call(Nodes, ddfs_node,
                 {put_tag_commit, TagName, TagVol}, ?NODE_TIMEOUT),
@@ -334,7 +355,7 @@ put_commit({TagName, TagData}, TagVol) ->
         [] ->
             {error, commit_failed};
         Urls ->
-            {ok, Nodes, Urls, TagData}
+            {ok, Nodes, Urls, TagContent}
     end.
 
 is_tag_deleted(<<"+deleted">>) -> false;
@@ -349,4 +370,3 @@ is_tag_deleted(Tag) ->
 remove_from_deleted(Tag) ->
     gen_server:call(ddfs_master, {tag, {remove_deleted, [<<"tag://", Tag/binary>>]},
         <<"+deleted">>}, ?NODEOP_TIMEOUT).
-
