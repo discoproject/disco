@@ -127,7 +127,7 @@ int ddb_loads(struct ddb *db, const char *data, uint64_t length)
     db->id2value = load_sect(db, head->id2value_offs);
     db->hash = load_sect(db, head->hash_offs);
 
-    db->codebook = head->codebook;
+    db->codebook = (const struct ddb_codebook*)&db->buf[head->codebook_offs];
 
     return 0;
 }
@@ -392,10 +392,10 @@ int ddb_notfound(const struct ddb_cursor *c)
     return c->next == empty_next;
 }
 
-const struct ddb_entry *ddb_next(struct ddb_cursor *c, int *errno)
+const struct ddb_entry *ddb_next(struct ddb_cursor *c, int *err)
 {
     const struct ddb_entry *e = c->next(c);
-    *errno = c->errno;
+    *err = c->errno;
     return e;
 }
 
