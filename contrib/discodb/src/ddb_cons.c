@@ -393,14 +393,15 @@ int ddb_add(struct ddb_cons *db,
     if (value){
         if (!(val_ptr = ddb_map_insert_str(db->values_map, value)))
             return -1;
-        if (!*val_ptr)
+        if (!*val_ptr){
             *val_ptr = ddb_map_num_items(db->values_map);
+            db->values_total_size += value->length;
+        }
         value_id = *val_ptr;
 
         if (!(value_list = ddb_list_append(value_list, value_id)))
             return -1;
         *key_ptr = (uint64_t)value_list;
-        db->values_total_size += value->length;
         ++db->num_values;
     }
     return 0;
