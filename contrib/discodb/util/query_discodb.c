@@ -102,6 +102,8 @@ static struct ddb *open_discodb(const char *file)
         return db;
 }
 
+#define FEAT(x) (long long unsigned int)feat[x]
+
 static void print_info(struct ddb *db)
 {
     static const char yes[] = "true";
@@ -110,12 +112,12 @@ static void print_info(struct ddb *db)
     ddb_features_t feat;
 
     ddb_features(db, feat);
-    printf("Total size:              %lu bytes\n", feat[DDB_TOTAL_SIZE]);
-    printf("Items size:              %lu bytes\n", feat[DDB_ITEMS_SIZE]);
-    printf("Values size:             %lu bytes\n", feat[DDB_VALUES_SIZE]);
-    printf("Number of keys:          %lu\n", feat[DDB_NUM_KEYS]);
-    printf("Number of items:         %lu\n", feat[DDB_NUM_VALUES]);
-    printf("Number of unique values: %lu\n", feat[DDB_NUM_UNIQUE_VALUES]);
+    printf("Total size:              %llu bytes\n", FEAT(DDB_TOTAL_SIZE));
+    printf("Items size:              %llu bytes\n", FEAT(DDB_ITEMS_SIZE));
+    printf("Values size:             %llu bytes\n", FEAT(DDB_VALUES_SIZE));
+    printf("Number of keys:          %llu\n", FEAT(DDB_NUM_KEYS));
+    printf("Number of items:         %llu\n", FEAT(DDB_NUM_VALUES));
+    printf("Number of unique values: %llu\n", FEAT(DDB_NUM_UNIQUE_VALUES));
     printf("Compressed?              %s\n", boolstr(feat[DDB_IS_COMPRESSED]));
     printf("Hashed?                  %s\n", boolstr(feat[DDB_IS_HASHED]));
     printf("Multiset?                %s\n", boolstr(feat[DDB_IS_MULTISET]));
