@@ -25,7 +25,6 @@ class DiscodexJob(Job):
 
 class Indexer(DiscodexJob):
     """A discodex mapreduce job used to build an index from a dataset."""
-    mem_sort_limit = 0
     save = True
 
     def __init__(self, master, name, dataset):
@@ -37,12 +36,10 @@ class Indexer(DiscodexJob):
         self.profile        = dataset.profile
         self.partitions     = dataset.nr_ichunks
         self.required_files = dataset.required_files
-        self.sort           = dataset.sort
         self.params         = Params(n=0)
 
         if dataset.k_viter:
             from discodex.mapreduce import demuxers
-            self.sort = False
             self.map  = demuxers.iterdemux
 
     @staticmethod
@@ -57,7 +54,6 @@ class Indexer(DiscodexJob):
 
 class MetaIndexer(DiscodexJob):
     """A discodex mapreduce job used to build a metaindex over an index, given a :class:`discodex.objects.MetaSet`."""
-    mem_sort_limit = 0
     partitions = 0
     save       = True
     scheduler  = {'force_local': True}
