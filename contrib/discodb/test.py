@@ -8,7 +8,7 @@ from discodb import tools
 
 def k_vs_iter(N, max_values=100):
     for x in xrange(N):
-        yield '%s' % x, ('%s' % v for v in xrange(randint(1, max_values)))
+        yield '%s' % x, ('%s' % v for v in xrange(randint(0, max_values)))
 
 class TestConstructor(unittest.TestCase):
     def test_null_constructor(self):
@@ -103,7 +103,6 @@ class TestUncompressed(TestMappingProtocol, TestSerializationProtocol):
         self.discodb_c = DiscoDB(self.discodb)
 
     def test_compression(self):
-        self.assertNotEqual(self.discodb.dumps(), self.discodb_c.dumps())
         self.assertEqual(dict((k, list(vs)) for k, vs in self.discodb.items()),
                          dict((k, list(vs)) for k, vs in self.discodb_c.items()))
 

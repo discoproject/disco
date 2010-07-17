@@ -202,12 +202,21 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                 if (!PyArg_ParseTuple(vpack, "s#", &ventry->data, &ventry->length))
                     goto Done;
 
-                ddb_add(ddb_cons, kentry, ventry);
+                if (ddb_add(ddb_cons, kentry, ventry)) {
+                  PyErr_SetString(DiscoDBError, "Construction failed");
+                  goto Done;
+                }
 
                 Py_CLEAR(vpack);
                 Py_CLEAR(value);
                 DiscoDB_CLEAR(ventry);
             }
+
+            if (n == 0)
+              if (ddb_add(ddb_cons, kentry, NULL)) {
+                PyErr_SetString(DiscoDBError, "Construction failed");
+                goto Done;
+              }
 
             Py_CLEAR(itervalues);
             Py_CLEAR(item);
