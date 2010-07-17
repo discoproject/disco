@@ -143,8 +143,9 @@ handle_cast({_, ReplyTo}, #state{data = {error, _}} = S) ->
     gen_server:reply(ReplyTo, S#state.data),
     {noreply, S, S#state.timeout};
 
-handle_cast({gc_get0, ReplyTo}, #state{data = #tagcontent{}} = S) ->
-    gen_server:reply(ReplyTo, {make_tagdata(S#state.data), S#state.replicas}),
+handle_cast({gc_get0, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
+    R = {D#tagcontent.id, D#tagcontent.urls, S#state.replicas},
+    gen_server:reply(ReplyTo, R),
     {noreply, S, S#state.timeout};
 handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
