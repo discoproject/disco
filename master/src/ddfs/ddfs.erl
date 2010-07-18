@@ -79,11 +79,11 @@ tagop(Host, Tag, Op) ->
 validate(Name, Fun) ->
     case ddfs_util:is_valid_name(Name) of
         false ->
-            invalid_name;
+            {error, invalid_name};
         true ->
             case catch Fun() of
                 {'EXIT', {timeout, _}} ->
-                    timeout;
+                    {error, timeout};
                 Ret ->
                     Ret
             end
