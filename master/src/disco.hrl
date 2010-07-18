@@ -1,5 +1,5 @@
 
--record(dnode, {blacklisted :: bool() | 'manual' | timer:timestamp(),
+-record(dnode, {blacklisted=false :: bool() | 'manual' | timer:timestamp(),
                 name :: nonempty_string(),
                 node_mon :: pid(),
                 num_running=0 :: non_neg_integer(),
