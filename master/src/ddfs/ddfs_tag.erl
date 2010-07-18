@@ -133,15 +133,18 @@ handle_cast({die, _}, S) ->
     {stop, normal, S};
 
 handle_cast({{get, Attrib}, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
-    case Attrib of
-        all ->
-            gen_server:reply(ReplyTo, make_tagdata(S#state.data));
-        urls ->
-            R = list_to_binary(mochijson2:encode(D#tagcontent.urls)),
-            gen_server:reply(ReplyTo, R);
-        _ ->
-            unknown_attribute
-    end,
+    R = case Attrib of
+            all ->
+                make_tagdata(S#state.data);
+            urls ->
+                list_to_binary(mochijson2:encode(D#tagcontent.urls));
+            {user, A} ->
+                case proplists:lookup(A, D#tagcontent.user) of
+                    {_, V} -> mochijson2:encode(V);
+                    _ -> unknown_attribute
+                end
+        end,
+    gen_server:reply(ReplyTo, R),
     {noreply, S, S#state.timeout};
 
 handle_cast({{get, _}, ReplyTo}, S) ->

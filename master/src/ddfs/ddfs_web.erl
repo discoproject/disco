@@ -10,7 +10,7 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
     case mochiweb_util:path_split(TagAttrib) of
         {T, ""} -> {T, DefaultAttrib};
         {T, "ddfs:urls"} -> {T, urls};
-        {T, A} -> {T, A}
+        {T, A} -> {T, {user, list_to_binary(A)}}
     end.
 
 -spec op(atom(), string(), module()) -> _.
@@ -56,6 +56,8 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
             Req:respond({404, [], ["Tag not found"]});
         notfound ->
             Req:respond({404, [], ["Tag not found"]});
+        unknown_attribute ->
+            Req:respond({404, [], ["Tag attribute not found"]});
         E ->
             error(E, Req)
     end;
