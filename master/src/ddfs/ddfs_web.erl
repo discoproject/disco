@@ -61,10 +61,19 @@ op('POST', "/ddfs/tag/" ++ Tag, Req) ->
         end
     end, Req);
 
-op('PUT', "/ddfs/tag/" ++ Tag, Req) ->
-    tag_update(fun(Urls) ->
-                   ddfs:replace_tag(ddfs_master, Tag, urls, Urls)
-               end, Req);
+op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
+    {Tag, Attrib} = case mochiweb_util:path_split(TagAttrib) of
+                        {T, ""} -> {T, urls}; % backward compatibility
+                        {T, "ddfs:urls"} -> {T, urls};
+                        {T, A} -> {T, A}
+                    end,
+    case Attrib of
+        urls ->
+            tag_update(fun(Value) ->
+                           ddfs:replace_tag(ddfs_master, Tag, Attrib, Value)
+                       end, Req);
+        _ ->
+            Req:respond({400, [], ["Unsupported tag attribute"]}).
 
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
     case ddfs:delete(ddfs_master, Tag) of
@@ -97,8 +106,8 @@ tag_update(Fun, Req) ->
     case catch mochijson2:decode(Req:recv_body(?MAX_TAG_BODY_SIZE)) of
         {'EXIT', _} ->
             Req:respond({403, [], ["Invalid request body"]});
-        Urls ->
-            case Fun(Urls) of
+        Value ->
+            case Fun(Value) of
                 {ok, Dst} ->
                     okjson(Dst, Req);
                 E ->
