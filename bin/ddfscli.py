@@ -342,14 +342,14 @@ def xcat(program, *urls):
     the blobs reachable from the tags will be printed after any non-tag url[s].
     """
     from disco.core import result_iterator
-    from disco.util import kvify, reify
+    from disco.util import iterify, reify
 
     tags, urls = program.separate_tags(*urls)
     reader = reify(program.options.reader or 'disco.func.chain_reader')
 
     for result in result_iterator(chain(urls, program.blobs(*tags)),
                                   reader=reader):
-        print '%s\t%s' % kvify(result)
+        print '\t'.join(map(str, iterify(result)))
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()
