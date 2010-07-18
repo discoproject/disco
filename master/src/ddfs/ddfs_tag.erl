@@ -109,7 +109,7 @@ handle_cast({{delayed_update, Urls}, ReplyTo},
     if OldUrls =:= [] ->
         spawn(fun() ->
             timer:sleep(?DELAYED_FLUSH_INTERVAL),
-            ddfs:get_tag(ddfs_master, binary_to_list(Tag))
+            ddfs:get_tag(ddfs_master, binary_to_list(Tag), all)
         end);
     true -> ok
     end,
@@ -131,11 +131,19 @@ handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
 handle_cast({die, _}, S) ->
     {stop, normal, S};
 
-handle_cast({get, ReplyTo}, #state{data = #tagcontent{}} = S) ->
-    gen_server:reply(ReplyTo, make_tagdata(S#state.data)),
+handle_cast({{get, Attrib}, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
+    case Attrib of
+        all ->
+            gen_server:reply(ReplyTo, make_tagdata(S#state.data));
+        urls ->
+            R = list_to_binary(mochijson2:encode(D#tagcontent.urls)),
+            gen_server:reply(ReplyTo, R);
+        _ ->
+            unknown_attribute
+    end,
     {noreply, S, S#state.timeout};
 
-handle_cast({get, ReplyTo}, S) ->
+handle_cast({{get, _}, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, S#state.data),
     {noreply, S, S#state.timeout};
 

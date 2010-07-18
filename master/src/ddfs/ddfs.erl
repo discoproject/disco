@@ -2,7 +2,7 @@
 
 -include("config.hrl").
 
--export([new_blob/4, tags/2, get_tag/2, update_tag/3,
+-export([new_blob/4, tags/2, get_tag/3, update_tag/3,
          update_tag_delayed/3, replace_tag/4, delete/2]).
 
 -spec new_blob(node(), string(), non_neg_integer(), [node()]) ->
@@ -27,12 +27,13 @@ tags(Host, Prefix) ->
         E -> E
     end.
 
--spec get_tag(node(), string()) ->
-    'invalid_name' | 'notfound' | 'deleted' | {'ok', binary()} | {'error', _}.
-get_tag(Host, Tag) ->
+-spec get_tag(node(), string(), atom() | string()) ->
+    'invalid_name' | 'notfound' | 'deleted' | 'unknown_attribute'
+    | {'ok', binary()} | {'error', _}.
+get_tag(Host, Tag, Attrib) ->
     validate(Tag, fun() ->
         case gen_server:call(Host,
-                {tag, get, list_to_binary(Tag)}, ?NODEOP_TIMEOUT) of
+                {tag, {get, Attrib}, list_to_binary(Tag)}, ?NODEOP_TIMEOUT) of
             TagData when is_binary(TagData) ->
                 {ok, TagData};
             E -> E

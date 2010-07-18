@@ -45,8 +45,9 @@ op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
             error(E, Req)
     end;
 
-op('GET', "/ddfs/tag/" ++ Tag, Req) ->
-    case ddfs:get_tag(ddfs_master, Tag) of
+op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
+    {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
+    case ddfs:get_tag(ddfs_master, Tag, Attrib) of
         {ok, TagData} ->
             Req:ok({"application/json", [], TagData});
         invalid_name ->
