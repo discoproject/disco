@@ -5,6 +5,14 @@
 
 -export([op/3]).
 
+-spec parse_tag_attribute(string(), atom()) -> {string(), atom() | string()}.
+parse_tag_attribute(TagAttrib, DefaultAttrib) ->
+    case mochiweb_util:path_split(TagAttrib) of
+        {T, ""} -> {T, DefaultAttrib};
+        {T, "ddfs:urls"} -> {T, urls};
+        {T, A} -> {T, A}
+    end.
+
 -spec op(atom(), string(), module()) -> _.
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
@@ -62,18 +70,17 @@ op('POST', "/ddfs/tag/" ++ Tag, Req) ->
     end, Req);
 
 op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
-    {Tag, Attrib} = case mochiweb_util:path_split(TagAttrib) of
-                        {T, ""} -> {T, urls}; % backward compatibility
-                        {T, "ddfs:urls"} -> {T, urls};
-                        {T, A} -> {T, A}
-                    end,
+    % for backward compatibility, return urls if no attribute is specified
+    {Tag, Attrib} = parse_tag_attribute(TagAttrib, urls),
     case Attrib of
         urls ->
             tag_update(fun(Value) ->
                            ddfs:replace_tag(ddfs_master, Tag, Attrib, Value)
                        end, Req);
         _ ->
-            Req:respond({400, [], ["Unsupported tag attribute"]}).
+            % For now, only the urls attribute is supported.
+            Req:respond({400, [], ["Unsupported tag attribute"]})
+    end;
 
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
     case ddfs:delete(ddfs_master, Tag) of
