@@ -10,7 +10,8 @@
 -type replica() :: {timer:timestamp(), nonempty_string()}.
 -record(tagcontent, {id :: binary(),
                      last_modified :: binary(),
-                     urls :: [binary()]}).
+                     urls :: [binary()],
+                     user :: [{binary(), binary()}]}).
 -type tagcontent() :: #tagcontent{}.
 -record(state, {tag, % :: binary(),
                 data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
@@ -273,7 +274,8 @@ make_tagdata(D) ->
             {<<"id">>, D#tagcontent.id},
             {<<"version">>, 1},
             {<<"urls">>, D#tagcontent.urls},
-            {<<"last-modified">>, D#tagcontent.last_modified}
+            {<<"last-modified">>, D#tagcontent.last_modified},
+            {<<"user-data">>, D#tagcontent.user}
         ]})).
 
 -spec tag_lookup(any(), [binary()], [any()]) ->
@@ -284,7 +286,13 @@ tag_lookup(JsonBody, [Key|Rest], Results) ->
     case lists:keysearch(Key, 1, JsonBody) of
         {value, {_, Attrib}} ->
             tag_lookup(JsonBody, Rest, [Attrib|Results]);
-        _ -> {error, invalid_object}
+        false ->
+            case Key of
+                <<"user-data">> ->
+                    tag_lookup(JsonBody, Rest, [[] | Results]);
+                _ ->
+                    {error, not_found}
+            end
     end.
 
 -spec parse_tagcontent(binary()) -> {'error', _} | {'ok', tagcontent()}.
@@ -293,11 +301,14 @@ parse_tagcontent(TagData) ->
         {'EXIT', _} ->
             {error, corrupted_json};
         {struct, Body} ->
-            case tag_lookup(Body, [<<"id">>, <<"urls">>, <<"last-modified">>], []) of
-                {ok, [Id, Urls, LastModified]} ->
+            case tag_lookup(Body,
+                            [<<"id">>, <<"urls">>, <<"last-modified">>, <<"user-data">>],
+                            []) of
+                {ok, [Id, Urls, LastModified, UserData]} ->
                     {ok, #tagcontent{id = Id,
                                      last_modified = LastModified,
-                                     urls = Urls}};
+                                     urls = Urls,
+                                     user = UserData}};
                 _ -> {error, invalid_object}
             end
     end.
