@@ -341,7 +341,7 @@ def get(program, key, jobname):
 
 @Disco.command
 def pstats(program, jobname):
-    """Usage: jobname
+    """Usage: jobname [-k sort-key]
 
     Print the profiling statistics for the named job.
     Assumes the job was run with profile flag enabled.

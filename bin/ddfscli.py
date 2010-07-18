@@ -51,6 +51,8 @@ class DDFSOptionParser(OptionParser):
         self.add_option('-p', '--prefix',
                         action='store_true',
                         help='prefix mode for commands that take it.')
+        self.add_option('-R', '--reader',
+                        help='input reader to import and use')
         self.add_option('-r', '--recursive',
                         action='store_true',
                         help='recursively perform operations')
@@ -333,18 +335,20 @@ def urls(program, *tags):
 
 @DDFS.command
 def xcat(program, *urls):
-    """Usage: [-i] [-p] [urls ...]
+    """Usage: [-i] [-p] [-R reader] [urls ...]
 
     Concatenate the extracted results stored in url[s] and print to stdout.
     If any of the url[s] are tags,
     the blobs reachable from the tags will be printed after any non-tag url[s].
     """
     from disco.core import result_iterator
-    from disco.util import kvify
+    from disco.util import kvify, reify
 
     tags, urls = program.separate_tags(*urls)
+    reader = reify(program.options.reader or 'disco.func.chain_reader')
 
-    for result in result_iterator(chain(urls, program.blobs(*tags))):
+    for result in result_iterator(chain(urls, program.blobs(*tags)),
+                                  reader=reader):
         print '%s\t%s' % kvify(result)
 
 if __name__ == '__main__':

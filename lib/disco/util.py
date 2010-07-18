@@ -86,6 +86,12 @@ def rapply(iterable, fn):
         else:
             yield fn(item)
 
+def reify(dotted_name, globals=globals()):
+    if '.' in dotted_name:
+        package, name = dotted_name.rsplit('.', 1)
+        return getattr(__import__(package, fromlist=[name]), name)
+    return eval(dotted_name, globals)
+
 def argcount(object):
     if hasattr(object, 'func_code'):
         return object.func_code.co_argcount

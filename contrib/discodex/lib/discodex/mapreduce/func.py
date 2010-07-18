@@ -64,7 +64,7 @@ v2, n2
 metakey, ((key, vs), ...)
 
 """
-from disco.util import iskv, kvgroup
+from disco.util import iskv, kvgroup, reify
 from itertools import chain
 
 def funcify(maybe_curry):
@@ -74,12 +74,6 @@ def funcify(maybe_curry):
         dotted_name, arg = maybe_curry.split(':', 1)
         return partial(reify(dotted_name), unquote(arg))
     return reify(maybe_curry)
-
-def reify(dotted_name, globals=globals()):
-    if '.' in dotted_name:
-        package, name = dotted_name.rsplit('.', 1)
-        return getattr(__import__(package, fromlist=[name]), name)
-    return eval(dotted_name, globals)
 
 def filterchain(filters):
     filters = list(filters)
