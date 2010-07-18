@@ -7,7 +7,7 @@
 
 -define(SCHEDULE_TIMEOUT, 30000).
 
--include("task.hrl").
+-include("disco.hrl").
 
 -type load() :: {non_neg_integer(), {binary(), node()}}.
 

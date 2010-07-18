@@ -232,7 +232,7 @@ class Disco(object):
         """
         def event_iter(events):
             offs = offset
-            lines = events.splitlines()
+            lines = events.split('\n')
             for i, line in enumerate(lines):
                 if len(line):
                     offs += len(line) + 1
@@ -472,7 +472,7 @@ class JobDict(util.DefaultDict):
                              (*Added in version 0.2.4*)
 
     :type  map_output_stream: list of :func:`disco.func.output_stream`
-    :param map_output_stream: The given functions are chained together and the 
+    :param map_output_stream: The given functions are chained together and the
                               :meth:`disco.func.OutputStream.add` method of the last
                               returned :class:`disco.func.OutputStream` object is used
                               to serialize key, value pairs output by the map.
@@ -481,7 +481,7 @@ class JobDict(util.DefaultDict):
     :type  map_reader: :func:`disco.func.input_stream`
     :param map_reader: Convenience function to define the last :func:`disco.func.input_stream`
                        function in the *map_input_stream* chain.
-    
+
                        Disco worker provides a convenience function
                        :func:`disco.func.re_reader` that can be used to create
                        a reader using regular expressions.
@@ -491,7 +491,7 @@ class JobDict(util.DefaultDict):
 
                        Default is :func:`disco.func.map_line_reader`.
 
-    :param map_writer: (*Deprecated in version 0.3*) This function comes in 
+    :param map_writer: (*Deprecated in version 0.3*) This function comes in
                        handy e.g. when *reduce* is not
                        specified and you want *map* output in a specific format.
                        Another typical case is to use
@@ -517,13 +517,13 @@ class JobDict(util.DefaultDict):
 
     :type  reduce_input_stream: list of :func:`disco.func.output_stream`
     :param reduce_input_stream: The given functions are chained together and the last
-                              returned :class:`disco.func.InputStream` object is 
+                              returned :class:`disco.func.InputStream` object is
                               given to *reduce* as its first argument.
                               (*Added in version 0.2.4*)
-    
+
     :type  reduce_output_stream: list of :func:`disco.func.output_stream`
     :param reduce_output_stream: The given functions are chained together and the last
-                              returned :class:`disco.func.OutputStream` object is 
+                              returned :class:`disco.func.OutputStream` object is
                               given to *reduce* as its second argument.
                               (*Added in version 0.2.4*)
 
@@ -594,10 +594,8 @@ class JobDict(util.DefaultDict):
                  sorting ensures that keys are returned in the ascending order.
                  No other assumptions should be made on the comparison function.
 
-                 Sorting is performed in memory, if the total size of the data
-                 is less than *mem_sort_limit* bytes.
-                 If it is larger, the external program ``sort`` is used
-                 to sort the input on disk.
+                 The external program ``sort`` is used to sort the input on disk.
+                 In-memory sort can easily be performed by the tasks themselves.
 
                  Default is ``False``.
 
@@ -610,12 +608,6 @@ class JobDict(util.DefaultDict):
                    provides an easy way to encapsulate a set of parameters.
                    :class:`Params` allows including
                    :term:`pure functions <pure function>` in the parameters.
-
-    :type  mem_sort_limit: integer
-    :param mem_sort_limit: maximum size of data that can be sorted in memory.
-                           The larger inputs are sorted on disk.
-
-                           Default is ``0`` (due to issue #145).
 
     :param ext_params: if either map or reduce function is an external program,
                        typically specified using :func:`disco.util.external`,
@@ -708,13 +700,12 @@ class JobDict(util.DefaultDict):
                 'ext_map': False,
                 'ext_reduce': False,
                 'ext_params': None,
-                'mem_sort_limit': 0,
                 'merge_partitions': False,
                 'params': Params(),
                 'partitions': 1,
                 'prefix': '',
                 'profile': False,
-                'required_files': None,
+                'required_files': {},
                 'required_modules': None,
                 'scheduler': {'max_cores': '%d' % 2**31},
                 'save': False,
@@ -724,6 +715,7 @@ class JobDict(util.DefaultDict):
                 # deprecated
                 'nr_reduces': 0,
                 'map_writer': None,
+                'mem_sort_limit': 0,
                 'reduce_writer': None
                 }
     default_factory = defaults.__getitem__
@@ -740,12 +732,6 @@ class JobDict(util.DefaultDict):
                      'reduce_writer'])
 
     scheduler_keys = set(['force_local', 'force_remote', 'max_cores'])
-
-    io_mappings =\
-        [('map_reader', 'map_input_stream', func.reader_wrapper),
-         ('map_writer', 'map_output_stream', func.writer_wrapper),
-         ('reduce_reader', 'reduce_input_stream', func.reader_wrapper),
-         ('reduce_writer', 'reduce_output_stream', func.writer_wrapper)]
 
     stacks = set(['map_input_stream',
                   'map_output_stream',
@@ -794,8 +780,8 @@ class JobDict(util.DefaultDict):
             self['nr_reduces'] = self['partitions'] or 1
         elif self.input_is_partitioned:
             # Only reduce, with partitions: len(dir://) specifies nr_reduces
-            self['nr_reduces'] = 1 + max(id for dir in self['input']\
-                                        for id, url in util.read_index(dir[0]))
+            self['nr_reduces'] = 1 + max(id for dir in self['input']
+                                         for id, url in util.read_index(dir[0]))
         else:
             # Only reduce, without partitions can only have 1 reduce
             self['nr_reduces'] = 1
@@ -815,12 +801,12 @@ class JobDict(util.DefaultDict):
         self['scheduler'] = scheduler
 
         # -- sanity checks --
-        if not self['map'] and not self['reduce']:
-            raise DiscoError("Must specify map and/or reduce")
-
         for key in self:
             if key not in self.defaults:
                 raise DiscoError("Unknown job argument: %s" % key)
+
+    def __contains__(self, key):
+        return key in self.defaults
 
     def pack(self):
         """Pack up the :class:`JobDict` for sending over the wire."""
@@ -879,17 +865,14 @@ class JobDict(util.DefaultDict):
                 jobdict[key] = util.unpack_stack(jobdict[key], globals=globals)
             else:
                 jobdict[key] = util.unpack(jobdict[key], globals=globals)
-        # map readers and writers to streams
-        for oldio, stream, wrapper in cls.io_mappings:
-            if jobdict[oldio]:
-                jobdict[stream].append(wrapper(jobdict[oldio]))
         return cls(**jobdict)
 
     @property
     def input_is_partitioned(self):
-        return all(url.startswith('dir://')
-                   for urls in self['input']
-                   for url in urls)
+        if self['input']:
+            return all(url.startswith('dir://')
+                       for urls in self['input']
+                       for url in urls)
 
 class Job(object):
     """
@@ -996,12 +979,15 @@ class Job(object):
         A :class:`JobError` is raised if an error occurs while starting the job.
         """
         if 'nr_reduces' in kwargs:
-            from warnings import warn
             warn("Use partitions instead of nr_reduces", DeprecationWarning)
             if 'partitions' in kwargs or 'merge_partitions' in kwargs:
                 raise DeprecationWarning("Cannot specify nr_reduces with "
                                          "partitions and/or merge_partitions")
             kwargs['partitions'] = kwargs.pop('nr_reduces')
+
+        if 'mem_sort_limit' in kwargs:
+            warn("mem_sort_limit deprecated: sort=True always uses disk sort",
+                 DeprecationWarning)
 
         jobpack = Job.JobDict(self,
                               prefix=self.name,
@@ -1013,74 +999,65 @@ class Job(object):
         self.name = reply[1]
         return self
 
-def result_iterator(results,
-                    notifier=None,
-                    reader=func.chain_reader,
-                    input_stream=(func.map_input_stream, ),
-                    params=None,
-                    ddfs=None,
-                    tempdir=None):
+class ResultIter(object):
     """
-    Iterates the key-value pairs in job results. *results* is a list of
-    results, as returned by :meth:`Disco.wait`.
+    Produces an iterator over job results.
 
-    :param notifier: a function called when the iterator moves to the
-                     next result file::
+    :type  results: list of urls
+    :param results: result urls as returned by :meth:`Disco.wait`.
 
-                      def notifier(url):
+    :type  notifier: function
+    :param notifier: called when the iterator moves to the next result url::
+
+                      def notifier(url[s]):
                           ...
 
-                     *url* may be a list if results are replicated.
+                     .. note::
 
-    :param reader: a custom reader function.
-                   Specify this to match with a custom *map_writer* or *reduce_writer*.
-                   By default, *reader* is :func:`disco.func.netstr_reader`.
+                         notifier argument is a list if results are replicated.
 
-    :param tempdir: if results are replicated, *result_iterator* ensures that only
-                    valid replicas are used. By default, this is done by downloading
-                    and parsing results first to a temporary file. If the temporary
-                    file was created succesfully, the results are returned,
-                    otherwise an alternative replica is used.
-
-                    If *tempdir=None* (default), the system default temporary
-                    directory is used (typically ``/tmp``). An alternative path
-                    can be set with *tempdir="path"*. Temporary files can be disabled
-                    with *tempdir=False*, in which case results are read in memory.
+    :type  reader: :func:`disco.func.input_stream`
+    :param reader: used to read from a custom :func:`disco.func.output_stream`.
     """
-    from disco.task import Task
-    task = Task()
-    task.params = params
-    task.input_stream = list(input_stream)
-    if reader:
-        task.input_stream.append(func.reader_wrapper(reader))
-    task.insert_globals(task.input_stream)
-    for result in results:
-        for url in util.urllist(result, ddfs=ddfs):
-            if notifier:
-                notifier(url)
-            if type(url) == list:
-                iter = process_url_safe(url, tempdir, task)
-            else:
-                iter, sze, url = task.connect_input(url)
-            for x in iter:
-                yield x
+    def __init__(self, results,
+                 notifier=func.noop,
+                 reader=func.chain_reader,
+                 input_stream=(func.map_input_stream, ),
+                 params=None,
+                 ddfs=None):
+        from disco.task import Map
+        self.task = Map(jobdict=JobDict(map_input_stream=input_stream,
+                                        map_reader=reader,
+                                        params=params))
+        self.results = results
+        self.notifier = notifier
+        self.ddfs = ddfs
 
-def process_url_safe(urls, tempdir, task):
-    while urls:
-        try:
-            in_stream, sze, url = task.connect_input(urls[0])
-            return list(in_stream) if tempdir == False\
-                else disk_buffer(tempdir, in_stream)
-        except:
-            urls = urls[1:]
-            if not urls:
-                raise
+    def __iter__(self):
+        for result in self.results:
+            for urls in util.urllist(result, ddfs=self.ddfs):
+                self.notifier(urls)
+                for entry in self.try_replicas(list(util.iterify(urls))):
+                    yield entry
 
-def disk_buffer(tempdir, in_stream):
-    fd = NamedTemporaryFile(prefix='discores-', dir=tempdir)
-    n = util.ilen(marshal.dump(x, fd.file) for x in in_stream)
-    fd.seek(0)
-    return (marshal.load(fd.file) for i in range(n))
+    def try_replicas(self, urls, start=0):
+        while urls:
+            try:
+                for entry in self.entries(urls.pop(0), start=start):
+                    yield entry
+                    start += 1
+            except Exception:
+                if not urls:
+                    raise
+
+    def entries(self, url, start=0):
+        fd, _size, _url = self.task.connect_input(url)
+        for n, entry in enumerate(fd):
+            if n >= start:
+                yield entry
+
+def result_iterator(*args, **kwargs):
+    return ResultIter(*args, **kwargs)
 
 class Stats(object):
     def __init__(self, prof_data):

@@ -1,93 +1,57 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
- "http://www.w3.org/TR/html4/strict.dtd">
+          "http://www.w3.org/TR/html4/strict.dtd">
 <html>
-<head>
-   <title>disco status</title>
-   <link rel="stylesheet" href="reset-fonts-grids.css" type="text/css">
-   <link rel="stylesheet" href="style.css" type="text/css">
+  <head>
+    <title>disco status</title>
+    <link rel="stylesheet" href="/css/reset-fonts-grids.css" type="text/css">
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
 
-   <script type="text/javascript" src="jquery-1.2.1.js"></script>
-   <script type="text/javascript" src="jquery-dom.js"></script>
-   <script type="text/javascript" src="typewatch1.1.js"></script> 
+    <script type="text/javascript" src="/js/jquery-1.2.1.js"></script>
+    <script type="text/javascript" src="/js/jquery-dom.js"></script>
+    <script type="text/javascript" src="/js/typewatch1.1.js"></script>
 
-   <script type="text/javascript" src="joblist.js"></script>
-   <script type="text/javascript" src="disco.js"></script>
-   <script type="text/javascript" src="status.js"></script>
+    <script type="text/javascript" src="/js/joblist.js"></script>
+    <script type="text/javascript" src="/js/disco.js"></script>
+    <script type="text/javascript" src="/js/status.js"></script>
+  </head>
+  <body>
+    <div id="doc3" class="yui-t5">
+      <div id="hd">
+        <div id="title">disco status</div>
+        <div id="logo">
+          <img src="/images/balls.png"/>
+        </div>
+      </div>
 
-</head>
-<body>
-<div id="doc3" class="yui-t5">
-   
-   <div id="hd">
-   <div alt="koe" id="title">disco status</div>
-   <div id="logo"><img src="balls.png"/></div>
-   </div>
-   
-   <div id="bd">
-	<div id="yui-main">
-	<div class="yui-b"><div class="yui-g">
-
-        <!-- nodebox
-        <div class="nodebox">
-        <div class="title">cnode01</div>
-        <div class="status">
-        
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-        
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-
-        <div style="background: #eee" id="jbox"></div>
-        <div id="jbox"></div>
-        <div id="jbox"></div>
-        
+      <div id="bd">
+        <div id="yui-main">
+          <div class="yui-b">
+            <div id="nodes" class="yui-g">
+              <!-- nodeboxes -->
+	    </div>
+          </div>
         </div>
 
-        
-        <div class="val">
-        2.0
-        </div>
+        <div class="yui-b">
+          <div class="links">
+            <a href="index.html">status</a> |
+            <a href="config.html">configure</a>
+          </div>
 
-        <div class="val midval">
-        80%
-        </div>
-
-        <div class="val">
-        120
-        </div>
-        </div>
-        nodebox -->
-
-	</div>
-        </div>
-	</div>
-
-	<div class="yui-b">
-        <div class="links">
-        <a href="index.html">status</a> | 
-        <a href="config.html">configure</a>
-        </div>
-
-        <div class="joblist">
-        <input type="text" length="50"></input>
-        <div class="jobs"></div>
-        </div>
+          <div id="joblist">
+            <input type="text" length="50" />
+            <div id="jobs">
+              <!-- jobs -->
+            </div>
+          </div>
 
         </div>
-   </div>
-   
-   <div id="ft">
-   Disco 0.3
-   </div>
+      </div>
 
+      <div id="ft">
+        Disco 0.3
+      </div>
 
-</div>
-</body>
+    </div>
+  </body>
 </html>

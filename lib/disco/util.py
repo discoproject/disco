@@ -14,7 +14,7 @@ import copy_reg, functools
 
 from cStringIO import StringIO
 from collections import defaultdict
-from itertools import chain, repeat
+from itertools import groupby, repeat
 from types import CodeType, FunctionType
 from urllib import urlencode
 
@@ -62,6 +62,16 @@ def iterify(object):
 
 def ilen(iter):
     return sum(1 for _ in iter)
+
+def key((k, v)):
+    return k
+
+def kvgroup(kviter):
+    for k, kvs in groupby(kviter, key):
+        yield k, (v for _k, v in kvs)
+
+def kvify(entry):
+    return entry if iskv(entry) else ('', entry)
 
 def partition(iterable, fn):
     t, f = [], []
@@ -236,7 +246,7 @@ def parse_dir(dir_url, partid=None):
     :param dir_url: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
     return [url for id, url in read_index(dir_url)
-                if partid is None or partid == int(id)]
+            if partid is None or partid == int(id)]
 
 def save_oob(host, name, key, value):
     from disco.ddfs import DDFS
@@ -265,3 +275,8 @@ def ddfs_save(blobs, name, master):
     ddfs.push(tag, blobs, retries=600, delayed=True)
     return "tag://%s" % tag
 
+def format_size(num):
+    for unit in ['bytes','KB','MB','GB','TB']:
+        if num < 1024.:
+            return "%3.1f%s" % (num, unit)
+        num /= 1024.

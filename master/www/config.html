@@ -3,18 +3,18 @@
 <html>
   <head>
     <title>disco config</title>
-    <link rel="stylesheet" href="reset-fonts-grids.css" type="text/css">
-    <link rel="stylesheet" href="style.css" type="text/css">
+    <link rel="stylesheet" href="/css/reset-fonts-grids.css" type="text/css">
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
 
-    <script type="text/javascript" src="jquery-1.2.1.js"></script>
-    <script type="text/javascript" src="jquery-dom.js"></script>
-    <script type="text/javascript" src="typewatch1.1.js"></script>
-    <script type="text/javascript" src="jquery.uitableedit.js"></script>
-    <script type="text/javascript" src="json2.js"></script>
+    <script type="text/javascript" src="/js/jquery-1.2.1.js"></script>
+    <script type="text/javascript" src="/js/jquery-dom.js"></script>
+    <script type="text/javascript" src="/js/typewatch1.1.js"></script>
+    <script type="text/javascript" src="/js/jquery.uitableedit.js"></script>
+    <script type="text/javascript" src="/js/json2.js"></script>
 
-    <script type="text/javascript" src="joblist.js"></script>
-    <script type="text/javascript" src="disco.js"></script>
-    <script type="text/javascript" src="config.js"></script>
+    <script type="text/javascript" src="/js/joblist.js"></script>
+    <script type="text/javascript" src="/js/disco.js"></script>
+    <script type="text/javascript" src="/js/config.js"></script>
 
   </head>
   <body>
@@ -22,14 +22,16 @@
 
       <div id="hd">
         <div id="title">system configuration</div>
-        <div id="logo"><img src="balls.png"/></div>
+        <div id="logo">
+          <img src="/images/balls.png"/>
+        </div>
       </div>
 
       <div id="bd">
 	<div id="yui-main">
 	  <div class="yui-b"><div class="yui-g">
 
-              <div id="jobctrl">
+              <div class="control">
                 &nbsp;<span id="msg"></span>
               </div>
 
@@ -46,8 +48,8 @@
                   <tbody>
                     <tr>
                       <td>&nbsp;</td>
-                      <td class='editable'> </td>
-                      <td class='editable'> </td>
+                      <td class='editable'></td>
+                      <td class='editable'></td>
                     </tr>
                   </tbody>
                 </table>
@@ -80,11 +82,11 @@
             <a href="index.html">status</a> | <a href="config.html">configure</a>
           </div>
 
-          <div class="joblist">
+          <div id="joblist">
             <input type="text" id="jobname" />
-            <div class="jobs"></div>
-
+            <div id="jobs"></div>
           </div>
+
         </div>
       </div>
 

@@ -204,11 +204,11 @@ class DiscoSettings(Settings):
         'DISCO_ROOT':            "os.path.join(DISCO_HOME, 'root')",
         'DISCO_SETTINGS':        "''",
         'DISCO_SETTINGS_FILE':   "guess_settings()",
+        'DISCO_SORT_BUFFER_SIZE':"'10%'",
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
-        'DISCO_SORT_BUFFER_SIZE':"'10%'",
         'PYTHONPATH':            "DISCO_LIB",
 # GC
         'DISCO_GC_AFTER':        "100 * 365 * 24 * 60 * 60",

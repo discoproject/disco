@@ -64,7 +64,7 @@ v2, n2
 metakey, ((key, vs), ...)
 
 """
-from discodb import kvgroup
+from disco.util import iskv, kvgroup
 from itertools import chain
 
 def funcify(maybe_curry):
@@ -81,9 +81,6 @@ def reify(dotted_name, globals=globals()):
         return getattr(__import__(package, fromlist=[name]), name)
     return eval(dotted_name, globals)
 
-def iskv(object):
-    return isinstance(object, tuple) and len(object) is 2
-
 def filterchain(filters):
     filters = list(filters)
     def f(x):
@@ -92,7 +89,6 @@ def filterchain(filters):
             seq = chain(*(filter(x) for x in seq))
         return seq
     return f
-
 
 def keyify(entry):
     yield entry, ''

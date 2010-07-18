@@ -113,5 +113,5 @@ tag_update(Fun, Req) ->
 -spec parse_exclude('false' | {'value', {_, string()}}) -> [node()].
 parse_exclude(false) -> [];
 parse_exclude({value, {_, ExcStr}}) ->
-    [node_mon:slave_node_safe(Node) || Node <- string:tokens(ExcStr, ",")].
+    [disco:node_safe(Host) || Host <- string:tokens(ExcStr, ",")].
 

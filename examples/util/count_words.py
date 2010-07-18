@@ -17,9 +17,10 @@ disco = Disco(DiscoSettings()['DISCO_MASTER'])
 print "Starting Disco job.."
 print "Go to %s to see status of the job." % disco.master
 results = disco.new_job(name="wordcount",
-                   input=["http://discoproject.org/chekhov.txt"],
-                   map=map,
-                   reduce=reduce).wait()
+                        input=["http://discoproject.org/media/text/chekhov.txt"],
+                        map=map,
+                        reduce=reduce,
+                        save=True).wait()
 print "Job done. Results:"
 for word, freq in result_iterator(results):
     print word, freq

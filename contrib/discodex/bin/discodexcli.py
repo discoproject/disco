@@ -53,9 +53,6 @@ class DiscodexOptionParser(OptionParser):
                         help='balancer to use for indexing')
         self.add_option('--metakeyer',
                         help='balancer to use for indexing')
-        self.add_option('--no-sort',
-                        action='store_true',
-                        help='whether or not to sort before writing discodbs')
         self.add_option('--k-viter',
                         action='store_true',
                         help='treat the dataset as a precomputed k-viter list')
@@ -168,7 +165,7 @@ def list(program):
 
 @Discodex.command
 def index(program, *files):
-    """Usage: [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [--no-sort] [file ...]
+    """Usage: [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [file ...]
 
     Read input urls from file[s], and index using the specified options.
     """
@@ -188,7 +185,7 @@ def keys(program, indexspec):
 
 @Discodex.command
 def metaindex(program, indexspec):
-    """Usage: [--metakeyer] [-n N] [--profile] [--no-sort] <indexspec>
+    """Usage: [--metakeyer] [-n N] [--profile] <indexspec>
 
     Build a metaindex of the index at indexspec, using the specified options.
     """
