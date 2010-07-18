@@ -179,22 +179,47 @@ handle_cast({{update, Urls}, ReplyTo}, #state{data = C} = S) ->
     end;
 
 handle_cast({{put, Field, Value}, ReplyTo}, S) ->
-    case {Field, Value} of
-        {urls, Urls} ->
-            case put_transaction(validate_urls(Urls), Urls, S) of
-                {ok, DestNodes, DestUrls, TagData} ->
+    {OldUrls, OldUser} = if is_record(S#state.data, tagcontent) ->
+                                 C = S#state.data,
+                                 {C#tagcontent.urls, C#tagcontent.user};
+                            true ->
+                                 {[], []}
+                         end,
+    Check = case Field of
+                urls ->
+                    case validate_urls(Value) of
+                        true ->
+                            {ok, {Value, OldUser}};
+                        false ->
+                            {error, invalid_url_object}
+                    end;
+                {user, K} ->
+                    {ok, {OldUrls,
+                          [{K, Value} | proplists:delete(K, OldUser)]}}
+            end,
+    case Check of
+        {ok, {Urls, User}} ->
+            TagName = ddfs_util:pack_objname(S#state.tag, now()),
+            TagContent = #tagcontent{id = TagName,
+                                     urls = Urls,
+                                     user = User,
+                                     last_modified = ddfs_util:format_timestamp()},
+            TagData = make_tagdata(TagContent),
+            case put_distribute({TagName, TagData, TagContent}) of
+                {ok, DestNodes, DestUrls, Data} ->
                     if S#state.data == deleted ->
                             {ok, _} = remove_from_deleted(S#state.tag);
                        true -> ok
                     end,
                     send_replies(ReplyTo, {ok, DestUrls}),
-                    S1 = S#state{data = TagData, replicas = DestNodes},
+                    S1 = S#state{data = Data, replicas = DestNodes},
                     {noreply, S1, S#state.timeout};
                 {error, _} = E ->
                     send_replies(ReplyTo, E),
                     {noreply, S, S#state.timeout}
             end;
-        _ ->
+        {error, _} = E ->
+            send_replies(ReplyTo, E),
             {noreply, S, S#state.timeout}
     end;
 
@@ -324,18 +349,6 @@ parse_tagcontent(TagData) ->
 % 5. multicall with temp file names, rename
 % 6. if all fail, fail
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
-
--spec put_transaction(bool(), [binary()], #state{}) ->
-    {'error', _} | {'ok', [node()], [binary()], tagcontent()}.
-put_transaction(false, _, _) -> {error, invalid_url_object};
-put_transaction(true, Urls, S) ->
-    % XXX: compress data here!
-    TagName = ddfs_util:pack_objname(S#state.tag, now()),
-    TagContent = #tagcontent{id = TagName,
-                             urls = Urls,
-                             last_modified = ddfs_util:format_timestamp()},
-    TagData = make_tagdata(TagContent),
-    put_distribute({TagName, TagData, TagContent}).
 
 -spec put_distribute({binary(), binary(), tagcontent()}) ->
     {'error', _} | {'ok', [node()], [binary()], tagcontent()}.

@@ -75,15 +75,9 @@ op('POST', "/ddfs/tag/" ++ Tag, Req) ->
 op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     % for backward compatibility, return urls if no attribute is specified
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, urls),
-    case Attrib of
-        urls ->
-            tag_update(fun(Value) ->
-                           ddfs:replace_tag(ddfs_master, Tag, Attrib, Value)
-                       end, Req);
-        _ ->
-            % For now, only the urls attribute is supported.
-            Req:respond({400, [], ["Unsupported tag attribute"]})
-    end;
+    tag_update(fun(Value) ->
+                   ddfs:replace_tag(ddfs_master, Tag, Attrib, Value)
+               end, Req);
 
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
     case ddfs:delete(ddfs_master, Tag) of
