@@ -228,6 +228,11 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 
     self->obuffer = NULL;
     self->cbuffer = ddb_finalize(ddb_cons, &n, flags);
+    if (self->cbuffer == NULL) {
+        PyErr_SetString(DiscoDBError, "Construction finalization failed");
+        goto Done;
+    }
+
     self->discodb = ddb_alloc();
     if (self->discodb == NULL)
         goto Done;
