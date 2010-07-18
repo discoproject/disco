@@ -228,6 +228,11 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 
     self->obuffer = NULL;
     self->cbuffer = ddb_finalize(ddb_cons, &n, flags);
+    if (self->cbuffer == NULL) {
+        PyErr_SetString(DiscoDBError, "Construction finalization failed");
+        goto Done;
+    }
+
     self->discodb = ddb_alloc();
     if (self->discodb == NULL)
         goto Done;
@@ -811,7 +816,7 @@ DiscoDBIter_iternextitem(DiscoDBIter *self)
         if (ddb_has_error(self->owner->discodb))
             return NULL;
 
-    return Py_BuildValue("s#O", nextkey->data, nextkey->length,
+    return Py_BuildValue("s#N", nextkey->data, nextkey->length,
                          DiscoDBIter_new(&DiscoDBIterEntryType, self->owner, vcursor));
 }
 

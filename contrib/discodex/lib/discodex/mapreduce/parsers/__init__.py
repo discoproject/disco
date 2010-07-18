@@ -25,7 +25,7 @@ def rawparse(iterable, size, fname, params):
                 yield kv.split(':', 1)
 
 def wordparse(iterable, size, fname, params):
-    """Splits lines of input by whitespace and uses them as keys for the value ``fname``"""
+    """Splits lines of input by whitespace and uses the words as keys for the value ``fname``"""
     for word in set(word for line in iterable for word in line.split()):
         yield word, fname
 
@@ -33,6 +33,12 @@ def netstrparse(fd, size, fname, params):
     """Reads (key, value) pairs directly from `netstr` input."""
     from disco import func
     return func.netstr_reader(fd, size, fname, params)
+
+def discodbparse(iterable, size, fname, params):
+    """Splits lines of input by whitespace and uses the fields as keys for a :class:`discodb.DiscoDB` objects."""
+    from discodb import DiscoDB
+    for line in iterable:
+        yield DiscoDB((field, []) for field in line.split())
 
 def recordparse(iterable, size, fname, params):
     """Splits lines of input by whitespace and creates :class:`discodex.mapreduce.Record` objects."""
