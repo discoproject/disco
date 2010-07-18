@@ -816,7 +816,7 @@ DiscoDBIter_iternextitem(DiscoDBIter *self)
         if (ddb_has_error(self->owner->discodb))
             return NULL;
 
-    return Py_BuildValue("s#O", nextkey->data, nextkey->length,
+    return Py_BuildValue("s#N", nextkey->data, nextkey->length,
                          DiscoDBIter_new(&DiscoDBIterEntryType, self->owner, vcursor));
 }
 
