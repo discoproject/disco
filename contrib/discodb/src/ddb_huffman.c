@@ -308,14 +308,14 @@ int ddb_compress(const struct ddb_map *codemap, const char *src,
                 /* codeword: prefix code by an up bit */
                 code = 1 | (DDB_HUFF_CODE(*ptr) << 1);
                 write_bits(*buf, offs, code);
-                offs += bits + 1;
-                i += 3;
 
                 #ifdef HUFFMAN_DEBUG
-                fprintf(stderr, "ENC VALUE (b %u): ", bits);
+                fprintf(stderr, "%u (%lu) ENC VALUE[%u] (c %u) (b %u): ",i, offs, key,(code >> 1),bits);
                 print_symbol(key);
                 fprintf(stderr, "\n");
                 #endif
+                offs += bits + 1;
+                i += 3;
             }else{
                 write_literal(&offs, src[i]);
             }
@@ -346,6 +346,20 @@ int ddb_decompress(
     uint32_t k = 0;
     uint64_t num_bits = src_len * 8LLU - read_bits(src, 0, 3);
     uint64_t offs = 3;
+#if 0
+    fprintf(stderr, "CODEBOOK:\n");
+    int i;
+    for (i = 0; i < DDB_CODEBOOK_SIZE; i++){
+        struct hnode node = {.symbol = book[i].symbol,
+                             .code = i,
+                             .num_bits = book[i].bits};
+        fprintf(stderr, "%d] ", i);
+        print_symbol(node.symbol);
+        fprintf(stderr, " | ");
+        print_codeword(&node);
+        fprintf(stderr, "\n");
+    }
+#endif
 
     while (offs < num_bits){
         uint32_t val = read_bits(src, offs, 17);
@@ -357,19 +371,20 @@ int ddb_decompress(
         if (val & 1){
             val >>= 1;
             memcpy(p + k, &book[val].symbol, 4);
-            offs += book[val].bits + 1;
-            k += 4;
             #ifdef HUFFMAN_DEBUG
-            fprintf(stderr, "VALUE (b %u): ", book[val].bits);
+            fprintf(stderr, "%u (%lu) VALUE[%u] (b %u): ", k, offs, val, book[val].bits);
             print_symbol(book[val].symbol);
             fprintf(stderr, "\n");
             #endif
+            offs += book[val].bits + 1;
+            k += 4;
         }else{
-            p[k++] = (val >> 1) & 255;
-            offs += 9;
+            p[k] = (val >> 1) & 255;
             #ifdef HUFFMAN_DEBUG
-            fprintf(stderr, "LITERAL: %c\n", (val >> 1) & 255);
+            fprintf(stderr, "%u (%lu) LITERAL: %c\n", k, offs, (val >> 1) & 255);
             #endif
+            offs += 9;
+            ++k;
         }
     }
     *size = k;

@@ -50,7 +50,7 @@ static void buffer_shrink(struct ddb_packed *p)
     p->buffer = realloc(p->buffer, p->offs);
 }
 
-static struct ddb_packed *buffer_init()
+static struct ddb_packed *buffer_init(void)
 {
     struct ddb_packed *p;
     if (!(p = calloc(1, sizeof(struct ddb_packed))))
@@ -125,6 +125,19 @@ end:
     return ret;
 }
 
+#ifdef HUFFMAN_DEBUG
+static int ccmp(const char *x, const char *y, uint32_t len)
+{
+    uint32_t i = 0;
+    for (i = 0; i < len; i++)
+        if (x[i] != y[i]){
+            fprintf(stderr, "%u) GOT %c SHOULD BE %c\n", i, x[i], y[i]);
+            return 1;
+        }
+    return 0;
+}
+#endif
+
 static int pack_id2value(struct ddb_packed *pack,
                          const struct ddb_map *values_map,
                          int disable_compr)
@@ -169,10 +182,13 @@ static int pack_id2value(struct ddb_packed *pack,
                 goto end;
             val = buf;
             #ifdef HUFFMAN_DEBUG
-            ddb_decompress(pack->head->codebook, buf, size,
+            ddb_decompress(pack->codebook, buf, size,
                 &dsize, &dbuf, &dbuf_len);
-            fprintf(stderr, "ORIG: <%.*s> DECOMP: <%.*s>\n",
-                key.length, key.data, dsize, dbuf);
+            if (dsize != key.length || ccmp(dbuf, key.data, dsize)){
+                fprintf(stderr, "ORIG: <%.*s> DECOMP: <%.*s> (%u and %u)\n",
+                    key.length, key.data, dsize, dbuf, dsize, key.length);
+                exit(1);
+            }
             #endif
         }
 
