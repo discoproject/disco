@@ -72,8 +72,8 @@ def funcify(maybe_curry):
         from functools import partial
         from urllib import unquote
         dotted_name, arg = maybe_curry.split(':', 1)
-        return partial(reify(dotted_name), unquote(arg))
-    return reify(maybe_curry)
+        return partial(reify(dotted_name, globals=globals()), unquote(arg))
+    return reify(maybe_curry, globals=globals())
 
 def filterchain(filters):
     filters = list(filters)
