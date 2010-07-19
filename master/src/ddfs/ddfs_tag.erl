@@ -22,6 +22,52 @@
                     | [{replica(), node()}],
                 url_cache :: 'false' | gb_set()}).
 
+-spec make_tagdata(tagcontent()) -> binary().
+make_tagdata(D) ->
+    list_to_binary(mochijson2:encode({struct,
+        [
+            {<<"id">>, D#tagcontent.id},
+            {<<"version">>, 1},
+            {<<"urls">>, D#tagcontent.urls},
+            {<<"last-modified">>, D#tagcontent.last_modified},
+            {<<"user-data">>, D#tagcontent.user}
+        ]})).
+
+-spec tag_lookup(any(), [binary()], [any()]) ->
+     {'ok', [any()]} | {'error', _}.
+tag_lookup(_, [], Results) ->
+    {ok, lists:reverse(Results)};
+tag_lookup(JsonBody, [Key|Rest], Results) ->
+    case lists:keysearch(Key, 1, JsonBody) of
+        {value, {_, Attrib}} ->
+            tag_lookup(JsonBody, Rest, [Attrib|Results]);
+        false ->
+            case Key of
+                <<"user-data">> ->
+                    tag_lookup(JsonBody, Rest, [[] | Results]);
+                _ ->
+                    {error, not_found}
+            end
+    end.
+
+-spec parse_tagcontent(binary()) -> {'error', _} | {'ok', tagcontent()}.
+parse_tagcontent(TagData) ->
+    case catch mochijson2:decode(TagData) of
+        {'EXIT', _} ->
+            {error, corrupted_json};
+        {struct, Body} ->
+            case tag_lookup(Body,
+                            [<<"id">>, <<"urls">>, <<"last-modified">>, <<"user-data">>],
+                            []) of
+                {ok, [Id, Urls, LastModified, UserData]} ->
+                    {ok, #tagcontent{id = Id,
+                                     last_modified = LastModified,
+                                     urls = Urls,
+                                     user = UserData}};
+                _ -> {error, invalid_object}
+            end
+    end.
+
 % THOUGHT: Eventually we want to partition tag keyspace instead
 % of using a single global keyspace. This can be done relatively 
 % easily with consistent hashing: Each tag has a set of nodes 
@@ -54,7 +100,6 @@ init({TagName, Status}) ->
                         ?TAG_EXPIRES
                     end
     }}.
-
 
 %%% Note to the reader!
 %%%
@@ -294,52 +339,6 @@ get_tagdata(Tag) ->
 -spec validate_urls([binary()]) -> bool().
 validate_urls(Urls) ->
     [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
-
--spec make_tagdata(tagcontent()) -> binary().
-make_tagdata(D) ->
-    list_to_binary(mochijson2:encode({struct,
-        [
-            {<<"id">>, D#tagcontent.id},
-            {<<"version">>, 1},
-            {<<"urls">>, D#tagcontent.urls},
-            {<<"last-modified">>, D#tagcontent.last_modified},
-            {<<"user-data">>, D#tagcontent.user}
-        ]})).
-
--spec tag_lookup(any(), [binary()], [any()]) ->
-     {'ok', [any()]} | {'error', _}.
-tag_lookup(_, [], Results) ->
-    {ok, lists:reverse(Results)};
-tag_lookup(JsonBody, [Key|Rest], Results) ->
-    case lists:keysearch(Key, 1, JsonBody) of
-        {value, {_, Attrib}} ->
-            tag_lookup(JsonBody, Rest, [Attrib|Results]);
-        false ->
-            case Key of
-                <<"user-data">> ->
-                    tag_lookup(JsonBody, Rest, [[] | Results]);
-                _ ->
-                    {error, not_found}
-            end
-    end.
-
--spec parse_tagcontent(binary()) -> {'error', _} | {'ok', tagcontent()}.
-parse_tagcontent(TagData) ->
-    case catch mochijson2:decode(TagData) of
-        {'EXIT', _} ->
-            {error, corrupted_json};
-        {struct, Body} ->
-            case tag_lookup(Body,
-                            [<<"id">>, <<"urls">>, <<"last-modified">>, <<"user-data">>],
-                            []) of
-                {ok, [Id, Urls, LastModified, UserData]} ->
-                    {ok, #tagcontent{id = Id,
-                                     last_modified = LastModified,
-                                     urls = Urls,
-                                     user = UserData}};
-                _ -> {error, invalid_object}
-            end
-    end.
 
 % Put transaction:
 % 1. choose nodes
