@@ -34,10 +34,10 @@ new_tagcontent(TagName, Urls, User) ->
 make_tagdata(D) ->
     list_to_binary(mochijson2:encode({struct,
         [
-            {<<"id">>, D#tagcontent.id},
             {<<"version">>, 1},
-            {<<"urls">>, D#tagcontent.urls},
+            {<<"id">>, D#tagcontent.id},
             {<<"last-modified">>, D#tagcontent.last_modified},
+            {<<"urls">>, D#tagcontent.urls},
             {<<"user-data">>, {struct, D#tagcontent.user}}
         ]})).
 
@@ -65,9 +65,9 @@ parse_tagcontent(TagData) ->
             {error, corrupted_json};
         {struct, Body} ->
             case tag_lookup(Body,
-                            [<<"id">>, <<"urls">>, <<"last-modified">>, <<"user-data">>],
+                            [<<"id">>, <<"last-modified">>, <<"urls">>, <<"user-data">>],
                             []) of
-                {ok, [Id, Urls, LastModified, {struct, UserData}]} ->
+                {ok, [Id, LastModified, Urls, {struct, UserData}]} ->
                     {ok, #tagcontent{id = Id,
                                      last_modified = LastModified,
                                      urls = Urls,
