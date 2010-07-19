@@ -23,6 +23,13 @@
                     | [{replica(), node()}],
                 url_cache :: 'false' | gb_set()}).
 
+-spec new_tagcontent(binary(), [binary()], user_attr()) -> tagcontent().
+new_tagcontent(TagName, Urls, User) ->
+    #tagcontent{id = TagName,
+                last_modified = ddfs_util:format_timestamp(),
+                urls = Urls,
+                user = User}.
+
 -spec make_tagdata(tagcontent()) -> binary().
 make_tagdata(D) ->
     list_to_binary(mochijson2:encode({struct,
@@ -253,10 +260,7 @@ handle_cast({{put, Field, Value}, ReplyTo}, S) ->
     case get_new_values(S, Field, Value) of
         {ok, {Urls, User}} ->
             TagName = ddfs_util:pack_objname(S#state.tag, now()),
-            TagContent = #tagcontent{id = TagName,
-                                     urls = Urls,
-                                     user = User,
-                                     last_modified = ddfs_util:format_timestamp()},
+            TagContent = new_tagcontent(TagName, Urls, User),
             TagData = make_tagdata(TagContent),
             case put_distribute({TagName, TagData, TagContent}) of
                 {ok, DestNodes, DestUrls, Data} ->
