@@ -284,7 +284,7 @@ int ddb_compress(const struct ddb_map *codemap, const char *src,
         #ifdef HUFFMAN_DEBUG
         fprintf(stderr, "ENC LITERAL: %c\n", byte);
         #endif
-        write_bits(*buf, *offs + 1, byte);
+        write_bits(*buf, *offs + 1, byte & 255);
         *offs += 9;
     }
     uint32_t code, i = 0;
