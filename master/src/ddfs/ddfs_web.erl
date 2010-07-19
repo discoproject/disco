@@ -10,6 +10,8 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
     case mochiweb_util:path_split(TagAttrib) of
         {T, ""} -> {T, DefaultAttrib};
         {T, "ddfs:urls"} -> {T, urls};
+        {T, "ddfs:read-token"} -> {T, read_token};
+        {T, "ddfs:write-token"} -> {T, write_token};
         {T, A} -> {T, {user, list_to_binary(A)}}
     end.
 

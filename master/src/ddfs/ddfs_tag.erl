@@ -9,8 +9,11 @@
 
 -type replica() :: {timer:timestamp(), nonempty_string()}.
 -type user_attr() :: [{binary(), binary()}].
+-type token() :: atom() | binary().
 -record(tagcontent, {id :: binary(),
                      last_modified :: binary(),
+                     read_token = null :: token(),
+                     write_token = null :: token(),
                      urls = [] :: [binary()],
                      user = [] :: user_attr()}).
 -type tagcontent() :: #tagcontent{}.
@@ -23,10 +26,21 @@
                     | [{replica(), node()}],
                 url_cache :: 'false' | gb_set()}).
 
--spec new_tagcontent(binary(), [binary()], user_attr()) -> tagcontent().
-new_tagcontent(TagName, Urls, User) ->
+-spec token_encode(token()) -> binary().
+token_encode(T) ->
+    if T == null ->
+            mochijson2:encode(T);
+       true ->
+            list_to_binary(mochijson2:encode(T))
+    end.
+
+-spec new_tagcontent(binary(), token(), token(), [binary()], user_attr())
+    -> tagcontent().
+new_tagcontent(TagName, ReadToken, WriteToken, Urls, User) ->
     #tagcontent{id = TagName,
                 last_modified = ddfs_util:format_timestamp(),
+                read_token = ReadToken,
+                write_token = WriteToken,
                 urls = Urls,
                 user = User}.
 
@@ -37,6 +51,8 @@ make_tagdata(D) ->
             {<<"version">>, 1},
             {<<"id">>, D#tagcontent.id},
             {<<"last-modified">>, D#tagcontent.last_modified},
+            {<<"read-token">>, D#tagcontent.read_token},
+            {<<"write-token">>, D#tagcontent.write_token},
             {<<"urls">>, D#tagcontent.urls},
             {<<"user-data">>, {struct, D#tagcontent.user}}
         ]})).
@@ -53,6 +69,10 @@ tag_lookup(JsonBody, [Key|Rest], Results) ->
             case Key of
                 <<"user-data">> ->
                     tag_lookup(JsonBody, Rest, [{struct, []} | Results]);
+                <<"read-token">> ->
+                    tag_lookup(JsonBody, Rest, [null|Results]);
+                <<"write-token">> ->
+                    tag_lookup(JsonBody, Rest, [null|Results]);
                 _ ->
                     {error, not_found}
             end
@@ -65,40 +85,64 @@ parse_tagcontent(TagData) ->
             {error, corrupted_json};
         {struct, Body} ->
             case tag_lookup(Body,
-                            [<<"id">>, <<"last-modified">>, <<"urls">>, <<"user-data">>],
+                            [<<"id">>, <<"last-modified">>,
+                             <<"read-token">>, <<"write-token">>,
+                             <<"urls">>, <<"user-data">>],
                             []) of
-                {ok, [Id, LastModified, Urls, {struct, UserData}]} ->
+                {ok, [Id, LastModified, ReadToken, WriteToken,
+                      Urls, {struct, UserData}]} ->
                     {ok, #tagcontent{id = Id,
                                      last_modified = LastModified,
+                                     read_token = ReadToken,
+                                     write_token = WriteToken,
                                      urls = Urls,
                                      user = UserData}};
                 _ -> {error, invalid_object}
             end
     end.
 
--spec get_current_values(#state{}) -> {[binary()], user_attr()}.
+-spec get_current_values(#state{}) -> {token(), token(),
+                                       [binary()], user_attr()}.
 get_current_values(S) ->
     if is_record(S#state.data, tagcontent) ->
             C = S#state.data,
-            {C#tagcontent.urls, C#tagcontent.user};
+            {C#tagcontent.read_token, C#tagcontent.write_token,
+             C#tagcontent.urls, C#tagcontent.user};
        true ->
-            {[], []}
+            {null, null, [], []}
     end.
 
 -spec get_new_values(#state{}, atom() | {'user', binary()}, binary()) ->
-          {'error', _} | {'ok', {[binary()], user_attr()}}.
+          {'error', _} | {'ok', {token(), token(), [binary()], user_attr()}}.
 get_new_values(S, Field, Value) ->
-    {CurrentUrls, CurrentUser} = get_current_values(S),
+    {ReadToken, WriteToken, Urls, User} = get_current_values(S),
     case Field of
+        read_token ->
+            T = list_to_binary(Value),
+            case validate_token(T) of
+                true ->
+                    {ok, {T, WriteToken, Urls, User}};
+                false ->
+                    {error, invalid_token_object}
+            end;
+        write_token ->
+            T = list_to_binary(Value),
+            case validate_token(T) of
+                true ->
+                    {ok, {ReadToken, T, Urls, User}};
+                false ->
+                    {error, invalid_token_object}
+            end;
         urls ->
             case validate_urls(Value) of
                 true ->
-                    {ok, {Value, CurrentUser}};
+                    {ok, {ReadToken, WriteToken, Value, User}};
                 false ->
                     {error, invalid_url_object}
             end;
         {user, K} ->
-            {ok, {CurrentUrls, [{K, Value} | proplists:delete(K, CurrentUser)]}}
+            {ok, {ReadToken, WriteToken, Urls,
+                  [{K, Value} | proplists:delete(K, User)]}}
     end.
 
 % THOUGHT: Eventually we want to partition tag keyspace instead
@@ -216,9 +260,13 @@ handle_cast({{get, Attrib}, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
                 make_tagdata(S#state.data);
             urls ->
                 list_to_binary(mochijson2:encode(D#tagcontent.urls));
+            read_token ->
+                token_encode(D#tagcontent.read_token);
+            write_token ->
+                token_encode(D#tagcontent.write_token);
             {user, A} ->
                 case proplists:lookup(A, D#tagcontent.user) of
-                    {_, V} -> mochijson2:encode(V);
+                    {_, V} -> list_to_binary(mochijson2:encode(V));
                     _ -> unknown_attribute
                 end
         end,
@@ -258,9 +306,10 @@ handle_cast({{update, Urls}, ReplyTo}, #state{data = C} = S) ->
 
 handle_cast({{put, Field, Value}, ReplyTo}, S) ->
     case get_new_values(S, Field, Value) of
-        {ok, {Urls, User}} ->
+        {ok, {ReadToken, WriteToken, Urls, User}} ->
             TagName = ddfs_util:pack_objname(S#state.tag, now()),
-            TagContent = new_tagcontent(TagName, Urls, User),
+            TagContent = new_tagcontent(TagName, ReadToken, WriteToken,
+                                        Urls, User),
             TagData = make_tagdata(TagContent),
             case put_distribute({TagName, TagData, TagContent}) of
                 {ok, DestNodes, DestUrls, Data} ->
@@ -351,6 +400,10 @@ get_tagdata(Tag) ->
 -spec validate_urls([binary()]) -> bool().
 validate_urls(Urls) ->
     [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
+
+-spec validate_token(string() | binary()) -> bool().
+validate_token(_) ->
+    true.
 
 % Put transaction:
 % 1. choose nodes
