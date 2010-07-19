@@ -45,8 +45,8 @@ class Indexer(DiscodexJob):
     @staticmethod
     def reduce(iterator, out, params):
         # there should be a discodb writer of some sort
-        from discodb import DiscoDB, kvgroup
-        DiscoDB(kvgroup(iterator)).dump(out)
+        from discodb import DiscoDB
+        DiscoDB(iterator).dump(out)
 
     def reduce_output_stream(stream, partition, url, params):
         return stream, 'discodb:%s' % url.split(':', 1)[1]
