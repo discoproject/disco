@@ -58,7 +58,10 @@ int main(int argc, char **argv)
     uint64_t size;
     char *data;
     struct ddb_cons *db = ddb_cons_new();
-    uint64_t flags = getenv("DONT_COMPRESS") ? DDB_OPT_DISABLE_COMPRESSION: 0;
+    uint64_t flags = 0;
+
+    flags |= getenv("DONT_COMPRESS") ? DDB_OPT_DISABLE_COMPRESSION: 0;
+    flags |= getenv("UNIQUE_ITEMS") ? DDB_OPT_UNIQUE_ITEMS: 0;
 
     if (!db){
             fprintf(stderr, "DB init failed\n");
