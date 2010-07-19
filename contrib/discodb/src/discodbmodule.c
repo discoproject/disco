@@ -141,14 +141,26 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
         *kentry = NULL,
         *ventry = NULL;
     uint64_t n,
-      flags = DDB_IS_COMPRESSED;
+      flags = 0,
+      disable_compression = 0,
+      unique_items = 0;
 
-    static char *kwlist[] = {"arg", "flags", NULL};
+    static char *kwlist[] = {"arg",
+                             "disable_compression",
+                             "unique_items",
+                             NULL};
 
     if (self != NULL) {
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OI", kwlist,
-                                         &arg, &flags))
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OII", kwlist,
+                                         &arg,
+                                         &disable_compression,
+                                         &unique_items))
             goto Done;
+
+        if (disable_compression)
+          flags |= DDB_OPT_DISABLE_COMPRESSION;
+        if (unique_items)
+          flags |= DDB_OPT_UNIQUE_ITEMS;
 
         if (arg == NULL)                /* null constructor */
             items = PyTuple_New(0);
@@ -674,10 +686,6 @@ init_discodb(void)
     DiscoDBError = PyErr_NewException("discodb.DiscoDBError", NULL, NULL);
     Py_INCREF(DiscoDBError);
     PyModule_AddObject(module, "DiscoDBError", DiscoDBError);
-
-    PyModule_AddIntConstant(module,
-                            "DDB_OPT_DISABLE_COMPRESSION",
-                            DDB_OPT_DISABLE_COMPRESSION);
 }
 
 
