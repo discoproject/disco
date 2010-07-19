@@ -11,8 +11,8 @@
 -type user_attr() :: [{binary(), binary()}].
 -record(tagcontent, {id :: binary(),
                      last_modified :: binary(),
-                     urls :: [binary()],
-                     user :: user_attr()}).
+                     urls = [] :: [binary()],
+                     user = [] :: user_attr()}).
 -type tagcontent() :: #tagcontent{}.
 -record(state, {tag, % :: binary(),
                 data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
