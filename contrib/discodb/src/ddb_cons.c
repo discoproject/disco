@@ -19,8 +19,7 @@
 struct ddb_cons{
     struct ddb_map *values_map;
     struct ddb_map *keys_map;
-    uint64_t num_values;
-    uint64_t values_total_size;
+    uint64_t uvalues_total_size;
 };
 
 struct ddb_packed{
@@ -90,7 +89,8 @@ static int buffer_write_data(struct ddb_packed *p,
 
 static int pack_key2values(struct ddb_packed *pack,
                            const struct ddb_entry *keys,
-                           const struct ddb_map *keys_map)
+                           const struct ddb_map *keys_map,
+                           int unique_items)
 {
     char *buf = NULL;
     uint64_t buf_size = 0;
@@ -105,11 +105,17 @@ static int pack_key2values(struct ddb_packed *pack,
         const struct ddb_list *values = (const struct ddb_list*)*ptr;
         uint64_t size = 0;
         int duplicates = 0;
-        if (ddb_delta_encode(values, &buf, &buf_size, &size, &duplicates))
+        uint32_t num_written = 0;
+
+        if (ddb_delta_encode(values, &buf, &buf_size, &size,
+                &num_written, &duplicates, unique_items))
             goto end;
+
+        pack->head->num_values += num_written;
         if (duplicates){
             SETFLAG(pack->head, F_MULTISET);
         }
+
         buffer_toc_mark(pack);
         if (buffer_write_data(pack, (const char*)&keys[i].length, 4))
             goto end;
@@ -270,10 +276,11 @@ static int pack_header(struct ddb_packed *pack, const struct ddb_cons *cons)
 
     buffer_new_section(pack, 0);
     head->magic = DISCODB_MAGIC;
+    head->flags = 0;
     head->num_keys = ddb_map_num_items(cons->keys_map);
     head->num_uniq_values = ddb_map_num_items(cons->values_map);
-    head->num_values = cons->num_values;
-    head->flags = 0;
+    /* num_values is set in key2values after removing duplicates (maybe) */
+    head->num_values = 0;
     return 0;
 }
 
@@ -281,14 +288,14 @@ static int maybe_disable_compression(const struct ddb_cons *cons)
 {
     /* It doesn't make sense to compress a small set of values as
      * the huffman codebook has 0.5M overhead. */
-    if (cons->values_total_size < COMPRESS_MIN_TOTAL_SIZE)
+    if (cons->uvalues_total_size < COMPRESS_MIN_TOTAL_SIZE)
         return DDB_OPT_DISABLE_COMPRESSION;
     /* Compression ignores values less than 4 bytes. Values that
      * are exactly 4 bytes are handled by duplicate removal, so
      * compressing them is useless. Hence, values need to be at
      * least 5 bytes to benefit from compression. */
-    if (cons->values_total_size / (double)cons->num_values
-            < COMPRESS_MIN_AVG_VALUE_SIZE)
+    double num = ddb_map_num_items(cons->values_map);
+    if (cons->uvalues_total_size / num < COMPRESS_MIN_AVG_VALUE_SIZE)
         return DDB_OPT_DISABLE_COMPRESSION;
     return 0;
 }
@@ -315,7 +322,8 @@ char *ddb_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
 
     DDB_TIMER_START
     pack->head->key2values_offs = pack->offs;
-    if (pack_key2values(pack, order, cons->keys_map))
+    if (pack_key2values(pack, order, cons->keys_map,
+            flags & DDB_OPT_UNIQUE_ITEMS))
         goto err;
     DDB_TIMER_END("key2values")
 
@@ -411,14 +419,13 @@ int ddb_add(struct ddb_cons *db,
             return -1;
         if (!*val_ptr){
             *val_ptr = ddb_map_num_items(db->values_map);
-            db->values_total_size += value->length;
+            db->uvalues_total_size += value->length;
         }
         value_id = *val_ptr;
 
         if (!(value_list = ddb_list_append(value_list, value_id)))
             return -1;
         *key_ptr = (uint64_t)value_list;
-        ++db->num_values;
     }
     return 0;
 }
