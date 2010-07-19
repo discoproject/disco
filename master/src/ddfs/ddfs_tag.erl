@@ -8,10 +8,11 @@
         handle_info/2, terminate/2, code_change/3]).
 
 -type replica() :: {timer:timestamp(), nonempty_string()}.
+-type user_attr() :: [{binary(), binary()}].
 -record(tagcontent, {id :: binary(),
                      last_modified :: binary(),
                      urls :: [binary()],
-                     user :: [{binary(), binary()}]}).
+                     user :: user_attr()}).
 -type tagcontent() :: #tagcontent{}.
 -record(state, {tag, % :: binary(),
                 data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
@@ -66,6 +67,31 @@ parse_tagcontent(TagData) ->
                                      user = UserData}};
                 _ -> {error, invalid_object}
             end
+    end.
+
+-spec get_current_values(#state{}) -> {[binary()], user_attr()}.
+get_current_values(S) ->
+    if is_record(S#state.data, tagcontent) ->
+            C = S#state.data,
+            {C#tagcontent.urls, C#tagcontent.user};
+       true ->
+            {[], []}
+    end.
+
+-spec get_new_values(#state{}, atom() | {'user', binary()}, binary()) ->
+          {'error', _} | {'ok', {[binary()], user_attr()}}.
+get_new_values(S, Field, Value) ->
+    {CurrentUrls, CurrentUser} = get_current_values(S),
+    case Field of
+        urls ->
+            case validate_urls(Value) of
+                true ->
+                    {ok, {Value, CurrentUser}};
+                false ->
+                    {error, invalid_url_object}
+            end;
+        {user, K} ->
+            {ok, {CurrentUrls, [{K, Value} | proplists:delete(K, CurrentUser)]}}
     end.
 
 % THOUGHT: Eventually we want to partition tag keyspace instead
@@ -224,25 +250,7 @@ handle_cast({{update, Urls}, ReplyTo}, #state{data = C} = S) ->
     end;
 
 handle_cast({{put, Field, Value}, ReplyTo}, S) ->
-    {OldUrls, OldUser} = if is_record(S#state.data, tagcontent) ->
-                                 C = S#state.data,
-                                 {C#tagcontent.urls, C#tagcontent.user};
-                            true ->
-                                 {[], []}
-                         end,
-    Check = case Field of
-                urls ->
-                    case validate_urls(Value) of
-                        true ->
-                            {ok, {Value, OldUser}};
-                        false ->
-                            {error, invalid_url_object}
-                    end;
-                {user, K} ->
-                    {ok, {OldUrls,
-                          [{K, Value} | proplists:delete(K, OldUser)]}}
-            end,
-    case Check of
+    case get_new_values(S, Field, Value) of
         {ok, {Urls, User}} ->
             TagName = ddfs_util:pack_objname(S#state.tag, now()),
             TagContent = #tagcontent{id = TagName,
