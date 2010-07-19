@@ -31,7 +31,7 @@ make_tagdata(D) ->
             {<<"version">>, 1},
             {<<"urls">>, D#tagcontent.urls},
             {<<"last-modified">>, D#tagcontent.last_modified},
-            {<<"user-data">>, D#tagcontent.user}
+            {<<"user-data">>, {struct, D#tagcontent.user}}
         ]})).
 
 -spec tag_lookup(any(), [binary()], [any()]) ->
@@ -45,7 +45,7 @@ tag_lookup(JsonBody, [Key|Rest], Results) ->
         false ->
             case Key of
                 <<"user-data">> ->
-                    tag_lookup(JsonBody, Rest, [[] | Results]);
+                    tag_lookup(JsonBody, Rest, [{struct, []} | Results]);
                 _ ->
                     {error, not_found}
             end
@@ -60,7 +60,7 @@ parse_tagcontent(TagData) ->
             case tag_lookup(Body,
                             [<<"id">>, <<"urls">>, <<"last-modified">>, <<"user-data">>],
                             []) of
-                {ok, [Id, Urls, LastModified, UserData]} ->
+                {ok, [Id, Urls, LastModified, {struct, UserData}]} ->
                     {ok, #tagcontent{id = Id,
                                      last_modified = LastModified,
                                      urls = Urls,
