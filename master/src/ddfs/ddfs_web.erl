@@ -100,8 +100,9 @@ error(timeout, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});
 error({error, E}, Req) when is_atom(E) ->
     Req:respond({500, [], ["Internal server error: ", atom_to_list(E)]});
-error(_, Req) ->
-    Req:respond({500, [], ["Internal server error"]}).
+error(E, Req) ->
+    Req:respond({500, [], ["Internal server error:"
+                           ++ io_lib:format("~p", [E])]}).
 
 -spec okjson([binary()], module()) -> _.
 okjson(Data, Req) ->
