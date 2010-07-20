@@ -104,14 +104,11 @@ parse_tagcontent(TagData) ->
 
 -spec get_current_values(#state{}) -> {token(), token(),
                                        [binary()], user_attr()}.
-get_current_values(S) ->
-    if is_record(S#state.data, tagcontent) ->
-            C = S#state.data,
-            {C#tagcontent.read_token, C#tagcontent.write_token,
-             C#tagcontent.urls, C#tagcontent.user};
-       true ->
-            {null, null, [], []}
-    end.
+get_current_values(#state{data = #tagcontent{} = D}) ->
+    {D#tagcontent.read_token, D#tagcontent.write_token,
+     D#tagcontent.urls, D#tagcontent.user};
+get_current_values(#state{data = _}) ->
+    {null, null, [], []}.
 
 -spec get_new_values(#state{}, atom() | {'user', binary()}, binary()) ->
           {'error', _} | {'ok', {token(), token(), [binary()], user_attr()}}.
