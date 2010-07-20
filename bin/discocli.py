@@ -77,8 +77,7 @@ class DiscoOptionParser(OptionParser):
         self.jobdict = {}
 
     def update_jobdict(self, option, name, val, parser):
-        parser.values.jobdict = parser.jobdict
-        parser.values.jobdict[name.strip('-')] = True if val is None else val
+        self.jobdict[name.strip('-')] = True if val is None else val
 
 class Disco(Program):
     def default(self, program, *args):
@@ -411,7 +410,7 @@ def run(program, jobclass, *inputs):
     input = inputs or [maybe_list(line.split())
                        for line in fileinput.input(inputs)]
     job = reify(jobclass)(program.disco, name)
-    job.run(input=input, **program.options.jobdict)
+    job.run(input=input, **program.option_parser.jobdict)
     print job.name
 
 @Disco.command
