@@ -355,7 +355,7 @@ handle_cast(M, #state{url_cache = false, data = Data} = S) ->
 
 handle_cast({{insert_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
     DeletedU = gb_sets:add(Url, Deleted),
-    handle_cast({{put, urls, gb_sets:to_list(DeletedU)}, ReplyTo},
+    handle_cast({{put, urls, gb_sets:to_list(DeletedU), internal}, ReplyTo},
         S#state{url_cache = DeletedU});
 
 handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
@@ -364,7 +364,7 @@ handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
 
 handle_cast({{remove_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
     DeletedU = gb_sets:delete_any(Url, Deleted),
-    handle_cast({{put, urls, gb_sets:to_list(DeletedU)}, ReplyTo},
+    handle_cast({{put, urls, gb_sets:to_list(DeletedU), internal}, ReplyTo},
         S#state{url_cache = DeletedU}).
 
 handle_call(dbg_get_state, _, S) ->
