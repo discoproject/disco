@@ -120,20 +120,10 @@ get_new_values(S, Field, Value) ->
     case Field of
         read_token ->
             T = list_to_binary(Value),
-            case validate_token(T) of
-                true ->
-                    {ok, {T, WriteToken, Urls, User}};
-                false ->
-                    {error, invalid_token_object}
-            end;
+            {ok, {T, WriteToken, Urls, User}};
         write_token ->
             T = list_to_binary(Value),
-            case validate_token(T) of
-                true ->
-                    {ok, {ReadToken, T, Urls, User}};
-                false ->
-                    {error, invalid_token_object}
-            end;
+            {ok, {ReadToken, T, Urls, User}};
         urls ->
             case validate_urls(Value) of
                 true ->
@@ -401,10 +391,6 @@ get_tagdata(Tag) ->
 -spec validate_urls([binary()]) -> bool().
 validate_urls(Urls) ->
     [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
-
--spec validate_token(string() | binary()) -> bool().
-validate_token(_) ->
-    true.
 
 % Put transaction:
 % 1. choose nodes
