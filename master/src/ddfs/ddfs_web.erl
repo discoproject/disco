@@ -12,6 +12,7 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
         {T, "ddfs:urls"} -> {T, urls};
         {T, "ddfs:read-token"} -> {T, read_token};
         {T, "ddfs:write-token"} -> {T, write_token};
+        {T, "ddfs:" ++ _} -> {T, unknown_attribute};
         {T, A} -> {T, {user, list_to_binary(A)}}
     end.
 
@@ -49,19 +50,24 @@ op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
 
 op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
-    case ddfs:get_tag(ddfs_master, Tag, Attrib) of
-        {ok, TagData} ->
-            Req:ok({"application/json", [], TagData});
-        invalid_name ->
-            Req:respond({403, [], ["Invalid tag"]});
-        deleted ->
-            Req:respond({404, [], ["Tag not found"]});
-        notfound ->
-            Req:respond({404, [], ["Tag not found"]});
+    case Attrib of
         unknown_attribute ->
             Req:respond({404, [], ["Tag attribute not found"]});
-        E ->
-            error(E, Req)
+        _ ->
+            case ddfs:get_tag(ddfs_master, Tag, Attrib) of
+                {ok, TagData} ->
+                    Req:ok({"application/json", [], TagData});
+                invalid_name ->
+                    Req:respond({403, [], ["Invalid tag"]});
+                deleted ->
+                    Req:respond({404, [], ["Tag not found"]});
+                notfound ->
+                    Req:respond({404, [], ["Tag not found"]});
+                unknown_attribute ->
+                    Req:respond({404, [], ["Tag attribute not found"]});
+                E ->
+                    error(E, Req)
+            end
     end;
 
 op('POST', "/ddfs/tag/" ++ Tag, Req) ->
