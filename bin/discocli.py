@@ -414,6 +414,14 @@ def run(program, jobclass, *inputs):
     job.run(input=input, **program.options.jobdict)
     print job.name
 
+@Disco.command
+def wait(program, jobname):
+    """Usage: jobname
+
+    Wait for the named job to complete.
+    """
+    program.disco.wait(jobname)
+
 if __name__ == '__main__':
     Disco(option_parser=DiscoOptionParser()).main()
 
