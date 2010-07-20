@@ -396,6 +396,14 @@ def make_range_partition(min_val, max_val):
 def noop(*args, **kwargs):
     pass
 
+def nop_map(entry, params):
+    """
+    No-op map.
+
+    This function can be used to yield the results from the input stream.
+    """
+    yield entry
+
 def nop_reduce(iter, out, params):
     """
     No-op reduce.
