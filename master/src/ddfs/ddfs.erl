@@ -2,8 +2,8 @@
 
 -include("config.hrl").
 
--export([new_blob/4, tags/2, get_tag/3, update_tag/3,
-         update_tag_delayed/3, replace_tag/4, delete/2]).
+-export([new_blob/4, tags/2, get_tag/4, update_tag/4,
+         update_tag_delayed/4, replace_tag/5, delete/3]).
 
 -spec new_blob(node(), string(), non_neg_integer(), [node()]) ->
     'invalid_name' | 'too_many_replicas' | {'ok', [string()]} | _.
@@ -27,33 +27,35 @@ tags(Host, Prefix) ->
         E -> E
     end.
 
--spec get_tag(node(), string(), atom() | string()) ->
+-spec get_tag(node(), string(), atom() | string(), ddfs_tag:token() | 'internal') ->
     'invalid_name' | 'notfound' | 'deleted' | 'unknown_attribute'
     | {'ok', binary()} | {'error', _}.
-get_tag(Host, Tag, Attrib) ->
+get_tag(Host, Tag, Attrib, Token) ->
     validate(Tag, fun() ->
         case gen_server:call(Host,
-                {tag, {get, Attrib}, list_to_binary(Tag)}, ?NODEOP_TIMEOUT) of
+                {tag, {get, Attrib, Token}, list_to_binary(Tag)}, ?NODEOP_TIMEOUT) of
             TagData when is_binary(TagData) ->
                 {ok, TagData};
             E -> E
         end
     end).
 
--spec update_tag(node(), string(), [binary()]) -> _.
-update_tag(Host, Tag, Urls) ->
-    tagop(Host, Tag, {update, Urls}).
+-spec update_tag(node(), string(), [binary()], ddfs_tag:token()) -> _.
+update_tag(Host, Tag, Urls, Token) ->
+    tagop(Host, Tag, {update, Urls, Token}).
 
--spec update_tag_delayed(node(), string(), [binary()]) -> _.
-update_tag_delayed(Host, Tag, Urls) ->
-    tagop(Host, Tag, {delayed_update, Urls}).
+-spec update_tag_delayed(node(), string(), [binary()], ddfs_tag:token()) -> _.
+update_tag_delayed(Host, Tag, Urls, Token) ->
+    tagop(Host, Tag, {delayed_update, Urls, Token}).
 
--spec replace_tag(node(), string(), atom(), [binary()]) -> _.
-replace_tag(Host, Tag, Field, Value) ->
-    tagop(Host, Tag, {put, Field, Value}).
+-spec replace_tag(node(), string(), atom(), [binary()], ddfs_tag:token()) -> _.
+replace_tag(Host, Tag, Field, Value, Token) ->
+    tagop(Host, Tag, {put, Field, Value, Token}).
 
--spec delete(node(), string()) -> _.
-delete(Host, Tag) ->
+-spec delete(node(), string(), ddfs_tag:token()) -> _.
+delete(Host, Tag, _Token) ->
+    % TODO: we need to check the token before we add the tag
+    % to the deleted set.
     validate(Tag, fun() ->
         {ok, _} = gen_server:call(Host, {tag, {insert_deleted,
             [list_to_binary(["tag://", Tag])]}, <<"+deleted">>},

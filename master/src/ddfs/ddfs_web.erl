@@ -16,6 +16,21 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
         {T, A} -> {T, {user, list_to_binary(A)}}
     end.
 
+-spec parse_auth_token(module()) -> ddfs_tag:token().
+parse_auth_token(Req) ->
+    case Req:get_header_value("authorization") of
+        undefined ->
+            null;
+        "Basic " ++ Auth ->
+            case base64:decode(Auth) of
+                <<"token:", Token/binary>> ->
+                    Token
+            end;
+        _ ->
+            % Unknown auth, or basic auth that does not follow the spec.
+            null
+    end.
+
 -spec op(atom(), string(), module()) -> _.
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
@@ -50,11 +65,12 @@ op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
 
 op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
+    Token = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
             Req:respond({404, [], ["Tag attribute not found"]});
         _ ->
-            case ddfs:get_tag(ddfs_master, Tag, Attrib) of
+            case ddfs:get_tag(ddfs_master, Tag, Attrib, Token) of
                 {ok, TagData} ->
                     Req:ok({"application/json", [], TagData});
                 invalid_name ->
@@ -71,24 +87,27 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
     end;
 
 op('POST', "/ddfs/tag/" ++ Tag, Req) ->
+    Token = parse_auth_token(Req),
     tag_update(fun(Urls) ->
         case lists:keysearch("delayed", 1, Req:parse_qs()) of
             false ->
-                ddfs:update_tag(ddfs_master, Tag, Urls);
+                ddfs:update_tag(ddfs_master, Tag, Urls, Token);
             _ ->
-                ddfs:update_tag_delayed(ddfs_master, Tag, Urls)
+                ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token)
         end
     end, Req);
 
 op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     % for backward compatibility, return urls if no attribute is specified
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, urls),
+    Token = parse_auth_token(Req),
     tag_update(fun(Value) ->
-                   ddfs:replace_tag(ddfs_master, Tag, Attrib, Value)
+                   ddfs:replace_tag(ddfs_master, Tag, Attrib, Value, Token)
                end, Req);
 
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
-    case ddfs:delete(ddfs_master, Tag) of
+    Token = parse_auth_token(Req),
+    case ddfs:delete(ddfs_master, Tag, Token) of
         ok ->
             Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
         E ->

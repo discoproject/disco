@@ -9,6 +9,7 @@
 
 -type replica() :: {timer:timestamp(), nonempty_string()}.
 -type user_attr() :: [{binary(), binary()}].
+% An 'internal' token is also used by internal consumers, but never stored.
 -type token() :: 'null' | binary().
 -record(tagcontent, {id :: binary(),
                      last_modified :: binary(),
@@ -221,18 +222,18 @@ handle_cast(M, #state{data = false} = S) ->
                 timeout = lists:min([Timeout, S#state.timeout])});
 
 % Delayed update requested but loading tag data failed, reply an error
-handle_cast({{delayed_update, _}, ReplyTo}, #state{data = {error, _}} = S) ->
+handle_cast({{delayed_update, _, _}, ReplyTo}, #state{data = {error, _}} = S) ->
     gen_server:reply(ReplyTo, S#state.data),
     {noreply, S, S#state.timeout};
 
 % Normal delayed update: Append urls to the buffer and exit.
 % The requester will get a reply later.
-handle_cast({{delayed_update, Urls}, ReplyTo},
+handle_cast({{delayed_update, Urls, _Token}, ReplyTo},
         #state{delayed = {Waiters, OldUrls}, tag = Tag} = S) ->
     if OldUrls =:= [] ->
         spawn(fun() ->
             timer:sleep(?DELAYED_FLUSH_INTERVAL),
-            ddfs:get_tag(ddfs_master, binary_to_list(Tag), all)
+            ddfs:get_tag(ddfs_master, binary_to_list(Tag), all, internal)
         end);
     true -> ok
     end,
@@ -247,14 +248,14 @@ handle_cast({{delayed_update, Urls}, ReplyTo},
 
 % Before handling any other requests, flush pending delayed updates
 handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
-    {noreply, S, _} = handle_cast({{update, Urls}, Waiters},
+    {noreply, S, _} = handle_cast({{update, Urls, internal}, Waiters},
         S0#state{delayed = {[], []}}),
     handle_cast(M, S);
 
 handle_cast({die, _}, S) ->
     {stop, normal, S};
 
-handle_cast({{get, Attrib}, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
+handle_cast({{get, Attrib, _Token}, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
     R = case Attrib of
             all ->
                 make_tagdata(S#state.data);
@@ -273,7 +274,7 @@ handle_cast({{get, Attrib}, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
     gen_server:reply(ReplyTo, R),
     {noreply, S, S#state.timeout};
 
-handle_cast({{get, _}, ReplyTo}, S) ->
+handle_cast({{get, _, _}, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, S#state.data),
     {noreply, S, S#state.timeout};
 
@@ -289,22 +290,22 @@ handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
     {noreply, S, S#state.timeout};
 
-handle_cast({{update, Urls}, ReplyTo}, #state{data = notfound} = S) ->
-    handle_cast({{put, urls, Urls}, ReplyTo}, S);
+handle_cast({{update, Urls, Token}, ReplyTo}, #state{data = notfound} = S) ->
+    handle_cast({{put, urls, Urls, Token}, ReplyTo}, S);
 
-handle_cast({{update, Urls}, ReplyTo}, #state{data = deleted} = S) ->
-    handle_cast({{put, urls, Urls}, ReplyTo}, S);
+handle_cast({{update, Urls, Token}, ReplyTo}, #state{data = deleted} = S) ->
+    handle_cast({{put, urls, Urls, Token}, ReplyTo}, S);
 
-handle_cast({{update, Urls}, ReplyTo}, #state{data = C} = S) ->
+handle_cast({{update, Urls, Token}, ReplyTo}, #state{data = C} = S) ->
     case validate_urls(Urls) of
         true ->
-            handle_cast({{put, urls, Urls ++ C#tagcontent.urls}, ReplyTo}, S);
+            handle_cast({{put, urls, Urls ++ C#tagcontent.urls, Token}, ReplyTo}, S);
         false ->
             send_replies(ReplyTo, {error, invalid_url_object}),
             {noreply, S, S#state.timeout}
     end;
 
-handle_cast({{put, Field, Value}, ReplyTo}, S) ->
+handle_cast({{put, Field, Value, _Token}, ReplyTo}, S) ->
     case get_new_values(S, Field, Value) of
         {ok, {ReadToken, WriteToken, Urls, User}} ->
             TagName = ddfs_util:pack_objname(S#state.tag, now()),
