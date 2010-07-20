@@ -8,12 +8,16 @@ This document contains the coding conventions for the Disco codebase.
 
  - line width is 80 chars
 
+ - lines should not be split if possible
+
  - if arguments are spread over multiple lines, they should be one per line
 
  - functions, keyword args and other unordered collections of things should
    be listed in alphabetical order unless there is some other overriding order
 
  - names of things should be clear, unabbreviated, and consistent
+
+ - lines should not be dedented from the syntactic element they are part of
 
 Erlang
 ------
