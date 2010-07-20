@@ -160,13 +160,17 @@ have only one machine. You should not need to give a password nor answer
 to any questions after the first login attempt.
 
 As the last step, if you run Disco on many machines, you need to make
-sure that all servers in the Disco cluster use the same Erlang cookie,
+sure that all servers in the Disco cluster use the same `Erlang cookie`_,
 which is used for authentication between Erlang nodes. Run the following
 command as the Disco user on the master server::
 
         scp ~/.erlang.cookie nodeX:
 
 Repeat the command for all the servers ``nodeX``.
+
+.. _Erlang cookie: http://www.erlang.org/doc/getting_started/conc_prog.html#id2264467
+
+.. _confignodes:
 
 5. Add nodes to Disco
 ---------------------
