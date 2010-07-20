@@ -9,7 +9,7 @@
 
 -type replica() :: {timer:timestamp(), nonempty_string()}.
 -type user_attr() :: [{binary(), binary()}].
--type token() :: atom() | binary().
+-type token() :: 'null' | binary().
 -record(tagcontent, {id :: binary(),
                      last_modified :: binary(),
                      read_token = null :: token(),
