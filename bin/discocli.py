@@ -50,6 +50,35 @@ class DiscoOptionParser(OptionParser):
         self.add_option('-S', '--status',
                         action='store_true',
                         help='show job status when printing jobs')
+        self.add_option('-n', '--name',
+                        help='prefix to use for submitting a job')
+        self.add_option('--save',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        help='save results to DDFS')
+        self.add_option('--sort',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        help='sort input to reduce')
+        self.add_option('--profile',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        help='enable job profiling')
+        self.add_option('--partitions',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        type='int',
+                        help='enable job profiling')
+        self.add_option('--sched_max_cores',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        type='int',
+                        help='enable job profiling')
+        self.jobdict = {}
+
+    def update_jobdict(self, option, name, val, parser):
+        parser.values.jobdict = parser.jobdict
+        parser.values.jobdict[name.strip('-')] = True if val is None else val
 
 class Disco(Program):
     def default(self, program, *args):
@@ -367,6 +396,23 @@ def results(program, jobname):
     status, results = program.disco.results(jobname)
     for result in results:
            print result
+
+@Disco.command
+def run(program, jobclass, *inputs):
+    """Usage: jobclass [-n name] [--save] [--sort] [--profile] [--partitions P] [--sched-max-cores C] [input ...]
+
+    Create an instance of jobclass and run it.
+    Input urls are specified as arguments or read from stdin.
+    """
+    from disco.util import reify
+    def maybe_list(seq):
+        return seq[0] if len(seq) == 1 else seq
+    name = program.options.name or jobclass.split('.')[-1]
+    input = inputs or [maybe_list(line.split())
+                       for line in fileinput.input(inputs)]
+    job = reify(jobclass)(program.disco, name)
+    job.run(input=input, **program.options.jobdict)
+    print job.name
 
 if __name__ == '__main__':
     Disco(option_parser=DiscoOptionParser()).main()
