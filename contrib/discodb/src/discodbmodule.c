@@ -50,10 +50,12 @@ static PyMappingMethods DiscoDB_as_mapping = {
 };
 
 static PyMethodDef DiscoDB_methods[] = {
+    {"get", (PyCFunction)DiscoDB_get, METH_VARARGS,
+     "d.get(k[, D]) -> d[k] if k in d, else D. D defaults to None."},
     {"items", (PyCFunction)DiscoDB_items, METH_NOARGS,
-     "d.items() an iterator over the items of d."},
+     "d.items() -> an iterator over the items of d."},
     {"keys", (PyCFunction)DiscoDB_keys, METH_NOARGS,
-     "d.keys() an iterator over the keys of d."},
+     "d.keys() -> an iterator over the keys of d."},
     {"values", (PyCFunction)DiscoDB_values, METH_NOARGS,
      "d.values() -> an iterator over the values of d."},
     {"unique_values", (PyCFunction)DiscoDB_unique_values, METH_NOARGS,
@@ -367,6 +369,40 @@ DiscoDB_length(DiscoDB *self)
 }
 
 static PyObject *
+DiscoDB_get(register DiscoDB *self, PyObject *args)
+{
+    PyObject
+      *def = Py_None,
+      *key = NULL,
+      *val = NULL;
+
+    if (!PyArg_ParseTuple(args, "O|O", &key, &def))
+      return NULL;
+
+    Py_XINCREF(key);
+
+    switch (DiscoDB_contains(self, key)) {
+      case -1:
+        goto Done;
+      case 0:
+        Py_XINCREF(val = def);
+        break;
+      default:
+        val = DiscoDB_getitem(self, key);
+    }
+
+ Done:
+    Py_CLEAR(key);
+
+    if (PyErr_Occurred()) {
+      Py_CLEAR(val);
+      return NULL;
+    }
+
+    return val;
+}
+
+static PyObject *
 DiscoDB_getitem(register DiscoDB *self, register PyObject *key)
 {
     PyObject *pack = NULL;
@@ -508,8 +544,8 @@ DiscoDB_query(register DiscoDB *self, PyObject *query)
                 goto Done;
 
             if (!PyArg_ParseTuple(pack, "s#",
-                                                        &ddb_clauses[i].terms[j].key.data,
-                                                        &ddb_clauses[i].terms[j].key.length))
+                                  &ddb_clauses[i].terms[j].key.data,
+                                  &ddb_clauses[i].terms[j].key.length))
                 goto Done;
 
             Py_CLEAR(literal);

@@ -42,6 +42,11 @@ class TestMappingProtocol(unittest.TestCase):
     def test_length(self):
         self.assertEquals(len(self.discodb), self.numkeys)
 
+    def test_get(self):
+        len(list(self.discodb.get('0')))
+        self.assertEquals(self.discodb.get('X'), None)
+        self.assertEquals(self.discodb.get('X', 'Y'), 'Y')
+
     def test_getitem(self):
         for x in xrange(self.numkeys):
             try:
