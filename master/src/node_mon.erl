@@ -123,8 +123,7 @@ start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
 blacklist(Host) ->
     error_logger:info_report({"Blacklisting", Host,
                               "for", ?BLACKLIST_PERIOD, "ms."}),
-    Node = disco:node(Host),
     Token = now(),
-    gen_server:call(disco_server, {blacklist, Node, Token}),
+    gen_server:call(disco_server, {blacklist, Host, Token}),
     timer:sleep(?BLACKLIST_PERIOD),
-    gen_server:call(disco_server, {whitelist, Node, Token}).
+    gen_server:call(disco_server, {whitelist, Host, Token}).
