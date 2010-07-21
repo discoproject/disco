@@ -52,7 +52,7 @@ update_tag_delayed(Host, Tag, Urls, Token) ->
 replace_tag(Host, Tag, Field, Value, Token) ->
     tagop(Host, Tag, {put, Field, Value, Token}).
 
--spec delete(node(), string(), ddfs_tag:token()) -> _.
+-spec delete(node(), string(), ddfs_tag:token() | 'internal') -> _.
 delete(Host, Tag, Token) ->
     tagop(Host, Tag, {delete, Token}).
 

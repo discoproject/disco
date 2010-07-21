@@ -5,7 +5,8 @@
 
 -export([op/3]).
 
--spec parse_tag_attribute(string(), atom()) -> {string(), atom() | string()}.
+-spec parse_tag_attribute(string(), atom()) ->
+    {string(), ddfs_tag:attrib() | 'unknown_attribute'}.
 parse_tag_attribute(TagAttrib, DefaultAttrib) ->
     case mochiweb_util:path_split(TagAttrib) of
         {T, ""} -> {T, DefaultAttrib};
