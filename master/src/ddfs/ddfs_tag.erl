@@ -8,9 +8,13 @@
         handle_info/2, terminate/2, code_change/3]).
 
 -type replica() :: {timer:timestamp(), nonempty_string()}.
+-type attrib() :: 'all' | 'urls' | 'read_token' | 'write_token'
+                | {'user', binary()}.
 -type user_attr() :: [{binary(), binary()}].
 % An 'internal' token is also used by internal consumers, but never stored.
 -type token() :: 'null' | binary().
+-type replyto() :: {pid(), reference()}.
+
 -record(tagcontent, {id :: binary(),
                      last_modified :: binary(),
                      read_token = null :: token(),
@@ -21,7 +25,7 @@
 -record(state, {tag, % :: binary(),
                 data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
                     | #tagcontent{},
-                delayed :: {[{pid(), _}], [[binary()]]},
+                delayed :: {[replyto()], [[binary()]]},
                 timeout :: non_neg_integer(),
                 replicas :: 'false' | 'too_many_failed_nodes'
                     | [{replica(), node()}],
@@ -110,7 +114,7 @@ get_current_values(#state{data = #tagcontent{} = D}) ->
 get_current_values(#state{data = _}) ->
     {null, null, [], []}.
 
--spec get_new_values(#state{}, atom() | {'user', binary()}, binary()) ->
+-spec get_new_values(#state{}, attrib(), binary()) ->
           {'error', _} | {'ok', {token(), token(), [binary()], user_attr()}}.
 get_new_values(S, Field, Value) ->
     {ReadToken, WriteToken, Urls, User} = get_current_values(S),
@@ -133,15 +137,30 @@ get_new_values(S, Field, Value) ->
                   [{K, Value} | proplists:delete(K, User)]}}
     end.
 
--spec check_write_token(binary(), #state{}) -> bool().
-check_write_token(Token, S) ->
+-spec check_write_token(binary(), replyto(), #state{},
+                        fun(() -> #state{})) -> #state{}.
+check_write_token(Token, ReplyTo, S, Op) ->
     {_, WriteToken, _, _} = get_current_values(S),
-    (Token =:= internal) or (Token =:= WriteToken) or (WriteToken =:= null).
+    check_token(Token, ReplyTo, WriteToken, Op, S).
 
--spec check_read_token(binary(), #state{}) -> bool().
-check_read_token(Token, S) ->
+-spec check_read_token(binary(), replyto(), #state{},
+                       fun(() -> #state{})) -> #state{}.
+check_read_token(Token, ReplyTo, S, Op) ->
     {ReadToken, _, _, _} = get_current_values(S),
-    (Token =:= internal) or (Token =:= ReadToken) or (ReadToken =:= null).
+    check_token(Token, ReplyTo, ReadToken, Op, S).
+
+-spec check_token(token(), replyto(), token(),
+                  fun(() -> #state{}), #state{}) -> #state{}.
+check_token(Token, ReplyTo, CurrentToken, Op, S) ->
+    Auth = (Token =:= internal) or (Token =:= CurrentToken)
+        or (CurrentToken =:= null),
+    case Auth of
+        true ->
+            Op();
+        false ->
+            send_replies(ReplyTo, {error, unauthorized}),
+            S
+    end.
 
 % THOUGHT: Eventually we want to partition tag keyspace instead
 % of using a single global keyspace. This can be done relatively 
@@ -227,29 +246,13 @@ handle_cast({{delayed_update, _, _}, ReplyTo}, #state{data = {error, _}} = S) ->
 % The requester will get a reply later.
 handle_cast({{delayed_update, Urls, Token}, ReplyTo},
             #state{delayed = {Waiters, OldUrls}, tag = Tag} = S) ->
-    case check_write_token(Token, S) of
-        false ->
-            gen_server:reply(ReplyTo, {error, unauthorized});
-        true ->
-            if OldUrls =:= [] ->
-                    spawn(fun() ->
-                              timer:sleep(?DELAYED_FLUSH_INTERVAL),
-                              ddfs:get_tag(ddfs_master, binary_to_list(Tag),
-                                           all, internal)
-                          end);
-               true ->
-                    ok
-            end,
-            case validate_urls(Urls) of
-                true ->
-                    {noreply, S#state{delayed = {[ReplyTo|Waiters],
-                                                 Urls ++ OldUrls}},
-                     S#state.timeout};
-                false ->
-                    gen_server:reply(ReplyTo, {error, invalid_url_object}),
-                    {noreply, S, S#state.timeout}
-            end
-    end;
+    S1 =
+        check_write_token(Token, ReplyTo, S,
+                          fun() ->
+                              do_delayed_update(Urls, ReplyTo, Waiters,
+                                                OldUrls, Tag, S)
+                          end),
+    {noreply, S1, S1#state.timeout};
 
 % Before handling any other requests, flush pending delayed updates
 handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
@@ -258,41 +261,22 @@ handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
     handle_cast(M, S);
 
 handle_cast({{delete, Token}, ReplyTo}, S) ->
-    case check_write_token(Token, S) of
-        false ->
-            gen_server:reply(ReplyTo, {error, unauthorized});
-        true ->
-            {ok, _} = add_to_deleted(S#state.tag),
-            gen_server:reply(ReplyTo, ok),
-            handle_cast({die, none}, S)
-    end;
+    S1 = check_write_token(Token, ReplyTo, S,
+                           fun () ->
+                               do_delete(ReplyTo, S)
+                           end),
+    gen_server:reply(ReplyTo, ok),
+    handle_cast({die, none}, S1);
 
 handle_cast({die, _}, S) ->
     {stop, normal, S};
 
 handle_cast({{get, Attrib, Token}, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
-    R = case check_read_token(Token, S) of
-            false ->
-                {error, unauthorized};
-            true ->
-                case Attrib of
-                    all ->
-                        make_tagdata(S#state.data);
-                    urls ->
-                        list_to_binary(mochijson2:encode(D#tagcontent.urls));
-                    read_token ->
-                        token_encode(D#tagcontent.read_token);
-                    write_token ->
-                        token_encode(D#tagcontent.write_token);
-                    {user, A} ->
-                        case proplists:lookup(A, D#tagcontent.user) of
-                            {_, V} -> list_to_binary(mochijson2:encode(V));
-                            _ -> {error, unknown_attribute}
-                        end
-                end
-        end,
-    gen_server:reply(ReplyTo, R),
-    {noreply, S, S#state.timeout};
+    S1 = check_read_token(Token, ReplyTo, S,
+                          fun () ->
+                                  do_get(Attrib, ReplyTo, D, S)
+                          end),
+    {noreply, S1, S1#state.timeout};
 
 handle_cast({{get, _, _}, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, S#state.data),
@@ -326,34 +310,11 @@ handle_cast({{update, Urls, Token}, ReplyTo}, #state{data = C} = S) ->
     end;
 
 handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
-    case check_write_token(Token, S) of
-        false ->
-            send_replies(ReplyTo, {error, unauthorized});
-        true ->
-            case get_new_values(S, Field, Value) of
-                {ok, {ReadToken, WriteToken, Urls, User}} ->
-                    TagName = ddfs_util:pack_objname(S#state.tag, now()),
-                    TagContent = new_tagcontent(TagName, ReadToken, WriteToken,
-                                                Urls, User),
-                    TagData = make_tagdata(TagContent),
-                    case put_distribute({TagName, TagData, TagContent}) of
-                        {ok, DestNodes, DestUrls, Data} ->
-                            if S#state.data == deleted ->
-                                    {ok, _} = remove_from_deleted(S#state.tag);
-                               true -> ok
-                            end,
-                            send_replies(ReplyTo, {ok, DestUrls}),
-                            S1 = S#state{data = Data, replicas = DestNodes},
-                            {noreply, S1, S#state.timeout};
-                        {error, _} = E ->
-                            send_replies(ReplyTo, E),
-                            {noreply, S, S#state.timeout}
-                    end;
-                {error, _} = E ->
-                    send_replies(ReplyTo, E),
-                    {noreply, S, S#state.timeout}
-            end
-    end;
+    S1 = check_write_token(Token, ReplyTo, S,
+                          fun () ->
+                              do_put(Field, Value, ReplyTo, S)
+                          end),
+    {noreply, S1, S1#state.timeout};
 
 % Special operations for the +deleted metatag
 
@@ -390,6 +351,7 @@ terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+-spec send_replies(replyto() | [replyto()], _) -> _.
 send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
     send_replies([ReplyTo], Message);
 send_replies(ReplyToList, Message) ->
@@ -422,6 +384,78 @@ get_tagdata(Tag) ->
                     E
             end
     end.
+
+-spec do_delayed_update([[binary()]], replyto(), [replyto()], [[binary()]],
+                        binary(), #state{}) -> #state{}.
+do_delayed_update(Urls, ReplyTo, Waiters, OldUrls, Tag, S) ->
+    if OldUrls =:= [] ->
+            spawn(fun() ->
+                      timer:sleep(?DELAYED_FLUSH_INTERVAL),
+                      ddfs:get_tag(ddfs_master, binary_to_list(Tag),
+                                   all, internal)
+                  end);
+       true ->
+            ok
+    end,
+    case validate_urls(Urls) of
+        true ->
+            S#state{delayed = {[ReplyTo|Waiters],
+                               Urls ++ OldUrls}};
+        false ->
+            gen_server:reply(ReplyTo, {error, invalid_url_object}),
+            S
+    end.
+
+-spec do_get(attrib(), replyto(), tagcontent(), #state{}) -> #state{}.
+do_get(Attrib, ReplyTo, D, S) ->
+    R = case Attrib of
+            all ->
+                make_tagdata(S#state.data);
+            urls ->
+                list_to_binary(mochijson2:encode(D#tagcontent.urls));
+            read_token ->
+                token_encode(D#tagcontent.read_token);
+            write_token ->
+                token_encode(D#tagcontent.write_token);
+            {user, A} ->
+                case proplists:lookup(A, D#tagcontent.user) of
+                    {_, V} -> list_to_binary(mochijson2:encode(V));
+                    _ -> {error, unknown_attribute}
+                end
+        end,
+    gen_server:reply(ReplyTo, R),
+    S.
+
+-spec do_put(attrib(), binary(), replyto(), #state{}) -> #state{}.
+do_put(Field, Value, ReplyTo, S) ->
+    case get_new_values(S, Field, Value) of
+        {ok, {ReadToken, WriteToken, Urls, User}} ->
+            TagName = ddfs_util:pack_objname(S#state.tag, now()),
+            TagContent = new_tagcontent(TagName, ReadToken, WriteToken,
+                                        Urls, User),
+            TagData = make_tagdata(TagContent),
+            case put_distribute({TagName, TagData, TagContent}) of
+                {ok, DestNodes, DestUrls, Data} ->
+                    if S#state.data == deleted ->
+                            {ok, _} = remove_from_deleted(S#state.tag);
+                       true -> ok
+                    end,
+                    send_replies(ReplyTo, {ok, DestUrls}),
+                    S#state{data = Data, replicas = DestNodes};
+                {error, _} = E ->
+                    send_replies(ReplyTo, E),
+                    S
+            end;
+        {error, _} = E ->
+            send_replies(ReplyTo, E),
+            S
+    end.
+
+-spec do_delete(replyto(), #state{}) -> #state{}.
+do_delete(ReplyTo, S) ->
+    {ok, _} = add_to_deleted(S#state.tag),
+    gen_server:reply(ReplyTo, ok),
+    S.
 
 -spec validate_urls([binary()]) -> bool().
 validate_urls(Urls) ->
