@@ -86,13 +86,6 @@ class Task(object):
         return self.settings['DISCO_MASTER']
 
     @property
-    def oob_dir(self):
-        return os.path.join(self.jobroot, 'oob')
-
-    def oob_file(self, name):
-        return os.path.join(self.oob_dir, name)
-
-    @property
     def partid(self):
         return None
 
@@ -216,13 +209,12 @@ class Task(object):
     def run(self):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
         os.chdir(self.jobroot)
-        ensure_path(self.oob_dir)
         self._run_profile() if self.profile else self._run()
 
     def _run_profile(self):
         from cProfile import runctx
         name = 'profile-%s-%s' % (self.__class__.__name__, self.id)
-        path = self.oob_file(name)
+        path = os.path.join(self.jobroot, name)
         runctx('self._run()', globals(), locals(), path)
         self.put(name, file(path).read())
 
