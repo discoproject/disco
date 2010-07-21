@@ -47,8 +47,12 @@ function Node(host, info) {
 
 function update_nodeboxes(data) {
   $("#nodes").empty();
-  $.each(data, function (host, info) {
-      new Node(host, info).append_to($("#nodes"));
+  var hosts = [];
+  for (host in data)
+      hosts.push(host);
+  hosts.sort();
+  $.each(hosts, function (i, host) {
+      new Node(host, data[host]).append_to($("#nodes"));
     });
 
   setTimeout(function() {
