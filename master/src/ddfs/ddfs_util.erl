@@ -117,10 +117,9 @@ safe_rename(Src, Dst) ->
         _ -> {error, file_exists}
     end.
 
--spec diskspace([string()]) ->
+-spec diskspace(string()) ->
     {'error', 'invalid_output' | 'invalid_path'} | {'ok', integer()}.
-diskspace(Components) ->
-    Path = filename:join(Components),
+diskspace(Path) ->
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
         [_, _, Free, Used|_] ->
             case catch {list_to_integer(Free),
