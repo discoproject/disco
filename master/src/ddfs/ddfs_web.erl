@@ -102,9 +102,15 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     % for backward compatibility, return urls if no attribute is specified
     {Tag, Attrib} = parse_tag_attribute(TagAttrib, urls),
     Token = parse_auth_token(Req),
-    tag_update(fun(Value) ->
-                   ddfs:replace_tag(ddfs_master, Tag, Attrib, Value, Token)
-               end, Req);
+    case Attrib of
+        unknown_attribute ->
+            Req:respond({404, [], ["Tag attribute not found"]});
+        _ ->
+            tag_update(fun(Value) ->
+                           ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
+                                            Token)
+                       end, Req)
+    end;
 
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
     Token = parse_auth_token(Req),
