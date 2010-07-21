@@ -2,6 +2,7 @@
 #OPT = -W +native +"{hipe, [o3]}"
 OPT = -W
 CC  = erlc
+ERL = erl
 
 PYTHON = python
 DIALYZER = dialyzer
@@ -9,11 +10,14 @@ TYPER = typer
 
 ESRC = master/src
 EBIN = master/ebin
+ETEST = master/tests
 
 DESTDIR=/
 PREFIX=/usr/local
 SYSCONFDIR=/etc
 BIN_DIR = $(PREFIX)/bin/
+ERL_LIBDIR = /usr/lib/erlang
+
 INSTALL_DIR = $(PREFIX)/lib/disco/
 CONFIG_DIR = $(SYSCONFDIR)/disco/
 
@@ -34,16 +38,20 @@ SRC3 = $(wildcard $(ESRC)/ddfs/*.erl)
 DDFS_TARGET = $(addsuffix .beam, $(basename \
              $(addprefix $(EBIN)/ddfs/, $(notdir $(SRC3)))))
 
+TESTSRC = $(wildcard $(ETEST)/*.erl)
+TEST_TARGET = $(addsuffix .beam, $(basename $(TESTSRC)))
+
 UNAME = $(shell uname)
 
 build: master
 
-master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
+master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET) $(TEST_TARGET)
 
 clean:
 	- rm -Rf master/ebin/*.beam
 	- rm -Rf master/ebin/mochiweb/*.beam
 	- rm -Rf master/ebin/ddfs/*.beam
+	- rm -Rf master/tests/*.beam
 	- rm -Rf lib/build
 	- rm -Rf lib/disco.egg-info
 	- rm -Rf node/build
@@ -112,16 +120,35 @@ $(EBIN)/ddfs/%.beam: $(ESRC)/ddfs/%.erl
 $(EBIN)/%.beam: $(ESRC)/%.erl
 	$(CC) $(OPT) -o $(EBIN) $<
 
+$(ETEST)/%.beam: $(ETEST)/%.erl
+	$(CC) $(OPT) -o $(ETEST) $<
+
 $(EBIN)/ddfs:
 	- mkdir $(EBIN)/ddfs
 
 $(EBIN)/mochiweb:
 	- mkdir $(EBIN)/mochiweb
 
-.PHONY: dialyzer typer
+.PHONY: dialyzer typer realclean
 
-dialyzer:
-	$(DIALYZER) -c --src -r $(ESRC)
+DIALYZER_PLT = master/.dialyzer_plt
+
+$(DIALYZER_PLT):
+	$(DIALYZER) --build_plt --output_plt $(DIALYZER_PLT) -r \
+		$(ERL_LIBDIR)/lib/stdlib*/ebin $(ERL_LIBDIR)/lib/kernel*/ebin \
+		$(ERL_LIBDIR)/lib/erts*/ebin $(ERL_LIBDIR)/lib/mnesia*/ebin \
+		$(ERL_LIBDIR)/lib/compiler*/ebin $(ERL_LIBDIR)/lib/crypto*/ebin \
+		$(ERL_LIBDIR)/lib/inets*/ebin $(ERL_LIBDIR)/lib/xmerl*/ebin
+
+dialyzer: $(DIALYZER_PLT)
+	$(DIALYZER) --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
 
 typer:
-	$(TYPER) -r $(ESRC)
+	$(TYPER) --plt $(DIALYZER_PLT) -r $(ESRC)
+
+realclean: clean
+	-rm -f $(DIALYZER_PLT)
+
+master-tests: $(TEST_TARGET)
+	$(ERL) -noshell -pa $(ETEST) -pa $(EBIN) -pa $(EBIN)/ddfs -s master_tests main -s init stop
+

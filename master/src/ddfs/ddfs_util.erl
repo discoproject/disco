@@ -3,6 +3,7 @@
          ensure_dir/1, hashdir/5, safe_rename/2, format_timestamp/0,
          diskspace/1, fold_files/3, pack_objname/2, unpack_objname/1,
          choose_random/1, choose_random/2, replace/3, startswith/2]).
+-export([to_hex/1]).
 
 -include_lib("kernel/include/file.hrl").
 
