@@ -257,6 +257,16 @@ handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
         S0#state{delayed = {[], []}}),
     handle_cast(M, S);
 
+handle_cast({{delete, Token}, ReplyTo}, S) ->
+    case check_write_token(Token, S) of
+        false ->
+            gen_server:reply(ReplyTo, {error, unauthorized});
+        true ->
+            {ok, _} = add_to_deleted(S#state.tag),
+            gen_server:reply(ReplyTo, ok),
+            handle_cast({die, none}, S)
+    end;
+
 handle_cast({die, _}, S) ->
     {stop, normal, S};
 
@@ -480,5 +490,13 @@ is_tag_deleted(Tag) ->
     end.
 
 remove_from_deleted(Tag) ->
-    gen_server:call(ddfs_master, {tag, {remove_deleted, [<<"tag://", Tag/binary>>]},
-        <<"+deleted">>}, ?NODEOP_TIMEOUT).
+    gen_server:call(ddfs_master, {tag, {remove_deleted,
+                                        [<<"tag://", Tag/binary>>]},
+                                  <<"+deleted">>},
+                    ?NODEOP_TIMEOUT).
+
+add_to_deleted(Tag) ->
+    gen_server:call(ddfs_master, {tag, {insert_deleted,
+                                        [list_to_binary(["tag://", Tag])]},
+                                  <<"+deleted">>},
+                    ?NODEOP_TIMEOUT).

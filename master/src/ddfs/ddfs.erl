@@ -53,17 +53,8 @@ replace_tag(Host, Tag, Field, Value, Token) ->
     tagop(Host, Tag, {put, Field, Value, Token}).
 
 -spec delete(node(), string(), ddfs_tag:token()) -> _.
-delete(Host, Tag, _Token) ->
-    % TODO: we need to check the token before we add the tag
-    % to the deleted set.
-    validate(Tag, fun() ->
-        {ok, _} = gen_server:call(Host, {tag, {insert_deleted,
-            [list_to_binary(["tag://", Tag])]}, <<"+deleted">>},
-                ?TAG_UPDATE_TIMEOUT),
-        (catch gen_server:call(ddfs_master,
-            {tag, die, list_to_binary(Tag)}, 1)),
-        ok
-    end).
+delete(Host, Tag, Token) ->
+    tagop(Host, Tag, {delete, Token}).
 
 -spec tagop(node(), string(), _) -> _.
 tagop(Host, Tag, Op) ->
