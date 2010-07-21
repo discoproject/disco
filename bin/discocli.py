@@ -74,6 +74,11 @@ class DiscoOptionParser(OptionParser):
                         callback=self.update_jobdict,
                         type='int',
                         help='enable job profiling')
+        self.add_option('--status_interval',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        type='int',
+                        help='how often to report status in job')
         self.jobdict = {}
 
     def update_jobdict(self, option, name, val, parser):
@@ -398,7 +403,7 @@ def results(program, jobname):
 
 @Disco.command
 def run(program, jobclass, *inputs):
-    """Usage: jobclass [-n name] [--save] [--sort] [--profile] [--partitions P] [--sched-max-cores C] [input ...]
+    """Usage: jobclass [-n name] [--save] [--sort] [--profile] [--partitions P] [--sched_max_cores C] [--status_interval I] [input ...]
 
     Create an instance of jobclass and run it.
     Input urls are specified as arguments or read from stdin.
