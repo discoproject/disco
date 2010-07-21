@@ -8,7 +8,7 @@ from disco import func, comm, util
 from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError, DataError
-from disco.events import Message, OutputURL, OOBData, TaskFailed
+from disco.events import Message, OutputURL, TaskFailed
 from disco.fileutils import AtomicFile
 from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
 from disco.node import external, worker

@@ -44,14 +44,6 @@ class TaskFailed(Signal):
 class OutputURL(Signal):
     type = 'OUT'
 
-class OOBData(Signal):
-    type = 'OOB'
-
-    def __init__(self, key, task):
-        self.key  = key
-        self.task = task
-        super(OOBData, self).__init__('%s %s' % (key, os.path.join(task.home, 'oob', key)))
-
 class EventRecord(object):
     type_raw      = r'\*\*<(?P<type>\w+)>'
     timestamp_raw = r'(?P<timestamp>\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})'
