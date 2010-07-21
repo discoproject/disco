@@ -70,6 +70,11 @@ class TestMappingProtocol(unittest.TestCase):
     def test_unique_values(self):
         len(list(self.discodb.unique_values()))
 
+    def test_peek(self):
+        self.assertNotEquals(self.discodb.peek('0'), None)
+        self.assertEquals(self.discodb.peek('X'), None)
+        self.assert_(int(self.discodb.peek('0', '1')) >= 0)
+
     def test_query(self):
         q = Q.parse('5 & 10 & (15 | 30)')
         list(self.discodb.query(q))
@@ -125,6 +130,9 @@ class TestMetaDBMappingProtocol(TestMappingProtocol):
         datadb = DiscoDB(k_vs_iter(self.numkeys))
         metadb = DiscoDB(k_vs_iter(self.numkeys, max_values=self.numkeys))
         self.discodb = MetaDB(datadb, metadb)
+
+    def test_peek(self):
+        pass
 
 class TestMetaDBSerializationProtocol(unittest.TestCase):
     numkeys = 1000

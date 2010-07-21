@@ -60,6 +60,8 @@ static PyMethodDef DiscoDB_methods[] = {
      "d.values() -> an iterator over the values of d."},
     {"unique_values", (PyCFunction)DiscoDB_unique_values, METH_NOARGS,
      "d.unique_values() -> an iterator over the unique values of d."},
+    {"peek", (PyCFunction)DiscoDB_peek, METH_VARARGS,
+     "d.peek(k[, D]) -> first element of d[k] or else D. D defaults to None."},
     {"query", (PyCFunction)DiscoDB_query, METH_O,
      "d.query(q) -> an iterator over the values of d whose keys satisfy q."},
     {"dumps", (PyCFunction)DiscoDB_dumps, METH_NOARGS,
@@ -481,6 +483,48 @@ DiscoDB_unique_values(DiscoDB *self)
         if (ddb_has_error(self->discodb))
             return NULL;
     return DiscoDBIter_new(&DiscoDBIterEntryType, self, cursor);
+}
+
+static PyObject *
+DiscoDB_peek(DiscoDB *self, PyObject *args)
+{
+    PyObject
+      *def = Py_None,
+      *iter = NULL,
+      *key = NULL,
+      *val = NULL;
+
+    if (!PyArg_ParseTuple(args, "O|O", &key, &def))
+      return NULL;
+
+    Py_XINCREF(key);
+
+    switch (DiscoDB_contains(self, key)) {
+      case -1:
+        goto Done;
+      case 0:
+        Py_XINCREF(val = def);
+        break;
+      default:
+        iter = DiscoDB_getitem(self, key);
+        if (iter == NULL)
+          goto Done;
+
+        val = PyIter_Next(iter);
+        if (val == NULL)
+          Py_XINCREF(val = def);
+    }
+
+ Done:
+    Py_CLEAR(key);
+    Py_CLEAR(iter);
+
+    if (PyErr_Occurred()) {
+      Py_CLEAR(val);
+      return NULL;
+    }
+
+    return val;
 }
 
 static PyObject *
