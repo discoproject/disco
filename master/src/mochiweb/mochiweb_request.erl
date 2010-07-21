@@ -333,7 +333,11 @@ ok({ContentType, ResponseHeaders, Body}) ->
             {PartList, Size} = range_parts(Body, Ranges),
             case PartList of
                 [] -> %% no valid ranges
-                    respond({416, HResponse, Body});
+                    HResponse1 = mochiweb_headers:enter("Content-Type",
+                                                        ContentType,
+                                                        HResponse),
+                    %% could be 416, for now we'll just return 200
+                    respond({200, HResponse1, Body});
                 PartList ->
                     {RangeHeaders, RangeBody} =
                         parts_to_body(PartList, ContentType, Size),
@@ -702,8 +706,6 @@ range_skip_length(Spec, Size) ->
             invalid_range;
         {Start, End} when 0 =< Start, Start =< End, End < Size ->
             {Start, End - Start + 1};
-        {Start, End} when 0 =< Start, Start =< End ->
-            {Start, Size - Start + 1};
         {_OutOfRange, _End} ->
             invalid_range
     end.

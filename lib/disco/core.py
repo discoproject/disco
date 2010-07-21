@@ -249,13 +249,8 @@ class Disco(object):
         return event_iter(self.rawevents(name, offset=offset))
 
     def rawevents(self, name, offset=0):
-        try:
-            return self.request("/disco/ctrl/rawevents?name=%s" % name,
-                                offset=offset)
-        except CommError, e:
-            if e.code == 416:
-                return ''
-
+        return self.request("/disco/ctrl/rawevents?name=%s" % name,
+                            offset=offset)
 
     def mapresults(self, name):
         return json.loads(
