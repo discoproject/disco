@@ -1,14 +1,4 @@
 
--record(dnode, {blacklisted=false :: bool() | 'manual' | timer:timestamp(),
-                name :: nonempty_string(),
-                node_mon :: pid(),
-                num_running=0 :: non_neg_integer(),
-                slots :: non_neg_integer(),
-                stats_ok=0 :: non_neg_integer(),
-                stats_failed=0 :: non_neg_integer(),
-                stats_crashed=0 :: non_neg_integer()}).
--type dnode() :: #dnode{}.
-
 -record(jobinfo, {force_local :: bool(),
                   force_remote :: bool(),
                   inputs :: [binary()] | [[binary()]],
@@ -17,6 +7,15 @@
                   nr_reduce :: non_neg_integer(),
                   reduce :: bool()}).
 -type jobinfo() :: #jobinfo{}.
+
+-record(nodeinfo, {name :: nonempty_string(),
+                   blacklisted :: bool(),
+                   slots :: non_neg_integer(),
+                   num_running :: non_neg_integer(),
+                   stats_ok :: non_neg_integer(),
+                   stats_failed :: non_neg_integer(),
+                   stats_crashed :: non_neg_integer()}).
+-type nodeinfo() :: #nodeinfo{}.
 
 -record(task, {chosen_input :: binary(),
                force_local :: bool(),
@@ -28,3 +27,4 @@
                taskid :: non_neg_integer(),
                taskblack :: list()}).
 -type task() :: #task{}.
+

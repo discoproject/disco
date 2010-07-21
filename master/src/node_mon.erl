@@ -1,9 +1,12 @@
 -module(node_mon).
--export([spawn_node/1]).
+-export([start_link/1]).
 
 -define(BLACKLIST_PERIOD, 600000).
 -define(RESTART_DELAY, 10000).
 -define(SLAVE_ARGS, "+K true -connect_all false").
+
+start_link(Host) ->
+    spawn_link(fun() -> spawn_node(Host) end).
 
 -spec spawn_node(nonempty_string()) -> no_return().
 spawn_node(Host) ->

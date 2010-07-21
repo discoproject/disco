@@ -92,12 +92,12 @@ getop("nodeinfo", _Query) ->
                                                      list_to_binary(JobName),
                                                      Dict)
                                  end, dict:new(), Active),
-    DiscoNodeInfo = dict:from_list([{N#dnode.name,
-                                     [{job_ok, N#dnode.stats_ok},
-                                      {data_error, N#dnode.stats_failed},
-                                      {error, N#dnode.stats_crashed},
-                                      {max_workers, N#dnode.slots},
-                                      {blacklisted, N#dnode.blacklisted}]}
+    DiscoNodeInfo = dict:from_list([{N#nodeinfo.name,
+                                     [{job_ok, N#nodeinfo.stats_ok},
+                                      {data_error, N#nodeinfo.stats_failed},
+                                      {error, N#nodeinfo.stats_crashed},
+                                      {max_workers, N#nodeinfo.slots},
+                                      {blacklisted, N#nodeinfo.blacklisted}]}
                                     || N <- DiscoNodes]),
     NodeInfo = lists:foldl(fun ({Node, {Free, Used}}, Dict) ->
                                    dict:append_list(disco:host(Node),
@@ -113,9 +113,9 @@ getop("nodeinfo", _Query) ->
     {ok, {struct, [{K, {struct, Vs}} || {K, Vs} <- dict:to_list(NodeInfo)]}};
 
 getop("get_blacklist", _Query) ->
-    {ok, DiscoNodes} = gen_server:call(disco_server, {get_nodeinfo, all}),
-    {ok, [list_to_binary(N#dnode.name)
-          || N <- DiscoNodes, not (N#dnode.blacklisted == false)]};
+    {ok, Nodes} = gen_server:call(disco_server, {get_nodeinfo, all}),
+    {ok, [list_to_binary(N#nodeinfo.name)
+            || N <- Nodes, N#nodeinfo.blacklisted]};
 
 getop("get_settings", _Query) ->
     L = [max_failure_rate],
