@@ -22,7 +22,9 @@ int ddb_delta_encode(const struct ddb_list *values,
                      char **buf,
                      uint64_t *buf_size,
                      uint64_t *size,
-                     int *duplicates);
+                     uint32_t *num_written,
+                     int *duplicates,
+                     int unique_values);
 
 #endif /* __DDB_DELTA_H__ */
 

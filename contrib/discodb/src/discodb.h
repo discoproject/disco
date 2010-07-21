@@ -19,6 +19,7 @@
 #define DDB_ERR_WRITEFAILED 8
 
 #define DDB_OPT_DISABLE_COMPRESSION 1
+#define DDB_OPT_UNIQUE_ITEMS 2
 
 struct ddb_cons;
 struct ddb;

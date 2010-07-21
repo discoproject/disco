@@ -50,6 +50,39 @@ class DiscoOptionParser(OptionParser):
         self.add_option('-S', '--status',
                         action='store_true',
                         help='show job status when printing jobs')
+        self.add_option('-n', '--name',
+                        help='prefix to use for submitting a job')
+        self.add_option('--save',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        help='save results to DDFS')
+        self.add_option('--sort',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        help='sort input to reduce')
+        self.add_option('--profile',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        help='enable job profiling')
+        self.add_option('--partitions',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        type='int',
+                        help='enable job profiling')
+        self.add_option('--sched_max_cores',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        type='int',
+                        help='enable job profiling')
+        self.add_option('--status_interval',
+                        action='callback',
+                        callback=self.update_jobdict,
+                        type='int',
+                        help='how often to report status in job')
+        self.jobdict = {}
+
+    def update_jobdict(self, option, name, val, parser):
+        self.jobdict[name.strip('-')] = True if val is None else val
 
 class Disco(Program):
     def default(self, program, *args):
@@ -341,7 +374,7 @@ def get(program, key, jobname):
 
 @Disco.command
 def pstats(program, jobname):
-    """Usage: jobname
+    """Usage: jobname [-k sort-key]
 
     Print the profiling statistics for the named job.
     Assumes the job was run with profile flag enabled.
@@ -367,6 +400,31 @@ def results(program, jobname):
     status, results = program.disco.results(jobname)
     for result in results:
            print result
+
+@Disco.command
+def run(program, jobclass, *inputs):
+    """Usage: jobclass [-n name] [--save] [--sort] [--profile] [--partitions P] [--sched_max_cores C] [--status_interval I] [input ...]
+
+    Create an instance of jobclass and run it.
+    Input urls are specified as arguments or read from stdin.
+    """
+    from disco.util import reify
+    def maybe_list(seq):
+        return seq[0] if len(seq) == 1 else seq
+    name = program.options.name or jobclass.split('.')[-1]
+    input = inputs or [maybe_list(line.split())
+                       for line in fileinput.input(inputs)]
+    job = reify(jobclass)(program.disco, name)
+    job.run(input=input, **program.option_parser.jobdict)
+    print job.name
+
+@Disco.command
+def wait(program, jobname):
+    """Usage: jobname
+
+    Wait for the named job to complete.
+    """
+    program.disco.wait(jobname)
 
 if __name__ == '__main__':
     Disco(option_parser=DiscoOptionParser()).main()

@@ -50,14 +50,18 @@ static PyMappingMethods DiscoDB_as_mapping = {
 };
 
 static PyMethodDef DiscoDB_methods[] = {
+    {"get", (PyCFunction)DiscoDB_get, METH_VARARGS,
+     "d.get(k[, D]) -> d[k] if k in d, else D. D defaults to None."},
     {"items", (PyCFunction)DiscoDB_items, METH_NOARGS,
-     "d.items() an iterator over the items of d."},
+     "d.items() -> an iterator over the items of d."},
     {"keys", (PyCFunction)DiscoDB_keys, METH_NOARGS,
-     "d.keys() an iterator over the keys of d."},
+     "d.keys() -> an iterator over the keys of d."},
     {"values", (PyCFunction)DiscoDB_values, METH_NOARGS,
      "d.values() -> an iterator over the values of d."},
     {"unique_values", (PyCFunction)DiscoDB_unique_values, METH_NOARGS,
      "d.unique_values() -> an iterator over the unique values of d."},
+    {"peek", (PyCFunction)DiscoDB_peek, METH_VARARGS,
+     "d.peek(k[, D]) -> first element of d[k] or else D. D defaults to None."},
     {"query", (PyCFunction)DiscoDB_query, METH_O,
      "d.query(q) -> an iterator over the values of d whose keys satisfy q."},
     {"dumps", (PyCFunction)DiscoDB_dumps, METH_NOARGS,
@@ -141,14 +145,26 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
         *kentry = NULL,
         *ventry = NULL;
     uint64_t n,
-      flags = DDB_IS_COMPRESSED;
+      flags = 0,
+      disable_compression = 0,
+      unique_items = 0;
 
-    static char *kwlist[] = {"arg", "flags", NULL};
+    static char *kwlist[] = {"arg",
+                             "disable_compression",
+                             "unique_items",
+                             NULL};
 
     if (self != NULL) {
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OI", kwlist,
-                                         &arg, &flags))
+        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OII", kwlist,
+                                         &arg,
+                                         &disable_compression,
+                                         &unique_items))
             goto Done;
+
+        if (disable_compression)
+          flags |= DDB_OPT_DISABLE_COMPRESSION;
+        if (unique_items)
+          flags |= DDB_OPT_UNIQUE_ITEMS;
 
         if (arg == NULL)                /* null constructor */
             items = PyTuple_New(0);
@@ -355,6 +371,40 @@ DiscoDB_length(DiscoDB *self)
 }
 
 static PyObject *
+DiscoDB_get(register DiscoDB *self, PyObject *args)
+{
+    PyObject
+      *def = Py_None,
+      *key = NULL,
+      *val = NULL;
+
+    if (!PyArg_ParseTuple(args, "O|O", &key, &def))
+      return NULL;
+
+    Py_XINCREF(key);
+
+    switch (DiscoDB_contains(self, key)) {
+      case -1:
+        goto Done;
+      case 0:
+        Py_XINCREF(val = def);
+        break;
+      default:
+        val = DiscoDB_getitem(self, key);
+    }
+
+ Done:
+    Py_CLEAR(key);
+
+    if (PyErr_Occurred()) {
+      Py_CLEAR(val);
+      return NULL;
+    }
+
+    return val;
+}
+
+static PyObject *
 DiscoDB_getitem(register DiscoDB *self, register PyObject *key)
 {
     PyObject *pack = NULL;
@@ -436,6 +486,48 @@ DiscoDB_unique_values(DiscoDB *self)
 }
 
 static PyObject *
+DiscoDB_peek(DiscoDB *self, PyObject *args)
+{
+    PyObject
+      *def = Py_None,
+      *iter = NULL,
+      *key = NULL,
+      *val = NULL;
+
+    if (!PyArg_ParseTuple(args, "O|O", &key, &def))
+      return NULL;
+
+    Py_XINCREF(key);
+
+    switch (DiscoDB_contains(self, key)) {
+      case -1:
+        goto Done;
+      case 0:
+        Py_XINCREF(val = def);
+        break;
+      default:
+        iter = DiscoDB_getitem(self, key);
+        if (iter == NULL)
+          goto Done;
+
+        val = PyIter_Next(iter);
+        if (val == NULL)
+          Py_XINCREF(val = def);
+    }
+
+ Done:
+    Py_CLEAR(key);
+    Py_CLEAR(iter);
+
+    if (PyErr_Occurred()) {
+      Py_CLEAR(val);
+      return NULL;
+    }
+
+    return val;
+}
+
+static PyObject *
 DiscoDB_query(register DiscoDB *self, PyObject *query)
 {
     PyObject
@@ -496,8 +588,8 @@ DiscoDB_query(register DiscoDB *self, PyObject *query)
                 goto Done;
 
             if (!PyArg_ParseTuple(pack, "s#",
-                                                        &ddb_clauses[i].terms[j].key.data,
-                                                        &ddb_clauses[i].terms[j].key.length))
+                                  &ddb_clauses[i].terms[j].key.data,
+                                  &ddb_clauses[i].terms[j].key.length))
                 goto Done;
 
             Py_CLEAR(literal);
@@ -674,10 +766,6 @@ init_discodb(void)
     DiscoDBError = PyErr_NewException("discodb.DiscoDBError", NULL, NULL);
     Py_INCREF(DiscoDBError);
     PyModule_AddObject(module, "DiscoDBError", DiscoDBError);
-
-    PyModule_AddIntConstant(module,
-                            "DDB_OPT_DISABLE_COMPRESSION",
-                            DDB_OPT_DISABLE_COMPRESSION);
 }
 
 

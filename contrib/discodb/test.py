@@ -2,7 +2,6 @@ import doctest, unittest
 from random import randint
 
 from discodb import DiscoDB, MetaDB, Q
-from discodb import DDB_OPT_DISABLE_COMPRESSION
 from discodb import query
 from discodb import tools
 
@@ -27,7 +26,8 @@ class TestConstructor(unittest.TestCase):
         discodb = DiscoDB((k, v) for k, vs in k_vs_iter(1000) for v in vs)
 
     def test_flags_constructor(self):
-        discodb = DiscoDB(k_vs_iter(1000), flags=DDB_OPT_DISABLE_COMPRESSION)
+        discodb = DiscoDB(k_vs_iter(1000), disable_compression=True)
+        discodb = DiscoDB(k_vs_iter(1000), unique_items=True)
 
 class TestMappingProtocol(unittest.TestCase):
     numkeys = 1000
@@ -41,6 +41,11 @@ class TestMappingProtocol(unittest.TestCase):
 
     def test_length(self):
         self.assertEquals(len(self.discodb), self.numkeys)
+
+    def test_get(self):
+        len(list(self.discodb.get('0')))
+        self.assertEquals(self.discodb.get('X'), None)
+        self.assertEquals(self.discodb.get('X', 'Y'), 'Y')
 
     def test_getitem(self):
         for x in xrange(self.numkeys):
@@ -64,6 +69,11 @@ class TestMappingProtocol(unittest.TestCase):
 
     def test_unique_values(self):
         len(list(self.discodb.unique_values()))
+
+    def test_peek(self):
+        self.assertNotEquals(self.discodb.peek('0'), None)
+        self.assertEquals(self.discodb.peek('X'), None)
+        self.assert_(int(self.discodb.peek('0', '1')) >= 0)
 
     def test_query(self):
         q = Q.parse('5 & 10 & (15 | 30)')
@@ -99,18 +109,30 @@ class TestLargeSerializationProtocol(TestSerializationProtocol):
 class TestUncompressed(TestMappingProtocol, TestSerializationProtocol):
     def setUp(self):
         self.discodb = DiscoDB(k_vs_iter(self.numkeys),
-                               flags=DDB_OPT_DISABLE_COMPRESSION)
+                               disable_compression=True)
         self.discodb_c = DiscoDB(self.discodb)
 
     def test_compression(self):
         self.assertEqual(dict((k, list(vs)) for k, vs in self.discodb.items()),
                          dict((k, list(vs)) for k, vs in self.discodb_c.items()))
 
+class TestUniqueItems(TestMappingProtocol, TestSerializationProtocol):
+    def setUp(self):
+        base = dict(k_vs_iter(self.numkeys))
+        base['0'] = ['1', '1', '2']
+        self.discodb = DiscoDB(base, unique_items=True)
+
+    def test_uniq(self):
+        self.assertEqual(list(self.discodb['0']), ['1', '2'])
+
 class TestMetaDBMappingProtocol(TestMappingProtocol):
     def setUp(self):
         datadb = DiscoDB(k_vs_iter(self.numkeys))
         metadb = DiscoDB(k_vs_iter(self.numkeys, max_values=self.numkeys))
         self.discodb = MetaDB(datadb, metadb)
+
+    def test_peek(self):
+        pass
 
 class TestMetaDBSerializationProtocol(unittest.TestCase):
     numkeys = 1000

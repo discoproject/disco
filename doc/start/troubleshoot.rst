@@ -119,7 +119,7 @@ page should open.
 
 Do you see any boxes with black title bars on the status page (like `in
 this screenshot <../_static/screenshots/disco-main.png>`_)? If not,
-add nodes to the system as instructed in :ref:`setup`, section 5.
+add nodes to the system as instructed in :ref:`confignodes`.
 
 If adding nodes through the web interface fails, it may be a bug in
 Disco. In that case you can edit the config file manually. For instance,
@@ -164,7 +164,7 @@ with ssh authentication. Try the following command::
         ssh localhost erl
 
 If ssh asks for a password, or any other confirmation, you need to
-configure ssh properly as instructed in :ref:`setup` in section 4.
+configure ssh properly as instructed in :ref:`configauth`.
 
 If ssh seems to work correctly, you should check that the Erlang's
 ``slave`` module works correctly. You can check it as follows::
@@ -182,7 +182,7 @@ If Erlang doesn't return ``{ok..`` for the first expression or if it
 returns ``pang`` for the second expression, there's something wrong either
 with your ssh or Erlang configuration. You should double-check that
 the Erlang security cookie at ``~/.erlang.cookie`` is the same on all
-the nodes (see :ref:`setup`, section 4). The cookie must be readable only to the
+the nodes (see :ref:`configauth`). The cookie must be readable only to the
 disco user, so run ``chmod 400 ~/.erlang.cookie`` on all the nodes.
 
 Note that node names need to be consistent. If your master node is called
@@ -224,7 +224,7 @@ You can copy-paste one of the lines and try to execute it by hand.
 This way you can easily see how ``disco-worker`` fails.
 
 Still no success?
-=================
+-----------------
 
 If the problem persists, or you can't get one of the steps above working,
 do not despair!
