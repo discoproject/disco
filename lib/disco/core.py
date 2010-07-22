@@ -742,13 +742,7 @@ class JobDict(util.DefaultDict):
         super(JobDict, self).__init__(*args, **kwargs)
 
         # -- backwards compatibility --
-        if 'fun_map' in self and 'map' not in self:
-            self['map'] = self.pop('fun_map')
-
-        if 'input_files' in kwargs and 'input' not in self:
-            self['input'] = self.pop('input_files')
-
-        if 'reduce_writer' in self or 'map_writer' in self:
+        if 'reduce_writer' in kwargs or 'map_writer' in kwargs:
             warn("Writers are deprecated - use output_stream.add() instead",
                     DeprecationWarning)
 

@@ -8,11 +8,11 @@ def input_stream(fd, size, url, params):
     """
     scheme, netloc, rest = urlsplit(url)
     prefix, fname = rest.split('/', 1)
-    if netloc == Task.netloc:
+    if netloc[0] == Task.netloc[0]:
         if prefix == 'ddfs':
-            root = Task.ddfsroot
+            root = Task.settings['DDFS_ROOT']
         else:
-            root = Task.dataroot
+            root = Task.settings['DISCO_DATA']
         path = os.path.join(root, fname)
         return comm.open_local(path)
     return comm.open_remote('http://%s/%s/%s' % (netloc, prefix, fname))

@@ -5,7 +5,7 @@ from discodb import MetaDB, Q
 def input_stream(fd, size, url, params):
     scheme, netloc, rest = util.urlsplit(url)
 
-    if netloc == Task.netloc:
+    if netloc[0] == Task.netloc[0]:
         path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
         discodb    = MetaDB.load(os.path.join(Task.root, path))
 
