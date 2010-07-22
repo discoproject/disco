@@ -1,20 +1,22 @@
 import os
-from disco import comm, core, util
+from disco import util
+from disco.comm import download
 from discodb import DiscoDB, Q
 
 def input_stream(fd, size, url, params):
     scheme, netloc, rest = util.urlsplit(url)
+    path, rest   = rest.split('!', 1) if '!' in rest else (rest, '')
 
     if netloc[0] == Task.netloc[0]:
-        path, rest   = rest.split('!', 1) if '!' in rest else (rest, '')
         Task.discodb = DiscoDB.load(open(os.path.join(Task.root, path)))
+    else:
+        Task.discodb = DiscoDB.loads(download('disco://%s/%s' % (netloc, path)))
 
-        if rest:
-            method, arg = rest.split('/', 1)
-            if method == 'query':
-                if hasattr(params, 'discodb_query'):
-                    return Task.discodb.query(params.discodb_query), size, url
-                return Task.discodb.query(Q.urlscan(arg)), size, url
-            return getattr(Task.discodb, method)(), size, url
-        return Task.discodb, size, url
-    raise core.DiscoError("Scheme 'discodb' can only be used with force_local=True")
+    if rest:
+        method, arg = rest.split('/', 1)
+        if method == 'query':
+            if hasattr(params, 'discodb_query'):
+                return Task.discodb.query(params.discodb_query), size, url
+            return Task.discodb.query(Q.urlscan(arg)), size, url
+        return getattr(Task.discodb, method)(), size, url
+    return Task.discodb, size, url
