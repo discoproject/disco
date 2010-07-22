@@ -42,7 +42,7 @@ node_monitor(Node, WebConfig) ->
     start_temp_gc(Node, disco:host(Node)),
     wait(Node).
 
--spec wait(nonempty_string()) -> _.
+-spec wait(node()) -> _.
 wait(Node) ->
     receive
         {is_ready, Pid} ->
