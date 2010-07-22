@@ -1,5 +1,5 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.events import Event, Message, AnnouncePID, DataUnavailable, OutputURL, OOBData, EventRecord
+from disco.events import Event, Message, AnnouncePID, DataUnavailable, OutputURL, EventRecord
 from disco.error import JobError
 
 from datetime import datetime
