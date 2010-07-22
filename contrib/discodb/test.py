@@ -1,7 +1,7 @@
 import doctest, unittest
 from random import randint
 
-from discodb import DiscoDB, MetaDB, Q
+from discodb import DiscoDB, DiscoDict, MetaDB, Q
 from discodb import query
 from discodb import tools
 
@@ -36,7 +36,7 @@ class TestMappingProtocol(unittest.TestCase):
         self.discodb = DiscoDB(k_vs_iter(self.numkeys))
 
     def test_contains(self):
-        assert "200" in self.discodb
+        assert "0" in self.discodb
         assert "key" not in self.discodb
 
     def test_length(self):
@@ -80,7 +80,8 @@ class TestMappingProtocol(unittest.TestCase):
         list(self.discodb.query(q))
 
     def test_str(self):
-        assert str(self.discodb) != repr(self.discodb)
+        repr(self.discodb)
+        str(self.discodb)
 
 class TestLargeMappingProtocol(TestMappingProtocol):
     numkeys = 10000
@@ -93,7 +94,7 @@ class TestSerializationProtocol(unittest.TestCase):
 
     def test_dumps_loads(self):
         dbuffer = self.discodb.dumps()
-        assert dbuffer == DiscoDB.loads(dbuffer).dumps()
+        self.assertEquals(dbuffer, DiscoDB.loads(dbuffer).dumps())
 
     def test_dump_load(self):
         from tempfile import NamedTemporaryFile
@@ -101,7 +102,7 @@ class TestSerializationProtocol(unittest.TestCase):
         self.discodb.dump(handle)
         handle.seek(0)
         discodb = DiscoDB.load(handle)
-        assert discodb.dumps() == self.discodb.dumps()
+        self.assertEquals(discodb.dumps(), self.discodb.dumps())
 
 class TestLargeSerializationProtocol(TestSerializationProtocol):
     numkeys = 10000
@@ -124,6 +125,13 @@ class TestUniqueItems(TestMappingProtocol, TestSerializationProtocol):
 
     def test_uniq(self):
         self.assertEqual(list(self.discodb['0']), ['1', '2'])
+
+class TestDiscoDict(TestMappingProtocol):
+    def setUp(self):
+        self.discodb = DiscoDict(k_vs_iter(self.numkeys))
+
+    def test_query(self):
+        pass
 
 class TestMetaDBMappingProtocol(TestMappingProtocol):
     def setUp(self):
