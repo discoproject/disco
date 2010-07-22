@@ -4,7 +4,7 @@ Get Involved
 Develop Disco
 -------------
 
-:doc:`download` disco from `github <http://github.com/tuulos/disco>`_.
+:doc:`download` from `github <http://github.com/tuulos/disco>`_.
 You can easily fork a repository of your own (just click "fork").
 You can :doc:`set up a development environment <install>` on a single machine or a cluster.
 

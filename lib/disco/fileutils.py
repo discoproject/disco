@@ -53,35 +53,31 @@ class DiscoOutput(object):
             self.dump()
 
 class AtomicFile(file):
-    def __init__(self, fname, *args, **kw):
-        dir = os.path.dirname(fname)
+    def __init__(self, path, *args, **kwargs):
+        dir = os.path.dirname(path)
         ensure_path(dir)
         ensure_free_space(dir)
-        self.fname = fname
+        self.path = path
+        self.partial = '%s.partial' % path
         self.isopen = True
-        super(AtomicFile, self).__init__(
-            fname + ".partial", *args, **kw)
+        super(AtomicFile, self).__init__(self.partial, *args, **kwargs)
 
     def close(self):
         if self.isopen:
             super(AtomicFile, self).close()
-            os.rename(self.fname + ".partial", self.fname)
+            os.rename(self.partial, self.path)
             self.isopen = False
 
 class PartitionFile(AtomicFile):
-    def __init__(self, partfile, tmpname, *args, **kw):
+    def __init__(self, partfile, path, *args, **kwargs):
         self.partfile = partfile
-        self.tmpname = tmpname
-        self.isopen = True
-        super(PartitionFile, self).__init__(
-            tmpname, *args, **kw)
+        super(PartitionFile, self).__init__(path, *args, **kwargs)
 
     def close(self):
         if self.isopen:
             super(PartitionFile, self).close()
-            safe_append(file(self.tmpname), self.partfile)
-            os.remove(self.tmpname)
-            self.isopen = False
+            safe_append(file(self.path), self.partfile)
+            os.remove(self.path)
 
 def ensure_path(path):
     try:
@@ -91,7 +87,6 @@ def ensure_path(path):
         # It may happen if two tasks are racing to create the directory
         if x.errno != errno.EEXIST:
             raise
-
 
 # About concurrent append operations:
 #
@@ -142,7 +137,6 @@ def _safe_fileop(op, mode, outfile, timeout):
                 raise
     raise DataError("Timeout when updating file", outfile)
 
-
 def ensure_file(fname, data = None, timeout = 60, mode = 500):
     while timeout > 0:
         if os.path.exists(fname):
@@ -164,7 +158,6 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
                 raise DataError("Writing external file failed", fname)
     raise DataError("Timeout in writing external file", fname)
 
-
 def write_files(ext_data, path):
     path = os.path.abspath(path)
     ensure_path(path)
@@ -181,6 +174,3 @@ def ensure_free_space(fname):
     free = s.f_bsize * s.f_bavail
     if free < MIN_DISK_SPACE:
         raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
-
-
-

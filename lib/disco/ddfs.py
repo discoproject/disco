@@ -20,16 +20,6 @@ from disco.util import iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
-class BlobSource(object):
-    def __init__(self, source):
-        if hasattr(source, 'read'):
-            data = source.read()
-            self.size = len(data)
-            self.makefile = lambda: StringIO(data)
-        else:
-            self.size = os.stat(source).st_size
-            self.makefile = lambda: open(source, 'r')
-
 def canonizetags(tags):
     return [tagname(tag) for tag in iterify(tags)]
 
@@ -155,7 +145,7 @@ class DDFS(object):
                 target = self.safe_name(os.path.basename(source))
             else:
                 source, target = tuple_or_path
-            return BlobSource(source), target
+            return source, target
 
         urls = [self._push(aim(f), replicas=replicas, retries=retries)
                 for f in files]
@@ -170,7 +160,7 @@ class DDFS(object):
                 :meth:`DDFS.tag` instead.
         """
         return self._upload('%s/ddfs/tag/%s' % (self.master, tagname(tag)),
-                            BlobSource(StringIO(json.dumps(urls))))
+                            StringIO(json.dumps(urls)))
 
     def tag(self, tag, urls, delayed=False):
         """Append the list of ``urls`` to the ``tag``."""
@@ -254,11 +244,10 @@ class DDFS(object):
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
         urls = self._download('/ddfs/new_blob/%s?%s' % (target, qs))
-        sources = [source] * len(urls)
 
         try:
             return [json.loads(url)
-                    for url in self._upload(urls, sources, **kwargs)]
+                    for url in self._upload(urls, source, **kwargs)]
         except CommError, e:
             scheme, (host, port), path = urlsplit(e.url)
             return self._push((source, target),
@@ -270,6 +259,6 @@ class DDFS(object):
         response = download(self.master + url, data=data, method=method)
         return json.loads(response)
 
-    def _upload(self, urls, sources, **kwargs):
+    def _upload(self, urls, source, **kwargs):
         urls = [self._maybe_proxy(url, method='PUT') for url in iterify(urls)]
-        return upload(urls, sources, **kwargs)
+        return upload(urls, source, **kwargs)

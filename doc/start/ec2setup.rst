@@ -115,7 +115,7 @@ Here the ``-n`` flag specifies the number of instances. Wait until
 ``ec2-describe-instances`` shows five instances with the ``running``
 status and valid addresses.
 
-Go to `Disco download page <http://discoproject.org/download.html>`_
+Go to the :doc:`Disco download page <download>`
 and download the latest ``setup-instances-XX.py`` script. The script
 will find the running instances using ``ec2-describe-instances`` and it
 will install the necessary packages to the nodes. Run it as follows::

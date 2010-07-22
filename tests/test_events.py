@@ -40,16 +40,6 @@ class EventFormatTestCase(DiscoTestCase):
         self.assertEquals([], event_record.tags)
         self.assertEquals('disco://master', event_record.message)
 
-    def test_oob_data(self):
-        import os
-        from disco.task import Task
-        task = Task()
-        event_record = EventRecord(str(OOBData('key', task)))
-        self.assertEquals('OOB', event_record.type)
-        self.assert_(event_record.time < datetime.now())
-        self.assertEquals([], event_record.tags)
-        self.assertEquals('key %s' % os.path.join(task.home, 'oob', 'key'), event_record.message)
-
     def test_bad_tags(self):
         self.assertRaises(TypeError, EventRecord(str(Event('', tags=['bad-']))))
         self.assertRaises(TypeError, EventRecord(str(Event('', tags=['bad ']))))

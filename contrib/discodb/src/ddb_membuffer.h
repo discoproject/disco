@@ -9,7 +9,7 @@ struct ddb_netstring{
 
 struct ddb_membuffer;
 
-struct ddb_membuffer *ddb_membuffer_new();
+struct ddb_membuffer *ddb_membuffer_new(void);
 
 void ddb_membuffer_free(struct ddb_membuffer *mb);
 

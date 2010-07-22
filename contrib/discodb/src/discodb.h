@@ -19,6 +19,7 @@
 #define DDB_ERR_WRITEFAILED 8
 
 #define DDB_OPT_DISABLE_COMPRESSION 1
+#define DDB_OPT_UNIQUE_ITEMS 2
 
 struct ddb_cons;
 struct ddb;
@@ -84,7 +85,7 @@ void ddb_free(struct ddb *db);
 int ddb_error(const struct ddb *db, const char **errstr);
 int ddb_free_cursor(struct ddb_cursor *cur);
 int ddb_notfound(const struct ddb_cursor *c);
-const struct ddb_entry *ddb_next(struct ddb_cursor *cur, int *errno);
+const struct ddb_entry *ddb_next(struct ddb_cursor *cur, int *errcode);
 uint64_t ddb_resultset_size(const struct ddb_cursor *cur);
 
 

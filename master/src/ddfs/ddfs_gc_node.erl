@@ -10,10 +10,10 @@ gc_node(Master, Now) ->
     process_flag(priority, low),
     ets:new(tag, [named_table, set, private]),
     ets:new(blob, [named_table, set, private]),
-    {Vols0, Root} = gen_server:call(ddfs_node, get_volumes),
-    {_, Vols} = lists:unzip(Vols0),
-    traverse(Now, Root, Vols, "blob", blob),
-    traverse(Now, Root, Vols, "tag", tag),
+    {Vols, Root} = gen_server:call(ddfs_node, get_vols),
+    {_, VolNames} = lists:unzip(Vols),
+    traverse(Now, Root, VolNames, "blob", blob),
+    traverse(Now, Root, VolNames, "tag", tag),
     error_logger:info_report({"GC: # blobs", ets:info(blob, size)}),
     error_logger:info_report({"GC: # tags", ets:info(tag, size)}),
     node_server(Root),
@@ -44,21 +44,21 @@ take_key(Key, Ets) ->
 -spec send_blob(binary(), nonempty_string(), nonempty_string()) ->
     'ok' | {'error', 'crashed' | 'timeout'}.
 send_blob(Obj, DstUrl, Root) ->
-    [{_, Vol, _}] = ets:lookup(blob, Obj),
-    {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", "blob", Root, Vol),
+    [{_, VolName, _}] = ets:lookup(blob, Obj),
+    {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", "blob", Root, VolName),
     ddfs_http:http_put(filename:join(Path, binary_to_list(Obj)),
         DstUrl, ?GC_PUT_TIMEOUT).
 
 -spec traverse(timer:timestamp(), nonempty_string(),
     nonempty_string(), nonempty_string(), atom()) -> _.
-traverse(Now, Root, Vols, Mode, Ets) ->
-    lists:foldl(fun(Vol, _) ->
-        ddfs_util:fold_files(filename:join([Root, Vol, Mode]),
-            fun(Obj, Dir, _) ->
-                handle_file(Obj, Dir, Vol, Ets, Now)
-            end,
-        nil)
-    end, nil, Vols).
+traverse(Now, Root, VolNames, Mode, Ets) ->
+    lists:foldl(fun(VolName, _) ->
+                        ddfs_util:fold_files(filename:join([Root, VolName, Mode]),
+                                             fun(Obj, Dir, _) ->
+                                                     handle_file(Obj, Dir, VolName, Ets, Now)
+                                             end,
+                                             nil)
+                end, nil, VolNames).
 
 %%%
 %%% O1) Remove leftover !partial. files
@@ -70,9 +70,9 @@ handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     {_, Time} = ddfs_util:unpack_objname(Obj),
     delete_if_expired(filename:join(Dir, File), Now, Time, ?PARTIAL_EXPIRES);
 
-handle_file(Obj, _, Vol, Ets, _) ->
+handle_file(Obj, _, VolName, Ets, _) ->
     % We could check a checksum of Obj here
-    ets:insert(Ets, {list_to_binary(Obj), Vol, false}).
+    ets:insert(Ets, {list_to_binary(Obj), VolName, false}).
 
 %%%
 %%% O2) Remove orphaned tags
@@ -81,24 +81,24 @@ handle_file(Obj, _, Vol, Ets, _) ->
 -spec delete_orphaned(pid(), timer:timestamp(), nonempty_string(),
     nonempty_string(), atom(), non_neg_integer()) -> _.
 delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
-    error_logger:info_report(
-        {"GC: # orphaned", Mode, ets:info(Ets, size)}),
-    lists:foreach(fun([Obj, Vol]) ->
-        {_, Time} = ddfs_util:unpack_objname(Obj),
-        {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", Mode, Root, Vol),
-        is_really_orphan(Master, Obj) andalso
-            delete_if_expired(filename:join(Path, binary_to_list(Obj)),
-                Now, Time, Expires)
-    end, ets:match(Ets, {'$1', '$2', false})).
+    error_logger:info_report({"GC: # orphaned", Mode, ets:info(Ets, size)}),
+    lists:foreach(fun([Obj, VolName]) ->
+                          {_, Time} = ddfs_util:unpack_objname(Obj),
+                          {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", Mode, Root, VolName),
+                          is_really_orphan(Master, Obj) andalso
+                              delete_if_expired(filename:join(Path, binary_to_list(Obj)),
+                                                Now, Time, Expires)
+                  end, ets:match(Ets, {'$1', '$2', false})).
 
 -spec is_really_orphan(pid(), binary()) -> bool().
 is_really_orphan(Master, Obj) ->
     Master ! {is_orphan, self(), Obj},
     receive
-        {Obj, V} -> V;
+        {Obj, IsOrphan} ->
+            IsOrphan;
         E ->
             ddfs_gc:abort({"GC: Erroneous message received", E},
-                orphans_failed)
+                          orphans_failed)
     end.
 
 -spec delete_if_expired(nonempty_string(), timer:timestamp(),

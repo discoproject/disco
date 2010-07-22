@@ -6,7 +6,10 @@
 #include <ddb_huffman.h>
 #include <ddb_delta.h>
 
-#define DISCODB_MAGIC 0x4D85BE61D14DE5A
+#define DISCODB_MAGIC 0x4D85BE61D14DE5B
+
+#define COMPRESS_MIN_TOTAL_SIZE (5 * 1024 * 1024)
+#define COMPRESS_MIN_AVG_VALUE_SIZE 6
 
 #define F_HASH 1
 #define F_MULTISET 2
@@ -30,8 +33,7 @@ struct ddb_header{
     uint64_t key2values_offs;
     uint64_t id2value_offs;
     uint64_t hash_offs;
-
-    struct ddb_codebook codebook[DDB_CODEBOOK_SIZE];
+    uint64_t codebook_offs;
 } __attribute__((packed));
 
 struct ddb{

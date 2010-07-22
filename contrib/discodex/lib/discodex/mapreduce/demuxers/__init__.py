@@ -18,6 +18,16 @@ def iterdemux((k, viter), params):
     for v in viter:
         yield k, v
 
+def discodbdemux(discodb, params):
+    """
+    Unpacks the discodb to produce all `('k:v', discodb)` pairs.
+
+    If a key has no values, a `('k', discodb)` pair is produced instead.
+    """
+    for k, vs in discodb.items():
+        for key in ('%s:%s' % (k, v) for v in vs) if vs else (k,):
+            yield key, discodb.dumps()
+
 def namedfielddemux(record, params):
     """
     Produce `(fieldname, value)` pairs for a record.

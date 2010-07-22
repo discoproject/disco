@@ -53,6 +53,12 @@ class MetaDB(object):
     def __str__(self):
         return 'MetaDB(datadb=%s, metadb=%s)' % (self.datadb, self.metadb)
 
+    def get(self, metakey, default=None):
+        """an iterator over the keys of metakey and its dereferenced values or default."""
+        if metakey in self:
+            return self[metakey]
+        return default
+
     def items(self):
         """an iterator over the metakeys and their corresponding values."""
         for metakey in self:
@@ -65,6 +71,11 @@ class MetaDB(object):
     def values(self):
         """an iterator over the keys of all metakeys and their dereferenced values."""
         for key in self.metadb.values():
+            yield key, self.datadb[key]
+
+    def unique_values(self):
+        """an iterator over the unique keys of all metakeys and their dereferenced values."""
+        for key in self.metadb.unique_values():
             yield key, self.datadb[key]
 
     def query(self, q):

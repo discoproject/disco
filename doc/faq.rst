@@ -10,9 +10,9 @@ Using Disco
 I tried to install Disco but it doesn't work. Why?
 ''''''''''''''''''''''''''''''''''''''''''''''''''
 
-See :ref:`troubleshooting`. If the problem persist, contact
-Disco developers `either on IRC or on the mailing list
-<http://discoproject.org/getinvolved.html>`_.
+See :ref:`troubleshooting`.
+If the problem persists,
+contact Disco developers :doc:`on IRC or the mailing list <start/getinvolved>`.
 
 Why not `Hadoop <http://hadoop.apache.org>`_?
 '''''''''''''''''''''''''''''''''''''''''''''

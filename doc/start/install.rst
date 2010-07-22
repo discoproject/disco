@@ -12,7 +12,7 @@ working quickly, you should consider trying out Disco in Amazon EC2
 
 **Shortcut for Debian / Ubuntu users:** If you run Debian testing or
 some recent version of Ubuntu on the AMD64 architecture, you may try
-out our **experimental** deb-packages which are available at :doc:`Disco
+out our **experimental** deb-packages which are available at the :doc:`Disco
 download page <download>`. If you managed to install the packages,
 you can skip over the steps 0-3 below and go to :ref:`configauth` directly.
 
@@ -52,9 +52,7 @@ Optionally, ``DISCO_PROXY`` needs
 1. Install Disco
 ----------------
 
-Download `the latest Disco package from discoproject.org
-<http://discoproject.org/download.html>`_. Alternatively you can download `the
-latest development snapshot from GitHub <http://github.com/tuulos/disco>`_.
+Download :doc:`a recent version of Disco <download>`.
 
 Extract the package (if necessary) and ``cd`` into it.
 We will refer to this directory as ``DISCO_HOME``.
@@ -162,13 +160,17 @@ have only one machine. You should not need to give a password nor answer
 to any questions after the first login attempt.
 
 As the last step, if you run Disco on many machines, you need to make
-sure that all servers in the Disco cluster use the same Erlang cookie,
+sure that all servers in the Disco cluster use the same `Erlang cookie`_,
 which is used for authentication between Erlang nodes. Run the following
 command as the Disco user on the master server::
 
         scp ~/.erlang.cookie nodeX:
 
 Repeat the command for all the servers ``nodeX``.
+
+.. _Erlang cookie: http://www.erlang.org/doc/getting_started/conc_prog.html#id2264467
+
+.. _confignodes:
 
 5. Add nodes to Disco
 ---------------------

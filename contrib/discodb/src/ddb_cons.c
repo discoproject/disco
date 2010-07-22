@@ -19,7 +19,7 @@
 struct ddb_cons{
     struct ddb_map *values_map;
     struct ddb_map *keys_map;
-    uint32_t num_values;
+    uint64_t uvalues_total_size;
 };
 
 struct ddb_packed{
@@ -29,6 +29,8 @@ struct ddb_packed{
 
     char *buffer;
     struct ddb_header *head;
+
+    struct ddb_codebook codebook[DDB_CODEBOOK_SIZE];
 };
 
 static int _buffer_grow(struct ddb_packed *p, uint64_t size)
@@ -47,11 +49,17 @@ static void buffer_shrink(struct ddb_packed *p)
     p->buffer = realloc(p->buffer, p->offs);
 }
 
-static int buffer_init(struct ddb_packed *p)
+static struct ddb_packed *buffer_init(void)
 {
-    memset(p, 0, sizeof(struct ddb_packed));
+    struct ddb_packed *p;
+    if (!(p = calloc(1, sizeof(struct ddb_packed))))
+        return NULL;
     p->offs = sizeof(struct ddb_header);
-    return _buffer_grow(p, sizeof(struct ddb_header));
+    if (_buffer_grow(p, sizeof(struct ddb_header))){
+        free(p);
+        return NULL;
+    }
+    return p;
 }
 
 static int buffer_new_section(struct ddb_packed *p, uint64_t num_items)
@@ -81,7 +89,8 @@ static int buffer_write_data(struct ddb_packed *p,
 
 static int pack_key2values(struct ddb_packed *pack,
                            const struct ddb_entry *keys,
-                           const struct ddb_map *keys_map)
+                           const struct ddb_map *keys_map,
+                           int unique_items)
 {
     char *buf = NULL;
     uint64_t buf_size = 0;
@@ -96,11 +105,17 @@ static int pack_key2values(struct ddb_packed *pack,
         const struct ddb_list *values = (const struct ddb_list*)*ptr;
         uint64_t size = 0;
         int duplicates = 0;
-        if (ddb_delta_encode(values, &buf, &buf_size, &size, &duplicates))
+        uint32_t num_written = 0;
+
+        if (ddb_delta_encode(values, &buf, &buf_size, &size,
+                &num_written, &duplicates, unique_items))
             goto end;
+
+        pack->head->num_values += num_written;
         if (duplicates){
             SETFLAG(pack->head, F_MULTISET);
         }
+
         buffer_toc_mark(pack);
         if (buffer_write_data(pack, (const char*)&keys[i].length, 4))
             goto end;
@@ -115,6 +130,19 @@ end:
     free(buf);
     return ret;
 }
+
+#ifdef HUFFMAN_DEBUG
+static int ccmp(const char *x, const char *y, uint32_t len)
+{
+    uint32_t i = 0;
+    for (i = 0; i < len; i++)
+        if (x[i] != y[i]){
+            fprintf(stderr, "%u) GOT %c SHOULD BE %c\n", i, x[i], y[i]);
+            return 1;
+        }
+    return 0;
+}
+#endif
 
 static int pack_id2value(struct ddb_packed *pack,
                          const struct ddb_map *values_map,
@@ -137,7 +165,7 @@ static int pack_id2value(struct ddb_packed *pack,
         SETFLAG(pack->head, F_COMPRESSED);
         if (!(code = ddb_create_codemap(values_map)))
             goto end;
-        if (ddb_save_codemap(code, pack->head->codebook))
+        if (ddb_save_codemap(code, pack->codebook))
             goto end;
     }
 
@@ -160,10 +188,13 @@ static int pack_id2value(struct ddb_packed *pack,
                 goto end;
             val = buf;
             #ifdef HUFFMAN_DEBUG
-            ddb_decompress(pack->head->codebook, buf, size,
+            ddb_decompress(pack->codebook, buf, size,
                 &dsize, &dbuf, &dbuf_len);
-            fprintf(stderr, "ORIG: <%.*s> DECOMP: <%.*s>\n",
-                key.length, key.data, dsize, dbuf);
+            if (dsize != key.length || ccmp(dbuf, key.data, dsize)){
+                fprintf(stderr, "ORIG: <%.*s> DECOMP: <%.*s> (%u and %u)\n",
+                    key.length, key.data, dsize, dbuf, dsize, key.length);
+                exit(1);
+            }
             #endif
         }
 
@@ -188,6 +219,13 @@ end:
     ddb_map_free(code);
     free(buf);
     return err;
+}
+
+static int pack_codebook(struct ddb_packed *pack)
+{
+    buffer_new_section(pack, 0);
+    return buffer_write_data(pack,
+        (char*)pack->codebook, sizeof(pack->codebook));
 }
 
 static struct ddb_entry *pack_hash(struct ddb_packed *pack,
@@ -238,43 +276,62 @@ static int pack_header(struct ddb_packed *pack, const struct ddb_cons *cons)
 
     buffer_new_section(pack, 0);
     head->magic = DISCODB_MAGIC;
+    head->flags = 0;
     head->num_keys = ddb_map_num_items(cons->keys_map);
     head->num_uniq_values = ddb_map_num_items(cons->values_map);
-    head->num_values = cons->num_values;
-    head->flags = 0;
+    /* num_values is set in key2values after removing duplicates (maybe) */
+    head->num_values = 0;
     return 0;
 }
 
+static int maybe_disable_compression(const struct ddb_cons *cons)
+{
+    /* It doesn't make sense to compress a small set of values as
+     * the huffman codebook has 0.5M overhead. */
+    if (cons->uvalues_total_size < COMPRESS_MIN_TOTAL_SIZE)
+        return DDB_OPT_DISABLE_COMPRESSION;
+    /* Compression ignores values less than 4 bytes. Values that
+     * are exactly 4 bytes are handled by duplicate removal, so
+     * compressing them is useless. Hence, values need to be at
+     * least 5 bytes to benefit from compression. */
+    double num = ddb_map_num_items(cons->values_map);
+    if (cons->uvalues_total_size / num < COMPRESS_MIN_AVG_VALUE_SIZE)
+        return DDB_OPT_DISABLE_COMPRESSION;
+    return 0;
+}
 
 char *ddb_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
 {
-    struct ddb_packed pack;
+    struct ddb_packed *pack = NULL;
     struct ddb_entry *order = NULL;
-    int err = 1;
+    char *buf;
+    int disable_compression, err = 1;
     DDB_TIMER_DEF
 
-    if (buffer_init(&pack))
+    if (!(pack = buffer_init()))
         goto err;
 
-    if (pack_header(&pack, cons))
+    if (pack_header(pack, cons))
         goto err;
 
     DDB_TIMER_START
-    pack.head->hash_offs = pack.offs;
-    if (!(order = pack_hash(&pack, cons->keys_map)))
+    pack->head->hash_offs = pack->offs;
+    if (!(order = pack_hash(pack, cons->keys_map)))
         goto err;
     DDB_TIMER_END("hash")
 
     DDB_TIMER_START
-    pack.head->key2values_offs = pack.offs;
-    if (pack_key2values(&pack, order, cons->keys_map))
+    pack->head->key2values_offs = pack->offs;
+    if (pack_key2values(pack, order, cons->keys_map,
+            flags & DDB_OPT_UNIQUE_ITEMS))
         goto err;
     DDB_TIMER_END("key2values")
 
     DDB_TIMER_START
-    pack.head->id2value_offs = pack.offs;
-    if (pack_id2value(&pack, cons->values_map,
-            flags & DDB_OPT_DISABLE_COMPRESSION))
+    flags |= maybe_disable_compression(cons);
+    disable_compression = flags & DDB_OPT_DISABLE_COMPRESSION;
+    pack->head->id2value_offs = pack->offs;
+    if (pack_id2value(pack, cons->values_map, disable_compression))
         goto err;
     else{
         ddb_map_free(cons->values_map);
@@ -282,16 +339,25 @@ char *ddb_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
     }
     DDB_TIMER_END("id2values")
 
-    pack.head->size = *length = pack.offs;
-    buffer_shrink(&pack);
+    if (!disable_compression){
+        DDB_TIMER_START
+        pack->head->codebook_offs = pack->offs;
+        if (pack_codebook(pack))
+            goto err;
+        DDB_TIMER_END("save_codebook")
+    }
+    pack->head->size = *length = pack->offs;
+    buffer_shrink(pack);
     err = 0;
 err:
+    buf = pack->buffer;
     free(order);
+    free(pack);
     if (err){
-        free(pack.buffer);
+        free(buf);
         return NULL;
     }
-    return pack.buffer;
+    return buf;
 }
 
 struct ddb_cons *ddb_cons_new()
@@ -351,14 +417,15 @@ int ddb_add(struct ddb_cons *db,
     if (value){
         if (!(val_ptr = ddb_map_insert_str(db->values_map, value)))
             return -1;
-        if (!*val_ptr)
+        if (!*val_ptr){
             *val_ptr = ddb_map_num_items(db->values_map);
+            db->uvalues_total_size += value->length;
+        }
         value_id = *val_ptr;
 
         if (!(value_list = ddb_list_append(value_list, value_id)))
             return -1;
         *key_ptr = (uint64_t)value_list;
-        ++db->num_values;
     }
     return 0;
 }

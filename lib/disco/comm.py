@@ -17,9 +17,10 @@ except ImportError:
     nocurl = True
 
 if nocurl:
-    import httplib as commlib
+    from httplib import HTTPConnection
 else:
-    from disco import comm_pycurl as commlib
+    from disco import comm_pycurl
+    from disco.comm_pycurl import HTTPConnection
 
 # get rid of this for python2.6+
 try:
@@ -49,8 +50,6 @@ def range_header(offset):
     return {}
 
 def resolveuri(baseuri, uri):
-    if uri.startswith(baseuri):
-        return uri
     if uri.startswith('/'):
         scheme, netloc, _path = urlsplit(baseuri)
         return '%s://%s%s' % (scheme, netloc, uri)
@@ -60,7 +59,7 @@ def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
 
     try:
-        conn = commlib.HTTPConnection(str(netloc))
+        conn = HTTPConnection(str(netloc))
         conn.request(method, '/%s' % path, body=data, headers=headers)
         response = conn.getresponse()
     except (httplib.HTTPException, httplib.socket.error), e:
@@ -72,8 +71,9 @@ def request(method, url, data=None, headers={}, sleep=0):
         time.sleep(2**sleep)
         return request(method, url, data=data, headers=headers, sleep=sleep + 1)
     elif isredirection(response.status):
+        loc = response.getheader('location')
         return request(method,
-                       resolveuri(url, response.getheader('location')),
+                       loc if loc.startswith('http:') else resolveuri(url, loc),
                        data=data,
                        headers=headers,
                        sleep=sleep)
@@ -87,12 +87,11 @@ def download(url, method='GET', data=None, offset=()):
                    data=data,
                    headers=range_header(offset)).read()
 
-def upload(urls, sources, **kwargs):
-    urls, sources = iterify(urls), iterify(sources)
+def upload(urls, source, **kwargs):
+    source = FileSource(source)
     if nocurl:
-        return [request('PUT', url, data=source.makefile().read()).read()
-                for url, source in zip(urls, sources)]
-    return list(commlib.upload(urls, sources, **kwargs))
+        return [request('PUT', url, data=source.read()).read() for url in urls]
+    return list(comm_pycurl.upload(urls, source, **kwargs))
 
 def open_local(path):
     fd = open(path, 'r', BUFFER_SIZE)
@@ -102,6 +101,22 @@ def open_local(path):
 def open_remote(url):
     conn = Connection(urlresolve(url))
     return conn, len(conn), conn.url
+
+class FileSource(object):
+    def __init__(self, source):
+        self.isopen = hasattr(source, 'read')
+        self.source = source.read() if self.isopen else source
+
+    def __len__(self):
+        if self.isopen:
+            return len(self.source)
+        return os.stat(self.source).st_size
+
+    @property
+    def read(self):
+        if self.isopen:
+            return StringIO(self.source).read
+        return open(self.source, 'r').read
 
 class Connection(object):
     def __init__(self, url):

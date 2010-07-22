@@ -8,7 +8,7 @@
 
 -spec start_link(pid(), pid(), pid(), nonempty_string(), nonempty_string(),
     non_neg_integer()) -> no_return().
-start_link(Master, EventServer, DdfsMaster, DataRoot, Node, GCAfter) ->
+start_link(Master, EventServer, DdfsMaster, DataRoot, Host, GCAfter) ->
     case catch register(temp_gc, self()) of
         {'EXIT', {badarg, _}} ->
             exit(already_started);
@@ -17,7 +17,7 @@ start_link(Master, EventServer, DdfsMaster, DataRoot, Node, GCAfter) ->
     put(master, Master),
     put(events, EventServer),
     put(ddfs, DdfsMaster),
-    put(root, filename:join(DataRoot, Node)),
+    put(root, filename:join(DataRoot, Host)),
     put(gcafter, GCAfter),
     loop().
 
