@@ -13,6 +13,7 @@
 -type user_attr() :: [{binary(), binary()}].
 % An 'internal' token is also used by internal consumers, but never stored.
 -type token() :: 'null' | binary().
+-type tokentype() :: 'read' | 'write'.
 -type replyto() :: {pid(), reference()}.
 
 -record(tagcontent, {id :: binary(),
@@ -61,6 +62,23 @@ make_tagdata(D) ->
             {<<"urls">>, D#tagcontent.urls},
             {<<"user-data">>, {struct, D#tagcontent.user}}
         ]})).
+
+-spec make_api_tagdata(tagcontent(), tokentype()) -> binary().
+make_api_tagdata(D, TokenType) ->
+    Tokens = case TokenType of
+                 read ->
+                     [{<<"read-token">>, D#tagcontent.read_token}];
+                 write ->
+                     [{<<"read-token">>, D#tagcontent.read_token},
+                      {<<"write-token">>, D#tagcontent.write_token}]
+             end,
+    Struct = lists:append([{<<"version">>, 1},
+                           {<<"id">>, D#tagcontent.id},
+                           {<<"last-modified">>, D#tagcontent.last_modified},
+                           {<<"urls">>, D#tagcontent.urls},
+                           {<<"user-data">>, {struct, D#tagcontent.user}}
+                          ], Tokens),
+    list_to_binary(mochijson2:encode({struct, Struct})).
 
 -spec tag_lookup(any(), [binary()], [any()]) ->
      {'ok', [any()]} | {'error', _}.
@@ -138,28 +156,66 @@ get_new_values(S, Field, Value) ->
     end.
 
 -spec check_write_token(binary(), replyto(), #state{},
-                        fun(() -> #state{})) -> #state{}.
+                        fun((tokentype()) -> #state{})) -> #state{}.
 check_write_token(Token, ReplyTo, S, Op) ->
-    {_, WriteToken, _, _} = get_current_values(S),
-    check_token(Token, ReplyTo, WriteToken, Op, S).
-
--spec check_read_token(binary(), replyto(), #state{},
-                       fun(() -> #state{})) -> #state{}.
-check_read_token(Token, ReplyTo, S, Op) ->
-    {ReadToken, _, _, _} = get_current_values(S),
-    check_token(Token, ReplyTo, ReadToken, Op, S).
-
--spec check_token(token(), replyto(), token(),
-                  fun(() -> #state{}), #state{}) -> #state{}.
-check_token(Token, ReplyTo, CurrentToken, Op, S) ->
-    Auth = (Token =:= internal) or (Token =:= CurrentToken)
-        or (CurrentToken =:= null),
-    case Auth of
-        true ->
-            Op();
+    {ReadToken, WriteToken, _, _} = get_current_values(S),
+    case check_token(write, Token, ReadToken, WriteToken) of
         false ->
             send_replies(ReplyTo, {error, unauthorized}),
-            S
+            S;
+        TokenType ->
+            Op(TokenType)
+    end.
+
+-spec check_read_token(binary(), replyto(), #state{},
+                       fun((tokentype()) -> #state{})) ->
+    #state{}.
+check_read_token(Token, ReplyTo, S, Op) ->
+    {ReadToken, WriteToken, _, _} = get_current_values(S),
+    case check_token(read, Token, ReadToken, WriteToken) of
+        false ->
+            send_replies(ReplyTo, {error, unauthorized}),
+            S;
+        TokenType ->
+            Op(TokenType)
+    end.
+
+-spec check_token(tokentype(), token(), token(), token()) -> tokentype() | 'false'.
+check_token(TokenType, Token, ReadToken, WriteToken) ->
+    Auth = fun (Token, CurrentToken) ->
+               (Token =:= internal) or (CurrentToken =:= null)
+                   or (Token =:= CurrentToken)
+           end,
+    case TokenType of
+        read ->
+            case Auth(Token, ReadToken) of
+                true ->
+                    % It is possible that the Token also carries
+                    % write-privileges, either because the write-token
+                    % is not set, or because ReadToken =:= WriteToken.
+                    case (WriteToken =:= null) or (ReadToken =:= WriteToken) of
+                        true -> write;
+                        false -> read
+                    end;
+                false ->
+                    case Auth(Token, WriteToken) of
+                        true ->
+                            % We should not allow reads if the
+                            % WriteToken check passes just because it
+                            % hasn't been set.
+                            case WriteToken of
+                                null -> false;
+                                _ -> write
+                            end;
+                        false ->
+                            false
+                    end
+            end;
+        write ->
+            case Auth(Token, WriteToken) of
+                true -> write;
+                false -> false
+            end
     end.
 
 % THOUGHT: Eventually we want to partition tag keyspace instead
@@ -248,7 +304,7 @@ handle_cast({{delayed_update, Urls, Token}, ReplyTo},
             #state{delayed = {Waiters, OldUrls}, tag = Tag} = S) ->
     S1 =
         check_write_token(Token, ReplyTo, S,
-                          fun() ->
+                          fun(_TokenType) ->
                               do_delayed_update(Urls, ReplyTo, Waiters,
                                                 OldUrls, Tag, S)
                           end),
@@ -262,7 +318,7 @@ handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
 
 handle_cast({{delete, Token}, ReplyTo}, S) ->
     S1 = check_write_token(Token, ReplyTo, S,
-                           fun () ->
+                           fun (_TokenType) ->
                                do_delete(ReplyTo, S)
                            end),
     gen_server:reply(ReplyTo, ok),
@@ -273,8 +329,8 @@ handle_cast({die, _}, S) ->
 
 handle_cast({{get, Attrib, Token}, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
     S1 = check_read_token(Token, ReplyTo, S,
-                          fun () ->
-                                  do_get(Attrib, ReplyTo, D, S)
+                          fun (TokenType) ->
+                                  do_get(TokenType, Attrib, ReplyTo, D, S)
                           end),
     {noreply, S1, S1#state.timeout};
 
@@ -311,7 +367,7 @@ handle_cast({{update, Urls, Token}, ReplyTo}, #state{data = C} = S) ->
 
 handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
     S1 = check_write_token(Token, ReplyTo, S,
-                          fun () ->
+                          fun (_TokenType) ->
                               do_put(Field, Value, ReplyTo, S)
                           end),
     {noreply, S1, S1#state.timeout};
@@ -406,17 +462,25 @@ do_delayed_update(Urls, ReplyTo, Waiters, OldUrls, Tag, S) ->
             S
     end.
 
--spec do_get(attrib(), replyto(), tagcontent(), #state{}) -> #state{}.
-do_get(Attrib, ReplyTo, D, S) ->
+-spec do_get(tokentype(), attrib(), replyto(), tagcontent(), #state{}) ->
+    #state{}.
+do_get(TokenType, Attrib, ReplyTo, D, S) ->
     R = case Attrib of
             all ->
-                make_tagdata(S#state.data);
+                make_api_tagdata(D, TokenType);
             urls ->
                 list_to_binary(mochijson2:encode(D#tagcontent.urls));
             read_token ->
+                % If we've got this far, the request carried at least
+                % read-privileges, so we don't need to check TokenType.
                 token_encode(D#tagcontent.read_token);
             write_token ->
-                token_encode(D#tagcontent.write_token);
+                case TokenType of
+                    'read' ->
+                        {error, unauthorized};
+                    'write' ->
+                        token_encode(D#tagcontent.write_token)
+                end;
             {user, A} ->
                 case proplists:lookup(A, D#tagcontent.user) of
                     {_, V} -> list_to_binary(mochijson2:encode(V));
