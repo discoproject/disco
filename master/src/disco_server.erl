@@ -206,9 +206,6 @@ handle_call({new_task, Task}, _, S) ->
     case catch gen_server:call(scheduler, {new_task, Task, NodeStats}) of
         ok ->
             gen_server:cast(self(), schedule_next),
-            event_server:event(Task#task.jobname,
-                "~s:~B added to waitlist",
-                [Task#task.mode, Task#task.taskid], []),
             {reply, ok, S};
         Error ->
             error_logger:warning_report({"Scheduling task failed",
