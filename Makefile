@@ -45,7 +45,7 @@ UNAME = $(shell uname)
 
 build: master
 
-master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
+master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET) $(TEST_TARGET)
 
 clean:
 	- rm -Rf master/ebin/*.beam
