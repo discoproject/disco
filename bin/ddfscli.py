@@ -52,6 +52,7 @@ class DDFSOptionParser(OptionParser):
                         action='store_true',
                         help='prefix mode for commands that take it.')
         self.add_option('-R', '--reader',
+                        default='disco.func.chain_reader',
                         help='input reader to import and use')
         self.add_option('-r', '--recursive',
                         action='store_true',
@@ -345,7 +346,7 @@ def xcat(program, *urls):
     from disco.util import iterify, reify
 
     tags, urls = program.separate_tags(*urls)
-    reader = reify(program.options.reader or 'disco.func.chain_reader')
+    reader = reify(program.options.reader)
 
     for result in result_iterator(chain(urls, program.blobs(*tags)),
                                   reader=reader):
