@@ -13,11 +13,6 @@ def nodemux(kvrecord, params):
     """Yields the `kvrecord` itself."""
     yield kvrecord
 
-def iterdemux((k, viter), params):
-    """Ungroups the `(k, viter)` to produce `(k, v)` for every `v` in `viter`."""
-    for v in viter:
-        yield k, v
-
 def discodbdemux(discodb, params):
     """
     Unpacks the discodb to produce all `('k:v', discodb)` pairs.

@@ -71,10 +71,6 @@ class DataSet(dict, JSONSerialized):
     def required_files(self):
         return self.options.get('required_files')
 
-    @property
-    def k_viter(self):
-        return bool(self.options.get('k_viter', False))
-
 class Indices(list, JSONSerialized):
     pass
 

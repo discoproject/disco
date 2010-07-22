@@ -38,10 +38,6 @@ class Indexer(DiscodexJob):
         self.required_files = dataset.required_files
         self.params         = Params(n=0)
 
-        if dataset.k_viter:
-            from discodex.mapreduce import demuxers
-            self.map  = demuxers.iterdemux
-
     @staticmethod
     def reduce(iterator, out, params):
         # there should be a discodb writer of some sort
