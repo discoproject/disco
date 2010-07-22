@@ -7,8 +7,7 @@ from disco.events import Message
 from disco.error import CommError
 
 class CurlResponse(object):
-    def __init__(self, connection):
-        self.connection = connection
+    def __init__(self):
         self.headers = {}
         self.buffer = StringIO()
 
@@ -26,10 +25,6 @@ class CurlResponse(object):
     def read(self):
         return self.buffer.getvalue()
 
-    @property
-    def status(self):
-        return self.connection['HTTP_CODE']
-
 class HTTPConnection(object):
     defaults = {'CONNECTTIMEOUT': 20,
                 'FRESH_CONNECT': 1,
@@ -43,7 +38,7 @@ class HTTPConnection(object):
             self[k] = v
 
         self.netloc = netloc
-        self.response = CurlResponse(self)
+        self.response = CurlResponse()
         self['HEADERFUNCTION'] = self.response.header_function
         self['WRITEFUNCTION']  = self.response.buffer.write
 
@@ -54,6 +49,7 @@ class HTTPConnection(object):
         self.handle.setopt(getattr(pycurl, key), value)
 
     def getresponse(self):
+        self.response.status = self['HTTP_CODE']
         return self.response
 
     def prepare(self, method, url, body=None, headers={}):
