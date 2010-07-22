@@ -15,7 +15,7 @@
 % the job status e.g. by using handle_ctrl's get_results.
 -spec new(binary()) -> _.
 new(PostData) ->
-    TMsg = "couldn't start a new job coordinator in 10s (master busy?)",
+    TMsg = "couldn't start a new job coordinator in 30s (master busy?)",
     S = self(),
     P = spawn(fun() -> init_job_coordinator(S, PostData) end),
     receive
@@ -26,7 +26,7 @@ new(PostData) ->
     {P, invalid_jobdesc} -> throw("invalid job description");
     {P, timeout} -> throw(TMsg);
     _ -> throw("job coordinator failed")
-    after 10000 ->
+    after 30000 ->
     throw(TMsg)
     end.
 
