@@ -43,11 +43,11 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     Exc = parse_exclude(lists:keysearch("exclude", 1, QS)),
     case ddfs:new_blob(ddfs_master, BlobName, K, Exc) of
         {ok, Urls} when length(Urls) < K ->
-            Req:respond({403, [], ["Not enough nodes for replicas"]});
+            Req:respond({403, [], ["Not enough nodes for replicas."]});
         too_many_replicas ->
-            Req:respond({403, [], ["Not enough nodes for replicas"]});
+            Req:respond({403, [], ["Not enough nodes for replicas."]});
         invalid_name ->
-            Req:respond({403, [], ["Invalid prefix"]});
+            Req:respond({403, [], ["Invalid prefix."]});
         {ok, Urls} ->
             okjson([list_to_binary(U) || U <- Urls], Req);
         E ->
@@ -69,19 +69,19 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
     Token = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
-            Req:respond({404, [], ["Tag attribute not found"]});
+            Req:respond({404, [], ["Tag attribute not found."]});
         _ ->
             case ddfs:get_tag(ddfs_master, Tag, Attrib, Token) of
                 {ok, TagData} ->
                     Req:ok({"application/json", [], TagData});
                 invalid_name ->
-                    Req:respond({403, [], ["Invalid tag"]});
+                    Req:respond({403, [], ["Invalid tag."]});
                 deleted ->
-                    Req:respond({404, [], ["Tag not found"]});
+                    Req:respond({404, [], ["Tag not found."]});
                 notfound ->
-                    Req:respond({404, [], ["Tag not found"]});
+                    Req:respond({404, [], ["Tag not found."]});
                 unknown_attribute ->
-                    Req:respond({404, [], ["Tag attribute not found"]});
+                    Req:respond({404, [], ["Tag attribute not found."]});
                 E ->
                     error(E, Req)
             end
@@ -104,7 +104,7 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     Token = parse_auth_token(Req),
     case Attrib of
         unknown_attribute ->
-            Req:respond({404, [], ["Tag attribute not found"]});
+            Req:respond({404, [], ["Tag attribute not found."]});
         _ ->
             tag_update(fun(Value) ->
                            ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
@@ -152,7 +152,7 @@ okjson(Data, Req) ->
 tag_update(Fun, Req) ->
     case catch mochijson2:decode(Req:recv_body(?MAX_TAG_BODY_SIZE)) of
         {'EXIT', _} ->
-            Req:respond({403, [], ["Invalid request body"]});
+            Req:respond({403, [], ["Invalid request body."]});
         Value ->
             case Fun(Value) of
                 {ok, Dst} ->
