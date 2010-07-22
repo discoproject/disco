@@ -136,6 +136,8 @@ error({error, unauthorized}, Req) ->
     Req:respond({401, [], ["Tag operation requires token."]});
 error({error, invalid_name}, Req) ->
     Req:respond({403, [], ["Invalid tag"]});
+error({error, unknown_attribute}, Req) ->
+    Req:respond({404, [], ["Tag attribute not found."]});
 error({error, E}, Req) when is_atom(E) ->
     Req:respond({500, [], ["Internal server error: ", atom_to_list(E)]});
 error(E, Req) ->
