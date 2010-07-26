@@ -130,6 +130,12 @@ class Task(object):
     def url(self, filename, scheme='disco'):
         return '%s://%s/disco/%s/%s' % (scheme, self.host, self.jobpath, filename)
 
+    def open_url(self, url):
+        scheme, netloc, rest = util.urlsplit(url, localhost=self.host)
+        if scheme == 'file':
+            return comm.open_local(rest)
+        return comm.open_remote('%s://%s/%s' % (scheme, netloc, rest))
+
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval
         n = -1
