@@ -7,6 +7,10 @@
 -export([start/2, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
+-export([token_encode/1, make_tagcontent/6, make_tagdata/1, make_api_tagdata/2,
+         tag_lookup/3, parse_tagcontent/1, get_new_values/3,
+         check_token/4]).
+
 -type replica() :: {timer:timestamp(), nonempty_string()}.
 -type attrib() :: 'all' | 'urls' | 'read_token' | 'write_token'
                 | {'user', binary()}.
@@ -43,8 +47,13 @@ token_encode(T) ->
 -spec new_tagcontent(binary(), token(), token(), [binary()], user_attr())
     -> tagcontent().
 new_tagcontent(TagName, ReadToken, WriteToken, Urls, User) ->
+    make_tagcontent(TagName, ddfs_util:format_timestamp(), ReadToken, WriteToken, Urls, User).
+
+-spec make_tagcontent(binary(), binary(), token(), token(), [binary()], user_attr())
+    -> tagcontent().
+make_tagcontent(TagName, TimeStamp, ReadToken, WriteToken, Urls, User) ->
     #tagcontent{id = TagName,
-                last_modified = ddfs_util:format_timestamp(),
+                last_modified = TimeStamp,
                 read_token = ReadToken,
                 write_token = WriteToken,
                 urls = Urls,
