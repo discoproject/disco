@@ -129,7 +129,7 @@ $(EBIN)/ddfs:
 $(EBIN)/mochiweb:
 	- mkdir $(EBIN)/mochiweb
 
-.PHONY: dialyzer typer realclean
+.PHONY: master dialyzer typer realclean
 
 DIALYZER_PLT = master/.dialyzer_plt
 
@@ -149,6 +149,6 @@ typer:
 realclean: clean
 	-rm -f $(DIALYZER_PLT)
 
-master-tests: $(TEST_TARGET)
-	$(ERL) -noshell -pa $(ETEST) -pa $(EBIN) -pa $(EBIN)/ddfs -s master_tests main -s init stop
+master-tests: $(TEST_TARGET) master
+	$(ERL) -noshell -pa $(ETEST) -pa $(EBIN) -pa $(EBIN)/ddfs -pa $(EBIN)/mochiweb -s master_tests main -s init stop
 
