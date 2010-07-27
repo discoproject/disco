@@ -531,12 +531,12 @@ def reduce_output_stream(stream, partition, url, params):
     return AtomicFile(path, 'w'), url
 
 def disco_output_stream(stream, partition, url, params, version = -1,
-                        compress_level = 2, min_chunk = 1 * 1024**2):
+                        compress_level = 2, min_hunk = 1 * 1024**2):
     from disco.fileutils import DiscoOutput
     return DiscoOutput(stream,
                        version = version,
                        compress_level = compress_level,
-                       min_chunk = min_chunk), url
+                       min_hunk = min_hunk), url
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
     import struct, cStringIO, gzip, cPickle, zlib
@@ -550,27 +550,27 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 yield e
             return
         try:
-            is_compressed, checksum, chunk_size =\
+            is_compressed, checksum, hunk_size =\
                 struct.unpack('<BIQ', stream.read(13))
         except:
             raise DataError("Truncated data at %d bytes" % offset, url)
-        if not chunk_size:
+        if not hunk_size:
             return
-        chunk = stream.read(chunk_size)
+        hunk = stream.read(hunk_size)
         data = ''
         try:
-            data = zlib.decompress(chunk) if is_compressed else chunk
+            data = zlib.decompress(hunk) if is_compressed else hunk
             if checksum != (zlib.crc32(data) & 0xFFFFFFFF):
                 raise ValueError("Checksum does not match")
         except (ValueError, zlib.error), e:
             if not ignore_corrupt:
                 raise DataError("Corrupted data between bytes %d-%d: %s" %
-                                (offset, offset + chunk_size, e), url)
-        offset += chunk_size
-        chunk = cStringIO.StringIO(data)
+                                (offset, offset + hunk_size, e), url)
+        offset += hunk_size
+        hunk = cStringIO.StringIO(data)
         while True:
             try:
-                yield cPickle.load(chunk)
+                yield cPickle.load(hunk)
             except EOFError:
                 break
 

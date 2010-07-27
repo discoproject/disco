@@ -8,20 +8,20 @@ MIN_DISK_SPACE = 1024**2
 
 class DiscoOutput(object):
     VERSION = 1
-    def __init__(self, stream, compress_level, min_chunk, version):
+    def __init__(self, stream, compress_level, min_hunk, version):
         self.compress_level = compress_level
-        self.min_chunk = min_chunk
+        self.min_hunk = min_hunk
         self.version = self.VERSION if version < 0 else version
         self.stream = stream
-        self.chunk = cStringIO.StringIO()
-        self.chunk_size = 0
+        self.hunk = cStringIO.StringIO()
+        self.hunk_size = 0
         self.newstream = False
 
     def write(self, buf):
         self.stream.write(buf)
 
     def dump(self):
-        encoded_data = self.chunk.getvalue()
+        encoded_data = self.hunk.getvalue()
         checksum = zlib.crc32(encoded_data) & 0xFFFFFFFF
         if self.compress_level:
             encoded_data = zlib.compress(encoded_data, self.compress_level)
@@ -30,8 +30,8 @@ class DiscoOutput(object):
                           int(self.compress_level > 0),
                           checksum,
                           len(encoded_data)) + encoded_data)
-        self.chunk = cStringIO.StringIO()
-        self.chunk_size = 0
+        self.hunk = cStringIO.StringIO()
+        self.hunk_size = 0
 
     def add(self, k, v):
         if self.version == 0:
@@ -41,14 +41,14 @@ class DiscoOutput(object):
             return
         self.newstream = True
         buf = cPickle.dumps((k, v), 1)
-        self.chunk_size += len(buf)
-        self.chunk.write(buf)
-        if self.chunk_size > self.min_chunk:
+        self.hunk_size += len(buf)
+        self.hunk.write(buf)
+        if self.hunk_size > self.min_hunk:
             self.dump()
 
     def close(self):
         if self.newstream:
-            if self.chunk_size:
+            if self.hunk_size:
                 self.dump()
             self.dump()
 
