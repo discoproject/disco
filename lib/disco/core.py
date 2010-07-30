@@ -28,6 +28,7 @@ newly started job.
 .. autofunction:: result_iterator
 """
 import sys, os, time, marshal
+from cStringIO import StringIO
 from tempfile import NamedTemporaryFile
 from itertools import chain
 from warnings import warn
@@ -36,6 +37,7 @@ from disco import func, util
 from disco.comm import download, json
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
+from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.modutil import find_modules
 from disco.netstring import decode_netstring_fd, encode_netstring_fd
 from disco.settings import DiscoSettings
@@ -202,7 +204,6 @@ class Disco(object):
         self.request('/disco/ctrl/purge_job', '"%s"' % name)
 
     def jobdict(self, name):
-        from cStringIO import StringIO
         return JobDict.unpack(StringIO(self.jobpack(name)))
 
     def jobpack(self, name):
@@ -1009,6 +1010,22 @@ class Job(object):
             raise DiscoError("Failed to start a job. Server replied: " + reply)
         self.name = reply[1]
         return self
+
+class ChunkIter(object):
+    def __init__(self, urls,
+                 chunk_size=CHUNK_SIZE,
+                 reader=None,
+                 **kwargs):
+        self.urls = urls
+        self.chunk_size= chunk_size
+        self.kwargs = kwargs
+        self.kwargs.update(dict(reader=reader))
+
+    def __iter__(self):
+        chunker = Chunker(chunk_size=self.chunk_size)
+        for url in self.urls:
+            for chunk in chunker.chunks(RecordIter([url], **self.kwargs)):
+                yield StringIO(chunk), url
 
 class RecordIter(object):
     """

@@ -530,13 +530,9 @@ def reduce_output_stream(stream, partition, url, params):
     Task.blobs.append(path)
     return AtomicFile(path, 'w'), url
 
-def disco_output_stream(stream, partition, url, params, version = -1,
-                        compress_level = 2, min_hunk = 1 * 1024**2):
+def disco_output_stream(stream, partition, url, params):
     from disco.fileutils import DiscoOutput
-    return DiscoOutput(stream,
-                       version = version,
-                       compress_level = compress_level,
-                       min_hunk = min_hunk), url
+    return DiscoOutput(stream), url
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
     import struct, cStringIO, gzip, cPickle, zlib
