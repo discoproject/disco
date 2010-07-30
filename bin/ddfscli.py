@@ -55,7 +55,6 @@ class DDFSOptionParser(OptionParser):
                         action='store_true',
                         help='prefix mode for commands that take it.')
         self.add_option('-R', '--reader',
-                        default='disco.func.chain_reader',
                         help='input reader to import and use')
         self.add_option('-r', '--recursive',
                         action='store_true',
@@ -160,6 +159,22 @@ def cat(program, *urls):
     for replicas in chain(([url] for url in urls),
                           program.blobs(*tags)):
         sys.stdout.write(curl(replicas))
+
+@DDFS.command
+def chunk(program, tag, *urls):
+    """Usage: [-n replicas] [-R reader] tag [url ...]
+
+    Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
+    """
+    from disco.util import reify
+
+    tags, urls = program.separate_tags(*urls)
+    reader = reify(program.options.reader or 'None')
+    tag, blobs = program.ddfs.chunk(tag, urls,
+                                    reader=reader,
+                                    replicas=program.options.replicas)
+    for replicas in blobs:
+        print 'created: %s' % '\t'.join(replicas)
 
 @DDFS.command
 def cp(program, source_tag, target_tag):
@@ -425,7 +440,8 @@ def xcat(program, *urls):
     from disco.util import iterify, reify
 
     tags, urls = program.separate_tags(*urls)
-    reader = reify(program.options.reader)
+    reader = program.options.reader
+    reader = reify('disco.func.chain_reader' if reader is None else reader)
 
     for result in result_iterator(chain(urls, program.blobs(*tags)),
                                   reader=reader):

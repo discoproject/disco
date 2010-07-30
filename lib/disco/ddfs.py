@@ -115,8 +115,8 @@ class DDFS(object):
               token=None,
               **kwargs):
         """
-        Chunks the contents of `urls`, pushes the chunks to ddfs,
-        and tags them with `tag`.
+        Chunks the contents of `urls`,
+        pushes the chunks to ddfs and tags them with `tag`.
         """
         from disco.core import ChunkIter
 
