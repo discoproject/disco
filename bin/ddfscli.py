@@ -350,7 +350,7 @@ def xcat(program, *urls):
 
     for result in result_iterator(chain(urls, program.blobs(*tags)),
                                   reader=reader):
-        print '\t'.join(map(str, iterify(result)))
+        print '\t'.join(map(str, iterify(result))).rstrip()
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()
