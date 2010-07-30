@@ -1012,20 +1012,19 @@ class Job(object):
         return self
 
 class ChunkIter(object):
-    def __init__(self, urls,
+    def __init__(self, url,
                  chunk_size=CHUNK_SIZE,
                  reader=None,
                  **kwargs):
-        self.urls = urls
+        self.url = url
         self.chunk_size= chunk_size
         self.kwargs = kwargs
         self.kwargs.update(dict(reader=reader))
 
     def __iter__(self):
         chunker = Chunker(chunk_size=self.chunk_size)
-        for url in self.urls:
-            for chunk in chunker.chunks(RecordIter([url], **self.kwargs)):
-                yield StringIO(chunk), url
+        for chunk in chunker.chunks(RecordIter([self.url], **self.kwargs)):
+            yield chunk
 
 class RecordIter(object):
     """

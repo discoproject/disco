@@ -108,6 +108,29 @@ class DDFS(object):
                               method='DELETE',
                               token=token)
 
+    def chunk(self, tag, urls,
+              replicas=None,
+              retries=10,
+              delayed=False,
+              token=None,
+              **kwargs):
+        """
+        Chunks the contents of `urls`, pushes the chunks to ddfs,
+        and tags them with `tag`.
+        """
+        from disco.core import ChunkIter
+
+        def chunk_name(url, n):
+            return self.safe_name('%s-%s' % (os.path.basename(url), n))
+
+        blobs = [self._push((StringIO(chunk), chunk_name(url, n)),
+                            replicas=replicas,
+                            retries=retries)
+                 for url in urls
+                 for n, chunk in enumerate(ChunkIter(url, **kwargs))]
+        return self.tag(tag, blobs, delayed=delayed, token=token), blobs
+
+
     def delete(self, tag, token=None):
         """Delete ``tag``."""
         return self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),

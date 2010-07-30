@@ -27,7 +27,7 @@ class Chunker(object):
     in the worst case for a chunk:
       sizeof(chunk) = C - 1
       a new hunk is added with size ((H - 1) + (R - 1)) * S
-      sizoof(chunk) = C - 1 + (H - 1) + (R - 1) * S + len(header)
+      sizoof(chunk) = C - 1 + ((H - 1) + (R - 1)) * S + len(header)
     """
     def __init__(self, chunk_size=CHUNK_SIZE):
         self.chunk_size = chunk_size
