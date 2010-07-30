@@ -45,42 +45,6 @@ class Chunker(object):
     def makeout(self):
         return DiscoOutput(StringIO(), max_record_size=MAX_RECORD_SIZE)
 
-class Hunk(object):
-    def __init__(self,
-                 version=None,
-                 compression_level=2,
-                 hunk_size=HUNK_SIZE,
-                 max_record_size=None):
-        self.version = version
-        self.compression_level = compression_level
-        self.hunk_size = hunk_size
-        self.max_record_size = max_record_size
-        self.buffer = StringIO()
-        self.size = 0
-
-    def __str__(self):
-        data = self.buffer.getvalue()
-        checksum = zlib.crc32(data) & 0xFFFFFFFF
-        if self.iscompressed:
-            data = zlib.compress(data, self.compression_level)
-        return '%s%s' % (struct.pack('<BBIQ',
-                                     128 + self.version,
-                                     int(self.iscompressed),
-                                     checksum,
-                                     len(data)),
-                         data)
-
-    @property
-    def iscompressed(self):
-        return self.compression_level > 0
-
-    def write(self, data):
-        size = len(data)
-        if self.max_record_size and size > self.max_record_size:
-            raise ValueError("Record too big to write to hunk: %s" % record)
-        self.buffer.write(data)
-        self.size += size
-
 class DiscoOutput_v0(object):
     def __init__(self, stream):
         self.stream = stream
@@ -93,23 +57,30 @@ class DiscoOutput_v0(object):
         pass
 
 class DiscoOutput_v1(object):
-    def __init__(self, stream, **kwargs):
+    def __init__(self, stream,
+                 version=None,
+                 compression_level=2,
+                 min_hunk_size=HUNK_SIZE,
+                 max_record_size=None):
         self.stream = stream
-        self.Hunk = lambda: Hunk(**kwargs)
-        self.hunk = self.Hunk()
+        self.version = version
+        self.compression_level = compression_level
+        self.max_record_size = max_record_size
+        self.min_hunk_size = min_hunk_size
         self.size = 0
+        self.hunk_size = 0
+        self.hunk = StringIO()
 
     def add(self, k, v):
         self.append((k, v))
 
     def append(self, record):
-        hunk = self.hunk
-        hunk.write(cPickle.dumps(record, 1))
-        if hunk.size > hunk.hunk_size:
+        self.write(cPickle.dumps(record, 1))
+        if self.hunk_size > self.min_hunk_size:
             self.flush()
 
     def close(self):
-        if self.hunk:
+        if self.hunk_size:
             self.flush()
         self.flush()
 
@@ -118,10 +89,29 @@ class DiscoOutput_v1(object):
         return self.stream.getvalue()
 
     def flush(self):
-        data = str(self.hunk)
+        hunk = self.hunk.getvalue()
+        checksum = zlib.crc32(hunk) & 0xFFFFFFFF
+        iscompressed = int(self.compression_level > 0)
+        if iscompressed:
+            hunk = zlib.compress(hunk, self.compression_level)
+        data = '%s%s' % (struct.pack('<BBIQ',
+                                     128 + self.version,
+                                     iscompressed,
+                                     checksum,
+                                     len(hunk)),
+                         hunk)
+
         self.stream.write(data)
         self.size += len(data)
-        self.hunk = self.Hunk()
+        self.hunk_size = 0
+        self.hunk = StringIO()
+
+    def write(self, data):
+        size = len(data)
+        if self.max_record_size and size > self.max_record_size:
+            raise ValueError("Record too big to write to hunk: %s" % record)
+        self.hunk.write(data)
+        self.hunk_size += size
 
 class DiscoOutput(object):
     def __new__(cls, stream, version=-1, **kwargs):
