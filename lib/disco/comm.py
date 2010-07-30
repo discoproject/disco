@@ -134,7 +134,14 @@ class Connection(object):
         self.i = 0
 
     def __iter__(self):
-        pass
+        chunk = self._read_chunk(CHUNK_SIZE)
+        while chunk:
+            next_chunk = self._read_chunk(CHUNK_SIZE)
+            lines = list(StringIO(chunk))
+            last  = lines.pop() if next_chunk else ''
+            for line in lines:
+                yield line
+            chunk = last + next_chunk
 
     def __len__(self):
         if 'content-range' in self.headers:
