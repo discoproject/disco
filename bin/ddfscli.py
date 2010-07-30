@@ -170,7 +170,8 @@ def chunk(program, tag, *urls):
 
     tags, urls = program.separate_tags(*urls)
     reader = reify(program.options.reader or 'None')
-    tag, blobs = program.ddfs.chunk(tag, urls,
+    tag, blobs = program.ddfs.chunk(tag,
+                                    chain(urls, program.blobs(*tags)),
                                     reader=reader,
                                     replicas=program.options.replicas)
     for replicas in blobs:
