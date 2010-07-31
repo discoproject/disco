@@ -229,16 +229,25 @@ class OutputStream:
     ``reduce_output_stream`` chain of :func:`disco.func.output_stream` functions.
     Used to encode key, value pairs add write them to the underlying file object.
     """
-    def write(data):
-        """
-        Writes serialized key, value pairs to the underlying file object.
-        """
-
     def add(key, value):
         """
-        Adds a key, value pair to the output stream. This method typically
-        calls *self.write()* to write a serialized pair to the actual
-        file object.
+        Adds a key, value pair to the output stream.
+        """
+
+    def close(self):
+        """
+        Close the output stream.
+        """
+
+    def consume(self, iter):
+        """
+        Add all records in `iter` to the output stream.
+        """
+
+    def write(data):
+        """
+        *(Deprecated in 0.3)*
+        Writes `data` to the underlying file object.
         """
 
 class InputStream:
