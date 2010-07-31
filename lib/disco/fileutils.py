@@ -56,6 +56,9 @@ class DiscoOutput_v0(object):
     def close(self):
         pass
 
+    def write(self, data):
+        self.stream.write(data)
+
 class DiscoOutput_v1(object):
     def __init__(self, stream,
                  version=None,
@@ -70,19 +73,21 @@ class DiscoOutput_v1(object):
         self.size = 0
         self.hunk_size = 0
         self.hunk = StringIO()
+        self.writer = False
 
     def add(self, k, v):
         self.append((k, v))
 
     def append(self, record):
-        self.write(cPickle.dumps(record, 1))
+        self.hunk_write(cPickle.dumps(record, 1))
         if self.hunk_size > self.min_hunk_size:
             self.flush()
 
     def close(self):
-        if self.hunk_size:
+        if not self.writer:
+            if self.hunk_size:
+                self.flush()
             self.flush()
-        self.flush()
 
     def dumps(self):
         self.close()
@@ -106,12 +111,16 @@ class DiscoOutput_v1(object):
         self.hunk_size = 0
         self.hunk = StringIO()
 
-    def write(self, data):
+    def hunk_write(self, data):
         size = len(data)
         if self.max_record_size and size > self.max_record_size:
             raise ValueError("Record too big to write to hunk: %s" % record)
         self.hunk.write(data)
         self.hunk_size += size
+
+    def write(self, data):
+        self.writer = True
+        self.stream.write(data)
 
 class DiscoOutput(object):
     def __new__(cls, stream, version=-1, **kwargs):
