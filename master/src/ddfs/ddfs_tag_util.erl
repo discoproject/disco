@@ -68,8 +68,9 @@ lookup(Key, List) ->
    {value, {_, Value}} = lists:keysearch(Key, 1, List),
    Value.
 lookup(Key, Default, List) ->
-    proplist:get_value(Key, List, Default).
+    proplists:get_value(Key, List, Default).
 
+-spec lookup_tagcontent([{_, _}]) -> tagcontent().
 lookup_tagcontent(L) ->
     {struct, UserData} = lookup(<<"user-data">>, {struct, []}, L),
     #tagcontent{id = lookup(<<"id">>, L),
@@ -79,7 +80,9 @@ lookup_tagcontent(L) ->
                 write_token = lookup(<<"write-token">>, null, L),
                 user = UserData}.
 
--spec decode_tagcontent(binary()) -> {'error', _} | {'ok', tagcontent()}.
+-spec decode_tagcontent(binary()) ->
+                        {'error', corrupted_json | invalid_object} |
+                         {'ok', tagcontent()}.
 decode_tagcontent(TagData) ->
     case catch mochijson2:decode(TagData) of
         {'EXIT', _} ->
@@ -93,6 +96,8 @@ decode_tagcontent(TagData) ->
             end
     end.
 
+-spec update_tagcontent(tagname(), attrib(), _, _) -> 
+                        {error, invalid_url_object} | {ok, tagcontent()}.
 update_tagcontent(TagName, Field, Value, #tagcontent{} = Tag) ->
     Updated = Tag#tagcontent{id = ddfs_util:pack_objname(TagName, now()),
                              last_modified = ddfs_util:format_timestamp()},
@@ -105,6 +110,8 @@ update_tagcontent(TagName, Field, Value, _Tag) ->
                       user = []},
     update_tagcontent(TagName, Field, Value, New).
 
+-spec update_tagcontent(attrib(), _, tagcontent()) ->
+                       {error, invalid_url_object} | {ok, tagcontent()}.
 update_tagcontent(read_token, Token, Tag) ->
     {ok, Tag#tagcontent{read_token = list_to_binary(Token)}};
 
@@ -125,6 +132,6 @@ update_tagcontent({user, Key}, Attr, Tag) ->
                                               Tag#tagcontent.user,
                                               {Key, Attr})}}.
 
--spec validate_urls([binary()]) -> bool().
+-spec validate_urls([[_]]) -> bool().
 validate_urls(Urls) ->
-    [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
+    [] =:= (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).

@@ -9,6 +9,7 @@
 -include_lib("kernel/include/file.hrl").
 
 -include("config.hrl").
+-include("ddfs_tag.hrl").
 
 -spec is_valid_name(string()) -> bool().
 is_valid_name([]) -> false;
@@ -41,17 +42,17 @@ timestamp() -> timestamp(now()).
 
 -spec timestamp(timer:timestamp()) -> string().
 timestamp({X0, X1, X2}) ->
-    io_lib:format("~.16b-~.16b-~.16b", [X0, X1, X2]).
+    lists:flatten([to_hex(X0), $-, to_hex(X1), $-, to_hex(X2)]).
 
 timestamp_to_time(T) ->
     list_to_tuple([erlang:list_to_integer(X, 16) ||
         X <- string:tokens(lists:flatten(T), "-")]).
 
--spec pack_objname(string(), timer:timestamp()) -> binary().
+-spec pack_objname(tagname(), timer:timestamp()) -> tagid().
 pack_objname(Name, T) ->
     list_to_binary([Name, "$", timestamp(T)]).
 
--spec unpack_objname(binary() | string()) -> {binary(), timer:timestamp()}.
+-spec unpack_objname(tagid() | string()) -> {binary(), timer:timestamp()}.
 unpack_objname(Obj) when is_binary(Obj) ->
     unpack_objname(binary_to_list(Obj));
 unpack_objname(Obj) ->
@@ -73,7 +74,7 @@ format_timestamp() ->
     TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
     list_to_binary([DateStr, TimeStr]).
 
--spec to_hex_helper(non_neg_integer(), string()) -> string().
+-spec to_hex_helper(non_neg_integer(), string()) -> nonempty_string().
 to_hex_helper(Int, L) ->
     case {Int, L} of
         {0, []} -> "00";
@@ -87,7 +88,7 @@ to_hex_helper(Int, L) ->
             to_hex_helper(D, [C|L])
     end.
 
--spec to_hex(non_neg_integer()) -> string().
+-spec to_hex(non_neg_integer()) -> nonempty_string().
 to_hex(Int) ->
     to_hex_helper(Int, []).
 

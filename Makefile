@@ -1,7 +1,7 @@
 
 #OPT = -W +native +"{hipe, [o3]}"
 OPT = -W
-CC  = erlc
+CC  = erlc +debug_info
 ERL = erl
 
 PYTHON = python
@@ -141,7 +141,7 @@ $(DIALYZER_PLT):
 		$(ERL_LIBDIR)/lib/inets*/ebin $(ERL_LIBDIR)/lib/xmerl*/ebin
 
 dialyzer: $(DIALYZER_PLT)
-	$(DIALYZER) --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
+	$(DIALYZER) -Wspecdiffs --get_warnings --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
 
 typer:
 	$(TYPER) --plt $(DIALYZER_PLT) -r $(ESRC)

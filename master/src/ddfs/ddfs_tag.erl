@@ -9,12 +9,9 @@
         handle_info/2, terminate/2, code_change/3]).
 
 -type replica() :: {timer:timestamp(), nonempty_string()}.
--type attrib() :: 'all' | 'urls' | 'read_token' | 'write_token'
-                | {'user', binary()}.
 -type replyto() :: {pid(), reference()}.
 
--type tagcontent() :: #tagcontent{}.
--record(state, {tag, % :: binary(),
+-record(state, {tag :: tagname(),
                 data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
                     | #tagcontent{},
                 delayed :: {[replyto()], [[binary()]]},
@@ -34,11 +31,12 @@
 % Correspondingly GC'ing must ensure that K replicas for a tag
 % are found within its partition rather than globally.
 
--spec start(binary(), 'notfound' | 'false') -> _.
+-spec start(tagname(), 'notfound' | 'false') ->
+            'ignore' | {'error',_} | {'ok',pid()}.
 start(TagName, Status) ->
     gen_server:start(ddfs_tag, {TagName, Status}, []).
 
--spec init({binary(), 'notfound' | 'false'}) -> {'ok', #state{}}.
+-spec init({tagname(), 'notfound' | 'false'}) -> {'ok', #state{}}.
 init({TagName, Status}) ->
     put(min_tagk, list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS"))),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
@@ -227,18 +225,23 @@ authorize(TokenType, Token, ReplyTo, ReadToken, WriteToken, S, Op) ->
             Op(TokenType)
     end.
 
--spec send_replies(replyto() | [replyto()], _) -> _.
+-spec send_replies(replyto() | [replyto()],
+                   {'error', 'commit_failed' |
+                             'invalid_url_object' |
+                             'replication_failed' |
+                             'unauthorized'} | 
+                   {'ok', [binary(),...]}) -> [any()].
 send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
     send_replies([ReplyTo], Message);
 send_replies(ReplyToList, Message) ->
     [gen_server:reply(Re, Message) || Re <- ReplyToList].
 
--spec get_tagdata(binary()) -> 'notfound' | {'error', _}
+-spec get_tagdata(tagname()) -> 'notfound' | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.
-get_tagdata(Tag) ->
+get_tagdata(TagName) ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
     {Replies, Failed} = gen_server:multi_call(Nodes, ddfs_node,
-        {get_tag_timestamp, Tag}, ?NODE_TIMEOUT),
+        {get_tag_timestamp, TagName}, ?NODE_TIMEOUT),
     TagMinK = get(min_tagk),
     case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
         _ when length(Failed) >= TagMinK ->
@@ -249,9 +252,9 @@ get_tagdata(Tag) ->
             {{Time, _Vol}, _Node} = lists:max(L),
             Replicas = [X || {{T, _}, _} = X <- L, T == Time],
             {TagNfo, SrcNode} = ddfs_util:choose_random(Replicas),
-            TagName = ddfs_util:pack_objname(Tag, Time),
+            TagID = ddfs_util:pack_objname(TagName, Time),
             case catch gen_server:call({ddfs_node, SrcNode},
-                    {get_tag_data, TagName, TagNfo}, ?NODE_TIMEOUT) of
+                    {get_tag_data, TagID, TagNfo}, ?NODE_TIMEOUT) of
                 {ok, Data} ->
                     {ok, Data, Replicas};
                 {'EXIT', timeout} ->
@@ -285,11 +288,12 @@ do_delayed_update(Urls, ReplyTo, Waiters, OldUrls, Tag, S) ->
 jsonbin(X) ->
     iolist_to_binary(mochijson2:encode(X)).
 
--spec do_get(tokentype(), attrib(), tagcontent()) -> ok.
+-spec do_get(tokentype(), attrib() | all, tagcontent()) ->
+             binary() | {'error','unauthorized' | 'unknown_attribute'}.
 do_get(TokenType, all, D) ->
     ddfs_tag_util:encode_tagcontent_secure(D, TokenType);
 
-do_get(_TokenType, url, D) ->
+do_get(_TokenType, urls, D) ->
     jsonbin(D#tagcontent.urls);
 
 do_get(_TokenType, read_token, D) ->
@@ -316,12 +320,13 @@ do_get(_TokenType, {user, A}, D) ->
 % 6. if all fail, fail
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
--spec do_put(attrib(), binary(), replyto(), #state{}) -> #state{}.
+-spec do_put(attrib(), string(), replyto(), #state{}) -> #state{}.
 do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
     case ddfs_tag_util:update_tagcontent(TagName, Field, Value, TagData) of
         {ok, TagContent} ->
             NewTagData = ddfs_tag_util:encode_tagcontent(TagContent),
-            case put_distribute({TagName, NewTagData, TagContent}) of
+            TagID = TagContent#tagcontent.id,
+            case put_distribute({TagID, NewTagData}) of
                 {ok, DestNodes, DestUrls} ->
                     if TagData =:= deleted ->
                             {ok, _} = remove_from_deleted(TagName);
@@ -338,23 +343,23 @@ do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
             S
     end.
 
--spec put_distribute({binary(), binary(), tagcontent()}) ->
-    {'error', _} | {'ok', [node()], [binary()], tagcontent()}.
-put_distribute({TagName, _} = Msg) ->
+-spec put_distribute({tagid(),binary()}) ->
+    {'error','commit_failed' | 'replication_failed'} | {'ok',[node()],[binary()]}.
+put_distribute({TagID, _} = Msg) ->
     case put_distribute(Msg, get(tagk), [], []) of
         {ok, TagVol} ->
-            put_commit(TagName, TagVol);
+            put_commit(TagID, TagVol);
         {error, _} = E ->
             E
     end.
 
--spec put_distribute({binary(), binary()}, non_neg_integer(),
+-spec put_distribute({tagid(), binary()}, non_neg_integer(),
     [{node(), binary()}], [node()]) ->
-        {'error', _} | {'ok', [{node(), binary()}]}.
+        {error, replication_failed} | {ok, [{node(), binary()}]}.
 put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
     {ok, OkNodes};
 
-put_distribute({TagName, TagData} = Msg, K, OkNodes, Exclude) ->
+put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
     {ok, Nodes} = gen_server:call(ddfs_master, {choose_nodes, K0, Exclude}),
@@ -364,7 +369,7 @@ put_distribute({TagName, TagData} = Msg, K, OkNodes, Exclude) ->
         Nodes =:= [] ->
             {ok, OkNodes};
         true ->
-            PutMsg = {TagName, TagData},
+            PutMsg = {TagID, TagData},
             {Replies, Failed} = gen_server:multi_call(Nodes,
                                                       ddfs_node,
                                                       {put_tag_data, PutMsg},
@@ -375,13 +380,13 @@ put_distribute({TagName, TagData} = Msg, K, OkNodes, Exclude) ->
                            Exclude ++ [Node || {Node, _} <- Replies] ++ Failed)
     end.
 
--spec put_commit(binary(), [{node(), binary()}]) ->
-    {'error', 'commit_failed'} | {'ok', [node()], [binary()]}.
-put_commit(TagName, TagVol) ->
+-spec put_commit(tagid(), [{node(), binary()}]) ->
+    {'error', 'commit_failed'} | {'ok', [node()], [binary(), ...]}.
+put_commit(TagID, TagVol) ->
     {Nodes, _} = lists:unzip(TagVol),
     {NodeUrls, _} = gen_server:multi_call(Nodes,
                                           ddfs_node,
-                                          {put_tag_commit, TagName, TagVol},
+                                          {put_tag_commit, TagID, TagVol},
                                           ?NODE_TIMEOUT),
     case [Url || {_Node, {ok, Url}} <- NodeUrls] of
         [] ->
@@ -396,6 +401,7 @@ do_delete(ReplyTo, S) ->
     gen_server:reply(ReplyTo, ok),
     S.
 
+-spec is_tag_deleted(tagname()) -> _.
 is_tag_deleted(<<"+deleted">>) -> false;
 is_tag_deleted(Tag) ->
     case gen_server:call(ddfs_master,
@@ -405,12 +411,14 @@ is_tag_deleted(Tag) ->
         E -> E
     end.
 
+-spec remove_from_deleted(tagname()) -> _.
 remove_from_deleted(Tag) ->
     gen_server:call(ddfs_master, {tag, {remove_deleted,
                                         [<<"tag://", Tag/binary>>]},
                                   <<"+deleted">>},
                     ?NODEOP_TIMEOUT).
 
+-spec add_to_deleted(tagname()) -> _.
 add_to_deleted(Tag) ->
     gen_server:call(ddfs_master, {tag, {insert_deleted,
                                         [list_to_binary(["tag://", Tag])]},
