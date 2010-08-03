@@ -285,8 +285,9 @@ def put(program, tag, *urls):
     """Usage: tag [url ...]
 
     Put the urls[s] to the given tag.
+    Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.put(tag, [[url] for url in urls])
+    program.ddfs.put(tag, [url.split() for url in urls])
 
 @DDFS.command
 def rm(program, *tags):
@@ -312,8 +313,9 @@ def tag(program, tag, *urls):
     """Usage: tag [url ...]
 
     Tags the urls[s] with the given tag.
+    Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.tag(tag, [[url] for url in urls])
+    program.ddfs.tag(tag, [url.split() for url in urls])
 
 @DDFS.command
 def touch(program, *tags):
