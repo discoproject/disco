@@ -5,6 +5,8 @@
 -export([check_token/4, encode_tagcontent/1, encode_tagcontent_secure/2,
          decode_tagcontent/1, update_tagcontent/4, validate_urls/1]).
 
+-export([make_tagcontent/6]).
+
 -spec check_token(tokentype(), token(), token(), token()) -> tokentype() | 'false'.
 check_token(TokenType, Token, ReadToken, WriteToken) ->
     Auth = fun(Tok, CurrentToken) when Tok =:= CurrentToken -> true;
@@ -33,6 +35,16 @@ check_token(TokenType, Token, ReadToken, WriteToken) ->
         write when WriteAuth =:= true -> write;
         write -> false
     end.
+
+-spec make_tagcontent(binary(), binary(), token(), token(),
+                      [binary()], user_attr()) -> tagcontent().
+make_tagcontent(Id, LastModified, ReadToken, WriteToken, Urls, UserAttr) ->
+    #tagcontent{id = Id,
+                last_modified = LastModified,
+                read_token = ReadToken,
+                write_token = WriteToken,
+                urls = Urls,
+                user = UserAttr}.
 
 -spec encode_tagcontent(tagcontent()) -> binary().
 encode_tagcontent(D) ->
