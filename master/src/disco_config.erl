@@ -14,7 +14,7 @@ expand_range(FirstNode, Max) ->
         I <- lists:seq(MinNum, MaxNum)].
 
 -spec add_nodes([nonempty_string(),...],integer()) ->
-    [{[char()], integer()}] | {nonempty_string(), integer()}.
+    [{nonempty_string(), integer()}] | {nonempty_string(), integer()}.
 add_nodes([FirstNode, Max], Instances) ->
     [{N, Instances} || N <- expand_range(FirstNode, Max)];
 

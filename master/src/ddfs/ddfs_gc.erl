@@ -145,7 +145,7 @@ process_tags([Tag|T]) ->
             end
     end.
 
--spec process_tag(binary(), binary(), [binary()], [node()]) -> 'ok'.
+-spec process_tag(binary(), binary(), [[binary()]], [node()]) -> 'ok'.
 process_tag(Tag, TagId, TagUrls, TagReplicas) ->
     TagK = get(tagk),
 

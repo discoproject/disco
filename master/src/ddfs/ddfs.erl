@@ -56,7 +56,11 @@ replace_tag(Host, Tag, Field, Value, Token) ->
 delete(Host, Tag, Token) ->
     tagop(Host, Tag, {delete, Token}).
 
--spec tagop(node(), string(), _) -> _.
+-spec tagop(node(), string(),
+            {'delete', _}
+            | {'delayed_update', _, _}
+            | {'update', _, _}
+            | {'put', _, _, _}) -> _.
 tagop(Host, Tag, Op) ->
    validate(Tag, fun() ->
         case gen_server:call(Host,

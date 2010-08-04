@@ -13,7 +13,7 @@
 % takes care of coordinating the whole map-reduce show, including
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
--spec new(binary()) -> _.
+-spec new(binary()) -> {'ok', _}.
 new(PostData) ->
     TMsg = "couldn't start a new job coordinator in 30s (master busy?)",
     S = self(),
@@ -62,12 +62,11 @@ save_params(Name, PostData) ->
     Home = disco_server:jobhome(Name),
     ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
--spec field_exists([binary()], binary()) -> bool().
+-spec field_exists(netstring:kvtable(), binary()) -> bool().
 field_exists(Msg, Opt) ->
     lists:keysearch(Opt, 1, Msg) =/= false.
 
-% This specification gives spurious warnings.
-%-spec find_values(netstring:kvtable()) -> {nonempty_string(), jobinfo()}.
+-spec find_values(netstring:kvtable()) -> {nonempty_string(), jobinfo()}.
 find_values(Msg) ->
 
     {value, {_, PrefixBinary}} = lists:keysearch(<<"prefix">>, 1, Msg),
@@ -240,7 +239,7 @@ kill_job(Name, Msg, P, Type) ->
 % run_task() is a common supervisor for both the map and reduce tasks.
 % Its main function is to catch and report any errors that occur during
 % work() calls.
--spec run_task([{non_neg_integer(), {binary(), nonempty_string()}}],
+-spec run_task([{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}],
     nonempty_string(), nonempty_string(), jobinfo()) -> [binary()].
 run_task(Inputs, Mode, Name, Job) ->
     Results = case catch work(Inputs, Mode, Name,
@@ -257,7 +256,7 @@ run_task(Inputs, Mode, Name, Job) ->
     end,
     [list_to_binary(X) || X <- gb_trees:keys(Results)].
 
--spec job_coordinator(nonempty_string(), jobinfo()) -> _.
+-spec job_coordinator(nonempty_string(), jobinfo()) -> 'ok'.
 job_coordinator(Name, Job) ->
     Started = now(),
     event_server:event(Name, "Starting job", [], {job_data, Job}),
@@ -298,20 +297,21 @@ job_coordinator(Name, Job) ->
     end,
     gen_server:cast(event_server, {job_done, Name}).
 
--spec map_input([binary()] | [[binary()]]) ->
-    [{non_neg_integer(), {binary(), nonempty_string()}}].
+-spec map_input([binary() | [binary()]]) ->
+    [{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}].
 map_input(Inputs) ->
     Prefs = [map_input1(I) || I <- Inputs],
     lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
 
--spec map_input1(binary() | [binary()]) -> [{binary(), nonempty_string()}].
+-spec map_input1(binary() | [binary()]) ->
+    [{binary(), nonempty_string() | 'false'}].
 map_input1(Inp) when is_list(Inp) ->
     [{<<"'", X/binary, "' ">>, pref_node(X)} || X <- Inp];
 map_input1(Inp) ->
     [{<<"'", Inp/binary, "' ">>, pref_node(Inp)}].
 
 -spec reduce_input(nonempty_string(), _, non_neg_integer()) ->
-    [{non_neg_integer(), [{binary(), nonempty_string()}]}].
+    [{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}].
 reduce_input(Name, Inputs, NRed) ->
     V = lists:any(fun erlang:is_list/1, Inputs),
     if V ->
