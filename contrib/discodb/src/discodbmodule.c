@@ -218,7 +218,7 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
                 if (!PyArg_ParseTuple(vpack, "s#", &ventry->data, &ventry->length))
                     goto Done;
 
-                if (ddb_add(ddb_cons, kentry, ventry)) {
+                if (ddb_cons_add(ddb_cons, kentry, ventry)) {
                   PyErr_SetString(DiscoDBError, "Construction failed");
                   goto Done;
                 }
@@ -229,7 +229,7 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
             }
 
             if (n == 0)
-              if (ddb_add(ddb_cons, kentry, NULL)) {
+              if (ddb_cons_add(ddb_cons, kentry, NULL)) {
                 PyErr_SetString(DiscoDBError, "Construction failed");
                 goto Done;
               }
@@ -243,7 +243,7 @@ DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     }
 
     self->obuffer = NULL;
-    self->cbuffer = ddb_finalize(ddb_cons, &n, flags);
+    self->cbuffer = ddb_cons_finalize(ddb_cons, &n, flags);
     if (self->cbuffer == NULL) {
         PyErr_SetString(DiscoDBError, "Construction finalization failed");
         goto Done;
