@@ -93,7 +93,7 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
 
 op('POST', "/ddfs/tag/" ++ Tag, Req) ->
     Token = parse_auth_token(Req),
-    tag_update(fun(Urls) ->
+    tag_update(fun(Urls, _) ->
         case lists:keysearch("delayed", 1, Req:parse_qs()) of
             false ->
                 ddfs:update_tag(ddfs_master, Tag, Urls, Token);
@@ -112,7 +112,7 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
         {user, AttribName} when size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
             Req:respond({403, [], ["Attribute name too big."]});
         _ ->
-            tag_update(fun(Value) ->
+            tag_update(fun(Value, _Size) ->
                            ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
                                             Token)
                        end, Req)
@@ -160,15 +160,20 @@ okjson(Data, Req) ->
 
 -spec tag_update(fun(([binary()]) -> _), module()) -> _.
 tag_update(Fun, Req) ->
-    case catch mochijson2:decode(Req:recv_body(?MAX_TAG_BODY_SIZE)) of
+    case catch Req:recv_body(?MAX_TAG_BODY_SIZE) of
         {'EXIT', _} ->
-            Req:respond({403, [], ["Invalid request body."]});
-        Value ->
-            case Fun(Value) of
-                {ok, Dst} ->
-                    okjson(Dst, Req);
-                E ->
-                    error(E, Req)
+            Req:respond({403, [], ["Invalid request."]});
+        BinaryPayload ->
+            case catch mochijson2:decode(BinaryPayload) of
+                {'EXIT', _} ->
+                    Req:respond({403, [], ["Invalid request body."]});
+                Value ->
+                    case Fun(Value, size(BinaryPayload)) of
+                        {ok, Dst} ->
+                            okjson(Dst, Req);
+                        E ->
+                            error(E, Req)
+                    end
             end
     end.
 
