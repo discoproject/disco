@@ -138,6 +138,10 @@ error({error, unauthorized}, Req) ->
     Req:respond({401, [], ["Tag operation requires token."]});
 error({error, invalid_name}, Req) ->
     Req:respond({403, [], ["Invalid tag"]});
+error({error, invalid_url_object}, Req) ->
+    Req:respond({403, [], ["Invalid url object"]});
+error({error, invalid_attribute_value}, Req) ->
+    Req:respond({403, [], ["Invalid attribute key or value"]});
 error({error, unknown_attribute}, Req) ->
     Req:respond({404, [], ["Tag attribute not found."]});
 error({error, E}, Req) when is_atom(E) ->

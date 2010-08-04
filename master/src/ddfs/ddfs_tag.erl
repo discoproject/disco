@@ -169,9 +169,15 @@ handle_cast({{update, Urls, Token}, ReplyTo}, #state{data = C} = S) ->
     end;
 
 handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
-    Do = fun (_TokenType) -> do_put(Field, Value, ReplyTo, S) end,
-    S1 = authorize(write, Token, ReplyTo, S, Do),
-    {noreply, S1, S1#state.timeout};
+    case ddfs_tag_util:validate_value(Field, Value) of
+        true ->
+            Do = fun (_TokenType) -> do_put(Field, Value, ReplyTo, S) end,
+            S1 = authorize(write, Token, ReplyTo, S, Do),
+            {noreply, S1, S1#state.timeout};
+        false ->
+            send_replies(ReplyTo, {error, invalid_attribute_value}),
+            {noreply, S, S#state.timeout}
+    end;
 
 % Special operations for the +deleted metatag
 

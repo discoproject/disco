@@ -3,7 +3,8 @@
 -include("ddfs_tag.hrl").
 
 -export([check_token/4, encode_tagcontent/1, encode_tagcontent_secure/2,
-         decode_tagcontent/1, update_tagcontent/4, validate_urls/1]).
+         decode_tagcontent/1, update_tagcontent/4, validate_urls/1,
+         validate_value/2]).
 
 -export([make_tagcontent/6]).
 
@@ -147,3 +148,13 @@ update_tagcontent({user, Key}, Attr, Tag) ->
 -spec validate_urls([[_]]) -> bool().
 validate_urls(Urls) ->
     [] =:= (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
+
+-spec validate_value(attrib(), _) -> bool().
+validate_value(urls, Value) ->
+    validate_urls(Value);
+validate_value(read_token, Value) ->
+    is_binary(Value);
+validate_value(write_token, Value) ->
+    is_binary(Value);
+validate_value({user, Key}, Value) ->
+    is_binary(Key) and is_binary(Value).
