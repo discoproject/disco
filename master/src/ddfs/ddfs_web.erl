@@ -72,6 +72,8 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
     case Attrib of
         unknown_attribute ->
             Req:respond({404, [], ["Tag attribute not found."]});
+        {user, AttribName} when size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
+            Req:respond({403, [], ["Attribute name too big."]});
         _ ->
             case ddfs:get_tag(ddfs_master, Tag, Attrib, Token) of
                 {ok, TagData} ->
@@ -107,6 +109,8 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     case Attrib of
         unknown_attribute ->
             Req:respond({404, [], ["Tag attribute not found."]});
+        {user, AttribName} when size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
+            Req:respond({403, [], ["Attribute name too big."]});
         _ ->
             tag_update(fun(Value) ->
                            ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,

@@ -78,6 +78,9 @@
 % /dfs/tag/ requests can be ?MAX_TAG_BODY_SIZE bytes at most
 -define(MAX_TAG_BODY_SIZE, (512 * ?MB)).
 
+% Tag attribute names have a limited size.
+-define(MAX_TAG_ATTRIB_NAME_SIZE, 512).
+
 % How long to http requests should wait for the tag updates to
 % finish (a long time)
 -define(TAG_UPDATE_TIMEOUT, ?DAY).
