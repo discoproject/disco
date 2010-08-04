@@ -239,11 +239,6 @@ class OutputStream:
         Close the output stream.
         """
 
-    def consume(self, iter):
-        """
-        Add all records in `iter` to the output stream.
-        """
-
     def write(data):
         """
         *(Deprecated in 0.3)*
