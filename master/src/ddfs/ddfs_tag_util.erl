@@ -3,8 +3,8 @@
 -include("ddfs_tag.hrl").
 
 -export([check_token/4, encode_tagcontent/1, encode_tagcontent_secure/2,
-         decode_tagcontent/1, update_tagcontent/4, validate_urls/1,
-         validate_value/2]).
+         decode_tagcontent/1, update_tagcontent/4, delete_tagattrib/3,
+         validate_urls/1, validate_value/2]).
 
 -export([make_tagcontent/6]).
 
@@ -109,11 +109,15 @@ decode_tagcontent(TagData) ->
             end
     end.
 
--spec update_tagcontent(tagname(), attrib(), _, _) -> 
+-spec update_tagcontent(tagname(), tagcontent()) -> tagcontent().
+update_tagcontent(TagName, Tag) ->
+    Tag#tagcontent{id = ddfs_util:pack_objname(TagName, now()),
+                   last_modified = ddfs_util:format_timestamp()}.
+
+-spec update_tagcontent(tagname(), attrib(), _, _) ->
                         {error, invalid_url_object} | {ok, tagcontent()}.
 update_tagcontent(TagName, Field, Value, #tagcontent{} = Tag) ->
-    Updated = Tag#tagcontent{id = ddfs_util:pack_objname(TagName, now()),
-                             last_modified = ddfs_util:format_timestamp()},
+    Updated = update_tagcontent(TagName, Tag),
     update_tagcontent(Field, Value, Updated);
 
 update_tagcontent(TagName, Field, Value, _Tag) ->
@@ -144,6 +148,20 @@ update_tagcontent({user, Key}, Attr, Tag) ->
                                               1,
                                               Tag#tagcontent.user,
                                               {Key, Attr})}}.
+
+-spec delete_tagattrib(tagname(), attrib(), tagcontent()) -> tagcontent().
+delete_tagattrib(TagName, read_token, Tag) ->
+    update_tagcontent(TagName, Tag#tagcontent{read_token = null});
+
+delete_tagattrib(TagName, write_token, Tag) ->
+    update_tagcontent(TagName, Tag#tagcontent{write_token = null});
+
+delete_tagattrib(TagName, urls, Tag) ->
+    update_tagcontent(TagName, Tag#tagcontent{urls = []});
+
+delete_tagattrib(TagName, {user, Key}, Tag) ->
+    User = lists:keydelete(Key, 1, Tag#tagcontent.user),
+    update_tagcontent(TagName, Tag#tagcontent{user = User}).
 
 -spec validate_urls([[_]]) -> bool().
 validate_urls(Urls) ->

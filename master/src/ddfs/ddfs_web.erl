@@ -124,13 +124,26 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
             tag_update(Op, Req)
     end;
 
-op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
+op('DELETE', "/ddfs/tag/" ++ TagAttrib, Req) ->
+    {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
     Token = parse_auth_token(Req),
-    case ddfs:delete(ddfs_master, Tag, Token) of
-        ok ->
-            Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
-        E ->
-            error(E, Req)
+    case Attrib of
+        unknown_attribute ->
+            Req:respond({404, [], ["Tag attribute not found."]});
+        all ->
+            case ddfs:delete(ddfs_master, Tag, Token) of
+                ok ->
+                    Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
+                E ->
+                    error(E, Req)
+            end;
+        _ ->
+            case ddfs:delete_attrib(ddfs_master, Tag, Attrib, Token) of
+                ok ->
+                    Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
+                E ->
+                    error(E, Req)
+            end
     end;
 
 op('GET', Path, Req) ->

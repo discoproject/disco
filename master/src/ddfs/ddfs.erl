@@ -3,7 +3,7 @@
 -include("config.hrl").
 
 -export([new_blob/4, tags/2, get_tag/4, update_tag/4,
-         update_tag_delayed/4, replace_tag/5, delete/3]).
+         update_tag_delayed/4, replace_tag/5, delete/3, delete_attrib/4]).
 
 -spec new_blob(node(), string(), non_neg_integer(), [node()]) ->
     'invalid_name' | 'too_many_replicas' | {'ok', [string()]} | _.
@@ -48,9 +48,14 @@ update_tag(Host, Tag, Urls, Token) ->
 update_tag_delayed(Host, Tag, Urls, Token) ->
     tagop(Host, Tag, {delayed_update, Urls, Token}).
 
--spec replace_tag(node(), string(), atom(), [binary()], ddfs_tag:token()) -> _.
+-spec replace_tag(node(), string(),
+                  ddfs_tag:attrib(), [binary()], ddfs_tag:token()) -> _.
 replace_tag(Host, Tag, Field, Value, Token) ->
     tagop(Host, Tag, {put, Field, Value, Token}).
+
+-spec delete_attrib(node(), string(), ddfs_tag:attrib(), ddfs_tag:token()) -> _.
+delete_attrib(Host, Tag, Field, Token) ->
+    tagop(Host, Tag, {delete_attrib, Field, Token}).
 
 -spec delete(node(), string(), ddfs_tag:token() | 'internal') -> _.
 delete(Host, Tag, Token) ->

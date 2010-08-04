@@ -179,6 +179,16 @@ handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
             {noreply, S, S#state.timeout}
     end;
 
+handle_cast({{delete_attrib, Field, Token}, ReplyTo},
+            #state{data = #tagcontent{}} = S) ->
+    Do = fun(_TokenType) -> do_delete_attrib(Field, ReplyTo, S) end,
+    S1 = authorize(write, Token, ReplyTo, S, Do),
+    {noreply, S1, S1#state.timeout};
+
+handle_cast({{delete_attrib, _Field, _Token}, ReplyTo}, S) ->
+    send_replies(ReplyTo, {error, unknown_attribute}),
+    {noreply, S, S#state.timeout};
+
 % Special operations for the +deleted metatag
 
 handle_cast(M, #state{url_cache = false, data = notfound} = S) ->
@@ -344,6 +354,20 @@ do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
                     send_replies(ReplyTo, E),
                     S
             end;
+        {error, _} = E ->
+            send_replies(ReplyTo, E),
+            S
+    end.
+
+do_delete_attrib(Field, ReplyTo, #state{tag = TagName,
+                                        data = #tagcontent{} = D} = S) ->
+    TagContent = ddfs_tag_util:delete_tagattrib(TagName, Field, D),
+    NewTagData = ddfs_tag_util:encode_tagcontent(TagContent),
+    TagId = TagContent#tagcontent.id,
+    case put_distribute({TagId, NewTagData}) of
+        {ok, DestNodes, DestUrls} ->
+            send_replies(ReplyTo, ok),
+            S#state{data = TagContent, replicas = DestNodes};
         {error, _} = E ->
             send_replies(ReplyTo, E),
             S
