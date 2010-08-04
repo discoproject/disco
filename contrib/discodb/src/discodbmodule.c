@@ -129,147 +129,56 @@ static PyTypeObject DiscoDBType = {
 static PyObject *
 DiscoDB_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    DiscoDB *self = (DiscoDB *)type->tp_alloc(type, 0);
+    DiscoDBConstructor *cons = NULL;
+    DiscoDB *self = NULL;
     PyObject
         *arg = NULL,
+        *emptydict = PyDict_New(),
+        *emptytuple = PyTuple_New(0),
         *item = NULL,
         *items = NULL,
         *iteritems = NULL,
-        *itervalues = NULL,
-        *vpack = NULL,
-        *value = NULL,
-        *values = NULL,
-        *valueseq = NULL;
-    struct ddb_cons *ddb_cons = NULL;
-    struct ddb_entry
-        *kentry = NULL,
-        *ventry = NULL;
-    uint64_t n,
-      flags = 0,
-      disable_compression = 0,
-      unique_items = 0;
+        *none = NULL;
 
-    static char *kwlist[] = {"arg",
-                             "disable_compression",
-                             "unique_items",
-                             NULL};
+    if (emptydict == NULL || emptytuple == NULL)
+      goto Done;
 
-    if (self != NULL) {
-        if (!PyArg_ParseTupleAndKeywords(args, kwds, "|OII", kwlist,
-                                         &arg,
-                                         &disable_compression,
-                                         &unique_items))
-            goto Done;
+    cons = (DiscoDBConstructor *)DiscoDBConstructor_new(&DiscoDBConstructorType,
+                                                        emptytuple, emptydict);
+    if (cons == NULL)
+      goto Done;
 
-        if (disable_compression)
-          flags |= DDB_OPT_DISABLE_COMPRESSION;
-        if (unique_items)
-          flags |= DDB_OPT_UNIQUE_ITEMS;
+    if (!PyArg_ParseTuple(args, "|O", &arg))
+      goto Done;
 
-        if (arg == NULL)                /* null constructor */
-            items = PyTuple_New(0);
-        else if (PyMapping_Check(arg))  /* copy constructor */
-            items = PyMapping_Items(arg);
-        else                            /* iter constructor */
-            Py_INCREF(items = arg);
+    if (arg == NULL)                /* null constructor */
+      items = PyTuple_New(0);
+    else if (PyMapping_Check(arg))  /* copy constructor */
+      items = PyMapping_Items(arg);
+    else                            /* iter constructor */
+      Py_INCREF(items = arg);
 
-        iteritems = PyObject_GetIter(items);
-        if (iteritems == NULL)
-            goto Done;
+    iteritems = PyObject_GetIter(items);
+    if (iteritems == NULL)
+      goto Done;
 
-        ddb_cons = ddb_cons_alloc();
-        if (ddb_cons == NULL)
-            goto Done;
-
-        while ((item = PyIter_Next(iteritems))) {
-            kentry = ddb_entry_alloc(1);
-            if (kentry == NULL)
-                goto Done;
-
-            if (!PyArg_ParseTuple(item, "s#O", &kentry->data, &kentry->length, &values))
-                goto Done;
-
-            Py_XINCREF(values);
-
-            if (values == NULL)
-                values = PyTuple_New(0);
-
-            if (PyString_Check(values))
-                valueseq = Py_BuildValue("(O)", values);
-            else
-                Py_XINCREF(valueseq = values);
-
-            if (valueseq == NULL)
-                goto Done;
-
-            itervalues = PyObject_GetIter(valueseq);
-            if (itervalues == NULL)
-                goto Done;
-
-            for (n = 0; (value = PyIter_Next(itervalues)); n++) {
-                ventry = ddb_entry_alloc(1);
-                if (ventry == NULL)
-                    goto Done;
-
-                vpack = Py_BuildValue("(O)", value);
-                if (vpack == NULL)
-                    goto Done;
-
-                if (!PyArg_ParseTuple(vpack, "s#", &ventry->data, &ventry->length))
-                    goto Done;
-
-                if (ddb_cons_add(ddb_cons, kentry, ventry)) {
-                  PyErr_SetString(DiscoDBError, "Construction failed");
-                  goto Done;
-                }
-
-                Py_CLEAR(vpack);
-                Py_CLEAR(value);
-                DiscoDB_CLEAR(ventry);
-            }
-
-            if (n == 0)
-              if (ddb_cons_add(ddb_cons, kentry, NULL)) {
-                PyErr_SetString(DiscoDBError, "Construction failed");
-                goto Done;
-              }
-
-            Py_CLEAR(itervalues);
-            Py_CLEAR(item);
-            Py_CLEAR(values);
-            Py_CLEAR(valueseq);
-            DiscoDB_CLEAR(kentry);
-        }
-    }
-
-    self->obuffer = NULL;
-    self->cbuffer = ddb_cons_finalize(ddb_cons, &n, flags);
-    if (self->cbuffer == NULL) {
-        PyErr_SetString(DiscoDBError, "Construction finalization failed");
+    while ((item = PyIter_Next(iteritems))) {
+      none = DiscoDBConstructor_add(cons, item);
+      if (none == NULL)
         goto Done;
+      Py_CLEAR(item);
+      Py_CLEAR(none);
     }
-
-    self->discodb = ddb_alloc();
-    if (self->discodb == NULL)
-        goto Done;
-
-    if (ddb_loads(self->discodb, self->cbuffer, n))
-            if (ddb_has_error(self->discodb))
-                goto Done;
+    self = (DiscoDB *)DiscoDBConstructor_finalize(cons, emptytuple, kwds);
 
  Done:
-    ddb_cons_dealloc(ddb_cons);
-
+    Py_CLEAR(emptydict);
+    Py_CLEAR(emptytuple);
+    Py_CLEAR(cons);
     Py_CLEAR(item);
     Py_CLEAR(items);
     Py_CLEAR(iteritems);
-    Py_CLEAR(itervalues);
-    Py_CLEAR(vpack);
-    Py_CLEAR(value);
-    Py_CLEAR(values);
-    Py_CLEAR(valueseq);
-    DiscoDB_CLEAR(kentry);
-    DiscoDB_CLEAR(ventry);
+    Py_CLEAR(none);
 
     if (PyErr_Occurred()) {
         Py_CLEAR(self);
@@ -761,11 +670,238 @@ init_discodb(void)
     if (PyType_Ready(&DiscoDBType) < 0)
         return;
     Py_INCREF(&DiscoDBType);
-    PyModule_AddObject(module, "DiscoDB", (PyObject *)&DiscoDBType);
+    PyModule_AddObject(module, "DiscoDB",
+                       (PyObject *)&DiscoDBType);
+
+    if (PyType_Ready(&DiscoDBConstructorType) < 0)
+      return;
+    Py_INCREF(&DiscoDBConstructorType);
+    PyModule_AddObject(module, "DiscoDBConstructor",
+                       (PyObject *)&DiscoDBConstructorType);
 
     DiscoDBError = PyErr_NewException("discodb.DiscoDBError", NULL, NULL);
     Py_INCREF(DiscoDBError);
     PyModule_AddObject(module, "DiscoDBError", DiscoDBError);
+}
+
+
+
+/* DiscoDB Constructor Type */
+
+static PyMethodDef DiscoDBConstructor_methods[] = {
+    {"add", (PyCFunction)DiscoDBConstructor_add, METH_VARARGS,
+     "c.add(k, v) -> add (k, v) to the DiscoDB that will be produced."},
+    {"finalize", (PyCFunction)DiscoDBConstructor_finalize, METH_KEYWORDS,
+     "c.finalize([flags]) -> a DiscoDB containing the mappings added to c."},
+    {NULL}                                    /* Sentinel          */
+};
+
+static PyMemberDef DiscoDBConstructor_members[] = {
+    {NULL}                                    /* Sentinel          */
+};
+
+static PyTypeObject DiscoDBConstructorType = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "DiscoDBConstructor",                     /* tp_name           */
+    sizeof(DiscoDBConstructor),               /* tp_basicsize      */
+    0,                                        /* tp_itemsize       */
+    (destructor)DiscoDBConstructor_dealloc,   /* tp_dealloc        */
+    0,                                        /* tp_print          */
+    0,                                        /* tp_getattr        */
+    0,                                        /* tp_setattr        */
+    0,                                        /* tp_compare        */
+    0,                                        /* tp_repr           */
+    0,                                        /* tp_as_number      */
+    0,                                        /* tp_as_sequence    */
+    0,                                        /* tp_as_mapping     */
+    0,                                        /* tp_hash           */
+    0,                                        /* tp_call           */
+    0,                                        /* tp_str            */
+    0,                                        /* tp_getattro       */
+    0,                                        /* tp_setattro       */
+    0,                                        /* tp_as_buffer      */
+    Py_TPFLAGS_DEFAULT |
+    Py_TPFLAGS_BASETYPE,                      /* tp_flags          */
+    0,                                        /* tp_doc            */
+    0,                                        /* tp_traverse       */
+    0,                                        /* tp_clear          */
+    0,                                        /* tp_richcompare    */
+    0,                                        /* tp_weaklistoffset */
+    0,                                        /* tp_iter           */
+    0,                                        /* tp_iternext       */
+    DiscoDBConstructor_methods,               /* tp_methods        */
+    DiscoDBConstructor_members,               /* tp_members        */
+    0,                                        /* tp_getset         */
+    0,                                        /* tp_base           */
+    0,                                        /* tp_dict           */
+    0,                                        /* tp_descr_get      */
+    0,                                        /* tp_descr_set      */
+    0,                                        /* tp_dictoffset     */
+    0,                                        /* tp_init           */
+    0,                                        /* tp_alloc          */
+    DiscoDBConstructor_new,                   /* tp_new            */
+    0,                                        /* tp_free           */
+};
+
+static PyObject *
+DiscoDBConstructor_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+    DiscoDBConstructor *self = (DiscoDBConstructor *)type->tp_alloc(type, 0);
+    static char *kwlist[] = {NULL};
+
+    if (self == NULL)
+      goto Done;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "", kwlist))
+      goto Done;
+
+    self->ddb_cons = ddb_cons_alloc();
+    if (self->ddb_cons == NULL)
+      goto Done;
+
+ Done:
+
+    if (PyErr_Occurred()) {
+        Py_CLEAR(self);
+        return NULL;
+    }
+    return (PyObject *)self;
+}
+
+static void
+DiscoDBConstructor_dealloc(DiscoDBConstructor *self)
+{
+    ddb_cons_dealloc(self->ddb_cons);
+    Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *
+DiscoDBConstructor_add(DiscoDBConstructor *self, PyObject *item)
+{
+    PyObject
+        *itervalues = NULL,
+        *value = NULL,
+        *values = NULL,
+        *valueseq = NULL,
+        *vpack = NULL;
+    struct ddb_entry
+        *kentry = NULL,
+        *ventry = NULL;
+    uint64_t n;
+
+    kentry = ddb_entry_alloc(1);
+    if (kentry == NULL)
+      goto Done;
+
+    if (!PyArg_ParseTuple(item, "s#O", &kentry->data, &kentry->length, &values))
+      goto Done;
+
+    Py_XINCREF(values);
+
+    if (values == NULL)
+      values = PyTuple_New(0);
+
+    if (PyString_Check(values))
+      valueseq = Py_BuildValue("(O)", values);
+    else
+      Py_XINCREF(valueseq = values);
+
+    if (valueseq == NULL)
+      goto Done;
+
+    itervalues = PyObject_GetIter(valueseq);
+    if (itervalues == NULL)
+      goto Done;
+
+    for (n = 0; (value = PyIter_Next(itervalues)); n++) {
+      ventry = ddb_entry_alloc(1);
+      if (ventry == NULL)
+        goto Done;
+
+      vpack = Py_BuildValue("(O)", value);
+      if (vpack == NULL)
+        goto Done;
+
+      if (!PyArg_ParseTuple(vpack, "s#", &ventry->data, &ventry->length))
+        goto Done;
+
+      if (ddb_cons_add(self->ddb_cons, kentry, ventry)) {
+        PyErr_SetString(DiscoDBError, "Construction failed");
+        goto Done;
+      }
+
+      Py_CLEAR(value);
+      Py_CLEAR(vpack);
+      DiscoDB_CLEAR(ventry);
+    }
+
+    if (n == 0)
+      if (ddb_cons_add(self->ddb_cons, kentry, NULL)) {
+        PyErr_SetString(DiscoDBError, "Construction failed");
+        goto Done;
+      }
+
+ Done:
+    Py_CLEAR(itervalues);
+    Py_CLEAR(value);
+    Py_CLEAR(values);
+    Py_CLEAR(valueseq);
+    Py_CLEAR(vpack);
+    DiscoDB_CLEAR(kentry);
+    DiscoDB_CLEAR(ventry);
+
+    if (PyErr_Occurred())
+      return NULL;
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+DiscoDBConstructor_finalize(DiscoDBConstructor *self, PyObject *args, PyObject *kwds)
+{
+    DiscoDB *discodb = (DiscoDB *)DiscoDBType.tp_alloc(&DiscoDBType, 0);
+    uint64_t n,
+      flags = 0,
+      disable_compression = 0,
+      unique_items = 0;
+
+    static char *kwlist[] = {"disable_compression",
+                             "unique_items", NULL};
+
+    if (discodb == NULL)
+      goto Done;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|II", kwlist,
+                                     &disable_compression,
+                                     &unique_items))
+      goto Done;
+
+    if (disable_compression)
+      flags |= DDB_OPT_DISABLE_COMPRESSION;
+    if (unique_items)
+      flags |= DDB_OPT_UNIQUE_ITEMS;
+
+    discodb->obuffer = NULL;
+    discodb->cbuffer = ddb_cons_finalize(self->ddb_cons, &n, flags);
+    if (discodb->cbuffer == NULL) {
+        PyErr_SetString(DiscoDBError, "Construction finalization failed");
+        goto Done;
+    }
+
+    discodb->discodb = ddb_alloc();
+    if (discodb->discodb == NULL)
+        goto Done;
+
+    if (ddb_loads(discodb->discodb, discodb->cbuffer, n))
+            if (ddb_has_error(discodb->discodb))
+                goto Done;
+
+ Done:
+    if (PyErr_Occurred()) {
+        Py_CLEAR(discodb);
+        return NULL;
+    }
+    return (PyObject *)discodb;
 }
 
 

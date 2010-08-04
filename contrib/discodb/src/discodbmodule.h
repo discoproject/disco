@@ -9,6 +9,11 @@ typedef struct {
 
 typedef struct {
     PyObject_HEAD
+    struct ddb_cons *ddb_cons;
+} DiscoDBConstructor;
+
+typedef struct {
+    PyObject_HEAD
     DiscoDB           *owner;
     struct ddb_cursor *cursor;
 } DiscoDBIter;
@@ -41,6 +46,15 @@ static PyObject * DiscoDB_dumps   (DiscoDB *);
 static PyObject * DiscoDB_dump    (DiscoDB *, PyObject *);
 static PyObject * DiscoDB_loads   (PyTypeObject *, PyObject *);
 static PyObject * DiscoDB_load    (PyTypeObject *, PyObject *);
+
+/* DiscoDB Constructor Type */
+
+static PyTypeObject DiscoDBConstructorType;
+
+static PyObject * DiscoDBConstructor_new     (PyTypeObject *,       PyObject *, PyObject *);
+static void       DiscoDBConstructor_dealloc (DiscoDBConstructor *);
+static PyObject * DiscoDBConstructor_add     (DiscoDBConstructor *, PyObject *);
+static PyObject * DiscoDBConstructor_finalize(DiscoDBConstructor *, PyObject *, PyObject *);
 
 /* DiscoDB Iterator Types */
 
