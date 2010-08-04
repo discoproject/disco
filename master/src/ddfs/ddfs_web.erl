@@ -112,10 +112,16 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
         {user, AttribName} when size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
             Req:respond({403, [], ["Attribute name too big."]});
         _ ->
-            tag_update(fun(Value, _Size) ->
-                           ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
-                                            Token)
-                       end, Req)
+            Op = fun(Value, Size) ->
+                     case Attrib of
+                         {user, _} when Size > ?MAX_TAG_ATTRIB_VALUE_SIZE ->
+                             Req:respond({403, [], ["Attribute value too big."]});
+                         _ ->
+                             ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
+                                              Token)
+                     end
+                 end,
+            tag_update(Op, Req)
     end;
 
 op('DELETE', "/ddfs/tag/" ++ Tag, Req) ->
@@ -158,7 +164,7 @@ error(E, Req) ->
 okjson(Data, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)}).
 
--spec tag_update(fun(([binary()]) -> _), module()) -> _.
+-spec tag_update(fun(([binary()], non_neg_integer()) -> _), module()) -> _.
 tag_update(Fun, Req) ->
     case catch Req:recv_body(?MAX_TAG_BODY_SIZE) of
         {'EXIT', _} ->
