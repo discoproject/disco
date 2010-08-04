@@ -221,8 +221,8 @@ authorize(TokenType, Token, ReplyTo, ReadToken, WriteToken, S, Op) ->
         false ->
             send_replies(ReplyTo, {error, unauthorized}),
             S;
-        TokenType ->
-            Op(TokenType)
+        TokenPrivilege ->
+            Op(TokenPrivilege)
     end.
 
 -spec send_replies(replyto() | [replyto()],
