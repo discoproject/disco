@@ -25,7 +25,9 @@ parse_auth_token(Req) ->
         "Basic " ++ Auth ->
             case base64:decode(Auth) of
                 <<"token:", Token/binary>> ->
-                    Token
+                    Token;
+                _ ->
+                    null
             end;
         _ ->
             % Unknown auth, or basic auth that does not follow the spec.
