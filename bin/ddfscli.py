@@ -56,6 +56,8 @@ class DDFSOptionParser(OptionParser):
         self.add_option('-r', '--recursive',
                         action='store_true',
                         help='recursively perform operations')
+        self.add_option('-t', '--token',
+                        help='authorization token for the command')
         self.add_option('-w', '--warn-missing',
                         action='store_true',
                         help='warn about missing tags')
@@ -86,7 +88,8 @@ class DDFS(Program):
     @property
     def ddfs(self):
         from disco.ddfs import DDFS
-        return DDFS(self.settings['DISCO_MASTER'])
+        return DDFS(master=self.settings['DISCO_MASTER'],
+                    token=self.options.token)
 
     def prefix_mode(self, *tags):
         if self.options.prefix:

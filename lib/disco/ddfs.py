@@ -39,9 +39,13 @@ class DDFS(object):
     :param master: address of the master,
                    for instance ``disco://localhost``.
     """
-    def __init__(self, master=None, proxy=None, settings=DiscoSettings()):
+    def __init__(self, master=None,
+                 proxy=None,
+                 settings=DiscoSettings(),
+                 token=None):
         self.proxy  = proxy or settings['DISCO_PROXY']
         self.master = self.proxy or master or settings['DISCO_MASTER']
+        self.token = token
 
     @classmethod
     def safe_name(cls, name):
@@ -279,9 +283,12 @@ class DDFS(object):
                               **kwargs)
 
     def _download(self, url, data=None, method='GET'):
-        response = download(self.master + url, data=data, method=method)
+        response = download(self.master + url,
+                            data=data,
+                            method=method,
+                            token=self.token)
         return json.loads(response)
 
     def _upload(self, urls, source, **kwargs):
         urls = [self._maybe_proxy(url, method='PUT') for url in iterify(urls)]
-        return upload(urls, source, **kwargs)
+        return upload(urls, source, token=self.token, **kwargs)
