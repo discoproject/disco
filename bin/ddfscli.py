@@ -89,7 +89,8 @@ class DDFS(Program):
     def ddfs(self):
         from disco.ddfs import DDFS
         return DDFS(master=self.settings['DISCO_MASTER'],
-                    token=self.options.token)
+                    read_token=self.options.token,
+                    write_token=self.options.token)
 
     def prefix_mode(self, *tags):
         if self.options.prefix:

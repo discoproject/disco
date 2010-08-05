@@ -150,7 +150,7 @@ def urlsplit(url):
 def urlresolve(url):
     return '%s://%s/%s' % urlsplit(url)
 
-def urllist(url, partid=None, listdirs=True, ddfs=None):
+def urllist(url, partid=None, listdirs=True, ddfs=None, ddfs_token=None):
     if isiterable(url):
         return [list(url)]
     scheme, netloc, path = urlsplit(url)
@@ -159,7 +159,7 @@ def urllist(url, partid=None, listdirs=True, ddfs=None):
     elif scheme == 'tag':
         from disco.ddfs import DDFS
         ret = []
-        for name, tags, blobs in DDFS(ddfs).findtags(url):
+        for name, tags, blobs in DDFS(ddfs).findtags(url, token=ddfs_token):
             ret += blobs
         return ret
     return [url]
@@ -254,7 +254,7 @@ def parse_dir(dir_url, partid=None):
     return [url for id, url in read_index(dir_url)
             if partid is None or partid == int(id)]
 
-def save_oob(host, name, key, value):
+def save_oob(host, name, key, value, ddfs_token=None):
     from disco.ddfs import DDFS
     DDFS(host).push(ddfs_oobname(name), [(StringIO(value), key)], delayed=True)
 
