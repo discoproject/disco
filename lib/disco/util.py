@@ -122,13 +122,13 @@ def pack(object):
 def unpack(string, globals={'__builtins__': __builtins__}):
     try:
         return cPickle.loads(string)
-    except Exception, err:
+    except Exception:
         try:
-           code, defs = marshal.loads(string)
-           defs = tuple([unpack(x) for x in defs]) if defs else None
-           return FunctionType(code, globals, argdefs = defs)
-        except:
-            raise err
+            code, defs = marshal.loads(string)
+            defs = tuple([unpack(x) for x in defs]) if defs else None
+            return FunctionType(code, globals, argdefs = defs)
+        except Exception, e:
+            raise ValueError("Could not unpack: %s (%s)" % (string, e))
 
 def pack_stack(stack):
     return pack([pack(object) for object in stack])
