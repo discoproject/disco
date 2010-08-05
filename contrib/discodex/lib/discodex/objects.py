@@ -44,7 +44,7 @@ class DataSet(dict, JSONSerialized):
 
     @property
     def nr_ichunks(self):
-        return self.options.get('nr_ichunks', 1)
+        return int(self.options.get('nr_ichunks', 1))
 
     @property
     def input(self):
