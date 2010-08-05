@@ -34,6 +34,7 @@ class MessageWriter(object):
 class netloc(tuple):
     @classmethod
     def parse(cls, netlocstr):
+        netlocstr = netlocstr.split('@', 1)[1] if '@' in netlocstr else netlocstr
         if ':' in netlocstr:
             return cls(netlocstr.split(':'))
         return cls((netlocstr, ''))
@@ -150,10 +151,18 @@ def urlsplit(url):
 def urlresolve(url):
     return '%s://%s/%s' % urlsplit(url)
 
-def urllist(url, partid=None, listdirs=True, ddfs=None, ddfs_token=None):
+def auth_token(url):
+    _scheme, rest = schemesplit(url)
+    locstr, _path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
+    if '@' in locstr:
+        auth = locstr.split('@', 1)[0]
+        return auth.split(':')[1] if ':' in auth else auth
+
+def urllist(url, partid=None, listdirs=True, ddfs=None):
     if isiterable(url):
         return [list(url)]
     scheme, netloc, path = urlsplit(url)
+    ddfs_token = auth_token(url)
     if scheme == 'dir' and listdirs:
         return parse_dir(url, partid=partid)
     elif scheme == 'tag':
