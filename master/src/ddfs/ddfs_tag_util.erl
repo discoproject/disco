@@ -130,10 +130,10 @@ update_tagcontent(TagName, Field, Value, _Tag) ->
 -spec update_tagcontent(attrib(), _, tagcontent()) ->
                        {error, invalid_url_object} | {ok, tagcontent()}.
 update_tagcontent(read_token, Token, Tag) ->
-    {ok, Tag#tagcontent{read_token = list_to_binary(Token)}};
+    {ok, Tag#tagcontent{read_token = Token}};
 
 update_tagcontent(write_token, Token, Tag) ->
-    {ok, Tag#tagcontent{write_token = list_to_binary(Token)}};
+    {ok, Tag#tagcontent{write_token = Token}};
 
 update_tagcontent(urls, Urls, Tag) ->
     case validate_urls(Urls) of
