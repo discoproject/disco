@@ -51,6 +51,14 @@ class DDFS(object):
     def blob_name(cls, url):
         return url.split('/')[-1].split('$')[0]
 
+    def attrs(self, tag):
+        """Get a list of the attributes of the tag ``tag`` and their values."""
+        t = self._download('/ddfs/tag/%s' % tagname(tag))
+        if isinstance(t, dict) and t.has_key('user-data'):
+            return t['user-data']
+        else:
+            return t
+
     def blobs(self, tag, ignore_missing=True):
         """
         Walks the tag graph starting at `tag`.
@@ -65,6 +73,10 @@ class DDFS(object):
             if tags != blobs:
                 for replicas in blobs:
                     yield replicas
+
+    def delattr(self, tag, attr):
+        """Delete the attribute ``attr` of the tag ``tag``."""
+        return self._download('/ddfs/tag/%s/%s' % (tagname(tag), attr), method='DELETE')
 
     def delete(self, tag):
         """Delete ``tag``."""
@@ -110,6 +122,10 @@ class DDFS(object):
     def get(self, tag):
         """Return the tag object stored at ``tag``."""
         return self._download('/ddfs/tag/%s' % tagname(tag))
+
+    def getattr(self, tag, attr):
+        """Return the value of the attribute ``attr` of the tag ``tag``."""
+        return self._download('/ddfs/tag/%s/%s' % (tagname(tag), attr))
 
     def list(self, prefix=''):
         """Return a list of all tags starting wtih ``prefix``."""
@@ -161,6 +177,13 @@ class DDFS(object):
         """
         return self._upload('%s/ddfs/tag/%s' % (self.master, tagname(tag)),
                             StringIO(json.dumps(urls)))
+
+    def setattr(self, tag, attr, val):
+        """Set the value of the attribute ``attr` of the tag ``tag``."""
+        return self._upload('%s/ddfs/tag/%s/%s' % (self.master,
+                                                   tagname(tag),
+                                                   attr),
+                            StringIO(json.dumps(val)))
 
     def tag(self, tag, urls, delayed=False):
         """Append the list of ``urls`` to the ``tag``."""

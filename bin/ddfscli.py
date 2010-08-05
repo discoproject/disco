@@ -102,6 +102,19 @@ class DDFS(Program):
         return partition(urls, istag)
 
 @DDFS.command
+def attrs(program, tag):
+    """Usage: tag
+
+    List the attributes of a tag.
+    """
+    d = program.ddfs.attrs(tag)
+    if isinstance(d, dict):
+        for a in d:
+            print ("%s: %s" % (a, d[a]))
+    else:
+        print d
+
+@DDFS.command
 def blobs(program, *tags):
     """Usage: [-i] [-p] [tag ...]
 
@@ -145,6 +158,14 @@ def cp(program, source_tag, target_tag):
     Copies one tag to another, overwriting it if it exists.
     """
     program.ddfs.put(target_tag, program.ddfs.get(source_tag)['urls'])
+
+@DDFS.command
+def delattr(program, tag, attr):
+    """Usage: tag attr
+
+    Delete an attribute of a tag.
+    """
+    program.ddfs.delattr(tag, attr)
 
 def df(program, *args):
     """Usage: <undefined>
@@ -206,6 +227,14 @@ def get(program, tag):
     Gets the contents of the tag.
     """
     print program.ddfs.get(tag)
+
+@DDFS.command
+def getattr(program, tag, attr):
+    """Usage: tag attr
+
+    Get an attribute of a tag.
+    """
+    print program.ddfs.getattr(tag, attr)
 
 def grep(program, *args):
     """Usage: <undefined>
@@ -295,6 +324,14 @@ def rm(program, *tags):
     """
     for tag in program.prefix_mode(*tags):
         print program.ddfs.delete(tag)
+
+@DDFS.command
+def setattr(program, tag, attr, val):
+    """Usage: tag attr val
+
+    Set the value of an attribute of a tag.
+    """
+    program.ddfs.setattr(tag, attr, val)
 
 @DDFS.command
 def stat(program, *tags):
