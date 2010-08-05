@@ -16,7 +16,7 @@ class ObjectRWTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [({'PI': math.pi}, time.strptime(e, '%d/%m/%Y'))]
+        return [({'PI': math.pi}, time.strptime(e.strip(), '%d/%m/%Y'))]
 
     @staticmethod
     def reduce(iter, out, params):

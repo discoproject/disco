@@ -700,7 +700,7 @@ class JobDict(util.DefaultDict):
     defaults = {'input': (),
                 'map': None,
                 'map_init': func.noop,
-                'map_reader': func.map_line_reader,
+                'map_reader': None,
                 'map_input_stream': (func.map_input_stream, ),
                 'map_output_stream': (func.map_output_stream,
                                       func.disco_output_stream),

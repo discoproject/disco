@@ -10,7 +10,7 @@ class OnlyMapTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [(e, 1)]
+        return [(e.strip(), 1)]
 
     def runTest(self):
         d = {}
