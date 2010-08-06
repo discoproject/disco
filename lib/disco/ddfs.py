@@ -20,8 +20,17 @@ from disco.util import iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
+class InvalidTag(Exception):
+    pass
+
 def canonizetags(tags):
     return [tagname(tag) for tag in iterify(tags)]
+
+def istag(tag):
+    try:
+        return tagname(tag)
+    except InvalidTag:
+        pass
 
 def tagname(tag):
     if isinstance(tag, list):
@@ -31,6 +40,7 @@ def tagname(tag):
         return tag[6:]
     elif '://' not in tag:
         return tag
+    raise InvalidTag("Invalid tag: %s" % tag)
 
 class DDFS(object):
     """
@@ -95,7 +105,7 @@ class DDFS(object):
             if tag not in seen:
                 try:
                     urls        = self.get(tag).get('urls', [])
-                    tags, blobs = partition(urls, tagname)
+                    tags, blobs = partition(urls, istag)
                     tags        = canonizetags(tags)
                     yield tag, tags, blobs
 
@@ -165,8 +175,8 @@ class DDFS(object):
     def tag(self, tag, urls, delayed=False):
         """Append the list of ``urls`` to the ``tag``."""
         return self._download('/ddfs/tag/%s?%s' %
-            (tagname(tag), "delayed=1" if delayed else ""),
-                json.dumps(urls))
+                              (tagname(tag), 'delayed=1' if delayed else ''),
+                              json.dumps(urls))
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):
         import tarfile, sys, gzip, os
@@ -207,7 +217,7 @@ class DDFS(object):
 
         try:
             urls        = self.get(tag).get('urls', [])
-            tags, blobs = partition(urls, tagname)
+            tags, blobs = partition(urls, istag)
             tags        = canonizetags(tags)
             yield tagpath, tags, blobs
         except CommError, e:
