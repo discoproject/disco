@@ -816,6 +816,9 @@ class JobDict(util.DefaultDict):
             o[1] for o in self['required_modules'] if util.iskv(o)))
 
         for key in self.defaults:
+            if key in ('map', 'reduce'):
+                if self[key] is None:
+                    continue
             if key == 'input':
                 jobpack['input'] = ' '.join(
                     '\n'.join(reversed(list(util.iterify(url))))
@@ -826,8 +829,6 @@ class JobDict(util.DefaultDict):
                 scheduler = self['scheduler']
                 for key in scheduler:
                     jobpack['sched_%s' % key] = str(scheduler[key])
-            elif self[key] is None:
-                pass
             elif key in self.stacks:
                 jobpack[key] = util.pack_stack(self[key])
             else:
