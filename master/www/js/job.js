@@ -74,9 +74,6 @@ function Job(name) {
   }
 
   self.update_events = function (events) {
-    if ($("#pagesearch").val())
-      return;
-
     $(".events").html($.map(events, make_event));
     $(".event .node").click(click_node);
   }
