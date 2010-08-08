@@ -28,7 +28,7 @@ See also: :mod:`disco.settings`
 
 """
 
-import os, sys
+import fileinput, os, sys
 from itertools import chain
 
 if '.disco-home' in os.listdir('.'):
@@ -43,6 +43,9 @@ class DDFSOptionParser(OptionParser):
                         help='exclude match')
         self.add_option('-I', '--include',
                         help='include match')
+        self.add_option('-f', '--files',
+                        action='store_true',
+                        help='file mode for commands that take it.')
         self.add_option('-i', '--ignore-missing',
                         action='store_true',
                         help='ignore missing tags')
@@ -88,6 +91,11 @@ class DDFS(Program):
     def ddfs(self):
         from disco.ddfs import DDFS
         return DDFS(self.settings['DISCO_MASTER'])
+
+    def file_mode(self, *urls):
+        if self.options.files:
+            return fileinput.input(urls)
+        return urls
 
     def prefix_mode(self, *tags):
         if self.options.prefix:
@@ -282,12 +290,12 @@ def push(program, tag, *files):
 
 @DDFS.command
 def put(program, tag, *urls):
-    """Usage: tag [url ...]
+    """Usage: tag [-f] [url ...]
 
     Put the urls[s] to the given tag.
     Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.put(tag, [url.split() for url in urls])
+    program.ddfs.put(tag, [url.split() for url in program.file_mode(*urls)])
 
 @DDFS.command
 def rm(program, *tags):
@@ -310,12 +318,12 @@ def stat(program, *tags):
 
 @DDFS.command
 def tag(program, tag, *urls):
-    """Usage: tag [url ...]
+    """Usage: tag [-f] [url ...]
 
     Tags the urls[s] with the given tag.
     Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.tag(tag, [url.split() for url in urls])
+    program.ddfs.tag(tag, [url.split() for url in program.file_mode(*urls)])
 
 @DDFS.command
 def touch(program, *tags):
