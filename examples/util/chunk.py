@@ -12,12 +12,13 @@ disco run --param tag chunks:tag chunk.LineChunker existing-tag-containing-textf
 from disco.core import Job, Params
 
 class LineChunker(Job):
-    params = Params(tag=None)
+    params = Params(ddfs_master=None, tag=None)
 
     def _map_input_stream(fd, size, url, params):
         from disco.ddfs import DDFS
         tag = params.tag or 'disco:chunks:%s' % Task.jobname
-        yield url, DDFS(Task.master).chunk(tag, [url])
+        master = params.ddfs_master or Task.master
+        yield url, DDFS(master).chunk(tag, [url])
     map_input_stream = [_map_input_stream]
 
     def map(entry, params):
@@ -28,5 +29,6 @@ class GzipLineChunker(LineChunker):
         from disco.ddfs import DDFS
         from disco.func import gzip_reader
         tag = params.tag or 'disco:chunks:%s' % Task.jobname
-        yield url, DDFS(Task.master).chunk(tag, [url], reader=gzip_reader)
+        master = params.ddfs_master or Task.master
+        yield url, DDFS(master).chunk(tag, [url], reader=gzip_reader)
     map_input_stream = [_map_input_stream]
