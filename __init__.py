@@ -126,10 +126,10 @@ class Program(object):
                 %s
 
                 If this is not what you want, see the `--help` option
-
                 """ % (self.name,
                        '\n\t\t'.join('%s = %s' % item
                                      for item in sorted(self.settings.env.iteritems()))))
+            sys.stdout.write("\n")
 
         command, args = self.search(self.argv)
 
@@ -144,6 +144,8 @@ class Program(object):
         except KeyboardInterrupt:
             sys.exit(1)
         except Exception, e:
+            if self.options.verbose:
+                raise
             sys.exit("%s" % e)
 
     def search(self, args):
