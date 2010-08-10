@@ -443,6 +443,14 @@ def gzip_reader(fd, size, url, params):
     from gzip import GzipFile
     return GzipFile(fileobj=fd), size, url
 
+def gzip_line_reader(fd, size, url, params):
+    from gzip import GzipFile
+    try:
+        for line in GzipFile(fileobj=fd):
+            yield line
+    except Exception, e:
+        print e
+
 def map_line_reader(fd, sze, fname):
     """
     Yields each line of input.
