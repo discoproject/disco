@@ -1,4 +1,4 @@
-import httplib, os, time, struct
+import httplib, os, random, struct, time
 from cStringIO import StringIO
 
 from disco.error import CommError
@@ -42,6 +42,9 @@ def isredirection(status):
 def issuccessful(status):
     return str(status).startswith('2')
 
+def isunavailable(status):
+    return status == httplib.SERVICE_UNAVAILABLE
+
 def range_header(offset):
     def httprange(start='', end=''):
         return '%s-%s' % (start, end)
@@ -62,23 +65,24 @@ def request(method, url, data=None, headers={}, sleep=0):
         conn = HTTPConnection(str(netloc))
         conn.request(method, '/%s' % path, body=data, headers=headers)
         response = conn.getresponse()
+        status = response.status
     except (httplib.HTTPException, httplib.socket.error), e:
-        raise CommError("Request failed: %s" % e, url)
+        status = httplib.SERVICE_UNAVAILABLE
 
-    if response.status == httplib.SERVICE_UNAVAILABLE:
+    if isunavailable(status):
         if sleep == 9:
             raise CommError("Service unavailable", url)
-        time.sleep(2**sleep)
+        time.sleep(random.randint(1, 2**sleep))
         return request(method, url, data=data, headers=headers, sleep=sleep + 1)
-    elif isredirection(response.status):
+    elif isredirection(status):
         loc = response.getheader('location')
         return request(method,
                        loc if loc.startswith('http:') else resolveuri(url, loc),
                        data=data,
                        headers=headers,
                        sleep=sleep)
-    elif not issuccessful(response.status):
-        raise CommError(response.read(), url, response.status)
+    elif not issuccessful(status):
+        raise CommError(response.read(), url, status)
     return response
 
 def download(url, method='GET', data=None, offset=()):
