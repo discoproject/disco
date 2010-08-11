@@ -46,6 +46,7 @@ def itemdemux(kvsdict, params):
 
     If a key has no values, a `('k', kvsdict)` pair is produced instead.
     """
+    import cPickle
     for k, vs in kvsdict.items():
         for key in ('%s:%s' % (k, v) for v in vs) if vs else (k,):
             yield key, cPickle.dumps(kvsdict)
