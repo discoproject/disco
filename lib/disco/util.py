@@ -153,6 +153,9 @@ def urlsplit(url, localhost=None, settings=DiscoSettings()):
         else:
             scheme = 'http'
             locstr = '%s:%s' % (locstr, settings['DISCO_PORT'])
+    if scheme == 'tag':
+        if not path:
+            path, locstr = locstr, ''
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url):

@@ -44,3 +44,9 @@ class UtilTestCase(DiscoTestCase):
         self.assertEquals(urlsplit('disco://localhost/data/path',
                                    localhost='localhost'),
                           ('file', ('localhost', ''), os.path.join(data, 'path')))
+        self.assertEquals(urlsplit('tag://tag', ''),
+                          ('tag', ('', ''), 'tag'))
+        self.assertEquals(urlsplit('tag://host/tag', ''),
+                          ('tag', ('host', ''), 'tag'))
+        self.assertEquals(urlsplit('tag://host:port/tag', ''),
+                          ('tag', ('host', 'port'), 'tag'))
