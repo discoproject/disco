@@ -206,7 +206,7 @@ def find(program, *tags):
             elif subtags == blobs == () and warn_missing:
                 print "Tag not found: %s" % "\t".join(tagpath)
             else:
-                print os.path.join(*tagpath)
+                print '\t'.join(tagpath)
 
 @DDFS.command
 def get(program, tag):
