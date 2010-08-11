@@ -1,7 +1,3 @@
-import os
-from disco import comm
-from disco.util import urlsplit
-
 def input_stream(fd, size, url, params):
     """
     Opens the path on host locally if it is local, otherwise over http.

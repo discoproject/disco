@@ -1,9 +1,8 @@
-import os
-from disco import util
-from disco.comm import download
-from discodb import MetaDB, Q
-
 def input_stream(fd, size, url, params):
+    import os
+    from disco import util
+    from disco.comm import download
+    from discodb import MetaDB, Q
     scheme, netloc, rest = util.urlsplit(url)
     path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
 
