@@ -114,6 +114,7 @@ class DiscoDBIterator(DiscodexJob):
     scheduler      = {'force_local': True}
     method         = 'keys'
     mapfilters     = ['kvify']
+    map_reader     = None
     reducefilters  = []
     resultsfilters = ['kv_or_v']
     result_reader  = staticmethod(json_reader)
