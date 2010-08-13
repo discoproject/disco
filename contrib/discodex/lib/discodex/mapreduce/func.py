@@ -109,7 +109,7 @@ def listv((k, v)):
     yield k, list(v)
 
 def hashbin(nbins, entry):
-    yield (hash(entry) % eval(nbins)), entry
+    yield str(hash(entry) % eval(nbins)), entry
 
 def where(predicate, entry):
     if iskv(entry):
