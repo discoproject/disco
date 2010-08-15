@@ -300,7 +300,7 @@ static int maybe_disable_compression(const struct ddb_cons *cons)
     return 0;
 }
 
-char *ddb_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
+char *ddb_cons_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
 {
     struct ddb_packed *pack = NULL;
     struct ddb_entry *order = NULL;
@@ -399,7 +399,7 @@ void ddb_cons_free(struct ddb_cons *cons)
 }
 
 
-int ddb_add(struct ddb_cons *db,
+int ddb_cons_add(struct ddb_cons *db,
             const struct ddb_entry *key,
             const struct ddb_entry *value)
 {

@@ -2,6 +2,7 @@ import doctest, unittest
 from random import randint
 
 from discodb import DiscoDB, DiscoDict, MetaDB, Q
+from discodb import DiscoDBConstructor
 from discodb import query
 from discodb import tools
 
@@ -28,6 +29,12 @@ class TestConstructor(unittest.TestCase):
     def test_flags_constructor(self):
         discodb = DiscoDB(k_vs_iter(1000), disable_compression=True)
         discodb = DiscoDB(k_vs_iter(1000), unique_items=True)
+
+    def test_external_constructor(self):
+        discodb_constructor = DiscoDBConstructor()
+        for k, vs in k_vs_iter(1000):
+            discodb_constructor.add(k, vs)
+        discodb = discodb_constructor.finalize()
 
 class TestMappingProtocol(unittest.TestCase):
     numkeys = 1000

@@ -15,13 +15,48 @@ Discodex uses mapreduce jobs to build and query indices...
                                                  | ichunkbuilder
         ichunker: (p, (k, v)) ... -> ichunks    /
 """
-from disco import func
 from disco.core import result_iterator, Job, Params
+from disco.func import nop_reduce, map_output_stream, reduce_output_stream
 
 class DiscodexJob(Job):
     @property
     def results(self):
         return result_iterator(self.wait(), reader=self.result_reader)
+
+class DiscoDBOutput(object):
+    def __init__(self, stream):
+        from discodb import DiscoDBConstructor
+        self.discodb_constructor = DiscoDBConstructor()
+        self.stream = stream
+
+    def add(self, key, val):
+        self.discodb_constructor.add(key, val)
+
+    def close(self):
+        self.discodb_constructor.finalize().dump(self.stream)
+
+def discodb_output(stream, partition, url, params):
+    from discodex.mapreduce import DiscoDBOutput
+    return DiscoDBOutput(stream), 'discodb:%s' % url.split(':', 1)[1]
+
+class MetaDBOutput(object):
+    def __init__(self, stream, params):
+        from discodb import DiscoDBConstructor
+        self.metadb_constructor = DiscoDBConstructor()
+        self.stream = stream
+        self.params = params
+
+    def add(self, metakey, key):
+        self.metadb_constructor.add(metakey, key)
+
+    def close(self):
+        from discodb import MetaDB
+        metadb = self.metadb_constructor.finalize()
+        MetaDB(self.params.datadb, metadb).dump(self.stream)
+
+def metadb_output(stream, partition, url, params):
+    from discodex.mapreduce import MetaDBOutput
+    return MetaDBOutput(stream, params), 'metadb:%s' % url.split(':', 1)[1]
 
 class Indexer(DiscodexJob):
     """A discodex mapreduce job used to build an index from a dataset."""
@@ -38,19 +73,11 @@ class Indexer(DiscodexJob):
         self.required_files = dataset.required_files
         self.params         = Params(n=0)
 
-        if dataset.k_viter:
-            from discodex.mapreduce import demuxers
-            self.map  = demuxers.iterdemux
-
-    @staticmethod
-    def reduce(iterator, out, params):
-        # there should be a discodb writer of some sort
-        from discodb import DiscoDB
-        DiscoDB(iterator).dump(out)
-
-    def reduce_output_stream(stream, partition, url, params):
-        return stream, 'discodb:%s' % url.split(':', 1)[1]
-    reduce_output_stream = [func.reduce_output_stream, reduce_output_stream]
+        if self.partitions:
+            self.reduce = nop_reduce
+            self.reduce_output_stream = [reduce_output_stream, discodb_output]
+        else:
+            self.map_output_stream = [map_output_stream, discodb_output]
 
 class MetaIndexer(DiscodexJob):
     """A discodex mapreduce job used to build a metaindex over an index, given a :class:`discodex.objects.MetaSet`."""
@@ -63,34 +90,13 @@ class MetaIndexer(DiscodexJob):
         self.input = metaset.ichunks
         self.map   = metaset.metakeyer
 
-    @staticmethod
-    def map_reader(fd, size, fname):
-        if hasattr(fd, '__iter__'):
-            return fd
-        return disco.func.map_line_reader(fd, size, fname)
+    def map_reader(datadb, size, url, params):
+        params.datadb = datadb
+        return datadb, size, url
 
-    @staticmethod
-    def combiner(metakey, key, buf, done, params):
-        from discodb import DiscoDB, MetaDB
-        if done:
-            datadb = Task.discodb
-            metadb = DiscoDB(buf)
-            yield None, MetaDB(datadb, metadb)
-        else:
-            keys = buf.get(metakey, [])
-            keys.append(key)
-            buf[metakey] = keys
+    map_output_stream = [map_output_stream, metadb_output]
 
-    @staticmethod
-    def map_writer(fd, none, metadb, params):
-        metadb.dump(fd)
-
-    def map_output_stream(stream, partition, url, params):
-        # there should be a metadb writer
-        return stream, 'metadb:%s' % url.split(':', 1)[1]
-    map_output_stream = [func.map_output_stream, map_output_stream]
-
-def json_reader(fd, size, filename):
+def json_reader(fd, size, filename, params):
     from disco.func import netstr_reader
     from discodex import json
     for k, v in netstr_reader(fd, size, filename):
@@ -108,6 +114,7 @@ class DiscoDBIterator(DiscodexJob):
     scheduler      = {'force_local': True}
     method         = 'keys'
     mapfilters     = ['kvify']
+    map_reader     = None
     reducefilters  = []
     resultsfilters = ['kv_or_v']
     result_reader  = staticmethod(json_reader)
@@ -143,19 +150,11 @@ class DiscoDBIterator(DiscodexJob):
         return [['%s!%s/' % (url, self.method) for url in urls]
                 for urls in self.ichunks]
 
-    @staticmethod
-    def map_reader(fd, size, fname):
-        if hasattr(fd, '__iter__'):
-            return fd
-        return disco.func.map_line_reader(fd, size, fname)
-
-    @staticmethod
     def map(entry, params):
         from discodex.mapreduce.func import filterchain, funcify
         filterfn = filterchain(funcify(name) for name in params.mapfilters)
         return filterfn(entry)
 
-    @staticmethod
     def _reduce(iterator, out, params):
         from discodex.mapreduce.func import filterchain, funcify, kvgroup
         filterfn = filterchain(funcify(name) for name in params.reducefilters)

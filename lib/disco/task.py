@@ -130,6 +130,12 @@ class Task(object):
     def url(self, filename, scheme='disco'):
         return '%s://%s/disco/%s/%s' % (scheme, self.host, self.jobpath, filename)
 
+    def open_url(self, url):
+        scheme, netloc, rest = util.urlsplit(url, localhost=self.host)
+        if scheme == 'file':
+            return comm.open_local(rest)
+        return comm.open_remote('%s://%s/%s' % (scheme, netloc, rest))
+
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval
         n = -1
@@ -370,9 +376,9 @@ class Reduce(Task):
         out_fd = AtomicFile(dlname, 'w')
         for key, value in self.entries:
             if not isinstance(key, str):
-                raise ValueError("Keys must be strings for external sort")
+                raise ValueError("Keys must be strings for external sort", key)
             if '\xff' in key or '\x00' in key:
-                raise ValueError("Cannot sort keys with 0xFF or 0x00 bytes")
+                raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
             else:
                 # value pickled using protocol 0 will always be printable ASCII
                 out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))

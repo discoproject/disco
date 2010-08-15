@@ -5,6 +5,7 @@ $(document).ready(function () {
     $("#kill_job").click(job.kill);
     $("#purge_job").click(job.purge);
     $("#find_page").click(job.find);
+    $("#find_events").submit(job.find);
 });
 
 function repeat(func, every, until) {
@@ -37,6 +38,7 @@ function Job(name) {
                                         num: 200,
                                         filter: $("#pagesearch").val()},
       self.update_events);
+    return false;
   }
 
   self.isactive = function () {
@@ -74,9 +76,6 @@ function Job(name) {
   }
 
   self.update_events = function (events) {
-    if ($("#pagesearch").val())
-      return;
-
     $(".events").html($.map(events, make_event));
     $(".event .node").click(click_node);
   }

@@ -122,13 +122,13 @@ def pack(object):
 def unpack(string, globals={'__builtins__': __builtins__}):
     try:
         return cPickle.loads(string)
-    except Exception, err:
+    except Exception:
         try:
-           code, defs = marshal.loads(string)
-           defs = tuple([unpack(x) for x in defs]) if defs else None
-           return FunctionType(code, globals, argdefs = defs)
-        except:
-            raise err
+            code, defs = marshal.loads(string)
+            defs = tuple([unpack(x) for x in defs]) if defs else None
+            return FunctionType(code, globals, argdefs = defs)
+        except Exception, e:
+            raise ValueError("Could not unpack: %s (%s)" % (string, e))
 
 def pack_stack(stack):
     return pack([pack(object) for object in stack])
@@ -139,12 +139,23 @@ def unpack_stack(stackstring, globals={}):
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('file', url)
 
-def urlsplit(url):
+def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
     locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
     if scheme == 'disco':
-        scheme = 'http'
-        locstr = '%s:%s' % (locstr, DiscoSettings()['DISCO_PORT'])
+        prefix, fname = path.split('/', 1)
+        if locstr == localhost:
+            scheme = 'file'
+            if prefix == 'ddfs':
+                path = os.path.join(settings['DDFS_ROOT'], fname)
+            else:
+                path = os.path.join(settings['DISCO_DATA'], fname)
+        else:
+            scheme = 'http'
+            locstr = '%s:%s' % (locstr, settings['DISCO_PORT'])
+    if scheme == 'tag':
+        if not path:
+            path, locstr = locstr, ''
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url):

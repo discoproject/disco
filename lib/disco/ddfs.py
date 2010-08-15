@@ -20,17 +20,31 @@ from disco.util import iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
-def canonizetags(tags):
-    return [tagname(tag) for tag in iterify(tags)]
+class InvalidTag(Exception):
+    pass
 
-def tagname(tag):
+def canonizetag(tag):
     if isinstance(tag, list):
         if tag:
-            return tagname(tag[0])
+            return canonizetag(tag[0])
     elif tag.startswith('tag://'):
-        return tag[6:]
-    elif '://' not in tag:
         return tag
+    elif '://' not in tag:
+        return 'tag://%s' % tag
+    raise InvalidTag("Invalid tag: %s" % tag)
+
+def canonizetags(tags):
+    return [canonizetag(tag) for tag in iterify(tags)]
+
+def istag(tag):
+    try:
+        return canonizetag(tag)
+    except InvalidTag:
+        pass
+
+def tagname(tag):
+    scheme, netloc, name = urlsplit(canonizetag(tag))
+    return name
 
 class DDFS(object):
     """
@@ -51,6 +65,14 @@ class DDFS(object):
     def blob_name(cls, url):
         return url.split('/')[-1].split('$')[0]
 
+    def tagmaster(self, tag):
+        scheme, (host, port), path = urlsplit(canonizetag(tag))
+        if not host:
+            return self.master
+        if not port:
+            return 'disco://%s' % host
+        return 'http://%s:%s' % (host, port)
+
     def blobs(self, tag, ignore_missing=True):
         """
         Walks the tag graph starting at `tag`.
@@ -68,12 +90,15 @@ class DDFS(object):
 
     def delete(self, tag):
         """Delete ``tag``."""
-        return self._download('/ddfs/tag/%s' % tagname(tag), method='DELETE')
+        return self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
+                                                  tagname(tag)),
+                              method='DELETE')
 
     def exists(self, tag):
         """Returns whether or not ``tag`` exists."""
         try:
-            if open_remote('%s/ddfs/tag/%s' % (self.master, tagname(tag))):
+            if open_remote('%s/ddfs/tag/%s' % (self.tagmaster(tag),
+                                               tagname(tag))):
                 return True
         except CommError, e:
             if e.code not in (403, 404):
@@ -95,7 +120,7 @@ class DDFS(object):
             if tag not in seen:
                 try:
                     urls        = self.get(tag).get('urls', [])
-                    tags, blobs = partition(urls, tagname)
+                    tags, blobs = partition(urls, istag)
                     tags        = canonizetags(tags)
                     yield tag, tags, blobs
 
@@ -109,11 +134,12 @@ class DDFS(object):
 
     def get(self, tag):
         """Return the tag object stored at ``tag``."""
-        return self._download('/ddfs/tag/%s' % tagname(tag))
+        return self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
+                                                  tagname(tag)))
 
     def list(self, prefix=''):
         """Return a list of all tags starting wtih ``prefix``."""
-        return self._download('/ddfs/tags/%s' % prefix)
+        return self._download('%s/ddfs/tags/%s' % (self.master, prefix))
 
     def pull(self, tag, blobfilter=lambda x: True):
         for repl in self.get(tag)['urls']:
@@ -159,14 +185,17 @@ class DDFS(object):
                 Generally speaking, concurrent applications should use
                 :meth:`DDFS.tag` instead.
         """
-        return self._upload('%s/ddfs/tag/%s' % (self.master, tagname(tag)),
+        return self._upload('%s/ddfs/tag/%s' % (self.tagmaster(tag),
+                                                tagname(tag)),
                             StringIO(json.dumps(urls)))
 
     def tag(self, tag, urls, delayed=False):
         """Append the list of ``urls`` to the ``tag``."""
-        return self._download('/ddfs/tag/%s?%s' %
-            (tagname(tag), "delayed=1" if delayed else ""),
-                json.dumps(urls))
+        return self._download('%s/ddfs/tag/%s?%s' %
+                              (self.tagmaster(tag),
+                               tagname(tag),
+                               'delayed=1' if delayed else ''),
+                              json.dumps(urls))
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):
         import tarfile, sys, gzip, os
@@ -203,11 +232,11 @@ class DDFS(object):
         :param ignore_missing: Whether or not missing tags will raise a
                                :class:`disco.error.CommError`.
         """
-        tagpath += (tagname(tag),)
+        tagpath += (canonizetag(tag), )
 
         try:
             urls        = self.get(tag).get('urls', [])
-            tags, blobs = partition(urls, tagname)
+            tags, blobs = partition(urls, istag)
             tags        = canonizetags(tags)
             yield tagpath, tags, blobs
         except CommError, e:
@@ -243,7 +272,9 @@ class DDFS(object):
     def _push(self, (source, target), replicas=None, exclude=[], **kwargs):
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
-        urls = self._download('/ddfs/new_blob/%s?%s' % (target, qs))
+        urls = self._download('%s/ddfs/new_blob/%s?%s' % (self.master,
+                                                          target,
+                                                          qs))
 
         try:
             return [json.loads(url)
@@ -256,7 +287,7 @@ class DDFS(object):
                               **kwargs)
 
     def _download(self, url, data=None, method='GET'):
-        response = download(self.master + url, data=data, method=method)
+        response = download(url, data=data, method=method)
         return json.loads(response)
 
     def _upload(self, urls, source, **kwargs):

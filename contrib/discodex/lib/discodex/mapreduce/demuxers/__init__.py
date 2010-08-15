@@ -13,21 +13,6 @@ def nodemux(kvrecord, params):
     """Yields the `kvrecord` itself."""
     yield kvrecord
 
-def iterdemux((k, viter), params):
-    """Ungroups the `(k, viter)` to produce `(k, v)` for every `v` in `viter`."""
-    for v in viter:
-        yield k, v
-
-def discodbdemux(discodb, params):
-    """
-    Unpacks the discodb to produce all `('k:v', discodb)` pairs.
-
-    If a key has no values, a `('k', discodb)` pair is produced instead.
-    """
-    for k, vs in discodb.items():
-        for key in ('%s:%s' % (k, v) for v in vs) if vs else (k,):
-            yield key, discodb.dumps()
-
 def namedfielddemux(record, params):
     """
     Produce `(fieldname, value)` pairs for a record.
@@ -54,3 +39,14 @@ def invertediddemux(record, params):
     """
     for item in record:
         yield '%s:%s' % item, record.id
+
+def itemdemux(kvsdict, params):
+    """
+    Unpacks the kvsdict to produce all `('k:v', kvsdict)` pairs.
+
+    If a key has no values, a `('k', kvsdict)` pair is produced instead.
+    """
+    import cPickle
+    for k, vs in kvsdict.items():
+        for key in ('%s:%s' % (k, v) for v in vs) if vs else (k,):
+            yield key, cPickle.dumps(kvsdict)

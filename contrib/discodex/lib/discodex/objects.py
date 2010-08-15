@@ -44,7 +44,7 @@ class DataSet(dict, JSONSerialized):
 
     @property
     def nr_ichunks(self):
-        return self.options.get('nr_ichunks', 1)
+        return int(self.options.get('nr_ichunks', 1))
 
     @property
     def input(self):
@@ -70,10 +70,6 @@ class DataSet(dict, JSONSerialized):
     @property
     def required_files(self):
         return self.options.get('required_files')
-
-    @property
-    def k_viter(self):
-        return bool(self.options.get('k_viter', False))
 
 class Indices(list, JSONSerialized):
     pass

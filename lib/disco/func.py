@@ -414,6 +414,10 @@ def nop_reduce(iter, out, params):
     for k, v in iter:
         out.add(k, v)
 
+def gzip_reader(fd, size, url, params):
+    from gzip import GzipFile
+    return GzipFile(fileobj=fd), size, url
+
 def map_line_reader(fd, sze, fname):
     """Yields each line of input."""
     for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):

@@ -816,6 +816,9 @@ class JobDict(util.DefaultDict):
             o[1] for o in self['required_modules'] if util.iskv(o)))
 
         for key in self.defaults:
+            if key in ('map', 'reduce'):
+                if self[key] is None:
+                    continue
             if key == 'input':
                 jobpack['input'] = ' '.join(
                     '\n'.join(reversed(list(util.iterify(url))))
@@ -826,8 +829,6 @@ class JobDict(util.DefaultDict):
                 scheduler = self['scheduler']
                 for key in scheduler:
                     jobpack['sched_%s' % key] = str(scheduler[key])
-            elif self[key] is None:
-                pass
             elif key in self.stacks:
                 jobpack[key] = util.pack_stack(self[key])
             else:
@@ -993,27 +994,28 @@ class Job(object):
         self.name = reply[1]
         return self
 
-class ResultIter(object):
+class RecordIter(object):
     """
-    Produces an iterator over job results.
+    Produces an iterator over the records in a list of inputs.
 
-    :type  results: list of urls
-    :param results: result urls as returned by :meth:`Disco.wait`.
+    :type  urls: list of urls
+    :param urls: urls of the inputs
+                 e.g. as returned by :meth:`Disco.wait`.
 
     :type  notifier: function
-    :param notifier: called when the iterator moves to the next result url::
+    :param notifier: called when the iterator moves to the next url::
 
                       def notifier(url[s]):
                           ...
 
                      .. note::
 
-                         notifier argument is a list if results are replicated.
+                         notifier argument is a list if urls are replicated.
 
     :type  reader: :func:`disco.func.input_stream`
     :param reader: used to read from a custom :func:`disco.func.output_stream`.
     """
-    def __init__(self, results,
+    def __init__(self, urls,
                  notifier=func.noop,
                  reader=func.chain_reader,
                  input_stream=(func.map_input_stream, ),
@@ -1023,15 +1025,15 @@ class ResultIter(object):
         self.task = Map(jobdict=JobDict(map_input_stream=input_stream,
                                         map_reader=reader,
                                         params=params))
-        self.results = results
+        self.urls = urls
         self.notifier = notifier
         self.ddfs = ddfs
 
     def __iter__(self):
-        for result in self.results:
-            for urls in util.urllist(result, ddfs=self.ddfs):
-                self.notifier(urls)
-                for entry in self.try_replicas(list(util.iterify(urls))):
+        for urls in self.urls:
+            for replicas in util.urllist(urls, ddfs=self.ddfs):
+                self.notifier(replicas)
+                for entry in self.try_replicas(list(util.iterify(replicas))):
                     yield entry
 
     def try_replicas(self, urls, start=0):
@@ -1051,7 +1053,7 @@ class ResultIter(object):
                 yield entry
 
 def result_iterator(*args, **kwargs):
-    return ResultIter(*args, **kwargs)
+    return RecordIter(*args, **kwargs)
 
 class Stats(object):
     def __init__(self, prof_data):
