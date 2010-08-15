@@ -186,7 +186,7 @@ job_file(Name, File) ->
     Home = disco_server:jobhome(Name),
     {file, File, filename:join([Root, Home])}.
 
-update_setting("max_failure_rate", Val, App) ->
+update_setting(<<"max_failure_rate">>, Val, App) ->
     ok = application:set_env(App, max_failure_rate,
         list_to_integer(binary_to_list(Val)));
 
