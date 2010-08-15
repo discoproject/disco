@@ -7,6 +7,7 @@
 -define(TASK_MAX_FAILURES, 10000000).
 -define(FAILED_TASK_PAUSE, 1000).
 -define(FAILED_MAX_PAUSE, 60 * 1000).
+-define(FAILED_PAUSE_RANDOMIZE, 30 * 1000).
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
@@ -206,9 +207,12 @@ handle_data_error(Task, Node) ->
         end,
     check_failure_rate(Task, MaxFail),
     spawn_link(fun() ->
+        {A1, A2, A3} = now(),
+        random:seed(A1, A2, A3),
         T = Task#task.taskblack,
         C = Task#task.fail_count + 1,
-        S = lists:min([C * ?FAILED_TASK_PAUSE, ?FAILED_MAX_PAUSE]),
+        S = lists:min([C * ?FAILED_TASK_PAUSE, ?FAILED_MAX_PAUSE]) +
+                random:uniform(?FAILED_PAUSE_RANDOMIZE),
         event_server:event(
             Task#task.jobname,
             "~s:~B Task failed for the ~Bth time. "
