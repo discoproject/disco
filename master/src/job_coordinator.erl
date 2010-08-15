@@ -4,8 +4,9 @@
 
 -include("disco.hrl").
 
--define(TASK_MAX_FAILURES, 100).
+-define(TASK_MAX_FAILURES, 10000000).
 -define(FAILED_TASK_PAUSE, 1000).
+-define(FAILED_MAX_PAUSE, 60 * 1000).
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
@@ -113,6 +114,7 @@ work([{TaskID, Input}|Inputs], Mode, Name, N, Job, Res)
          taskid = TaskID,
          mode = Mode,
          taskblack = [],
+         fail_count = 0,
          input = Input,
          from = self(),
          force_local = Job#jobinfo.force_local,
@@ -197,36 +199,36 @@ submit_task(Task) ->
 % determined by check_failure_rate(), the whole job will be terminated.
 -spec handle_data_error(task(), node()) -> _.
 handle_data_error(Task, Node) ->
-    MaxFail = case application:get_env(max_failure_rate) of
-    undefined -> ?TASK_MAX_FAILURES;
-    {ok, N0} -> N0
-    end,
+    MaxFail =
+        case application:get_env(max_failure_rate) of
+            undefined -> ?TASK_MAX_FAILURES;
+            {ok, N0} -> N0
+        end,
     check_failure_rate(Task, MaxFail),
-
-    Inputs = Task#task.input,
-    NInputs =
-	    case Inputs of
-		[_, _ | _] ->
-		    [{X, N} || {X, N} <- Inputs, X =/= Task#task.chosen_input];
-		_ ->
-		    Inputs
-	    end,
     spawn_link(fun() ->
         T = Task#task.taskblack,
-        timer:sleep(length(T) * ?FAILED_TASK_PAUSE),
-        submit_task(Task#task{taskblack = [Node|T], input = NInputs})
+        C = Task#task.fail_count + 1,
+        S = lists:min([C * ?FAILED_TASK_PAUSE, ?FAILED_MAX_PAUSE]),
+        event_server:event(
+            Task#task.jobname,
+            "~s:~B Task failed for the ~Bth time. "
+                "Sleeping ~B seconds before retrying.",
+            [Task#task.mode, Task#task.taskid, C, round(S / 1000)],
+            []),
+        timer:sleep(S),
+        submit_task(Task#task{taskblack = [Node|T], fail_count = C})
     end).
 
 -spec check_failure_rate(task(), non_neg_integer()) -> _.
 check_failure_rate(Task, MaxFail)
-    when length(Task#task.taskblack) + 1 =< MaxFail -> ok;
+    when Task#task.fail_count + 1 < MaxFail -> ok;
 check_failure_rate(Task, MaxFail) ->
     event_server:event(Task#task.jobname,
     "ERROR: ~s:~B failed ~B times. At most ~B failures "
-    "are allowed. Aborting job.", 
+    "are allowed. Aborting job.",
         [Task#task.mode,
          Task#task.taskid,
-         length(Task#task.taskblack) + 1,
+         Task#task.fail_count + 1,
          MaxFail], []),
     throw(logged_error).
 

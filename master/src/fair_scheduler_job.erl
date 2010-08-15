@@ -296,26 +296,29 @@ error(T, M) ->
 % The task may have several redundant inputs, so we need to find the
 % first one that matchs.
 -spec assign_task(task(), [load()], gb_tree(), [node()]) -> gb_tree().
+assign_task(Task, NodeStats, Tasks, Nodes) ->
+    case Nodes -- Task#task.taskblack of
+        [] ->
+            % If the task has failed already on all the available nodes,
+            % we reset the blacklist instead of aborting the job.
+            assign_task0(Task#task{taskblack = []}, NodeStats, Tasks, Nodes);
+        OkNodes ->
+            assign_task0(Task, NodeStats, Tasks, OkNodes)
+    end.
 
-assign_task(Task, _NodeStats, Tasks, Nodes) when Task#task.force_remote ->
-    FNodes = Nodes -- Task#task.taskblack,
-    case FNodes -- [N || {_, N} <- Task#task.input] of
-        [] -> error(Task, "remote");
-        _ -> assign_nopref(Task, Tasks, FNodes)
+-spec assign_task0(task(), [load()], gb_tree(), [node()]) -> gb_tree().
+assign_task0(Task, _NodeStats, Tasks, Nodes) when Task#task.force_remote ->
+    case Nodes -- [N || {_, N} <- Task#task.input] of
+        [] ->
+            error(Task, "remote");
+        _ ->
+            assign_nopref(Task, Tasks, Nodes)
     end;
 
-assign_task(Task, NodeStats, Tasks, Nodes) ->
-    findpref(Task, NodeStats, Tasks, Nodes -- Task#task.taskblack).
+assign_task0(Task, NodeStats, Tasks, Nodes) ->
+    findpref(Task, NodeStats, Tasks, Nodes).
 
 -spec assign_nopref(task(), gb_tree(), [node()]) -> gb_tree().
-
-assign_nopref(Task, _Tasks, []) ->
-    event_server:event(get(jobname),
-        "ERROR: ~s:~B Task failed on all available nodes "
-        "(or no nodes available). Aborting job.",
-            [Task#task.mode, Task#task.taskid], {}),
-    exit(normal);
-
 assign_nopref(Task, _Tasks, _Nodes) when Task#task.force_local ->
     error(Task, "local");
 
