@@ -24,15 +24,19 @@ has_setting(SettingName) ->
         _Val  -> true
     end.
 
+-spec host(node()) -> string().
 host(Node) ->
     string:sub_word(atom_to_list(Node), 2, $@).
 
+-spec node(string()) -> node().
 node(Host) ->
     list_to_atom(node_name() ++ "@" ++ Host).
 
+-spec node_name() -> string().
 node_name() ->
     get_setting("DISCO_NAME") ++ "_slave".
 
+-spec node_safe(string()) -> 'false' | node().
 node_safe(Host) ->
     case catch list_to_existing_atom(node_name() ++ "@" ++ Host) of
         {'EXIT', _} -> false;

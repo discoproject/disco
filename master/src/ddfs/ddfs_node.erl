@@ -6,7 +6,14 @@
 
 -include("config.hrl").
 
--record(state, {nodename, root, vols, putq, getq, tags}).
+% Diskinfo is {FreeSpace, UsedSpace}.
+-type diskinfo() :: {non_neg_integer(), non_neg_integer()}.
+-record(state, {nodename :: string(),
+                root :: nonempty_string(),
+                vols :: [{diskinfo(), nonempty_string()},...],
+                putq :: http_queue:q(),
+                getq :: http_queue:q(),
+                tags :: gb_tree()}).
 
 start_link(Config) ->
     process_flag(trap_exit, true),
@@ -198,8 +205,8 @@ read_tag(Tag, NodeName, Root, {_, VolName}, From) ->
             gen_server:reply(From, {error, read_failed})
     end.
 
--spec init_vols(nonempty_string(), [nonempty_string()]) ->
-    {'ok', [nonempty_string()]}.
+-spec init_vols(nonempty_string(), [nonempty_string(),...]) ->
+    {'ok', [{diskinfo(), nonempty_string()},...]}.
 init_vols(Root, VolNames) ->
     lists:foreach(fun(VolName) ->
                           prim_file:make_dir(filename:join([Root, VolName, "blob"])),
@@ -208,7 +215,7 @@ init_vols(Root, VolNames) ->
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
 -spec find_vols(nonempty_string()) ->
-    {'ok', [nonempty_string()]} | {'error', _}.
+    {'ok', [{diskinfo(), nonempty_string()}]} | {'error', _}.
 find_vols(Root) ->
     case prim_file:list_dir(Root) of
         {ok, Files} ->
@@ -228,7 +235,7 @@ find_vols(Root) ->
             Error
     end.
 
--spec find_tags(nonempty_string(), [nonempty_string(),...]) ->
+-spec find_tags(nonempty_string(), [{diskinfo(), nonempty_string()},...]) ->
     {'ok', gb_tree()}.
 find_tags(Root, Vols) ->
     {ok,
@@ -252,14 +259,17 @@ parse_tag(Tag, VolName, Tags) ->
             Tags
     end.
 
--spec choose_vol([{non_neg_integer(), nonempty_string()},...]) ->
-    nonempty_string().
+-spec choose_vol([{diskinfo(), nonempty_string()},...]) ->
+    {diskinfo(), nonempty_string()}.
 choose_vol(Vols) ->
-    % Choose the volume with most available space
+    % Choose the volume with most available space.  Note that the key
+    % being sorted is the diskinfo() tuple, which has free-space as
+    % the first element.
     [Vol|_] = lists:reverse(lists:keysort(1, Vols)),
     Vol.
 
--spec monitor_diskspace(nonempty_string(), [nonempty_string(),...]) ->
+-spec monitor_diskspace(nonempty_string(),
+                        [{diskinfo(), nonempty_string()},...]) ->
     no_return().
 monitor_diskspace(Root, Vols) ->
     timer:sleep(?DISKSPACE_INTERVAL),
@@ -272,7 +282,7 @@ monitor_diskspace(Root, Vols) ->
     gen_server:cast(ddfs_node, {update_vols, NewVols}),
     monitor_diskspace(Root, NewVols).
 
--spec refresh_tags(nonempty_string(), [nonempty_string(),...]) ->
+-spec refresh_tags(nonempty_string(), [{diskinfo(), nonempty_string()},...]) ->
     no_return().
 refresh_tags(Root, Vols) ->
     timer:sleep(?FIND_TAGS_INTERVAL),
