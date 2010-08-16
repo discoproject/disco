@@ -71,6 +71,10 @@ class DataSet(dict, JSONSerialized):
     def required_files(self):
         return self.options.get('required_files')
 
+    @property
+    def unique_items(self):
+        return bool(self.options.get('unique_items', False))
+
 class Indices(list, JSONSerialized):
     pass
 
@@ -95,6 +99,10 @@ class MetaSet(Index):
     @property
     def metakeyer(self):
         return self.__getcallable__(metakeyers, self.options.get('metakeyer', 'prefixkeyer'))
+
+    @property
+    def unique_items(self):
+        return bool(self.options.get('unique_items', False))
 
 class Results(list, JSONSerialized):
     pass

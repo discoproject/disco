@@ -53,6 +53,8 @@ class DiscodexOptionParser(OptionParser):
                         help='balancer to use for indexing')
         self.add_option('--metakeyer',
                         help='balancer to use for indexing')
+        self.add_option('--unique-items',
+                        help='balancer to use for indexing')
 
 class Discodex(Program):
     @property

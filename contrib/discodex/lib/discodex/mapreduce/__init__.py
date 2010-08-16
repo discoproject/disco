@@ -24,34 +24,28 @@ class DiscodexJob(Job):
         return result_iterator(self.wait(), reader=self.result_reader)
 
 class DiscoDBOutput(object):
-    def __init__(self, stream):
+    def __init__(self, stream, params):
         from discodb import DiscoDBConstructor
         self.discodb_constructor = DiscoDBConstructor()
         self.stream = stream
+        self.params = params
 
     def add(self, key, val):
         self.discodb_constructor.add(key, val)
 
     def close(self):
-        self.discodb_constructor.finalize().dump(self.stream)
+        kwargs = dict(unique_items=self.params.unique_items)
+        self.discodb_constructor.finalize(**kwargs).dump(self.stream)
 
 def discodb_output(stream, partition, url, params):
     from discodex.mapreduce import DiscoDBOutput
-    return DiscoDBOutput(stream), 'discodb:%s' % url.split(':', 1)[1]
+    return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
 
-class MetaDBOutput(object):
-    def __init__(self, stream, params):
-        from discodb import DiscoDBConstructor
-        self.metadb_constructor = DiscoDBConstructor()
-        self.stream = stream
-        self.params = params
-
-    def add(self, metakey, key):
-        self.metadb_constructor.add(metakey, key)
-
+class MetaDBOutput(DiscoDBOutput):
     def close(self):
         from discodb import MetaDB
-        metadb = self.metadb_constructor.finalize()
+        kwargs = dict(unique_items=self.params.unique_items)
+        metadb = self.discodb_constructor.finalize(**kwargs)
         MetaDB(self.params.datadb, metadb).dump(self.stream)
 
 def metadb_output(stream, partition, url, params):
@@ -71,7 +65,7 @@ class Indexer(DiscodexJob):
         self.profile        = dataset.profile
         self.partitions     = dataset.nr_ichunks
         self.required_files = dataset.required_files
-        self.params         = Params(n=0)
+        self.params         = Params(n=0, unique_items=dataset.unique_items)
 
         if self.partitions:
             self.reduce = nop_reduce
@@ -87,8 +81,9 @@ class MetaIndexer(DiscodexJob):
 
     def __init__(self, master, name, metaset):
         super(MetaIndexer, self).__init__(master, name)
-        self.input = metaset.ichunks
-        self.map   = metaset.metakeyer
+        self.input  = metaset.ichunks
+        self.map    = metaset.metakeyer
+        self.params = Params(n=0, unique_items=metaset.unique_items)
 
     def map_reader(datadb, size, url, params):
         params.datadb = datadb
@@ -96,10 +91,10 @@ class MetaIndexer(DiscodexJob):
 
     map_output_stream = [map_output_stream, metadb_output]
 
-def json_reader(fd, size, filename, params):
-    from disco.func import netstr_reader
+def json_reader(fd, size, url, params):
+    from disco.func import chain_reader
     from discodex import json
-    for k, v in netstr_reader(fd, size, filename):
+    for k, v in chain_reader(fd, size, url, params):
         yield json.loads(k), json.loads(v)
 
 def json_writer(fd, key, value, params):
