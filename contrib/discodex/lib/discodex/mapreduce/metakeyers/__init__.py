@@ -13,3 +13,8 @@ def prefixkeyer(key, params):
     """Produces `(prefix, key)` pairs for every possible prefix in the key."""
     for n, letter in enumerate(key):
         yield key[:n + 1], key
+
+def invertedkeyer(key, params):
+    """Produces `(val, key)` pairs for key in `params.datadb`."""
+    for val in params.datadb[key]:
+        yield val, key
