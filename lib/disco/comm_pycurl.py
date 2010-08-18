@@ -50,6 +50,10 @@ class HTTPConnection(object):
 
     def getresponse(self):
         self.response.status = self['HTTP_CODE']
+        if self.response.status in httplib.responses:
+            self.response.reason = httplib.responses[self.response.status]
+        else:
+            self.response.reason = "Unknown status code %d" % self.response.status
         return self.response
 
     def prepare(self, method, url, body=None, headers={}):
