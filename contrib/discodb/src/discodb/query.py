@@ -7,7 +7,7 @@ True
 True
 >>> Q.parse('A & (B | (D & E))') == Q.parse('A & (B | D) & (B | E)')
 True
->>> Q.scan(Q.parse('a | b | c & d | e').format()) == Q.parse('a | b | c & d | e')
+>>> Q.parse(str(Q.parse('a | b | c & d | e'))) == Q.parse('a | b | c & d | e')
 True
 >>> Q.urlscan(Q.parse('(a | b) & ~c').urlformat()) == Q.parse('~c & (a | b)')
 True
@@ -67,11 +67,6 @@ class Q(object):
     def __str__(self):
         return ' & '.join('(%s)' % c for c in self.clauses)
 
-    def format(self, and_op='&', or_op='|', not_op='~', encoding=str):
-        return and_op.join(c.format(or_op=or_op,
-                                    not_op=not_op,
-                                    encoding=encoding) for c in self.clauses)
-
     def expand(self, discodb):
         from itertools import product
         for combo in product(*(c.expand(discodb) for c in self.clauses)):
@@ -84,20 +79,18 @@ class Q(object):
     def resolve(self, discodb):
         return reduce(__and__, (c.resolve(discodb) for c in self.clauses))
 
-    @classmethod
-    def scan(cls, string, and_op='&', or_op='|', not_op='~', decoding=str):
-        return Q(Clause.scan(c, or_op=or_op,
-                             not_op=not_op,
-                             decoding=decoding) for c in string.split(and_op))
-
-    def urlformat(self, safe=':'):
+    def urlformat(self, safe=':()/,~'):
         from urllib import quote
-        return self.format(and_op='/', or_op=',', encoding=lambda q: quote(q, safe))
+        return quote(str(self)
+                     .replace('&', '/')
+                     .replace('|', ',')
+                     .replace(' ' ,''),
+                     safe)
 
     @classmethod
     def urlscan(cls, string):
         from urllib import unquote
-        return cls.scan(string, and_op='/', or_op=',', decoding=unquote)
+        return cls.parse(unquote(string).replace('/', '&').replace(',', '|'))
 
     @classmethod
     def parse(cls, string):
@@ -155,9 +148,6 @@ class Clause(object):
     def __str__(self):
         return ' | '.join('%s' % l for l in self.literals)
 
-    def format(self, or_op='|', not_op='~', encoding=str):
-        return or_op.join(l.format(not_op=not_op, encoding=encoding) for l in self.literals)
-
     def expand(self, discodb):
         from itertools import product
         for combo in product(*(l.expand(discodb) for l in self.literals)):
@@ -165,10 +155,6 @@ class Clause(object):
 
     def resolve(self, discodb):
         return reduce(__or__, (l.resolve(discodb) for l in self.literals))
-
-    @classmethod
-    def scan(cls, string, or_op='|', not_op='~', decoding=str):
-        return Clause(Literal.scan(l, not_op=not_op, decoding=decoding) for l in string.split(or_op))
 
 class Literal(object):
     """
@@ -205,19 +191,11 @@ class Literal(object):
     def __str__(self):
         return '%s%s' % ('~' if self.negated else '', self.term)
 
-    def format(self, not_op='~', encoding=str):
-        return '%s%s' % (not_op if self.negated else '', encoding(self.term))
-
     def expand(self, discodb):
         yield Q.wrap(self)
 
     def resolve(self, discodb):
         return Q.wrap(self)
-
-    @classmethod
-    def scan(cls, string, or_op='|', not_op='~', decoding=str):
-        negated = string.startswith(not_op)
-        return Literal(decoding(string.lstrip(not_op)), negated=negated)
 
 class MetaLiteral(Literal):
     def __str__(self):
@@ -227,9 +205,6 @@ class MetaLiteral(Literal):
         for q in self.term.expand(discodb):
             for v in discodb.query(q):
                 yield not Q.wrap(v) if self.negated else Q.wrap(v)
-
-    def format(self, **kwargs):
-        raise NotImplementedError("Formatting MetaLiterals is not supported")
 
     def resolve(self, discodb):
         q = self.term.resolve(discodb)
