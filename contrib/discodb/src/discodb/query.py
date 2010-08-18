@@ -11,7 +11,21 @@ True
 True
 >>> Q.urlscan(Q.parse('(a | b) & ~c').urlformat()) == Q.parse('~c & (a | b)')
 True
+
+>>> from .discodb import DiscoDB
+>>> discodb = DiscoDB({'A': ['B', 'C'], 'B': 'D', 'C': 'E', 'D': 'F', 'E': 'G'})
+>>> sorted(discodb.query(Q.parse('A')))
+['B', 'C']
+>>> sorted(discodb.query(Q.parse('*A')))
+['D', 'E']
+>>> sorted(discodb.query(Q.parse('A | B')))
+['B', 'C', 'D']
+>>> sorted(discodb.query(Q.parse('*A | B')))
+['D', 'E']
+>>> sorted(discodb.query(Q.parse('**A | *B')))
+['F', 'G']
 """
+from operator import __and__, __or__
 
 class Q(object):
     """
@@ -39,8 +53,10 @@ class Q(object):
 
         ~(c & ...) -> (~c) | ... -> ~(C) -> Q
         """
-        from operator import __or__
         return Q.wrap(reduce(__or__, (~c for c in self.clauses)))
+
+    def __pos__(self):
+        return Q((Clause((MetaLiteral(self), )), ))
 
     def __eq__(self, other):
         return self.clauses == other.clauses
@@ -55,6 +71,9 @@ class Q(object):
         return and_op.join(c.format(or_op=or_op,
                                     not_op=not_op,
                                     encoding=encoding) for c in self.clauses)
+
+    def resolve(self, discodb):
+        return reduce(__and__, (c.resolve(discodb) for c in self.clauses))
 
     @classmethod
     def scan(cls, string, and_op='&', or_op='|', not_op='~', decoding=str):
@@ -74,7 +93,9 @@ class Q(object):
     @classmethod
     def parse(cls, string):
         import re
-        return eval(re.sub(r'(\w+)', r'Q.wrap("""\1""")', string) or 'Q([])')
+        return eval(re.sub(r'([^&|~+()\s]+)',
+                           r'Q.wrap("""\1""")',
+                           string.replace('*', '+')) or 'Q([])')
 
     @classmethod
     def wrap(cls, proposition):
@@ -114,7 +135,6 @@ class Clause(object):
 
         ~(l | ...) -> (~l) & ... -> Q
         """
-        from operator import __and__
         return Q.wrap(reduce(__and__, (~l for l in self.literals)))
 
     def __eq__(self, other):
@@ -128,6 +148,9 @@ class Clause(object):
 
     def format(self, or_op='|', not_op='~', encoding=str):
         return or_op.join(l.format(not_op=not_op, encoding=encoding) for l in self.literals)
+
+    def resolve(self, discodb):
+        return reduce(__or__, (l.resolve(discodb) for l in self.literals))
 
     @classmethod
     def scan(cls, string, or_op='|', not_op='~', decoding=str):
@@ -157,7 +180,7 @@ class Literal(object):
         """
         Inversion of a Literal is always a Literal.
         """
-        return Literal(self.term, negated=not self.negated)
+        return type(self)(self.term, negated=not self.negated)
 
     def __eq__(self, other):
         return self.term == other.term and self.negated == other.negated
@@ -171,11 +194,20 @@ class Literal(object):
     def format(self, not_op='~', encoding=str):
         return '%s%s' % (not_op if self.negated else '', encoding(self.term))
 
+    def resolve(self, discodb):
+        return Q.wrap(self)
+
     @classmethod
     def scan(cls, string, or_op='|', not_op='~', decoding=str):
         negated = string.startswith(not_op)
         return Literal(decoding(string.lstrip(not_op)), negated=negated)
 
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
+class MetaLiteral(Literal):
+    def __str__(self):
+        return '%s+(%s)' % ('~' if self.negated else '', self.term)
+
+    def resolve(self, discodb):
+        q = self.term.resolve(discodb)
+        clause = Clause(Literal(v) for v in discodb.query(q))
+        return Q.wrap(not clause if self.negated else clause)
+

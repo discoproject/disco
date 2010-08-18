@@ -437,7 +437,7 @@ DiscoDB_peek(DiscoDB *self, PyObject *args)
 }
 
 static PyObject *
-DiscoDB_query(register DiscoDB *self, PyObject *query)
+DiscoDB_query(register DiscoDB *self, PyObject *query_)
 {
     PyObject
         *clause = NULL,
@@ -448,12 +448,17 @@ DiscoDB_query(register DiscoDB *self, PyObject *query)
         *iterliterals = NULL,
         *negated = NULL,
         *pack = NULL,
-        *term = NULL;
+        *term = NULL,
+        *query = NULL;
     struct ddb_query_clause *ddb_clauses = NULL;
     struct ddb_cursor *cursor = NULL;
     uint32_t
         i = 0,
         j = 0;
+
+    query = PyObject_CallMethod(query_, "resolve", "O", self);
+    if (query == NULL)
+        goto Done;
 
     clauses = PyObject_GetAttrString(query, "clauses");
     if (clauses == NULL)
@@ -527,6 +532,7 @@ DiscoDB_query(register DiscoDB *self, PyObject *query)
     Py_CLEAR(negated);
     Py_CLEAR(pack);
     Py_CLEAR(term);
+    Py_CLEAR(query);
     ddb_query_clause_dealloc(ddb_clauses, i);
 
     if (PyErr_Occurred()) {
