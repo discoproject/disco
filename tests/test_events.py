@@ -53,7 +53,7 @@ class SingleLineMessageTestCase(DiscoJobTestFixture, DiscoTestCase):
     @staticmethod
     def map(e, params):
         import sys
-        sys.stderr.write('**<MSG> Singe line message\n')
+        sys.stderr.write('**<MSG> Single line message\n')
         return []
 
     @property
@@ -64,7 +64,7 @@ class SingleLineErrorTestCase(SingleLineMessageTestCase):
     @staticmethod
     def map(e, params):
         import sys
-        sys.stderr.write('**<ERR> Singe line error!\n')
+        sys.stderr.write('**<ERR> Single line error!\n')
         return []
 
     def runTest(self):
