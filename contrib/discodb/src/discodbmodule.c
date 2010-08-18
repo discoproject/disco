@@ -62,6 +62,8 @@ static PyMethodDef DiscoDB_methods[] = {
      "d.unique_values() -> an iterator over the unique values of d."},
     {"peek", (PyCFunction)DiscoDB_peek, METH_VARARGS,
      "d.peek(k[, D]) -> first element of d[k] or else D. D defaults to None."},
+    {"metaquery", (PyCFunction)DiscoDB_metaquery, METH_O,
+     "d.metaquery(m) -> an iterator over (q, values) of d in the expansion of m."},
     {"query", (PyCFunction)DiscoDB_query, METH_O,
      "d.query(q) -> an iterator over the values of d whose keys satisfy q."},
     {"dumps", (PyCFunction)DiscoDB_dumps, METH_NOARGS,
@@ -434,6 +436,13 @@ DiscoDB_peek(DiscoDB *self, PyObject *args)
     }
 
     return val;
+}
+
+
+static PyObject *
+DiscoDB_metaquery(register DiscoDB *self, PyObject *query)
+{
+  return PyObject_CallMethod(query, "metaquery", "O", self);
 }
 
 static PyObject *

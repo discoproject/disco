@@ -72,6 +72,15 @@ class Q(object):
                                     not_op=not_op,
                                     encoding=encoding) for c in self.clauses)
 
+    def expand(self, discodb):
+        from itertools import product
+        for combo in product(*(c.expand(discodb) for c in self.clauses)):
+            yield reduce(__and__, combo)
+
+    def metaquery(self, discodb):
+        for q in self.expand(discodb):
+            yield q, discodb.query(q)
+
     def resolve(self, discodb):
         return reduce(__and__, (c.resolve(discodb) for c in self.clauses))
 
@@ -149,6 +158,11 @@ class Clause(object):
     def format(self, or_op='|', not_op='~', encoding=str):
         return or_op.join(l.format(not_op=not_op, encoding=encoding) for l in self.literals)
 
+    def expand(self, discodb):
+        from itertools import product
+        for combo in product(*(l.expand(discodb) for l in self.literals)):
+            yield reduce(__or__, combo)
+
     def resolve(self, discodb):
         return reduce(__or__, (l.resolve(discodb) for l in self.literals))
 
@@ -194,6 +208,9 @@ class Literal(object):
     def format(self, not_op='~', encoding=str):
         return '%s%s' % (not_op if self.negated else '', encoding(self.term))
 
+    def expand(self, discodb):
+        yield Q.wrap(self)
+
     def resolve(self, discodb):
         return Q.wrap(self)
 
@@ -205,6 +222,11 @@ class Literal(object):
 class MetaLiteral(Literal):
     def __str__(self):
         return '%s+(%s)' % ('~' if self.negated else '', self.term)
+
+    def expand(self, discodb):
+        for q in self.term.expand(discodb):
+            for v in discodb.query(q):
+                yield not Q.wrap(v) if self.negated else Q.wrap(v)
 
     def resolve(self, discodb):
         q = self.term.resolve(discodb)

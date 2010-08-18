@@ -38,6 +38,7 @@ static PyObject * DiscoDB_keys         (DiscoDB *);
 static PyObject * DiscoDB_values       (DiscoDB *);
 static PyObject * DiscoDB_unique_values(DiscoDB *);
 static PyObject * DiscoDB_peek         (DiscoDB *,      PyObject *);
+static PyObject * DiscoDB_metaquery    (DiscoDB *,      PyObject *);
 static PyObject * DiscoDB_query        (DiscoDB *,      PyObject *);
 
 /* Serialization / Deserialization Informal Protocol */
