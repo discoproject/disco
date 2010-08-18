@@ -228,8 +228,10 @@ class MetaLiteral(Literal):
             for v in discodb.query(q):
                 yield not Q.wrap(v) if self.negated else Q.wrap(v)
 
+    def format(self, **kwargs):
+        raise NotImplementedError("Formatting MetaLiterals is not supported")
+
     def resolve(self, discodb):
         q = self.term.resolve(discodb)
         clause = Clause(Literal(v) for v in discodb.query(q))
         return Q.wrap(not clause if self.negated else clause)
-
