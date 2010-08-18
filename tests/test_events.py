@@ -60,6 +60,23 @@ class SingleLineMessageTestCase(DiscoJobTestFixture, DiscoTestCase):
     def answers(self):
         return []
 
+class BinaryMessageTestCase(DiscoJobTestFixture, DiscoTestCase):
+    inputs = [1]
+
+    def getdata(self, path):
+        return 'data\n' * 10
+
+    @staticmethod
+    def map(e, params):
+        import sys
+        l='\x00\x001\xc9D\x8b-\xa0\x99 \x00\xba\xc0\xe5`\x00H\x89\xdeH\x8b=\x81\x99 \x00\xe8\x04\xeb\xff\xff\x85\xc0\x0f\x88l\n'
+        sys.stderr.write('**<MSG> Binary message ' + l)
+        return []
+
+    @property
+    def answers(self):
+        return []
+
 class SingleLineErrorTestCase(SingleLineMessageTestCase):
     @staticmethod
     def map(e, params):
