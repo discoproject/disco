@@ -64,6 +64,7 @@ static PyTypeObject DiscoDBIterItemType;
 
 static PyObject * DiscoDBIter_new          (PyTypeObject *, DiscoDB *, struct ddb_cursor *);
 static void       DiscoDBIter_dealloc      (DiscoDBIter *);
+static int        DiscoDBIter_nonzero      (DiscoDBIter *);
 static Py_ssize_t DiscoDBIter_length       (DiscoDBIter *);
 static PyObject * DiscoDBIter_iternextentry(DiscoDBIter *);
 static PyObject * DiscoDBIter_iternextitem (DiscoDBIter *);

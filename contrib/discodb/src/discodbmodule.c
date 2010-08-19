@@ -923,6 +923,20 @@ DiscoDBConstructor_finalize(DiscoDBConstructor *self, PyObject *args, PyObject *
 
 /* DiscoDB Iterator Types */
 
+static PyNumberMethods DiscoDBIter_as_number = {
+    NULL,                          /* nb_add            */
+    NULL,                          /* nb_subtract       */
+    NULL,                          /* nb_multiply       */
+    NULL,                          /* nb_divide         */
+    NULL,                          /* nb_remainder      */
+    NULL,                          /* nb_divmod         */
+    NULL,                          /* nb_power          */
+    NULL,                          /* nb_negative       */
+    NULL,                          /* nb_positive       */
+    NULL,                          /* nb_absolute       */
+    (inquiry)DiscoDBIter_nonzero,  /* nb_nonzero        */
+};
+
 static PySequenceMethods DiscoDBIter_as_sequence = {
     (lenfunc)DiscoDBIter_length,   /* sq_length         */
     NULL,                          /* sq_concat         */
@@ -947,7 +961,7 @@ static PyTypeObject DiscoDBIterEntryType = {
     0,                                       /* tp_setattr        */
     0,                                       /* tp_compare        */
     0,                                       /* tp_repr           */
-    0,                                       /* tp_as_number      */
+    &DiscoDBIter_as_number,                  /* tp_as_number      */
     &DiscoDBIter_as_sequence,                /* tp_as_sequence    */
     0,                                       /* tp_as_mapping     */
     0,                                       /* tp_hash           */
@@ -977,7 +991,7 @@ static PyTypeObject DiscoDBIterItemType = {
     0,                                       /* tp_setattr        */
     0,                                       /* tp_compare        */
     0,                                       /* tp_repr           */
-    0,                                       /* tp_as_number      */
+    &DiscoDBIter_as_number,                  /* tp_as_number      */
     &DiscoDBIter_as_sequence,                /* tp_as_sequence    */
     0,                                       /* tp_as_mapping     */
     0,                                       /* tp_hash           */
@@ -1014,6 +1028,37 @@ DiscoDBIter_dealloc(DiscoDBIter *self)
     Py_CLEAR(self->owner);
     ddb_cursor_dealloc(self->cursor);
     PyObject_Del(self);
+}
+
+static int
+DiscoDBIter_nonzero(DiscoDBIter *self)
+{
+    uint64_t n = ddb_resultset_size(self->cursor);
+
+    if (n)
+        return n;
+
+    PyObject
+        *iterator = PyObject_GetIter((PyObject *)self),
+        *item = NULL;
+
+    if (iterator == NULL)
+      n = -1;
+
+    item = PyIter_Next(iterator);
+    if (item == NULL) {
+        if (PyErr_Occurred())
+          n = -1;
+        else
+          n = 0;
+    } else {
+        n = 1;
+    }
+
+    Py_CLEAR(iterator);
+    Py_CLEAR(item);
+
+    return n;
 }
 
 static Py_ssize_t
