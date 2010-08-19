@@ -12,7 +12,7 @@ import os
 DISCO_HOME = "${TARGETDIR}"
 
 # Root directory for Disco data.
-DISCO_ROOT = "${DESTDIR}/srv/disco/"
+DISCO_ROOT = "${DISCO_ROOT}"
 
 # Root directory for Disco logs.
 DISCO_LOG_DIR = "${DESTDIR}/var/log/disco/"

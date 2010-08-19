@@ -20,6 +20,7 @@ ERL_LIBDIR = /usr/lib/erlang
 
 INSTALL_DIR = $(PREFIX)/lib/disco/
 CONFIG_DIR = $(SYSCONFDIR)/disco/
+DISCO_ROOT = $(DESTDIR)/srv/disco/
 
 TARGETDIR = $(DESTDIR)/$(INSTALL_DIR)
 TARGETBIN = $(DESTDIR)/$(BIN_DIR)
@@ -57,7 +58,7 @@ clean:
 	- rm -Rf node/build
 	- rm -Rf node/disco_node.egg-info
 
-install: install-master install-lib install-node install-tests
+install: install-master install-lib install-node install-root install-tests
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
@@ -98,9 +99,13 @@ install-config:
 		(DESTDIR=$(DESTDIR) \
 		 TARGETDIR=$(TARGETDIR) \
 		 TARGETBIN=$(TARGETBIN) \
+		 DISCO_ROOT=$(DISCO_ROOT) \
 		 conf/gen.settings.sys-$(UNAME) > $(TARGETCFG)/settings.py || \
 		 rm $(TARGETCFG)/settings.py; \
                  chmod 644  $(TARGETCFG)/settings.py))
+
+install-root:
+	install -d $(DISCO_ROOT)ddfs
 
 install-examples:
 	cp -r examples $(TARGETDIR)
