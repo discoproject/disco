@@ -34,6 +34,9 @@ class JSONSerialized(object):
             return getattr(module, name)
         return reify(name)
 
+class Dict(dict, JSONSerialized):
+    pass
+
 class DataSet(dict, JSONSerialized):
     """Specifies a collection of inputs to be indexed and how to index them."""
     required_fields = ['input']
@@ -105,7 +108,4 @@ class MetaSet(Index):
         return bool(self.options.get('unique_items', False))
 
 class Results(list, JSONSerialized):
-    pass
-
-class Query(dict, JSONSerialized):
     pass

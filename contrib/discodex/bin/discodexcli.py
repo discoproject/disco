@@ -195,6 +195,17 @@ def metaindex(program, indexspec):
     print client.metaindex(metaset)
 
 @Discodex.command
+def metaquery(program, indexspec, *args):
+    """Usage: <indexspec> q[uery]
+
+    Metaquery the specified index using the given clauses.
+    """
+    from discodb.query import Q, Clause
+    query = Q.parse('&'.join(arg.replace(',', '|') for arg in args))
+    for result in program.client.metaquery(indexspec, query):
+        print result
+
+@Discodex.command
 def put(program, indexspec, *files):
     """Usage: <indexspec> file ...
 

@@ -3,7 +3,7 @@ import httplib, urllib, urlparse
 from disco.comm import HTTPConnection
 
 from core import DiscodexError
-from objects import DataSet, MetaSet, Indices, Index, Results, Query
+from objects import DataSet, MetaSet, Indices, Index, Results, Dict
 from settings import DiscodexSettings
 
 class ResourceNotFound(DiscodexError):
@@ -79,5 +79,8 @@ class DiscodexClient(object):
         return Results.loads(self.request('GET', '%s/values' % self.indexurl(indexspec)).read())
 
     def query(self, indexspec, query):
-        query = Query(query_path=query.urlformat())
-        return Results.loads(self.request('POST', '%s/query/' % self.indexurl(indexspec), query.dumps()).read())
+        return Results.loads(self.request('POST', '%s/query/' % self.indexurl(indexspec),
+                                          Dict(arg=query.urlformat()).dumps()).read())
+    def metaquery(self, indexspec, query):
+        return Results.loads(self.request('POST', '%s/metaquery/' % self.indexurl(indexspec),
+                                          Dict(arg=query.urlformat()).dumps()).read())

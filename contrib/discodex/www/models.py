@@ -12,24 +12,18 @@ from discodex.restapi.resource import (HttpResponseAccepted,
 from discodex import settings
 from discodex.mapreduce import (Indexer,
                                 MetaIndexer,
-                                Queryer,
-                                DiscoDBIterator,
-                                KeyIterator,
-                                ValuesIterator,
-                                ItemsIterator)
+                                DiscoDBIterator)
 from discodex.objects import (DataSet,
                               MetaSet,
                               Indices,
                               Index,
                               Results,
-                              Query)
+                              Dict)
 
 from disco.core import Disco
 from disco.ddfs import DDFS
 from disco.error import DiscoError
 from disco.util import ddfs_name, flatten, parse_dir
-
-from discodb import Q
 
 discodex_settings = settings.DiscodexSettings()
 disco_master_url  = discodex_settings['DISCODEX_DISCO_MASTER']
@@ -86,8 +80,7 @@ class IndexResource(Collection):
     def delegate(self, request, *args, **kwargs):
         if self.status == NOT_FOUND:
             raise Http404
-        property = str(kwargs.pop('property'))
-        return getattr(self, property)(request, *args, **kwargs)
+        return DiscoDBResource(self)(request, *args, **kwargs)
 
     @property
     def exists(self):
@@ -121,22 +114,6 @@ class IndexResource(Collection):
     @property
     def ichunks(self):
         return ddfs.blobs(self.tag)
-
-    @property
-    def keys(self):
-        return KeysResource(self)
-
-    @property
-    def values(self):
-        return ValuesResource(self)
-
-    @property
-    def items(self):
-        return ItemsResource(self)
-
-    @property
-    def query(self):
-        return QueryCollection(self)
 
     @property
     def status(self):
@@ -179,28 +156,25 @@ class IndexResource(Collection):
         return HttpResponseNoContent()
 
 class DiscoDBResource(Resource):
-    job_type    = DiscoDBIterator
+    allowed_methods = ('GET', 'POST')
 
     def __init__(self, index):
         self.index = index
 
-    @property
-    def job(self):
-        return self.job_type(disco_master,
-                             disco_prefix,
-                             self.index.ichunks,
-                             self.target,
-                             self.mapfilters,
-                             self.reducefilters,
-                             self.resultsfilters)
-
     def read(self, request, *args, **kwargs):
+        method = str(kwargs.pop('method') or '')
+        arg    = str(kwargs.pop('arg') or '')
+
+        mapfilters     = filter(None, kwargs.pop('mapfilters').split('|'))
+        reducefilters  = filter(None, kwargs.pop('reducefilters').split('}'))
+        resultsfilters = filter(None, kwargs.pop('resultsfilters').split(']'))
+
         try:
-            self.target         = str(kwargs.pop('target') or '')
-            self.mapfilters     = filter(None, kwargs.pop('mapfilters').split('|'))
-            self.reducefilters  = filter(None, kwargs.pop('reducefilters').split('}'))
-            self.resultsfilters = filter(None, kwargs.pop('resultsfilters').split(']'))
-            job = self.job.run()
+            job = DiscoDBIterator(disco_master,
+                                  disco_prefix,
+                                  self.index,
+                                  method,
+                                  arg).run()
         except DiscoError, e:
             return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
 
@@ -214,44 +188,6 @@ class DiscoDBResource(Resource):
 
         return results.response(request)
 
-class KeysResource(DiscoDBResource):
-    job_type    = KeyIterator
-
-class ValuesResource(DiscoDBResource):
-    job_type    = ValuesIterator
-
-class ItemsResource(DiscoDBResource):
-    job_type    = ItemsIterator
-
-class QueryCollection(Collection):
-    allowed_methods = ('GET', 'POST')
-
-    def __init__(self, index):
-        self.index = index
-
-    def delegate(self, request, *args, **kwargs):
-        query_path = str(kwargs.pop('query_path'))
-        return QueryResource(self.index, query_path)(request, *args, **kwargs)
-
-    def read(self, request, *args, **kwargs):
-        return Results().response(request)
-
     def create(self, request, *args, **kwargs):
-        query = Query.loads(request.raw_post_data)
-        return QueryResource(self.index, query['query_path']).read(request, *args, **kwargs)
-
-class QueryResource(DiscoDBResource):
-    def __init__(self, index, query_path):
-        self.index = index
-        self.query = Q.urlscan(query_path)
-
-    @property
-    def job(self):
-        return Queryer(disco_master,
-                       disco_prefix,
-                       self.index.ichunks,
-                       self.target,
-                       self.mapfilters,
-                       self.reducefilters,
-                       self.resultsfilters,
-                       self.query)
+        kwargs.update(Dict.loads(request.raw_post_data))
+        return self.read(request, *args, **kwargs)
