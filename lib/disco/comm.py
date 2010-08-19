@@ -1,4 +1,4 @@
-import httplib, os, random, struct, time
+import httplib, os, random, struct, time, socket
 from cStringIO import StringIO
 
 from disco.error import CommError
@@ -66,12 +66,17 @@ def request(method, url, data=None, headers={}, sleep=0):
         conn.request(method, '/%s' % path, body=data, headers=headers)
         response = conn.getresponse()
         status = response.status
-    except (httplib.HTTPException, httplib.socket.error), e:
-        status = httplib.SERVICE_UNAVAILABLE
+        errmsg = response.reason
+    except httplib.HTTPException, e:
+        status = None
+        errmsg = str(e) or repr(e)
+    except (httplib.socket.error, socket.error), e:
+        status = None
+        errmsg = e if isinstance(e, basestring) else e[1]
 
-    if isunavailable(status):
+    if not status or isunavailable(status):
         if sleep == 9:
-            raise CommError("Service unavailable", url)
+            raise CommError(errmsg, url, status)
         time.sleep(random.randint(1, 2**sleep))
         return request(method, url, data=data, headers=headers, sleep=sleep + 1)
     elif isredirection(status):
