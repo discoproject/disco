@@ -53,6 +53,8 @@ class Q(object):
 
         ~(c & ...) -> (~c) | ... -> ~(C) -> Q
         """
+        if not self.clauses:
+            return self
         return Q.wrap(reduce(__or__, (~c for c in self.clauses)))
 
     def __pos__(self):
@@ -80,7 +82,7 @@ class Q(object):
             yield q, discodb.query(q)
 
     def resolve(self, discodb):
-        return reduce(__and__, (c.resolve(discodb) for c in self.clauses))
+        return reduce(__and__, (c.resolve(discodb) for c in self.clauses), Q([]))
 
     def urlformat(self, safe=':()/,~'):
         from urllib import quote
