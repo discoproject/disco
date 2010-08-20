@@ -95,7 +95,10 @@ class Q(object):
     @classmethod
     def urlscan(cls, string):
         from urllib import unquote
-        return cls.parse(unquote(string).replace('/', '&').replace(',', '|'))
+        return cls.parse(unquote(string)\
+                         .strip().strip('/')\
+                         .replace('/', '&')\
+                         .replace(',', '|'))
 
     @classmethod
     def parse(cls, string):
