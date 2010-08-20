@@ -162,19 +162,23 @@ class DiscoDBResource(Resource):
         self.index = index
 
     def read(self, request, *args, **kwargs):
+        from discodex.mapreduce.func import reify
+
         method = str(kwargs.pop('method') or '')
         arg    = str(kwargs.pop('arg') or '')
 
-        mapfilters     = filter(None, kwargs.pop('mapfilters').split('|'))
-        reducefilters  = filter(None, kwargs.pop('reducefilters').split('}'))
-        resultsfilters = filter(None, kwargs.pop('resultsfilters').split(']'))
+        streams = [reify(s) for s in kwargs.pop('streams').split('|') if s]
+        reduce  = reify((kwargs.pop('reduce') or 'None').strip('}'))
 
         try:
             job = DiscoDBIterator(disco_master,
                                   disco_prefix,
                                   self.index,
                                   method,
-                                  arg).run()
+                                  arg,
+                                  streams,
+                                  reduce,
+                                  **dict(request.GET.items())).run()
         except DiscoError, e:
             return HttpResponseServerError("Failed to run DiscoDB job: %s" % e)
 

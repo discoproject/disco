@@ -16,7 +16,7 @@ Discodex uses mapreduce jobs to build and query indices...
         ichunker: (p, (k, v)) ... -> ichunks    /
 """
 from disco.core import result_iterator, Job, Params
-from disco.func import nop_reduce, map_output_stream, reduce_output_stream
+from disco.func import nop_reduce, map_input_stream, map_output_stream, reduce_output_stream
 
 class DiscoDBOutput(object):
     def __init__(self, stream, params):
@@ -105,28 +105,28 @@ class DiscoDBIterator(Job):
     map_reader     = None
     result_reader  = staticmethod(json_reader)
 
-    def __init__(self, master, name, index, method, arg):
+    def __init__(self, master, name, index, method, arg, streams, reduce, **kwargs):
         super(DiscoDBIterator, self).__init__(master, name)
         self.input = [['%s!%s/%s' % (url, method, arg) for url in urls]
                       for urls in index.ichunks]
-        self.params = Params()
+        self.map_input_stream = [map_input_stream] + streams
+        self.params = Params(**kwargs)
 
-        if None:
+        if reduce:
             self.partitions = len(self.master.nodeinfo())
-            self.reduce     = self._reduce
-            self.sort       = True
+            self.reduce     = reduce
             self.reduce_writer = json_writer
         else:
             self.map_writer    = json_writer
 
     def map(entry, params):
         from disco.util import iskv
-        yield entry if iskv(entry) else (None, entry)
+        yield entry if iskv(entry) else (entry, None)
 
     @property
     def results(self):
         for k, v in result_iterator(self.wait(), reader=self.result_reader):
-            yield v if k is None else (k, v)
+            yield k if v is None else (k, v)
 
 class Record(object):
     """Convenient containers for holding bags of [named] attributes."""

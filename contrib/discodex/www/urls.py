@@ -8,12 +8,11 @@ attribute      = r'%s/(?P<method>\w+)'              % (index)
 method         = r'%s(?:/(?P<arg>[^|}\]]*))?'       % (attribute)
 
 dotted_name    = r'\w+(\.\w+)*'
-mapfilters     = r'(?P<mapfilters>(\|%s)*)'    % (dotted_name)
-reducefilters  = r'(?P<reducefilters>(}%s)*)'  % (dotted_name)
-resultsfilters = r'(?P<resultsfilters>(]%s)*)' % (dotted_name)
+streams        = r'(?P<streams>(\|%s)*)' % (dotted_name)
+reduce         = r'(?P<reduce>(}%s)?)'   % (dotted_name)
 
 def pipeline(pattern):
-    return r'^%s%s%s%s$' % (pattern, mapfilters, reducefilters, resultsfilters)
+    return r'^%s%s%s$' % (pattern, streams, reduce)
 
 urlpatterns = patterns('',
                        url(r'^%s$' % indices, views.indices, name='indices'),
