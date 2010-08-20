@@ -226,8 +226,16 @@ event(EventServer, Host, JobName, Format, Args, Params) ->
 		     true -> trunc_io:fprint(X, 10000);
 		     false -> X 
 		 end || X <- Args],
-    Msg = list_to_binary(mochijson2:encode(
-        list_to_binary(io_lib:fwrite(Format, SArgs)))),
+    RawMsg = lists:flatten(io_lib:fwrite(Format, SArgs)),
+    Json = case catch mochijson2:encode(list_to_binary(RawMsg)) of
+               {'EXIT', _} ->
+                   Hex = ["WARNING: Binary message data: ",
+                          [io_lib:format("\\x~2.16.0b",[N])
+                           || N <- RawMsg]],
+                   mochijson2:encode(list_to_binary(Hex));
+               J -> J
+           end,
+    Msg = list_to_binary(Json),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
 
 % callback stubs
