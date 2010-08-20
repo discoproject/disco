@@ -313,7 +313,10 @@ class Disco(object):
         return json.loads(self.request('/disco/ctrl/jobinfo?name=%s' % name))
 
     def check_results(self, name, start_time, timeout, poll_interval):
-        status, results = self.results(name, timeout=poll_interval)
+        try:
+            status, results = self.results(name, timeout=poll_interval)
+        except CommError, e:
+            status = 'active'
         if status == 'ready':
             return results
         if status != 'active':
