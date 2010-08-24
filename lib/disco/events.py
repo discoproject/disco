@@ -23,6 +23,9 @@ class Event(object):
         tags = ' '.join(tag for tag in self.tags if self.tag_re.match(tag))
         return '**<%s> %s %s\n%s\n<>**\n' % (self.type, self.timestamp, tags, self.message)
 
+class Status(Event):
+    type = 'STA'
+
 class Message(Event):
     type = 'MSG'
 
