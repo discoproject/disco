@@ -3,7 +3,6 @@ from cStringIO import StringIO
 
 import pycurl
 
-from disco.events import Message
 from disco.error import CommError
 
 class CurlResponse(object):
