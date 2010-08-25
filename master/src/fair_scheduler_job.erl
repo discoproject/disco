@@ -13,7 +13,7 @@
 
 start(JobName, JobCoord) ->
     case gen_server:start(fair_scheduler_job, {JobName, JobCoord}, 
-        disco_server:debug_flags("fair_scheduler_job-" ++ JobName)) of
+            disco:debug_flags("fair_scheduler_job-" ++ JobName)) of
         {ok, Server} -> {ok, Server};
         Error ->
             % This happens mainly if the job coordinator has 

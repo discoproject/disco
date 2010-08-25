@@ -155,7 +155,7 @@ handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
     error(recoverable, Message, S);
 
 handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, S) ->
-    event({"END", "Task finished in " ++ disco_server:format_time(S#state.start_time)}, S),
+    event({"END", "Task finished in " ++ disco:format_time(S#state.start_time)}, S),
     {stop, worker_exit(S, {job_ok, S#state.results}), S};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->

@@ -18,8 +18,7 @@ start_link() ->
     error_logger:info_report([{"Fair scheduler: Fair policy"}]),
     case gen_server:start_link({local, sched_policy},
                    fair_scheduler_fair_policy, [],
-                   disco_server:debug_flags
-                    ("fair_scheduler_fair_policy")) of
+                   disco:debug_flags("fair_scheduler_fair_policy")) of
         {ok, Server} ->
             {ok, Server};
         {error, {already_started, Server}} ->

@@ -151,14 +151,14 @@ handle_info(Msg, State) ->
 
 tail_log(JobName, N)->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
+    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
     Tail = string:tokens(os:cmd(["tail -n ", integer_to_list(N),
                      " ", FName, " 2>/dev/null"]), "\n"),
     [list_to_binary(L) || L <- lists:reverse(Tail)].
 
 grep_log(JobName, Query, N) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
+    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
 
     % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
     % only whitelisted characters are allowed in the query
@@ -249,7 +249,7 @@ check_mkdir(_) -> throw("creating directory failed").
 
 prepare_environment(Name) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    Home = disco_server:jobhome(Name),
+    Home = disco:jobhome(Name),
     [Path, _] = filename:split(Home),
     check_mkdir(file:make_dir(filename:join(Root, Path))),
     check_mkdir(file:make_dir(filename:join(Root, Home))).
@@ -258,7 +258,7 @@ delete_jobdir(Name) ->
     Safe = string:chr(Name, $.) + string:chr(Name, $/),
     if Safe =:= 0 ->
         Root = disco:get_setting("DISCO_MASTER_ROOT"),
-        Home = disco_server:jobhome(Name),
+        Home = disco:jobhome(Name),
         os:cmd("rm -Rf " ++ filename:join(Root, Home));
     true -> ok
     end.
@@ -266,7 +266,7 @@ delete_jobdir(Name) ->
 job_event_handler(JobName, JobCoordinator) ->
     prepare_environment(JobName),
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
+    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
     {ok, File} = file:open(FName, [append, raw]),
     gen_server:call(event_server, {job_initialized, JobName, self()}),
     gen_server:reply(JobCoordinator, {ok, JobName}),

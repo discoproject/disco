@@ -2,7 +2,7 @@
 -module(disco_server).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0, jobhome/1, debug_flags/1, format_time/1]).
+-export([start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
     terminate/2, code_change/3]).
 
@@ -27,7 +27,7 @@
 start_link() ->
     error_logger:info_report([{"DISCO SERVER STARTS"}]),
     case gen_server:start_link({local, disco_server},
-            disco_server, [], debug_flags("disco_server")) of
+            disco_server, [], disco:debug_flags("disco_server")) of
         {ok, Server} ->
             case catch disco_config:get_config_table() of
                 {ok, _Config} ->
@@ -41,36 +41,6 @@ start_link() ->
 
 stop() ->
     gen_server:call(disco_server, stop).
-
-debug_flags(Server) ->
-    case os:getenv("DISCO_DEBUG") of
-        "trace" ->
-            Root = disco:get_setting("DISCO_MASTER_ROOT"),
-            [{debug, [{log_to_file,
-                filename:join(Root, Server ++ "_trace.log")}]}];
-        _ -> []
-    end.
-
-jobhome(JobName) when is_list(JobName) ->
-    jobhome(list_to_binary(JobName));
-jobhome(JobName) ->
-    <<D0:8, _/binary>> = erlang:md5(JobName),
-    [D1] = io_lib:format("~.16b", [D0]),
-    Prefix = case D1 of [_] -> "0"; _ -> "" end,
-    lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
-
-format_time(T) ->
-    MS = 1000,
-    SEC = 1000 * MS,
-    MIN = 60 * SEC,
-    HOUR = 60 * MIN,
-    D = timer:now_diff(now(), T),
-    Ms = (D rem SEC) div MS,
-    Sec = (D rem MIN) div SEC,
-    Min = (D rem HOUR) div MIN,
-    Hour = D div HOUR,
-    lists:flatten(io_lib:format("~B:~2.10.0B:~2.10.0B.~3.10.0B",
-        [Hour, Min, Sec, Ms])).
 
 init(_Args) ->
     process_flag(trap_exit, true),
