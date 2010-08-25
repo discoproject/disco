@@ -25,6 +25,17 @@ True
 ['D', 'E']
 >>> sorted(discodb.query(Q.parse('**A | *B')))
 ['F', 'G']
+
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('A')))
+[('(A)', ['B', 'C'])]
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('*A')))
+[('(B)', ['D']), ('(C)', ['E'])]
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('A | B')))
+[('(A | B)', ['B', 'C', 'D'])]
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('*A | B')))
+[('(B)', ['D']), ('(C | B)', ['D', 'E'])]
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('**A | *B')))
+[('(D)', ['F']), ('(E | D)', ['F', 'G'])]
 """
 from operator import __and__, __or__
 
@@ -103,6 +114,57 @@ class Q(object):
 
     @classmethod
     def parse(cls, string):
+        """
+        Parse a string into a Q object.
+
+        The parsed string is subject to the following conditions:
+
+         - `*` characters will be replaced with `+`
+         - literal terms cannot contain the characters `&|~+()`
+         - leading and trailing spaces will be stripped from terms
+         - the characters `&|~` signify the corresponding logical operations
+         - parentheses make operator precedence explicit
+         - `+` characters introduce a dereferencing operation
+
+        The string will be parsed into a logical combination of the terms,
+        which will be stored internally in :term:`conjunctive normal form`.
+
+        Dereferencing is performed when the
+        :class:`Q` object is actually used to query a :class:`discodb.DiscoDB`.
+
+        In queries (:meth:`discodb.DiscoDB.query`),
+        the dereferencing operation replaces an expression with
+        the union of the values which result from querying with the expression.
+
+        Thus in the case of::
+
+                discodb = DiscoDB({'A': ['B', 'C'], 'B': 'D'})
+
+        The following queries would be equivalent::
+
+                discodb.query(Q.parse('+A'))
+                discodb.query(Q.parse('*A'))
+                discodb.query(Q.parse('B | C'))
+
+        and would result in an iterator containing only the value ``'D'``.
+
+        In metaqueries (:meth:`discodb.DiscoDB.metaquery`),
+        the dereferencing operation replaces an expression with
+        each value which results from querying with the expression,
+        and yields a (query, values) pair for each item in the expansion.
+
+        Thus, for the discodb above::
+
+                discodb.metaquery('A')
+
+        would return an iterator roughly equivalent to
+        `[(Q.parse('A'), ['B', 'C'])]`, while::
+
+                discodb.metaquery('*A')
+
+        would return an iterator roughly equivalent to
+        `[(Q.parse('B'), ['D']), (Q.parse('C'), [])]`.
+        """
         import re
         return eval(re.sub(r'([^&|~+()\s][^&|~+()]*)',
                            r'Q.wrap("""\1""".strip())',
