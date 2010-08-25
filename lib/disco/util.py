@@ -79,7 +79,7 @@ def kvgroup(kviter):
         yield k, (v for _k, v in kvs)
 
 def kvify(entry):
-    return entry if iskv(entry) else ('', entry)
+    return entry if iskv(entry) else (entry, None)
 
 def partition(iterable, fn):
     t, f = [], []
