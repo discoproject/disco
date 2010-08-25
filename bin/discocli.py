@@ -96,9 +96,6 @@ class Disco(Program):
             raise Exception("unrecognized command: %s" % ' '.join(args))
         print "Disco master located at %s" % self.settings['DISCO_MASTER']
 
-    def main(self):
-        super(Disco, self).main()
-
     @property
     def disco(self):
         from disco.core import Disco
