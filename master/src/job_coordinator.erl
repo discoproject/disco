@@ -265,52 +265,6 @@ run_task(Inputs, Mode, Name, Job) ->
                 [Error], unknown_error)
         end,
     write_indices(Name, Mode, gb_trees:values(Results)).
-    %{A, B} = lists:unzip(Results),
-    %B.
-
-write_indices(Name, Mode, Results) ->
-    DataRoot = disco:get_setting("DISCO_DATA"),
-    JobIndex = filename:join([disco:jobhome(Name), Mode ++ "-index.txt"]),
-    Groups = disco_util:groupby(1, lists:keysort(1, Results)),
-    Messages = [begin
-                   {[Node|_], Urls} = lists:unzip(NodeUrls),
-                   {Node, [DataRoot, JobIndex, Urls]}
-                end || NodeUrls <- Groups],
-    wait_replies(Name, call_nodes(Messages)),
-    [begin
-        Host = disco:host(Node),
-        list_to_binary(["dir://", Host, "/disco/", Host, "/", JobIndex])
-     end || {Node, _Args} <- Messages].
-
-call_nodes(Messages) ->
-    [begin
-        Key = rpc:async_call(Node, job_coordinator, write_index, Args),
-        {Key, Msg}
-     end || {Node, Args} = Msg <- Messages].
-
-wait_replies(_Name, []) -> ok;
-wait_replies(Name, Promises) ->
-    Replies = [{(catch rpc:nb_yield(Key, 10000)), Msg}
-                    || {Key, Msg} <- Promises],
-    Failed =
-        [begin
-            M = "WARN: Creating index file failed at ~s: ~p (retrying)",
-            event_server:event(Name, M, [disco:host(Node), Reply], {}),
-            Msg
-         end || {Reply, {Node, Args} = Msg} <- Replies, Reply =/= {value, ok}],
-    timer:sleep(10000),
-    wait_replies(Name, call_nodes(Failed)).
-
-write_index(DataRoot, JobIndex, Urls) ->
-    Temp = ddfs_util:timestamp(),
-    Path = filename:join([DataRoot, disco:host(node()), JobIndex]),
-    Index = disco_util:join(Urls, "\n"),
-    case prim_file:write_file([Path, $., Temp], Index) of
-        ok ->
-            prim_file:rename([Path, $., Temp], Path);
-        Error ->
-            Error
-    end.
 
 -spec job_coordinator(nonempty_string(), jobinfo()) -> _.
 job_coordinator(Name, Job) ->
@@ -390,3 +344,51 @@ pref_node(Url) ->
     nomatch -> false;
     {match, [{S, L}]} -> string:sub_string(Url, S + 1, S + L)
     end.
+
+%%
+%% Functions for writing indices on remote nodes below
+%%
+
+write_indices(Name, Mode, Results) ->
+    DataRoot = disco:get_setting("DISCO_DATA"),
+    JobIndex = filename:join([disco:jobhome(Name), Mode ++ "-index.txt"]),
+    Groups = disco_util:groupby(1, lists:keysort(1, Results)),
+    Messages = [begin
+                   {[Node|_], Urls} = lists:unzip(NodeUrls),
+                   {Node, [DataRoot, JobIndex, Urls]}
+                end || NodeUrls <- Groups],
+    wait_replies(Name, call_nodes(Messages)),
+    [begin
+        Host = disco:host(Node),
+        list_to_binary(["dir://", Host, "/disco/", Host, "/", JobIndex])
+     end || {Node, _Args} <- Messages].
+
+call_nodes(Messages) ->
+    [begin
+        Key = rpc:async_call(Node, job_coordinator, write_index, Args),
+        {Key, Msg}
+     end || {Node, Args} = Msg <- Messages].
+
+wait_replies(_Name, []) -> ok;
+wait_replies(Name, Promises) ->
+    Replies = [{rpc:nb_yield(Key, 10000), Msg} || {Key, Msg} <- Promises],
+    Failed =
+        [begin
+            M = "WARN: Creating index file failed at ~s: ~p (retrying)",
+            event_server:event(Name, M, [disco:host(Node), Reply], {}),
+            timer:sleep(10000),
+            Msg
+         end || {Reply, {Node, _Arg} = Msg} <- Replies, Reply =/= {value, ok}],
+    wait_replies(Name, call_nodes(Failed)).
+
+write_index(DataRoot, JobIndex, Urls) ->
+    Temp = ddfs_util:timestamp(),
+    Path = filename:join([DataRoot, disco:host(node()), JobIndex]),
+    Index = disco_util:join(Urls, "\n"),
+    case prim_file:write_file([Path, $., Temp], Index) of
+        ok ->
+            prim_file:rename([Path, $., Temp], Path);
+        Error ->
+            Error
+    end.
+
