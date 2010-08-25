@@ -86,24 +86,9 @@ class MetaIndexer(Job):
 
     map_output_stream = [map_output_stream, metadb_output]
 
-def json_reader(fd, size, url, params):
-    from disco.func import chain_reader
-    from discodex import json
-    for k, v in chain_reader(fd, size, url, params):
-        yield json.loads(k), json.loads(v)
-
-def json_writer(fd, key, value, params):
-    from disco.func import netstr_writer
-    from discodex import json
-    netstr_writer(fd,
-                  json.dumps(key, default=str),
-                  json.dumps(value, default=str),
-                  params)
-
 class DiscoDBIterator(Job):
     scheduler      = {'force_local': True}
     map_reader     = None
-    result_reader  = staticmethod(json_reader)
 
     def __init__(self, master, name, index, method, arg, streams, reduce, **kwargs):
         super(DiscoDBIterator, self).__init__(master, name)
@@ -114,18 +99,17 @@ class DiscoDBIterator(Job):
 
         if reduce:
             self.partitions = len(self.master.nodeinfo())
-            self.reduce     = reduce
-            self.reduce_writer = json_writer
-        else:
-            self.map_writer    = json_writer
+            self.reduce = reduce
 
     def map(entry, params):
-        from disco.util import iskv
-        yield entry if iskv(entry) else (entry, None)
+        from disco.util import kvify
+        from discodb import DiscoDBIter
+        k, v = kvify(entry)
+        yield (k, str(v)) if isinstance(v, DiscoDBIter) else (k, v)
 
     @property
     def results(self):
-        for k, v in result_iterator(self.wait(), reader=self.result_reader):
+        for k, v in result_iterator(self.wait()):
             yield k if v is None else (k, v)
 
 class Record(object):
