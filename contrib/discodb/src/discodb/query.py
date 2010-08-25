@@ -1,5 +1,6 @@
 """
-Supporting Python objects for the query interface.
+:mod:`discodb.query` -- Supporting objects for the DiscoDB query interface
+==========================================================================
 
 >>> Q.parse('~(B | C)') == Q.parse('~B & ~C')
 True

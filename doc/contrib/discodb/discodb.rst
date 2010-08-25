@@ -82,6 +82,8 @@ Here is a simple example that builds a simple discodb and queries it::
 
     db.dump(file('animals.db', 'w')) # dump discodb to a file
 
+For more detailed information on querying, see :mod:`discodb.query`.
+
 Notes
 -----
 
