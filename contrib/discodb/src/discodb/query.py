@@ -103,8 +103,8 @@ class Q(object):
     @classmethod
     def parse(cls, string):
         import re
-        return eval(re.sub(r'([^&|~+()\s]+)',
-                           r'Q.wrap("""\1""")',
+        return eval(re.sub(r'([^&|~+()\s][^&|~+()]*)',
+                           r'Q.wrap("""\1""".strip())',
                            string.replace('*', '+')) or 'Q([])')
 
     @classmethod
