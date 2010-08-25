@@ -250,8 +250,12 @@ def read_index(dir_url):
     scheme, netloc, path = urlsplit(dir_url)
     url = proxy_url(path, netloc)
     for line in download(url).splitlines():
-        id, url = line.split()
-        yield int(id), url
+        if line.strip().startswith("dir://"):
+            for id, url in read_index(line):
+                yield id, url
+        else:
+            id, url = line.split()
+            yield int(id), url
 
 def parse_dir(dir_url, partid=None):
     """
