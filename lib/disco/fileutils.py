@@ -67,7 +67,7 @@ class AtomicFile(file):
             super(AtomicFile, self).close()
             os.rename(self.partial, self.path)
             self.isopen = False
-
+"""
 class PartitionFile(AtomicFile):
     def __init__(self, partfile, path, *args, **kwargs):
         self.partfile = partfile
@@ -78,7 +78,7 @@ class PartitionFile(AtomicFile):
             super(PartitionFile, self).close()
             safe_append(file(self.path), self.partfile)
             os.remove(self.path)
-
+"""
 def ensure_path(path):
     try:
         os.makedirs(path)
@@ -88,6 +88,7 @@ def ensure_path(path):
         if x.errno != errno.EEXIST:
             raise
 
+"""
 # About concurrent append operations:
 #
 # Posix spec says:
@@ -136,6 +137,7 @@ def _safe_fileop(op, mode, outfile, timeout):
             else:
                 raise
     raise DataError("Timeout when updating file", outfile)
+"""
 
 def ensure_file(fname, data = None, timeout = 60, mode = 500):
     while timeout > 0:

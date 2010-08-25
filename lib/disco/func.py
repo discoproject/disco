@@ -477,15 +477,10 @@ def map_output_stream(stream, partition, url, params):
     An :func:`output_stream` which returns a handle to a partition output.
     The handle ensures that if a task fails, partially written data is ignored.
     """
-    from disco.fileutils import AtomicFile, PartitionFile
+    from disco.fileutils import AtomicFile
     mpath, murl = Task.map_output(partition)
-    if not Task.ispartitioned:
-        Task.blobs.append(mpath)
-        return AtomicFile(mpath, 'w'), murl
-    else:
-        ppath, purl = Task.partition_output(partition)
-        Task.blobs.append(ppath)
-        return PartitionFile(ppath, mpath, 'w'), purl
+    Task.blobs.append(mpath)
+    return AtomicFile(mpath, 'w'), murl
 
 def reduce_output_stream(stream, partition, url, params):
     """

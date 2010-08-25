@@ -1,4 +1,4 @@
-import hashlib, os, random, re, subprocess, sys, cPickle
+import hashlib, os, random, re, subprocess, sys, cPickle, time
 
 from functools import partial
 from itertools import chain
@@ -9,8 +9,7 @@ from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError, DataError
 from disco.events import Message, OutputURL, TaskFailed
-from disco.fileutils import AtomicFile
-from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
+from disco.fileutils import AtomicFile, ensure_file, ensure_path, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
 
@@ -30,7 +29,12 @@ class Task(object):
         self.jobdict  = jobdict
         self.jobname  = jobname
         self.settings = settings
-        self.blobs   = []
+        self.blobs    = []
+        self.mode     = self.__class__.__name__.lower()
+        self.taskid   = "%s:%d-%x-%x" % (self.mode,
+                                         self.id,
+                                         int(time.time() * 1000),
+                                         os.getpid())
 
         if not jobdict:
             self.jobdict = JobDict.unpack(open(self.jobpack),
@@ -40,7 +44,7 @@ class Task(object):
     def __getattr__(self, key):
         if key in self.jobdict:
             return self.jobdict[key]
-        task_key = '%s_%s' % (self.__class__.__name__.lower(), key)
+        task_key = '%s_%s' % (self.mode, key)
         if task_key in self.jobdict:
             return self.jobdict[task_key]
         raise AttributeError("%s has no attribute %s" % (self, key))
@@ -48,9 +52,8 @@ class Task(object):
     def __iter__(self):
         return self.entries
 
-    @property
-    def hex_key(self):
-        return hashlib.md5(self.jobname).hexdigest()[:2]
+    def hex_key(self, name):
+        return hashlib.md5(name).hexdigest()[:2]
 
     @property
     def host(self):
@@ -71,11 +74,23 @@ class Task(object):
 
     @property
     def jobpath(self):
-        return os.path.join(self.host, self.hex_key, self.jobname)
+        return os.path.join(self.host,
+                            self.hex_key(self.jobname),
+                            self.jobname)
+
+    @property
+    def taskpath(self):
+        return os.path.join(self.jobpath,
+                            self.hex_key(self.taskid),
+                            self.taskid)
 
     @property
     def jobroot(self):
         return os.path.join(self.settings['DISCO_DATA'], self.jobpath)
+
+    @property
+    def taskroot(self):
+        return os.path.join(self.settings['DISCO_DATA'], self.taskpath)
 
     @property
     def lib(self):
@@ -125,10 +140,10 @@ class Task(object):
         return self.path(filename), self.url(filename)
 
     def path(self, filename):
-        return os.path.join(self.jobroot, filename)
+        return os.path.join(self.taskroot, filename)
 
     def url(self, filename, scheme='disco'):
-        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.jobpath, filename)
+        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.taskpath, filename)
 
     def open_url(self, url):
         scheme, netloc, rest = util.urlsplit(url, localhost=self.host)
@@ -214,13 +229,14 @@ class Task(object):
 
     def run(self):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
-        os.chdir(self.jobroot)
+        ensure_path(self.taskroot)
+        os.chdir(self.taskroot)
         self._run_profile() if self.profile else self._run()
 
     def _run_profile(self):
         from cProfile import runctx
-        name = 'profile-%s-%s' % (self.__class__.__name__, self.id)
-        path = os.path.join(self.jobroot, name)
+        name = 'profile-%s-%s' % (self.mode, self.id)
+        path = os.path.join(self.taskroot, name)
         runctx('self._run()', globals(), locals(), path)
         self.put(name, file(path).read())
 
@@ -273,10 +289,11 @@ class Map(Task):
 
         index, index_url = self.map_index
 
-        for output in outputs:
+        f = file(index, 'w')
+        for i, output in enumerate(outputs):
+            print >> f, '%d %s' % (i, output.url)
             output.close()
-        safe_update(index, ['%d %s' % (i, output.url)
-                            for i, output in enumerate(outputs)])
+        f.close()
 
         if self.save and not self.reduce:
             OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
@@ -339,7 +356,9 @@ class Reduce(Task):
             Message("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
-            safe_update(index, ['%d %s' % (self.id, out_url)])
+            f = file(index, 'w')
+            print >> f, '%d %s' % (self.id, out_url)
+            f.close()
             OutputURL(index_url)
 
     def __iter__(self):
