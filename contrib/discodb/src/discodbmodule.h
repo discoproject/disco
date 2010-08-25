@@ -59,6 +59,7 @@ static PyObject * DiscoDBConstructor_finalize(DiscoDBConstructor *, PyObject *, 
 
 /* DiscoDB Iterator Types */
 
+static PyTypeObject DiscoDBIterType;
 static PyTypeObject DiscoDBIterEntryType;
 static PyTypeObject DiscoDBIterItemType;
 

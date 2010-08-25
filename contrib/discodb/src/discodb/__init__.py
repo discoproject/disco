@@ -1,4 +1,4 @@
-from ._discodb import DiscoDB, DiscoDBConstructor, DiscoDBError
+from ._discodb import DiscoDB, DiscoDBConstructor, DiscoDBError, DiscoDBIter
 from .discodict import DiscoDict
 from .metadb import MetaDB
 from .query import Q
@@ -7,6 +7,7 @@ from .tools import kvgroup
 __all__ = ['DiscoDB',
            'DiscoDBConstructor',
            'DiscoDBError',
+           'DiscoDBIter',
            'DiscoDict',
            'Q',
            'kvgroup',

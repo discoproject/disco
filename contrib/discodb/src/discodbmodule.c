@@ -694,6 +694,18 @@ init_discodb(void)
     PyModule_AddObject(module, "DiscoDBConstructor",
                        (PyObject *)&DiscoDBConstructorType);
 
+    if (PyType_Ready(&DiscoDBIterEntryType) < 0)
+      return;
+
+    if (PyType_Ready(&DiscoDBIterItemType) < 0)
+      return;
+
+    if (PyType_Ready(&DiscoDBIterType) < 0)
+      return;
+    Py_INCREF(&DiscoDBIterType);
+    PyModule_AddObject(module, "DiscoDBIter",
+                       (PyObject *)&DiscoDBIterType);
+
     DiscoDBError = PyErr_NewException("discodb.DiscoDBError", NULL, NULL);
     Py_INCREF(DiscoDBError);
     PyModule_AddObject(module, "DiscoDBError", DiscoDBError);
@@ -950,9 +962,9 @@ static PySequenceMethods DiscoDBIter_as_sequence = {
     NULL,                          /* sq_inplace_repeat */
 };
 
-static PyTypeObject DiscoDBIterEntryType = {
+static PyTypeObject DiscoDBIterType = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
-    "DiscoDB-entryiterator",                 /* tp_name           */
+    "DiscoDB-iterator",                      /* tp_name           */
     sizeof(DiscoDBIter),                     /* tp_basicsize      */
     0,                                       /* tp_itemsize       */
     (destructor)DiscoDBIter_dealloc,         /* tp_dealloc        */
@@ -970,34 +982,69 @@ static PyTypeObject DiscoDBIterEntryType = {
     PyObject_GenericGetAttr,                 /* tp_getattro       */
     0,                                       /* tp_setattro       */
     0,                                       /* tp_as_buffer      */
-    Py_TPFLAGS_DEFAULT,                      /* tp_flags          */
+    Py_TPFLAGS_DEFAULT |
+    Py_TPFLAGS_BASETYPE,                     /* tp_flags          */
     0,                                       /* tp_doc            */
     0,                                       /* tp_traverse       */
     0,                                       /* tp_clear          */
     0,                                       /* tp_richcompare    */
     0,                                       /* tp_weaklistoffset */
     PyObject_SelfIter,                       /* tp_iter           */
+    0,                                       /* tp_iternext       */
+};
+
+static PyTypeObject DiscoDBIterEntryType = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+    "DiscoDB-entryiterator",                 /* tp_name           */
+    0,                                       /* tp_basicsize      */
+    0,                                       /* tp_itemsize       */
+    0,                                       /* tp_dealloc        */
+    0,                                       /* tp_print          */
+    0,                                       /* tp_getattr        */
+    0,                                       /* tp_setattr        */
+    0,                                       /* tp_compare        */
+    0,                                       /* tp_repr           */
+    0,                                       /* tp_as_number      */
+    0,                                       /* tp_as_sequence    */
+    0,                                       /* tp_as_mapping     */
+    0,                                       /* tp_hash           */
+    0,                                       /* tp_call           */
+    0,                                       /* tp_str            */
+    0,                                       /* tp_getattro       */
+    0,                                       /* tp_setattro       */
+    0,                                       /* tp_as_buffer      */
+    Py_TPFLAGS_DEFAULT,                      /* tp_flags          */
+    0,                                       /* tp_doc            */
+    0,                                       /* tp_traverse       */
+    0,                                       /* tp_clear          */
+    0,                                       /* tp_richcompare    */
+    0,                                       /* tp_weaklistoffset */
+    0,                                       /* tp_iter           */
     (iternextfunc)DiscoDBIter_iternextentry, /* tp_iternext       */
+    0,                                       /* tp_methods        */
+    0,                                       /* tp_members        */
+    0,                                       /* tp_getset         */
+    &DiscoDBIterType,                        /* tp_base           */
 };
 
 static PyTypeObject DiscoDBIterItemType = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0)
     "DiscoDB-itemiterator",                  /* tp_name           */
-    sizeof(DiscoDBIter),                     /* tp_basicsize      */
+    0,                                       /* tp_basicsize      */
     0,                                       /* tp_itemsize       */
-    (destructor)DiscoDBIter_dealloc,         /* tp_dealloc        */
+    0,                                       /* tp_dealloc        */
     0,                                       /* tp_print          */
     0,                                       /* tp_getattr        */
     0,                                       /* tp_setattr        */
     0,                                       /* tp_compare        */
     0,                                       /* tp_repr           */
-    &DiscoDBIter_as_number,                  /* tp_as_number      */
-    &DiscoDBIter_as_sequence,                /* tp_as_sequence    */
+    0,                                       /* tp_as_number      */
+    0,                                       /* tp_as_sequence    */
     0,                                       /* tp_as_mapping     */
     0,                                       /* tp_hash           */
     0,                                       /* tp_call           */
-    (reprfunc)DiscoDBIter_str,               /* tp_str            */
-    PyObject_GenericGetAttr,                 /* tp_getattro       */
+    0,                                       /* tp_str            */
+    0,                                       /* tp_getattro       */
     0,                                       /* tp_setattro       */
     0,                                       /* tp_as_buffer      */
     Py_TPFLAGS_DEFAULT,                      /* tp_flags          */
@@ -1006,8 +1053,12 @@ static PyTypeObject DiscoDBIterItemType = {
     0,                                       /* tp_clear          */
     0,                                       /* tp_richcompare    */
     0,                                       /* tp_weaklistoffset */
-    PyObject_SelfIter,                       /* tp_iter           */
+    0,                                       /* tp_iter           */
     (iternextfunc)DiscoDBIter_iternextitem,  /* tp_iternext       */
+    0,                                       /* tp_methods        */
+    0,                                       /* tp_members        */
+    0,                                       /* tp_getset         */
+    &DiscoDBIterType,                        /* tp_base           */
 };
 
 static PyObject *
