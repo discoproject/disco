@@ -3,6 +3,7 @@ from disco.events import Event, Message, AnnouncePID, DataUnavailable, OutputURL
 from disco.error import JobError
 
 from datetime import datetime
+from binascii import hexlify
 
 class EventFormatTestCase(DiscoTestCase):
     def test_event(self):
@@ -86,3 +87,57 @@ class SingleLineErrorTestCase(SingleLineMessageTestCase):
 
     def runTest(self):
         self.assertRaises(JobError, self.job.wait)
+
+class UTF8MessageTestCase(DiscoJobTestFixture, DiscoTestCase):
+    inputs = [1]
+
+    def getdata(self, path):
+        return 'data\n' * 10
+
+    @staticmethod
+    def map(e, params):
+        import sys
+        print u'\xc4\xe4rett\xf6myys'
+        return []
+
+    @property
+    def answers(self):
+        return []
+
+    def has_valid_event(self, events):
+        msg = u'\xc4\xe4rett\xf6myys'
+        for (n,e) in events:
+            if msg in e[2]:
+                return True
+        return False
+
+    def runTest(self):
+        self.job.wait()
+        self.assertTrue(self.has_valid_event(self.job.events()))
+
+class NonUTF8MessageTestCase(DiscoJobTestFixture, DiscoTestCase):
+    inputs = [1]
+
+    def getdata(self, path):
+        return 'data\n' * 10
+
+    @staticmethod
+    def map(e, params):
+        import sys
+        print u'\xc4\xe4rett\xf6myys'.encode('latin-1')
+        return []
+
+    @property
+    def answers(self):
+        return []
+
+    def has_valid_event(self, events):
+        msg = hexlify(u'\xc4\xe4rett\xf6myys'.encode('latin-1'))
+        for (n,e) in events:
+            if msg in e[2]:
+                return True
+        return False
+
+    def runTest(self):
+        self.job.wait()
+        self.assertTrue(self.has_valid_event(self.job.events()))

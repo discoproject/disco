@@ -1,5 +1,6 @@
 import os, re, sys
 from datetime import datetime
+from binascii import hexlify
 
 class Event(object):
     type             = 'EV'
@@ -21,7 +22,14 @@ class Event(object):
 
     def __str__(self):
         tags = ' '.join(tag for tag in self.tags if self.tag_re.match(tag))
-        return '**<%s> %s %s\n%s\n<>**\n' % (self.type, self.timestamp, tags, self.message)
+        msg = '**<%s> %s %s\n%s\n<>**\n' % (self.type, self.timestamp, tags, self.message)
+        try:
+            return msg.encode('utf-8')
+        except UnicodeError:
+            hexmsg = hexlify(self.message)
+            msg = ('**<%s> %s %s\nWarning: non-UTF8 output from worker: %s\n<>**\n'
+                   % (self.type, self.timestamp, tags, hexmsg))
+            return msg
 
 class Message(Event):
     type = 'MSG'
