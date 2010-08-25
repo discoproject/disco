@@ -1,6 +1,6 @@
 
 -module(job_coordinator).
--export([new/1]).
+-export([new/1, write_index/3]).
 
 -include("disco.hrl").
 
@@ -8,6 +8,8 @@
 -define(FAILED_TASK_PAUSE, 1000).
 -define(FAILED_MAX_PAUSE, 60 * 1000).
 -define(FAILED_PAUSE_RANDOMIZE, 30 * 1000).
+
+-type result() :: {node(), nonempty_string()}.
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
@@ -61,7 +63,7 @@ init_job_coordinator(Parent, {Prefix, JobInfo}, PostData) ->
 
 save_params(Name, PostData) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    Home = disco_server:jobhome(Name),
+    Home = disco:jobhome(Name),
     ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
 
 -spec field_exists([binary()], binary()) -> bool().
@@ -104,7 +106,7 @@ find_values(Msg) ->
 
 -spec work([{non_neg_integer(), [{binary(), nonempty_string()}]}],
     nonempty_string(), nonempty_string(), non_neg_integer(),
-    jobinfo(), gb_tree()) -> {'ok', gb_tree()}.
+    jobinfo(), [result()]) -> {'ok', [result()]}.
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
@@ -150,47 +152,47 @@ wait_workers(0, _Res, _Name, _Mode) ->
 
 wait_workers(N, Results, Name, Mode) ->
     receive
-    {{job_ok, Result}, Task, Node} ->
-        event_server:event(Name,
-        "Received results from ~s:~B @ ~s.",
-            [Task#task.mode, Task#task.taskid, Node],
-            {task_ready, Mode}),
-        % We may get a multiple instances of the same result
-        % address but only one of them must be taken into
-        % account. That's why we use gb_trees instead of a list.
-        {N - 1, gb_trees:enter(Result, true, Results)};
+        {{job_ok, Result}, Task, Node} ->
+            event_server:event(Name,
+            "Received results from ~s:~B @ ~s.",
+                [Task#task.mode, Task#task.taskid, Node],
+                {task_ready, Mode}),
+            {N - 1, gb_trees:enter(Task#task.taskid,
+                                   {disco:node(Node), list_to_binary(Result)},
+                                   Results)};
 
-    {{data_error, _Msg}, Task, Node} ->
-        handle_data_error(Task, Node),
-        {N, Results};
+        {{data_error, _Msg}, Task, Node} ->
+            handle_data_error(Task, Node),
+            {N, Results};
 
-    {{job_error, _Error}, _Task, _Node} ->
-        throw(logged_error);
+        {{job_error, _Error}, _Task, _Node} ->
+            throw(logged_error);
 
-    {{error, Error}, Task, Node} ->
-        event_server:event(Name,
-        "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
-            [Task#task.mode, Task#task.taskid,
-            Node, Error], []),
-        throw(logged_error);
+        {{error, Error}, Task, Node} ->
+            event_server:event(Name,
+            "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
+                [Task#task.mode, Task#task.taskid,
+                Node, Error], []),
+            throw(logged_error);
 
-    Error ->
-        event_server:event(Name,
-        "ERROR: Received an unknown error: ~p",
-            [Error], []),
-        throw(logged_error)
+        Error ->
+            event_server:event(Name,
+            "ERROR: Received an unknown error: ~p",
+                [Error], []),
+            throw(logged_error)
     end.
 
 -spec submit_task(task()) -> _.
 submit_task(Task) ->
     case catch gen_server:call(disco_server, {new_task, Task}, 30000) of
-    ok -> ok;
-    _ ->
-        event_server:event(Task#task.jobname,
-        "ERROR: ~s:~B scheduling failed. "
-        "Try again later.",
-        [Task#task.mode, Task#task.taskid], []),
-        throw(logged_error)
+        ok ->
+            ok;
+        _ ->
+            event_server:event(Task#task.jobname,
+            "ERROR: ~s:~B scheduling failed. "
+            "Try again later.",
+            [Task#task.mode, Task#task.taskid], []),
+            throw(logged_error)
     end.
 
 % data_error signals that a task failed on an error that is not likely
@@ -249,19 +251,66 @@ kill_job(Name, Msg, P, Type) ->
 -spec run_task([{non_neg_integer(), {binary(), nonempty_string()}}],
     nonempty_string(), nonempty_string(), jobinfo()) -> [binary()].
 run_task(Inputs, Mode, Name, Job) ->
-    Results = case catch work(Inputs, Mode, Name,
-        0, Job, gb_trees:empty()) of
-    {ok, Res} -> Res;
-    logged_error ->
-        kill_job(Name,
-        "ERROR: Job terminated due to the previous errors",
-        [], logged_error);
-    Error ->
-        kill_job(Name,
-        "ERROR: Job coordinator failed unexpectedly: ~p",
-        [Error], unknown_error)
-    end,
-    [list_to_binary(X) || X <- gb_trees:keys(Results)].
+    Results =
+        case catch work(Inputs, Mode, Name, 0, Job, gb_trees:empty()) of
+            {ok, Res} ->
+                Res;
+            logged_error ->
+                kill_job(Name,
+                "ERROR: Job terminated due to the previous errors",
+                [], logged_error);
+            Error ->
+                kill_job(Name,
+                "ERROR: Job coordinator failed unexpectedly: ~p",
+                [Error], unknown_error)
+        end,
+    write_indices(Name, Mode, gb_trees:values(Results)).
+    %{A, B} = lists:unzip(Results),
+    %B.
+
+write_indices(Name, Mode, Results) ->
+    DataRoot = disco:get_setting("DISCO_DATA"),
+    JobIndex = filename:join([disco:jobhome(Name), Mode ++ "-index.txt"]),
+    Groups = disco_util:groupby(1, lists:keysort(1, Results)),
+    Messages = [begin
+                   {[Node|_], Urls} = lists:unzip(NodeUrls),
+                   {Node, [DataRoot, JobIndex, Urls]}
+                end || NodeUrls <- Groups],
+    wait_replies(Name, call_nodes(Messages)),
+    [begin
+        Host = disco:host(Node),
+        list_to_binary(["dir://", Host, "/disco/", Host, "/", JobIndex])
+     end || {Node, _Args} <- Messages].
+
+call_nodes(Messages) ->
+    [begin
+        Key = rpc:async_call(Node, job_coordinator, write_index, Args),
+        {Key, Msg}
+     end || {Node, Args} = Msg <- Messages].
+
+wait_replies(_Name, []) -> ok;
+wait_replies(Name, Promises) ->
+    Replies = [{(catch rpc:nb_yield(Key, 10000)), Msg}
+                    || {Key, Msg} <- Promises],
+    Failed =
+        [begin
+            M = "WARN: Creating index file failed at ~s: ~p (retrying)",
+            event_server:event(Name, M, [disco:host(Node), Reply], {}),
+            Msg
+         end || {Reply, {Node, Args} = Msg} <- Replies, Reply =/= {value, ok}],
+    timer:sleep(10000),
+    wait_replies(Name, call_nodes(Failed)).
+
+write_index(DataRoot, JobIndex, Urls) ->
+    Temp = ddfs_util:timestamp(),
+    Path = filename:join([DataRoot, disco:host(node()), JobIndex]),
+    Index = disco_util:join(Urls, "\n"),
+    case prim_file:write_file([Path, $., Temp], Index) of
+        ok ->
+            prim_file:rename([Path, $., Temp], Path);
+        Error ->
+            Error
+    end.
 
 -spec job_coordinator(nonempty_string(), jobinfo()) -> _.
 job_coordinator(Name, Job) ->
@@ -295,12 +344,10 @@ job_coordinator(Name, Job) ->
 
         event_server:event(Name, "Reduce phase done", [], []),
         event_server:event(Name, "READY: Job finished in " ++
-            disco_server:format_time(Started),
-            [], {ready, RedResults});
+            disco:format_time(Started), [], {ready, RedResults});
     true ->
         event_server:event(Name, "READY: Job finished in " ++
-            disco_server:format_time(Started),
-            [], {ready, RedInputs})
+            disco:format_time(Started), [], {ready, RedInputs})
     end,
     gen_server:cast(event_server, {job_done, Name}).
 
