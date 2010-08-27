@@ -139,7 +139,7 @@ resolve_node(Node, Method) ->
             {Ip, Port};
         _ ->
             error_logger:warning_report({"Proxy could not resolve", Node}),
-            {{999, 999, 999, 999}, 999}
+            {{999, 999, 999, 999}, "999"}
     end.
 
 make_config("lighttpd", Nodes, Port, DiscoPort, PidFile) ->
