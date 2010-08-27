@@ -137,7 +137,7 @@ class Task(object):
 
     def partition_output(self, partition):
         filename = 'part-disco-%.9d' % partition
-        return self.path(filename), self.url(filename)
+        return self.path(filename), self.url(filename, scheme='part')
 
     def path(self, filename):
         return os.path.join(self.taskroot, filename)
@@ -195,9 +195,11 @@ class Task(object):
 
     @property
     def connected_inputs(self):
-        inputs = [url for input in self.inputs
+        t = time.time()
+        shuffled = list(self.inputs)
+        random.shuffle(shuffled)
+        inputs = [url for input in shuffled\
                   for url in util.urllist(input, partid=self.partid)]
-        random.shuffle(inputs)
         for input in inputs:
             yield self.connect_input(input)
 

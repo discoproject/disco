@@ -3,7 +3,7 @@
 -export([get_setting/1, has_setting/1,
          host/1, node/1, node_name/0, node_safe/1,
          oob_name/1, jobhome/1, debug_flags/1,
-         format_time/1, settings/0]).
+         format_time/1, settings/0, disco_url_path/1]).
 
 -spec get_setting(string()) -> string().
 get_setting(SettingName) ->
@@ -81,4 +81,10 @@ format_time(T) ->
     Hour = D div HOUR,
     lists:flatten(io_lib:format("~B:~2.10.0B:~2.10.0B.~3.10.0B",
         [Hour, Min, Sec, Ms])).
+
+disco_url_path(Url) ->
+    {match, [Path]} = re:run(Url,
+                             ".*?://.*?/disco/(.*)",
+                             [{capture, all_but_first, list}]),
+    Path.
 

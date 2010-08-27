@@ -478,9 +478,12 @@ def map_output_stream(stream, partition, url, params):
     The handle ensures that if a task fails, partially written data is ignored.
     """
     from disco.fileutils import AtomicFile
-    mpath, murl = Task.map_output(partition)
-    Task.blobs.append(mpath)
-    return AtomicFile(mpath, 'w'), murl
+    if Task.ispartitioned:
+        path, url = Task.partition_output(partition)
+    else:
+        path, url = Task.map_output(partition)
+    Task.blobs.append(path)
+    return AtomicFile(path, 'w'), url
 
 def reduce_output_stream(stream, partition, url, params):
     """
