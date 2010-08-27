@@ -9,7 +9,7 @@ The :func:`external` function below comes in handy if you use the Disco
 external interface.
 """
 import os, sys
-import cPickle, marshal, time
+import cPickle, marshal, time, gzip
 import copy_reg, functools
 
 from cStringIO import StringIO
@@ -249,13 +249,12 @@ def read_index(dir_url):
     from disco.comm import download
     scheme, netloc, path = urlsplit(dir_url)
     url = proxy_url(path, netloc)
-    for line in download(url).splitlines():
-        if line.strip().startswith("dir://"):
-            for id, url in read_index(line):
-                yield id, url
-        else:
-            id, url = line.split()
-            yield int(id), url
+    body = StringIO(download(url))
+    if url.endswith(".gz"):
+        body = gzip.GzipFile(fileobj = body)
+    for line in body:
+        id, url = line.split()
+        yield int(id), url
 
 def parse_dir(dir_url, partid=None):
     """
