@@ -258,12 +258,21 @@ run_task(Inputs, Mode, Name, Job) ->
 
 run_task_do(Inputs, Mode, Name, Job) ->
     {ok, Results} = work(Inputs, Mode, Name, 0, Job, gb_trees:empty()),
-    T = now(),
+    % if save=True, tasks output tag:// urls, not dir://.
+    % We don't need to shuffle tags.
+    Fun = fun({_, <<"dir://", _/binary>>}) -> true; (_) -> false end,
+    {DirUrls, Others} = lists:partition(Fun, gb_trees:values(Results)),
+    {ok, Combined} = shuffle(DirUrls),
+    {ok, lists:usort(([Url || {_Node, Url} <- Others])) ++ Combined}.
+
+shuffle([]) -> {ok, []};
+shuffle(DirUrls) ->
     event_server:event(Name, "Shuffle phase starts", [], {}),
-    Combined = shuffle:combine_tasks(Name, Mode, gb_trees:values(Results)),
+    T = now(),
+    Ret = shuffle:combine_tasks(Name, Mode, DirUrls),
     Elapsed = timer:now_diff(now(), T) div 1000,
     event_server:event(Name, "Shuffle phase took ~bms.", [Elapsed], {}),
-    Combined.
+    Ret.
 
 -spec job_coordinator(nonempty_string(), jobinfo()) -> _.
 job_coordinator(Name, Job) ->
