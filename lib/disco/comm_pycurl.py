@@ -46,6 +46,8 @@ class HTTPConnection(object):
         return self.handle.getinfo(getattr(pycurl, key))
 
     def __setitem__(self, key, value):
+        if isinstance(value, basestring):
+            value = value.encode('ascii')
         self.handle.setopt(getattr(pycurl, key), value)
 
     def getresponse(self):
