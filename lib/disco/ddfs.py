@@ -16,7 +16,7 @@ from urllib import urlencode
 from disco.comm import upload, download, json, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
-from disco.util import iterify, partition, urlsplit
+from disco.util import isiterable, iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
@@ -24,9 +24,9 @@ class InvalidTag(Exception):
     pass
 
 def canonizetag(tag):
-    if isinstance(tag, list):
-        if tag:
-            return canonizetag(tag[0])
+    if isiterable(tag):
+        for tag in tag:
+            return canonizetag(tag)
     elif tag.startswith('tag://'):
         return tag
     elif '://' not in tag:
