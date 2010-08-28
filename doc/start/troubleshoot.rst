@@ -16,7 +16,7 @@ straightforward.
 
 Here we assume that you have installed Disco locally with the following steps:
 
- * Downloaded the latest source package from `discoproject.org <http://discoproject.org/download.html>`_ or from the `GitHub repository <http://github.com/tuulos/disco>`_.
+ * Downloaded :doc:`a recent version of Disco <download>`.
  * Extracted the package to your home directory, say ``~/disco/``.
  * Compiled the sources by writing ``make`` in ``~/disco/``.
  * Started Disco with ``disco start``.
@@ -24,7 +24,7 @@ Here we assume that you have installed Disco locally with the following steps:
 
 but the script crashed and/or didn't produce any results.
 
-Let's find out what goes wrong. Follow the next steps in order.
+Let's find out what went wrong. Follow the next steps in order.
 
 0. Start Disco locally
 ----------------------
@@ -118,8 +118,8 @@ be able to configure the system. Open your web browser and go to
 page should open.
 
 Do you see any boxes with black title bars on the status page (like `in
-this screenshot <http://discoproject.org/img/disco-main.png>`_)? If not,
-add nodes to the system as instructed in :ref:`setup`, section 5.
+this screenshot <../_static/screenshots/disco-main.png>`_)? If not,
+add nodes to the system as instructed in :ref:`confignodes`.
 
 If adding nodes through the web interface fails, it may be a bug in
 Disco. In that case you can edit the config file manually. For instance,
@@ -164,7 +164,7 @@ with ssh authentication. Try the following command::
         ssh localhost erl
 
 If ssh asks for a password, or any other confirmation, you need to
-configure ssh properly as instructed in :ref:`setup` in section 4.
+configure ssh properly as instructed in :ref:`configauth`.
 
 If ssh seems to work correctly, you should check that the Erlang's
 ``slave`` module works correctly. You can check it as follows::
@@ -182,7 +182,7 @@ If Erlang doesn't return ``{ok..`` for the first expression or if it
 returns ``pang`` for the second expression, there's something wrong either
 with your ssh or Erlang configuration. You should double-check that
 the Erlang security cookie at ``~/.erlang.cookie`` is the same on all
-the nodes (see :ref:`setup`, section 4). The cookie must be readable only to the
+the nodes (see :ref:`configauth`). The cookie must be readable only to the
 disco user, so run ``chmod 400 ~/.erlang.cookie`` on all the nodes.
 
 Note that node names need to be consistent. If your master node is called
@@ -226,9 +226,9 @@ This way you can easily see how ``disco-worker`` fails.
 Still no success?
 -----------------
 
-If the problem persists, or you can't get one of the steps above
-work correctly, do not feel desperate! Report your problem to
-friendly Disco developers `either on IRC or on the mailing list
-<http://discoproject.org/getinvolved.html>`_. Please mention in your
-report the steps that you've tried and the results you got.
+If the problem persists, or you can't get one of the steps above working,
+do not despair!
+Report your problem to friendly Disco developers
+:doc:`on IRC or the mailing list <getinvolved>`.
+Please mention in your report the steps you followed and the results you got.
 

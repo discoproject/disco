@@ -53,19 +53,12 @@ class DiscodexOptionParser(OptionParser):
                         help='balancer to use for indexing')
         self.add_option('--metakeyer',
                         help='balancer to use for indexing')
-        self.add_option('--no-sort',
-                        action='store_true',
-                        help='whether or not to sort before writing discodbs')
-        self.add_option('--k-viter',
-                        action='store_true',
-                        help='treat the dataset as a precomputed k-viter list')
 
 class Discodex(Program):
     @property
     def client(self):
         from discodex.client import DiscodexClient
-        return DiscodexClient(self.options.host or self.settings['DISCODEX_HTTP_HOST'],
-                              self.options.port or self.settings['DISCODEX_HTTP_PORT'])
+        return DiscodexClient(self.options.host, self.options.port)
 
     @property
     def djangoscgi(self):
@@ -124,6 +117,14 @@ def stop(program):
     program.server_command('stop')
 
 @Discodex.command
+def append(program, indexaspec, indexbspec):
+    """Usage: <indexaspec> <indexbspec>
+
+    Append a pointer to indexbspec to the index at indexaspec.
+    """
+    program.client.append(indexaspec, indexbspec)
+
+@Discodex.command
 def clone(program, indexaspec, indexbspec):
     """Usage: <indexaspec> <indexbspec>
 
@@ -161,7 +162,7 @@ def list(program):
 
 @Discodex.command
 def index(program, *files):
-    """Usage: [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [--no-sort] [file ...]
+    """Usage: [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [file ...]
 
     Read input urls from file[s], and index using the specified options.
     """
@@ -181,7 +182,7 @@ def keys(program, indexspec):
 
 @Discodex.command
 def metaindex(program, indexspec):
-    """Usage: [--metakeyer] [-n N] [--profile] [--no-sort] <indexspec>
+    """Usage: [--metakeyer] [-n N] [--profile] <indexspec>
 
     Build a metaindex of the index at indexspec, using the specified options.
     """
@@ -207,8 +208,8 @@ def query(program, indexspec, *args):
 
     Query the specified index using the given clauses.
     """
-    from discodb import Q
-    query = Q.scan(' '.join(args), and_op=' ', or_op=',')
+    from discodb.query import Q, Clause
+    query = Q(Clause.scan(arg, or_op=',') for arg in args)
     for result in program.client.query(indexspec, query):
         print result
 

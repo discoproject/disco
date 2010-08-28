@@ -7,10 +7,7 @@ PROJ_NAME = os.path.basename(PROJ_ROOT)
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 
-ADMINS = (
-    ('Jared Flatow', 'jared.flatow@nokia.com'),
-    ('Ville Tuulos', 'ville.h.tuulos@nokia.com'),
-)
+ADMINS = ()
 
 MANAGERS = ADMINS
 

@@ -8,14 +8,17 @@
 -define(FAIRY_INTERVAL, 1000).
 -define(FF_ALPHA_DEFAULT, 0.001).
 
--record(job, {name, prio, cputime, bias, pid}).
+-record(job, {name :: nonempty_string(),
+              prio :: float(),
+              cputime :: non_neg_integer(),
+              bias :: float(),
+              pid :: pid()}).
 
 start_link() ->
     error_logger:info_report([{"Fair scheduler: Fair policy"}]),
     case gen_server:start_link({local, sched_policy},
                    fair_scheduler_fair_policy, [],
-                   disco_server:debug_flags
-                    ("fair_scheduler_fair_policy")) of
+                   disco:debug_flags("fair_scheduler_fair_policy")) of
         {ok, Server} ->
             {ok, Server};
         {error, {already_started, Server}} ->
@@ -97,11 +100,16 @@ dropwhile([{_, JobPid, _} = E|R], H, NotJobs) ->
         true -> dropwhile(R, [E|H], NotJobs)
     end.
 
+-type prioq_item() :: {float(), _, _}.
+-type prioq() :: [prioq_item()].
+
 % Bias priority is a cheap trick to estimate a new priority for a job that
 % has been just scheduled for running. It is based on the assumption that
 % the job actually starts a new task (1 / NumCores increase in its share)
 % which might not be always true. Fairness fairy will eventually fix the
 % bias.
+-spec bias_priority(#job{}, prioq(), gb_tree(), non_neg_integer()) ->
+    {gb_tree(), prioq()}.
 bias_priority(Job, PrioQ, Jobs, NumCores) ->
     JobPid = Job#job.pid,
     Bias = Job#job.bias + 1 / NumCores,
@@ -110,9 +118,11 @@ bias_priority(Job, PrioQ, Jobs, NumCores) ->
     {gb_trees:update(JobPid, Job#job{bias = Bias}, Jobs), NPrioQ}.
 
 % Insert an item to an already sorted list
+-spec prioq_insert(prioq_item(), prioq()) -> prioq().
 prioq_insert(Item, R) -> prioq_insert(Item, R, []).
+-spec prioq_insert(prioq_item(), prioq(), prioq()) -> prioq().
 prioq_insert(Item, [], H) -> lists:reverse([Item|H]);
-prioq_insert({Prio, _, _} = Item, [{P, _} = E|R], H) when Prio > P ->
+prioq_insert({Prio, _, _} = Item, [{P, _, _} = E|R], H) when Prio > P ->
     prioq_insert(Item, R, [E|H]);
 prioq_insert(Item, L, H) ->
     lists:reverse(H) ++ [Item|L].
@@ -121,6 +131,7 @@ prioq_insert(Item, L, H) ->
 % the ideal share of resources they should get, and the reality of
 % much resources they are occupying in practice.
 
+-spec fairness_fairy(non_neg_integer()) -> no_return().
 fairness_fairy(NumCores) ->
     receive
         {update, NewNumCores} ->
@@ -135,6 +146,7 @@ fairness_fairy(NumCores) ->
         fairness_fairy(NumCores)
     end.
 
+-spec update_priorities(float(), non_neg_integer()) -> 'ok'.
 update_priorities(_, 0) -> ok;
 update_priorities(Alpha, NumCores) ->
     {ok, Jobs} = gen_server:call(sched_policy, priv_get_jobs),
@@ -159,7 +171,7 @@ update_priorities(Alpha, NumCores) ->
             % Job's priority is the exponential moving average
             % of its deficits over time
             Prio = Alpha * Deficit + (1 - Alpha) * Job#job.prio,
-            {Job#job.pid, Job#job{prio = Prio, bias = 0,
+            {Job#job.pid, Job#job{prio = Prio, bias = 0.0,
                 cputime = Job#job.cputime + NumRunning}}
     end, Stats)}).
 

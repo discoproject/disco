@@ -21,7 +21,8 @@ def recursive_module():
 class ModUtilLocalTestCase(DiscoTestCase):
     def setUp(self):
         self.sys_path = sys.path
-        self.support  = os.path.join(self.disco_settings['DISCO_HOME'], 'tests', 'support')
+        home = os.path.realpath(self.disco_settings['DISCO_HOME'])
+        self.support  = os.path.join(home, 'tests', 'support')
         sys.path.append(self.support)
         os.environ['PYTHONPATH'] += ':%s' % self.support
 
@@ -80,7 +81,7 @@ class ModUtilTestCase(DiscoJobTestFixture, DiscoTestCase):
     def setUp(self):
         self.sys_path = sys.path
         self.support  = os.path.join(self.disco_settings['DISCO_HOME'], 'tests', 'support')
-        sys.path.append(self.support)
+        sys.path.append(os.path.realpath(self.support))
         os.environ['PYTHONPATH'] += ':%s' % self.support
         super(ModUtilTestCase, self).setUp()
 

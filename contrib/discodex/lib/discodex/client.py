@@ -1,10 +1,14 @@
 import httplib, urllib, urlparse
 
+from disco.comm import HTTPConnection
+
 from core import DiscodexError
 from objects import DataSet, MetaSet, Indices, Index, Results, Query
+from settings import DiscodexSettings
 
 class ResourceNotFound(DiscodexError):
-    pass
+    def __init__(self, resource):
+        super(ResourceNotFound, self).__init__("%s not found" % resource)
 
 class DiscodexServiceUnavailable(DiscodexError):
     def __init__(self, retry_after):
@@ -14,9 +18,9 @@ class DiscodexServerError(DiscodexError):
     pass
 
 class DiscodexClient(object):
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
+    def __init__(self, host=None, port=None, settings=DiscodexSettings()):
+        self.host = host or settings['DISCODEX_HTTP_HOST']
+        self.port = port or settings['DISCODEX_HTTP_PORT']
 
     @property
     def netloc(self):
@@ -31,11 +35,11 @@ class DiscodexClient(object):
 
     def request(self, method, url, body=None):
         resource = urlparse.urlparse(url)
-        conn     = httplib.HTTPConnection(resource.netloc or self.netloc)
+        conn     = HTTPConnection(resource.netloc or self.netloc)
         conn.request(method, resource.path, body)
         response = conn.getresponse()
         if response.status == httplib.NOT_FOUND:
-            raise ResourceNotFound()
+            raise ResourceNotFound(url)
         if response.status == httplib.SERVICE_UNAVAILABLE:
             raise DiscodexServiceUnavailable(response.getheader('Retry-After'))
         if response.status == httplib.INTERNAL_SERVER_ERROR:
@@ -47,6 +51,9 @@ class DiscodexClient(object):
 
     def get(self, indexspec):
         return Index.loads(self.request('GET', self.indexurl(indexspec)).read())
+
+    def append(self, indexaspec, indexbspec):
+        self.request('POST', self.indexurl(indexaspec), indexbspec)
 
     def put(self, indexspec, index):
         self.request('PUT', self.indexurl(indexspec), index.dumps())

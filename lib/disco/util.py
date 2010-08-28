@@ -9,12 +9,12 @@ The :func:`external` function below comes in handy if you use the Disco
 external interface.
 """
 import os, sys
-import cPickle, marshal, time
+import cPickle, marshal, time, gzip
 import copy_reg, functools
 
 from cStringIO import StringIO
 from collections import defaultdict
-from itertools import chain, repeat
+from itertools import groupby, repeat
 from types import CodeType, FunctionType
 from urllib import urlencode
 
@@ -56,12 +56,22 @@ def iskv(object):
     return isinstance(object, tuple) and len(object) is 2
 
 def iterify(object):
-    if hasattr(object, '__iter__'):
+    if isiterable(object):
         return object
     return repeat(object, 1)
 
 def ilen(iter):
     return sum(1 for _ in iter)
+
+def key((k, v)):
+    return k
+
+def kvgroup(kviter):
+    for k, kvs in groupby(kviter, key):
+        yield k, (v for _k, v in kvs)
+
+def kvify(entry):
+    return entry if iskv(entry) else ('', entry)
 
 def partition(iterable, fn):
     t, f = [], []
@@ -75,6 +85,12 @@ def rapply(iterable, fn):
             yield rapply(item, fn)
         else:
             yield fn(item)
+
+def reify(dotted_name, globals=globals()):
+    if '.' in dotted_name:
+        package, name = dotted_name.rsplit('.', 1)
+        return getattr(__import__(package, fromlist=[name]), name)
+    return eval(dotted_name, globals)
 
 def argcount(object):
     if hasattr(object, 'func_code'):
@@ -106,13 +122,13 @@ def pack(object):
 def unpack(string, globals={'__builtins__': __builtins__}):
     try:
         return cPickle.loads(string)
-    except Exception, err:
+    except Exception:
         try:
-           code, defs = marshal.loads(string)
-           defs = tuple([unpack(x) for x in defs]) if defs else None
-           return FunctionType(code, globals, argdefs = defs)
-        except:
-            raise err
+            code, defs = marshal.loads(string)
+            defs = tuple([unpack(x) for x in defs]) if defs else None
+            return FunctionType(code, globals, argdefs = defs)
+        except Exception, e:
+            raise ValueError("Could not unpack: %s (%s)" % (string, e))
 
 def pack_stack(stack):
     return pack([pack(object) for object in stack])
@@ -123,29 +139,40 @@ def unpack_stack(stackstring, globals={}):
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('file', url)
 
-def urlsplit(url):
+def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
     locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
     if scheme == 'disco':
-        scheme = 'http'
-        locstr = '%s:%s' % (locstr, DiscoSettings()['DISCO_PORT'])
+        prefix, fname = path.split('/', 1)
+        if locstr == localhost:
+            scheme = 'file'
+            if prefix == 'ddfs':
+                path = os.path.join(settings['DDFS_ROOT'], fname)
+            else:
+                path = os.path.join(settings['DISCO_DATA'], fname)
+        else:
+            scheme = 'http'
+            locstr = '%s:%s' % (locstr, settings['DISCO_PORT'])
+    if scheme == 'tag':
+        if not path:
+            path, locstr = locstr, ''
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url):
     return '%s://%s/%s' % urlsplit(url)
 
-def urllist(url, partid=None, listdirs=True, ddfs=None, numpartitions=None):
-    if isiterable(url):
-        return [list(url)]
-    scheme, netloc, path = urlsplit(url)
-    if scheme == 'dir' and listdirs:
-        return parse_dir(url, partid=partid, numpartitions=numpartitions)
-    elif scheme == 'tag':
-        from disco.ddfs import DDFS
+def urllist(url, partid=None, listdirs=True, ddfs=None):
+    from disco.ddfs import DDFS, istag
+    if istag(url):
         ret = []
         for name, tags, blobs in DDFS(ddfs).findtags(url):
             ret += blobs
         return ret
+    if isiterable(url):
+        return [list(url)]
+    scheme, netloc, path = urlsplit(url)
+    if scheme == 'dir' and listdirs:
+        return parse_dir(url, partid=partid)
     return [url]
 
 def msg(message):
@@ -218,7 +245,18 @@ def proxy_url(path, node='x'):
         return '%s://%s/disco/node/%s/%s' % (scheme, netloc, node, path)
     return 'http://%s:%s/%s' % (node, port, path)
 
-def parse_dir(dir_url, partid=None, numpartitions=None):
+def read_index(dir_url):
+    from disco.comm import download
+    scheme, netloc, path = urlsplit(dir_url)
+    url = proxy_url(path, netloc)
+    body = StringIO(download(url))
+    if url.endswith(".gz"):
+        body = gzip.GzipFile(fileobj = body)
+    for line in body:
+        id, url = line.split()
+        yield int(id), url
+
+def parse_dir(dir_url, partid=None):
     """
     Translates a directory URL to a list of normal URLs.
 
@@ -227,23 +265,12 @@ def parse_dir(dir_url, partid=None, numpartitions=None):
 
     :param dir_url: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
-    from disco.comm import download
-    def parse_index(index):
-        # XXX: This should be fixed with dir://
-        # we shouldn't need to know the number of partitions here
-        lines = [line.split() for line in index]
-        if partid is not None and numpartitions != len(lines):
-            raise ValueError("Invalid number of partitions!")
-        return [url for id, url in lines
-                if partid is None or partid == int(id)]
-    settings = DiscoSettings()
-    scheme, netloc, path = urlsplit(dir_url)
-    url = proxy_url(path, netloc)
-    return parse_index(download(url).splitlines())
+    return [url for id, url in read_index(dir_url)
+            if partid is None or partid == int(id)]
 
 def save_oob(host, name, key, value):
     from disco.ddfs import DDFS
-    DDFS(host).push(ddfs_oobname(name), [(StringIO(value), key)])
+    DDFS(host).push(ddfs_oobname(name), [(StringIO(value), key)], delayed=True)
 
 def load_oob(host, name, key):
     from disco.ddfs import DDFS
@@ -265,6 +292,11 @@ def ddfs_save(blobs, name, master):
     blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
              for blob in blobs]
     tag = ddfs_name(name)
-    ddfs.push(tag, blobs, retries=600)
+    ddfs.push(tag, blobs, retries=600, delayed=True)
     return "tag://%s" % tag
 
+def format_size(num):
+    for unit in ['bytes','KB','MB','GB','TB']:
+        if num < 1024.:
+            return "%3.1f%s" % (num, unit)
+        num /= 1024.

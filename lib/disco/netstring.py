@@ -38,7 +38,7 @@ def encode_netstring_str(d):
     msg = StringIO.StringIO()
     for k, v in d:
         msg.write("%d %s %d %s\n" %\
-            (len(k), k, len(v), v))
+            (len(k), str(k), len(v), str(v)))
     return msg.getvalue()
 
 def encode_netstring_fd(d):

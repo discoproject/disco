@@ -25,7 +25,7 @@ filesystem. Rather, it is a special purpose storage layer similar to `the
 Google filesystem <http://labs.google.com/papers/gfs.html>`_ or related
 open-source projects such as `Hadoop Distributed Filesystem (HDFS)
 <http://hadoop.apache.org/common/docs/current/hdfs_design.html>`_,
-`MogileFS <danga.com/mogilefs/>`_ or `Tabled
+`MogileFS <http://danga.com/mogilefs/>`_ or `Tabled
 <https://hail.wiki.kernel.org/index.php/Tabled>`_.
 
 DDFS is a low-level component in the Disco stack, taking care of data
@@ -48,7 +48,7 @@ to denote data type.
 
 DDFS is **schema-free**, so you can use it to store arbitrary,
 non-normalized data. However, it is not suitable for storing data items
-that are very small (less than 4K) or that need to be updated often,
+that are very small (fewer than 4K) or that need to be updated often,
 such as user passwords or status indicators. You can store frequently
 changing data in a key-value store or a relational database.
 If you need to analyze this data with Disco, you can dump a snapshot

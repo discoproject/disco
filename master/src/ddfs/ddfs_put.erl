@@ -12,12 +12,15 @@
 
 start(MochiConfig) ->
     error_logger:info_report({"START PID", self()}),
-    mochiweb_http:start([{name, ddfs_put},
-                         {loop, fun(Req) ->
-                                        loop(Req:get(path), Req)
-                                end}
-                         | MochiConfig]).
+    mochiweb_http:start([
+        {name, ddfs_put},
+        {max, ?HTTP_MAX_CONNS},
+        {loop, fun(Req) ->
+                    loop(Req:get(path), Req)
+                end}
+        | MochiConfig]).
 
+-spec loop(nonempty_string(), module()) -> _.
 loop("/proxy/" ++ Path, Req) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
@@ -52,10 +55,13 @@ loop("/ddfs/" ++ BlobName, Req) ->
 loop(_, Req) ->
     Req:not_found().
 
+-spec valid_blob({'EXIT' | binary(),_}) -> bool().
 valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
 
+-spec receive_blob(module(), {nonempty_string(), nonempty_string()},
+    nonempty_string()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
     Dir = filename:join(Path, Fname),
     case prim_file:read_file_info(Dir) of
@@ -70,7 +76,10 @@ receive_blob(Req, {Path, Fname}, Url) ->
             error_reply(Req, "File exists", Dir, Dir)
     end.
 
+-spec receive_blob(module(), file:io_device(), nonempty_string(),
+    nonempty_string()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
+    error_logger:info_report({"PUT BLOB", Req:get(path), Req:get_header_value("content-length")}),
     case receive_body(Req, IO) of
         ok ->
             [_, Fname] = string:tokens(Dst, "."),
@@ -95,6 +104,7 @@ receive_blob(Req, IO, Dst, Url) ->
             error_reply(Req, "Write failed", Dst, Error)
     end.
 
+-spec receive_body(module(), file:io_device()) -> _.
 receive_body(Req, IO) ->
     R0 = Req:stream_body(?MAX_RECV_BODY, fun
             ({_, Buf}, ok) -> file:write(IO, Buf);
@@ -110,6 +120,7 @@ receive_body(Req, IO) ->
         Error -> Error
     end.
 
+-spec error_reply(module(), nonempty_string(), nonempty_string(), _) -> _.
 error_reply(Req, Msg, Dst, Err) ->
     M = io_lib:format("~s (path: ~s): ~p", [Msg, Dst, Err]),
     error_logger:warning_report(M),

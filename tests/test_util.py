@@ -1,6 +1,7 @@
 from disco.test import DiscoTestCase
 from disco.util import flatten, iterify, rapply, pack, unpack, urlsplit
 
+import os
 from datetime import datetime
 
 def function(x):
@@ -29,10 +30,23 @@ class UtilTestCase(DiscoTestCase):
 
     def test_urlsplit(self):
         port = self.disco_settings['DISCO_PORT']
+        ddfs = self.disco_settings['DDFS_ROOT']
+        data = self.disco_settings['DISCO_DATA']
         self.assertEquals(urlsplit('http://host/path'),
                           ('http', ('host', ''), 'path'))
         self.assertEquals(urlsplit('http://host:port/path'),
                           ('http', ('host', 'port'), 'path'))
         self.assertEquals(urlsplit('disco://master/long/path'),
                           ('http', ('master', '%s' % port), 'long/path'))
-
+        self.assertEquals(urlsplit('disco://localhost/ddfs/path',
+                                   localhost='localhost'),
+                          ('file', ('localhost', ''), os.path.join(ddfs, 'path')))
+        self.assertEquals(urlsplit('disco://localhost/data/path',
+                                   localhost='localhost'),
+                          ('file', ('localhost', ''), os.path.join(data, 'path')))
+        self.assertEquals(urlsplit('tag://tag', ''),
+                          ('tag', ('', ''), 'tag'))
+        self.assertEquals(urlsplit('tag://host/tag', ''),
+                          ('tag', ('host', ''), 'tag'))
+        self.assertEquals(urlsplit('tag://host:port/tag', ''),
+                          ('tag', ('host', 'port'), 'tag'))

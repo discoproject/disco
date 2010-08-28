@@ -5,6 +5,7 @@
 
 -export([op/3]).
 
+-spec op(atom(), string(), module()) -> _.
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     QS = Req:parse_qs(),
@@ -57,7 +58,14 @@ op('GET', "/ddfs/tag/" ++ Tag0, Req) ->
     end;
 
 op('POST', "/ddfs/tag/" ++ Tag, Req) ->
-    tag_update(fun(Urls) -> ddfs:update_tag(ddfs_master, Tag, Urls) end, Req);
+    tag_update(fun(Urls) ->
+        case lists:keysearch("delayed", 1, Req:parse_qs()) of
+            false ->
+                ddfs:update_tag(ddfs_master, Tag, Urls);
+            _ ->
+                ddfs:update_tag_delayed(ddfs_master, Tag, Urls)
+        end
+    end, Req);
 
 op('PUT', "/ddfs/tag/" ++ Tag, Req) ->
     tag_update(fun(Urls) -> ddfs:replace_tag(ddfs_master, Tag, Urls) end, Req);
@@ -76,6 +84,7 @@ op('GET', Path, Req) ->
 op(_, _, Req) ->
     Req:not_found().
 
+-spec error(_, module()) -> _.
 error(timeout, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});
 error({error, E}, Req) when is_atom(E) ->
@@ -83,9 +92,11 @@ error({error, E}, Req) when is_atom(E) ->
 error(_, Req) ->
     Req:respond({500, [], ["Internal server error"]}).
 
+-spec okjson([binary()], module()) -> _.
 okjson(Data, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)}).
 
+-spec tag_update(fun(([binary()]) -> _), module()) -> _.
 tag_update(Fun, Req) ->
     case catch mochijson2:decode(Req:recv_body(?MAX_TAG_BODY_SIZE)) of
         {'EXIT', _} ->
@@ -99,7 +110,8 @@ tag_update(Fun, Req) ->
             end
     end.
 
+-spec parse_exclude('false' | {'value', {_, string()}}) -> [node()].
 parse_exclude(false) -> [];
 parse_exclude({value, {_, ExcStr}}) ->
-    [node_mon:slave_node_safe(Node) || Node <- string:tokens(ExcStr, ",")].
+    [disco:node_safe(Host) || Host <- string:tokens(ExcStr, ",")].
 

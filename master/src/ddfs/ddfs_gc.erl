@@ -67,27 +67,30 @@ abort(Msg, Code) ->
     error_logger:warning_report({"Garbage collection aborted"}),
     exit(Code).
 
+-spec start_gc() -> no_return().
 start_gc() ->
     start_gc(ets:new(deleted_ages, [set, public])).
 
+-spec start_gc(ets:tab()) -> no_return().
 start_gc(DeletedAges) ->
     spawn(fun() -> gc_objects(DeletedAges) end),
     timer:sleep(?GC_INTERVAL),
     start_gc(DeletedAges).
 
+-spec gc_objects(ets:tab()) -> 'ok'.
 gc_objects(DeletedAges) ->
     error_logger:info_report({"GC starts"}),
     % ensures that only a single gc_objects process is running at a time
     register(gc_objects_lock, self()),
     process_flag(priority, low),
-    
+
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
     put(blobk, list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS"))),
-    
-    ets:new(gc_nodes, [named_table, set, private]), 
+
+    ets:new(gc_nodes, [named_table, set, private]),
     ets:new(obj_cache, [named_table, set, private]),
-    
+
     {Tags, NumOk, NumFailed} = process_tags(),
 
     if NumOk > 0, NumFailed < TagMinK ->
@@ -102,6 +105,7 @@ gc_objects(DeletedAges) ->
     end,
     error_logger:info_report({"GC: Done!"}).
 
+-spec start_gc_nodes([node()]) -> 'ok'.
 start_gc_nodes([]) -> ok;
 start_gc_nodes([Node|T]) ->
     error_logger:info_report({"GC: Start gc_nodes"}),
@@ -114,7 +118,8 @@ start_gc_nodes([Node|T]) ->
             error_logger:warning_report({"GC: Node unreachable", Node})
     end,
     start_gc_nodes(T).
-    
+
+-spec process_tags() -> {[binary()], non_neg_integer(), non_neg_integer()}.
 process_tags() ->
     error_logger:info_report({"GC: Process tags"}),
     {OkNodes, Failed, Tags} = gen_server:call(ddfs_master, {get_tags, all}),
@@ -122,6 +127,7 @@ process_tags() ->
     process_tags(Tags),
     {Tags, length(OkNodes), length(Failed)}.
 
+-spec process_tags([binary()]) -> 'ok'.
 process_tags([]) -> ok;
 process_tags([Tag|T]) ->
     error_logger:info_report({"process tag", Tag}),
@@ -139,6 +145,7 @@ process_tags([Tag|T]) ->
             end
     end.
 
+-spec process_tag(binary(), binary(), [node()]) -> 'ok'.
 process_tag(Tag, TagData, TagReplicas) ->
     TagK = get(tagk),
     {struct, Json} = mochijson2:decode(TagData),
@@ -191,11 +198,12 @@ check_blobsets([Repl|T], {IsFixed, NRepl}) ->
         _ ->
             check_blobsets(T, {IsFixed, [Repl|NRepl]})
     end.
-   
+
+-spec ddfs_url(binary()) -> 'ignore' | {binary(), 'unknown' | node()}.
 ddfs_url(<<"disco://", _/binary>> = Url) ->
     {_, Host, Path, _, _} = mochiweb_util:urlsplit(binary_to_list(Url)),
     BlobName = list_to_binary(filename:basename(Path)),
-    case node_mon:slave_node_safe(Host) of
+    case disco:node_safe(Host) of
         false ->
             error_logger:warning_report({"GC: Unknown host", Host}),
             {BlobName, unknown};
@@ -305,6 +313,7 @@ orphan_server(Objs, NumNodes) ->
 %
 % The Ages table persists the time of death for each deleted tag.
 %
+-spec process_deleted([binary()], ets:tab()) -> _.
 process_deleted(Tags, Ages) ->
     error_logger:info_report({"GC: Process deleted"}),
     Now = now(),

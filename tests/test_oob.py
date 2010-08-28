@@ -1,7 +1,8 @@
-from disco.test import DiscoMultiJobTestFixture, DiscoTestCase
+from disco.test import DiscoMultiJobTestFixture
+from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.core import Params
 
-import string
+import string, sys
 
 class OOBTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs    = 2
@@ -59,3 +60,28 @@ class OOBTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
             yield '%s' % i
         for i in xrange(self.partitions_1):
             yield 'reduce:%s' % i
+
+
+class LargeOOBTestCase(DiscoJobTestFixture, DiscoTestCase):
+    @property
+    def input(self):
+        return ['raw://%d' % i for i in range(self.num_workers)]
+
+    def map(e, params):
+        for i in range(10):
+            put("%s-%d" % (e, i), "val:%s-%d" % (e, i))
+        return []
+
+    def runTest(self):
+        super(LargeOOBTestCase, self).runTest()
+        self.assertEquals(self.oob_data(), sorted(
+            [(key, self.job.oob_get(key)) for key in self.job.oob_list()]))
+
+    @property
+    def answers(self):
+        return []
+
+    def oob_data(self):
+        return sorted([("%d-%d" % (i, j), "val:%d-%d" % (i, j))
+            for i in range(self.num_workers) for j in range(10)])
+

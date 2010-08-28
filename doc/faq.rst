@@ -7,12 +7,12 @@ Disco FAQ
 Using Disco
 -----------
 
-I tried to install Disco but it doesn't work. Why? 
+I tried to install Disco but it doesn't work. Why?
 ''''''''''''''''''''''''''''''''''''''''''''''''''
 
-See :ref:`troubleshooting`. If the problem persist, contact
-Disco developers `either on IRC or on the mailing list
-<http://discoproject.org/getinvolved.html>`_.
+See :ref:`troubleshooting`.
+If the problem persists,
+contact Disco developers :doc:`on IRC or the mailing list <start/getinvolved>`.
 
 Why not `Hadoop <http://hadoop.apache.org>`_?
 '''''''''''''''''''''''''''''''''''''''''''''
@@ -32,7 +32,7 @@ the task than Java. We feel much more productive with Python than with
 Java. We also feel that Erlang is a perfect match for the Disco core
 that needs to handle tens of thousands of tasks in parallel.
 
-Thanks to Erlang, the Disco core remarkably compact, currently less
+Thanks to Erlang, the Disco core is remarkably compact, currently less
 than 2000 lines of code. It is relatively easy to understand how
 the core works, and start experimenting with it or adapt it to new
 environments. Thanks to Python, it is easy to add new features around
@@ -47,8 +47,8 @@ How to profile programs in Disco?
 Disco can use the Python's standard `Profile module
 <http://docs.python.org/library/profile.html>`_ to profile map and reduce
 tasks. Enable profiling by setting ``profile = True`` in :meth:`disco.core.Disco.new_job`.
-Once the job has finished, you can retrieve the results of profiling with the 
-:meth:`disco.core.Disco.profile_stats` function. 
+Once the job has finished, you can retrieve the results of profiling with the
+:meth:`disco.core.Disco.profile_stats` function.
 
 Here's a simple example::
 
@@ -73,6 +73,8 @@ Here's a simple example::
 
 See also the next question.
 
+.. _debugging:
+
 How to debug programs in Disco?
 '''''''''''''''''''''''''''''''
 
@@ -85,12 +87,12 @@ How can I output arbitrary Python objects in map and reduce, not only strings?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 *New in Disco 0.2*
 
-To pass arbitrary Python objects between map and reduce, 
+To pass arbitrary Python objects between map and reduce,
 set *map_writer* to
 :func:`disco.func.object_writer` and *reduce_reader* to
-:func:`disco.func.object_reader` in :meth:`disco.core.Disco.new_job`. 
+:func:`disco.func.object_reader` in :meth:`disco.core.Disco.new_job`.
 
-If you want to output arbitrary objects in your reduce function, set also 
+If you want to output arbitrary objects in your reduce function, set also
 *reduce_writer* to :func:`disco.func.object_writer`. If you want to use
 :func:`disco.core.result_iterator` to read results, set its *reader* parameter
 to :func:`disco.func.object_reader`.
@@ -102,10 +104,10 @@ Do I always have to provide a function for map and reduce?
 *Updated for Disco 0.2 which supports the reduce-only case*
 
 You have to specify either map or reduce or both. Many simple tasks can be
-solved with a single map function, without reduce. 
+solved with a single map function, without reduce.
 
-It is somewhat less typical to specify only the reduce function. This case 
-mainly arises when you want to merge results from many independent map jobs, 
+It is somewhat less typical to specify only the reduce function. This case
+mainly arises when you want to merge results from many independent map jobs,
 or you want to join several input files without going through the map phase.
 
 You can of course run many independent reduce-jobs
@@ -166,14 +168,14 @@ value in the input by one::
         def iter_map(e, params):
                 key, value = e
                 return [(int(key) + 1, "")]
-        
+
         disco = Disco("disco://localhost")
         results = disco.new_job(name = "inc_init",
                                input = sys.argv[2:],
                                map = init_map).wait()
 
         for i in range(9):
-                results = disco.new_job(name =  "inc_%d" % i, 
+                results = disco.new_job(name =  "inc_%d" % i,
                                         input = results,
                                         map = iter_map,
                                         map_reader = chain_reader).wait()
@@ -250,6 +252,3 @@ My input files are stored in CSV / XML / XYZ format. What is the easiest to use 
 If the format is textual, it may be possible to define a regular
 expression that can be used to extract input entries from the files. See
 :func:`disco.func.re_reader` for more information.
-
-
-

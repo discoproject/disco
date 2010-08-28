@@ -1,126 +1,131 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
- "http://www.w3.org/TR/html4/strict.dtd">
+          "http://www.w3.org/TR/html4/strict.dtd">
 <html>
-<head>
-   <title>disco job</title>
-   <link rel="stylesheet" href="reset-fonts-grids.css" type="text/css">
-   <link rel="stylesheet" href="style.css" type="text/css">
-   
-   <script type="text/javascript" src="jquery-1.2.1.js"></script>
-   <script type="text/javascript" src="jquery-dom.js"></script>
-   <script type="text/javascript" src="typewatch1.1.js"></script> 
-   <script type="text/javascript" src="json2.js"></script>
+  <head>
+    <title>disco job</title>
+    <link rel="stylesheet" href="/css/reset-fonts-grids.css" type="text/css">
+    <link rel="stylesheet" href="/css/style.css" type="text/css">
 
-   <script type="text/javascript" src="joblist.js"></script>
-   <script type="text/javascript" src="disco.js"></script>
-   <script type="text/javascript" src="job.js"></script>
+    <script type="text/javascript" src="/js/jquery-1.2.1.js"></script>
+    <script type="text/javascript" src="/js/jquery-dom.js"></script>
+    <script type="text/javascript" src="/js/typewatch1.1.js"></script>
+    <script type="text/javascript" src="/js/json2.js"></script>
 
-</head>
-<body>
-<div id="doc3" class="yui-t5">
-   
-   <div id="hd">
-   <div id="title"><span>job:</span> </div>
-   <div id="logo"><img src="balls.png"/></div>
-   </div>
-   
-   <div id="bd">
+    <script type="text/javascript" src="/js/joblist.js"></script>
+    <script type="text/javascript" src="/js/disco.js"></script>
+    <script type="text/javascript" src="/js/job.js"></script>
+  </head>
+  <body>
+    <div id="doc3" class="yui-t5">
+
+      <div id="hd">
+        <div id="title">
+          <span class="">job:</span>
+        </div>
+        <div id="logo">
+          <img src="/images/balls.png"/>
+        </div>
+      </div>
+
+      <div id="bd">
 	<div id="yui-main">
-	<div class="yui-b"><div class="yui-g">
-       
-        <div id="jobctrl">
-        <a id="kill_job" href="#">[kill job]</a>
-        <a id="clean_job" href="#">[delete job records]</a>
-        <a id="purge_job" href="#">[delete all job data]</a>
-        </div>
+	  <div class="yui-b">
+            <div class="yui-g">
 
-        <div class="jobinfo">
-        <div id="title">Job info</div>
-        <div class="jobbody">
-        <b>Job is</b> <span class="val" id="nfo_active"></span><br/>
-        <b>started:</b> <span class="val" id="nfo_started"></span><br/>
-        
-        <table cols="5">
-        <thead>
-        <tr class="ttitle"><td></td><td>Waiting</td><td>Running</td><td>Done</td><td>Failed</td></tr>
-        </thead>
-        <tbody>
-        <tr id="jobinfo_map">
-                <td class="ttitle">Map</td>
-                <td id="map_wait">0</td>
-                <td id="map_run">0</td>
-                <td id="map_done">0</td>
-                <td id="map_fail">0</td>
-        </tr>
-        <tr id="jobinfo_red">
-                <td class="ttitle">Reduce</td>
-                <td id="red_wait">0</td>
-                <td id="red_run">0</td>
-                <td id="red_done">0</td>
-                <td id="red_fail">0</td>
-        </tr>
-        <tbody>
-        </table>
-        </div>
-        </div>
+              <div class="job">
+                <div class="control">
+                  <a id="kill_job" href="#">[kill job]</a>
+                  <a id="purge_job" href="#">[delete all job data]</a>
+                </div>
 
+                <div class="infobox">
+                  <div class="title">Job info</div>
+                  <div class="body">
+                    <b>Job is</b> <span class="val" id="nfo_status"></span><br/>
+                    <b>started:</b> <span class="val" id="nfo_started"></span><br/>
 
-        <div class="jobinfo">
-        <div id="title">Current nodes</div>
-        <div id="cur_nodes" class="jobbody"></div>
-        </div>
+                    <table cols="5">
+                      <thead>
+                        <tr class="title">
+                          <td></td>
+                          <td>Waiting</td>
+                          <td>Running</td>
+                          <td>Done</td>
+                          <td>Failed</td>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr id="nfo_map">
+                          <td class="title">Map</td>
+                          <td>0</td>
+                          <td>0</td>
+                          <td>0</td>
+                          <td>0</td>
+                        </tr>
+                        <tr id="nfo_red">
+                          <td class="title">Reduce</td>
+                          <td>0</td>
+                          <td>0</td>
+                          <td>0</td>
+                          <td>0</td>
+                        </tr>
+                      <tbody>
+                    </table>
+                  </div>
+                </div>
 
-        <div class="jobinfo">
-        <div id="title">Map Inputs</div>
-        <div id="map_inputs" class="jobbody"></div>
-        </div>
+                <div class="infobox">
+                  <div class="title">Current nodes</div>
+                  <div id="cur_nodes" class="body"></div>
+                </div>
 
-        <div class="jobinfo">
-        <div id="title">Results</div>
-        <div id="results" class="jobbody"></div>
-        </div>
+                <div class="infobox">
+                  <div class="title">Map Inputs</div>
+                  <div id="map_inputs" class="body"></div>
+                </div>
 
-        <div class="event_nav">
-        Filter: <input id="pagesearch" type="text" size=15"/> <a id="find_page" href="#">show</a><br/>
-        </div>
-        <div class="jobevents">
-        
-        <!--
-        <div class="jobevent">
-        <span class="tstamp">11/31/07 12:35:54</span>
-        <span class="node">cnode01</span>
-        <div id="ev_warning">
-        diiba daaba<br/>
-        dsds<br/>
-        dssd
-        </div>
-        </div>
-        -->
+                <div class="infobox">
+                  <div class="title">Results</div>
+                  <div id="results" class="body"></div>
+                </div>
 
-        </div>
+                <div class="event_nav">
+                  Filter:
+                  <form action="" id="find_events">
+                    <input id="pagesearch" type="text" size="15" />
+                    <a id="find_page" href="#">show</a>
+                  </form>
+                  <br/>
+                </div>
 
-	</div>
-        </div>
+                <div class="events">
+                  <!-- jobevents -->
+                </div>
+
+              </div>
+	    </div>
+          </div>
 	</div>
 
 	<div class="yui-b">
-        <div class="links">
-        <a href="index.html">status</a> | 
-        <a href="config.html">configure</a>
-        </div>
+          <div class="links">
+            <a href="index.html">status</a> |
+            <a href="config.html">configure</a>
+          </div>
 
-        <div class="joblist">
-        <input type="text" ></input>
-        <div class="jobs"></div>
+          <div id="joblist">
+            <input type="text" />
+            <div id="jobs">
+              <!-- jobs -->
+            </div>
+          </div>
         </div>
-        </div>
-   </div>
-   
-   <div id="ft">
-   Disco 0.3
-   </div>
+      </div>
 
+      <div id="ft">
+        Disco 0.3
+      </div>
 
-</div>
-</body>
+    </div>
+  </body>
 </html>

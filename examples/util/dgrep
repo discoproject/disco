@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# A wrapper for grep.py to make it feel more like Unix grep
+
+bin=`dirname $0`
+job=`PYTHONPATH=$bin disco run grep.Grep --param pattern "$@"` && \
+DISCO_EVENTS= disco wait $job && \
+disco results $job | xargs ddfs xcat

@@ -1,8 +1,9 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.events import Event, Message, AnnouncePID, DataUnavailable, OutputURL, OOBData, EventRecord
+from disco.events import Event, Message, AnnouncePID, DataUnavailable, OutputURL, EventRecord
 from disco.error import JobError
 
 from datetime import datetime
+from binascii import hexlify
 
 class EventFormatTestCase(DiscoTestCase):
     def test_event(self):
@@ -40,16 +41,6 @@ class EventFormatTestCase(DiscoTestCase):
         self.assertEquals([], event_record.tags)
         self.assertEquals('disco://master', event_record.message)
 
-    def test_oob_data(self):
-        import os
-        from disco.task import Task
-        task = Task()
-        event_record = EventRecord(str(OOBData('key', task)))
-        self.assertEquals('OOB', event_record.type)
-        self.assert_(event_record.time < datetime.now())
-        self.assertEquals([], event_record.tags)
-        self.assertEquals('key %s' % os.path.join(task.home, 'oob', 'key'), event_record.message)
-
     def test_bad_tags(self):
         self.assertRaises(TypeError, EventRecord(str(Event('', tags=['bad-']))))
         self.assertRaises(TypeError, EventRecord(str(Event('', tags=['bad ']))))
@@ -63,7 +54,24 @@ class SingleLineMessageTestCase(DiscoJobTestFixture, DiscoTestCase):
     @staticmethod
     def map(e, params):
         import sys
-        sys.stderr.write('**<MSG> Singe line message\n')
+        sys.stderr.write('**<MSG> Single line message\n')
+        return []
+
+    @property
+    def answers(self):
+        return []
+
+class BinaryMessageTestCase(DiscoJobTestFixture, DiscoTestCase):
+    inputs = [1]
+
+    def getdata(self, path):
+        return 'data\n' * 10
+
+    @staticmethod
+    def map(e, params):
+        import sys
+        l='\x00\x001\xc9D\x8b-\xa0\x99 \x00\xba\xc0\xe5`\x00H\x89\xdeH\x8b=\x81\x99 \x00\xe8\x04\xeb\xff\xff\x85\xc0\x0f\x88l\n'
+        sys.stderr.write('**<MSG> Binary message ' + l)
         return []
 
     @property
@@ -74,8 +82,62 @@ class SingleLineErrorTestCase(SingleLineMessageTestCase):
     @staticmethod
     def map(e, params):
         import sys
-        sys.stderr.write('**<ERR> Singe line error!\n')
+        sys.stderr.write('**<ERR> Single line error!\n')
         return []
 
     def runTest(self):
         self.assertRaises(JobError, self.job.wait)
+
+class UTF8MessageTestCase(DiscoJobTestFixture, DiscoTestCase):
+    inputs = [1]
+
+    def getdata(self, path):
+        return 'data\n' * 10
+
+    @staticmethod
+    def map(e, params):
+        import sys
+        print u'\xc4\xe4rett\xf6myys'
+        return []
+
+    @property
+    def answers(self):
+        return []
+
+    def has_valid_event(self, events):
+        msg = u'\xc4\xe4rett\xf6myys'
+        for (n,e) in events:
+            if msg in e[2]:
+                return True
+        return False
+
+    def runTest(self):
+        self.job.wait()
+        self.assertTrue(self.has_valid_event(self.job.events()))
+
+class NonUTF8MessageTestCase(DiscoJobTestFixture, DiscoTestCase):
+    inputs = [1]
+
+    def getdata(self, path):
+        return 'data\n' * 10
+
+    @staticmethod
+    def map(e, params):
+        import sys
+        print u'\xc4\xe4rett\xf6myys'.encode('latin-1')
+        return []
+
+    @property
+    def answers(self):
+        return []
+
+    def has_valid_event(self, events):
+        msg = hexlify(u'\xc4\xe4rett\xf6myys'.encode('latin-1'))
+        for (n,e) in events:
+            if msg in e[2]:
+                return True
+        return False
+
+    def runTest(self):
+        self.job.wait()
+        self.assertTrue(self.has_valid_event(self.job.events()))

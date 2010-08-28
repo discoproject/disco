@@ -5,19 +5,19 @@ from disco.func import map_input_stream, netstr_writer
 def map_input_stream1(stream, size, url, params):
     r = stream.read()
     fd = cStringIO.StringIO('a' + r)
-    return fd, len(r) + 1, 'a:%d' % Task.num_partitions
+    return fd, len(r) + 1, 'a:%d' % Task.partitions
 
 def map_input_stream2(stream, size, url, params):
     r = stream.read()
     fd = cStringIO.StringIO('b' + r)
-    return fd, len(r) + 1, url + 'b:%d' % Task.num_partitions
+    return fd, len(r) + 1, url + 'b:%d' % Task.partitions
 
 def reduce_output_stream1(stream, size, url, params):
-    return 'fd', 'url:%d' % Task.num_partitions
+    return 'fd', 'url:%d' % Task.partitions
 
 def reduce_output_stream2(stream, size, url, params):
-    assert stream == 'fd' and url == 'url:%d' % Task.num_partitions
-    path, url = Task.reduce_output()
+    assert stream == 'fd' and url == 'url:%d' % Task.partitions
+    path, url = Task.reduce_output
     return disco.fileutils.AtomicFile(path, 'w'), url.replace('disco://', 'foobar://')
 
 class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):
@@ -31,7 +31,7 @@ class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map_reader(stream, size, url):
-        n = Task.num_partitions
+        n = Task.partitions
         assert url == 'a:%db:%d' % (n, n)
         yield stream.read()
 

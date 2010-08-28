@@ -48,7 +48,7 @@ Interfaces
 .. autoclass:: InputStream
     :members: __iter__, read
 .. autoclass:: OutputStream
-    :members: 
+    :members:
 
 Default/Utility Functions
 -------------------------
@@ -192,7 +192,7 @@ def output_stream(stream, partition, url, params):
     :param url: url of the input
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
-    
+
     Returns a triplet (:class:`disco.func.OutputStream`, size, url) that is
     passed to the next *output_stream* function in the chain. The
     :meth:`disco.func.OutputStream.add` method of the last
@@ -205,7 +205,7 @@ def output_stream(stream, partition, url, params):
 
 class OutputStream:
     """
-    A file-like object returned by the ``map_output_stream`` or 
+    A file-like object returned by the ``map_output_stream`` or
     ``reduce_output_stream`` chain of :func:`disco.func.output_stream` functions.
     Used to encode key, value pairs add write them to the underlying file object.
     """
@@ -217,13 +217,13 @@ class OutputStream:
     def add(key, value):
         """
         Adds a key, value pair to the output stream. This method typically
-        calls *self.write()* to write a serialized pair to the actual 
+        calls *self.write()* to write a serialized pair to the actual
         file object.
         """
 
 class InputStream:
     """
-    A file-like object returned by the ``map_input_stream`` or 
+    A file-like object returned by the ``map_input_stream`` or
     ``reduce_input_stream`` chain of :func:`disco.func.input_stream` functions.
     Used either to read bytes from the input source or to iterate through input
     entries.
@@ -234,14 +234,14 @@ class InputStream:
         bytes from the underlying file object, which are deserialized to the
         actual input entries.
         """
-    
+
     def read(num_bytes=None):
         """
         Reads at most *num_bytes* from the input source, or until EOF if *num_bytes*
         is not specified.
         """
 
-def old_netstr_reader(fd, size, fname, head = ''):
+def old_netstr_reader(fd, size, fname, head=''):
     """
     Reader for Disco's default/internal key-value format.
 
@@ -250,18 +250,19 @@ def old_netstr_reader(fd, size, fname, head = ''):
     to use the output of a previous job as input to another job.
     :func:`chain_reader` is an alias for :func:`netstr_reader`.
     """
-    if size == None:
-        err("Content-length must be defined for netstr_reader")
+    if size is None:
+        raise ValueError("Content-length must be defined for netstr_reader")
+
     def read_netstr(idx, data, tot):
         ldata = len(data)
         i = 0
-        lenstr = ""
+        lenstr = ''
         if ldata - idx < 11:
             data = data[idx:] + fd.read(8192)
             ldata = len(data)
             idx = 0
 
-        i = data.find(" ", idx, idx + 11)
+        i = data.find(' ', idx, idx + 11)
         if i == -1:
             raise DataError("Corrupted input: "\
                             "Could not parse a value length at %d bytes."\
@@ -302,7 +303,7 @@ def old_netstr_reader(fd, size, fname, head = ''):
     data = head + fd.read(8192)
     tot = idx = 0
     while tot < size:
-        key = val = ""
+        key = val = ''
         idx, data, tot, key = read_netstr(idx, data, tot)
         idx, data, tot, val = read_netstr(idx, data, tot)
         yield key, val
@@ -375,11 +376,9 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
                     "Some bytes may be missing from input." % (len(buf), fname)
             break
 
-
 def default_partition(key, nr_partitions, params):
     """Returns ``hash(str(key)) % nr_partitions``."""
     return hash(str(key)) % nr_partitions
-
 
 def make_range_partition(min_val, max_val):
     """
@@ -394,9 +393,16 @@ def make_range_partition(min_val, max_val):
         (min_val, r)
     return eval(f)
 
-
 def noop(*args, **kwargs):
     pass
+
+def nop_map(entry, params):
+    """
+    No-op map.
+
+    This function can be used to yield the results from the input stream.
+    """
+    yield entry
 
 def nop_reduce(iter, out, params):
     """
@@ -407,6 +413,10 @@ def nop_reduce(iter, out, params):
     """
     for k, v in iter:
         out.add(k, v)
+
+def gzip_reader(fd, size, url, params):
+    from gzip import GzipFile
+    return GzipFile(fileobj=fd), size, url
 
 def map_line_reader(fd, sze, fname):
     """Yields each line of input."""
@@ -449,8 +459,8 @@ def map_input_stream(stream, size, url, params):
     If no scheme is found in the url, ``file`` is used.
     The resulting input stream is then used.
     """
-    m = re.match('(\w+)://', url)
-    scheme = m.group(1) if m else 'file'
+    from disco.util import schemesplit
+    scheme, _url = schemesplit(url)
     mod = __import__('disco.schemes.scheme_%s' % scheme,
                      fromlist=['scheme_%s' % scheme])
     Task.insert_globals([mod.input_stream])
@@ -467,15 +477,13 @@ def map_output_stream(stream, partition, url, params):
     An :func:`output_stream` which returns a handle to a partition output.
     The handle ensures that if a task fails, partially written data is ignored.
     """
-    from disco.fileutils import AtomicFile, PartitionFile
-    mpath, murl = Task.map_output(partition)
-    if not Task.ispartitioned:
-        Task.add_blob(mpath)
-        return AtomicFile(mpath, 'w'), murl
+    from disco.fileutils import AtomicFile
+    if Task.ispartitioned:
+        path, url = Task.partition_output(partition)
     else:
-        ppath, purl = Task.partition_output(partition)
-        Task.add_blob(ppath)
-        return PartitionFile(ppath, mpath, 'w'), purl
+        path, url = Task.map_output(partition)
+    Task.blobs.append(path)
+    return AtomicFile(path, 'w'), url
 
 def reduce_output_stream(stream, partition, url, params):
     """
@@ -483,28 +491,9 @@ def reduce_output_stream(stream, partition, url, params):
     The handle ensures that if a task fails, partially written data is ignored.
     """
     from disco.fileutils import AtomicFile
-    path, url = Task.reduce_output()
-    Task.add_blob(path)
+    path, url = Task.reduce_output
+    Task.blobs.append(path)
     return AtomicFile(path, 'w'), url
-
-# backwards compatibility for readers and writers
-# remove when readers and writers are gone
-
-def reader_wrapper(reader):
-    from util import argcount
-    if argcount(reader) == 3:
-        # old style reader without params
-        def reader_input_stream(stream, size, url, params):
-            return reader(stream, size, url)
-        return reader_input_stream
-    else:
-        return reader
-
-def writer_wrapper(writer):
-    def writer_output_stream(stream, partition, url, params):
-        stream.add = lambda k, v: writer(stream, k, v, params)
-        return stream, url
-    return writer_output_stream
 
 def disco_output_stream(stream, partition, url, params, version = -1,
                         compress_level = 2, min_chunk = 1 * 1024**2):

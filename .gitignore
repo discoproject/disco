@@ -3,6 +3,7 @@
 *.log
 *.pid
 *.pyc
+master/.dialyzer_plt
 conf/settings.py
 doc/.build/
 lib/build/

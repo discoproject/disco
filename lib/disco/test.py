@@ -136,13 +136,13 @@ class DiscoJobTestFixture(object):
 
     @property
     def nodes(self):
-        return dict((n['node'], n['max_workers'])
-                for n in self.disco.nodeinfo()['available']
-                if not n['blacklisted'])
+        return dict((host, info['max_workers'])
+                    for host, info in self.disco.nodeinfo().items()
+                    if not info['blacklisted'])
 
     @property
     def num_workers(self):
-        return sum(x['max_workers'] for x in self.disco.nodeinfo()['available'])
+        return sum(x['max_workers'] for x in self.disco.nodeinfo().values())
 
     @property
     def test_server_address(self):
@@ -184,6 +184,7 @@ class DiscoJobTestFixture(object):
             self.job.purge()
 
     def runTest(self):
+        from disco.future import izip_longest as zip
         for result, answer in zip(self.results, self.answers):
             self.assertEquals(result, answer)
 

@@ -110,6 +110,8 @@ class ANSIEventWriter(EventWriter):
         return self.ansi_text(warning, fgcolor=MAGENTA) + self.end_line
 
     def write(self, status=None, timestamp=None, host=None, message=None):
+        if message:
+            message = message.encode('ascii', 'replace')
         if status:
             return self.handle.write('%s\n' % self.status(status))
 

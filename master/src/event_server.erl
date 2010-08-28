@@ -30,6 +30,7 @@ json_list([X], L) ->
 json_list([X|R], L) ->
     json_list(R, [<<X/binary, ",">>|L]).
 
+-spec unique_key(nonempty_string(), dict()) -> nonempty_string().
 unique_key(Prefix, Dict) ->
     {MegaSecs, Secs, MicroSecs} = now(),
     Key = lists:flatten(io_lib:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs])),
@@ -103,7 +104,11 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _MsgBuf} = S) ->
         error ->
             {reply, invalid_job, S};
         {ok, {EventList, JobStart, Pid}} ->
-            [JobNfo] = event_filter(job_data, EventList),
+            JobNfo =
+                case event_filter(job_data, EventList) of
+                    [] -> [];
+                    [N] -> N
+                end,
             Results = event_filter(ready, EventList),
             Ready = event_filter(task_ready, EventList),
             Failed = event_filter(task_failed, EventList),
@@ -146,14 +151,14 @@ handle_info(Msg, State) ->
 
 tail_log(JobName, N)->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
+    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
     Tail = string:tokens(os:cmd(["tail -n ", integer_to_list(N),
                      " ", FName, " 2>/dev/null"]), "\n"),
     [list_to_binary(L) || L <- lists:reverse(Tail)].
 
 grep_log(JobName, Query, N) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
+    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
 
     % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
     % only whitelisted characters are allowed in the query
@@ -207,19 +212,30 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
              MsgBufN}
     end.
 
+%-spec event(nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(JobName, Format, Args, Params) ->
     event("master", JobName, Format, Args, Params).
 
+%-spec event(nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(Host, JobName, Format, Args, Params) ->
     event(event_server, Host, JobName, Format, Args, Params).
 
+%-spec event(atom(), nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(EventServer, Host, JobName, Format, Args, Params) ->
     SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 10000 of
 		     true -> trunc_io:fprint(X, 10000);
 		     false -> X 
 		 end || X <- Args],
-    Msg = list_to_binary(mochijson2:encode(
-        list_to_binary(io_lib:fwrite(Format, SArgs)))),
+    RawMsg = lists:flatten(io_lib:fwrite(Format, SArgs)),
+    Json = case catch mochijson2:encode(list_to_binary(RawMsg)) of
+               {'EXIT', _} ->
+                   Hex = ["WARNING: Binary message data: ",
+                          [io_lib:format("\\x~2.16.0b",[N])
+                           || N <- RawMsg]],
+                   mochijson2:encode(list_to_binary(Hex));
+               J -> J
+           end,
+    Msg = list_to_binary(Json),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
 
 % callback stubs
@@ -233,7 +249,7 @@ check_mkdir(_) -> throw("creating directory failed").
 
 prepare_environment(Name) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    Home = disco_server:jobhome(Name),
+    Home = disco:jobhome(Name),
     [Path, _] = filename:split(Home),
     check_mkdir(file:make_dir(filename:join(Root, Path))),
     check_mkdir(file:make_dir(filename:join(Root, Home))).
@@ -242,7 +258,7 @@ delete_jobdir(Name) ->
     Safe = string:chr(Name, $.) + string:chr(Name, $/),
     if Safe =:= 0 ->
         Root = disco:get_setting("DISCO_MASTER_ROOT"),
-        Home = disco_server:jobhome(Name),
+        Home = disco:jobhome(Name),
         os:cmd("rm -Rf " ++ filename:join(Root, Home));
     true -> ok
     end.
@@ -250,7 +266,7 @@ delete_jobdir(Name) ->
 job_event_handler(JobName, JobCoordinator) ->
     prepare_environment(JobName),
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco_server:jobhome(JobName), "events"]),
+    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
     {ok, File} = file:open(FName, [append, raw]),
     gen_server:call(event_server, {job_initialized, JobName, self()}),
     gen_server:reply(JobCoordinator, {ok, JobName}),

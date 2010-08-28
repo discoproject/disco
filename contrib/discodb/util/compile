@@ -3,20 +3,18 @@
 src=../src
 
 if [ `uname` == "Darwin" ]; then
-    FLAGS="-fnested-functions"
+    FLAGS="-O3 -fnested-functions"
 else
-    FLAGS=""
+#    FLAGS="-DHUFFMAN_DEBUG"
+#    FLAGS="-DDDB_PROFILE -O3"
+     FLAGS="-O3"
 fi
 
-gcc -O3 -g -Wall -I $src $FLAGS -c \
-    $src/ddb.c \
-    $src/ddb_cons.c \
-    $src/ddb_valuemap.c \
-    $src/ddb_cnf.c \
-    $src/util.c
-gcc -O3 -g -Wall -I $src $FLAGS -o create_discodb -lcmph \
+gcc -g -Wall -I $src $FLAGS -c \
+    $src/ddb*.c
+gcc -g -Wall -I $src $FLAGS -o create_discodb -lcmph \
     create_discodb.c \
     *.o
-gcc -O3 -g -Wall -I $src $FLAGS -o query_discodb  -lcmph \
+gcc -g -Wall -I $src $FLAGS -o query_discodb  -lcmph \
     query_discodb.c \
     *.o

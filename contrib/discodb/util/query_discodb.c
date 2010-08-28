@@ -19,11 +19,15 @@ static void print_cursor(struct ddb *db, struct ddb_cursor *cur)
                 fprintf(stderr, "Not found\n");
                 exit(1);
         }
-        int i = 0;
+        int errno, i = 0;
         const struct ddb_entry *e;
-        while ((e = ddb_next(cur))){
+        while ((e = ddb_next(cur, &errno))){
                 printf("%.*s\n", e->length, e->data);
                 ++i;
+        }
+        if (errno){
+            fprintf(stderr, "Cursor failed: out of memory\n");
+            exit(1);
         }
         ddb_free_cursor(cur);
 }
@@ -98,10 +102,31 @@ static struct ddb *open_discodb(const char *file)
         return db;
 }
 
+#define FEAT(x) (long long unsigned int)feat[x]
+
+static void print_info(struct ddb *db)
+{
+    static const char yes[] = "true";
+    static const char no[] = "false";
+    const char *boolstr(int boolean) { return boolean ? yes: no; }
+    ddb_features_t feat;
+
+    ddb_features(db, feat);
+    printf("Total size:              %llu bytes\n", FEAT(DDB_TOTAL_SIZE));
+    printf("Items size:              %llu bytes\n", FEAT(DDB_ITEMS_SIZE));
+    printf("Values size:             %llu bytes\n", FEAT(DDB_VALUES_SIZE));
+    printf("Number of keys:          %llu\n", FEAT(DDB_NUM_KEYS));
+    printf("Number of items:         %llu\n", FEAT(DDB_NUM_VALUES));
+    printf("Number of unique values: %llu\n", FEAT(DDB_NUM_UNIQUE_VALUES));
+    printf("Compressed?              %s\n", boolstr(feat[DDB_IS_COMPRESSED]));
+    printf("Hashed?                  %s\n", boolstr(feat[DDB_IS_HASHED]));
+    printf("Multiset?                %s\n", boolstr(feat[DDB_IS_MULTISET]));
+}
+
 static void usage()
 {
         fprintf(stderr, "Usage:\n");
-        fprintf(stderr, "query_discodb [discodb] [-keys|-values|-item|-cnf] [query]\n");
+        fprintf(stderr, "query_discodb [discodb] [-keys|-values|-uvalues|-info|-item|-cnf] [query]\n");
         fprintf(stderr, "cnf format example: a b & ~c d & e\n");
         exit(1);
 }
@@ -112,12 +137,16 @@ int main(int argc, char **argv)
                 usage();
 
         struct ddb *db = open_discodb(argv[1]);
-
-        if (!strcmp(argv[2], "-keys"))
+        if (!strcmp(argv[2], "-info"))
+                print_info(db);
+        else if (!strcmp(argv[2], "-keys"))
                 print_cursor(db, ddb_keys(db));
 
         else if (!strcmp(argv[2], "-values"))
                 print_cursor(db, ddb_values(db));
+
+        else if (!strcmp(argv[2], "-uvalues"))
+                print_cursor(db, ddb_unique_values(db));
 
         else if (!strcmp(argv[2], "-item")){
                 if (argc < 4){

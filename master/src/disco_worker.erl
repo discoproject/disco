@@ -5,16 +5,23 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
     terminate/2, code_change/3]).
 
--include("task.hrl").
--record(state, {id, master, port, task,
-        start_time,
-        eventserver,
-        eventstream,
-        child_pid, node,
-        linecount, errlines,
-        results,
-        debug,
-        last_event, event_counter}).
+-include("disco.hrl").
+
+-record(state, {id :: pid(),
+                master :: pid(),
+                port :: port(),
+                task :: task(),
+                start_time :: timer:timestamp(),
+                eventserver :: pid(),
+                eventstream :: event_stream:event_stream(),
+                child_pid :: 'none' | string(),
+                host :: string(),
+                linecount :: non_neg_integer(),
+                errlines :: message_buffer:message_buffer(),
+                results :: string(),
+                debug :: bool(),
+                last_event :: timer:timestamp(),
+                event_counter :: non_neg_integer()}).
 
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
@@ -29,12 +36,12 @@ port_options() ->
      {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}] ++
       [{Setting, disco:get_setting(Setting)} || Setting <- disco:settings()]}].
 
-start_link_remote(Master, Eventserver, Node, NodeMon, Task) ->
+start_link_remote(Master, EventServer, Host, NodeMon, Task) ->
     Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
-    NodeAtom = node_mon:slave_node(Node),
+    Node  = disco:node(Host),
     wait_until_node_ready(NodeMon),
-    spawn_link(NodeAtom, disco_worker, start_link,
-           [[self(), Eventserver, Master, Task, Node, Debug]]),
+    spawn_link(Node, disco_worker, start_link,
+               [[self(), EventServer, Master, Task, Host, Debug]]),
     process_flag(trap_exit, true),
     receive
         ok -> ok;
@@ -43,7 +50,7 @@ start_link_remote(Master, Eventserver, Node, NodeMon, Task) ->
         _ ->
             exit({error, invalid_reply})
     after 60000 ->
-        exit({worker_dies, {"Worker did not start in 60s", []}})
+            exit({worker_dies, {"Worker did not start in 60s", []}})
     end,
     wait_for_exit().
 
@@ -81,13 +88,13 @@ start_link([Parent|_] = Args) ->
     end,
     wait_for_exit().
 
-init([Id, EventServer, Master, Task, Node, Debug]) ->
+init([Id, EventServer, Master, Task, Host, Debug]) ->
     process_flag(trap_exit, true),
     erlang:monitor(process, Task#task.from),
     {ok, #state{id = Id,
             master = Master,
             task = Task,
-            node = Node,
+            host = Host,
             child_pid = none,
             eventserver = EventServer,
             eventstream = event_stream:new(),
@@ -99,8 +106,8 @@ init([Id, EventServer, Master, Task, Node, Debug]) ->
             debug = Debug,
             results = []}}.
 
-spawn_cmd(#state{task = T, node = Node}) ->
-    Args = [T#task.mode, T#task.jobname, Node, T#task.taskid, T#task.chosen_input],
+spawn_cmd(#state{task = T, host = Host}) ->
+    Args = [T#task.mode, T#task.jobname, Host, T#task.taskid, T#task.chosen_input],
     lists:flatten(io_lib:fwrite(?CMD, Args)).
 
 worker_exit(#state{id = Id, master = Master}, Msg) ->
@@ -111,9 +118,10 @@ event(Event, S) ->
     event(Event, S, []).
 
 event({_Type, Message}, #state{task = T,
-        eventserver = EventServer, node = Node}, Params) ->
-    event_server:event(EventServer, Node, T#task.jobname, "[~s:~B] ~s",
-        [T#task.mode, T#task.taskid, Message], Params).
+                               eventserver = EventServer,
+                               host = Host}, Params) ->
+    event_server:event(EventServer, Host, T#task.jobname, "[~s:~B] ~s",
+                       [T#task.mode, T#task.taskid, Message], Params).
 
 error(State) ->
     {stop, worker_exit(State, {job_error, "Worker killed"}), State}.
@@ -147,7 +155,7 @@ handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
     error(recoverable, Message, S);
 
 handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, S) ->
-    event({"END", "Task finished in " ++ disco_server:format_time(S#state.start_time)}, S),
+    event({"END", "Task finished in " ++ disco:format_time(S#state.start_time)}, S),
     {stop, worker_exit(S, {job_ok, S#state.results}), S};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
@@ -160,6 +168,10 @@ handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
 handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
     % event({"OUT", "Results at " ++ Results}, S),
     {noreply, S#state{results = Results}};
+
+handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, S) ->
+    event({<<"STA">>, Message}, S),
+    {noreply, S};
 
 % rate limited event
 handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
