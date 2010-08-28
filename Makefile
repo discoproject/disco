@@ -62,18 +62,17 @@ install: install-master install-lib install-node install-root install-tests
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
-	install -m 0755 master/ebin/disco.app $(TARGETDIR)/ebin
 	install -m 0755 $(TARGET) $(TARGETDIR)/ebin
 	install -m 0755 $(MOCHI_TARGET) $(TARGETDIR)/ebin/mochiweb
 	install -m 0755 $(DDFS_TARGET) $(TARGETDIR)/ebin/ddfs
 
-install-master: master install-config install-bin
-	install -d $(TARGETDIR)
+install-master: master install-ebin install-config install-bin
+	install -m 0755 master/ebin/disco.app $(TARGETDIR)/ebin
+
 	cp -r master/www $(TARGETDIR)
 	chmod -R u=rwX,g=rX,o=rX $(TARGETDIR)/www
 
-install-node: master install-ebin
-	install -d $(TARGETBIN)
+install-node: master install-ebin install-config install-bin
 	install -m 0755 node/disco-worker $(TARGETBIN)
 
 install-bin:
