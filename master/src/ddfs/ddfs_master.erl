@@ -9,7 +9,7 @@
 
 -include("config.hrl").
 
--record(state, {nodes :: [{node(), non_neg_integer()}],
+-record(state, {nodes :: [{node(), {non_neg_integer(), non_neg_integer()}}],
                 tags :: gb_tree(),
                 tag_cache :: 'false' | gb_set(),
                 blacklisted :: [node()]}).

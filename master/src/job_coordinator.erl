@@ -102,7 +102,7 @@ find_values(Msg) ->
 
 -spec work([{non_neg_integer(), [{binary(), nonempty_string()}]}],
     nonempty_string(), nonempty_string(), non_neg_integer(),
-    jobinfo(), [result()]) -> {'ok', [result()]}.
+    jobinfo(), gb_tree()) -> {'ok', gb_tree()}.
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
