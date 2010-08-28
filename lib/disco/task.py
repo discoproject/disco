@@ -8,7 +8,7 @@ from disco import func, comm, util
 from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError, DataError
-from disco.events import Message, OutputURL, TaskFailed
+from disco.events import Status, OutputURL, TaskFailed
 from disco.fileutils import AtomicFile, ensure_file, ensure_path, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
@@ -156,9 +156,9 @@ class Task(object):
         n = -1
         for n, item in enumerate(iterator):
             if status_interval and (n + 1) % status_interval == 0:
-                Message(message_template % (n + 1))
+                Status(message_template % (n + 1))
             yield item
-        Message("Done: %s" % (message_template % (n + 1)))
+        Status("Done: %s" % (message_template % (n + 1)))
 
     def connect_input(self, url, fd=None, size=None):
         def fd_tuple(object, *args):
@@ -298,7 +298,7 @@ class Map(Task):
 
         if self.save and not self.reduce:
             OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
-            Message("Results pushed to DDFS")
+            Status("Results pushed to DDFS")
         else:
             OutputURL(index_url)
 
@@ -344,7 +344,7 @@ class Reduce(Task):
             self.insert_globals([self.reduce])
 
         total_size = sum(size for fd, size, url in self.connected_inputs)
-        Message("Input is %s" % (util.format_size(total_size)))
+        Status("Input is %s" % (util.format_size(total_size)))
 
         self.init(entries, params)
         self.reduce(entries, red_out, params)
@@ -354,7 +354,7 @@ class Reduce(Task):
 
         if self.save:
             OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
-            Message("Results pushed to DDFS")
+            Status("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
             f = file(index, 'w')
@@ -370,7 +370,7 @@ class Reduce(Task):
         return self.entries
 
     def disk_sort(self, filename):
-        Message("Sorting %s..." % filename)
+        Status("Sorting %s..." % filename)
         try:
             subprocess.check_call(['sort',
                                    '-z',
@@ -382,7 +382,7 @@ class Reduce(Task):
                                    filename])
         except subprocess.CalledProcessError, e:
             raise DataError("Sorting %s failed: %s" % (filename, e))
-        Message("Finished sorting")
+        Status("Finished sorting")
 
     @property
     def merge_sorted_entries(self):
@@ -392,7 +392,7 @@ class Reduce(Task):
     @property
     def sorted_entries(self):
         dlname = self.path('reduce-in-%d.dl' % self.id)
-        Message("Downloading %s" % dlname)
+        Status("Downloading %s" % dlname)
         out_fd = AtomicFile(dlname, 'w')
         for key, value in self.entries:
             if not isinstance(key, str):
@@ -403,7 +403,7 @@ class Reduce(Task):
                 # value pickled using protocol 0 will always be printable ASCII
                 out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
         out_fd.close()
-        Message("Downloaded OK")
+        Status("Downloaded OK")
 
         self.disk_sort(dlname)
         fd, size, url = comm.open_local(dlname)

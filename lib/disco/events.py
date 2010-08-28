@@ -31,6 +31,9 @@ class Event(object):
                    % (self.type, self.timestamp, tags, hexmsg))
             return msg
 
+class Status(Event):
+    type = 'STA'
+
 class Message(Event):
     type = 'MSG'
 

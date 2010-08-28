@@ -169,6 +169,10 @@ handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
     % event({"OUT", "Results at " ++ Results}, S),
     {noreply, S#state{results = Results}};
 
+handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, S) ->
+    event({<<"STA">>, Message}, S),
+    {noreply, S};
+
 % rate limited event
 handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
     Now = now(),
