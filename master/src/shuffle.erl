@@ -9,16 +9,30 @@ combine_tasks(Name, Mode, DirUrls) ->
                    {[Node|_], NodeDirUrls} = lists:unzip(NodeUrls),
                    {Node, [DataRoot, JobHome, Mode, NodeDirUrls]}
                 end || NodeUrls <- NodeGroups],
-    wait_replies(Name, call_nodes(Messages), []).
+    {ok, wait_replies(Name, call_nodes(Name, Messages, 0), [])}.
 
-call_nodes(Messages) ->
-    [begin
-        Key = rpc:async_call(Node, shuffle, combine_tasks_node, Args),
-        {Key, Msg}
-     end || {Node, Args} = Msg <- Messages].
+call_nodes(Name, Messages, FailCount) ->
+    {ok, MaxFail} = application:get_env(max_failure_rate),
+    if FailCount >= MaxFail ->
+        event_server:event(Name,
+            "ERROR: Shuffling failed ~B times. At most ~B failures "
+            "are allowed. Aborting job.",
+            [FailCount, MaxFail], []),
+        throw(logged_error);
+    true ->
+        call_nodes_do(Messages, FailCount + 1)
+    end.
 
-wait_replies(_Name, [], Results) -> Results;
-wait_replies(Name, Promises, Results) ->
+call_nodes_do(Messages, FailCount) ->
+    Promises =
+        [begin
+            Key = rpc:async_call(Node, shuffle, combine_tasks_node, Args),
+            {Key, Msg}
+         end || {Node, Args} = Msg <- Messages],
+    {Promises, FailCount}.
+
+wait_replies(_Name, {[], _FailCount}, Results) -> Results;
+wait_replies(Name, {Promises, FailCount}, Results) ->
     Replies = [{rpc:yield(Key), Msg} || {Key, Msg} <- Promises],
     Fun = fun({{ok, _}, _}) -> true; (_) -> false end,
     {OkReplies, Failed} = lists:partition(Fun, Replies),
@@ -30,7 +44,7 @@ wait_replies(Name, Promises, Results) ->
             Msg
          end || {Reply, {Node, _Arg} = Msg} <- Failed],
     Ok = Results ++ [Url || {{ok, Url}, _} <- OkReplies],
-    wait_replies(Name, call_nodes(Messages), Ok).
+    wait_replies(Name, call_nodes(Name, Messages, FailCount), Ok).
 
 % NB: Under rare circumstances it is possible that several instances of
 % combine_tasks_node are running in parallel on a single node. Thus, all

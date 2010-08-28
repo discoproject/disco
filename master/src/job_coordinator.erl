@@ -243,19 +243,21 @@ kill_job(Name, Msg, P, Type) ->
 -spec run_task([{non_neg_integer(), {binary(), nonempty_string()}}],
     nonempty_string(), nonempty_string(), jobinfo()) -> [binary()].
 run_task(Inputs, Mode, Name, Job) ->
-    Results =
-        case catch work(Inputs, Mode, Name, 0, Job, gb_trees:empty()) of
-            {ok, Res} ->
-                Res;
-            logged_error ->
-                kill_job(Name,
-                "ERROR: Job terminated due to the previous errors",
-                [], logged_error);
-            Error ->
-                kill_job(Name,
-                "ERROR: Job coordinator failed unexpectedly: ~p",
-                [Error], unknown_error)
-        end,
+    case catch run_task_do(Inputs, Mode, Name, Job) of
+        {ok, Res} ->
+            Res;
+        logged_error ->
+            kill_job(Name,
+            "ERROR: Job terminated due to the previous errors",
+            [], logged_error);
+        Error ->
+            kill_job(Name,
+            "ERROR: Job coordinator failed unexpectedly: ~p",
+            [Error], unknown_error)
+    end.
+
+run_task_do(Inputs, Mode, Name, Job) ->
+    {ok, Results} = work(Inputs, Mode, Name, 0, Job, gb_trees:empty()),
     T = now(),
     event_server:event(Name, "Shuffle phase starts", [], {}),
     Combined = shuffle:combine_tasks(Name, Mode, gb_trees:values(Results)),
