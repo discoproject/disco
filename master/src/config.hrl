@@ -8,3 +8,16 @@
 % Make sure the number is well below the maximum number
 % of file descriptors
 -define(MAX_HTTP_CONNECTIONS, 128).
+
+% Default setting for the maximum number of failures
+% allowed per task
+-define(TASK_MAX_FAILURES, 10000000).
+
+% A failed task is paused for
+% min(C * FAILED_MIN_PAUSE, FAILED_MAX_PAUSE) +
+%    randint(0, FAILED_PAUSE_RANDOMIZE)
+% seconds where C is the failure count for the task.
+
+-define(FAILED_MIN_PAUSE, 1000).
+-define(FAILED_MAX_PAUSE, 60 * 1000).
+-define(FAILED_PAUSE_RANDOMIZE, 30 * 1000).
