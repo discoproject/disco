@@ -195,10 +195,9 @@ class Task(object):
 
     @property
     def connected_inputs(self):
-        t = time.time()
         shuffled = list(self.inputs)
         random.shuffle(shuffled)
-        inputs = [url for input in shuffled\
+        inputs = [url for input in shuffled
                   for url in util.urllist(input, partid=self.partid)]
         for input in inputs:
             yield self.connect_input(input)
