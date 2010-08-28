@@ -34,9 +34,9 @@ install:
 	dh_clean -k -A
 	dh_installdirs -A
 
-	$(MAKE) install-master ARCH=Debian PREFIX=/usr DESTDIR=$(DESTDIR) 
-	$(MAKE) install-lib ARCH=Debian PREFIX=/usr DESTDIR=$(PYDISCODEST)
-	$(MAKE) install-node ARCH=Debian PREFIX=/usr DESTDIR=$(NODEDEST)
+	$(MAKE) install-master UNAME=Debian PREFIX=/usr DESTDIR=$(DESTDIR) 
+	$(MAKE) install-lib UNAME=Debian PREFIX=/usr DESTDIR=$(PYDISCODEST)
+	$(MAKE) install-node UNAME=Debian PREFIX=/usr DESTDIR=$(NODEDEST)
 
 	# disco.conf is provided by disco-node, so it should
 	# be removed from disco-master
