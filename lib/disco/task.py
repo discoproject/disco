@@ -31,7 +31,7 @@ class Task(object):
         self.settings = settings
         self.blobs    = []
         self.mode     = self.__class__.__name__.lower()
-        self.taskid   = "%s:%d-%x-%x" % (self.mode,
+        self.run_id   = "%s:%d-%x-%x" % (self.mode,
                                          self.id,
                                          int(time.time() * 1000),
                                          os.getpid())
@@ -81,8 +81,8 @@ class Task(object):
     @property
     def taskpath(self):
         return os.path.join(self.jobpath,
-                            self.hex_key(self.taskid),
-                            self.taskid)
+                            self.hex_key(self.run_id),
+                            self.run_id)
 
     @property
     def jobroot(self):
