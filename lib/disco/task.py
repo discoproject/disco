@@ -232,6 +232,7 @@ class Task(object):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
         ensure_path(self.taskroot)
         os.chdir(self.taskroot)
+        os.symlink(self.lib, 'lib')
         self._run_profile() if self.profile else self._run()
 
     def _run_profile(self):
