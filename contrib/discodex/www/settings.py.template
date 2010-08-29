@@ -55,8 +55,14 @@ TEMPLATE_LOADERS = (
 )
 
 MIDDLEWARE_CLASSES = (
+    'django.middleware.cache.UpdateCacheMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.cache.FetchFromCacheMiddleware',
 )
+
+CACHE_BACKEND = 'dummy://'
+CACHE_MIDDLEWARE_SECONDS = 60 * 60 * 24
+CACHE_MIDDLEWARE_KEY_PREFIX = 'discodex'
 
 ROOT_URLCONF = '%s.urls' % PROJ_NAME
 
