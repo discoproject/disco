@@ -2,9 +2,9 @@
 
 -include("config.hrl").
 
--export([new_blob/4, tags/2, get_tag/2, update_tag/3,
-         update_tag_delayed/3, replace_tag/3, get_tag_replicas/2,
-         delete/2]).
+-export([new_blob/4, tags/2, get_tag/2, update_tag/3, update_tag/4,
+         update_tag_delayed/3, update_tag_delayed/4,
+         replace_tag/3, get_tag_replicas/2, delete/2]).
 
 -spec new_blob(node(), string(), non_neg_integer(), [node()]) ->
     'invalid_name' | 'too_many_replicas' | {'ok', [string()]} | _.
@@ -46,11 +46,19 @@ get_tag_replicas(Host, Tag) ->
 
 -spec update_tag(node(), string(), [binary()]) -> _.
 update_tag(Host, Tag, Urls) ->
-    tagop(Host, Tag, {update, Urls}).
+    update_tag(Host, Tag, Urls, []).
+
+-spec update_tag(node(), string(), [binary()], [term()]) -> _.
+update_tag(Host, Tag, Urls, Opt) ->
+    tagop(Host, Tag, {update, Urls, Opt}).
 
 -spec update_tag_delayed(node(), string(), [binary()]) -> _.
 update_tag_delayed(Host, Tag, Urls) ->
-    tagop(Host, Tag, {delayed_update, Urls}).
+    update_tag_delayed(Host, Tag, Urls, []).
+
+-spec update_tag_delayed(node(), string(), [binary()], [term()]) -> _.
+update_tag_delayed(Host, Tag, Urls, Opt) ->
+    tagop(Host, Tag, {delayed_update, Urls, Opt}).
 
 -spec replace_tag(node(), string(), [binary()]) -> _.
 replace_tag(Host, Tag, Urls) ->
@@ -58,14 +66,16 @@ replace_tag(Host, Tag, Urls) ->
 
 -spec delete(node(), string()) -> _.
 delete(Host, Tag) ->
-    validate(Tag, fun() ->
-        {ok, _} = gen_server:call(Host, {tag, {insert_deleted,
-            [list_to_binary(["tag://", Tag])]}, <<"+deleted">>},
-                ?TAG_UPDATE_TIMEOUT),
-        (catch gen_server:call(ddfs_master,
-            {tag, die, list_to_binary(Tag)}, 1)),
-        ok
-    end).
+    Fun =
+        fun() ->
+            BTag = list_to_binary(Tag),
+            Urls = [[<<"tag://", BTag/binary>>]],
+            Msg = {tag, {update, Urls, [nodup]}, <<"+deleted">>},
+            {ok, _} = gen_server:call(Host, Msg, ?TAG_UPDATE_TIMEOUT),
+            (catch gen_server:call(ddfs_master, {tag, die, BTag}, 1)),
+            ok
+        end,
+    validate(Tag, Fun).
 
 -spec tagop(node(), string(), _) -> _.
 tagop(Host, Tag, Op) ->
