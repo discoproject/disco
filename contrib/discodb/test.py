@@ -212,6 +212,10 @@ class TestQuery(unittest.TestCase):
     def q(self, s):
         return self.discodb.query(Q.parse(s))
 
+    def test_empty(self):
+        self.assertEqual(list(self.q('')), [])
+        self.assertEqual(len(self.q('')), 0)
+
     def test_get_len(self):
         self.assertEqual(len(self.discodb.get('alice')), 1)
         self.assertEquals(len(self.discodb.get('bob')), 1)

@@ -323,7 +323,13 @@ struct ddb_cursor *ddb_query(struct ddb *db,
 
     c->db = db;
     c->num_items = 0;
-    c->next = ddb_cnf_cursor_next;
+
+    if (length)
+        c->next = ddb_cnf_cursor_next;
+    else{
+        c->next = empty_next;
+        return c;
+    }
 
     c->cursor.cnf.num_clauses = length;
     c->cursor.cnf.num_terms = num_terms;
