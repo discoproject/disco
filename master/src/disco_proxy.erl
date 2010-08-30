@@ -139,34 +139,44 @@ resolve_node(Node, Method) ->
             {Ip, Port};
         _ ->
             error_logger:warning_report({"Proxy could not resolve", Node}),
-            {{999, 999, 999, 999}, "999"}
+            false
     end.
 
 make_config("lighttpd", Nodes, Port, DiscoPort, PidFile) ->
     Line =
         fun(Node, Method) ->
-            {Ip, NPort} = resolve_node(Node, Method),
-            io_lib:format(?LIGHTTPD_HOST_TEMPLATE,
-                  [Node, Method] ++ tuple_to_list(Ip) ++ [NPort])
+            case resolve_node(Node, Method) of
+                {Ip, NPort} ->
+                    io_lib:format(?LIGHTTPD_HOST_TEMPLATE,
+                          [Node, Method] ++ tuple_to_list(Ip) ++ [NPort]);
+                false ->
+                    []
+            end
         end,
     Body = lists:flatten([[Line(N, "GET"), Line(N, "PUT")] || N <- Nodes]),
     io_lib:format(?LIGHTTPD_CONFIG_TEMPLATE, [Port, PidFile, Body, DiscoPort]);
 
 make_config("varnishd", Nodes, _Port, DiscoPort, _PidFile) ->
-    BELine =
+    Line =
         fun(Node, Method) ->
-            {Ip, NPort} = resolve_node(Node, Method),
-            io_lib:format(?VARNISH_BACKEND_TEMPLATE,
-                  [varnish_name(Node, Method)] ++ tuple_to_list(Ip) ++ [NPort])
+            case resolve_node(Node, Method) of
+                {Ip, NPort} ->
+                    Name = varnish_name(Node, Method),
+                    BELine = io_lib:format(?VARNISH_BACKEND_TEMPLATE,
+                                [Name] ++ tuple_to_list(Ip) ++ [NPort]),
+                    CLine = io_lib:format(?VARNISH_COND_TEMPLATE,
+                                [Node, Method, Name]),
+                    {BELine, CLine};
+                false ->
+                    {[], []}
+            end
         end,
-    CLine =
-        fun(Node, Method) ->
-            Name = varnish_name(Node, Method),
-            io_lib:format(?VARNISH_COND_TEMPLATE, [Node, Method, Name])
-        end,
-    BE = lists:flatten([[BELine(N, "GET"), BELine(N, "PUT")] || N <- Nodes]),
-    Cond = lists:flatten([[CLine(N, "GET"), CLine(N, "PUT")] || N <- Nodes]),
-    io_lib:format(?VARNISH_CONFIG_TEMPLATE, [DiscoPort, BE, Cond]);
+    {BEGet, CondGet} = lists:unzip([Line(N, "GET") || N <- Nodes]),
+    {BEPut, CondPut} = lists:unzip([Line(N, "PUT") || N <- Nodes]),
+    io_lib:format(?VARNISH_CONFIG_TEMPLATE, [
+        DiscoPort,
+        lists:flatten([BEGet|BEPut]),
+        lists:flatten([CondGet|CondPut])]);
 
 make_config(Type, _Nodes, _Port, _DiscoPort, _PidFile) ->
     error_logger:warning_report({"Unsupported proxy ", Type}),
