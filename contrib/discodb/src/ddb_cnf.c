@@ -164,7 +164,7 @@ valueid_t ddb_not_next(struct ddb_cnf_term *t)
         if (v->num_left)
             ddb_delta_cursor_next(v);
     }
-    if (t->cur_id >= t->cursor->db->num_values + 1){
+    if (t->cur_id >= t->cursor->db->num_uniq_values + 1){
         t->empty = 1;
         t->cur_id = 0;
     }
