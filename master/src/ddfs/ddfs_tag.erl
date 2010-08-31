@@ -214,7 +214,8 @@ handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
 
 handle_cast({{remove_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
     DeletedU = gb_sets:delete_any(Url, Deleted),
-    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo}, S).
+    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo},
+                S#state{url_cache = false}).
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -230,8 +231,8 @@ terminate(_Reason, _State) -> {}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 % Normal update: Just add new urls to the list
-merge_urls(NewUrls, OldUrls, false, Cache) ->
-    {Cache, NewUrls ++ OldUrls};
+merge_urls(NewUrls, OldUrls, false, _Cache) ->
+    {false, NewUrls ++ OldUrls};
 
 % Set update (nodup): Remove duplicates.
 %
