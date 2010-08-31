@@ -44,59 +44,21 @@ the chunks too small.
 
 In theory you could use the chunks in the ``bigtxt`` directory
 directly, but in practice it is a good idea to distribute the IO load
-to many separate servers.  Disco provides a utility script called
-``distrfiles.py`` that distributes files from a directory to the cluster.
+to many separate servers.
 
-The script requires that the environment variable ``DISCO_ROOT``, which
-is the home directory of Disco, is specified. It is usually defined in
-``/etc/disco/disco.conf``, so you can export it to your shell by saying::
+We can push the data to :ref:`DDFS`,
+which will take care of distributing and replicating our data::
 
-        source /etc/disco/disco.conf
+      ddfs push -r data:bigtxt bigtxt
 
-By default, ``DISCO_ROOT=/srv/disco/``. The script will copy files to the
-``$DISCO_ROOT/data/bigtxt`` directory.
+This pushes all the files under ``bigtxt`` to the tag ``data:bigtxt``.
+You can check where the files are located::
 
-Local cluster
-'''''''''''''
+    ddfs blobs data:bigtxt
 
-Run the script as follows::
+and make sure they contain what you think they do::
 
-        python disco/util/distrfiles.py bigtxt /etc/nodes > bigtxt.chunks
-
-Here ``bigtxt`` refers to the directory that contains the files and
-``/etc/nodes`` is a file that lists available nodes in the cluster, one
-hostname per line. The script copies files to the nodes randomly, and
-outputs location of each file to the standard output, which we capture
-here to the file ``bigtxt.chunks``. Take a look at that file to get an
-idea how inputs are specified for Disco.
-
-If you want to repeat this command multiple times, e.g. for a new set of
-chunks, you need to run::
-
-        REMOVE_FIRST=1 python disco/util/distrfiles.py bigtxt /etc/nodes > bigtxt.chunks
-
-which first removes the target directory on each node before copying
-the chunks. 
-
-Amazon EC2
-''''''''''
-
-With Amazon EC2, we need to specify the ssh-key to the script, using the
-``SSH_KEY`` environment variable, so it can copy files to the nodes. Since
-the EC2's ssh-key is specific to the root user, we also need to set the
-user to root with the ``SSH_USER`` variable. The ``DISCO_ROOT`` variable should
-be set to its default value, ``/srv/disco``.
-
-Run the script as follows::
-        
-        DISCO_ROOT=/srv/disco SSH_KEY=your-key-file SSH_USER=root python disco/util/distrfiles.py bigtxt ec2-nodes > bigtxt.chunk
-
-Here ``your-key-file`` should be the same keypair file that was
-used in :ref:`ec2setup`. The node list ``ec2-nodes`` is produced by
-``setup-instances.py`` script. Similarly to the local clusters, you can
-use the ``REMOVE_FIRST`` flag if you run the script many times with the
-same dataset.
-
+    ddfs cat data:bigtxt | less
 
 3. Write job functions
 ----------------------
@@ -107,8 +69,9 @@ the chunks.
 Start your favorite text editor and open a file called, say,
 ``count_words.py``. Let's write first our map function::
 
-        def fun_map(e, params):
-                return [(w, 1) for w in e.split()]
+        def fun_map(line, params):
+                for word in line.split():
+                        yield w, 1
 
 Quite compact, eh? The map function always takes two parameters, here they
 are called *e* and *params*. The first parameter contains an input entry,
@@ -118,21 +81,17 @@ you can define a custom function that extracts them from an input stream
 information. The second parameter, *params*, can be any object that you
 specify, in case that you need some additional input for your functions.
 
-However, here we can happily process input line by line. The map function
-needs to return a list of key-value pairs, specified as tuples. Here we split a
-line into tokens with the standard ``string.split()`` function. Each token is
-output separately as a key, together with the value *1* which says that we found
-an occurrence of this word in the text. 
+However, here we can happily process input line by line.
+The map function needs to return an iterator over of key-value pairs.
+Here we split a line into tokens with the standard ``string.split()`` function.
+Each token is output separately as a key, together with the value *1*.
 
 Now, let's write the corresponding reduce function::
 
         def fun_reduce(iter, out, params):
                 stats = {}
                 for word, count in iter:
-                        if word in stats:
-                                stats[word] += int(count)
-                        else:
-                                stats[word] = int(count)
+                        stats[word] += stats.get(word, 0) + int(count)
                 for word, total in stats.iteritems():
                         out.add(word, total)
 
@@ -148,12 +107,22 @@ we can be sure that the final counts are correct.
 
 So we iterate through all the words, and increment a counter in the
 dictionary *stats* for each word. Once the iterator has finished, we know the
-final counts, which are then sent to the output stream using the *out* object.
+final counts, which are then sent to the output stream using the *out*
+:class:`disco.func.OutputStream`.
 The object contains a method, *out.add(key, value)* that takes a key-value
 pair and saves it to a result file.
 
 The third parameter *params* contains the same additional input as in
 the map function.
+
+We could also write our reduce without *out* and using :func:`disco.util.kvgroup`::
+
+        def fun_reduce(iter, params):
+                for word, counts in kvgroup(sorted(iter)):
+                        yield word, sum(counts)
+
+In this case, all the ``key, val`` pairs generated by the reduce are added to
+the :class:`disco.func.OutputStream`.
 
 That's it. Now we have written map and reduce functions for counting
 words in parallel.
@@ -171,7 +140,7 @@ are required for a simple job like ours.
 In addition to starting the job, we want to print out the results as well.
 First, however, we have to wait until the job has finished. This is done with
 the :meth:`disco.core.Disco.wait` call, which returns results of the job once
-has it has finished. For convenience, the :meth:`disco.core.Disco.wait` method, 
+has it has finished. For convenience, the :meth:`disco.core.Disco.wait` method,
 as well as other methods related to a job, can be called through the
 :class:`disco.core.Job` object that is returned by :meth:`disco.core.Disco.new_job`.
 
@@ -185,13 +154,13 @@ of your file::
 
         import sys
         from disco.core import Disco, result_iterator
-        
+
         results = Disco(sys.argv[1]).new_job(
-                name = "disco_tut",
-                input = sys.argv[2:],
-                map = fun_map,
-                reduce = fun_reduce).wait()
-        
+                name='disco_tut',
+                input=sys.argv[2:],
+                map=fun_map,
+                reduce=fun_reduce).wait()
+
         for word, total in result_iterator(results):
                 print word, total
 
@@ -200,14 +169,14 @@ the command line. Note how the map and reduce functions are provided to
 :meth:`disco.core.Disco.new_job` simply as normal keywords arguments *map*
 and *reduce*.
 
-Now comes the moment of truth. 
+Now comes the moment of truth.
 
 Local cluster
 '''''''''''''
-        
+
 Run the script as follows::
 
-        python count_words.py disco://localhost `cat bigtxt.chunks` > bigtxt.results
+        python count_words.py disco://localhost tag://data:bigtxt > bigtxt.results
 
 If you run the Disco master in a non-standard port, replace
 ``disco://localhost`` with the correct address to the
@@ -218,26 +187,26 @@ Amazon EC2
 
 In contrast to a local cluster, :func:`disco.core.result_iterator`
 can't fetch the results directly from the EC2 nodes. Due to this reason, we must
-use the master node as a proxy. 
+use the master node as a proxy.
 
 Run the scripts as follows::
-        
-        DISCO_PROXY=disco://localhost python count_words.py disco://localhost `cat bigtxt.chunks` > bigtxt.results
+
+        DISCO_PROXY=disco://localhost python count_words.py disco://localhost tag://data:bigtxt > bigtxt.results
 
 Here we assume that there's a SSH tunnel from your local machine to the
 EC2 master, as started automatically by the ``setup-instances.py`` script.
 
 ----
 
-If everything goes well, the script pauses for some time while the
-job executes. The inputs are read from the file ``bigtxt.chunks``
-which was created earlier. Finally the outputs are written to
-``bigtxt.results``.  While the job is running, you can point your web
+If everything goes well, the script pauses for some time while the job executes.
+The inputs are read from the tag ``data:bigtxt``, which was created earlier.
+Finally the output is written to ``bigtxt.results``.
+While the job is running, you can point your web
 browser at ``http://localhost:8989`` (or some other port where you run the
 Disco master) which lets you follow the progress of your job in real-time.
 
-You can also set the environment variable ``DISCO_EVENTS=1`` to see job 
-events on your console instead of the web UI. 
+You can also set the environment variable ``DISCO_EVENTS=1`` to see job
+events on your console instead of the web UI.
 
 What next?
 ----------
