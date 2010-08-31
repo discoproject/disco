@@ -348,7 +348,11 @@ class Reduce(Task):
         Status("Input is %s" % (util.format_size(total_size)))
 
         self.init(entries, params)
-        self.reduce(entries, red_out, params)
+        if util.argcount(self.reduce) < 3:
+            for k, v in self.reduce(entries, *(params, )):
+                red_out.add(k, v)
+        else:
+            self.reduce(entries, red_out, params)
 
         self.close_output(fd_list)
         external.close_ext()
