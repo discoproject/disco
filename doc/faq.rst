@@ -33,7 +33,7 @@ Java. We also feel that Erlang is a perfect match for the Disco core
 that needs to handle tens of thousands of tasks in parallel.
 
 Thanks to Erlang, the Disco core is remarkably compact, currently less
-than 2000 lines of code. It is relatively easy to understand how
+than 6000 lines of code. It is relatively easy to understand how
 the core works, and start experimenting with it or adapt it to new
 environments. Thanks to Python, it is easy to add new features around
 the core which ensures that Disco can respond quickly to real-world needs.
@@ -123,7 +123,7 @@ How many maps can I have? Does higher number of maps lead to better performance?
 In theory there is no restriction. In practice, the number is of course
 limited by the available disk space (for input files) and the amount of
 RAM that is required by the Disco master. Disco includes a test case,
-in ``test/test50k.py`` that starts 50,000 map tasks in parallel. You
+in ``test/test_50k.py`` that starts 50,000 map tasks in parallel. You
 should be able to add a few zeroes there without any trouble. If you
 perform any stress tests of your own, let us know about your findings!
 
