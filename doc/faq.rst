@@ -223,27 +223,33 @@ your functions. Here's an example::
 In this case *params.c* is a counter variable that is incremented in
 every call to the map function.
 
-How to send log entries from my functions to the Web interface?
-'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+How to print messages to the Web interface?
+'''''''''''''''''''''''''''''''''''''''''''
 
-Use the :func:`disco_worker.msg` function. Here's an example::
+Use a normal :keyword:`print` statement. Here's an example::
 
         from disco.core import Disco, Params
 
         def fun_map(e, params):
                 params.c += 1
                 if not c % 100000:
-                        msg("Now processing %dth entry" % params.c)
-                return [(e, 1)]
+                        print "Now processing %dth entry" % params.c
+                yield e, 1
 
-        Disco("disco://localhost").new_job(
-                  name = "log_test",
-                  input = ["disco://localhost/myjob/file1"],
-                  map = fun_map,
-                  params = Params(c = 0))
+        Disco('disco://localhost').new_job(
+                  name='log_test',
+                  input=['disco://localhost/myjob/file1'],
+                  map=fun_map,
+                  params=Params(c=0))
 
-Note that you must not call :func:`disco_worker.msg` too often. If you send more
-than 10 messages per second, Disco will kill your job.
+Internally, Disco wraps everything written to ``sys.stdout``
+with appropriate markup for the Erlang worker process,
+which it communicates with via ``sys.stderr``.
+
+.. note:: This is meant for simple debugging,
+          you cannot print messages too often, or Disco will kill your job.
+          The master limits the rate of messages coming from workers,
+          to prevent it from being overwhelmed.
 
 
 My input files are stored in CSV / XML / XYZ format. What is the easiest to use them in Disco?
