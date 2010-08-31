@@ -170,8 +170,8 @@ handle_cast({{update, Urls, Opt}, ReplyTo}, #state{data = D} = S) ->
                                                  OldUrls,
                                                  NoDup,
                                                  S#state.url_cache),
-                    handle_cast({{put, Merged}, ReplyTo},
-                                S#state{url_cache = Cache});
+                    {noreply, NS, _} = handle_cast({{put, Merged}, ReplyTo}, S),
+                    {noreply, NS#state{url_cache = Cache}, NS#state.timeout};
                 false ->
                     send_replies(ReplyTo, {error, invalid_url_object}),
                     {noreply, S, S#state.timeout}
@@ -187,7 +187,7 @@ handle_cast({{put, Urls}, ReplyTo}, S) ->
             end,
             send_replies(ReplyTo, {ok, DestUrls}),
             {noreply,
-             S#state{data = TagData, replicas = DestNodes},
+             S#state{data = TagData, replicas = DestNodes, url_cache = false},
              S#state.timeout};
         {error, _} = E ->
             send_replies(ReplyTo, E),
@@ -214,8 +214,7 @@ handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
 
 handle_cast({{remove_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
     DeletedU = gb_sets:delete_any(Url, Deleted),
-    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo},
-                S#state{url_cache = false}).
+    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo}, S).
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
