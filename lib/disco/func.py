@@ -419,7 +419,21 @@ def gzip_reader(fd, size, url, params):
     return GzipFile(fileobj=fd), size, url
 
 def map_line_reader(fd, sze, fname):
-    """Yields each line of input."""
+    """
+    Yields each line of input.
+
+    (*Deprecated in 0.3.1*)
+    This reader is deprecated in favor of using the default Python
+    file-like object iterator.
+    Since 0.3, no reader is necessary for iterable objects returned from the
+    :func:`input_stream`.
+    For :func:`map` functions previously relying on this reader,
+    there is one small caveat to be aware of:
+    this reader has always stripped newline characters from the end of lines.
+    For file-like object iterators, lines are left in tact.
+    This may or may not affect jobs relying on this reader,
+    depending on how the lines are used.
+    """
     for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
         yield x[0]
 
@@ -431,7 +445,7 @@ def netstr_writer(fd, key, value, params):
 
 def object_writer(fd, key, value, params):
     """
-    *(Deprecated in 0.3)*
+    (*Deprecated in 0.3*)
     A wrapper for :func:`netstr_writer` that uses Python's ``cPickle``
     module to deserialize strings to Python objects.
    """
@@ -441,7 +455,7 @@ def object_writer(fd, key, value, params):
 
 def object_reader(fd, sze, fname):
     """
-    *(Deprecated in 0.3)*
+    (*Deprecated in 0.3*)
     A wrapper for :func:`netstr_reader` that uses Python's ``cPickle``
     module to serialize arbitrary Python objects to strings.
     """
