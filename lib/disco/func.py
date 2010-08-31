@@ -23,7 +23,7 @@ Of these functions, only *map* is required.
           The task uses stderr to signal events to the master.
           You can raise a :class:`disco.error.DataError`,
           to abort the task on this node and try again on another node.
-          It is usually a best to let the task fail if any exceptions occur:
+          It is usually best to let the task fail if any exceptions occur:
           do not catch any exceptions from which you can't recover.
           When exceptions occur, the disco worker will catch them and
           signal an appropriate event to the master.
@@ -136,7 +136,7 @@ def reduce(input_stream, output_stream, params):
 
     :param input_stream: :class:`disco.func.InputStream` object that is used
         to iterate through input entries.
-    :param output_stream: :class:`disco.func.InputStream` object that is used
+    :param output_stream: :class:`disco.func.OutputStream` object that is used
         to output results.
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.

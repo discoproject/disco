@@ -27,7 +27,7 @@ story short, Disco works as follows:
  * Disco users start Disco jobs in Python scripts.
  * Jobs requests are sent over HTTP to the master.
  * Master is an Erlang process that receives requests over HTTP.
- * Master launches another Erlang process, worker supervisor, on each node over
+ * Master launches another Erlang process, the worker supervisor, on each node over
    SSH.
  * Worker supervisors run Disco jobs as Python processes.
 
@@ -121,7 +121,7 @@ On the master node, start the Disco master by executing ``disco start``.
 
 You can easily integrate ``disco`` into your system's startup sequence.
 For instance, you can see how ``debian/disco-master.init`` and
-``debian/disco-node.init`` are implemented in the Disco's ``debian``
+``debian/disco-node.init`` are implemented in Disco's ``debian``
 branch.
 
 If Disco has started up properly, you should see ``beam.smp`` running on your
@@ -240,7 +240,7 @@ itself.
 If the machine where you run the script can access the master node but
 not other nodes in the cluster, you need to set the environment variable
 ``DISCO_PROXY=http://master:8989``. The proxy address should be the
-same as the master's above. This makes Disco to fetch results through
+same as the master's above. This makes Disco fetch results through
 the master node, instead of connecting to the nodes directly.
 
 If the script produces some results, congratulations, you have a
