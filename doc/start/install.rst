@@ -108,11 +108,13 @@ or similar mechanism). However, you can use any account for running
 Disco. In the following, we refer to the user that runs ``disco-master``
 as the Disco user.
 
-Open ``DISCO_HOME/conf/settings.py``. This file sets a number of environment
-variables that define the runtime environment for Disco.
-Most likely you do not need to modify this file right away.
-You can change the paths if the defaults are not suitable for your system.
-See :mod:`disco.settings` for more information on the various settings and their default values.
+If you have run ``make install``, open ``/etc/disco/settings.py``. This
+file sets a number of environment variables that define the runtime
+environment for Disco.  Most likely you do not need to modify this
+file right away (however, see the note above on replication).  You can
+change the paths if the defaults are not suitable for your system.
+See :mod:`disco.settings` for more information on the various settings
+and their default values.
 
 3. Start Disco
 --------------
