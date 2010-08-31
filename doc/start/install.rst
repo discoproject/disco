@@ -45,9 +45,10 @@ On each server the following applications / libraries are required:
  * `Python 2.5 or newer <http://www.python.org>`_
  * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_ (for Python < 2.6)
 
-Optionally, ``DISCO_PROXY`` needs
+Optionally, ``DISCO_PROXY`` needs one of
 
  * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
+ * `Varnish 2.1.3 or newer <http://varnish-cache.org>`_
 
 1. Install Disco
 ----------------
