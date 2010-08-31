@@ -483,7 +483,7 @@ class JobDict(util.DefaultDict):
                               to serialize key, value pairs output by the map.
                               (*Added in version 0.2.4*)
 
-    :type  map_reader: :func:`disco.func.input_stream`
+    :type  map_reader: ``None`` or :func:`disco.func.input_stream`
     :param map_reader: Convenience function to define the last :func:`disco.func.input_stream`
                        function in the *map_input_stream* chain.
 
@@ -494,12 +494,12 @@ class JobDict(util.DefaultDict):
                        If you want to use outputs of an earlier job as inputs,
                        use :func:`disco.func.chain_reader` as the *map_reader*.
 
-                       Default is :func:`disco.func.map_line_reader`.
+                       Default is ``None``.
 
-                       (*Changing after version 0.3.1*)
-                       The default map_reader will become ``None``.
+                       (*Changed after version 0.3.1*)
+                       The default map_reader became ``None``.
                        See the note in :func:`disco.func.map_line_reader`
-                       for information on how this might affect you.
+                       for information on how this might affect older jobs.
 
     :param map_writer: (*Deprecated in version 0.3*) This function comes in
                        handy e.g. when *reduce* is not
