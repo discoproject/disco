@@ -59,16 +59,13 @@ started up. Say::
 
 If the master is running, you should see something like this::
 
-        disco 6848 0.0 0.7 317220 125960 ? Sl Oct07 3:46
-        /usr/lib/erlang/erts-5.6.3/bin/beam.smp -K true -- -root
-        /usr/lib/erlang -progname erl -- -home /srv/disco -heart -noshell
-        -sname disco_8989_master -rsh ssh -pa /usr/lib/disco//ebin
-        -boot /usr/lib/disco//disco -kernel error_logger {file,
-        "/var/log/disco//disco_8989.log"} -eval [handle_job,
-        handle_ctrl] -disco disco_name "disco_8989" -disco disco_root
-        "/srv/disco//data/_disco_8989" -disco disco_master_host "" -disco
-        disco_slaves_os "linux" -disco scgi_port 8989 -disco disco_config
-        "/srv/disco//disco_8989.config
+        disco 4625 2.5 0.2 67392 10496 ? Sl 13:12 0:00
+        /usr/lib/erlang/erts-5.7.5/bin/beam.smp -K true -- -root
+        /usr/lib/erlang -progname erl -- -home /srv/disco -- -smp
+        -rsh ssh -connect_all false -sname disco_8989_master
+        -pa /usr/local/lib/disco/ebin/ -pa /usr/local/lib/disco/ebin/mochiweb
+        -pa /usr/local/lib/disco/ebin/ddfs -eval application:start(disco)
+        -noshell -noinput -heart -kernel error_logger {file, "/var/log/disco/Master-host_8989.log"}
 
 If you do see output like above, the master is running correctly and
 you can proceed to the next step.
@@ -84,7 +81,7 @@ They often reveal what went wrong during the startup.
    If you do not know what DISCO_LOG_DIR should be,
    you can find out the environment Disco is using to run itself by running::
 
-       disco -p
+       disco -v|grep DISCO
 
 
 If you can't find the log file, the master didn't start at all. See
@@ -130,6 +127,15 @@ the following command initializes a configuration file with one node::
 Remember to restart the master after editing the config file by hand::
 
          disco restart
+
+.. note::
+
+    Note that as of version 0.3.1 of Disco, jobs can be submitted to
+    Disco even if there are no nodes configured.  Disco assumes that
+    this configuration is a temporary state, and some nodes will be
+    added.  In the meantime, Disco retains the jobs, and will start or
+    resume them once nodes are added to the configuration and become
+    available.
 
 3. Is worker supervisor running?
 --------------------------------
