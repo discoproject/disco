@@ -151,31 +151,19 @@ handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
     {noreply, S, S#state.timeout};
 
-handle_cast({{update, Urls, _Opt}, ReplyTo}, #state{data = notfound} = S) ->
-    handle_cast({{put, Urls}, ReplyTo}, S);
+handle_cast({{update, _, _}, _ReplyTo} = M, #state{data = notfound} = S) ->
+    update(M, [], S);
 
-handle_cast({{update, Urls, _Opt}, ReplyTo}, #state{data = deleted} = S) ->
-    handle_cast({{put, Urls}, ReplyTo}, S);
+handle_cast({{update, _, _}, _ReplyTo} = M, #state{data = deleted} = S) ->
+    update(M, [], S);
 
-handle_cast({{update, Urls, Opt}, ReplyTo}, #state{data = D} = S) ->
+handle_cast({{update, _Urls, _Opt}, ReplyTo} = M, #state{data = D} = S) ->
     case parse_tagurls(D) of
+        {ok, OldUrls} ->
+            update(M, OldUrls, S);
         {error, _} = E ->
             send_replies(ReplyTo, E),
-            {noreply, S, S#state.timeout};
-        {ok, OldUrls} ->
-            case validate_urls(Urls) of
-                true ->
-                    NoDup = proplists:is_defined(nodup, Opt),
-                    {Cache, Merged} = merge_urls(Urls,
-                                                 OldUrls,
-                                                 NoDup,
-                                                 S#state.url_cache),
-                    {noreply, NS, _} = handle_cast({{put, Merged}, ReplyTo}, S),
-                    {noreply, NS#state{url_cache = Cache}, NS#state.timeout};
-                false ->
-                    send_replies(ReplyTo, {error, invalid_url_object}),
-                    {noreply, S, S#state.timeout}
-            end
+            {noreply, S, S#state.timeout}
     end;
 
 handle_cast({{put, Urls}, ReplyTo}, S) ->
@@ -213,8 +201,9 @@ handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
     {noreply, S, S#state.timeout};
 
 handle_cast({{remove_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
-    DeletedU = gb_sets:delete_any(Url, Deleted),
-    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo}, S).
+    Deleted0 = gb_sets:delete_any(ddfs_util:name_from_url(Url), Deleted),
+    Deleted1 = [[<<"tag://", Tag/binary>>] || Tag <- gb_sets:to_list(Deleted0)],
+    handle_cast({{put, Deleted1}, ReplyTo}, S).
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -228,6 +217,21 @@ handle_info(timeout, S) ->
 terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+update({{update, Urls, Opt}, ReplyTo}, OldUrls, State) ->
+    case validate_urls(Urls) of
+        true ->
+            NoDup = proplists:is_defined(nodup, Opt),
+            {Cache, Merged} = merge_urls(Urls,
+                                         OldUrls,
+                                         NoDup,
+                                         State#state.url_cache),
+            {noreply, NState, _} = handle_cast({{put, Merged}, ReplyTo}, State),
+            {noreply, NState#state{url_cache = Cache}, NState#state.timeout};
+        false ->
+            send_replies(ReplyTo, {error, invalid_url_object}),
+            {noreply, State, State#state.timeout}
+    end.
 
 % Normal update: Just add new urls to the list
 merge_urls(NewUrls, OldUrls, false, _Cache) ->
@@ -396,6 +400,6 @@ is_tag_deleted(Tag) ->
     gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
 
 remove_from_deleted(Tag) ->
-    Msg = {tag, {remove_deleted, [<<"tag://", Tag/binary>>]}, <<"+deleted">>},
+    Msg = {tag, {remove_deleted, <<"tag://", Tag/binary>>}, <<"+deleted">>},
     gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
 
