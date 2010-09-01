@@ -2,16 +2,14 @@ import sys
 from disco.core import Disco, result_iterator
 from disco.settings import DiscoSettings
 
-def map(entry, params):
-    for word in entry.split():
+def map(line, params):
+    for word in line.split():
         yield word, 1
 
-def reduce(iter, out, params):
-    s = {}
-    for word, freq in iter:
-        s[word] = s.get(word, 0) + int(freq)
-    for word, freq in s.iteritems():
-        out.add(word, freq)
+def reduce(iter, params):
+    from disco.util import kvgroup
+    for word, counts in kvgroup(sorted(iter)):
+        yield word, sum(counts)
 
 disco = Disco(DiscoSettings()['DISCO_MASTER'])
 print "Starting Disco job.."
@@ -22,5 +20,5 @@ results = disco.new_job(name="wordcount",
                         reduce=reduce,
                         save=True).wait()
 print "Job done. Results:"
-for word, freq in result_iterator(results):
-    print word, freq
+for word, count in result_iterator(results):
+    print word, count

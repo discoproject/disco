@@ -23,7 +23,6 @@ Getting started
    start/download
    start/install
    start/tutorial
-   start/ec2setup
    start/ddfs
    start/troubleshoot
    start/getinvolved

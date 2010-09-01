@@ -67,6 +67,13 @@ def key((k, v)):
     return k
 
 def kvgroup(kviter):
+    """
+    Group the values of consecutive keys which compare equal.
+
+    Takes an iterator over ``k, v`` pairs,
+    and returns an iterator over ``k, vs``.
+    Does not sort the input first.
+    """
     for k, kvs in groupby(kviter, key):
         yield k, (v for _k, v in kvs)
 

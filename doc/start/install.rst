@@ -6,9 +6,7 @@ Setting up Disco
 
 This document helps you to install Disco either on a single server or a
 cluster of servers. This requires installation of several packages, which
-may or may not be totally straightforward. If you want to get something
-working quickly, you should consider trying out Disco in Amazon EC2
-(:ref:`ec2setup`) which requires no configuration on your side.
+may or may not be totally straightforward.
 
 **Shortcut for Debian / Ubuntu users:** If you run Debian testing or
 some recent version of Ubuntu on the AMD64 architecture, you may try

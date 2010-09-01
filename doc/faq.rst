@@ -223,27 +223,33 @@ your functions. Here's an example::
 In this case *params.c* is a counter variable that is incremented in
 every call to the map function.
 
-How to send log entries from my functions to the Web interface?
-'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+How to print messages to the Web interface?
+'''''''''''''''''''''''''''''''''''''''''''
 
-Use the :func:`disco_worker.msg` function. Here's an example::
+Use a normal :keyword:`print` statement. Here's an example::
 
         from disco.core import Disco, Params
 
         def fun_map(e, params):
                 params.c += 1
                 if not c % 100000:
-                        msg("Now processing %dth entry" % params.c)
-                return [(e, 1)]
+                        print "Now processing %dth entry" % params.c
+                yield e, 1
 
-        Disco("disco://localhost").new_job(
-                  name = "log_test",
-                  input = ["disco://localhost/myjob/file1"],
-                  map = fun_map,
-                  params = Params(c = 0))
+        Disco('disco://localhost').new_job(
+                  name='log_test',
+                  input=['disco://localhost/myjob/file1'],
+                  map=fun_map,
+                  params=Params(c=0))
 
-Note that you must not call :func:`disco_worker.msg` too often. If you send more
-than 10 messages per second, Disco will kill your job.
+Internally, Disco wraps everything written to ``sys.stdout``
+with appropriate markup for the Erlang worker process,
+which it communicates with via ``sys.stderr``.
+
+.. note:: This is meant for simple debugging,
+          you cannot print messages too often, or Disco will kill your job.
+          The master limits the rate of messages coming from workers,
+          to prevent it from being overwhelmed.
 
 
 My input files are stored in CSV / XML / XYZ format. What is the easiest to use them in Disco?
@@ -252,3 +258,18 @@ My input files are stored in CSV / XML / XYZ format. What is the easiest to use 
 If the format is textual, it may be possible to define a regular
 expression that can be used to extract input entries from the files. See
 :func:`disco.func.re_reader` for more information.
+
+How do I use Disco on Amazon EC2?
+'''''''''''''''''''''''''''''''''
+
+In general, you can use the EC2 cluster as any other Disco cluster.
+However, if you want to access result files from your local machine,
+you need to set the :envvar:`DISCO_PROXY` setting (see :mod:`disco.settings`).
+This configures the master node as a proxy,
+since the computation nodes on EC2 are not directly accessible.
+
+.. hint:: For instance, you could open an SSH tunnel to the master::
+
+             ssh MASTER -L 8989:localhost:8989
+
+          and set ``DISCO_PROXY=http://localhost:8989``.

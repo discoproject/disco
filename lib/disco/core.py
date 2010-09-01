@@ -170,7 +170,7 @@ class Disco(object):
         """
         Submits a new job request to the master.
 
-        This method accepts the same set of keyword args as :class:`Job`.
+        This method accepts the same set of keyword args as :meth:`Job.run`.
         The `master` argument for the :class:`Job` constructor is provided by
         this method. Returns a :class:`Job` object that corresponds to the
         newly submitted job request.
@@ -493,6 +493,11 @@ class JobDict(util.DefaultDict):
                        use :func:`disco.func.chain_reader` as the *map_reader*.
 
                        Default is :func:`disco.func.map_line_reader`.
+
+                       (*Changing after version 0.3.1*)
+                       The default map_reader will become ``None``.
+                       See the note in :func:`disco.func.map_line_reader`
+                       for information on how this might affect you.
 
     :param map_writer: (*Deprecated in version 0.3*) This function comes in
                        handy e.g. when *reduce* is not
@@ -962,6 +967,8 @@ class Job(object):
     def run(self, **kwargs):
         """
         Returns the job immediately after the request has been submitted.
+
+        Accepts the same set of keyword arguments as :class:`JobDict`.
 
         A typical pattern in Disco scripts is to run a job synchronously,
         that is, to block the script until the job has finished.
