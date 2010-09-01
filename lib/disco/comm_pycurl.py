@@ -83,6 +83,8 @@ class HTTPConnection(object):
         return self
 
     def request(self, method, url, body=None, headers={}):
+        if isinstance(body, unicode):
+            body = body.encode('utf8')
         self.prepare(method, url, body=body, headers=headers)
         try:
             self.handle.perform()
