@@ -46,6 +46,9 @@ dispatch(Req, Module) ->
         {'EXIT', E} ->
             error_logger:error_report({"Request failed", Req:get(path), E}),
             Req:respond({500, [], ["Internal server error"]});
+        invalid_utf8 ->
+            error_logger:error_report({"Request failed", Req:get(path), invalid_utf8}),
+            Req:respond({400, [], ["Invalid UTF8"]});
         _ ->
             ok
     end.
