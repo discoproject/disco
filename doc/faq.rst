@@ -258,3 +258,18 @@ My input files are stored in CSV / XML / XYZ format. What is the easiest to use 
 If the format is textual, it may be possible to define a regular
 expression that can be used to extract input entries from the files. See
 :func:`disco.func.re_reader` for more information.
+
+How do I use Disco on Amazon EC2?
+'''''''''''''''''''''''''''''''''
+
+In general, you can use the EC2 cluster as any other Disco cluster.
+However, if you want to access result files from your local machine,
+you need to set the :envvar:`DISCO_PROXY` setting (see :mod:`disco.settings`).
+This configures the master node as a proxy,
+since the computation nodes on EC2 are not directly accessible.
+
+.. hint:: For instance, you could open an SSH tunnel to the master::
+
+             ssh MASTER -L 8989:localhost:8989
+
+          and set ``DISCO_PROXY=http://localhost:8989``.

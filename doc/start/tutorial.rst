@@ -10,14 +10,6 @@ single large text file.  Let's call the file ``bigfile.txt``. If
 you don't happen to have a suitable file at hand, you can
 download one from `here <http://discoproject.org/media/text/bigfile.txt>`_.
 
-Some steps are executed slightly differently on a local cluster (or on
-a single machine) and Amazon EC2. In these cases, you can find separate
-instructions for the two environments. Follow the one that applies to
-your case. Note that if you run the steps on the master node of your
-EC2 cluster, in contrast to a remote machine that communicates with the
-master node, you can follow the instructions for local clusters.
-
-
 1. Prepare input data
 ---------------------
 
@@ -74,7 +66,7 @@ Start your favorite text editor and open a file called, say,
                         yield w, 1
 
 Quite compact, eh? The map function always takes two parameters, here they
-are called *e* and *params*. The first parameter contains an input entry,
+are called *line* and *params*. The first parameter contains an input entry,
 which is by default a line of input. An input entry can be anything, as
 you can define a custom function that extracts them from an input stream
 --- see the parameter *map_reader* in :func:`disco.core.Job` for more
@@ -171,32 +163,12 @@ and *reduce*.
 
 Now comes the moment of truth.
 
-Local cluster
-'''''''''''''
-
 Run the script as follows::
 
         python count_words.py disco://localhost tag://data:bigtxt > bigtxt.results
 
-If you run the Disco master in a non-standard port, replace
-``disco://localhost`` with the correct address to the
-master.
-
-Amazon EC2
-''''''''''
-
-In contrast to a local cluster, :func:`disco.core.result_iterator`
-can't fetch the results directly from the EC2 nodes. Due to this reason, we must
-use the master node as a proxy.
-
-Run the scripts as follows::
-
-        DISCO_PROXY=disco://localhost python count_words.py disco://localhost tag://data:bigtxt > bigtxt.results
-
-Here we assume that there's a SSH tunnel from your local machine to the
-EC2 master, as started automatically by the ``setup-instances.py`` script.
-
-----
+If you run the Disco master on a non-standard port,
+replace ``disco://localhost`` with the correct address to the master.
 
 If everything goes well, the script pauses for some time while the job executes.
 The inputs are read from the tag ``data:bigtxt``, which was created earlier.
@@ -226,4 +198,3 @@ The best way to learn is to pick a problem or algorithm that you know
 well, and implement it with Disco. After all, Disco was designed to
 be as simple as possible so you can concentrate on your own problems,
 not on the framework.
-
