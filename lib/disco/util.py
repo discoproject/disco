@@ -299,7 +299,7 @@ def ddfs_save(blobs, name, master):
     blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
              for blob in blobs]
     tag = ddfs_name(name)
-    ddfs.push(tag, blobs, retries=600, delayed=True)
+    ddfs.push(tag, blobs, retries=600, delayed=True, update=True)
     return "tag://%s" % tag
 
 def format_size(num):
