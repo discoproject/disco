@@ -40,11 +40,7 @@ op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
 
 op('GET', "/ddfs/tag/" ++ Tag0, Req) ->
     Tag = ddfs_util:replace(Tag0, $/, $:),
-    Op = case lists:keysearch("urls", 1, Req:parse_qs()) of
-            false -> fun() -> ddfs:get_tag(ddfs_master, Tag) end;
-            _ -> fun() -> ddfs:get_tag_replicas(ddfs_master, Tag) end
-    end,
-    case Op() of
+    case ddfs:get_tag(ddfs_master, Tag) of
         {ok, TagData} ->
             Req:ok({"application/json", [], TagData});
         invalid_name ->
@@ -58,12 +54,14 @@ op('GET', "/ddfs/tag/" ++ Tag0, Req) ->
     end;
 
 op('POST', "/ddfs/tag/" ++ Tag, Req) ->
+    QS = Req:parse_qs(),
+    Opt = if_set("update", QS, [nodup], []),
     tag_update(fun(Urls) ->
-        case lists:keysearch("delayed", 1, Req:parse_qs()) of
+        case is_set("delayed", QS) of
+            true ->
+                ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Opt);
             false ->
-                ddfs:update_tag(ddfs_master, Tag, Urls);
-            _ ->
-                ddfs:update_tag_delayed(ddfs_master, Tag, Urls)
+                ddfs:update_tag(ddfs_master, Tag, Urls, Opt)
         end
     end, Req);
 
@@ -84,13 +82,30 @@ op('GET', Path, Req) ->
 op(_, _, Req) ->
     Req:not_found().
 
+is_set(Flag, QS) ->
+    case lists:keysearch(Flag, 1, QS) of
+        {value, {_, [_|_]}} ->
+            true;
+        _ ->
+            false
+    end.
+
+if_set(Flag, QS, True, False) ->
+    case is_set(Flag, QS) of
+        true ->
+            True;
+        false ->
+            False
+    end.
+
 -spec error(_, module()) -> _.
 error(timeout, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});
 error({error, E}, Req) when is_atom(E) ->
     Req:respond({500, [], ["Internal server error: ", atom_to_list(E)]});
-error(_, Req) ->
-    Req:respond({500, [], ["Internal server error"]}).
+error(E, Req) ->
+    Msg = ["Internal server error: ", io_lib:format("~p", [E])],
+    Req:respond({500, [], Msg}).
 
 -spec okjson([binary()], module()) -> _.
 okjson(Data, Req) ->
