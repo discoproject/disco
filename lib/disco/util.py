@@ -67,6 +67,13 @@ def key((k, v)):
     return k
 
 def kvgroup(kviter):
+    """
+    Group the values of consecutive keys which compare equal.
+
+    Takes an iterator over ``k, v`` pairs,
+    and returns an iterator over ``k, vs``.
+    Does not sort the input first.
+    """
     for k, kvs in groupby(kviter, key):
         yield k, (v for _k, v in kvs)
 
@@ -292,7 +299,7 @@ def ddfs_save(blobs, name, master):
     blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
              for blob in blobs]
     tag = ddfs_name(name)
-    ddfs.push(tag, blobs, retries=600, delayed=True)
+    ddfs.push(tag, blobs, retries=600, delayed=True, update=True)
     return "tag://%s" % tag
 
 def format_size(num):

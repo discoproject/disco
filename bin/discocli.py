@@ -207,7 +207,7 @@ def debug(program, host=''):
     Host is only necessary when master is running on a remote machine.
     """
     from subprocess import Popen
-    master = program.master
+    master = Master(program.settings)
     nodename = '%s@%s' % (master.name, host) if host else master.nodename
     args = program.settings['DISCO_ERLANG'].split() + \
            ['-remsh', nodename,

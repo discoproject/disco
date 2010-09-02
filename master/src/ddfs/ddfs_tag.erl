@@ -39,7 +39,7 @@ init({TagName, Status}) ->
 
     {ok, #state{tag = TagName,
                 data = Status,
-                delayed = {[], []},
+                delayed = false,
                 replicas = false,
                 url_cache = false,
                 timeout =
@@ -89,35 +89,52 @@ handle_cast(M, #state{data = false} = S) ->
                 timeout = lists:min([Timeout, S#state.timeout])});
 
 % Delayed update requested but loading tag data failed, reply an error
-handle_cast({{delayed_update, _}, ReplyTo}, #state{data = {error, _}} = S) ->
+handle_cast({{delayed_update, _, _}, ReplyTo},
+            #state{data = {error, _}} = S) ->
     gen_server:reply(ReplyTo, S#state.data),
     {noreply, S, S#state.timeout};
 
-% Normal delayed update: Append urls to the buffer and exit.
-% The requester will get a reply later.
-handle_cast({{delayed_update, Urls}, ReplyTo},
-        #state{delayed = {Waiters, OldUrls}, tag = Tag} = S) ->
-    if OldUrls =:= [] ->
-        spawn(fun() ->
-            timer:sleep(?DELAYED_FLUSH_INTERVAL),
-            ddfs:get_tag(ddfs_master, binary_to_list(Tag))
-        end);
-    true -> ok
-    end,
+% Delayed update with an empty buffer, initialize the buffer and a flush process
+handle_cast({{delayed_update, _, _}, _} = M, #state{delayed = false} = S) ->
+    spawn(fun() ->
+        timer:sleep(?DELAYED_FLUSH_INTERVAL),
+        ddfs:get_tag(ddfs_master, binary_to_list(S#state.tag))
+    end),
+    handle_cast(M, S#state{delayed = gb_trees:empty()});
+
+% Normal delayed update, add request to the buffer, reply later
+handle_cast({{delayed_update, Urls, Opt}, ReplyTo},
+            #state{delayed = Buffer} = S) ->
+    % We must handle updates with different set of options separately.
+    % Thus requests are indexed by the normalized set of options (OptKey)
+    OptKey = lists:sort(proplists:compact(Opt)),
     case validate_urls(Urls) of
         true ->
-            {noreply, S#state{delayed = {[ReplyTo|Waiters], Urls ++ OldUrls}},
-                S#state.timeout};
+            NewBuffer =
+                case gb_trees:lookup(OptKey, Buffer) of
+                    none ->
+                        gb_trees:insert(OptKey, {[ReplyTo], Urls}, Buffer);
+                    {value, {OldWaiters, OldUrls}} ->
+                        NWaiters = [ReplyTo|OldWaiters],
+                        NUrls = Urls ++ OldUrls,
+                        gb_trees:enter(OptKey, {NWaiters, NUrls}, Buffer)
+                end,
+            {noreply, S#state{delayed = NewBuffer}, S#state.timeout};
         false ->
             gen_server:reply(ReplyTo, {error, invalid_url_object}),
             {noreply, S, S#state.timeout}
     end;
 
 % Before handling any other requests, flush pending delayed updates
-handle_cast(M, #state{delayed = {Waiters, Urls}} = S0) when Urls =/= [] ->
-    {noreply, S, _} = handle_cast({{update, Urls}, Waiters},
-        S0#state{delayed = {[], []}}),
-    handle_cast(M, S);
+handle_cast(M, #state{delayed = Buffer} = S0) when Buffer =/= false ->
+    Fun =
+        fun({Opt, {Waiters, Urls}}, S) ->
+            {noreply, NS, _} = handle_cast({{update, Urls, Opt}, Waiters}, S),
+            NS
+        end,
+    NewState =
+        lists:foldl(Fun, S0#state{delayed = false}, gb_trees:to_list(Buffer)),
+    handle_cast(M, NewState);
 
 handle_cast({die, _}, S) ->
     {stop, normal, S};
@@ -134,26 +151,19 @@ handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
     {noreply, S, S#state.timeout};
 
-handle_cast({{update, Urls}, ReplyTo}, #state{data = notfound} = S) ->
-    handle_cast({{put, Urls}, ReplyTo}, S);
+handle_cast({{update, _, _}, _ReplyTo} = M, #state{data = notfound} = S) ->
+    update(M, [], S);
 
-handle_cast({{update, Urls}, ReplyTo}, #state{data = deleted} = S) ->
-    handle_cast({{put, Urls}, ReplyTo}, S);
+handle_cast({{update, _, _}, _ReplyTo} = M, #state{data = deleted} = S) ->
+    update(M, [], S);
 
-handle_cast({{update, Urls}, ReplyTo}, #state{data = D} = S) ->
-    % XXX: decompress data here!
+handle_cast({{update, _Urls, _Opt}, ReplyTo} = M, #state{data = D} = S) ->
     case parse_tagurls(D) of
+        {ok, OldUrls} ->
+            update(M, OldUrls, S);
         {error, _} = E ->
             send_replies(ReplyTo, E),
-            {noreply, S, S#state.timeout};
-        {ok, OldUrls} ->
-            case validate_urls(Urls) of
-                true ->
-                    handle_cast({{put, Urls ++ OldUrls}, ReplyTo}, S);
-                false ->
-                    send_replies(ReplyTo, {error, invalid_url_object}),
-                    {noreply, S, S#state.timeout}
-            end
+            {noreply, S, S#state.timeout}
     end;
 
 handle_cast({{put, Urls}, ReplyTo}, S) ->
@@ -164,11 +174,12 @@ handle_cast({{put, Urls}, ReplyTo}, S) ->
             true -> ok
             end,
             send_replies(ReplyTo, {ok, DestUrls}),
-            S1 = S#state{data = TagData, replicas = DestNodes},
-            {noreply, S1, S#state.timeout};
+            {noreply,
+             S#state{data = TagData, replicas = DestNodes, url_cache = false},
+             S#state.timeout};
         {error, _} = E ->
             send_replies(ReplyTo, E),
-            {noreply, S, S#state.timeout}
+            {noreply, S#state{url_cache = false}, S#state.timeout}
     end;
 
 % Special operations for the +deleted metatag
@@ -178,21 +189,21 @@ handle_cast(M, #state{url_cache = false, data = notfound} = S) ->
 
 handle_cast(M, #state{url_cache = false, data = Data} = S) ->
     {ok, Urls} = parse_tagurls(Data),
-    handle_cast(M, S#state{url_cache = gb_sets:from_list(Urls)});
+    handle_cast(M, S#state{url_cache = init_url_cache(Urls)});
 
-handle_cast({{insert_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
-    DeletedU = gb_sets:add(Url, Deleted),
-    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo},
-        S#state{url_cache = DeletedU});
+handle_cast({{is_deleted, Tag}, ReplyTo}, #state{url_cache = Deleted} = S) ->
+    Exists = gb_sets:is_member(ddfs_util:name_from_url(Tag), Deleted),
+    gen_server:reply(ReplyTo, Exists),
+    {noreply, S, S#state.timeout};
 
 handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
     gen_server:reply(ReplyTo, {ok, Deleted}),
     {noreply, S, S#state.timeout};
 
 handle_cast({{remove_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
-    DeletedU = gb_sets:delete_any(Url, Deleted),
-    handle_cast({{put, gb_sets:to_list(DeletedU)}, ReplyTo},
-        S#state{url_cache = DeletedU}).
+    Deleted0 = gb_sets:delete_any(ddfs_util:name_from_url(Url), Deleted),
+    Deleted1 = [[<<"tag://", Tag/binary>>] || Tag <- gb_sets:to_list(Deleted0)],
+    handle_cast({{put, Deleted1}, ReplyTo}, S).
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -206,6 +217,52 @@ handle_info(timeout, S) ->
 terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+update({{update, Urls, Opt}, ReplyTo}, OldUrls, State) ->
+    case validate_urls(Urls) of
+        true ->
+            NoDup = proplists:is_defined(nodup, Opt),
+            {Cache, Merged} = merge_urls(Urls,
+                                         OldUrls,
+                                         NoDup,
+                                         State#state.url_cache),
+            {noreply, NState, _} = handle_cast({{put, Merged}, ReplyTo}, State),
+            {noreply, NState#state{url_cache = Cache}, NState#state.timeout};
+        false ->
+            send_replies(ReplyTo, {error, invalid_url_object}),
+            {noreply, State, State#state.timeout}
+    end.
+
+% Normal update: Just add new urls to the list
+merge_urls(NewUrls, OldUrls, false, _Cache) ->
+    {false, NewUrls ++ OldUrls};
+
+% Set update (nodup): Remove duplicates.
+%
+% Note that merge_urls should keep the original order of
+% both NewUrls and OldUrls list. It should drop entries from
+% NewUrls that are duplicates or already exist in OldUrls.
+merge_urls(NewUrls, OldUrls, true, false) ->
+    merge_urls(NewUrls, OldUrls, true, init_url_cache(OldUrls));
+
+merge_urls(NewUrls, OldUrls, true, Cache) ->
+    find_unseen(NewUrls, Cache, OldUrls).
+
+find_unseen([], Seen, Urls) ->
+    {Seen, Urls};
+find_unseen([[Url|_] = Repl|Rest], Seen, Urls) ->
+    Name = ddfs_util:name_from_url(Url),
+    case {Name, gb_sets:is_member(Name, Seen)} of
+        {false, _} ->
+            find_unseen(Rest, Seen, [Repl|Urls]);
+        {_, false} ->
+            find_unseen(Rest, gb_sets:add(Name, Seen), [Repl|Urls]);
+        {_, true} ->
+            find_unseen(Rest, Seen, Urls)
+    end.
+
+init_url_cache(Urls) ->
+    gb_sets:from_list([ddfs_util:name_from_url(Url) || [Url|_] <- Urls]).
 
 send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
     send_replies([ReplyTo], Message);
@@ -242,7 +299,7 @@ get_tagdata(Tag) ->
 
 -spec validate_urls([binary()]) -> bool().
 validate_urls(Urls) ->
-    [] == (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
+    [] =:= (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
 
 -spec parse_tagurls(binary()) -> {'error', _} | {'ok', [binary()]}.
 parse_tagurls(TagData) ->
@@ -338,14 +395,11 @@ put_commit({TagName, TagData}, TagVol) ->
 
 is_tag_deleted(<<"+deleted">>) -> false;
 is_tag_deleted(Tag) ->
-    case gen_server:call(ddfs_master,
-            {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
-        {ok, Deleted} ->
-            gb_sets:is_member([<<"tag://", Tag/binary>>], Deleted);
-        E -> E
-    end.
+    BTag = <<"tag://", Tag/binary>>,
+    Msg = {tag, {is_deleted, BTag}, <<"+deleted">>},
+    gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
 
 remove_from_deleted(Tag) ->
-    gen_server:call(ddfs_master, {tag, {remove_deleted, [<<"tag://", Tag/binary>>]},
-        <<"+deleted">>}, ?NODEOP_TIMEOUT).
+    Msg = {tag, {remove_deleted, <<"tag://", Tag/binary>>}, <<"+deleted">>},
+    gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
 

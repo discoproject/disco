@@ -25,6 +25,15 @@ hashing <http://en.wikipedia.org/wiki/Perfect_hash_function>`_ for fast
 *O(1)* key lookups. Specifically, DiscoDB relies on the `CMPH library
 <http://cmph.sourceforge.net/>`_ for building minimal perfect hash functions.
 
+DiscoDB compresses values first by replacing duplicate entries with references
+to a singe unique entry and then by compressing unique entries with a fast
+compression algorithm based on `Huffman Coding
+<http://en.wikipedia.org/wiki/Huffman_coding>`_. The main benefit of this
+approach is that each value can be random accessed efficiently while achieving
+reasonable compression ratios, thanks to statistics collected from all the data.
+This means that you can have lots of redundancy, e.g. common prefixes, in your
+values without having to worry about space consumption.
+
 The format of a DiscoDB file essentially looks like this:
 
 .. image:: images/discodb_format.png
@@ -43,7 +52,7 @@ scalable, immutable datastructure for Python. To install only DiscoDB without
 rest of Disco, clone Disco, and run::
 
     make install-discodb
-    
+
 or if you just want to build it locally::
 
     cd contrib/discodb
@@ -80,7 +89,17 @@ Notes
   value multiple times is very cheap. Applications should utilize this feature
   to maximize space and time efficiency.
 
-- Value lists can be empty, in which case DiscoDB becomes an efficient set 
+- DiscoDB sorts key-value pairs internally, so no pre-sorting is needed. You can
+  request DiscoDB to remove duplicate key-value pairs automatically by setting
+  ``unique_items=True`` in the DiscoDB constructor.
+
+- DiscoDB does not compress values which are smaller than four bytes. DiscoDB may
+  also decide to disable compression if it is not likely to be beneficial.
+  This doesn't affect in DiscoDB behavior in any way. You can
+  disable compression explicitly, e.g. if your values are already compressed, by
+  setting ``disable_compression=True`` in the DiscoDB constructor.
+
+- Value lists can be empty, in which case DiscoDB becomes an efficient set
   data structure.
 
 - Keys and values can be arbitrary byte sequences or strings (see size limitations
@@ -92,13 +111,8 @@ Notes
   contain `multisets <http://en.wikipedia.org/wiki/Multiset>`_. In the multiset
   mode :meth:`discodb.DiscoDB.query` is not available, as it is not clear
   currently how duplicate values should be handled in queries. However, looking up a
-  single key works as usual, so applications can freely utilize the multiset 
+  single key works as usual, so applications can freely utilize the multiset
   feature (which is very efficient, as noted above) if complex queries are not needed.
-
-- As usual with key-value mappings, keys need to be unique. If the iterator
-  given to the DiscoDB constructor accidentally contains duplicate keys,
-  DiscoDB cannot be built correctly. Currently no exception is thrown if input
-  contains duplicate keys, as keeping track of them would be computationally expensive.
 
 - A single DiscoDB object has the following limitations:
     - Maximum number of keys, 2\ :sup:`32`
@@ -108,7 +122,7 @@ Notes
     - Maximum size of a DiscoDB object, 2\ :sup:`64` bytes
 
   In many cases it makes sense to have several (distributed) small or
-  medium-size DiscoDBs with millions of keys at most, as created by 
+  medium-size DiscoDBs with millions of keys at most, as created by
   :ref:`discodex`, instead of having a single DiscoDB with hundreds
   of millions of keys and values, although it is technically possible.
   Run your own benchmarks to find the optimal size for your application.

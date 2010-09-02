@@ -31,7 +31,7 @@ open-source projects such as `Hadoop Distributed Filesystem (HDFS)
 DDFS is a low-level component in the Disco stack, taking care of data
 *distribution*, *replication*, *persistence*, *addressing* and *access*.
 It does not provide a sophisticated query facility in itself but it is
-**tightly integrated** with Disco jobs and Discodex indexing component,
+**tightly integrated** with Disco jobs and the Discodex indexing component,
 which can be used to build application-specific query interfaces. Disco
 can store results of Map/Reduce jobs to DDFS, providing persistence and
 easy access for processed data.
@@ -158,7 +158,7 @@ atomicity of metadata operations.
 Each storage node contains a number of disks or volumes (`vol0..volN`),
 assigned to DDFS by mounting them under ``$DDFS_ROOT/vol0`` ...
 ``$DDFS_ROOT/volN``. On each volume, DDFS creates two directories,
-``tag`` and ``blob``, for storing tags anb blobs, respectively. DDFS
+``tag`` and ``blob``, for storing tags and blobs, respectively. DDFS
 monitors available disk space on each volume on regular intervals for
 load balancing. New blobs are stored to the least loaded volumes.
 
@@ -316,7 +316,7 @@ comments in the source code. This discussion is mainly interesting to
 developers and advanced users of DDFS and Disco.
 
 As one might gather from the sections above, metadata (tag) operations
-are the hard core of DDFS, mainly due to their transactional nature.
+are the central core of DDFS, mainly due to their transactional nature.
 Another non-trivial part of DDFS is re-replication and garbage
 collection of tags and blobs. These issues are discussed in more detail
 below.

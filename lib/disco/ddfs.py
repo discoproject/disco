@@ -16,7 +16,7 @@ from urllib import urlencode
 from disco.comm import upload, download, json, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
-from disco.util import iterify, partition, urlsplit
+from disco.util import isiterable, iterify, partition, urlsplit
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
@@ -24,9 +24,9 @@ class InvalidTag(Exception):
     pass
 
 def canonizetag(tag):
-    if isinstance(tag, list):
-        if tag:
-            return canonizetag(tag[0])
+    if isiterable(tag):
+        for tag in tag:
+            return canonizetag(tag)
     elif tag.startswith('tag://'):
         return tag
     elif '://' not in tag:
@@ -154,7 +154,13 @@ class DDFS(object):
                 else:
                     raise error
 
-    def push(self, tag, files, replicas=None, retries=10, delayed=False):
+    def push(self,
+             tag,
+             files,
+             replicas=None,
+             retries=10,
+             delayed=False,
+             update=False):
         """
         Pushes a bunch of files to ddfs and tags them with `tag`.
 
@@ -175,7 +181,7 @@ class DDFS(object):
 
         urls = [self._push(aim(f), replicas=replicas, retries=retries)
                 for f in files]
-        return self.tag(tag, urls, delayed=delayed), urls
+        return self.tag(tag, urls, delayed=delayed, update=update), urls
 
     def put(self, tag, urls):
         """Put the list of ``urls`` to the tag ``tag``.
@@ -189,12 +195,18 @@ class DDFS(object):
                                                 tagname(tag)),
                             StringIO(json.dumps(urls)))
 
-    def tag(self, tag, urls, delayed=False):
+    def tag(self, tag, urls, **kwargs):
         """Append the list of ``urls`` to the ``tag``."""
+
+        defaults = {'delayed': False, 'update': False}
+        defaults.update(kwargs)
+        fmt = lambda x: '1' if x else ''
+
+        query = '&'.join('%s=%s' % (k, fmt(v)) for k, v in defaults.items())
         return self._download('%s/ddfs/tag/%s?%s' %
                               (self.tagmaster(tag),
                                tagname(tag),
-                               'delayed=1' if delayed else ''),
+                               query),
                               json.dumps(urls))
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):

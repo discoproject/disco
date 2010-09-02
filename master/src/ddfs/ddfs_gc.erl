@@ -185,22 +185,33 @@ check_blobsets([Repl|T], {IsFixed, NRepl}) ->
                 {"GC: !!! All replicas missing !!!!", Repl}),
             check_blobsets(T, {Status, [Repl|NRepl]});
         {[], Ok} when length(Ok) < BlobK ->
-            {Blob, _} = ddfs_url(hd(Repl)),
+            [OrigUrl|_] = Repl,
+            {Blob, _} = ddfs_url(OrigUrl),
             error_logger:info_report({"GC: Blob needs more replicas", Blob}),
             case rereplicate(Blob, Ok) of
-                {ok, NewUrl} ->
+                {ok, NewUrl0} ->
+                    NewUrl = replace_scheme(OrigUrl, NewUrl0),
                     error_logger:info_report({"GC: New replica at", NewUrl}),
                     check_blobsets(T,
                         {fixed, [[NewUrl|Repl -- [NewUrl]]|NRepl]});
                 _ ->
                     check_blobsets(T, {IsFixed, [Repl|NRepl]})
-            end; 
+            end;
         _ ->
             check_blobsets(T, {IsFixed, [Repl|NRepl]})
     end.
 
+replace_scheme(RightScheme0, WrongScheme0) ->
+    RightScheme = binary_to_list(RightScheme0),
+    WrongScheme = binary_to_list(WrongScheme0),
+    {Scheme, _, _, _, _} = mochiweb_util:urlsplit(RightScheme),
+    {_, Host, Path, Query, Fragment} = mochiweb_util:urlsplit(WrongScheme),
+    Url = mochiweb_util:urlunsplit({Scheme, Host, Path, Query, Fragment}),
+    list_to_binary(Url).
+
 -spec ddfs_url(binary()) -> 'ignore' | {binary(), 'unknown' | node()}.
-ddfs_url(<<"disco://", _/binary>> = Url) ->
+ddfs_url(<<"tag://", _/binary>>) -> ignore;
+ddfs_url(Url) ->
     {_, Host, Path, _, _} = mochiweb_util:urlsplit(binary_to_list(Url)),
     BlobName = list_to_binary(filename:basename(Path)),
     case disco:node_safe(Host) of
@@ -209,8 +220,7 @@ ddfs_url(<<"disco://", _/binary>> = Url) ->
             {BlobName, unknown};
         Node ->
             {BlobName, Node}
-    end;
-ddfs_url(_) -> ignore.
+    end.
 
 check_status(_, ignore) -> ignore;
 check_status(Type, {_, Node} = Key) ->

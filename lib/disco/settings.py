@@ -258,6 +258,9 @@ class DiscoSettings(Settings):
     def ensuredirs(self):
         for name in self.must_exist:
             self.safedir(name)
+        config = self['DISCO_MASTER_CONFIG']
+        if not os.path.exists(config):
+            open(config, 'w').write('[["localhost","1"]]')
 
 def guess_erlang():
     if os.uname()[0] == 'Darwin':

@@ -102,7 +102,7 @@ find_values(Msg) ->
 
 -spec work([{non_neg_integer(), [{binary(), nonempty_string()}]}],
     nonempty_string(), nonempty_string(), non_neg_integer(),
-    jobinfo(), [result()]) -> {'ok', [result()]}.
+    jobinfo(), gb_tree()) -> {'ok', gb_tree()}.
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
@@ -258,12 +258,21 @@ run_task(Inputs, Mode, Name, Job) ->
 
 run_task_do(Inputs, Mode, Name, Job) ->
     {ok, Results} = work(Inputs, Mode, Name, 0, Job, gb_trees:empty()),
-    T = now(),
+    % if save=True, tasks output tag:// urls, not dir://.
+    % We don't need to shuffle tags.
+    Fun = fun({_, <<"dir://", _/binary>>}) -> true; (_) -> false end,
+    {DirUrls, Others} = lists:partition(Fun, gb_trees:values(Results)),
+    {ok, Combined} = shuffle(Name, Mode, DirUrls),
+    {ok, lists:usort(([Url || {_Node, Url} <- Others])) ++ Combined}.
+
+shuffle(_Name, _Mode, []) -> {ok, []};
+shuffle(Name, Mode, DirUrls) ->
     event_server:event(Name, "Shuffle phase starts", [], {}),
-    Combined = shuffle:combine_tasks(Name, Mode, gb_trees:values(Results)),
+    T = now(),
+    Ret = shuffle:combine_tasks(Name, Mode, DirUrls),
     Elapsed = timer:now_diff(now(), T) div 1000,
     event_server:event(Name, "Shuffle phase took ~bms.", [Elapsed], {}),
-    Combined.
+    Ret.
 
 -spec job_coordinator(nonempty_string(), jobinfo()) -> _.
 job_coordinator(Name, Job) ->

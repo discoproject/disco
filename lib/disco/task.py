@@ -232,6 +232,7 @@ class Task(object):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
         ensure_path(self.taskroot)
         os.chdir(self.taskroot)
+        os.symlink(self.lib, 'lib')
         self._run_profile() if self.profile else self._run()
 
     def _run_profile(self):
@@ -347,7 +348,11 @@ class Reduce(Task):
         Status("Input is %s" % (util.format_size(total_size)))
 
         self.init(entries, params)
-        self.reduce(entries, red_out, params)
+        if util.argcount(self.reduce) < 3:
+            for k, v in self.reduce(entries, *(params, )):
+                red_out.add(k, v)
+        else:
+            self.reduce(entries, red_out, params)
 
         self.close_output(fd_list)
         external.close_ext()

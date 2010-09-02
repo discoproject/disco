@@ -23,7 +23,7 @@ Of these functions, only *map* is required.
           The task uses stderr to signal events to the master.
           You can raise a :class:`disco.error.DataError`,
           to abort the task on this node and try again on another node.
-          It is usually a best to let the task fail if any exceptions occur:
+          It is usually best to let the task fail if any exceptions occur:
           do not catch any exceptions from which you can't recover.
           When exceptions occur, the disco worker will catch them and
           signal an appropriate event to the master.
@@ -58,6 +58,7 @@ These functions are provided by Disco to help :class:`disco.core.Job` creation:
 .. autofunction:: default_partition
 .. autofunction:: make_range_partition
 .. autofunction:: nop_reduce
+.. autofunction:: gzip_reader
 .. autofunction:: map_line_reader
 .. autofunction:: chain_reader
 .. autofunction:: netstr_reader
@@ -136,7 +137,7 @@ def reduce(input_stream, output_stream, params):
 
     :param input_stream: :class:`disco.func.InputStream` object that is used
         to iterate through input entries.
-    :param output_stream: :class:`disco.func.InputStream` object that is used
+    :param output_stream: :class:`disco.func.OutputStream` object that is used
         to output results.
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
@@ -415,11 +416,26 @@ def nop_reduce(iter, out, params):
         out.add(k, v)
 
 def gzip_reader(fd, size, url, params):
+    """Wraps the input in a :class:`gzip.GzipFile` object."""
     from gzip import GzipFile
     return GzipFile(fileobj=fd), size, url
 
 def map_line_reader(fd, sze, fname):
-    """Yields each line of input."""
+    """
+    Yields each line of input.
+
+    (*Deprecated in 0.3.1*)
+    This reader is deprecated in favor of using the default Python
+    file-like object iterator.
+    Since 0.3, no reader is necessary for iterable objects returned from the
+    :func:`input_stream`.
+    For :func:`map` functions previously relying on this reader,
+    there is one small caveat to be aware of:
+    this reader has always stripped newline characters from the end of lines.
+    For file-like object iterators, lines are left in tact.
+    This may or may not affect jobs relying on this reader,
+    depending on how the lines are used.
+    """
     for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
         yield x[0]
 
@@ -431,7 +447,7 @@ def netstr_writer(fd, key, value, params):
 
 def object_writer(fd, key, value, params):
     """
-    *(Deprecated in 0.3)*
+    (*Deprecated in 0.3*)
     A wrapper for :func:`netstr_writer` that uses Python's ``cPickle``
     module to deserialize strings to Python objects.
    """
@@ -441,7 +457,7 @@ def object_writer(fd, key, value, params):
 
 def object_reader(fd, sze, fname):
     """
-    *(Deprecated in 0.3)*
+    (*Deprecated in 0.3*)
     A wrapper for :func:`netstr_reader` that uses Python's ``cPickle``
     module to serialize arbitrary Python objects to strings.
     """

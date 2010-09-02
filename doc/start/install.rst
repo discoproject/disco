@@ -6,9 +6,7 @@ Setting up Disco
 
 This document helps you to install Disco either on a single server or a
 cluster of servers. This requires installation of several packages, which
-may or may not be totally straightforward. If you want to get something
-working quickly, you should consider trying out Disco in Amazon EC2
-(:ref:`ec2setup`) which requires no configuration on your side.
+may or may not be totally straightforward.
 
 **Shortcut for Debian / Ubuntu users:** If you run Debian testing or
 some recent version of Ubuntu on the AMD64 architecture, you may try
@@ -27,7 +25,7 @@ story short, Disco works as follows:
  * Disco users start Disco jobs in Python scripts.
  * Jobs requests are sent over HTTP to the master.
  * Master is an Erlang process that receives requests over HTTP.
- * Master launches another Erlang process, worker supervisor, on each node over
+ * Master launches another Erlang process, the worker supervisor, on each node over
    SSH.
  * Worker supervisors run Disco jobs as Python processes.
 
@@ -45,9 +43,10 @@ On each server the following applications / libraries are required:
  * `Python 2.5 or newer <http://www.python.org>`_
  * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_ (for Python < 2.6)
 
-Optionally, ``DISCO_PROXY`` needs
+Optionally, ``DISCO_PROXY`` needs one of
 
  * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
+ * `Varnish 2.1.3 or newer <http://varnish-cache.org>`_
 
 1. Install Disco
 ----------------
@@ -107,11 +106,13 @@ or similar mechanism). However, you can use any account for running
 Disco. In the following, we refer to the user that runs ``disco-master``
 as the Disco user.
 
-Open ``DISCO_HOME/conf/settings.py``. This file sets a number of environment
-variables that define the runtime environment for Disco.
-Most likely you do not need to modify this file right away.
-You can change the paths if the defaults are not suitable for your system.
-See :mod:`disco.settings` for more information on the various settings and their default values.
+If you have run ``make install``, open ``/etc/disco/settings.py``. This
+file sets a number of environment variables that define the runtime
+environment for Disco.  Most likely you do not need to modify this
+file right away (however, see the note above on replication).  You can
+change the paths if the defaults are not suitable for your system.
+See :mod:`disco.settings` for more information on the various settings
+and their default values.
 
 3. Start Disco
 --------------
@@ -121,7 +122,7 @@ On the master node, start the Disco master by executing ``disco start``.
 
 You can easily integrate ``disco`` into your system's startup sequence.
 For instance, you can see how ``debian/disco-master.init`` and
-``debian/disco-node.init`` are implemented in the Disco's ``debian``
+``debian/disco-node.init`` are implemented in Disco's ``debian``
 branch.
 
 If Disco has started up properly, you should see ``beam.smp`` running on your
@@ -240,7 +241,7 @@ itself.
 If the machine where you run the script can access the master node but
 not other nodes in the cluster, you need to set the environment variable
 ``DISCO_PROXY=http://master:8989``. The proxy address should be the
-same as the master's above. This makes Disco to fetch results through
+same as the master's above. This makes Disco fetch results through
 the master node, instead of connecting to the nodes directly.
 
 If the script produces some results, congratulations, you have a

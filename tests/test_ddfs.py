@@ -3,12 +3,70 @@ from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.ddfs import DDFS
 from disco.util import ddfs_name
 
+from cStringIO import StringIO
+
+class DDFSUpdateTestCase(DiscoTestCase):
+    data = StringIO('blobdata')
+
+    def setUp(self):
+        self.ddfs = DDFS(self.disco_master_url)
+
+    def blobnames(self, tag):
+        return list(reversed(list(DDFS.blob_name(repl[0])
+                                  for repl in self.ddfs.blobs(tag))))
+
+    def test_update(self):
+        for i in range(5):
+            self.ddfs.push('disco:test:blobs',
+                           [(self.data, 'dup')] * 2,
+                           update=True)
+        self.assertEquals(len(self.blobnames('disco:test:blobs')), 1)
+        for i in range(5):
+            self.ddfs.push('disco:test:blobs',
+                           [(self.data, 'dup2')],
+                           update=True,
+                           delayed=True)
+        self.assertEquals(len(self.blobnames('disco:test:blobs')), 2)
+        self.ddfs.delete('disco:test:blobs')
+
+    def test_random(self):
+        import random
+        keys = [str(random.randint(1, 100)) for i in range(1000)]
+        ukeys = []
+        for key in keys:
+            self.ddfs.push('disco:test:blobs', [(self.data, key)], update=True)
+            if key not in ukeys:
+                ukeys.append(key)
+        self.assertEquals(ukeys, self.blobnames('disco:test:blobs'))
+        self.ddfs.delete('disco:test:blobs')
+
+    def test_mixed(self):
+        keys = []
+        for key in map(str, range(10)):
+            self.ddfs.push('disco:test:blobs', [(self.data, key)] * 2)
+            keys += [key] * 2
+        for key in map(str, range(15)):
+            self.ddfs.push('disco:test:blobs',
+                           [(self.data, key)] * 2,
+                           update=True)
+            if int(key) > 9:
+                keys.append(key)
+        for key in map(str, range(10)):
+            self.ddfs.push('disco:test:blobs',
+                           [(self.data, key)] * 2,
+                           delayed=True)
+            keys += [key] * 2
+        self.assertEquals(keys, self.blobnames('disco:test:blobs'))
+        self.ddfs.delete('disco:test:blobs')
+
+    def tearDown(self):
+        self.ddfs.delete('disco:test:blobs')
+
 class DDFSWriteTestCase(DiscoTestCase):
     def setUp(self):
         self.ddfs = DDFS(self.disco_master_url)
 
     def test_push(self):
-        from cStringIO import StringIO
         self.ddfs.push('disco:test:blobs', [(StringIO('blobdata'), 'blobdata')])
         self.assert_(self.ddfs.exists('disco:test:blobs'))
         self.ddfs.push('tag://disco:test:blobs2', [(StringIO('blobdata'), 'blobdata')])
@@ -42,9 +100,14 @@ class DDFSWriteTestCase(DiscoTestCase):
     def test_delete(self):
         self.ddfs.delete('disco:test:notag')
 
+    def tearDown(self):
+        self.ddfs.delete('disco:test:notag')
+        self.ddfs.delete('disco:test:tag')
+        self.ddfs.delete('disco:test:blobs')
+        self.ddfs.delete('disco:test:blobs2')
+
 class DDFSReadTestCase(DiscoTestCase):
     def setUp(self):
-        from cStringIO import StringIO
         self.ddfs = DDFS(self.disco_master_url)
         self.ddfs.push('disco:test:blobs', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.push('disco:test:blobs', [(StringIO('datablob2'), 'blobdata2')])

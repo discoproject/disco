@@ -8,7 +8,14 @@ from discodb import tools
 
 def k_vs_iter(N, max_values=100):
     for x in xrange(N):
-        yield '%s' % x, ('%s' % v for v in xrange(randint(0, max_values)))
+        # Force every key to have at least ONE value so that the test in
+        # test_query_noresults doesn't erroneously pass. The problem there is
+        # that queries that should return no results were returning the very
+        # first key's value. So, if the first key has no value, then the test
+        # could pass but we wouldn't know if it passed because the query truly
+        # returned no results (as it should) or if it actually returned the
+        # first key's value, which was also empty.
+        yield '%s' % x, ('%s' % v for v in xrange(randint(1, max_values)))
 
 class TestConstructor(unittest.TestCase):
     def test_null_constructor(self):
@@ -86,6 +93,15 @@ class TestMappingProtocol(unittest.TestCase):
         q = Q.parse('5 & 10 & (15 | 30)')
         list(self.discodb.query(q))
 
+    def test_query_results(self):
+        q = Q.parse('5')
+        self.assertEquals(list(self.discodb.query(q)),
+                          list(self.discodb.get('5')))
+
+    def test_query_results_nonkey(self):
+        q = Q.parse('nonkey')
+        self.assertEquals(list(self.discodb.query(q)), [])
+
     def test_str(self):
         repr(self.discodb)
         str(self.discodb)
@@ -140,6 +156,12 @@ class TestDiscoDict(TestMappingProtocol):
     def test_query(self):
         pass
 
+    def test_query_results(self):
+        pass
+
+    def test_query_results_nonkey(self):
+        pass
+
 class TestMetaDBMappingProtocol(TestMappingProtocol):
     def setUp(self):
         datadb = DiscoDB(k_vs_iter(self.numkeys))
@@ -147,6 +169,12 @@ class TestMetaDBMappingProtocol(TestMappingProtocol):
         self.discodb = MetaDB(datadb, metadb)
 
     def test_peek(self):
+        pass
+
+    def test_query_results(self):
+        pass
+
+    def test_query_results_nonkey(self):
         pass
 
 class TestMetaDBSerializationProtocol(unittest.TestCase):
@@ -169,6 +197,67 @@ class TestMetaDBSerializationProtocol(unittest.TestCase):
         handle.seek(0)
         metadb = MetaDB.load(handle.name)
         assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
+
+class TestQuery(unittest.TestCase):
+    def setUp(self):
+        self.discodb = DiscoDB(
+            (('alice', ('blue',)),
+            ('bob', ('red',)),
+            ('carol', ('blue', 'red'))),
+        )
+
+    def q(self, s):
+        return self.discodb.query(Q.parse(s))
+
+    def test_empty(self):
+        self.assertEqual(list(self.q('')), [])
+        self.assertEqual(len(self.q('')), 0)
+
+    def test_get_len(self):
+        self.assertEqual(len(self.discodb.get('alice')), 1)
+        self.assertEquals(len(self.discodb.get('bob')), 1)
+        self.assertEquals(len(self.discodb.get('carol')), 2)
+
+#     def test_query_len(self):
+#         self.assertEquals(len(self.q('alice')), 1)
+#         self.assertEquals(len(self.q('bob')), 1)
+#         self.assertEquals(len(self.q('carol')), 2)
+#         self.assertEquals(len(self.q('alice & bob')), 0)
+#         self.assertEquals(len(self.q('alice | bob')), 2)
+#         self.assertEquals(len(self.q('alice & carol')), 1)
+#         self.assertEquals(len(self.q('alice | carol')), 2)
+#         self.assertEquals(len(self.q('alice|bob|carol')), 2)
+#         self.assertEquals(len(self.q('alice&bob&carol')), 0)
+
+#     def test_query_len_doesnt_advance_iter(self):
+#         # check that calling len() doesn't advance the iterator
+#         res = self.q('alice')
+#         self.assertEquals(len(res), 1)
+#         self.assertEquals(len(res), 1)
+
+    def test_query_results(self):
+        self.assertEquals(set(self.q('alice')), set(['blue']))
+        self.assertEquals(set(self.q('bob')), set(['red']))
+        self.assertEquals(set(self.q('carol')), set(['blue', 'red']))
+        self.assertEquals(set(self.q('alice & bob')), set())
+        self.assertEquals(set(self.q('alice | bob')), set(['blue', 'red']))
+        self.assertEquals(set(self.q('alice & carol')), set(['blue']))
+        self.assertEquals(set(self.q('alice | carol')), set(['blue', 'red']))
+        self.assertEquals(set(self.q('alice|bob|carol')), set(['blue', 'red']))
+        self.assertEquals(set(self.q('alice&bob&carol')), set())
+
+#     def test_query_len_nonkey(self):
+#         self.assertEquals(len(self.q('nonkey')), 0)
+#         self.assertEquals(len(self.q('~nonkey')), 3)
+#         self.assertEquals(len(self.q('nonkey & alice')), 0)
+#         self.assertEquals(len(self.q('nonkey | alice')), 1)
+
+    def test_query_results_nonkey(self):
+        self.assertEquals(set(self.q('nonkey')), set())
+        self.assertEquals(set(self.q('~nonkey')), set(['blue', 'red']))
+        self.assertEquals(set(self.q('nonkey & alice')), set())
+        self.assertEquals(set(self.q('nonkey | alice')), set(['blue']))
+
 
 if __name__ == '__main__':
     unittest.TextTestRunner().run(doctest.DocTestSuite(query))
