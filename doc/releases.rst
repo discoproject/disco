@@ -49,7 +49,7 @@ New features
  - Enhanced Java support added as a Git submodule under ``contrib/java-ext``
    (`Thanks to Ryan Maus <http://github.com/ryan-maus/disco-java-ext>`_).
  - Disk space monitoring for DDFS added to the Web UI.
- - Lots of enhancements to :mod:`discodex <discodex>` and :mod:`disco <discocli>` command line utilities.
+ - Lots of enhancements to :mod:`discodex <discodexcli>` and :mod:`disco <discocli>` command line utilities.
  - New setting ``DISCO_SORT_BUFFER_SIZE`` to control memory usage of the external sort (see :mod:`disco.settings`).
  - :func:`disco.func.gzip_reader` for reading gzipped inputs.
  - Easier single-node installation with default localhost configuration.
