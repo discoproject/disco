@@ -37,6 +37,7 @@ The following types of functions can be provided by the user:
 .. autofunction:: partition
 .. autofunction:: combiner
 .. autofunction:: reduce
+.. autofunction:: reduce2
 .. autofunction:: init
 .. autofunction:: input_stream
 .. autofunction:: output_stream
@@ -146,15 +147,33 @@ def reduce(input_stream, output_stream, params):
 
         def fun_reduce(iter, out, params):
             d = {}
-            for w, c in iter:
-                d[w] = d.get(w, 1) + 1
-            for w, c in d.iteritems():
-                out.add(w, c)
+            for k, v in iter:
+                d[k] = d.get(k, 0) + 1
+            for k, c in d.iteritems():
+                out.add(k, c)
 
-    This example counts how many teams each key appears.
+    This example counts how many times each key appears.
 
     The reduce task can also be an external program.
     For more information, see :ref:`discoext`.
+    """
+
+def reduce2(input_stream, params):
+    """
+    Alternative reduce signature which takes 2 parameters.
+
+    Reduce functions with this signature should return an iterator
+    of ``key, value`` pairs, which will be implicitly added to the
+    :class:`disco.func.OutputStream`.
+
+    For instance::
+
+        def fun_reduce(iter, params):
+            from disco.util import kvgroup
+            for k, vs in kvgroup(sorted(iter)):
+                yield k, sum(1 for v in vs)
+
+    This example counts the number of values for each key.
     """
 
 def init(input_iter, params):
