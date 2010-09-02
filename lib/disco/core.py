@@ -68,7 +68,8 @@ class Disco(object):
                             data=data,
                             offset=offset)
         except CommError, e:
-            e.msg += " (is disco master running at %s?)" % self.master
+            if e.code == None:
+                e.msg += " (is disco master running at %s?)" % self.master
             raise
 
     def get_config(self):
