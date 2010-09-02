@@ -45,7 +45,7 @@ New features
     - Constructor accepts unsorted key-value pairs.
     - Option (``unique_items=True``) to remove duplicates from inputs automatically.
     - ``unique_values()`` iterator.
- - Alternative signature for reduce: Reduce can now ``yield`` key-value pairs instead of calling ``out.add()``.
+ - Alternative signature for reduce: Reduce can now ``yield`` key-value pairs (or return an iterator) instead of calling ``out.add()`` (see :func:`disco.func.reduce2`).
  - Enhanced Java support added as a Git submodule under ``contrib/java-ext``
    (`Thanks to Ryan Maus <http://github.com/ryan-maus/disco-java-ext>`_).
  - Disk space monitoring for DDFS added to the Web UI.

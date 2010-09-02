@@ -516,6 +516,11 @@ class JobDict(util.DefaultDict):
     :param reduce: If no reduce function is specified, the job will quit after
                    the map phase has finished.
 
+                   *Added in version 0.3.1*:
+                   Reduce supports now an alternative signature,
+                   :func:`disco.func.reduce2` which uses an iterator instead
+                   of ``out.add()`` to output results.
+
                    *Changed in version 0.2*:
                    It is possible to define only *reduce* without *map*.
                    For more information, see the FAQ entry :ref:`reduceonly`.
