@@ -58,6 +58,7 @@ These functions are provided by Disco to help :class:`disco.core.Job` creation:
 .. autofunction:: default_partition
 .. autofunction:: make_range_partition
 .. autofunction:: nop_reduce
+.. autofunction:: gzip_reader
 .. autofunction:: map_line_reader
 .. autofunction:: chain_reader
 .. autofunction:: netstr_reader
@@ -415,6 +416,7 @@ def nop_reduce(iter, out, params):
         out.add(k, v)
 
 def gzip_reader(fd, size, url, params):
+    """Wraps the input in a :class:`gzip.GzipFile` object."""
     from gzip import GzipFile
     return GzipFile(fileobj=fd), size, url
 
