@@ -259,6 +259,8 @@ If the format is textual, it may be possible to define a regular
 expression that can be used to extract input entries from the files. See
 :func:`disco.func.re_reader` for more information.
 
+.. _ec2:
+
 How do I use Disco on Amazon EC2?
 '''''''''''''''''''''''''''''''''
 

@@ -2,6 +2,96 @@
 Release notes
 =============
 
+Disco 0.3.1 (Sep 1st 2010)
+--------------------------
+
+.. note::
+   This release fixes a serious bug in how partition files are handled under
+   certain error conditions. The bug has existed since Disco 0.1.
+
+   If a node becomes unavailable, for instance due to network congestion, master restarts
+   the tasks that were running on the failed node on other nodes. However, it is possible
+   that old tasks continue running on the failed node, producing results as usual.
+   This can lead to duplicate entries being written to result files.
+
+   Note that not all task failures are suspectible to this bug. If the task
+   itself fails, which is the most typical error scenario, Disco ensures that results are
+   still valid. Only if your job events have contained messages like ``Node unavailable``
+   or ``Connection lost to the node``, it is possible that results are invalid and you
+   should re-run the suspected jobs with Disco 0.3.1 or newer.
+
+   This bug also revealed a similar issue with jobs that save their results to
+   DDFS with ``save=True`` (available since Disco 0.3). It is possible that
+   duplicate tasks create duplicate entries in the result tag. This is easy to
+   detect and fix afterwards by listing urls in the tag and ensuring that there
+   are no duplicates. A script is provided at ``util/fix-jobtag`` that can be
+   used to check and fix suspected tags.
+
+
+New features
+''''''''''''
+
+ - Improved robustness and scalability:
+    - Jobs are now immortal by default; they should never fail due to temporary errors unless a user-defined limit is reached.
+    - New shuffle phase to optimize intermediate results for reduce.
+    - Support for `Varnish <http://varnish-cache.org/>`_ for ``DISCO_PROXY``. In some cases, Varnish can be over three times faster than `Lighttpd <http://lighttpd.net/>`_.
+ - :ref:`ddfs`:
+    - Improved blob placement policy.
+    - Atomic set updates (``update=1``).
+    - Delayed commits (``delayed=1``), which gives a major performance boost without sacrificing data consistency.
+    - Garbage collection is now scheme-agnostic (#189).
+ - Major :mod:`discodb` enhancements:
+    - Values are now compressed without sacrificing performance.
+    - Constructor accepts unsorted key-value pairs.
+    - Option (``unique_items=True``) to remove duplicates from inputs automatically.
+    - ``unique_values()`` iterator.
+ - Alternative signature for reduce: Reduce can now ``yield`` key-value pairs instead of calling ``out.add()``.
+ - Enhanced Java support added as a Git submodule under ``contrib/java-ext``
+   (`Thanks to Ryan Maus <http://github.com/ryan-maus/disco-java-ext>`_).
+ - Disk space monitoring for DDFS added to the Web UI.
+ - Lots of enhancements to :mod:`discodex <discodex>` and :mod:`disco <discocli>` command line utilities.
+ - New setting ``DISCO_SORT_BUFFER_SIZE`` to control memory usage of the external sort (see :mod:`disco.settings`).
+ - :func:`disco.func.gzip_reader` for reading gzipped inputs.
+ - Alternative reduce signature using an iterator.
+ - Easier single-node installation with default localhost configuration.
+
+Deprecated
+''''''''''
+
+ - **Important!** The default reader function, :func:`disco.func.map_line_reader`, will be deprecated. The new default
+   is to iterate over the object returned by *map_reader*. In practice, the default
+   *map_reader* will still return an object that iterates over lines. However,
+   it will not strip newline characters from the end of lines as the old :func:`disco.func.map_line_reader` does.
+
+   Make sure that your jobs that rely on the default *map_reader* will
+   handle newline characters correctly. You can do this easily by calling
+   ``string.strip()`` for each line.
+
+Backwards incompatible changes
+''''''''''''''''''''''''''''''
+
+ - Installation script for Amazon EC2 removed (``aws/setup-instances.py``) and documentation updated accordingly (see :ref:`ec2`). Disco still works in Amazon EC2 and other similar environments flawlessly but a more modern mechanism for easy deployments is needed.
+
+Bugfixes
+''''''''
+ - **Critical** bug fixes to fix partition file handling and ``save=True`` behavior under temporary node failures (see a separate note above).
+ - Delayed commits in DDFS fix OOB slowness (#155)
+ - Fix unicode handling (#185, #190)
+ - In-memory sort disabled as it doesn't work well compressed inputs (#145)
+ - Fixed/improved replica handling (#170, #178, #176)
+ - Three bugfixes in :mod:`discodb` querying and iterators (#181)
+ - Don't rate limit internal messages, to prevent bursts of messages crashing the job (#169)
+ - Random bytes in a message should not make json encoding fail (#161)
+ - :meth:`disco.core.Disco.wait` should not throw an exception if master doesn't respond immediately (#183)
+ - Connections should not fail immediately if creating a connection fails (#179)
+ - Fixed an upload issue in ``comm_pycurl.py`` (#156)
+ - Disable HTTP keep-alive on master.
+ - Sort failing is not a fatal error.
+ - Partitioned only-reduce did not check the number of input partitions correctly.
+ - ``DISCO_PROXY`` did not work correctly if disco was run with a non-standard port.
+ - ``node_mon`` didn't handle all messages from nodes correctly, which lead its message queue to grow, leading to spurious ``Node unavailable`` messages.
+ - Fix mouse-over for showing active cores in the status page.
+
 Disco 0.3 (May 26th 2010)
 -------------------------
 
