@@ -172,9 +172,11 @@ def chunk(program, tag, *urls):
     from disco.util import reify
 
     tags, urls = program.separate_tags(*urls)
+    stream = reify(program.options.stream)
     reader = reify(program.options.reader or 'None')
     tag, blobs = program.ddfs.chunk(tag,
                                     chain(urls, program.blobs(*tags)),
+                                    input_stream=stream,
                                     reader=reader,
                                     replicas=program.options.replicas)
     for replicas in blobs:
