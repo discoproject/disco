@@ -122,12 +122,12 @@ handle_cast({{delayed_update, Urls, Token, Opt}, ReplyTo},
 % Before handling any other requests, flush pending delayed updates
 handle_cast(M, #state{delayed = Buffer} = S0) when Buffer =/= false ->
     Fun =
-        % FIXME: Optimize this by not redoing useless authorization at
-        % each iteration.
         fun({Opt, {Waiters, Urls}}, S) ->
-            Msg = {{update, Urls, internal, Opt}, Waiters},
-            {noreply, NS, _} = handle_cast(Msg, S),
-            NS
+            OldUrls = case S#state.data of
+                          #tagcontent{urls = U} -> U;
+                          _ -> []
+                      end,
+            do_update(Urls, Opt, Waiters, OldUrls, S)
         end,
     NewState =
         lists:foldl(Fun, S0#state{delayed = false}, gb_trees:to_list(Buffer)),
@@ -272,11 +272,7 @@ do_update(Urls, Opt, ReplyTo, OldUrls, State) ->
                                          OldUrls,
                                          NoDup,
                                          State#state.url_cache),
-            % FIXME: call do_put() instead, to avoid redoing auth.
-            % Question: is there a problem if the put fails (can it?), but yet
-            % the url_cache is updated?
-            Msg = {{put, urls, Merged, internal}, ReplyTo},
-            {noreply, NState, _} = handle_cast(Msg, State),
+            NState = do_put(urls, Merged, ReplyTo, State),
             NState#state{url_cache = Cache};
         false ->
             send_replies(ReplyTo, {error, invalid_url_object}),
