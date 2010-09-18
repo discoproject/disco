@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+
+import sys
+from disco.ddfs import DDFS
+from disco.settings import DiscoSettings
+
+def fix_corrupt_tag(tag):
+    blobs = [(DDFS.blob_name(repl[0]), repl) for repl in ddfs.blobs(tag)]
+    unique_blobs = dict(blobs)
+    if len(blobs) == len(unique_blobs):
+        print "Tag %s is ok!" % tag
+    else:
+        print "Tag %s is NOT OK! Fixing.." % tag
+        ddfs.put(tag, unique_blobs.values())
+        print "Fixed"
+
+if len(sys.argv) < 2:
+    print "Usage: fix-jobtag jobtag"
+elif not sys.argv[1].startswith("disco:job:results:"):
+    print "Tag %s is not a job tag. It must have prefix "\
+          "'disco:job:results'." % sys.argv[1]
+else:
+    ddfs = DDFS(DiscoSettings()['DISCO_MASTER'])
+    fix_corrupt_tag(sys.argv[1])

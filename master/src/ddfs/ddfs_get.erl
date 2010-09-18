@@ -61,7 +61,7 @@ send_file(Req, Path, Root) ->
             end;
         _ ->
             Req:respond({501, [], ["Method not supported"]})
-    end. 
+    end.
 
 -spec send_file(module(), nonempty_string()) -> _.
 send_file(Req, Path) ->
@@ -69,7 +69,8 @@ send_file(Req, Path) ->
         {ok, #file_info{type = regular}} ->
             case file:open(Path, [read, raw, binary]) of
                 {ok, IO} ->
-                    Req:ok({"application/octet-stream", [], {file, IO}}); 
+                    Req:ok({"application/octet-stream", [], {file, IO}}),
+                    file:close(IO);
                 _ ->
                     Req:respond({500, [], ["Access failed"]})
             end;

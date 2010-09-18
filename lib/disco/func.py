@@ -23,7 +23,7 @@ Of these functions, only *map* is required.
           The task uses stderr to signal events to the master.
           You can raise a :class:`disco.error.DataError`,
           to abort the task on this node and try again on another node.
-          It is usually a best to let the task fail if any exceptions occur:
+          It is usually best to let the task fail if any exceptions occur:
           do not catch any exceptions from which you can't recover.
           When exceptions occur, the disco worker will catch them and
           signal an appropriate event to the master.
@@ -37,6 +37,7 @@ The following types of functions can be provided by the user:
 .. autofunction:: partition
 .. autofunction:: combiner
 .. autofunction:: reduce
+.. autofunction:: reduce2
 .. autofunction:: init
 .. autofunction:: input_stream
 .. autofunction:: output_stream
@@ -58,6 +59,7 @@ These functions are provided by Disco to help :class:`disco.core.Job` creation:
 .. autofunction:: default_partition
 .. autofunction:: make_range_partition
 .. autofunction:: nop_reduce
+.. autofunction:: gzip_reader
 .. autofunction:: map_line_reader
 .. autofunction:: chain_reader
 .. autofunction:: netstr_reader
@@ -136,7 +138,7 @@ def reduce(input_stream, output_stream, params):
 
     :param input_stream: :class:`disco.func.InputStream` object that is used
         to iterate through input entries.
-    :param output_stream: :class:`disco.func.InputStream` object that is used
+    :param output_stream: :class:`disco.func.OutputStream` object that is used
         to output results.
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
@@ -145,15 +147,33 @@ def reduce(input_stream, output_stream, params):
 
         def fun_reduce(iter, out, params):
             d = {}
-            for w, c in iter:
-                d[w] = d.get(w, 1) + 1
-            for w, c in d.iteritems():
-                out.add(w, c)
+            for k, v in iter:
+                d[k] = d.get(k, 0) + 1
+            for k, c in d.iteritems():
+                out.add(k, c)
 
-    This example counts how many teams each key appears.
+    This example counts how many times each key appears.
 
     The reduce task can also be an external program.
     For more information, see :ref:`discoext`.
+    """
+
+def reduce2(input_stream, params):
+    """
+    Alternative reduce signature which takes 2 parameters.
+
+    Reduce functions with this signature should return an iterator
+    of ``key, value`` pairs, which will be implicitly added to the
+    :class:`disco.func.OutputStream`.
+
+    For instance::
+
+        def fun_reduce(iter, params):
+            from disco.util import kvgroup
+            for k, vs in kvgroup(sorted(iter)):
+                yield k, sum(1 for v in vs)
+
+    This example counts the number of values for each key.
     """
 
 def init(input_iter, params):
@@ -414,8 +434,27 @@ def nop_reduce(iter, out, params):
     for k, v in iter:
         out.add(k, v)
 
+def gzip_reader(fd, size, url, params):
+    """Wraps the input in a :class:`gzip.GzipFile` object."""
+    from gzip import GzipFile
+    return GzipFile(fileobj=fd), size, url
+
 def map_line_reader(fd, sze, fname):
-    """Yields each line of input."""
+    """
+    Yields each line of input.
+
+    (*Deprecated in 0.3.1*)
+    This reader is deprecated in favor of using the default Python
+    file-like object iterator.
+    Since 0.3, no reader is necessary for iterable objects returned from the
+    :func:`input_stream`.
+    For :func:`map` functions previously relying on this reader,
+    there is one small caveat to be aware of:
+    this reader has always stripped newline characters from the end of lines.
+    For file-like object iterators, lines are left in tact.
+    This may or may not affect jobs relying on this reader,
+    depending on how the lines are used.
+    """
     for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
         yield x[0]
 
@@ -427,7 +466,7 @@ def netstr_writer(fd, key, value, params):
 
 def object_writer(fd, key, value, params):
     """
-    *(Deprecated in 0.3)*
+    (*Deprecated in 0.3*)
     A wrapper for :func:`netstr_writer` that uses Python's ``cPickle``
     module to deserialize strings to Python objects.
    """
@@ -437,7 +476,7 @@ def object_writer(fd, key, value, params):
 
 def object_reader(fd, sze, fname):
     """
-    *(Deprecated in 0.3)*
+    (*Deprecated in 0.3*)
     A wrapper for :func:`netstr_reader` that uses Python's ``cPickle``
     module to serialize arbitrary Python objects to strings.
     """
@@ -473,15 +512,13 @@ def map_output_stream(stream, partition, url, params):
     An :func:`output_stream` which returns a handle to a partition output.
     The handle ensures that if a task fails, partially written data is ignored.
     """
-    from disco.fileutils import AtomicFile, PartitionFile
-    mpath, murl = Task.map_output(partition)
-    if not Task.ispartitioned:
-        Task.blobs.append(mpath)
-        return AtomicFile(mpath, 'w'), murl
+    from disco.fileutils import AtomicFile
+    if Task.ispartitioned:
+        path, url = Task.partition_output(partition)
     else:
-        ppath, purl = Task.partition_output(partition)
-        Task.blobs.append(ppath)
-        return PartitionFile(ppath, mpath, 'w'), purl
+        path, url = Task.map_output(partition)
+    Task.blobs.append(path)
+    return AtomicFile(path, 'w'), url
 
 def reduce_output_stream(stream, partition, url, params):
     """

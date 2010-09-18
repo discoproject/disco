@@ -3,7 +3,6 @@ from cStringIO import StringIO
 
 import pycurl
 
-from disco.events import Message
 from disco.error import CommError
 
 class CurlResponse(object):
@@ -46,10 +45,16 @@ class HTTPConnection(object):
         return self.handle.getinfo(getattr(pycurl, key))
 
     def __setitem__(self, key, value):
+        if isinstance(value, basestring):
+            value = value.encode('ascii')
         self.handle.setopt(getattr(pycurl, key), value)
 
     def getresponse(self):
         self.response.status = self['HTTP_CODE']
+        if self.response.status in httplib.responses:
+            self.response.reason = httplib.responses[self.response.status]
+        else:
+            self.response.reason = "Unknown status code %d" % self.response.status
         return self.response
 
     def prepare(self, method, url, body=None, headers={}):
@@ -78,6 +83,8 @@ class HTTPConnection(object):
         return self
 
     def request(self, method, url, body=None, headers={}):
+        if isinstance(body, unicode):
+            body = body.encode('utf8')
         self.prepare(method, url, body=body, headers=headers)
         try:
             self.handle.perform()

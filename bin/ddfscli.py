@@ -28,7 +28,7 @@ See also: :mod:`disco.settings`
 
 """
 
-import os, sys
+import fileinput, os, sys
 from itertools import chain
 
 if '.disco-home' in os.listdir('.'):
@@ -43,6 +43,9 @@ class DDFSOptionParser(OptionParser):
                         help='exclude match')
         self.add_option('-I', '--include',
                         help='include match')
+        self.add_option('-f', '--files',
+                        action='store_true',
+                        help='file mode for commands that take it.')
         self.add_option('-i', '--ignore-missing',
                         action='store_true',
                         help='ignore missing tags')
@@ -52,6 +55,7 @@ class DDFSOptionParser(OptionParser):
                         action='store_true',
                         help='prefix mode for commands that take it.')
         self.add_option('-R', '--reader',
+                        default='disco.func.chain_reader',
                         help='input reader to import and use')
         self.add_option('-r', '--recursive',
                         action='store_true',
@@ -91,6 +95,11 @@ class DDFS(Program):
         return DDFS(master=self.settings['DISCO_MASTER'],
                     read_token=self.options.token,
                     write_token=self.options.token)
+
+    def file_mode(self, *urls):
+        if self.options.files:
+            return fileinput.input(urls)
+        return urls
 
     def prefix_mode(self, *tags):
         if self.options.prefix:
@@ -222,7 +231,7 @@ def find(program, *tags):
             elif subtags == blobs == () and warn_missing:
                 print "Tag not found: %s" % "\t".join(tagpath)
             else:
-                print os.path.join(*tagpath)
+                print '\t'.join(tagpath)
 
 @DDFS.command
 def get(program, tag):
@@ -314,11 +323,12 @@ def push(program, tag, *files):
 
 @DDFS.command
 def put(program, tag, *urls):
-    """Usage: tag [url ...]
+    """Usage: tag [-f] [url ...]
 
     Put the urls[s] to the given tag.
+    Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.put(tag, [[url] for url in urls])
+    program.ddfs.put(tag, [url.split() for url in program.file_mode(*urls)])
 
 @DDFS.command
 def rm(program, *tags):
@@ -349,11 +359,12 @@ def stat(program, *tags):
 
 @DDFS.command
 def tag(program, tag, *urls):
-    """Usage: tag [url ...]
+    """Usage: tag [-f] [url ...]
 
     Tags the urls[s] with the given tag.
+    Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.tag(tag, [[url] for url in urls])
+    program.ddfs.tag(tag, [url.split() for url in program.file_mode(*urls)])
 
 @DDFS.command
 def touch(program, *tags):
@@ -386,11 +397,11 @@ def xcat(program, *urls):
     from disco.util import iterify, reify
 
     tags, urls = program.separate_tags(*urls)
-    reader = reify(program.options.reader or 'disco.func.chain_reader')
+    reader = reify(program.options.reader)
 
     for result in result_iterator(chain(urls, program.blobs(*tags)),
                                   reader=reader):
-        print '\t'.join(map(str, iterify(result)))
+        print '\t'.join(map(str, iterify(result))).rstrip()
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()

@@ -183,10 +183,10 @@ postop(_, _) -> not_found.
 
 job_file(Name, File) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    Home = disco_server:jobhome(Name),
+    Home = disco:jobhome(Name),
     {file, File, filename:join([Root, Home])}.
 
-update_setting("max_failure_rate", Val, App) ->
+update_setting(<<"max_failure_rate">>, Val, App) ->
     ok = application:set_env(App, max_failure_rate,
         list_to_integer(binary_to_list(Val)));
 

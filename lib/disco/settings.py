@@ -198,7 +198,7 @@ class DiscoSettings(Settings):
         'DISCO_EVENTS':          "''",
         'DISCO_FLAGS':           "''",
         'DISCO_HOME':            "guess_home()",
-        'DISCO_HTTPD':           "'lighttpd'",
+        'DISCO_HTTPD':           "'lighttpd -f $DISCO_PROXY_CONFIG'",
         'DISCO_MASTER':          "'http://%s:%s' % (DISCO_MASTER_HOST, DISCO_PORT)",
         'DISCO_MASTER_HOME':     "os.path.join(DISCO_HOME, 'master')",
         'DISCO_MASTER_HOST':     "socket.gethostname()",
@@ -268,6 +268,9 @@ class DiscoSettings(Settings):
     def ensuredirs(self):
         for name in self.must_exist:
             self.safedir(name)
+        config = self['DISCO_MASTER_CONFIG']
+        if not os.path.exists(config):
+            open(config, 'w').write('[["localhost","1"]]')
 
 def guess_erlang():
     if os.uname()[0] == 'Darwin':

@@ -53,9 +53,6 @@ class DiscodexOptionParser(OptionParser):
                         help='balancer to use for indexing')
         self.add_option('--metakeyer',
                         help='balancer to use for indexing')
-        self.add_option('--k-viter',
-                        action='store_true',
-                        help='treat the dataset as a precomputed k-viter list')
 
 class Discodex(Program):
     @property

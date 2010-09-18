@@ -2,8 +2,8 @@
 -export([is_valid_name/1, timestamp/0, timestamp/1, timestamp_to_time/1,
          ensure_dir/1, hashdir/5, safe_rename/2, format_timestamp/0,
          diskspace/1, fold_files/3, pack_objname/2, unpack_objname/1,
-         choose_random/1, choose_random/2, replace/3, startswith/2]).
-
+         choose_random/1, choose_random/2, replace/3, startswith/2,
+         concatenate/2, name_from_url/1]).
 -export([to_hex/1]).
 
 -include_lib("kernel/include/file.hrl").
@@ -58,6 +58,16 @@ unpack_objname(Obj) when is_binary(Obj) ->
 unpack_objname(Obj) ->
     [Name, Tstamp] = string:tokens(Obj, "$"),
     {list_to_binary(Name), timestamp_to_time(Tstamp)}.
+
+name_from_url(<<"tag://", Name/binary>>) ->
+    Name;
+name_from_url(Url) ->
+    case re:run(Url, "/../(.*)[$]", [{capture, all_but_first, binary}]) of
+        {match, [Name]} ->
+            Name;
+        _ ->
+            false
+    end.
 
 -spec ensure_dir(string()) -> 'eof' | 'ok' | {'error', _} | {'ok', _}.
 ensure_dir(Dir) ->
@@ -118,6 +128,25 @@ safe_rename(Src, Dst) ->
                 {error, E} -> {error, {chmod_failed, E}}
             end;
         _ -> {error, file_exists}
+    end.
+
+concatenate(Src, Dst) ->
+    {ok, SrcIO} = prim_file:open(Src, [read, raw, binary]),
+    {ok, DstIO} = prim_file:open(Dst, [append, raw]),
+    R = concatenate_do(SrcIO, DstIO),
+    prim_file:close(SrcIO),
+    prim_file:close(DstIO),
+    R.
+
+concatenate_do(SrcIO, DstIO) ->
+    case prim_file:read(SrcIO, 524288) of
+        {ok, Data} ->
+            ok = prim_file:write(DstIO, Data),
+            concatenate_do(SrcIO, DstIO);
+        eof ->
+            ok;
+        Error ->
+            Error
     end.
 
 -spec diskspace([byte()]|byte()) ->

@@ -1,4 +1,4 @@
-import hashlib, os, random, re, subprocess, sys, cPickle
+import hashlib, os, random, re, subprocess, sys, cPickle, time
 
 from functools import partial
 from itertools import chain
@@ -8,9 +8,8 @@ from disco import func, comm, util
 from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError, DataError
-from disco.events import Message, OutputURL, TaskFailed
-from disco.fileutils import AtomicFile
-from disco.fileutils import ensure_file, ensure_path, safe_update, write_files
+from disco.events import Status, OutputURL, TaskFailed
+from disco.fileutils import AtomicFile, ensure_file, ensure_path, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
 
@@ -30,7 +29,12 @@ class Task(object):
         self.jobdict  = jobdict
         self.jobname  = jobname
         self.settings = settings
-        self.blobs   = []
+        self.blobs    = []
+        self.mode     = self.__class__.__name__.lower()
+        self.run_id   = "%s:%d-%x-%x" % (self.mode,
+                                         self.id,
+                                         int(time.time() * 1000),
+                                         os.getpid())
 
         if not jobdict:
             self.jobdict = JobDict.unpack(open(self.jobpack),
@@ -40,7 +44,7 @@ class Task(object):
     def __getattr__(self, key):
         if key in self.jobdict:
             return self.jobdict[key]
-        task_key = '%s_%s' % (self.__class__.__name__.lower(), key)
+        task_key = '%s_%s' % (self.mode, key)
         if task_key in self.jobdict:
             return self.jobdict[task_key]
         raise AttributeError("%s has no attribute %s" % (self, key))
@@ -48,9 +52,8 @@ class Task(object):
     def __iter__(self):
         return self.entries
 
-    @property
-    def hex_key(self):
-        return hashlib.md5(self.jobname).hexdigest()[:2]
+    def hex_key(self, name):
+        return hashlib.md5(name).hexdigest()[:2]
 
     @property
     def host(self):
@@ -71,11 +74,23 @@ class Task(object):
 
     @property
     def jobpath(self):
-        return os.path.join(self.host, self.hex_key, self.jobname)
+        return os.path.join(self.host,
+                            self.hex_key(self.jobname),
+                            self.jobname)
+
+    @property
+    def taskpath(self):
+        return os.path.join(self.jobpath,
+                            self.hex_key(self.run_id),
+                            self.run_id)
 
     @property
     def jobroot(self):
         return os.path.join(self.settings['DISCO_DATA'], self.jobpath)
+
+    @property
+    def taskroot(self):
+        return os.path.join(self.settings['DISCO_DATA'], self.taskpath)
 
     @property
     def lib(self):
@@ -122,22 +137,28 @@ class Task(object):
 
     def partition_output(self, partition):
         filename = 'part-disco-%.9d' % partition
-        return self.path(filename), self.url(filename)
+        return self.path(filename), self.url(filename, scheme='part')
 
     def path(self, filename):
-        return os.path.join(self.jobroot, filename)
+        return os.path.join(self.taskroot, filename)
 
     def url(self, filename, scheme='disco'):
-        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.jobpath, filename)
+        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.taskpath, filename)
+
+    def open_url(self, url):
+        scheme, netloc, rest = util.urlsplit(url, localhost=self.host)
+        if scheme == 'file':
+            return comm.open_local(rest)
+        return comm.open_remote('%s://%s/%s' % (scheme, netloc, rest))
 
     def track_status(self, iterator, message_template):
         status_interval = self.status_interval
         n = -1
         for n, item in enumerate(iterator):
             if status_interval and (n + 1) % status_interval == 0:
-                Message(message_template % (n + 1))
+                Status(message_template % (n + 1))
             yield item
-        Message("Done: %s" % (message_template % (n + 1)))
+        Status("Done: %s" % (message_template % (n + 1)))
 
     def connect_input(self, url, fd=None, size=None):
         def fd_tuple(object, *args):
@@ -174,9 +195,10 @@ class Task(object):
 
     @property
     def connected_inputs(self):
-        inputs = [url for input in self.inputs
+        shuffled = list(self.inputs)
+        random.shuffle(shuffled)
+        inputs = [url for input in shuffled
                   for url in util.urllist(input, partid=self.partid)]
-        random.shuffle(inputs)
         for input in inputs:
             yield self.connect_input(input)
 
@@ -208,13 +230,15 @@ class Task(object):
 
     def run(self):
         assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
-        os.chdir(self.jobroot)
+        ensure_path(self.taskroot)
+        os.chdir(self.taskroot)
+        os.symlink(self.lib, 'lib')
         self._run_profile() if self.profile else self._run()
 
     def _run_profile(self):
         from cProfile import runctx
-        name = 'profile-%s-%s' % (self.__class__.__name__, self.id)
-        path = os.path.join(self.jobroot, name)
+        name = 'profile-%s-%s' % (self.mode, self.id)
+        path = os.path.join(self.taskroot, name)
         runctx('self._run()', globals(), locals(), path)
         self.put(name, file(path).read())
 
@@ -267,14 +291,15 @@ class Map(Task):
 
         index, index_url = self.map_index
 
-        for output in outputs:
+        f = file(index, 'w')
+        for i, output in enumerate(outputs):
+            print >> f, '%d %s' % (i, output.url)
             output.close()
-        safe_update(index, ['%d %s' % (i, output.url)
-                            for i, output in enumerate(outputs)])
+        f.close()
 
         if self.save and not self.reduce:
             OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
-            Message("Results pushed to DDFS")
+            Status("Results pushed to DDFS")
         else:
             OutputURL(index_url)
 
@@ -320,20 +345,26 @@ class Reduce(Task):
             self.insert_globals([self.reduce])
 
         total_size = sum(size for fd, size, url in self.connected_inputs)
-        Message("Input is %s" % (util.format_size(total_size)))
+        Status("Input is %s" % (util.format_size(total_size)))
 
         self.init(entries, params)
-        self.reduce(entries, red_out, params)
+        if util.argcount(self.reduce) < 3:
+            for k, v in self.reduce(entries, *(params, )):
+                red_out.add(k, v)
+        else:
+            self.reduce(entries, red_out, params)
 
         self.close_output(fd_list)
         external.close_ext()
 
         if self.save:
             OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
-            Message("Results pushed to DDFS")
+            Status("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
-            safe_update(index, ['%d %s' % (self.id, out_url)])
+            f = file(index, 'w')
+            print >> f, '%d %s' % (self.id, out_url)
+            f.close()
             OutputURL(index_url)
 
     def __iter__(self):
@@ -344,7 +375,7 @@ class Reduce(Task):
         return self.entries
 
     def disk_sort(self, filename):
-        Message("Sorting %s..." % filename)
+        Status("Sorting %s..." % filename)
         try:
             subprocess.check_call(['sort',
                                    '-z',
@@ -356,7 +387,7 @@ class Reduce(Task):
                                    filename])
         except subprocess.CalledProcessError, e:
             raise DataError("Sorting %s failed: %s" % (filename, e))
-        Message("Finished sorting")
+        Status("Finished sorting")
 
     @property
     def merge_sorted_entries(self):
@@ -366,18 +397,18 @@ class Reduce(Task):
     @property
     def sorted_entries(self):
         dlname = self.path('reduce-in-%d.dl' % self.id)
-        Message("Downloading %s" % dlname)
+        Status("Downloading %s" % dlname)
         out_fd = AtomicFile(dlname, 'w')
         for key, value in self.entries:
             if not isinstance(key, str):
-                raise ValueError("Keys must be strings for external sort")
+                raise ValueError("Keys must be strings for external sort", key)
             if '\xff' in key or '\x00' in key:
-                raise ValueError("Cannot sort keys with 0xFF or 0x00 bytes")
+                raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
             else:
                 # value pickled using protocol 0 will always be printable ASCII
                 out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
         out_fd.close()
-        Message("Downloaded OK")
+        Status("Downloaded OK")
 
         self.disk_sort(dlname)
         fd, size, url = comm.open_local(dlname)

@@ -42,9 +42,9 @@ copyright = '2008-2009, Nokia Corporation and the Disco project'
 # other places throughout the built documents.
 #
 # The short X.Y version.
-version = '0.3'
+version = '0.3.1'
 # The full version, including alpha/beta/rc tags.
-release = '0.3'
+release = '0.3.1'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:

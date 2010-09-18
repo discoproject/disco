@@ -14,7 +14,7 @@ static void read_pairs(FILE *in, struct ddb_cons *db)
     while(fscanf(in, "%as %as\n", &key, &value) == 2){
         struct ddb_entry key_e = {.data = key, .length = strlen(key)};
         struct ddb_entry val_e = {.data = value, .length = strlen(value)};
-        if (ddb_add(db, &key_e, &val_e)){
+        if (ddb_cons_add(db, &key_e, &val_e)){
             fprintf(stderr, "Adding '%s':'%s' failed\n", key, value);
             exit(1);
         }
@@ -33,7 +33,7 @@ static void read_keys(FILE *in, struct ddb_cons *db)
 
     while(fscanf(in, "%as\n", &key) == 1){
         struct ddb_entry key_e = {.data = key, .length = strlen(key)};
-        if (ddb_add(db, &key_e, NULL)){
+        if (ddb_cons_add(db, &key_e, NULL)){
             fprintf(stderr, "Adding '%s' failed\n", key);
             exit(1);
         }
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 
     fprintf(stderr, "Packing the index..\n");
 
-    if (!(data = ddb_finalize(db, &size, flags))){
+    if (!(data = ddb_cons_finalize(db, &size, flags))){
         fprintf(stderr, "Packing the index failed\n");
         exit(1);
     }

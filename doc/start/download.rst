@@ -43,5 +43,3 @@ Disco master or nodes.
 
 .. _official releases: http://github.com/tuulos/disco/downloads
 .. _github: http://github.com/tuulos/disco
-.. _EC2: http://aws.amazon.com
-.. _setup-instances.py: http://github.com/tuulos/disco/blob/master/aws/setup-instances.py

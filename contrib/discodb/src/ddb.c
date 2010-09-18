@@ -280,6 +280,7 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
         if (id < db->num_keys)
             get_item(c, id, &c->cursor.value);
         if (id >= db->num_keys || !key_matches(c)){
+            c->num_items = c->cursor.value.num_left = 0;
             c->next = empty_next;
             return c;
         }
@@ -291,6 +292,7 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
             if (key_matches(c))
                 goto found;
         }
+        c->num_items = c->cursor.value.num_left = 0;
         c->next = empty_next;
         return c;
     }
@@ -323,7 +325,13 @@ struct ddb_cursor *ddb_query(struct ddb *db,
 
     c->db = db;
     c->num_items = 0;
-    c->next = ddb_cnf_cursor_next;
+
+    if (length)
+        c->next = ddb_cnf_cursor_next;
+    else{
+        c->next = empty_next;
+        return c;
+    }
 
     c->cursor.cnf.num_clauses = length;
     c->cursor.cnf.num_terms = num_terms;

@@ -9,7 +9,7 @@
 
 -include("config.hrl").
 
--record(state, {nodes :: [{node(), non_neg_integer()}],
+-record(state, {nodes :: [{node(), {non_neg_integer(), non_neg_integer()}}],
                 tags :: gb_tree(),
                 tag_cache :: 'false' | gb_set(),
                 blacklisted :: [node()]}).
@@ -49,7 +49,7 @@ handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
     %    are not excluded or blacklisted.
     % 2. if K nodes cannot be found this way, choose the K emptiest
     %    nodes which are not excluded or blacklisted.
-    Primary = [Node || {Node, Free} <- S#state.nodes,
+    Primary = [Node || {Node, {Free, _Total}} <- S#state.nodes,
                 Free > ?MIN_FREE_SPACE / 1024] -- (Exclude ++ BL),
     if length(Primary) >= K ->
         {reply, {ok, ddfs_util:choose_random(Primary, K)}, S};
@@ -156,11 +156,10 @@ get_tags(filter, Nodes) ->
     case gen_server:call(ddfs_master,
             {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
         {ok, Deleted} ->
-            TagSet = gb_sets:from_ordset(
-                [[<<"tag://", T/binary>>] || T <- Tags]),
-            DelSet = gb_sets:insert([<<"tag://+deleted">>], Deleted),
-            {OkNodes, Failed, [T || [<<"tag://", T/binary>>]
-                <- gb_sets:to_list(gb_sets:subtract(TagSet, DelSet))]};
+            TagSet = gb_sets:from_ordset(Tags),
+            DelSet = gb_sets:insert(<<"+deleted">>, Deleted),
+            NotDeleted = gb_sets:to_list(gb_sets:subtract(TagSet, DelSet)),
+            {OkNodes, Failed, NotDeleted};
         E ->
             E
     end;

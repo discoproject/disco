@@ -1,4 +1,4 @@
-import httplib, os, time, struct, base64
+import httplib, os, random, struct, time, socket, base64
 from cStringIO import StringIO
 
 from disco.error import CommError
@@ -42,6 +42,9 @@ def isredirection(status):
 def issuccessful(status):
     return str(status).startswith('2')
 
+def isunavailable(status):
+    return status == httplib.SERVICE_UNAVAILABLE
+
 def range_header(offset):
     def httprange(start='', end=''):
         return '%s-%s' % (start, end)
@@ -67,23 +70,29 @@ def request(method, url, data=None, headers={}, sleep=0):
         conn = HTTPConnection(str(netloc))
         conn.request(method, '/%s' % path, body=data, headers=headers)
         response = conn.getresponse()
-    except (httplib.HTTPException, httplib.socket.error), e:
-        raise CommError("Request failed: %s" % e, url)
+        status = response.status
+        errmsg = response.reason
+    except httplib.HTTPException, e:
+        status = None
+        errmsg = str(e) or repr(e)
+    except (httplib.socket.error, socket.error), e:
+        status = None
+        errmsg = e if isinstance(e, basestring) else e[1]
 
-    if response.status == httplib.SERVICE_UNAVAILABLE:
+    if not status or isunavailable(status):
         if sleep == 9:
-            raise CommError("Service unavailable", url)
-        time.sleep(2**sleep)
+            raise CommError(errmsg, url, status)
+        time.sleep(random.randint(1, 2**sleep))
         return request(method, url, data=data, headers=headers, sleep=sleep + 1)
-    elif isredirection(response.status):
+    elif isredirection(status):
         loc = response.getheader('location')
         return request(method,
                        loc if loc.startswith('http:') else resolveuri(url, loc),
                        data=data,
                        headers=headers,
                        sleep=sleep)
-    elif not issuccessful(response.status):
-        raise CommError(response.read(), url, response.status)
+    elif not issuccessful(status):
+        raise CommError(response.read(), url, status)
     return response
 
 def download(url, method='GET', data=None, offset=(), token=None):
@@ -140,7 +149,14 @@ class Connection(object):
         self.i = 0
 
     def __iter__(self):
-        pass
+        chunk = self._read_chunk(CHUNK_SIZE)
+        while chunk:
+            next_chunk = self._read_chunk(CHUNK_SIZE)
+            lines = list(StringIO(chunk))
+            last  = lines.pop() if next_chunk else ''
+            for line in lines:
+                yield line
+            chunk = last + next_chunk
 
     def __len__(self):
         if 'content-range' in self.headers:

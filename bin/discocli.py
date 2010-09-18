@@ -64,6 +64,12 @@ class DiscoOptionParser(OptionParser):
                         action='callback',
                         callback=self.update_jobdict,
                         help='enable job profiling')
+        self.add_option('--param',
+                        action='append',
+                        default=[],
+                        dest='params',
+                        nargs=2,
+                        help='add a job parameter')
         self.add_option('--partitions',
                         action='callback',
                         callback=self.update_jobdict,
@@ -201,7 +207,7 @@ def debug(program, host=''):
     Host is only necessary when master is running on a remote machine.
     """
     from subprocess import Popen
-    master = program.master
+    master = Master(program.settings)
     nodename = '%s@%s' % (master.name, host) if host else master.nodename
     args = program.settings['DISCO_ERLANG'].split() + \
            ['-remsh', nodename,
@@ -408,6 +414,7 @@ def run(program, jobclass, *inputs):
     Create an instance of jobclass and run it.
     Input urls are specified as arguments or read from stdin.
     """
+    from disco.core import Params
     from disco.util import reify
     def maybe_list(seq):
         return seq[0] if len(seq) == 1 else seq
@@ -415,6 +422,13 @@ def run(program, jobclass, *inputs):
     input = inputs or [maybe_list(line.split())
                        for line in fileinput.input(inputs)]
     job = reify(jobclass)(program.disco, name)
+
+    try:
+        params = job.params
+    except AttributeError:
+        params = Params()
+    params.__dict__.update(**dict(program.options.params))
+
     job.run(input=input, **program.option_parser.jobdict)
     print job.name
 

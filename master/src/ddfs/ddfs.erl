@@ -2,8 +2,9 @@
 
 -include("config.hrl").
 
--export([new_blob/4, tags/2, get_tag/4, update_tag/4,
-         update_tag_delayed/4, replace_tag/5, delete/3, delete_attrib/4]).
+-export([new_blob/4, tags/2, get_tag/4, update_tag/4, update_tag/5,
+         update_tag_delayed/4, update_tag_delayed/5,
+         replace_tag/5, delete/3, delete_attrib/4]).
 
 -spec new_blob(node(), string(), non_neg_integer(), [node()]) ->
     'invalid_name' | 'too_many_replicas' | {'ok', [string()]} | _.
@@ -42,11 +43,20 @@ get_tag(Host, Tag, Attrib, Token) ->
 
 -spec update_tag(node(), string(), [binary()], ddfs_tag:token()) -> _.
 update_tag(Host, Tag, Urls, Token) ->
-    tagop(Host, Tag, {update, Urls, Token}).
+    update_tag(Host, Tag, Urls, Token, []).
+
+-spec update_tag(node(), string(), [binary()], ddfs_tag:token(), [term()]) -> _.
+update_tag(Host, Tag, Urls, Token, Opt) ->
+    tagop(Host, Tag, {update, Urls, Token, Opt}).
 
 -spec update_tag_delayed(node(), string(), [binary()], ddfs_tag:token()) -> _.
 update_tag_delayed(Host, Tag, Urls, Token) ->
-    tagop(Host, Tag, {delayed_update, Urls, Token}).
+    update_tag_delayed(Host, Tag, Urls, Token, []).
+
+-spec update_tag_delayed(node(), string(), [binary()],
+                         ddfs_tag:token(), [term()]) -> _.
+update_tag_delayed(Host, Tag, Urls, Token, Opt) ->
+    tagop(Host, Tag, {delayed_update, Urls, Token, Opt}).
 
 -spec replace_tag(node(), string(),
                   ddfs_tag:attrib(), [binary()], ddfs_tag:token()) -> _.

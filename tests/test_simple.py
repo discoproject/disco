@@ -8,7 +8,7 @@ class SimpleTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [('=' + e, e)]
+        yield '=' + e, e
 
     @staticmethod
     def reduce(iter, out, params):
@@ -22,3 +22,12 @@ class SimpleTestCase(DiscoJobTestFixture, DiscoTestCase):
     def answers(self):
         yield ('result',
                102838057849351261119838300575805205791938675762040158350002406688858214958513887550465113168573010369619140625)
+
+class SimplerTestCase(SimpleTestCase):
+    @staticmethod
+    def reduce(iter, params):
+        s = 1
+        for k, v in iter:
+            assert k == '=' + v, "Corrupted key!"
+            s *= int(v)
+        yield 'result', s

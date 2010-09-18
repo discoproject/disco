@@ -1,0 +1,3 @@
+[submodule "contrib/java-ext"]
+	path = contrib/java-ext
+	url = http://github.com/ryan-maus/disco-java-ext.git

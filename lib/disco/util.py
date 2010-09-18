@@ -9,7 +9,7 @@ The :func:`external` function below comes in handy if you use the Disco
 external interface.
 """
 import os, sys
-import cPickle, marshal, time
+import cPickle, marshal, time, gzip
 import copy_reg, functools
 
 from cStringIO import StringIO
@@ -68,6 +68,13 @@ def key((k, v)):
     return k
 
 def kvgroup(kviter):
+    """
+    Group the values of consecutive keys which compare equal.
+
+    Takes an iterator over ``k, v`` pairs,
+    and returns an iterator over ``k, vs``.
+    Does not sort the input first.
+    """
     for k, kvs in groupby(kviter, key):
         yield k, (v for _k, v in kvs)
 
@@ -123,13 +130,13 @@ def pack(object):
 def unpack(string, globals={'__builtins__': __builtins__}):
     try:
         return cPickle.loads(string)
-    except Exception, err:
+    except Exception:
         try:
-           code, defs = marshal.loads(string)
-           defs = tuple([unpack(x) for x in defs]) if defs else None
-           return FunctionType(code, globals, argdefs = defs)
-        except:
-            raise err
+            code, defs = marshal.loads(string)
+            defs = tuple([unpack(x) for x in defs]) if defs else None
+            return FunctionType(code, globals, argdefs = defs)
+        except Exception, e:
+            raise ValueError("Could not unpack: %s (%s)" % (string, e))
 
 def pack_stack(stack):
     return pack([pack(object) for object in stack])
@@ -140,12 +147,23 @@ def unpack_stack(stackstring, globals={}):
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('file', url)
 
-def urlsplit(url):
+def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
     locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
     if scheme == 'disco':
-        scheme = 'http'
-        locstr = '%s:%s' % (locstr, DiscoSettings()['DISCO_PORT'])
+        prefix, fname = path.split('/', 1)
+        if locstr == localhost:
+            scheme = 'file'
+            if prefix == 'ddfs':
+                path = os.path.join(settings['DDFS_ROOT'], fname)
+            else:
+                path = os.path.join(settings['DISCO_DATA'], fname)
+        else:
+            scheme = 'http'
+            locstr = '%s:%s' % (locstr, settings['DISCO_PORT'])
+    if scheme == 'tag':
+        if not path:
+            path, locstr = locstr, ''
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url):
@@ -159,18 +177,18 @@ def auth_token(url):
         return auth.split(':')[1] if ':' in auth else auth
 
 def urllist(url, partid=None, listdirs=True, ddfs=None):
+    from disco.ddfs import DDFS, istag
+    if istag(url):
+        ret = []
+        for name, tags, blobs in DDFS(ddfs).findtags(url):
+            ret += blobs
+        return ret
     if isiterable(url):
         return [list(url)]
     scheme, netloc, path = urlsplit(url)
     ddfs_token = auth_token(url)
     if scheme == 'dir' and listdirs:
         return parse_dir(url, partid=partid)
-    elif scheme == 'tag':
-        from disco.ddfs import DDFS
-        ret = []
-        for name, tags, blobs in DDFS(ddfs).findtags(url, token=ddfs_token):
-            ret += blobs
-        return ret
     return [url]
 
 def msg(message):
@@ -247,7 +265,10 @@ def read_index(dir_url):
     from disco.comm import download
     scheme, netloc, path = urlsplit(dir_url)
     url = proxy_url(path, netloc)
-    for line in download(url).splitlines():
+    body = StringIO(download(url))
+    if url.endswith(".gz"):
+        body = gzip.GzipFile(fileobj = body)
+    for line in body:
         id, url = line.split()
         yield int(id), url
 
@@ -287,7 +308,7 @@ def ddfs_save(blobs, name, master):
     blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
              for blob in blobs]
     tag = ddfs_name(name)
-    ddfs.push(tag, blobs, retries=600, delayed=True)
+    ddfs.push(tag, blobs, retries=600, delayed=True, update=True)
     return "tag://%s" % tag
 
 def format_size(num):

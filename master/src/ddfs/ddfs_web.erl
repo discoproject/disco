@@ -93,12 +93,14 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
 
 op('POST', "/ddfs/tag/" ++ Tag, Req) ->
     Token = parse_auth_token(Req),
-    tag_update(fun(Urls, _) ->
-        case lists:keysearch("delayed", 1, Req:parse_qs()) of
+    QS = Req:parse_qs(),
+    Opt = if_set("update", QS, [nodup], []),
+    tag_update(fun(Urls, _Size) ->
+        case is_set("delayed", QS) of
+            true ->
+                ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token, Opt);
             false ->
-                ddfs:update_tag(ddfs_master, Tag, Urls, Token);
-            _ ->
-                ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token)
+                ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
         end
     end, Req);
 
@@ -152,6 +154,22 @@ op('GET', Path, Req) ->
 op(_, _, Req) ->
     Req:not_found().
 
+is_set(Flag, QS) ->
+    case lists:keysearch(Flag, 1, QS) of
+        {value, {_, [_|_]}} ->
+            true;
+        _ ->
+            false
+    end.
+
+if_set(Flag, QS, True, False) ->
+    case is_set(Flag, QS) of
+        true ->
+            True;
+        false ->
+            False
+    end.
+
 -spec error(_, module()) -> _.
 error(timeout, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});
@@ -170,8 +188,8 @@ error({error, unknown_attribute}, Req) ->
 error({error, E}, Req) when is_atom(E) ->
     Req:respond({500, [], ["Internal server error: ", atom_to_list(E)]});
 error(E, Req) ->
-    Req:respond({500, [], ["Internal server error:"
-                           ++ io_lib:format("~p", [E])]}).
+    Msg = ["Internal server error: ", io_lib:format("~p", [E])],
+    Req:respond({500, [], Msg}).
 
 -spec okjson([binary()], module()) -> _.
 okjson(Data, Req) ->

@@ -155,7 +155,7 @@ handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
     error(recoverable, Message, S);
 
 handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, S) ->
-    event({"END", "Task finished in " ++ disco_server:format_time(S#state.start_time)}, S),
+    event({"END", "Task finished in " ++ disco:format_time(S#state.start_time)}, S),
     {stop, worker_exit(S, {job_ok, S#state.results}), S};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
@@ -168,6 +168,10 @@ handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
 handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
     % event({"OUT", "Results at " ++ Results}, S),
     {noreply, S#state{results = Results}};
+
+handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, S) ->
+    event({<<"STA">>, Message}, S),
+    {noreply, S};
 
 % rate limited event
 handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
