@@ -123,11 +123,7 @@ handle_cast({{delayed_update, Urls, Token, Opt}, ReplyTo},
 handle_cast(M, #state{delayed = Buffer} = S0) when Buffer =/= false ->
     Fun =
         fun({Opt, {Waiters, Urls}}, S) ->
-            OldUrls = case S#state.data of
-                          #tagcontent{urls = U} -> U;
-                          _ -> []
-                      end,
-            do_update(Urls, Opt, Waiters, OldUrls, S)
+            do_update(Urls, Opt, Waiters, S)
         end,
     NewState =
         lists:foldl(Fun, S0#state{delayed = false}, gb_trees:to_list(Buffer)),
@@ -167,17 +163,8 @@ handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
     {noreply, S, S#state.timeout};
 
-handle_cast({{update, _, _, _}, _ReplyTo} = M, #state{data = notfound} = S) ->
-    S1 = update(M, [], S),
-    {noreply, S1, S1#state.timeout};
-
-handle_cast({{update, _, _, _}, _ReplyTo} = M, #state{data = deleted} = S) ->
-    S1 = update(M, [], S),
-    {noreply, S1, S1#state.timeout};
-
-handle_cast({{update, _Urls, _Token, _Opt}, _ReplyTo} = M,
-            #state{data = #tagcontent{} = D} = S) ->
-    S1 = update(M, D#tagcontent.urls, S),
+handle_cast({{update, _Urls, _Token, _Opt}, _ReplyTo} = M, S) ->
+    S1 = update(M, S),
     {noreply, S1, S1#state.timeout};
 
 handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
@@ -260,9 +247,19 @@ authorize(TokenType, Token, ReplyTo, ReadToken, WriteToken, S, Op) ->
             Op(TokenPrivilege)
     end.
 
-update({{update, Urls, Token, Opt}, ReplyTo}, OldUrls, S) ->
-    Do = fun(_TokenType) -> do_update(Urls, Opt, ReplyTo, OldUrls, S) end,
+update({{update, Urls, Token, Opt}, ReplyTo}, S) ->
+    Do = fun(_TokenType) -> do_update(Urls, Opt, ReplyTo, S) end,
     authorize(write, Token, ReplyTo, S, Do).
+
+do_update(Urls, Opt, ReplyTo, #state{data = notfound} = State) ->
+    do_update(Urls, Opt, ReplyTo, [], State);
+
+do_update(Urls, Opt, ReplyTo, #state{data = deleted} = State) ->
+    do_update(Urls, Opt, ReplyTo, [], State);
+
+do_update(Urls, Opt, ReplyTo, #state{data = #tagcontent{} = D} = State) ->
+    OldUrls = D#tagcontent.urls,
+    do_update(Urls, Opt, ReplyTo, OldUrls, State).
 
 do_update(Urls, Opt, ReplyTo, OldUrls, State) ->
     case ddfs_tag_util:validate_urls(Urls) of
