@@ -121,11 +121,8 @@ def attrs(program, tag):
     List the attributes of a tag.
     """
     d = program.ddfs.attrs(tag)
-    if isinstance(d, dict):
-        for a in d:
-            print ("%s: %s" % (a, d[a]))
-    else:
-        print d
+    for k,v in d.iteritems():
+        print ("%s: %s" % (k, v))
 
 @DDFS.command
 def blobs(program, *tags):
