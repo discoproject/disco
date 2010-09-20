@@ -55,13 +55,11 @@ class DDFS(object):
     """
     def __init__(self, master=None,
                  proxy=None,
-                 settings=DiscoSettings(),
-                 read_token=None,
-                 write_token=None):
+                 settings=DiscoSettings()):
         self.proxy  = proxy or settings['DISCO_PROXY']
         self.master = self.proxy or master or settings['DISCO_MASTER']
-        self.read_token = read_token or settings['DDFS_READ_TOKEN']
-        self.write_token = write_token or settings['DDFS_WRITE_TOKEN']
+        self.read_token = settings['DDFS_READ_TOKEN']
+        self.write_token = settings['DDFS_WRITE_TOKEN']
 
     @classmethod
     def safe_name(cls, name):
