@@ -52,9 +52,11 @@ function Job(name) {
   self.update_info = function (data) {
     self.status = data.active;
     self.started = data.timestamp;
+    self.username = data.username;
 
     $("#nfo_status").text(self.status);
     $("#nfo_started").text(self.started);
+    $("#nfo_username").text(self.username);
     $("#nfo_map").html(make_jobinfo_row(data.mapi, "Map"));
     $("#nfo_red").html(make_jobinfo_row(data.redi, "Reduce"));
 
