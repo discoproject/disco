@@ -583,4 +583,8 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 break
 
 chain_reader = netstr_reader = disco_input_stream
+
+chain_stream = (map_input_stream, chain_reader)
 default_stream = (map_input_stream, )
+gzip_stream = (map_input_stream, gzip_reader)
+gzip_line_stream = (map_input_stream, gzip_line_reader)
