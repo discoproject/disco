@@ -53,9 +53,10 @@ class DiscodexOptionParser(OptionParser):
         self.add_option('--balancer',
                         help='balancer to use for indexing')
         self.add_option('--metakeyer',
-                        help='balancer to use for indexing')
-        self.add_option('--unique-items',
-                        help='balancer to use for indexing')
+                        help='metakeyer to use for indexing')
+        self.add_option('-u', '--unique-items',
+                        action='store_true',
+                        help='ensure unique items in discodbs')
         self.add_option('--param',
                         action='append',
                         default=[],
