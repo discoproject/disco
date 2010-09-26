@@ -217,7 +217,7 @@ def inquire(program, indexspec, inquiry, query=None):
                                          streams=program.options.streams,
                                          reduce=program.options.reduce,
                                          params=dict(program.options.params)):
-        print '\t'.join('%s' % e for e in iterify(result)).rstrip()
+        print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
 
 @Discodex.command
 def items(program, indexspec):

@@ -346,7 +346,7 @@ def mapresults(program, jobname):
     """
     from disco.util import iterify
     for result in program.disco.mapresults(jobname):
-        print '\t'.join('%s' % e for e in iterify(result)).rstrip()
+        print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
 
 @Disco.command
 def nodeinfo(program):
@@ -404,7 +404,7 @@ def results(program, jobname):
     from disco.util import iterify
     status, results = program.disco.results(jobname)
     for result in results:
-        print '\t'.join('%s' % e for e in iterify(result)).rstrip()
+        print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
 
 @Disco.command
 def run(program, jobclass, *inputs):

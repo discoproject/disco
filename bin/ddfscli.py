@@ -453,7 +453,7 @@ def xcat(program, *urls):
     for record in RecordIter(chain(urls, program.blobs(*tags)),
                              input_stream=stream,
                              reader=reader):
-        print '\t'.join('%s' % e for e in iterify(record)).rstrip()
+        print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()
