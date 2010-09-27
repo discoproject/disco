@@ -112,8 +112,7 @@ class DDFS(Program):
 
     def separate_tags(self, *urls):
         from disco.util import partition
-        def istag(url):
-            return url.startswith('tag://') or '/' not in url
+        from disco.ddfs import istag
         return partition(urls, istag)
 
 @DDFS.command
