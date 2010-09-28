@@ -72,7 +72,7 @@ is ``rawparse``.
 It simply takes the string attached to ``raw://`` URLs, and decodes them in
 a special way to produce keys and values::
 
-        echo raw://hello:world | discodex index
+        discodex index raw://hello:world
 
 If you check the disco status web page, you can still see the job Discodex
 executed to build the index.
@@ -160,7 +160,7 @@ Querying the index
 
 Let's build a slightly more complicated index and try querying it::
 
-        echo raw://hello:world,hello:there,hi:world,hi:mom | discodex index
+        discodex index raw://hello:world,hello:there,hi:world,hi:mom
         discodex clone <index> rawindex
 
 Go ahead and try the following queries::
@@ -181,7 +181,7 @@ Index the docs
 Let's try indexing some real files now.
 We can use the Disco documentation::
 
-        find $DISCO_HOME/doc -name \*.rst | discodex index --parser wordparse
+        find $DISCO_HOME/doc -name \*.rst | xargs discodex index --parser wordparse
 
 .. note:: Any text files will work, just make sure to pass absolute paths.
 

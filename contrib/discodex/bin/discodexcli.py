@@ -37,6 +37,9 @@ from disco.util import iterify
 class DiscodexOptionParser(OptionParser):
     def __init__(self, **kwargs):
         OptionParser.__init__(self, **kwargs)
+        self.add_option('-f', '--files',
+                        action='store_true',
+                        help='file mode for commands that take it.')
         self.add_option('-H', '--host',
                         help='host that the client should connect to')
         self.add_option('-P', '--port',
@@ -104,18 +107,25 @@ class Discodex(Program):
                                             self.settings['DISCODEX_HTTP_PORT'])
         print "Disco master at %s" % self.settings['DISCODEX_DISCO_MASTER']
 
+    def file_mode(self, *urls):
+        if self.options.files:
+            return fileinput.input(urls)
+        return urls
+
     def server_command(self, command):
         for message in chain(getattr(self.djangoscgi, command)(),
                              getattr(self.lighttpd, command)()):
             print message
 
 @Discodex.command
-def help(program):
-    print program
-    print """
-    <indexspec> is the full URI to an index, or the name of an index on --host and --port.
-    [query] is a query in CNF form: ','-separated literals, ' '-separated clauses a,b c == (a or b) and c
-    """
+def help(program, *args):
+    command, leftover = program.search(args)
+    print command
+    if not args:
+        print """
+        <indexspec> is the full URI to an index, or the name of an index on --host and --port.
+        [query] is a query in CNF form: ','-separated literals, ' '-separated clauses a,b c == (a or b) and c
+        """
 
 @Discodex.command
 def restart(program):
@@ -169,13 +179,13 @@ def get(program, indexspec):
     print program.client.get(indexspec)
 
 @Discodex.command
-def put(program, indexspec, *files):
-    """Usage: <indexspec> file ...
+def put(program, indexspec, *urls):
+    """Usage: [-f] <indexspec> url ...
 
-    Read ichunk urls from file[s], and put them to an index at indexspec.
+    Read ichunk urls from url[s], and put them to an index at indexspec.
     """
     from discodex.objects import Index
-    index = Index(urls=[[line.strip()] for line in fileinput.input(files)])
+    index = Index(urls=[url.split() for url in program.file_mode(*urls)])
     program.client.put(indexspec, index)
 
 @Discodex.command
@@ -188,14 +198,14 @@ def list(program):
         print index
 
 @Discodex.command
-def index(program, *files):
-    """Usage: [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [file ...]
+def index(program, *urls):
+    """Usage: [-f] [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [url ...]
 
-    Read input urls from file[s], and index using the specified options.
+    Read input urls from urls[s], and index using the specified options.
     """
     from discodex.objects import DataSet
     dataset = DataSet(options=program.option_dict,
-                      input=[line.strip() for line in fileinput.input(files)])
+                      input=[url.split() for url in program.file_mode(*urls)])
     print program.client.index(dataset)
 
 
