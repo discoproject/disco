@@ -46,6 +46,16 @@ def tagname(tag):
     scheme, netloc, name = urlsplit(canonizetag(tag))
     return name
 
+def relativizetag(tag, parentloc):
+    scheme, netloc, name = urlsplit(canonizetag(tag))
+    if netloc:
+        return tag
+    return 'tag://%s/%s' % (parentloc, name) if parentloc else tag
+
+def relativizetags(tags, parent):
+    scheme, parentloc, name = urlsplit(canonizetag(parent))
+    return [relativizetag(tag, parentloc) for tag in iterify(tags)]
+
 class DDFS(object):
     """
     Opens and encapsulates a connection to a DDFS master.
@@ -151,7 +161,7 @@ class DDFS(object):
                 raise
         return False
 
-    def findtags(self, tags=None, ignore_missing=True, token=None):
+    def findtags(self, tags=(), ignore_missing=True, token=None):
         import sys
         """
         Finds the nodes of the tag graph starting at `tags`.
@@ -170,7 +180,7 @@ class DDFS(object):
                     tags        = canonizetags(tags)
                     yield tag, tags, blobs
 
-                    tag_queue += tags
+                    tag_queue += relativizetags(tags, tag)
                     seen.add(tag)
                 except CommError, e:
                     if ignore_missing and e.code == 404:
@@ -322,7 +332,7 @@ class DDFS(object):
                 yield tagpath, None, None
                 raise e
 
-        for next_tag in tags:
+        for next_tag in relativizetags(tags, tag):
             for child in self.walk(next_tag,
                                    ignore_missing=ignore_missing,
                                    tagpath=tagpath,

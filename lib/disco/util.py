@@ -39,6 +39,9 @@ class netloc(tuple):
             return cls(netlocstr.split(':'))
         return cls((netlocstr, ''))
 
+    def __nonzero__((host, port)):
+        return bool(host)
+
     def __str__((host, port)):
         return '%s:%s' % (host, port) if port else host
 
