@@ -53,14 +53,15 @@ class Indexer(Job):
 
     def __init__(self, master, name, dataset):
         super(Indexer, self).__init__(master, name)
-        self.input          = dataset.input
-        self.map_reader     = dataset.parser
-        self.map            = dataset.demuxer
-        self.partition      = dataset.balancer
-        self.profile        = dataset.profile
-        self.partitions     = dataset.nr_ichunks
-        self.required_files = dataset.required_files
-        self.params         = Params(n=0, unique_items=dataset.unique_items)
+        self.input            = dataset.input
+        self.map_input_stream = dataset.stream
+        self.map_reader       = dataset.parser
+        self.map              = dataset.demuxer
+        self.partition        = dataset.balancer
+        self.profile          = dataset.profile
+        self.partitions       = dataset.nr_ichunks
+        self.required_files   = dataset.required_files
+        self.params           = Params(n=0, unique_items=dataset.unique_items)
 
         if self.partitions:
             self.reduce = nop_reduce

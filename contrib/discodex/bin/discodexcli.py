@@ -46,6 +46,9 @@ class DiscodexOptionParser(OptionParser):
                         help='port that the client should connect to')
         self.add_option('-n', '--nr-ichunks',
                         help='the number of ichunks to create')
+        self.add_option('-u', '--unique-items',
+                        action='store_true',
+                        help='ensure unique items in discodbs')
         self.add_option('-p', '--profile',
                         action='store_true',
                         help='turn on job profiling')
@@ -57,21 +60,18 @@ class DiscodexOptionParser(OptionParser):
                         help='balancer to use for indexing')
         self.add_option('--metakeyer',
                         help='metakeyer to use for indexing')
-        self.add_option('-u', '--unique-items',
-                        action='store_true',
-                        help='ensure unique items in discodbs')
         self.add_option('--param',
                         action='append',
                         default=[],
                         dest='params',
                         nargs=2,
                         help='add a param to the inquiry job params')
-        self.add_option('-S', '--stream',
+        self.add_option('--stream',
                         action='append',
                         default=[],
                         dest='streams',
-                        help='add a stream for filtering inquiries')
-        self.add_option('-R', '--reduce',
+                        help='add a stream for indexing or filtering inquiries')
+        self.add_option('--reduce',
                         help='reduce used for filtering inquiries')
 
 class Discodex(Program):

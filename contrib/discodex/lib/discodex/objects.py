@@ -55,6 +55,11 @@ class DataSet(dict, JSONSerialized):
         return [[str(url) for url in iterify(input)] for input in self['input']]
 
     @property
+    def stream(self):
+        from disco.func import default_stream
+        return [reify(stream) for stream in self.options.get('streams', ())] or default_stream
+
+    @property
     def parser(self):
         return self.__getcallable__(parsers, self.options.get('parser', 'rawparse'))
 
