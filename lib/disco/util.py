@@ -106,10 +106,15 @@ def argcount(object):
     return argcount - len(object.args or ()) - len(object.keywords or ())
 
 def unpickle_partial(func, args, kwargs):
-    return functools.partial(unpack(func), *unpack(args), **unpack(kwargs))
+    return functools.partial(unpack(func),
+                             *[unpack(x) for x in args],
+                             **dict((k, unpack(v)) for k, v in kwargs))
 
 def pickle_partial(p):
-    return unpickle_partial, (pack(p.func), pack(p.args), pack(p.keywords or {}))
+    kw = p.keywords or {}
+    return unpickle_partial, (pack(p.func),
+                              [pack(x) for x in p.args],
+                              [(k, pack(v)) for k, v in kw.iteritems()])
 
 # support functools.partial also on Pythons prior to 3.1
 if sys.version_info < (3,1):
