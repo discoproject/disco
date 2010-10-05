@@ -201,6 +201,10 @@ class DDFS(object):
                                                      attr),
                               token=token)
 
+    def urls(self, tag, token=None):
+        """Return the urls in the ``tag``."""
+        return self.get(tag, token=token)['urls']
+
     def list(self, prefix=''):
         """Return a list of all tags starting wtih ``prefix``."""
         return self._download('%s/ddfs/tags/%s' % (self.master, prefix))

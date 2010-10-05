@@ -421,8 +421,7 @@ def urls(program, *tags):
     List the urls pointed to by the tag[s].
     """
     for tag in program.prefix_mode(*tags):
-        for replicas in program.ddfs.get(tag,
-                                         token=program.options.token)['urls']:
+        for replicas in program.ddfs.urls(tag, token=program.options.token):
             print '\t'.join(replicas)
 
 @DDFS.command
