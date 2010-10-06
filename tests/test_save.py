@@ -14,7 +14,7 @@ class SaveOnlyMapTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [(e + "#", '')]
+        return [(e.strip() + "#", '')]
 
     @property
     def answers(self):
