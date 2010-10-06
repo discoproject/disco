@@ -83,6 +83,9 @@ class DataSet(dict, JSONSerialized):
     def unique_items(self):
         return bool(self.options.get('unique_items', False))
 
+class IChunks(list, JSONSerialized):
+    pass
+
 class Indices(list, JSONSerialized):
     pass
 
@@ -90,7 +93,7 @@ class Index(dict, JSONSerialized):
     """A collection of `ichunks` resulting from a :class:`DataSet` previously indexed by discodex."""
     @property
     def ichunks(self):
-        return [ichunk for ichunk in self['urls']]
+        return IChunks([ichunk for ichunk in self['urls']])
 
 class MetaSet(Index):
     """

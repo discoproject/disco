@@ -1,6 +1,7 @@
 import httplib, urllib, urlparse
 
 from disco.comm import HTTPConnection
+from disco.util import urlresolve
 
 from core import DiscodexError
 from objects import DataSet, MetaSet, Indices, Index, Results, Dict
@@ -29,7 +30,7 @@ class DiscodexClient(object):
     def indexurl(self, indexspec):
         resource = urlparse.urlparse(indexspec)
         if resource.netloc:
-            return indexspec
+            return urlresolve(indexspec)
         path = '/indices/%s' % indexspec
         return urlparse.urlunparse(('http', self.netloc, path, '', '', ''))
 
@@ -57,7 +58,7 @@ class DiscodexClient(object):
         self.request('POST', self.indexurl(indexaspec), indexbspec)
 
     def put(self, indexspec, index):
-        self.request('PUT', self.indexurl(indexspec), index.dumps())
+        self.request('PUT', self.indexurl(indexspec), index.ichunks.dumps())
 
     def delete(self, indexspec):
         self.request('DELETE', self.indexurl(indexspec))

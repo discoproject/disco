@@ -15,6 +15,7 @@ from discodex.mapreduce import (Indexer,
                                 DiscoDBIterator)
 from discodex.objects import (DataSet,
                               MetaSet,
+                              IChunks,
                               Indices,
                               Index,
                               Results,
@@ -147,7 +148,7 @@ class IndexResource(Collection):
         return HttpResponseCreated(self.url)
 
     def update(self, request, *args, **kwargs):
-        ddfs.put(self.tag, Index.loads(request.raw_post_data).ichunks)
+        ddfs.put(self.tag, IChunks.loads(request.raw_post_data))
         return HttpResponseCreated(self.url)
 
     def delete(self, request, *args, **kwargs):
