@@ -174,8 +174,17 @@ def urlsplit(url, localhost=None, settings=DiscoSettings()):
             path, locstr = locstr, ''
     return scheme, netloc.parse(locstr), path
 
-def urlresolve(url):
-    return '%s://%s/%s' % urlsplit(url)
+def urlresolve(url, settings=DiscoSettings()):
+    scheme, netloc, path = urlsplit(url)
+    if scheme == 'tag':
+        def master((host, port)):
+            if not host:
+                return settings['DISCO_MASTER']
+            if not port:
+                return 'disco://%s' % host
+            return 'http://%s:%s' % (host, port)
+        return urlresolve('%s/ddfs/tag/%s' % (master(netloc), path))
+    return '%s://%s/%s' % (scheme, netloc, path)
 
 def auth_token(url):
     _scheme, rest = schemesplit(url)
