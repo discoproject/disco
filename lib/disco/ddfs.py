@@ -24,13 +24,14 @@ class InvalidTag(Exception):
     pass
 
 def canonizetag(tag):
-    if isiterable(tag):
-        for tag in tag:
-            return canonizetag(tag)
-    elif tag.startswith('tag://'):
-        return tag
-    elif '://' not in tag and '/' not in tag:
-        return 'tag://%s' % tag
+    if tag:
+        if isiterable(tag):
+            for tag in tag:
+                return canonizetag(tag)
+        elif tag.startswith('tag://'):
+            return tag
+        elif '://' not in tag and '/' not in tag:
+            return 'tag://%s' % tag
     raise InvalidTag("Invalid tag: %s" % tag)
 
 def canonizetags(tags):
