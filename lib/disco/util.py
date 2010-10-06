@@ -153,7 +153,7 @@ def unpack_stack(stackstring, globals={}):
     return [unpack(string, globals=globals) for string in unpack(stackstring)]
 
 def schemesplit(url):
-    return url.split('://', 1) if '://' in url else ('file', url)
+    return url.split('://', 1) if '://' in url else ('', url)
 
 def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
