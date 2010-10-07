@@ -45,7 +45,7 @@ class DDFSOptionParser(OptionParser):
                         help='include match')
         self.add_option('-f', '--files',
                         action='store_true',
-                        help='file mode for commands that take it.')
+                        help='file mode for commands that take it')
         self.add_option('-i', '--ignore-missing',
                         action='store_true',
                         help='ignore missing tags')
@@ -53,7 +53,7 @@ class DDFSOptionParser(OptionParser):
                         help='number of replicas to create when pushing')
         self.add_option('-p', '--prefix',
                         action='store_true',
-                        help='prefix mode for commands that take it.')
+                        help='prefix mode for commands that take it')
         self.add_option('-R', '--reader',
                         help='input reader to import and use')
         self.add_option('-r', '--recursive',
@@ -64,6 +64,9 @@ class DDFSOptionParser(OptionParser):
                         help='input stream to import and use')
         self.add_option('-t', '--token',
                         help='authorization token for the command')
+        self.add_option('-u', '--update',
+                        action='store_true',
+                        help='whether to perform an update or an append')
         self.add_option('-w', '--warn-missing',
                         action='store_true',
                         help='warn about missing tags')
@@ -164,7 +167,7 @@ def cat(program, *urls):
 
 @DDFS.command
 def chunk(program, tag, *urls):
-    """Usage: [-n replicas] [-R reader] tag [url ...]
+    """Usage: [-n replicas] [-S stream] [-R reader] [-u] tag [url ...]
 
     Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
     """
@@ -177,7 +180,8 @@ def chunk(program, tag, *urls):
                                     chain(urls, program.blobs(*tags)),
                                     input_stream=stream,
                                     reader=reader,
-                                    replicas=program.options.replicas)
+                                    replicas=program.options.replicas,
+                                    update=program.options.update)
     for replicas in blobs:
         print 'created: %s' % '\t'.join(replicas)
 

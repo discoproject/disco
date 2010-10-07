@@ -111,6 +111,7 @@ class DDFS(object):
               replicas=None,
               retries=10,
               delayed=False,
+              update=False,
               token=None,
               **kwargs):
         """
@@ -128,7 +129,12 @@ class DDFS(object):
                             retries=retries)
                  for reps in urls
                  for n, chunk in enumerate(ChunkIter(reps, **kwargs))]
-        return self.tag(tag, blobs, delayed=delayed, token=token), blobs
+        return (self.tag(tag,
+                         blobs,
+                         delayed=delayed,
+                         update=update,
+                         token=token),
+                blobs)
 
     def delete(self, tag, token=None):
         """Delete ``tag``."""
