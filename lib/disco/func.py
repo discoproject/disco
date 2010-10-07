@@ -508,8 +508,8 @@ def map_input_stream(stream, size, url, params):
     """
     from disco.util import schemesplit
     scheme, _url = schemesplit(url)
-    mod = __import__('disco.schemes.scheme_%s' % scheme,
-                     fromlist=['scheme_%s' % scheme])
+    scheme_ = 'scheme_%s' % (scheme or 'file')
+    mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
     Task.insert_globals([mod.input_stream])
     return mod.input_stream(stream, size, url, params)
 
