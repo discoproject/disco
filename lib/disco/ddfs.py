@@ -16,7 +16,8 @@ from urllib import urlencode
 from disco.comm import upload, download, json, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
-from disco.util import isiterable, iterify, partition, urlsplit, urlresolve
+from disco.util import isiterable, iterify, partition
+from disco.util import urljoin, urlsplit, urlresolve
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
@@ -47,15 +48,13 @@ def tagname(tag):
     scheme, netloc, name = urlsplit(canonizetag(tag))
     return name
 
-def relativizetag(tag, parentloc):
-    scheme, netloc, name = urlsplit(canonizetag(tag))
-    if netloc:
-        return tag
-    return 'tag://%s/%s' % (parentloc, name) if parentloc else tag
+def relativizetag(tag, parent):
+    _scheme, netloc, name = urlsplit(canonizetag(tag))
+    _scheme, parentloc, _ = urlsplit(canonizetag(parent))
+    return urljoin(('tag', netloc or parentloc, name))
 
 def relativizetags(tags, parent):
-    scheme, parentloc, name = urlsplit(canonizetag(parent))
-    return [relativizetag(tag, parentloc) for tag in iterify(tags)]
+    return [relativizetag(tag, parent) for tag in iterify(tags)]
 
 class DDFS(object):
     """

@@ -152,6 +152,11 @@ def pack_stack(stack):
 def unpack_stack(stackstring, globals={}):
     return [unpack(string, globals=globals) for string in unpack(stackstring)]
 
+def urljoin((scheme, netloc, path)):
+    return '%s%s%s' % ('%s://' % scheme if scheme else '',
+                       '%s/' % (netloc, ) if netloc else '',
+                       path)
+
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('', url)
 
