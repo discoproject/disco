@@ -582,6 +582,24 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
             except EOFError:
                 break
 
+class DiscoDBOutput(object):
+    def __init__(self, stream, params):
+        from discodb import DiscoDBConstructor
+        self.discodb_constructor = DiscoDBConstructor()
+        self.stream = stream
+        self.params = params
+
+    def add(self, key, val):
+        self.discodb_constructor.add(key, val)
+
+    def close(self):
+        kwargs = dict(unique_items=self.params.unique_items)
+        self.discodb_constructor.finalize(**kwargs).dump(self.stream)
+
+def discodb_output(stream, partition, url, params):
+    from disco.func import DiscoDBOutput
+    return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
+
 chain_reader = netstr_reader = disco_input_stream
 
 chain_stream = (map_input_stream, chain_reader)

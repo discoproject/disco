@@ -16,25 +16,12 @@ Discodex uses mapreduce jobs to build and query indices...
         ichunker: (p, (k, v)) ... -> ichunks    /
 """
 from disco.core import result_iterator, Job, Params
-from disco.func import nop_reduce, map_input_stream, map_output_stream, reduce_output_stream
-
-class DiscoDBOutput(object):
-    def __init__(self, stream, params):
-        from discodb import DiscoDBConstructor
-        self.discodb_constructor = DiscoDBConstructor()
-        self.stream = stream
-        self.params = params
-
-    def add(self, key, val):
-        self.discodb_constructor.add(key, val)
-
-    def close(self):
-        kwargs = dict(unique_items=self.params.unique_items)
-        self.discodb_constructor.finalize(**kwargs).dump(self.stream)
-
-def discodb_output(stream, partition, url, params):
-    from discodex.mapreduce import DiscoDBOutput
-    return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
+from disco.func import (nop_reduce,
+                        map_input_stream,
+                        map_output_stream,
+                        reduce_output_stream,
+                        discodb_output,
+                        DiscoDBOutput)
 
 class MetaDBOutput(DiscoDBOutput):
     def close(self):
