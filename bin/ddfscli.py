@@ -92,9 +92,7 @@ class DDFS(Program):
     @property
     def ddfs(self):
         from disco.ddfs import DDFS
-        return DDFS(master=self.settings['DISCO_MASTER'],
-                    read_token=self.options.token,
-                    write_token=self.options.token)
+        return DDFS(master=self.settings['DISCO_MASTER'])
 
     def file_mode(self, *urls):
         if self.options.files:
