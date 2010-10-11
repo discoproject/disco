@@ -58,8 +58,6 @@ class DiscodexOptionParser(OptionParser):
                         help='demuxer object to user for indexing')
         self.add_option('--balancer',
                         help='balancer to use for indexing')
-        self.add_option('--metakeyer',
-                        help='metakeyer to use for indexing')
         self.add_option('--param',
                         action='append',
                         default=[],
@@ -208,18 +206,6 @@ def index(program, *urls):
                       input=[url.split() for url in program.file_mode(*urls)])
     print program.client.index(dataset)
 
-
-@Discodex.command
-def metaindex(program, indexspec):
-    """Usage: [--metakeyer] [-n N] [--profile] <indexspec>
-
-    Build a metaindex of the index at indexspec, using the specified options.
-    """
-    from discodex.objects import MetaSet
-    client = program.client
-    metaset = MetaSet(options=program.option_dict,
-                      urls=client.get(indexspec).ichunks)
-    print client.metaindex(metaset)
 
 def inquire(program, indexspec, inquiry, query=None):
     for result in program.client.inquire(indexspec, inquiry,

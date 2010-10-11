@@ -20,19 +20,7 @@ from disco.func import (nop_reduce,
                         map_input_stream,
                         map_output_stream,
                         reduce_output_stream,
-                        discodb_output,
-                        DiscoDBOutput)
-
-class MetaDBOutput(DiscoDBOutput):
-    def close(self):
-        from discodb import MetaDB
-        kwargs = dict(unique_items=self.params.unique_items)
-        metadb = self.discodb_constructor.finalize(**kwargs)
-        MetaDB(self.params.datadb, metadb).dump(self.stream)
-
-def metadb_output(stream, partition, url, params):
-    from discodex.mapreduce import MetaDBOutput
-    return MetaDBOutput(stream, params), 'metadb:%s' % url.split(':', 1)[1]
+                        discodb_output)
 
 class Indexer(Job):
     """A discodex mapreduce job used to build an index from a dataset."""
@@ -55,24 +43,6 @@ class Indexer(Job):
             self.reduce_output_stream = [reduce_output_stream, discodb_output]
         else:
             self.map_output_stream = [map_output_stream, discodb_output]
-
-class MetaIndexer(Job):
-    """A discodex mapreduce job used to build a metaindex over an index, given a :class:`discodex.objects.MetaSet`."""
-    partitions = 0
-    save       = True
-    scheduler  = {'force_local': True}
-
-    def __init__(self, master, name, metaset):
-        super(MetaIndexer, self).__init__(master, name)
-        self.input  = metaset.ichunks
-        self.map    = metaset.metakeyer
-        self.params = Params(n=0, unique_items=metaset.unique_items)
-
-    def map_reader(datadb, size, url, params):
-        params.datadb = datadb
-        return datadb, size, url
-
-    map_output_stream = [map_output_stream, metadb_output]
 
 class DiscoDBIterator(Job):
     scheduler      = {'force_local': True}

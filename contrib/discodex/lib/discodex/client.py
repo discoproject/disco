@@ -4,7 +4,7 @@ from disco.comm import HTTPConnection
 from disco.util import urlresolve
 
 from core import DiscodexError
-from objects import DataSet, MetaSet, Indices, Index, Results, Dict
+from objects import DataSet, Indices, Index, Results, Dict
 from settings import DiscodexSettings
 
 class ResourceNotFound(DiscodexError):
@@ -65,9 +65,6 @@ class DiscodexClient(object):
 
     def index(self, dataset):
         return self.request('POST', self.indexurl(''), dataset.dumps()).read()
-
-    def metaindex(self, metaset):
-        return self.request('POST', self.indexurl(''), metaset.dumps()).read()
 
     def clone(self, indexaspec, indexbspec):
         self.put(indexbspec, self.get(indexaspec))

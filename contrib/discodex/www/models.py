@@ -11,10 +11,8 @@ from discodex.restapi.resource import (HttpResponseAccepted,
 
 from discodex import settings
 from discodex.mapreduce import (Indexer,
-                                MetaIndexer,
                                 DiscoDBIterator)
 from discodex.objects import (DataSet,
-                              MetaSet,
                               IChunks,
                               Indices,
                               Index,
@@ -52,14 +50,9 @@ class IndexCollection(Collection):
             yield IndexResource(name)
 
     def create(self, request, *args, **kwargs):
-        try:
-            dataset = DataSet.loads(request.raw_post_data)
-            prefix  = '%s:discodb:' % disco_prefix
-            job     = Indexer(disco_master, prefix, dataset)
-        except TypeError:
-            metaset = MetaSet.loads(request.raw_post_data)
-            prefix  = '%s:metadb:' % disco_prefix
-            job     = MetaIndexer(disco_master, prefix, metaset)
+        dataset = DataSet.loads(request.raw_post_data)
+        prefix  = '%s:discodb:' % disco_prefix
+        job     = Indexer(disco_master, prefix, dataset)
         try:
             job.run()
         except ImportError, e:

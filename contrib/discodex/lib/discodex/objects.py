@@ -5,7 +5,7 @@
 import sys
 
 from discodex import json
-from discodex.mapreduce import parsers, demuxers, balancers, metakeyers
+from discodex.mapreduce import parsers, demuxers, balancers
 from discodex.mapreduce.func import reify
 
 class JSONSerialized(object):
@@ -94,26 +94,6 @@ class Index(dict, JSONSerialized):
     @property
     def ichunks(self):
         return IChunks([ichunk for ichunk in self['urls']])
-
-class MetaSet(Index):
-    """
-    An :class:`Index` together with a `metakeyer` function used to describe how the index should be metaindexed.
-
-    See :mod:`discodex.mapreduce.metakeyers` and :class:`discodex.mapreduce.MetaIndexer`.
-    """
-    required_fields = ['urls']
-
-    @property
-    def options(self):
-        return self.get('options', {})
-
-    @property
-    def metakeyer(self):
-        return self.__getcallable__(metakeyers, self.options.get('metakeyer', 'prefixkeyer'))
-
-    @property
-    def unique_items(self):
-        return bool(self.options.get('unique_items', False))
 
 class Results(list, JSONSerialized):
     pass
