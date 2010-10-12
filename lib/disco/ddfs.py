@@ -79,7 +79,6 @@ class DDFS(object):
 
     def attrs(self, tag, token=None):
         """Get a list of the attributes of the tag ``tag`` and their values."""
-        token = self.read_token if token is None else token
         t = self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
                                                tagname(tag)),
                            token=token)
@@ -95,7 +94,6 @@ class DDFS(object):
         :param ignore_missing: Whether or not missing tags will raise a
                                :class:`disco.error.CommError`.
         """
-        token = self.read_token if token is None else token
         for path, tags, blobs in self.walk(tag,
                                            ignore_missing=ignore_missing,
                                            token=token):
@@ -105,7 +103,6 @@ class DDFS(object):
 
     def delattr(self, tag, attr, token=None):
         """Delete the attribute ``attr` of the tag ``tag``."""
-        token = self.write_token if token is None else token
         return self._download('%s/ddfs/tag/%s/%s' % (self.tagmaster(tag),
                                                      tagname(tag),
                                                      attr),
@@ -114,7 +111,6 @@ class DDFS(object):
 
     def delete(self, tag, token=None):
         """Delete ``tag``."""
-        token = self.write_token if token is None else token
         return self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
                                                   tagname(tag)),
                               method='DELETE',
@@ -138,7 +134,6 @@ class DDFS(object):
 
         Yields a 3-tuple `(tag, tags, blobs)`.
         """
-        token = self.read_token if token is None else token
         seen = set()
 
         tag_queue = canonizetags(tags)
@@ -161,14 +156,12 @@ class DDFS(object):
 
     def get(self, tag, token=None):
         """Return the tag object stored at ``tag``."""
-        token = self.read_token if token is None else token
         return self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
                                                   tagname(tag)),
                               token=token)
 
     def getattr(self, tag, attr, token=None):
         """Return the value of the attribute ``attr` of the tag ``tag``."""
-        token = self.read_token if token is None else token
         return self._download('%s/ddfs/tag/%s/%s' % (self.tagmaster(tag),
                                                      tagname(tag),
                                                      attr),
@@ -179,7 +172,6 @@ class DDFS(object):
         return self._download('%s/ddfs/tags/%s' % (self.master, prefix))
 
     def pull(self, tag, blobfilter=lambda x: True, token=None):
-        token = self.read_token if token is None else token
         for repl in self.get(tag, token=token)['urls']:
             if blobfilter(self.blob_name(repl[0])):
                 random.shuffle(repl)
@@ -210,7 +202,6 @@ class DDFS(object):
                       they will be used as prefixes by DDFS for the blobnames.
                       Names may only contain chars in ``r'[^A-Za-z0-9_\-@:]'``.
         """
-        token = self.write_token if token is None else token
         def aim(tuple_or_path):
             if isinstance(tuple_or_path, basestring):
                 source = tuple_or_path
@@ -231,7 +222,6 @@ class DDFS(object):
                 Generally speaking, concurrent applications should use
                 :meth:`DDFS.tag` instead.
         """
-        token = self.write_token if token is None else token
         return self._upload('%s/ddfs/tag/%s' % (self.tagmaster(tag),
                                                 tagname(tag)),
                             StringIO(json.dumps(urls)),
@@ -239,7 +229,6 @@ class DDFS(object):
 
     def setattr(self, tag, attr, val, token=None):
         """Set the value of the attribute ``attr` of the tag ``tag``."""
-        token = self.write_token if token is None else token
         return self._upload('%s/ddfs/tag/%s/%s' % (self.tagmaster(tag),
                                                    tagname(tag),
                                                    attr),
@@ -248,7 +237,6 @@ class DDFS(object):
 
     def tag(self, tag, urls, token=None, **kwargs):
         """Append the list of ``urls`` to the ``tag``."""
-        token = self.write_token if token is None else token
         defaults = {'delayed': False, 'update': False}
         defaults.update(kwargs)
         fmt = lambda x: '1' if x else ''
@@ -295,7 +283,6 @@ class DDFS(object):
         :param ignore_missing: Whether or not missing tags will raise a
                                :class:`disco.error.CommError`.
         """
-        token = self.read_token if token is None else token
         tagpath += (canonizetag(tag), )
 
         try:
@@ -351,10 +338,19 @@ class DDFS(object):
                               exclude=exclude + [host],
                               **kwargs)
 
+    def _token(self, token, method):
+        if token is None:
+            if method == 'GET':
+                return self.read_token
+            return self.write_token
+        return token
+
     def _download(self, url, data=None, token=None, method='GET'):
+        token = self._token(token, method)
         response = download(url, data=data, method=method, token=token)
         return json.loads(response)
 
     def _upload(self, urls, source, token=None, **kwargs):
+        token = self._token(token, 'PUT')
         urls = [self._maybe_proxy(url, method='PUT') for url in iterify(urls)]
         return upload(urls, source, token=token, **kwargs)
