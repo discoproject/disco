@@ -59,7 +59,7 @@ class DDFSOptionParser(OptionParser):
         self.add_option('-r', '--recursive',
                         action='store_true',
                         help='recursively perform operations')
-        self.add_option('--stream',
+        self.add_option('-T', '--stream',
                         default='disco.func.default_stream',
                         help='input stream to import and use')
         self.add_option('-t', '--token',
