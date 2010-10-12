@@ -83,7 +83,7 @@ class DDFS(object):
         t = self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
                                                tagname(tag)),
                            token=token)
-        return t['user-data'] if t.has_key('user-data') else None
+        return t.get('user-data')
 
     def blobs(self, tag, ignore_missing=True, token=None):
         """
