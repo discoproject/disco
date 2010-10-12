@@ -386,7 +386,7 @@ class Reduce(Task):
                                    '-o', filename,
                                    filename])
         except subprocess.CalledProcessError, e:
-            raise DataError("Sorting %s failed: %s" % (filename, e))
+            raise DataError("Sorting %s failed: %s" % (filename, e), filename)
         Status("Finished sorting")
 
     @property
