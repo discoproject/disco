@@ -58,8 +58,7 @@ class DDFS(object):
                  settings=DiscoSettings()):
         self.proxy  = proxy or settings['DISCO_PROXY']
         self.master = self.proxy or master or settings['DISCO_MASTER']
-        self.read_token = settings['DDFS_READ_TOKEN']
-        self.write_token = settings['DDFS_WRITE_TOKEN']
+        self.settings = settings
 
     @classmethod
     def safe_name(cls, name):
@@ -341,8 +340,8 @@ class DDFS(object):
     def _token(self, token, method):
         if token is None:
             if method == 'GET':
-                return self.read_token
-            return self.write_token
+                return self.settings['DDFS_READ_TOKEN']
+            return self.settings['DDFS_WRITE_TOKEN']
         return token
 
     def _download(self, url, data=None, token=None, method='GET'):
