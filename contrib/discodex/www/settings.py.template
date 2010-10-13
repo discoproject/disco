@@ -55,9 +55,10 @@ TEMPLATE_LOADERS = (
 )
 
 MIDDLEWARE_CLASSES = (
-    'django.middleware.cache.UpdateCacheMiddleware',
+    'discodex.middleware.JSONPEncodeMiddleware',
+    'discodex.middleware.UpdateCacheMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.cache.FetchFromCacheMiddleware',
+    'discodex.middleware.FetchFromCacheMiddleware',
 )
 
 CACHE_BACKEND = 'dummy://'

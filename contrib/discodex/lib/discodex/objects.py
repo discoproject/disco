@@ -24,9 +24,6 @@ class JSONSerialized(object):
 
     def response(self, request):
         from django.http import HttpResponse
-        if 'callback' in request.GET:
-            return HttpResponse('%s(%s)' % (request.GET['callback'], self.dumps()),
-                                content_type='application/javascript')
         return HttpResponse(self.dumps(), content_type='application/json')
 
     def __getcallable__(self, module, name):
