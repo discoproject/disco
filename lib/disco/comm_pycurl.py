@@ -28,13 +28,15 @@ class HTTPConnection(object):
     defaults = {'CONNECTTIMEOUT': 20,
                 'FRESH_CONNECT': 1,
                 'LOW_SPEED_LIMIT': 1024, # 1kbps
-                'LOW_SPEED_TIME': 2 * 60,
                 'NOSIGNAL': 1}
 
-    def __init__(self, netloc):
+    def __init__(self, netloc, timeout=120):
         self.handle = pycurl.Curl()
         for k, v in self.defaults.items():
             self[k] = v
+
+        if timeout:
+            self['LOW_SPEED_TIME'] = timeout
 
         self.netloc = netloc
         self.response = CurlResponse()

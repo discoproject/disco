@@ -36,7 +36,7 @@ class DiscodexClient(object):
 
     def request(self, method, url, body=None):
         resource = urlparse.urlparse(url)
-        conn     = HTTPConnection(resource.netloc or self.netloc)
+        conn     = HTTPConnection(resource.netloc or self.netloc, timeout=None)
         path     = urlparse.urlunparse(('', '') + resource[2:])
         conn.request(method, path, body)
         response = conn.getresponse()
