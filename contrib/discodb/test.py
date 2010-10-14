@@ -53,6 +53,12 @@ class TestMappingProtocol(unittest.TestCase):
         assert "0" in self.discodb
         assert "key" not in self.discodb
 
+    def test_nonzero(self):
+        self.assertFalse(self.discodb.query('NONKEY'))
+        self.assertTrue(self.discodb.query('0'))
+        self.assertTrue(self.discodb.values())
+        self.assertTrue(self.discodb.keys())
+
     def test_length(self):
         self.assertEquals(len(self.discodb), self.numkeys)
 
@@ -218,22 +224,22 @@ class TestQuery(unittest.TestCase):
         self.assertEquals(len(self.discodb.get('bob')), 1)
         self.assertEquals(len(self.discodb.get('carol')), 2)
 
-#     def test_query_len(self):
-#         self.assertEquals(len(self.q('alice')), 1)
-#         self.assertEquals(len(self.q('bob')), 1)
-#         self.assertEquals(len(self.q('carol')), 2)
-#         self.assertEquals(len(self.q('alice & bob')), 0)
-#         self.assertEquals(len(self.q('alice | bob')), 2)
-#         self.assertEquals(len(self.q('alice & carol')), 1)
-#         self.assertEquals(len(self.q('alice | carol')), 2)
-#         self.assertEquals(len(self.q('alice|bob|carol')), 2)
-#         self.assertEquals(len(self.q('alice&bob&carol')), 0)
+    def test_query_len(self):
+        self.assertEquals(len(self.q('alice')), 1)
+        self.assertEquals(len(self.q('bob')), 1)
+        self.assertEquals(len(self.q('carol')), 2)
+        self.assertEquals(len(self.q('alice & bob')), 0)
+        self.assertEquals(len(self.q('alice | bob')), 2)
+        self.assertEquals(len(self.q('alice & carol')), 1)
+        self.assertEquals(len(self.q('alice | carol')), 2)
+        self.assertEquals(len(self.q('alice|bob|carol')), 2)
+        self.assertEquals(len(self.q('alice&bob&carol')), 0)
 
-#     def test_query_len_doesnt_advance_iter(self):
-#         # check that calling len() doesn't advance the iterator
-#         res = self.q('alice')
-#         self.assertEquals(len(res), 1)
-#         self.assertEquals(len(res), 1)
+    def test_query_len_doesnt_advance_iter(self):
+        # check that calling len() doesn't advance the iterator
+        res = self.q('alice')
+        self.assertEquals(len(res), 1)
+        self.assertEquals(len(res), 1)
 
     def test_query_results(self):
         self.assertEquals(set(self.q('alice')), set(['blue']))
@@ -246,11 +252,11 @@ class TestQuery(unittest.TestCase):
         self.assertEquals(set(self.q('alice|bob|carol')), set(['blue', 'red']))
         self.assertEquals(set(self.q('alice&bob&carol')), set())
 
-#     def test_query_len_nonkey(self):
-#         self.assertEquals(len(self.q('nonkey')), 0)
-#         self.assertEquals(len(self.q('~nonkey')), 3)
-#         self.assertEquals(len(self.q('nonkey & alice')), 0)
-#         self.assertEquals(len(self.q('nonkey | alice')), 1)
+    def test_query_len_nonkey(self):
+        self.assertEquals(len(self.q('nonkey')), 0)
+        self.assertEquals(len(self.q('~nonkey')), 2)
+        self.assertEquals(len(self.q('nonkey & alice')), 0)
+        self.assertEquals(len(self.q('nonkey | alice')), 1)
 
     def test_query_results_nonkey(self):
         self.assertEquals(set(self.q('nonkey')), set())

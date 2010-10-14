@@ -45,7 +45,7 @@ class MetaDB(object):
 
     def __iter__(self):
         """an iterator over the [meta]keys."""
-        return self.keys()
+        return iter(self.keys())
 
     def __len__(self):
         return len(self.metadb)
