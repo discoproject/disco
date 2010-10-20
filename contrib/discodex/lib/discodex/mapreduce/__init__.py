@@ -61,9 +61,9 @@ class DiscoDBIterator(Job):
 
     def map(entry, params):
         from disco.util import kvify
-        from discodb import DiscoDBIter
+        from discodb import DiscoDBInquiry
         k, v = kvify(entry)
-        yield (k, str(v)) if isinstance(v, DiscoDBIter) else (k, v)
+        yield (k, str(v)) if isinstance(v, DiscoDBInquiry) else (k, v)
 
     @property
     def results(self):
