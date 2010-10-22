@@ -593,8 +593,11 @@ class DiscoDBOutput(object):
         self.discodb_constructor.add(key, val)
 
     def close(self):
-        kwargs = dict(unique_items=self.params.unique_items)
-        self.discodb_constructor.finalize(**kwargs).dump(self.stream)
+        def flags():
+            return dict((flag, getattr(self.params, flag))
+                        for flag in ('unique_items', 'disable_compression')
+                        if hasattr(self.params, flag))
+        self.discodb_constructor.finalize(**flags()).dump(self.stream)
 
 def discodb_output(stream, partition, url, params):
     from disco.func import DiscoDBOutput
