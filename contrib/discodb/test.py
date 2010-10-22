@@ -1,7 +1,7 @@
 import doctest, unittest
 from random import randint
 
-from discodb import DiscoDB, DiscoDict, MetaDB, Q
+from discodb import DiscoDB, Q
 from discodb import DiscoDBConstructor
 from discodb import query
 from discodb import tools
@@ -154,55 +154,6 @@ class TestUniqueItems(TestMappingProtocol, TestSerializationProtocol):
 
     def test_uniq(self):
         self.assertEqual(list(self.discodb['0']), ['1', '2'])
-
-class TestDiscoDict(TestMappingProtocol):
-    def setUp(self):
-        self.discodb = DiscoDict(k_vs_iter(self.numkeys))
-
-    def test_query(self):
-        pass
-
-    def test_query_results(self):
-        pass
-
-    def test_query_results_nonkey(self):
-        pass
-
-class TestMetaDBMappingProtocol(TestMappingProtocol):
-    def setUp(self):
-        datadb = DiscoDB(k_vs_iter(self.numkeys))
-        metadb = DiscoDB(k_vs_iter(self.numkeys, max_values=self.numkeys))
-        self.discodb = MetaDB(datadb, metadb)
-
-    def test_peek(self):
-        pass
-
-    def test_query_results(self):
-        pass
-
-    def test_query_results_nonkey(self):
-        pass
-
-class TestMetaDBSerializationProtocol(unittest.TestCase):
-    numkeys = 1000
-
-    def setUp(self):
-        datadb = DiscoDB(k_vs_iter(self.numkeys))
-        metadb = DiscoDB(k_vs_iter(self.numkeys, max_values=self.numkeys))
-        self.metadb = MetaDB(datadb, metadb)
-
-    def test_dump_load(self):
-        from tempfile import NamedTemporaryFile
-        handle = NamedTemporaryFile()
-        self.metadb.dump(handle)
-        def metavaldict(metavals):
-            return dict((k, list(v)) for k, v in metavals)
-        handle.seek(0)
-        metadb = MetaDB.load(handle)
-        assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
-        handle.seek(0)
-        metadb = MetaDB.load(handle.name)
-        assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
 
 class TestQuery(unittest.TestCase):
     def setUp(self):

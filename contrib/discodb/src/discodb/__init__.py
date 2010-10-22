@@ -1,5 +1,4 @@
 from ._discodb import _DiscoDB, DiscoDBConstructor, DiscoDBError, DiscoDBIter
-from .discodict import DiscoDict
 from .query import Q
 from .tools import kvgroup
 
@@ -107,15 +106,10 @@ class DiscoDB(_DiscoDB):
         except StopIteration:
             return default
 
-
-from .metadb import MetaDB
-
 __all__ = ['DiscoDB',
            'DiscoDBConstructor',
            'DiscoDBError',
            'DIscoDBInquiry',
            'DiscoDBIter',
-           'DiscoDict',
            'Q',
-           'kvgroup',
-           'MetaDB']
+           'kvgroup']
