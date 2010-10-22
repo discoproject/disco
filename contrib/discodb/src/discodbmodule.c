@@ -218,6 +218,7 @@ DiscoDB_contains(register DiscoDB *self, register PyObject *key)
  Done:
     Py_CLEAR(pack);
     DiscoDB_CLEAR(kentry);
+    ddb_cursor_dealloc(cursor);
 
     if (PyErr_Occurred())
         return -1;
@@ -404,8 +405,10 @@ static PyObject *
 DiscoDB_dumps(DiscoDB *self)
 {
     uint64_t length;
-    const char *cbuffer = ddb_dumps(self->discodb, &length);
-    return Py_BuildValue("s#", cbuffer, length);
+    char *cbuffer = ddb_dumps(self->discodb, &length);
+    PyObject *string = Py_BuildValue("s#", cbuffer, length);
+    free(cbuffer);
+    return string;
 }
 
 static PyObject *
