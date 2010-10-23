@@ -17,10 +17,10 @@ Discodex uses mapreduce jobs to build and query indices...
 """
 from disco.core import result_iterator, Job, Params
 from disco.func import (nop_reduce,
-                        map_input_stream,
                         map_output_stream,
                         reduce_output_stream,
                         discodb_output)
+from disco.schemes import scheme_discodb
 
 class Indexer(Job):
     """A discodex mapreduce job used to build an index from a dataset."""
@@ -53,7 +53,7 @@ class DiscoDBIterator(Job):
         self.input = [['%s!%s/%s' % (url, method, arg) if method else url
                        for url in urls]
                       for urls in index.ichunks]
-        self.map_input_stream = [map_input_stream] + streams
+        self.map_input_stream = [scheme_discodb.input_stream] + streams
         self.params = Params(**kwargs)
 
         if reduce:
