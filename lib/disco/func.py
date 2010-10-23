@@ -58,7 +58,9 @@ These functions are provided by Disco to help :class:`disco.core.Job` creation:
 
 .. autofunction:: default_partition
 .. autofunction:: make_range_partition
+.. autofunction:: nop_map
 .. autofunction:: nop_reduce
+.. autofunction:: sum_combiner
 .. autofunction:: gzip_reader
 .. autofunction:: map_line_reader
 .. autofunction:: chain_reader
@@ -437,6 +439,17 @@ def nop_reduce(iter, out, params):
     """
     for k, v in iter:
         out.add(k, v)
+
+def sum_combiner(key, value, buf, done, params):
+    """
+    Sums the values for each key.
+
+    This is a convenience function for performing a basic sum in the combiner.
+    """
+    if not done:
+        buf[key] = buf.get(key, 0) + value
+    else:
+        return buf.iteritems()
 
 def gzip_reader(fd, size, url, params):
     """Wraps the input in a :class:`gzip.GzipFile` object."""
