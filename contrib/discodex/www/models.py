@@ -158,8 +158,8 @@ class DiscoDBResource(Resource):
     def read(self, request, *args, **kwargs):
         from discodex.mapreduce.func import reify
 
-        method = str(kwargs.pop('method') or '')
-        arg    = str(kwargs.pop('arg') or '')
+        method = str(kwargs.pop('method', None) or '')
+        arg    = str(kwargs.pop('arg', None) or '')
 
         streams = [reify(s) for s in kwargs.pop('streams').split('|') if s]
         reduce  = reify((kwargs.pop('reduce') or 'None').strip('}'))

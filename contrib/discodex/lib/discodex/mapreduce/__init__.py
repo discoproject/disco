@@ -50,7 +50,8 @@ class DiscoDBIterator(Job):
 
     def __init__(self, master, name, index, method, arg, streams, reduce, **kwargs):
         super(DiscoDBIterator, self).__init__(master, name)
-        self.input = [['%s!%s/%s' % (url, method, arg) for url in urls]
+        self.input = [['%s!%s/%s' % (url, method, arg) if method else url
+                       for url in urls]
                       for urls in index.ichunks]
         self.map_input_stream = [map_input_stream] + streams
         self.params = Params(**kwargs)
