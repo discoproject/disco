@@ -13,6 +13,11 @@ def count_v(iter, *args):
     for k, vs in iter:
         yield k, sum(1 for v in vs)
 
+def int_vs(iter, *args):
+    for k, vs in iter:
+        for v in vs:
+            yield k, int(v)
+
 def length(iter, *args):
     yield len(iter)
 
