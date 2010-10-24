@@ -44,24 +44,24 @@ def head(iter, size, url, params):
             return
         yield entry
 
-def count_ks(iter, out, params):
+def count_ks(iter, *args):
     from disco.util import kvgroup
-    out.add(sum(1 for kvs in kvgroup(sorted(iter))), None)
+    yield sum(1 for kvs in kvgroup(sorted(iter))), None
 
-def count_vs(iter, out, params):
+def count_vs(iter, *args):
     from disco.util import kvgroup
     for k, vs in kvgroup(sorted(iter)):
-        out.add(k, sum(1 for v in vs))
+        yield k, sum(1 for v in vs)
 
-def mean_vs(iter, out, params):
+def mean_vs(iter, *args):
     from disco.util import kvgroup
     for k, vs in kvgroup(sorted(iter)):
         total = 0.
         for n, v in enumerate(vs):
             total += float(v)
-        out.add(k, total / n)
+        yield k, total / n
 
-def sum_vs(iter, out, params):
+def sum_vs(iter, *args):
     from disco.util import kvgroup
     for k, vs in kvgroup(sorted(iter)):
-        out.add(k, sum(vs))
+        yield k, sum(vs)
