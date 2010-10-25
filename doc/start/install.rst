@@ -226,7 +226,7 @@ to see that the system works correctly.
 
 Run the script as follows from ``DISCO_HOME``::
 
-        python examples/utils/count_words.py
+        python examples/util/count_words.py
 
 Disco attempts to use the current hostname as ``DISCO_MASTER_HOST`` if it is not
 defined in any settings file.

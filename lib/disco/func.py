@@ -213,7 +213,7 @@ def output_stream(stream, partition, url, params):
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
 
-    Returns a triplet (:class:`disco.func.OutputStream`, size, url) that is
+    Returns a pair (:class:`disco.func.OutputStream`, url) that is
     passed to the next *output_stream* function in the chain. The
     :meth:`disco.func.OutputStream.add` method of the last
     :class:`disco.func.OutputStream` object returned by the chain is used
