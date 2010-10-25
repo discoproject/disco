@@ -64,9 +64,14 @@ class AtomicFile(file):
 
     def close(self):
         if self.isopen:
+            sync(self)
             super(AtomicFile, self).close()
             os.rename(self.partial, self.path)
             self.isopen = False
+
+def sync(fd):
+    fd.flush()
+    os.fsync(fd.fileno())
 
 def ensure_path(path):
     try:
