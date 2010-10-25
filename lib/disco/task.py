@@ -9,9 +9,10 @@ from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError, DataError
 from disco.events import Status, OutputURL, TaskFailed
-from disco.fileutils import AtomicFile, ensure_file, ensure_path, write_files
 from disco.node import external, worker
 from disco.settings import DiscoSettings
+from disco.fileutils import AtomicFile, ensure_file,\
+                            ensure_path, write_files, sync
 
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
@@ -295,6 +296,7 @@ class Map(Task):
         for i, output in enumerate(outputs):
             print >> f, '%d %s' % (i, output.url)
             output.close()
+        sync(f)
         f.close()
 
         if self.save and not self.reduce:
@@ -364,6 +366,7 @@ class Reduce(Task):
             index, index_url = self.reduce_index
             f = file(index, 'w')
             print >> f, '%d %s' % (self.id, out_url)
+            sync(f)
             f.close()
             OutputURL(index_url)
 
