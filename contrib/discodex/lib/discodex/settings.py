@@ -65,3 +65,33 @@ class DiscodexSettings(Settings):
 
     globals = globals()
     settings_file_var = 'DISCODEX_SETTINGS'
+
+# Django settings
+PROJ_ROOT = os.path.dirname(globals()["__file__"])
+PROJ_NAME = os.path.basename(PROJ_ROOT)
+
+DEBUG = True
+TEMPLATE_DEBUG = DEBUG
+
+MIDDLEWARE_CLASSES = (
+    'discodex.middleware.JSONPEncodeMiddleware',
+    'discodex.middleware.UpdateCacheMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'discodex.middleware.FetchFromCacheMiddleware',
+)
+
+CACHE_BACKEND = 'dummy://'
+CACHE_MIDDLEWARE_SECONDS = 60 * 60 * 24
+CACHE_MIDDLEWARE_KEY_PREFIX = 'discodex'
+
+ROOT_URLCONF = '%s.urls' % PROJ_NAME
+
+TEMPLATE_CONTEXT_PROCESSORS = (
+    'django.core.context_processors.request',
+)
+
+TEMPLATE_DIRS = ()
+
+INSTALLED_APPS = (
+    '%s' % PROJ_NAME,
+)
