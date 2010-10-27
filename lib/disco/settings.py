@@ -163,6 +163,14 @@ Settings used by DDFS:
                 The maximum default number of retries for a `GET` operation.
                 Default is ``3``.
 
+        :envvar:`DDFS_READ_TOKEN`
+                The default read authorization token to use.
+                Default is ``None``.
+
+        :envvar:`DDFS_WRITE_TOKEN`
+                The default write authorization token to use.
+                Default is ``None``.
+
 The following settings are used by DDFS to determine the number of replicas for data/metadata to keep
 (it is not recommended to use the provided defaults in a multinode cluster):
 
@@ -231,6 +239,8 @@ class DiscoSettings(Settings):
         'DDFS_PUT_PORT':         "8990",
         'DDFS_PUT_MAX':          "3",
         'DDFS_GET_MAX':          "3",
+        'DDFS_READ_TOKEN':       "None",
+        'DDFS_WRITE_TOKEN':      "None",
         'DDFS_TAG_MIN_REPLICAS': "1",
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",

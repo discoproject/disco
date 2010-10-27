@@ -53,9 +53,12 @@ class DDFS(object):
     :param master: address of the master,
                    for instance ``disco://localhost``.
     """
-    def __init__(self, master=None, proxy=None, settings=DiscoSettings()):
+    def __init__(self, master=None,
+                 proxy=None,
+                 settings=DiscoSettings()):
         self.proxy  = proxy or settings['DISCO_PROXY']
         self.master = self.proxy or master or settings['DISCO_MASTER']
+        self.settings = settings
 
     @classmethod
     def safe_name(cls, name):
@@ -73,7 +76,14 @@ class DDFS(object):
             return 'disco://%s' % host
         return 'http://%s:%s' % (host, port)
 
-    def blobs(self, tag, ignore_missing=True):
+    def attrs(self, tag, token=None):
+        """Get a list of the attributes of the tag ``tag`` and their values."""
+        t = self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
+                                               tagname(tag)),
+                           token=token)
+        return t.get('user-data')
+
+    def blobs(self, tag, ignore_missing=True, token=None):
         """
         Walks the tag graph starting at `tag`.
 
@@ -83,16 +93,27 @@ class DDFS(object):
         :param ignore_missing: Whether or not missing tags will raise a
                                :class:`disco.error.CommError`.
         """
-        for path, tags, blobs in self.walk(tag, ignore_missing=ignore_missing):
+        for path, tags, blobs in self.walk(tag,
+                                           ignore_missing=ignore_missing,
+                                           token=token):
             if tags != blobs:
                 for replicas in blobs:
                     yield replicas
 
-    def delete(self, tag):
+    def delattr(self, tag, attr, token=None):
+        """Delete the attribute ``attr` of the tag ``tag``."""
+        return self._download('%s/ddfs/tag/%s/%s' % (self.tagmaster(tag),
+                                                     tagname(tag),
+                                                     attr),
+                              method='DELETE',
+                              token=token)
+
+    def delete(self, tag, token=None):
         """Delete ``tag``."""
         return self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
                                                   tagname(tag)),
-                              method='DELETE')
+                              method='DELETE',
+                              token=token)
 
     def exists(self, tag):
         """Returns whether or not ``tag`` exists."""
@@ -105,7 +126,7 @@ class DDFS(object):
                 raise
         return False
 
-    def findtags(self, tags=None, ignore_missing=True):
+    def findtags(self, tags=None, ignore_missing=True, token=None):
         import sys
         """
         Finds the nodes of the tag graph starting at `tags`.
@@ -119,7 +140,7 @@ class DDFS(object):
         for tag in tag_queue:
             if tag not in seen:
                 try:
-                    urls        = self.get(tag).get('urls', [])
+                    urls        = self.get(tag, token=token).get('urls', [])
                     tags, blobs = partition(urls, istag)
                     tags        = canonizetags(tags)
                     yield tag, tags, blobs
@@ -132,17 +153,25 @@ class DDFS(object):
                     else:
                         raise
 
-    def get(self, tag):
+    def get(self, tag, token=None):
         """Return the tag object stored at ``tag``."""
         return self._download('%s/ddfs/tag/%s' % (self.tagmaster(tag),
-                                                  tagname(tag)))
+                                                  tagname(tag)),
+                              token=token)
+
+    def getattr(self, tag, attr, token=None):
+        """Return the value of the attribute ``attr` of the tag ``tag``."""
+        return self._download('%s/ddfs/tag/%s/%s' % (self.tagmaster(tag),
+                                                     tagname(tag),
+                                                     attr),
+                              token=token)
 
     def list(self, prefix=''):
         """Return a list of all tags starting wtih ``prefix``."""
         return self._download('%s/ddfs/tags/%s' % (self.master, prefix))
 
-    def pull(self, tag, blobfilter=lambda x: True):
-        for repl in self.get(tag)['urls']:
+    def pull(self, tag, blobfilter=lambda x: True, token=None):
+        for repl in self.get(tag, token=token)['urls']:
             if blobfilter(self.blob_name(repl[0])):
                 random.shuffle(repl)
                 for url in repl:
@@ -160,7 +189,8 @@ class DDFS(object):
              replicas=None,
              retries=10,
              delayed=False,
-             update=False):
+             update=False,
+             token=None):
         """
         Pushes a bunch of files to ddfs and tags them with `tag`.
 
@@ -181,9 +211,9 @@ class DDFS(object):
 
         urls = [self._push(aim(f), replicas=replicas, retries=retries)
                 for f in files]
-        return self.tag(tag, urls, delayed=delayed, update=update), urls
+        return self.tag(tag, urls, delayed=delayed, update=update, token=token), urls
 
-    def put(self, tag, urls):
+    def put(self, tag, urls, token=None):
         """Put the list of ``urls`` to the tag ``tag``.
 
         .. warning::
@@ -193,21 +223,29 @@ class DDFS(object):
         """
         return self._upload('%s/ddfs/tag/%s' % (self.tagmaster(tag),
                                                 tagname(tag)),
-                            StringIO(json.dumps(urls)))
+                            StringIO(json.dumps(urls)),
+                            token=token)
 
-    def tag(self, tag, urls, **kwargs):
+    def setattr(self, tag, attr, val, token=None):
+        """Set the value of the attribute ``attr` of the tag ``tag``."""
+        return self._upload('%s/ddfs/tag/%s/%s' % (self.tagmaster(tag),
+                                                   tagname(tag),
+                                                   attr),
+                            StringIO(json.dumps(val)),
+                            token=token)
+
+    def tag(self, tag, urls, token=None, **kwargs):
         """Append the list of ``urls`` to the ``tag``."""
-
         defaults = {'delayed': False, 'update': False}
         defaults.update(kwargs)
         fmt = lambda x: '1' if x else ''
 
         query = '&'.join('%s=%s' % (k, fmt(v)) for k, v in defaults.items())
-        return self._download('%s/ddfs/tag/%s?%s' %
-                              (self.tagmaster(tag),
-                               tagname(tag),
-                               query),
-                              json.dumps(urls))
+        return self._download('%s/ddfs/tag/%s?%s' % (self.tagmaster(tag),
+                                                     tagname(tag),
+                                                     query),
+                              token=token,
+                              data=json.dumps(urls))
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):
         import tarfile, sys, gzip, os
@@ -234,7 +272,7 @@ class DDFS(object):
                 name = DDFS.safe_name(member.name) + suffix
                 yield name, buf, size
 
-    def walk(self, tag, ignore_missing=True, tagpath=()):
+    def walk(self, tag, ignore_missing=True, tagpath=(), token=None):
         """
         Walks the tag graph starting at `tag`.
 
@@ -247,7 +285,7 @@ class DDFS(object):
         tagpath += (canonizetag(tag), )
 
         try:
-            urls        = self.get(tag).get('urls', [])
+            urls        = self.get(tag, token=token).get('urls', [])
             tags, blobs = partition(urls, istag)
             tags        = canonizetags(tags)
             yield tagpath, tags, blobs
@@ -262,7 +300,8 @@ class DDFS(object):
         for next_tag in tags:
             for child in self.walk(next_tag,
                                    ignore_missing=ignore_missing,
-                                   tagpath=tagpath):
+                                   tagpath=tagpath,
+                                   token=token):
                 yield child
 
     def _copy(self, src, dst):
@@ -298,10 +337,19 @@ class DDFS(object):
                               exclude=exclude + [host],
                               **kwargs)
 
-    def _download(self, url, data=None, method='GET'):
-        response = download(url, data=data, method=method)
+    def _token(self, token, method):
+        if token is None:
+            if method == 'GET':
+                return self.settings['DDFS_READ_TOKEN']
+            return self.settings['DDFS_WRITE_TOKEN']
+        return token
+
+    def _download(self, url, data=None, token=None, method='GET'):
+        token = self._token(token, method)
+        response = download(url, data=data, method=method, token=token)
         return json.loads(response)
 
-    def _upload(self, urls, source, **kwargs):
+    def _upload(self, urls, source, token=None, **kwargs):
+        token = self._token(token, 'PUT')
         urls = [self._maybe_proxy(url, method='PUT') for url in iterify(urls)]
-        return upload(urls, source, **kwargs)
+        return upload(urls, source, token=token, **kwargs)

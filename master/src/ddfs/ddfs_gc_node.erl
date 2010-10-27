@@ -50,7 +50,7 @@ send_blob(Obj, DstUrl, Root) ->
         DstUrl, ?GC_PUT_TIMEOUT).
 
 -spec traverse(timer:timestamp(), nonempty_string(),
-    nonempty_string(), nonempty_string(), atom()) -> _.
+               [nonempty_string()], nonempty_string(), 'blob' | 'tag') -> _.
 traverse(Now, Root, VolNames, Mode, Ets) ->
     lists:foldl(fun(VolName, _) ->
                         ddfs_util:fold_files(filename:join([Root, VolName, Mode]),
@@ -64,7 +64,7 @@ traverse(Now, Root, VolNames, Mode, Ets) ->
 %%% O1) Remove leftover !partial. files
 %%%
 -spec handle_file(nonempty_string(), nonempty_string(),
-    nonempty_string(), atom(), timer:timestamp()) -> _.
+    nonempty_string(), 'blob' | 'tag', timer:timestamp()) -> _.
 handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     [_, Obj] = string:tokens(File, "."),
     {_, Time} = ddfs_util:unpack_objname(Obj),
@@ -101,7 +101,7 @@ is_really_orphan(Master, Obj) ->
                           orphans_failed)
     end.
 
--spec delete_if_expired(nonempty_string(), timer:timestamp(),
+-spec delete_if_expired(string(), timer:timestamp(),
     timer:timestamp(), non_neg_integer()) -> _.
 delete_if_expired(Path, Now, Time, Expires) ->
     Diff = timer:now_diff(Now, Time) / 1000,

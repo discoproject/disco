@@ -1,4 +1,4 @@
-import httplib, time
+import httplib, time, base64
 from cStringIO import StringIO
 
 import pycurl
@@ -92,15 +92,22 @@ class HTTPConnection(object):
             raise httplib.HTTPException(self.handle.errstr())
 
 class MultiPut(object):
-    def __init__(self, urls, source):
+    def __init__(self, urls, source, token=None):
         from disco.util import urlresolve
         self.multi = pycurl.CurlMulti()
+        headers = self.auth_header(token)
         self.pending = [(url, HTTPConnection('').prepare('PUT',
                                                          urlresolve(url),
-                                                         body=source))
+                                                         body=source,
+                                                         headers=headers))
                         for url in urls]
         for url, conn in self.pending:
             self.multi.add_handle(conn.handle)
+
+    def auth_header(self, token):
+        if token:
+            return {'Authorization': 'Basic ' + base64.b64encode("token:" + token)}
+        return {}
 
     def perform(self):
         num_handles = True
@@ -115,10 +122,10 @@ class MultiPut(object):
         for url, conn in self.pending:
             yield url, conn.getresponse()
 
-def upload(urls, source, retries=10):
+def upload(urls, source, token, retries=10):
     unavailable = []
 
-    for url, response in MultiPut(urls, source).perform():
+    for url, response in MultiPut(urls, source, token).perform():
         status = response.status
         if str(status).startswith('2'):
             yield response.read()

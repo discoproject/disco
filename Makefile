@@ -1,7 +1,7 @@
 
 #OPT = -W +native +"{hipe, [o3]}"
 OPT = -W
-CC  = erlc
+CC  = erlc +debug_info
 ERL = erl
 
 PYTHON = python
@@ -134,7 +134,7 @@ $(EBIN)/ddfs:
 $(EBIN)/mochiweb:
 	- mkdir $(EBIN)/mochiweb
 
-.PHONY: dialyzer typer realclean
+.PHONY: master dialyzer typer realclean
 
 DIALYZER_PLT = master/.dialyzer_plt
 
@@ -146,7 +146,7 @@ $(DIALYZER_PLT):
 		$(ERL_LIBDIR)/lib/inets*/ebin $(ERL_LIBDIR)/lib/xmerl*/ebin
 
 dialyzer: $(DIALYZER_PLT)
-	$(DIALYZER) --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
+	$(DIALYZER) -Wspecdiffs --get_warnings --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
 
 typer:
 	$(TYPER) --plt $(DIALYZER_PLT) -r $(ESRC)
@@ -154,6 +154,6 @@ typer:
 realclean: clean
 	-rm -f $(DIALYZER_PLT)
 
-master-tests: $(TEST_TARGET)
-	$(ERL) -noshell -pa $(ETEST) -pa $(EBIN) -pa $(EBIN)/ddfs -s master_tests main -s init stop
+master-tests: $(TEST_TARGET) master
+	$(ERL) -noshell -pa $(ETEST) -pa $(EBIN) -pa $(EBIN)/ddfs -pa $(EBIN)/mochiweb -s master_tests main -s init stop
 

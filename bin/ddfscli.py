@@ -60,6 +60,8 @@ class DDFSOptionParser(OptionParser):
         self.add_option('-r', '--recursive',
                         action='store_true',
                         help='recursively perform operations')
+        self.add_option('-t', '--token',
+                        help='authorization token for the command')
         self.add_option('-w', '--warn-missing',
                         action='store_true',
                         help='warn about missing tags')
@@ -90,7 +92,7 @@ class DDFS(Program):
     @property
     def ddfs(self):
         from disco.ddfs import DDFS
-        return DDFS(self.settings['DISCO_MASTER'])
+        return DDFS(master=self.settings['DISCO_MASTER'])
 
     def file_mode(self, *urls):
         if self.options.files:
@@ -109,6 +111,16 @@ class DDFS(Program):
         def istag(url):
             return url.startswith('tag://') or '/' not in url
         return partition(urls, istag)
+
+@DDFS.command
+def attrs(program, tag):
+    """Usage: tag
+
+    List the attributes of a tag.
+    """
+    d = program.ddfs.attrs(tag)
+    for k,v in d.iteritems():
+        print ("%s: %s" % (k, v))
 
 @DDFS.command
 def blobs(program, *tags):
@@ -154,6 +166,14 @@ def cp(program, source_tag, target_tag):
     Copies one tag to another, overwriting it if it exists.
     """
     program.ddfs.put(target_tag, program.ddfs.get(source_tag)['urls'])
+
+@DDFS.command
+def delattr(program, tag, attr):
+    """Usage: tag attr
+
+    Delete an attribute of a tag.
+    """
+    program.ddfs.delattr(tag, attr)
 
 def df(program, *args):
     """Usage: <undefined>
@@ -215,6 +235,14 @@ def get(program, tag):
     Gets the contents of the tag.
     """
     print program.ddfs.get(tag)
+
+@DDFS.command
+def getattr(program, tag, attr):
+    """Usage: tag attr
+
+    Get an attribute of a tag.
+    """
+    print program.ddfs.getattr(tag, attr)
 
 def grep(program, *args):
     """Usage: <undefined>
@@ -305,6 +333,14 @@ def rm(program, *tags):
     """
     for tag in program.prefix_mode(*tags):
         print program.ddfs.delete(tag)
+
+@DDFS.command
+def setattr(program, tag, attr, val):
+    """Usage: tag attr val
+
+    Set the value of an attribute of a tag.
+    """
+    program.ddfs.setattr(tag, attr, val)
 
 @DDFS.command
 def stat(program, *tags):

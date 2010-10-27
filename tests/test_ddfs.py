@@ -167,3 +167,98 @@ class DDFSReadTestCase(DiscoTestCase):
         self.ddfs.delete('disco:test:emptyblob')
         self.ddfs.delete('disco:test:tag')
         self.ddfs.delete('disco:test:metatag')
+
+
+class DDFSAttrTestCase(DiscoTestCase):
+    def setUp(self):
+        self.ddfs = DDFS(self.disco_master_url)
+        self.ddfs.push('disco:test:attrs', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.setattr('disco:test:attrs', 'a1', 'v1')
+        self.ddfs.setattr('disco:test:attrs', 'a2', 'v2')
+
+    def test_setattr(self):
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a1'), 'v1')
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a2'), 'v2')
+
+    def test_attrs(self):
+        self.assertEquals(self.ddfs.attrs('disco:test:attrs'), {'a1':'v1',
+                                                                'a2':'v2'})
+
+    def test_delattr(self):
+        self.ddfs.setattr('disco:test:attrs', 'a3', 'v3')
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a1'), 'v1')
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a2'), 'v2')
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a3'), 'v3')
+        self.assertEquals(self.ddfs.attrs('disco:test:attrs'), {'a1':'v1',
+                                                                'a2':'v2',
+                                                                'a3':'v3'})
+        self.ddfs.delattr('disco:test:attrs', 'a3')
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a1'), 'v1')
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a2'), 'v2')
+        self.assertEquals(self.ddfs.attrs('disco:test:attrs'), {'a1':'v1',
+                                                                'a2':'v2'})
+
+    def test_delattr_unknown(self):
+        self.ddfs.delattr('disco:test:attrs', 'z')
+
+    def test_resetattr(self):
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a1'), 'v1')
+        self.ddfs.setattr('disco:test:attrs', 'a1', 'v1.2')
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a1'), 'v1.2')
+        self.ddfs.setattr('disco:test:attrs', 'a1', 'v1')
+        self.assertEquals(self.ddfs.getattr('disco:test:attrs', 'a1'), 'v1')
+
+    def test_reserved_attrs(self):
+        setter = lambda: self.ddfs.setattr('disco:test:attrs', 'ddfs:a1', 'v')
+        self.assertCommErrorCode(404, setter)
+
+    def tearDown(self):
+        self.ddfs.delete('disco:test:attrs')
+
+class DDFSAuthTestCase(DiscoTestCase):
+    def setUp(self):
+        self.ddfs = DDFS(self.disco_master_url)
+        self.ddfs.push('disco:test:authrd', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:authwr', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.setattr('disco:test:authrd', 'a', 'v')
+        self.ddfs.setattr('disco:test:authwr', 'a', 'v')
+        self.ddfs.setattr('disco:test:authrd', 'ddfs:read-token', 'rdr')
+        self.ddfs.setattr('disco:test:authwr', 'ddfs:write-token', 'wtr')
+
+    def test_write_noread(self):
+        self.assertEquals(self.ddfs.getattr('disco:test:authwr', 'a'), 'v')
+        self.assertEquals(self.ddfs.getattr('disco:test:authwr', 'a', token='rand'), 'v')
+
+    def test_write_noread2(self):
+        self.assertCommErrorCode(401, lambda: self.ddfs.setattr('disco:test:authwr', 'a2', 'v2'))
+        rand_setter = lambda: self.ddfs.setattr('disco:test:authwr', 'a2', 'v2', token='rand')
+        self.assertCommErrorCode(401, rand_setter)
+        self.ddfs.setattr('disco:test:authwr', 'a2', 'v2', token='wtr')
+        self.ddfs.delattr('disco:test:authwr', 'a2', token='wtr')
+
+    def test_write_noread3(self):
+        setter = lambda: self.ddfs.setattr('disco:test:authwr', 'ddfs:read-token', 'r')
+        self.assertCommErrorCode(401, setter)
+        self.ddfs.setattr('disco:test:authwr', 'ddfs:read-token', 'r', token='wtr')
+        self.assertCommErrorCode(401, lambda: self.ddfs.getattr('disco:test:authwr', 'a'))
+        self.assertEquals(self.ddfs.getattr('disco:test:authwr', 'a', token='r'), 'v')
+        self.ddfs.delattr('disco:test:authwr', 'ddfs:read-token', token='wtr')
+
+    def test_read_nowrite(self):
+        self.assertCommErrorCode(401, lambda: self.ddfs.getattr('disco:test:authrd', 'a'))
+        rand_getter = lambda: self.ddfs.getattr('disco:test:authrd', 'a', token='rand')
+        self.assertCommErrorCode(401, rand_getter)
+        self.assertEquals(self.ddfs.getattr('disco:test:authrd', 'a', token='rdr'), 'v')
+
+    def test_read_nowrite2(self):
+        self.ddfs.setattr('disco:test:authrd', 'a2', 'v2')
+        self.assertEquals(self.ddfs.getattr('disco:test:authrd', 'a2', token='rdr'), 'v2')
+        self.ddfs.delattr('disco:test:authrd', 'a2', token='rand')
+
+    def test_read_nowrite3(self):
+        self.ddfs.setattr('disco:test:authrd', 'ddfs:read-token', 'r')
+        self.ddfs.setattr('disco:test:authrd', 'ddfs:read-token', 'rdr')
+
+    def tearDown(self):
+        self.ddfs.delete('disco:test:authrd')
+        self.ddfs.delete('disco:test:authwr', token='wtr')
