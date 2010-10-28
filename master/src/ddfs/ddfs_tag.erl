@@ -408,7 +408,6 @@ do_put({_, Token},
        ReplyTo,
        #state{tag = TagName, data = {missing, _} = D} = S)
        when is_binary(Token) ->
-    error_logger:info_report({"SET TOKEN", TagName, Token}),
     D1 = ddfs_tag_util:update_tagcontent(TagName, read_token, Token, D),
     D2 = ddfs_tag_util:update_tagcontent(TagName, write_token, Token, D1),
     do_put(Field, Value, ReplyTo, S#state{data = D2});
