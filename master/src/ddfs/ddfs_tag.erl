@@ -100,14 +100,9 @@ handle_cast(M, #state{data = none} = S) ->
                 replicas = Replicas,
                 timeout = lists:min([Timeout, S#state.timeout])});
 
-% Delayed update requested but loading tag data failed, reply an error
-handle_cast({{delayed_update, _, _, _}, ReplyTo},
-            #state{data = {error, _}} = S) ->
-    gen_server:reply(ReplyTo, S#state.data),
-    {noreply, S, S#state.timeout};
-
 % Delayed update with an empty buffer, initialize the buffer and a flush process
-handle_cast({{delayed_update, _, _, _}, _} = M, #state{delayed = false} = S) ->
+handle_cast({{delayed_update, _, _, _}, _} = M,
+            #state{data = {ok, _}, delayed = false} = S) ->
     spawn(fun() ->
         timer:sleep(?DELAYED_FLUSH_INTERVAL),
         ddfs:get_tag(ddfs_master, binary_to_list(S#state.tag), all, internal)
@@ -116,25 +111,32 @@ handle_cast({{delayed_update, _, _, _}, _} = M, #state{delayed = false} = S) ->
 
 % Normal delayed update, add request to the buffer, reply later
 handle_cast({{delayed_update, Urls, Token, Opt}, ReplyTo},
-            #state{delayed = Buffer} = S) ->
-    Do = fun(_TokenType) ->
+            #state{data = {ok, _}, delayed = Buffer} = S) ->
+    Do = fun(_TokenInfo) ->
              do_delayed_update(Urls, Opt, ReplyTo, Buffer, S)
          end,
     S1 = authorize(write, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
 
+% Delayed update but the tag doesn't exist yet, fall back to normal update
+handle_cast({{delayed_update, Urls, Token, Opt}, ReplyTo}, S) ->
+    handle_cast({{update, Urls, Token, Opt}, ReplyTo}, S);
+
 % Before handling any other requests, flush pending delayed updates
 handle_cast(M, #state{delayed = Buffer} = S0) when Buffer =/= false ->
     Fun =
         fun({Opt, {Waiters, Urls}}, S) ->
-            do_update(Urls, Opt, Waiters, S)
+            % Note that we can supply bogus TokenInfo to do_update here,
+            % as it is only used when creating a new tag. We can
+            % guarantee that the tag exists at this point.
+            do_update({write, null}, Urls, Opt, Waiters, S)
         end,
     NewState =
         lists:foldl(Fun, S0#state{delayed = false}, gb_trees:to_list(Buffer)),
     handle_cast(M, NewState);
 
 handle_cast({{delete, Token}, ReplyTo}, S) ->
-    Do = fun(_TokenType) -> do_delete(ReplyTo, S) end,
+    Do = fun(_TokenInfo) -> do_delete(ReplyTo, S) end,
     S1 = authorize(write, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
 
@@ -142,8 +144,8 @@ handle_cast({die, _}, S) ->
     {stop, normal, S};
 
 handle_cast({{get, Attrib, Token}, ReplyTo}, #state{data = {ok, D}} = S) ->
-    Do = fun(TokenType) ->
-            gen_server:reply(ReplyTo, do_get(TokenType, Attrib, D)),
+    Do = fun(TokenInfo) ->
+            gen_server:reply(ReplyTo, do_get(TokenInfo, Attrib, D)),
             S
          end,
     S1 = authorize(read, Token, ReplyTo, S, Do),
@@ -166,14 +168,18 @@ handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
     {noreply, S, S#state.timeout};
 
-handle_cast({{update, _Urls, _Token, _Opt}, _ReplyTo} = M, S) ->
-    S1 = update(M, S),
+handle_cast({{update, Urls, Token, Opt}, ReplyTo}, S) ->
+    Do = fun(TokenInfo) -> do_update(TokenInfo, Urls, Opt, ReplyTo, S) end,
+    S1 = authorize(write, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
 
 handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
     case ddfs_tag_util:validate_value(Field, Value) of
         true ->
-            Do = fun (_TokenType) -> do_put(Field, Value, ReplyTo, S) end,
+            Do =
+                fun (TokenInfo) ->
+                    do_put(TokenInfo, Field, Value, ReplyTo, S)
+                end,
             S1 = authorize(write, Token, ReplyTo, S, Do),
             {noreply, S1, S1#state.timeout};
         false ->
@@ -183,7 +189,7 @@ handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
 
 handle_cast({{delete_attrib, Field, Token}, ReplyTo},
              #state{data = {ok, _}} = S) ->
-    Do = fun(_TokenType) -> do_delete_attrib(Field, ReplyTo, S) end,
+    Do = fun(_TokenInfo) -> do_delete_attrib(Field, ReplyTo, S) end,
     S1 = authorize(write, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
 
@@ -247,33 +253,29 @@ authorize(TokenType, Token, ReplyTo, ReadToken, WriteToken, S, Op) ->
             send_replies(ReplyTo, {error, unauthorized}),
             S;
         TokenPrivilege ->
-            Op(TokenPrivilege)
+            Op({TokenPrivilege, Token})
     end.
 
-update({{update, Urls, Token, Opt}, ReplyTo}, S) ->
-    Do = fun(_TokenType) -> do_update(Urls, Opt, ReplyTo, S) end,
-    authorize(write, Token, ReplyTo, S, Do).
+do_update(TokenInfo, Urls, Opt, ReplyTo, #state{data = {missing, _}} = S) ->
+    do_update(TokenInfo, Urls, Opt, ReplyTo, [], S);
 
-do_update(Urls, Opt, ReplyTo, #state{data = {missing, _}} = State) ->
-    do_update(Urls, Opt, ReplyTo, [], State);
-
-do_update(Urls, Opt, ReplyTo, #state{data = {ok, D}} = State) ->
+do_update(TokenInfo, Urls, Opt, ReplyTo, #state{data = {ok, D}} = S) ->
     OldUrls = D#tagcontent.urls,
-    do_update(Urls, Opt, ReplyTo, OldUrls, State).
+    do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls, S).
 
-do_update(Urls, Opt, ReplyTo, OldUrls, State) ->
+do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls, S) ->
     case ddfs_tag_util:validate_urls(Urls) of
         true ->
             NoDup = proplists:is_defined(nodup, Opt),
             {Cache, Merged} = merge_urls(Urls,
                                          OldUrls,
                                          NoDup,
-                                         State#state.url_cache),
-            NState = do_put(urls, Merged, ReplyTo, State),
+                                         S#state.url_cache),
+            NState = do_put(TokenInfo, urls, Merged, ReplyTo, S),
             NState#state{url_cache = Cache};
         false ->
             send_replies(ReplyTo, {error, invalid_url_object}),
-            State
+            S
     end.
 
 % Normal update: Just add new urls to the list
@@ -372,37 +374,47 @@ do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
 jsonbin(X) ->
     iolist_to_binary(mochijson2:encode(X)).
 
--spec do_get(tokentype(), attrib() | all, tagcontent()) ->
+-spec do_get({tokentype(), token()}, attrib() | all, tagcontent()) ->
              binary() | {'error','unauthorized' | 'unknown_attribute'}.
-do_get(TokenType, all, D) ->
+do_get({TokenType, _}, all, D) ->
     {ok, ddfs_tag_util:encode_tagcontent_secure(D, TokenType)};
 
-do_get(_TokenType, urls, D) ->
+do_get(_TokenInfo, urls, D) ->
     {ok, jsonbin(D#tagcontent.urls)};
 
-do_get(_TokenType, read_token, D) ->
+do_get(_TokenInfo, read_token, D) ->
     {ok, jsonbin(D#tagcontent.read_token)};
 
-do_get(read, write_token, _D) ->
+do_get({read, _}, write_token, _D) ->
     {error, unauthorized};
 
-do_get(write, write_token, D) ->
+do_get({write, _}, write_token, D) ->
     {ok, jsonbin(D#tagcontent.write_token)};
 
-do_get(_TokenType, {user, A}, D) ->
+do_get(_TokenInfo, {user, A}, D) ->
     case proplists:lookup(A, D#tagcontent.user) of
         {_, V} -> {ok, jsonbin(V)};
         _ -> {error, unknown_attribute}
     end.
 
-% Put transaction:
-% 1. choose nodes
-% 2. multicall nodes, send TagData -> receive temporary file names
-% 3. if failures -> retry with other nodes
-% 4. if all nodes fail before tagk replicas are written, fail
-% 5. multicall with temp file names, rename
-% 6. if all fail, fail
-% 7. if at least one multicall succeeds, return updated tagdata, desturls
+% First, a special case: New tag is being created and a token is set ->
+% Assign the token as a read and write token for the new tag atomically.
+
+-spec do_put({tokentype(), token()}, attrib(), string(), replyto(), #state{})
+            -> #state{}.
+do_put({_, Token},
+       Field,
+       Value,
+       ReplyTo,
+       #state{tag = TagName, data = {missing, _} = D} = S)
+       when is_binary(Token) ->
+    error_logger:info_report({"SET TOKEN", TagName, Token}),
+    D1 = ddfs_tag_util:update_tagcontent(TagName, read_token, Token, D),
+    D2 = ddfs_tag_util:update_tagcontent(TagName, write_token, Token, D1),
+    do_put(Field, Value, ReplyTo, S#state{data = D2});
+
+do_put(_TokenInfo, Field, Value, ReplyTo, S) ->
+    do_put(Field, Value, ReplyTo, S).
 
 -spec do_put(attrib(), string(), replyto(), #state{}) -> #state{}.
 do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
@@ -443,6 +455,15 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
             send_replies(ReplyTo, E),
             S#state{url_cache = false}
     end.
+
+% Put transaction:
+% 1. choose nodes
+% 2. multicall nodes, send TagData -> receive temporary file names
+% 3. if failures -> retry with other nodes
+% 4. if all nodes fail before tagk replicas are written, fail
+% 5. multicall with temp file names, rename
+% 6. if all fail, fail
+% 7. if at least one multicall succeeds, return updated tagdata, desturls
 
 -spec put_distribute({tagid(),binary()}) ->
     {'error','commit_failed' | 'replication_failed'} | {'ok',[node()],[binary()]}.

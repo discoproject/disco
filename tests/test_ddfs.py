@@ -259,6 +259,30 @@ class DDFSAuthTestCase(DiscoTestCase):
         self.ddfs.setattr('disco:test:authrd', 'ddfs:read-token', 'r')
         self.ddfs.setattr('disco:test:authrd', 'ddfs:read-token', 'rdr')
 
+    def test_atomic_token(self):
+        self.ddfs.push('disco:test:atomic1',
+                        [(StringIO('abc'), 'atom')],
+                        update=True,
+                        delayed=True,
+                        token='secret1')
+        getter = lambda: self.ddfs.getattr('disco:test:atomic1', 'foobar')
+        self.assertCommErrorCode(401, getter)
+        self.assertEquals(self.ddfs.getattr('disco:test:atomic1',
+                                            'ddfs:write-token',
+                                            token='secret1'), 'secret1')
+        self.ddfs.put('disco:test:atomic2', [], token='secret2')
+        getter = lambda: self.ddfs.getattr('disco:test:atomic2', 'foobar')
+        self.assertCommErrorCode(401, getter)
+        self.assertEquals(self.ddfs.getattr('disco:test:atomic2',
+                                            'ddfs:write-token',
+                                            token='secret2'), 'secret2')
+        self.ddfs.put('disco:test:notoken', [])
+        self.assertEquals(self.ddfs.getattr('disco:test:notoken',
+                                            'ddfs:write-token'), None)
+
     def tearDown(self):
         self.ddfs.delete('disco:test:authrd')
         self.ddfs.delete('disco:test:authwr', token='wtr')
+        self.ddfs.delete('disco:test:atomic1', token='secret1')
+        self.ddfs.delete('disco:test:atomic2', token='secret2')
+        self.ddfs.delete('disco:test:notoken')
