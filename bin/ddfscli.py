@@ -326,6 +326,14 @@ def put(program, tag, *urls):
     program.ddfs.put(tag, [url.split() for url in program.file_mode(*urls)])
 
 @DDFS.command
+def readtoken(program, tag, token):
+    """Usage: tag token
+
+    Set the read token of a tag.
+    """
+    program.ddfs.setattr(tag, 'ddfs:read-token', token)
+
+@DDFS.command
 def rm(program, *tags):
     """Usage: [-i] [-r] [-p] [tag ...]
 
@@ -379,6 +387,14 @@ def urls(program, *tags):
     for tag in program.prefix_mode(*tags):
         for replicas in program.ddfs.get(tag)['urls']:
             print '\t'.join(replicas)
+
+@DDFS.command
+def writetoken(program, tag, token):
+    """Usage: tag token
+
+    Set the write token of a tag.
+    """
+    program.ddfs.setattr(tag, 'ddfs:write-token', token)
 
 @DDFS.command
 def xcat(program, *urls):
