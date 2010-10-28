@@ -33,12 +33,8 @@ tags(Host, Prefix) ->
     | {'ok', binary()} | {'error', _}.
 get_tag(Host, Tag, Attrib, Token) ->
     validate(Tag, fun() ->
-        case gen_server:call(Host,
-                {tag, {get, Attrib, Token}, list_to_binary(Tag)}, ?NODEOP_TIMEOUT) of
-            TagData when is_binary(TagData) ->
-                {ok, TagData};
-            E -> E
-        end
+        gen_server:call(Host, {tag, {get, Attrib, Token}, list_to_binary(Tag)},
+                        ?NODEOP_TIMEOUT)
     end).
 
 -spec update_tag(node(), string(), [binary()], ddfs_tag:token()) -> _.

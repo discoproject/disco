@@ -78,12 +78,10 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
             case ddfs:get_tag(ddfs_master, Tag, Attrib, Token) of
                 {ok, TagData} ->
                     Req:ok({"application/json", [], TagData});
+                {missing, _} ->
+                    Req:respond({404, [], ["Tag not found."]});
                 invalid_name ->
                     Req:respond({403, [], ["Invalid tag."]});
-                deleted ->
-                    Req:respond({404, [], ["Tag not found."]});
-                notfound ->
-                    Req:respond({404, [], ["Tag not found."]});
                 unknown_attribute ->
                     Req:respond({404, [], ["Tag attribute not found."]});
                 E ->
@@ -176,7 +174,7 @@ error(timeout, Req) ->
 error({error, timeout}, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});
 error({error, unauthorized}, Req) ->
-    Req:respond({401, [], ["Tag operation requires token."]});
+    Req:respond({401, [], ["Incorrect or missing token."]});
 error({error, invalid_name}, Req) ->
     Req:respond({403, [], ["Invalid tag"]});
 error({error, invalid_url_object}, Req) ->

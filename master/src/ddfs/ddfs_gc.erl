@@ -132,7 +132,7 @@ process_tags([]) -> ok;
 process_tags([Tag|T]) ->
     error_logger:info_report({"process tag", Tag}),
     case gen_server:call(ddfs_master, {tag, gc_get, Tag}) of
-        {deleted, false} ->
+        {{missing, deleted}, false} ->
             process_tags(T);
         {E, false} ->
             abort({"GC: Couldn't get data for tag", Tag, E}, tag_failed);

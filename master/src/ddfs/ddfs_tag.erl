@@ -12,8 +12,11 @@
 -type replyto() :: {pid(), reference()}.
 
 -record(state, {tag :: tagname(),
-                data :: 'false'  | 'notfound' | 'deleted' | {'error', _}
-                    | #tagcontent{},
+                data :: none |
+                        {missing, notfound} |
+                        {missing, deleted} |
+                        {error, _} |
+                        {ok, #tagcontent{}},
                 delayed :: {[replyto()], [[binary()]]},
                 timeout :: non_neg_integer(),
                 replicas :: 'false' | 'too_many_failed_nodes'
@@ -31,28 +34,27 @@
 % Correspondingly GC'ing must ensure that K replicas for a tag
 % are found within its partition rather than globally.
 
--spec start(tagname(), 'notfound' | 'false') ->
-            'ignore' | {'error',_} | {'ok',pid()}.
-start(TagName, Status) ->
-    gen_server:start(ddfs_tag, {TagName, Status}, []).
+-spec start(tagname(), bool()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+start(TagName, NotFound) ->
+    gen_server:start(ddfs_tag, {TagName, NotFound}, []).
 
--spec init({tagname(), 'notfound' | 'false'}) -> {'ok', #state{}}.
-init({TagName, Status}) ->
+-spec init({tagname(), bool()}) -> {'ok', #state{}}.
+init({TagName, true}) ->
+    init(TagName, {missing, notfound}, ?TAG_EXPIRES_ONERROR);
+init({TagName, false}) ->
+    init(TagName, none, ?TAG_EXPIRES).
+
+-spec init(tagname(), none | {missing, notfound},
+            non_neg_integer()) -> {'ok', #state{}}.
+init(TagName, Data, Timeout) ->
     put(min_tagk, list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS"))),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
-
     {ok, #state{tag = TagName,
-                data = Status,
+                data = Data,
                 delayed = false,
                 replicas = false,
                 url_cache = false,
-                timeout =
-                    if Status =:= notfound ->
-                        ?TAG_EXPIRES_ONERROR;
-                    true ->
-                        ?TAG_EXPIRES
-                    end
-    }}.
+                timeout = Timeout}}.
 
 %%% Note to the reader!
 %%%
@@ -62,7 +64,7 @@ init({TagName, Status}) ->
 %%%
 
 % We don't want to cache requests made by garbage collector
-handle_cast({gc_get, ReplyTo}, #state{data = false} = S) ->
+handle_cast({gc_get, ReplyTo}, #state{data = none} = S) ->
     handle_cast({gc_get0, ReplyTo}, S#state{timeout = 100});
 
 % On the other hand, if tag is already cached, GC'ing should
@@ -71,24 +73,26 @@ handle_cast({gc_get, ReplyTo}, S) ->
     handle_cast({gc_get0, ReplyTo}, S);
 
 % First request for this tag: No tag data loaded - load it
-handle_cast(M, #state{data = false} = S) ->
+handle_cast(M, #state{data = none} = S) ->
     {Data, Replicas, Timeout} =
         case is_tag_deleted(S#state.tag) of
             true ->
-                {deleted, false, ?TAG_EXPIRES_ONERROR};
+                {{missing, deleted}, false, ?TAG_EXPIRES_ONERROR};
             false ->
                 case get_tagdata(S#state.tag) of
                     {ok, TagData, Repl} ->
                         case ddfs_tag_util:decode_tagcontent(TagData) of
                             {ok, Content} ->
-                                {Content, Repl, S#state.timeout};
-                            E ->
+                                {{ok, Content}, Repl, S#state.timeout};
+                            {error, _} = E ->
                                 {E, false, ?TAG_EXPIRES_ONERROR}
                         end;
-                    E ->
+                    {missing, notfound} = E->
+                        {E, false, ?TAG_EXPIRES_ONERROR};
+                    {error, _} = E ->
                         {E, false, ?TAG_EXPIRES_ONERROR}
                 end;
-            E ->
+            {error, _} = E ->
                 {E, false, ?TAG_EXPIRES_ONERROR}
         end,
     handle_cast(M, S#state{
@@ -137,8 +141,7 @@ handle_cast({{delete, Token}, ReplyTo}, S) ->
 handle_cast({die, _}, S) ->
     {stop, normal, S};
 
-handle_cast({{get, Attrib, Token}, ReplyTo},
-            #state{data = #tagcontent{} = D} = S) ->
+handle_cast({{get, Attrib, Token}, ReplyTo}, #state{data = {ok, D}} = S) ->
     Do = fun(TokenType) ->
             gen_server:reply(ReplyTo, do_get(TokenType, Attrib, D)),
             S
@@ -154,7 +157,7 @@ handle_cast({_, ReplyTo}, #state{data = {error, _}} = S) ->
     gen_server:reply(ReplyTo, S#state.data),
     {noreply, S, S#state.timeout};
 
-handle_cast({gc_get0, ReplyTo}, #state{data = #tagcontent{} = D} = S) ->
+handle_cast({gc_get0, ReplyTo}, #state{data = {ok, D}} = S) ->
     R = {D#tagcontent.id, D#tagcontent.urls, S#state.replicas},
     gen_server:reply(ReplyTo, R),
     {noreply, S, S#state.timeout};
@@ -179,7 +182,7 @@ handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
     end;
 
 handle_cast({{delete_attrib, Field, Token}, ReplyTo},
-            #state{data = #tagcontent{}} = S) ->
+             #state{data = {ok, _}} = S) ->
     Do = fun(_TokenType) -> do_delete_attrib(Field, ReplyTo, S) end,
     S1 = authorize(write, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
@@ -190,10 +193,10 @@ handle_cast({{delete_attrib, _Field, _Token}, ReplyTo}, S) ->
 
 % Special operations for the +deleted metatag
 
-handle_cast(M, #state{url_cache = false, data = notfound} = S) ->
+handle_cast(M, #state{url_cache = false, data = {missing, notfound}} = S) ->
     handle_cast(M, S#state{url_cache = gb_sets:empty()});
 
-handle_cast(M, #state{url_cache = false, data = #tagcontent{} = Data} = S) ->
+handle_cast(M, #state{url_cache = false, data = {ok, Data}} = S) ->
     Urls = Data#tagcontent.urls,
     handle_cast(M, S#state{url_cache = init_url_cache(Urls)});
 
@@ -230,8 +233,8 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 authorize(TokenType,
           Token,
           ReplyTo,
-          #state{data = #tagcontent{read_token = ReadToken,
-                                    write_token = WriteToken} = S},
+          #state{data = {ok, #tagcontent{read_token = ReadToken,
+                                         write_token = WriteToken}}} = S,
           Op) ->
     authorize(TokenType, Token, ReplyTo, ReadToken, WriteToken, S, Op);
 
@@ -251,13 +254,10 @@ update({{update, Urls, Token, Opt}, ReplyTo}, S) ->
     Do = fun(_TokenType) -> do_update(Urls, Opt, ReplyTo, S) end,
     authorize(write, Token, ReplyTo, S, Do).
 
-do_update(Urls, Opt, ReplyTo, #state{data = notfound} = State) ->
+do_update(Urls, Opt, ReplyTo, #state{data = {missing, _}} = State) ->
     do_update(Urls, Opt, ReplyTo, [], State);
 
-do_update(Urls, Opt, ReplyTo, #state{data = deleted} = State) ->
-    do_update(Urls, Opt, ReplyTo, [], State);
-
-do_update(Urls, Opt, ReplyTo, #state{data = #tagcontent{} = D} = State) ->
+do_update(Urls, Opt, ReplyTo, #state{data = {ok, D}} = State) ->
     OldUrls = D#tagcontent.urls,
     do_update(Urls, Opt, ReplyTo, OldUrls, State).
 
@@ -329,7 +329,7 @@ get_tagdata(TagName) ->
         _ when length(Failed) >= TagMinK ->
             {error, too_many_failed_nodes};
         [] ->
-            notfound;
+            {missing, notfound};
         L ->
             {{Time, _Vol}, _Node} = lists:max(L),
             Replicas = [X || {{T, _}, _} = X <- L, T == Time],
@@ -375,23 +375,23 @@ jsonbin(X) ->
 -spec do_get(tokentype(), attrib() | all, tagcontent()) ->
              binary() | {'error','unauthorized' | 'unknown_attribute'}.
 do_get(TokenType, all, D) ->
-    ddfs_tag_util:encode_tagcontent_secure(D, TokenType);
+    {ok, ddfs_tag_util:encode_tagcontent_secure(D, TokenType)};
 
 do_get(_TokenType, urls, D) ->
-    jsonbin(D#tagcontent.urls);
+    {ok, jsonbin(D#tagcontent.urls)};
 
 do_get(_TokenType, read_token, D) ->
-    jsonbin(D#tagcontent.read_token);
+    {ok, jsonbin(D#tagcontent.read_token)};
 
 do_get(read, write_token, _D) ->
     {error, unauthorized};
 
 do_get(write, write_token, D) ->
-    jsonbin(D#tagcontent.write_token);
+    {ok, jsonbin(D#tagcontent.write_token)};
 
 do_get(_TokenType, {user, A}, D) ->
     case proplists:lookup(A, D#tagcontent.user) of
-        {_, V} -> jsonbin(V);
+        {_, V} -> {ok, jsonbin(V)};
         _ -> {error, unknown_attribute}
     end.
 
@@ -412,12 +412,12 @@ do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
             TagID = TagContent#tagcontent.id,
             case put_distribute({TagID, NewTagData}) of
                 {ok, DestNodes, DestUrls} ->
-                    if TagData =:= deleted ->
+                    if TagData =:= {missing, deleted} ->
                             {ok, _} = remove_from_deleted(TagName);
                        true -> ok
                     end,
                     send_replies(ReplyTo, {ok, DestUrls}),
-                    S#state{data = TagContent,
+                    S#state{data = {ok, TagContent},
                             replicas = DestNodes,
                             url_cache = false};
                 {error, _} = E ->
@@ -429,15 +429,14 @@ do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
             S
     end.
 
-do_delete_attrib(Field, ReplyTo, #state{tag = TagName,
-                                        data = #tagcontent{} = D} = S) ->
+do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
     TagContent = ddfs_tag_util:delete_tagattrib(TagName, Field, D),
     NewTagData = ddfs_tag_util:encode_tagcontent(TagContent),
     TagId = TagContent#tagcontent.id,
     case put_distribute({TagId, NewTagData}) of
         {ok, DestNodes, _DestUrls} ->
             send_replies(ReplyTo, ok),
-            S#state{data = TagContent,
+            S#state{data = {ok, TagContent},
                     replicas = DestNodes,
                     url_cache = false};
         {error, _} = E ->

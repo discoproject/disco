@@ -77,12 +77,9 @@ handle_call({tag, M, Tag}, From, #state{tags = Tags, tag_cache = Cache} = S) ->
     {Pid, TagsN} =
         case gb_trees:lookup(Tag, Tags) of
             none ->
-                Status =
-                    case Cache =/= false andalso gb_sets:is_element(Tag, Cache) of
-                        false when Cache =/= false -> notfound;
-                        _ -> false
-                    end,
-                {ok, Server} = ddfs_tag:start(Tag, Status),
+                NotFound = Cache =/= false andalso
+                           not gb_sets:is_element(Tag, Cache),
+                {ok, Server} = ddfs_tag:start(Tag, NotFound),
                 erlang:monitor(process, Server),
                 {Server, gb_trees:insert(Tag, Server, Tags)};
             {value, P} ->

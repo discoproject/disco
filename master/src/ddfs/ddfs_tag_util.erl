@@ -116,7 +116,7 @@ update_tagcontent(TagName, Tag) ->
 
 -spec update_tagcontent(tagname(), attrib(), _, _) ->
                         {error, invalid_url_object} | {ok, tagcontent()}.
-update_tagcontent(TagName, Field, Value, #tagcontent{} = Tag) ->
+update_tagcontent(TagName, Field, Value, {ok, Tag}) ->
     Updated = update_tagcontent(TagName, Tag),
     update_tagcontent(Field, Value, Updated);
 
@@ -125,7 +125,7 @@ update_tagcontent(TagName, Field, Value, _Tag) ->
                       write_token = null,
                       urls = [],
                       user = []},
-    update_tagcontent(TagName, Field, Value, New).
+    update_tagcontent(TagName, Field, Value, {ok, New}).
 
 -spec update_tagcontent(attrib(), _, tagcontent()) ->
                        {error, invalid_url_object} | {ok, tagcontent()}.
