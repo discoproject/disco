@@ -13,7 +13,7 @@
                      last_modified :: binary(),
                      read_token = null :: token(),
                      write_token = null :: token(),
-                     urls = [] :: [binary()],
+                     urls = [] :: [[binary()]],
                      user = [] :: user_attr()}).
 
 -type tagcontent() :: #tagcontent{}.

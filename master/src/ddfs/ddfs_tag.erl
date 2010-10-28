@@ -17,7 +17,7 @@
                         {missing, deleted} |
                         {error, _} |
                         {ok, #tagcontent{}},
-                delayed :: {[replyto()], [[binary()]]},
+                delayed :: 'false' | gb_tree(),
                 timeout :: non_neg_integer(),
                 replicas :: 'false' | 'too_many_failed_nodes'
                     | [{replica(), node()}],
@@ -310,17 +310,16 @@ init_url_cache(Urls) ->
     gb_sets:from_list([ddfs_util:name_from_url(Url) || [Url|_] <- Urls]).
 
 -spec send_replies(replyto() | [replyto()],
-                   {'error', 'commit_failed' |
-                             'invalid_url_object' |
-                             'replication_failed' |
-                             'unauthorized'} |
-                   {'ok', [binary(),...]}) -> [any()].
+                   {'error', 'commit_failed' | 'invalid_attribute_value' |
+                             'invalid_url_object' | 'unknown_attribute' |
+                             'replication_failed' | 'unauthorized'} |
+                   {'ok', [binary(),...]} | 'ok') -> [any()].
 send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
     send_replies([ReplyTo], Message);
 send_replies(ReplyToList, Message) ->
     [gen_server:reply(Re, Message) || Re <- ReplyToList].
 
--spec get_tagdata(tagname()) -> 'notfound' | {'error', _}
+-spec get_tagdata(tagname()) -> {'missing', 'notfound'} | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.
 get_tagdata(TagName) ->
     {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
@@ -349,7 +348,7 @@ get_tagdata(TagName) ->
     end.
 
 -spec do_delayed_update([[binary()]], [term()], replyto(),
-                        gb_set(), #state{}) -> #state{}.
+                        gb_tree(), #state{}) -> #state{}.
 do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
     % We must handle updates with different set of options separately.
     % Thus requests are indexed by the normalized set of options (OptKey)
@@ -375,7 +374,7 @@ jsonbin(X) ->
     iolist_to_binary(mochijson2:encode(X)).
 
 -spec do_get({tokentype(), token()}, attrib() | all, tagcontent()) ->
-             binary() | {'error','unauthorized' | 'unknown_attribute'}.
+             {'ok', binary()} | {'error','unauthorized' | 'unknown_attribute'}.
 do_get({TokenType, _}, all, D) ->
     {ok, ddfs_tag_util:encode_tagcontent_secure(D, TokenType)};
 
