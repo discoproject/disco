@@ -181,6 +181,8 @@ error({error, invalid_url_object}, Req) ->
     Req:respond({403, [], ["Invalid url object"]});
 error({error, invalid_attribute_value}, Req) ->
     Req:respond({403, [], ["Invalid attribute key or value"]});
+error({error, too_many_attributes}, Req) ->
+    Req:respond({403, [], ["Too many attributes"]});
 error({error, unknown_attribute}, Req) ->
     Req:respond({404, [], ["Tag attribute not found."]});
 error({error, E}, Req) when is_atom(E) ->

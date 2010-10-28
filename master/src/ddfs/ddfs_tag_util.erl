@@ -1,6 +1,7 @@
 -module(ddfs_tag_util).
 
 -include("ddfs_tag.hrl").
+-include("config.hrl").
 
 -export([check_token/4, encode_tagcontent/1, encode_tagcontent_secure/2,
          decode_tagcontent/1, update_tagcontent/4, delete_tagattrib/3,
@@ -142,6 +143,10 @@ update_tagcontent(urls, Urls, Tag) ->
         false ->
             {error, invalid_url_object}
     end;
+
+update_tagcontent({user, _}, _, Tag)
+                  when length(Tag#tagcontent.user) >= ?MAX_NUM_TAG_ATTRIBS ->
+    {error, too_many_attributes};
 
 update_tagcontent({user, Key}, Attr, Tag) ->
     {ok, Tag#tagcontent{user = lists:keystore(Key,
