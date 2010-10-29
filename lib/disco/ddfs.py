@@ -122,6 +122,8 @@ class DDFS(object):
                                                tagname(tag))):
                 return True
         except CommError, e:
+            if e.code == 401:
+                return True
             if e.code not in (403, 404):
                 raise
         return False
