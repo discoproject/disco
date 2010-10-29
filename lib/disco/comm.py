@@ -117,8 +117,8 @@ def open_local(path):
     size = os.stat(path).st_size
     return fd, size, 'file://%s' % path
 
-def open_remote(url):
-    conn = Connection(urlresolve(url))
+def open_remote(url, token=None):
+    conn = Connection(urlresolve(url), token)
     return conn, len(conn), conn.url
 
 class FileSource(object):
@@ -138,8 +138,9 @@ class FileSource(object):
         return open(self.source, 'r').read
 
 class Connection(object):
-    def __init__(self, url):
+    def __init__(self, url, token=None):
         self.url = url
+        self.token = token
         self.buf = None
         self.offset = 0
         self.orig_offset = 0
@@ -185,9 +186,11 @@ class Connection(object):
                 end = min(len(self), self.offset + CHUNK_SIZE) - 1
             else:
                 end = self.offset + CHUNK_SIZE - 1
+            headers = auth_header(self.token)
+            headers.update(range_header((self.offset, end)))
             response = request('GET',
                                self.url,
-                               headers=range_header((self.offset, end)))
+                               headers=headers)
             self.buf = response.read()
             self.headers = dict(response.getheaders())
             self.orig_offset = self.offset
