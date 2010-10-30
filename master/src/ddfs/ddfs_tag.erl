@@ -376,8 +376,8 @@ jsonbin(X) ->
 
 -spec do_get({tokentype(), token()}, attrib() | all, tagcontent()) ->
              binary() | {'error','unauthorized' | 'unknown_attribute'}.
-do_get({TokenType, _}, all, D) ->
-    {ok, ddfs_tag_util:encode_tagcontent_secure(D, TokenType)};
+do_get(_TokenInfo, all, D) ->
+    {ok, ddfs_tag_util:encode_tagcontent_secure(D)};
 
 do_get(_TokenInfo, urls, D) ->
     {ok, jsonbin(D#tagcontent.urls)};

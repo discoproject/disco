@@ -3,7 +3,7 @@
 -include("ddfs_tag.hrl").
 -include("config.hrl").
 
--export([check_token/4, encode_tagcontent/1, encode_tagcontent_secure/2,
+-export([check_token/4, encode_tagcontent/1, encode_tagcontent_secure/1,
          decode_tagcontent/1, update_tagcontent/4, delete_tagattrib/3,
          validate_urls/1, validate_value/2]).
 
@@ -60,23 +60,15 @@ encode_tagcontent(D) ->
          {<<"user-data">>, {struct, D#tagcontent.user}}
         ]})).
 
--spec encode_tagcontent_secure(tagcontent(), tokentype()) -> binary().
-encode_tagcontent_secure(D, read) ->
-    L = [{<<"read-token">>, D#tagcontent.read_token}],
-    encode_tagcontent_secure0(D, L);
-
-encode_tagcontent_secure(D, write) ->
-    L = [{<<"read-token">>, D#tagcontent.read_token},
-         {<<"write-token">>, D#tagcontent.write_token}],
-    encode_tagcontent_secure0(D, L).
-
-encode_tagcontent_secure0(D, Tokens) ->
-    Struct = [{<<"version">>, 1},
-              {<<"id">>, D#tagcontent.id},
-              {<<"last-modified">>, D#tagcontent.last_modified},
-              {<<"urls">>, D#tagcontent.urls},
-              {<<"user-data">>, {struct, D#tagcontent.user}}],
-    list_to_binary(mochijson2:encode({struct, Struct ++ Tokens})).
+-spec encode_tagcontent_secure(tagcontent()) -> binary().
+encode_tagcontent_secure(D) ->
+    list_to_binary(mochijson2:encode({struct,
+        [{<<"version">>, 1},
+         {<<"id">>, D#tagcontent.id},
+         {<<"last-modified">>, D#tagcontent.last_modified},
+         {<<"urls">>, D#tagcontent.urls},
+         {<<"user-data">>, {struct, D#tagcontent.user}}
+        ]})).
 
 lookup(Key, List) ->
    {value, {_, Value}} = lists:keysearch(Key, 1, List),
