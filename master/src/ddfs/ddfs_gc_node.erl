@@ -81,7 +81,6 @@ handle_file(Obj, _, VolName, Ets, _) ->
 -spec delete_orphaned(pid(), timer:timestamp(), nonempty_string(),
     nonempty_string(), atom(), non_neg_integer()) -> _.
 delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
-    error_logger:info_report({"GC: # orphaned", Mode, ets:info(Ets, size)}),
     lists:foreach(fun([Obj, VolName]) ->
                           {_, Time} = ddfs_util:unpack_objname(Obj),
                           {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", Mode, Root, VolName),
@@ -104,6 +103,7 @@ is_really_orphan(Master, Obj) ->
 -spec delete_if_expired(string(), timer:timestamp(),
     timer:timestamp(), non_neg_integer()) -> _.
 delete_if_expired(Path, Now, Time, Expires) ->
+    error_logger:info_report({"GC: orphaned", Path}),
     Diff = timer:now_diff(Now, Time) / 1000,
     if Diff > Expires ->
         error_logger:info_report({"GC: Deleting expired object", Path}),

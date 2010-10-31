@@ -133,16 +133,17 @@ process_tags([Tag|T]) ->
     error_logger:info_report({"process tag", Tag}),
     case gen_server:call(ddfs_master, {tag, gc_get, Tag}) of
         {{missing, deleted}, false} ->
+            error_logger:info_report({"deleted", Tag}),
             process_tags(T);
-        {E, false} ->
-            abort({"GC: Couldn't get data for tag", Tag, E}, tag_failed);
         {TagId, TagUrls, TagReplicas} ->
             case catch process_tag(Tag, TagId, TagUrls, TagReplicas) of
                 ok ->
                     process_tags(T);
-                {'EXIT', E} -> 
+                {'EXIT', E} ->
                     abort({"GC: Parsing tag", Tag, "failed", E}, json_failed)
-            end
+            end;
+        E ->
+            abort({"GC: Couldn't get data for tag", Tag, E}, tag_failed)
     end.
 
 -spec process_tag(binary(), binary(), [[binary()]], [node()]) -> 'ok'.
@@ -151,7 +152,6 @@ process_tag(Tag, TagId, TagUrls, TagReplicas) ->
 
     OkReplicas = [N || {ok, N} <-
         [check_status(tag, {TagId, Node}) || Node <- TagReplicas]],
-
     case check_blobsets(TagUrls, {ok, []}) of
         {fixed, NewUrls} ->
             % Run call in a separate process so post-timeout replies
@@ -161,41 +161,56 @@ process_tag(Tag, TagId, TagUrls, TagReplicas) ->
         %%%
         %%% O5) Re-replicate tags that don't have enough replicas
         %%%
-        {ok, _} when length(OkReplicas) < TagK ->
+        _ when length(OkReplicas) < TagK ->
             error_logger:info_report({"GC: Re-replicating tag", Tag}),
             spawn(fun() -> gen_server:call(ddfs_master,
                 {tag, {put, urls, TagUrls, internal}, Tag}) end);
-        _ -> 
+        _ ->
             ok
-    end, 
+    end,
     ok.
 
 check_blobsets([], Res) -> Res;
 check_blobsets([[]|T], Res) -> check_blobsets(T, Res);
 check_blobsets([Repl|T], {IsFixed, NRepl}) ->
+    Status = [{check_status(blob, ddfs_url(U)), U} || U <- Repl],
+    case lists:keymember(ignore, 1, Status) of
+        true ->
+            check_blobsets(T, {IsFixed, [Repl|NRepl]});
+        false ->
+            NewRepl = check_replicas(Status),
+            if NewRepl =:= Repl ->
+                check_blobsets(T, {IsFixed, [Repl|NRepl]});
+            true ->
+                check_blobsets(T, {fixed, [NewRepl|NRepl]})
+            end
+    end.
+
+check_replicas(Status) ->
     BlobK = get(blobk),
-    Status = [check_status(blob, ddfs_url(U)) || U <- Repl],
-    Ignore = [ok || ignore <- Status],
-    case {Ignore, [Node || {ok, Node} <- Status]} of
-        {[], []} ->
+    {_, Repl} = lists:unzip(Status),
+    case [{Node, Url} || {{ok, Node}, Url} <- Status] of
+        [] ->
             error_logger:warning_report(
                 {"GC: !!! All replicas missing !!!!", Repl}),
-            check_blobsets(T, {Status, [Repl|NRepl]});
-        {[], Ok} when length(Ok) < BlobK ->
-            [OrigUrl|_] = Repl,
-            {Blob, _} = ddfs_url(OrigUrl),
+            Repl;
+        [{_, OkUrl}|_] = Ok when length(Ok) < BlobK ->
+            {OkNodes, _} = lists:unzip(Ok),
+            {Blob, _} = ddfs_url(OkUrl),
             error_logger:info_report({"GC: Blob needs more replicas", Blob}),
-            case rereplicate(Blob, Ok) of
+            case rereplicate(Blob, OkNodes) of
                 {ok, NewUrl0} ->
-                    NewUrl = replace_scheme(OrigUrl, NewUrl0),
+                    NewUrl = replace_scheme(OkUrl, NewUrl0),
                     error_logger:info_report({"GC: New replica at", NewUrl}),
-                    check_blobsets(T,
-                        {fixed, [[NewUrl|Repl -- [NewUrl]]|NRepl]});
+                    [NewUrl|Repl];
                 _ ->
-                    check_blobsets(T, {IsFixed, [Repl|NRepl]})
+                    Repl
             end;
+        Ok when length(Status) > BlobK ->
+            {_, OkUrls} = lists:unzip(Ok),
+            OkUrls;
         _ ->
-            check_blobsets(T, {IsFixed, [Repl|NRepl]})
+            Repl
     end.
 
 replace_scheme(RightScheme0, WrongScheme0) ->
@@ -324,11 +339,10 @@ orphan_server(Objs, NumNodes) ->
 process_deleted(Tags, Ages) ->
     error_logger:info_report({"GC: Process deleted"}),
     Now = now(),
-    TagSet = gb_sets:from_ordset([<<"tag://", T/binary>> || T <- Tags]),
 
     % Let's start with the current list of deleted tags
     {ok, Deleted} = gen_server:call(ddfs_master,
-        {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT),
+        {tag, get_tagnames, <<"+deleted">>}, ?NODEOP_TIMEOUT),
 
     % Update the time of death for newly deleted tags
     gb_sets:fold(fun(Tag, none) ->
@@ -336,8 +350,7 @@ process_deleted(Tags, Ages) ->
     end, none, Deleted),
     % Remove those tags from the candidate set which still have
     % active copies around.
-    DelSet = gb_sets:subtract(Deleted, TagSet),
-    error_logger:info_report({"DELE", DelSet}),
+    DelSet = gb_sets:subtract(Deleted, gb_sets:from_ordset(Tags)),
 
     lists:foreach(fun({Tag, Age}) ->
         Diff = timer:now_diff(Now, Age) / 1000,
@@ -350,7 +363,7 @@ process_deleted(Tags, Ages) ->
             true when Diff > ?DELETED_TAG_EXPIRES ->
                 % Tag ready to be removed from +deleted
                 error_logger:info_report({"REMOVE DELETED", Tag}),
-                gen_server:call(ddfs_master, {tag, {remove_deleted, Tag},
+                gen_server:call(ddfs_master, {tag, {delete_tagname, Tag},
                     <<"+deleted">>}, ?TAG_UPDATE_TIMEOUT);
             true ->
                 error_logger:info_report({"TAG", Tag, "too young"}),

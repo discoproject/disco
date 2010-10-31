@@ -206,19 +206,18 @@ handle_cast(M, #state{url_cache = false, data = {ok, Data}} = S) ->
     Urls = Data#tagcontent.urls,
     handle_cast(M, S#state{url_cache = init_url_cache(Urls)});
 
-handle_cast({{is_deleted, Tag}, ReplyTo}, #state{url_cache = Deleted} = S) ->
-    Exists = gb_sets:is_member(ddfs_util:name_from_url(Tag), Deleted),
-    gen_server:reply(ReplyTo, Exists),
+handle_cast({{has_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
+    gen_server:reply(ReplyTo, gb_sets:is_member(Name, Cache)),
     {noreply, S, S#state.timeout};
 
-handle_cast({get_deleted, ReplyTo}, #state{url_cache = Deleted} = S) ->
-    gen_server:reply(ReplyTo, {ok, Deleted}),
+handle_cast({get_tagnames, ReplyTo}, #state{url_cache = Cache} = S) ->
+    gen_server:reply(ReplyTo, {ok, Cache}),
     {noreply, S, S#state.timeout};
 
-handle_cast({{remove_deleted, Url}, ReplyTo}, #state{url_cache = Deleted} = S) ->
-    Deleted0 = gb_sets:delete_any(ddfs_util:name_from_url(Url), Deleted),
-    Deleted1 = [[<<"tag://", Tag/binary>>] || Tag <- gb_sets:to_list(Deleted0)],
-    handle_cast({{put, urls, Deleted1, internal}, ReplyTo}, S).
+handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
+    NewDel = gb_sets:delete_any(Name, Cache),
+    NewUrls = [[<<"tag://", Tag/binary>>] || Tag <- gb_sets:to_list(NewDel)],
+    handle_cast({{put, urls, NewUrls, internal}, ReplyTo}, S).
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -335,17 +334,23 @@ get_tagdata(TagName) ->
         L ->
             {{Time, _Vol}, _Node} = lists:max(L),
             Replicas = [X || {{T, _}, _} = X <- L, T == Time],
-            {TagNfo, SrcNode} = ddfs_util:choose_random(Replicas),
             TagID = ddfs_util:pack_objname(TagName, Time),
-            case catch gen_server:call({ddfs_node, SrcNode},
-                    {get_tag_data, TagID, TagNfo}, ?NODE_TIMEOUT) of
-                {ok, Data} ->
-                    {ok, Data, Replicas};
-                {'EXIT', timeout} ->
-                    {error, timeout};
-                E ->
-                    E
-            end
+            read_tagdata(TagID, Replicas, [], tagdata_failed)
+    end.
+
+read_tagdata(_TagID, Replicas, Failed, Error)
+             when length(Replicas) =:= length(Failed) ->
+    {error, Error};
+
+read_tagdata(TagID, Replicas, Failed, _Error) ->
+    {TagNfo, SrcNode} = Chosen = ddfs_util:choose_random(Replicas -- Failed),
+    case catch gen_server:call({ddfs_node, SrcNode},
+            {get_tag_data, TagID, TagNfo}, ?NODE_TIMEOUT) of
+        {ok, Data} ->
+            {_, DestNodes} = lists:unzip(Replicas),
+            {ok, Data, DestNodes};
+        E ->
+            read_tagdata(TagID, Replicas, [Chosen|Failed], E)
     end.
 
 -spec do_delayed_update([[binary()]], [term()], replyto(),
@@ -526,8 +531,7 @@ do_delete(ReplyTo, S) ->
 -spec is_tag_deleted(tagname()) -> _.
 is_tag_deleted(<<"+deleted">>) -> false;
 is_tag_deleted(Tag) ->
-    BTag = <<"tag://", Tag/binary>>,
-    Msg = {tag, {is_deleted, BTag}, <<"+deleted">>},
+    Msg = {tag, {has_tagname, Tag}, <<"+deleted">>},
     gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
 
 -spec add_to_deleted(tagname()) -> _.
@@ -538,5 +542,5 @@ add_to_deleted(Tag) ->
 
 -spec remove_from_deleted(tagname()) -> _.
 remove_from_deleted(Tag) ->
-    Msg = {tag, {remove_deleted, <<"tag://", Tag/binary>>}, <<"+deleted">>},
+    Msg = {tag, {delete_tagname, Tag}, <<"+deleted">>},
     gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).

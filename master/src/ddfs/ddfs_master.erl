@@ -151,7 +151,7 @@ get_tags(all, Nodes) ->
 get_tags(filter, Nodes) ->
     {OkNodes, Failed, Tags} = get_tags(all, Nodes),
     case gen_server:call(ddfs_master,
-            {tag, get_deleted, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
+            {tag, get_tagnames, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
         {ok, Deleted} ->
             TagSet = gb_sets:from_ordset(Tags),
             DelSet = gb_sets:insert(<<"+deleted">>, Deleted),
