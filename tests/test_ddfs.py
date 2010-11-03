@@ -147,8 +147,6 @@ class DDFSReadTestCase(DiscoTestCase):
         self.assertCommErrorCode(404, self.ddfs.pull('disco:test:notag').next)
 
     def test_exists(self):
-        self.assertEquals(self.ddfs.exists(''), False)
-        self.assertEquals(self.ddfs.exists('!!'), False)
         self.assertEquals(self.ddfs.exists('disco:test:tag'), True)
         self.assertEquals(self.ddfs.exists('disco:test:notag'), False)
         self.assertEquals(self.ddfs.exists('tag://disco:test:tag'), True)
@@ -158,7 +156,6 @@ class DDFSReadTestCase(DiscoTestCase):
         list(self.ddfs.findtags(['disco:test:metatag']))
 
     def test_get(self):
-        self.assertCommErrorCode(403, lambda: self.ddfs.get(''))
         self.assertCommErrorCode(404, lambda: self.ddfs.get('disco:test:notag'))
         self.assertEquals(self.ddfs.get('disco:test:tag')['urls'], [['urls']])
         self.assertEquals(self.ddfs.get(['disco:test:tag'])['urls'], [['urls']])
