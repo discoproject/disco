@@ -102,7 +102,7 @@ class DDFS(object):
 
     def delattr(self, tag, attr, token=None):
         """Delete the attribute ``attr` of the tag ``tag``."""
-        return self._download('%s/%s' % (canonizetag(tag), attr),
+        return self._download(self._tagattr(tag, attr),
                               method='DELETE',
                               token=token)
 
@@ -184,7 +184,7 @@ class DDFS(object):
 
     def getattr(self, tag, attr, token=None):
         """Return the value of the attribute ``attr` of the tag ``tag``."""
-        return self._download('%s/%s' % (canonizetag(tag), attr), token=token)
+        return self._download(self._tagattr(tag, attr), token=token)
 
     def urls(self, tag, token=None):
         """Return the urls in the ``tag``."""
@@ -251,7 +251,7 @@ class DDFS(object):
 
     def setattr(self, tag, attr, val, token=None):
         """Set the value of the attribute ``attr` of the tag ``tag``."""
-        return self._upload('%s/%s' % (canonizetag(tag), attr),
+        return self._upload(self._tagattr(tag, attr),
                             StringIO(json.dumps(val)),
                             token=token)
 
@@ -353,6 +353,9 @@ class DDFS(object):
                               replicas=replicas,
                               exclude=exclude + [host],
                               **kwargs)
+
+    def _tagattr(self, tag, attr):
+        return '%s/%s' % (self._resolve(canonizetag(tag)), attr)
 
     def _token(self, token, method):
         if token is None:
