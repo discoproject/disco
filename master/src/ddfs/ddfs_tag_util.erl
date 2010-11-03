@@ -87,7 +87,7 @@ lookup_tagcontent(L) ->
                 user = UserData}.
 
 -spec decode_tagcontent(binary()) ->
-                        {'error', corrupted_json | invalid_object} |
+                        {'error', 'corrupted_json' | 'invalid_object'} |
                          {'ok', tagcontent()}.
 decode_tagcontent(TagData) ->
     case catch mochijson2:decode(TagData) of
@@ -108,7 +108,8 @@ update_tagcontent(TagName, Tag) ->
                    last_modified = ddfs_util:format_timestamp()}.
 
 -spec update_tagcontent(tagname(), attrib(), _, _) ->
-                        {error, invalid_url_object} | {ok, tagcontent()}.
+                        {'error', 'too_many_attributes' | 'invalid_url_object'} |
+                        {'ok', tagcontent()}.
 update_tagcontent(TagName, Field, Value, {ok, Tag}) ->
     Updated = update_tagcontent(TagName, Tag),
     update_tagcontent(Field, Value, Updated);
@@ -121,7 +122,8 @@ update_tagcontent(TagName, Field, Value, _Tag) ->
     update_tagcontent(TagName, Field, Value, {ok, New}).
 
 -spec update_tagcontent(attrib(), _, tagcontent()) ->
-                       {error, invalid_url_object} | {ok, tagcontent()}.
+                       {'error', 'too_many_attributes' | 'invalid_url_object'} |
+                       {'ok', tagcontent()}.
 update_tagcontent(read_token, Token, Tag) ->
     {ok, Tag#tagcontent{read_token = Token}};
 

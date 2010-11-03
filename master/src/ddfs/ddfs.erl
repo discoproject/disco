@@ -29,7 +29,7 @@ tags(Host, Prefix) ->
     end.
 
 -spec get_tag(node(), string(), atom() | string(), ddfs_tag:token() | 'internal') ->
-    'invalid_name' | 'notfound' | 'deleted' | 'unknown_attribute'
+    'invalid_name' | {'missing', _} | 'unknown_attribute'
     | {'ok', binary()} | {'error', _}.
 get_tag(Host, Tag, Attrib, Token) ->
     validate(Tag, fun() ->
@@ -37,25 +37,25 @@ get_tag(Host, Tag, Attrib, Token) ->
                         ?NODEOP_TIMEOUT)
     end).
 
--spec update_tag(node(), string(), [binary()], ddfs_tag:token()) -> _.
+-spec update_tag(node(), string(), [[binary()]], ddfs_tag:token()) -> _.
 update_tag(Host, Tag, Urls, Token) ->
     update_tag(Host, Tag, Urls, Token, []).
 
--spec update_tag(node(), string(), [binary()], ddfs_tag:token(), [term()]) -> _.
+-spec update_tag(node(), string(), [[binary()]], ddfs_tag:token(), [term()]) -> _.
 update_tag(Host, Tag, Urls, Token, Opt) ->
     tagop(Host, Tag, {update, Urls, Token, Opt}).
 
--spec update_tag_delayed(node(), string(), [binary()], ddfs_tag:token()) -> _.
+-spec update_tag_delayed(node(), string(), [[binary()]], ddfs_tag:token()) -> _.
 update_tag_delayed(Host, Tag, Urls, Token) ->
     update_tag_delayed(Host, Tag, Urls, Token, []).
 
--spec update_tag_delayed(node(), string(), [binary()],
+-spec update_tag_delayed(node(), string(), [[binary()]],
                          ddfs_tag:token(), [term()]) -> _.
 update_tag_delayed(Host, Tag, Urls, Token, Opt) ->
     tagop(Host, Tag, {delayed_update, Urls, Token, Opt}).
 
 -spec replace_tag(node(), string(),
-                  ddfs_tag:attrib(), [binary()], ddfs_tag:token()) -> _.
+                  ddfs_tag:attrib(), [binary()] | [[binary()]], ddfs_tag:token()) -> _.
 replace_tag(Host, Tag, Field, Value, Token) ->
     tagop(Host, Tag, {put, Field, Value, Token}).
 
@@ -69,8 +69,9 @@ delete(Host, Tag, Token) ->
 
 -spec tagop(node(), string(),
             {'delete', _}
-            | {'delayed_update', _, _}
-            | {'update', _, _}
+            | {'delete_attrib', _, _}
+            | {'delayed_update', _, _, _}
+            | {'update', _, _, _}
             | {'put', _, _, _}) -> _.
 tagop(Host, Tag, Op) ->
    validate(Tag, fun() ->
