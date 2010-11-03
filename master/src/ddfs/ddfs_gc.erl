@@ -79,9 +79,9 @@ start_gc(DeletedAges) ->
 
 -spec gc_objects(ets:tab()) -> 'ok'.
 gc_objects(DeletedAges) ->
-    error_logger:info_report({"GC starts"}),
     % ensures that only a single gc_objects process is running at a time
     register(gc_objects_lock, self()),
+    error_logger:info_report({"GC starts"}),
     process_flag(priority, low),
 
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
@@ -124,26 +124,28 @@ process_tags() ->
     error_logger:info_report({"GC: Process tags"}),
     {OkNodes, Failed, Tags} = gen_server:call(ddfs_master, {get_tags, all}),
     start_gc_nodes(OkNodes),
-    process_tags(Tags),
+    [process_tag(Tag) || Tag <- Tags],
     {Tags, length(OkNodes), length(Failed)}.
 
--spec process_tags([binary()]) -> 'ok'.
-process_tags([]) -> ok;
-process_tags([Tag|T]) ->
+-spec process_tag(binary()) -> 'ok'.
+process_tag(Tag) ->
     error_logger:info_report({"process tag", Tag}),
-    case gen_server:call(ddfs_master, {tag, gc_get, Tag}) of
+    case catch gen_server:call(ddfs_master, {tag, gc_get, Tag}, 30000) of
         {{missing, deleted}, false} ->
             error_logger:info_report({"deleted", Tag}),
-            process_tags(T);
+            ok;
         {TagId, TagUrls, TagReplicas} ->
             case catch process_tag(Tag, TagId, TagUrls, TagReplicas) of
                 ok ->
-                    process_tags(T);
+                    ok;
+        % Note that we *must* die if handling the tag failed. Otherwise all
+        % blobs refered by the tag may be incorrectly marked as orphan and
+        % deleted.
                 {'EXIT', E} ->
-                    abort({"GC: Parsing tag", Tag, "failed", E}, json_failed)
+                    abort({"GC: Parsing tag", Tag, "failed", E}, parse_failed)
             end;
         E ->
-            abort({"GC: Couldn't get data for tag", Tag, E}, tag_failed)
+            abort({"GC: Couldn't get data for tag", Tag, E}, tagdata_failed)
     end.
 
 -spec process_tag(binary(), binary(), [[binary()]], [node()]) -> 'ok'.
@@ -170,7 +172,7 @@ process_tag(Tag, TagId, TagUrls, TagReplicas) ->
     end,
     ok.
 
-check_blobsets([], Res) -> Res;
+check_blobsets([], {IsFixed, Res}) -> {IsFixed, lists:reverse(Res)};
 check_blobsets([[]|T], Res) -> check_blobsets(T, Res);
 check_blobsets([Repl|T], {IsFixed, NRepl}) ->
     Status = [{check_status(blob, ddfs_url(U)), U} || U <- Repl],
@@ -197,7 +199,7 @@ check_replicas(Status) ->
         [{_, OkUrl}|_] = Ok when length(Ok) < BlobK ->
             {OkNodes, _} = lists:unzip(Ok),
             {Blob, _} = ddfs_url(OkUrl),
-            error_logger:info_report({"GC: Blob needs more replicas", Blob}),
+            error_logger:info_report({"GC: Blob needs more replicas", OkUrl, "Ok nodes", OkNodes}),
             case rereplicate(Blob, OkNodes) of
                 {ok, NewUrl0} ->
                     NewUrl = replace_scheme(OkUrl, NewUrl0),
@@ -225,6 +227,7 @@ replace_scheme(RightScheme0, WrongScheme0) ->
 ddfs_url(<<"tag://", _/binary>>) -> ignore;
 ddfs_url(Url) ->
     {_, Host, Path, _, _} = mochiweb_util:urlsplit(binary_to_list(Url)),
+    %Host = map_node(Host0),
     BlobName = list_to_binary(filename:basename(Path)),
     case disco:node_safe(Host) of
         false ->
@@ -236,6 +239,7 @@ ddfs_url(Url) ->
 
 check_status(_, ignore) -> ignore;
 check_status(Type, {_, Node} = Key) ->
+ %   Node = map_node(Node0),
     case {ets:lookup(gc_nodes, Node), ets:lookup(obj_cache, Key)} of
         % Url checked and valid
         {_, [{_, true}]} ->
@@ -252,6 +256,19 @@ check_status(Type, {_, Node} = Key) ->
             touch(Pid, Type, Key),
             check_status(Type, Key)
     end.
+
+%map_node(unknown) -> unknown;
+%
+%map_node(Node) when is_list(Node) ->
+%    sub(Node, "disco2-", "testdisco-");
+%
+%map_node(Node) when is_atom(Node) ->
+%    [Name, Host] = string:tokens(atom_to_list(Node), "@"),
+%    list_to_atom(Name ++ "@" ++ sub(Host, "disco2-", "testdisco-")).
+%
+%sub(Str, Old, New) ->
+%    RegExp = "\\Q" ++ Old ++ "\\E",
+%    re:replace(Str, RegExp, New,[ multiline, {return, list}]).
 
 %%%
 %%% O4) Re-replicate blobs that don't have enough replicas
@@ -279,18 +296,23 @@ put_blob(Blob, Pid, PutUrl) ->
             DstUrl = mochijson2:decode(Body),
             ets:insert(obj_cache, {{Blob, fixed}, DstUrl}),
             {ok, DstUrl};
-        E -> 
+        E ->
             {error, E}
     after 30000 -> timeout
     end.
 
 touch(Pid, Type, {Obj, _} = Key) ->
     Pid ! {{touch, Type}, self(), Obj},
+    touch_wait(Key).
+
+touch_wait({Obj, _} = Key) ->
     receive
         {Obj, Reply} ->
             ets:insert(obj_cache, {Key, Reply});
-        E ->
-            abort({"GC: Erroneous message received", E}, touch_failed)
+        _ ->
+           touch_wait(Key)
+    after 5000 ->
+        ets:insert(obj_cache, {Key, false})
     end.
 
 orphan_server(NumNodes) ->
@@ -312,6 +334,10 @@ orphan_server(Objs, NumNodes) ->
             orphan_server(Objs, NumNodes - 1);
         _ ->
             orphan_server(Objs, NumNodes)
+    after 60000 ->
+        error_logger:warning_report({"GC: Orphan server timeouts:",
+                                     NumNodes, "unresponsive"}),
+        ok
     end.
 
 %%%
@@ -354,10 +380,8 @@ process_deleted(Tags, Ages) ->
 
     lists:foreach(fun({Tag, Age}) ->
         Diff = timer:now_diff(Now, Age) / 1000,
-        error_logger:info_report({"TAG", Tag, "Diff", Diff}),
         case gb_sets:is_member(Tag, DelSet) of
             false ->
-                error_logger:info_report({"TAG", Tag, "alive"}),
                 % Copies of tag still alive, remove from Ages
                 ets:delete(Ages, Tag);
             true when Diff > ?DELETED_TAG_EXPIRES ->
@@ -366,7 +390,6 @@ process_deleted(Tags, Ages) ->
                 gen_server:call(ddfs_master, {tag, {delete_tagname, Tag},
                     <<"+deleted">>}, ?TAG_UPDATE_TIMEOUT);
             true ->
-                error_logger:info_report({"TAG", Tag, "too young"}),
                 ok
                 % Tag hasn't been dead long enough to
                 % be removed from +deleted

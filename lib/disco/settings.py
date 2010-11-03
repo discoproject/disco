@@ -244,6 +244,7 @@ class DiscoSettings(Settings):
         'DDFS_TAG_MIN_REPLICAS': "1",
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
+        'DDFS_PARANOID_DELETE':  "''"
         }
 
     globals = globals()
