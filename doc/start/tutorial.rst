@@ -63,7 +63,7 @@ Start your favorite text editor and open a file called, say,
 
         def fun_map(line, params):
                 for word in line.split():
-                        yield w, 1
+                        yield word, 1
 
 Quite compact, eh? The map function always takes two parameters, here they
 are called *line* and *params*. The first parameter contains an input entry,

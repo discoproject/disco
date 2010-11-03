@@ -347,8 +347,9 @@ def mapresults(program, jobname):
     Print the list of results from the map phase of a job.
     This is useful for resuming a job which has failed during reduce.
     """
+    from disco.util import iterify
     for result in program.disco.mapresults(jobname):
-        print result
+        print '\t'.join('%s' % e for e in iterify(result)).rstrip()
 
 @Disco.command
 def nodeinfo(program):
@@ -403,9 +404,10 @@ def results(program, jobname):
 
     Print the list of results for a completed job.
     """
+    from disco.util import iterify
     status, results = program.disco.results(jobname)
     for result in results:
-           print result
+        print '\t'.join('%s' % e for e in iterify(result)).rstrip()
 
 @Disco.command
 def run(program, jobclass, *inputs):
