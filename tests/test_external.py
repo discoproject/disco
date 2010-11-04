@@ -41,5 +41,5 @@ class ExternalTestCase(DiscoJobTestFixture, DiscoTestCase):
         results = sorted((v, k) for k, v in self.results)
         for n, (v, k) in enumerate(results):
             self.assertEquals(k, 'red_dkey')
-            self.assertEquals(v, 'red_test_%s' % self.inputs[n / 3])
+            self.assertEquals(v, 'red_test_%s\n' % self.inputs[n / 3])
         self.assertEquals(len(results), 9)
