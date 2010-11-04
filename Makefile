@@ -74,7 +74,7 @@ clean:
 	- rm -f $(HTML_TARGET)
 	- rm -f doc/conf.py
 
-install: install-master install-lib install-node install-root install-tests
+install: preprocess install-master install-lib install-node install-root install-tests
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
