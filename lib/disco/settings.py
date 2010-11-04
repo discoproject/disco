@@ -91,6 +91,11 @@ Possible settings for Disco are as follows:
                 The user Disco should run as.
                 Default obtained using ``os.getenv(LOGNAME)``.
 
+        :envvar:`DISCO_JOB_OWNER`
+                User name shown on the job status page for the user who
+                submitted the job.
+                Default is the login name @ host.
+
         :envvar:`DISCO_WORKER`
                 Executable which launches the Disco worker process.
                 Default obtained using ``os.path.join(DISCO_HOME, node, disco-worker)``.
@@ -186,7 +191,7 @@ The following settings are used by DDFS to determine the number of replicas for 
                 The number of replicas of blobs that DDFS should aspire to keep.
                 Default is ``1``.
 """
-import os, socket
+import os, socket, pwd
 
 from clx.settings import Settings
 
@@ -215,6 +220,7 @@ class DiscoSettings(Settings):
         'DISCO_SORT_BUFFER_SIZE':"'10%'",
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
+        'DISCO_JOB_OWNER':       "job_owner()",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_LIB",
@@ -272,6 +278,10 @@ class DiscoSettings(Settings):
         config = self['DISCO_MASTER_CONFIG']
         if not os.path.exists(config):
             open(config, 'w').write('[["localhost","1"]]')
+
+def job_owner():
+    return "%s@%s" % (pwd.getpwuid(os.getuid()).pw_name,
+                      socket.gethostname())
 
 def guess_erlang():
     if os.uname()[0] == 'Darwin':

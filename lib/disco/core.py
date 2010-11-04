@@ -27,7 +27,7 @@ newly started job.
         :members:
 .. autofunction:: result_iterator
 """
-import sys, os, time, marshal, pwd, socket
+import sys, os, time, marshal
 from tempfile import NamedTemporaryFile
 from itertools import chain
 from warnings import warn
@@ -725,7 +725,7 @@ class JobDict(util.DefaultDict):
                 'save': False,
                 'sort': False,
                 'status_interval': 100000,
-                'username' : None,
+                'username': DiscoSettings()['DISCO_JOB_OWNER'],
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
                 'nr_reduces': 0,
@@ -808,10 +808,6 @@ class JobDict(util.DefaultDict):
         if int(scheduler['max_cores']) < 1:
             raise DiscoError("max_cores must be >= 1")
         self['scheduler'] = scheduler
-
-        # user info
-        self['username'] = "%s@%s" % (pwd.getpwuid(os.getuid()).pw_name,
-                                      socket.gethostname())
 
         # -- sanity checks --
         for key in self:
