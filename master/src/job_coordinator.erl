@@ -68,7 +68,6 @@ field_exists(Msg, Opt) ->
 
 -spec find_values(netstring:kvtable()) -> {nonempty_string(), jobinfo()}.
 find_values(Msg) ->
-
     {value, {_, PrefixBinary}} = lists:keysearch(<<"prefix">>, 1, Msg),
     Prefix = binary_to_list(PrefixBinary),
 
@@ -84,6 +83,11 @@ find_values(Msg) ->
     {value, {_, NRedStr}} = lists:keysearch(<<"nr_reduces">>, 1, Msg),
     NumRed = list_to_integer(binary_to_list(NRedStr)),
 
+    User = case lists:keysearch(<<"username">>, 1, Msg) of
+               {value, {_, U}} -> binary_to_list(U);
+               _ -> undefined
+           end,
+
     {Prefix, #jobinfo{
        nr_reduce = NumRed,
        inputs = Inputs,
@@ -91,7 +95,8 @@ find_values(Msg) ->
        map = field_exists(Msg, <<"map">>),
        reduce = field_exists(Msg, <<"reduce">>),
        force_local = field_exists(Msg, <<"sched_force_local">>),
-       force_remote = field_exists(Msg, <<"sched_force_remote">>)
+       force_remote = field_exists(Msg, <<"sched_force_remote">>),
+       user_name = User
     }}.
 
 

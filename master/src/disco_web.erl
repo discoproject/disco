@@ -229,6 +229,10 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
                    JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
                true -> 0
            end,
+    User = case JobInfo#jobinfo.user_name of
+               undefined -> nil;
+               U -> U
+           end,
 
     {struct, [{timestamp, Timestamp},
               {active, Status},
@@ -237,7 +241,8 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
               {reduce, JobInfo#jobinfo.reduce},
               {results, lists:flatten(Results)},
               {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
-              {hosts, [list_to_binary(Host) || Host <- Hosts]}
+              {hosts, [list_to_binary(Host) || Host <- Hosts]},
+              {username, list_to_binary(User)}
              ]}.
 
 status_msg(invalid_job) -> [<<"unknown job">>, []];

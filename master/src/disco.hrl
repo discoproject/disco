@@ -1,6 +1,7 @@
 
 -record(jobinfo, {force_local :: bool(),
                   force_remote :: bool(),
+                  user_name :: 'undefined' | string(),
                   inputs :: [binary()] | [[binary()]],
                   map :: bool(),
                   max_cores :: non_neg_integer(),
