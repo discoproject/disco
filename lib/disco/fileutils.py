@@ -39,7 +39,7 @@ class Chunker(object):
                 yield out.dumps()
                 out = self.makeout()
             out.append(record)
-        if out.size or out.hunk_size:
+        if out.hunk_size:
             yield out.dumps()
 
     def makeout(self):
