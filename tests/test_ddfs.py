@@ -66,6 +66,15 @@ class DDFSWriteTestCase(DiscoTestCase):
     def setUp(self):
         self.ddfs = DDFS(self.disco_master_url)
 
+    def test_chunk(self):
+        from disco.core import RecordIter
+        url = 'http://discoproject.org/media/text/chekhov.txt'
+        self.ddfs.chunk('disco:test:chunk', [url], chunk_size=100*1024)
+        self.assert_(0 < len(list(self.ddfs.blobs('disco:test:chunk'))) <= 4)
+        self.assert_(list(RecordIter(['tag://disco:test:chunk'])),
+                     list(RecordIter([url], reader=None)))
+        self.ddfs.delete('disco:test:chunk')
+
     def test_push(self):
         self.ddfs.push('disco:test:blobs', [(StringIO('blobdata'), 'blobdata')])
         self.assert_(self.ddfs.exists('disco:test:blobs'))
@@ -138,8 +147,6 @@ class DDFSReadTestCase(DiscoTestCase):
         self.assertCommErrorCode(404, self.ddfs.pull('disco:test:notag').next)
 
     def test_exists(self):
-        self.assertEquals(self.ddfs.exists(''), False)
-        self.assertEquals(self.ddfs.exists('!!'), False)
         self.assertEquals(self.ddfs.exists('disco:test:tag'), True)
         self.assertEquals(self.ddfs.exists('disco:test:notag'), False)
         self.assertEquals(self.ddfs.exists('tag://disco:test:tag'), True)
@@ -149,7 +156,6 @@ class DDFSReadTestCase(DiscoTestCase):
         list(self.ddfs.findtags(['disco:test:metatag']))
 
     def test_get(self):
-        self.assertCommErrorCode(403, lambda: self.ddfs.get(''))
         self.assertCommErrorCode(404, lambda: self.ddfs.get('disco:test:notag'))
         self.assertEquals(self.ddfs.get('disco:test:tag')['urls'], [['urls']])
         self.assertEquals(self.ddfs.get(['disco:test:tag'])['urls'], [['urls']])

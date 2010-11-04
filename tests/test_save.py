@@ -14,7 +14,7 @@ class SaveOnlyMapTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [(e + "#", '')]
+        return [(e.strip() + "#", '')]
 
     @property
     def answers(self):
@@ -52,7 +52,7 @@ class SaveTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     def map_1(e, params):
         if type(e) == tuple:
             e = e[0]
-        yield (e + "!", '')
+        yield (e.strip() + "!", '')
 
     map_2 = map_1
 

@@ -35,6 +35,7 @@ Batteries Included
 
    Discodex -- Distributed Indexing System <contrib/discodex/index>
    contrib/discodb/discodb
+   contrib/discodb/query
 
 HOWTO
 -----

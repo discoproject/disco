@@ -45,7 +45,7 @@ class DDFSOptionParser(OptionParser):
                         help='include match')
         self.add_option('-f', '--files',
                         action='store_true',
-                        help='file mode for commands that take it.')
+                        help='file mode for commands that take it')
         self.add_option('-i', '--ignore-missing',
                         action='store_true',
                         help='ignore missing tags')
@@ -53,15 +53,20 @@ class DDFSOptionParser(OptionParser):
                         help='number of replicas to create when pushing')
         self.add_option('-p', '--prefix',
                         action='store_true',
-                        help='prefix mode for commands that take it.')
+                        help='prefix mode for commands that take it')
         self.add_option('-R', '--reader',
-                        default='disco.func.chain_reader',
                         help='input reader to import and use')
         self.add_option('-r', '--recursive',
                         action='store_true',
                         help='recursively perform operations')
+        self.add_option('-T', '--stream',
+                        default='disco.func.default_stream',
+                        help='input stream to import and use')
         self.add_option('-t', '--token',
                         help='authorization token for the command')
+        self.add_option('-u', '--update',
+                        action='store_true',
+                        help='whether to perform an update or an append')
         self.add_option('-w', '--warn-missing',
                         action='store_true',
                         help='warn about missing tags')
@@ -110,8 +115,7 @@ class DDFS(Program):
 
     def separate_tags(self, *urls):
         from disco.util import partition
-        def istag(url):
-            return url.startswith('tag://') or '/' not in url
+        from disco.ddfs import istag
         return partition(urls, istag)
 
 @DDFS.command
@@ -160,6 +164,26 @@ def cat(program, *urls):
     for replicas in chain(([url] for url in urls),
                           program.blobs(*tags)):
         sys.stdout.write(curl(replicas))
+
+@DDFS.command
+def chunk(program, tag, *urls):
+    """Usage: [-n replicas] [-S stream] [-R reader] [-u] tag [url ...]
+
+    Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
+    """
+    from disco.util import reify
+
+    tags, urls = program.separate_tags(*urls)
+    stream = reify(program.options.stream)
+    reader = reify(program.options.reader or 'None')
+    tag, blobs = program.ddfs.chunk(tag,
+                                    chain(urls, program.blobs(*tags)),
+                                    input_stream=stream,
+                                    reader=reader,
+                                    replicas=program.options.replicas,
+                                    update=program.options.update)
+    for replicas in blobs:
+        print 'created: %s' % '\t'.join(replicas)
 
 @DDFS.command
 def cp(program, source_tag, target_tag):
@@ -401,8 +425,7 @@ def urls(program, *tags):
     List the urls pointed to by the tag[s].
     """
     for tag in program.prefix_mode(*tags):
-        for replicas in program.ddfs.get(tag,
-                                         token=program.options.token)['urls']:
+        for replicas in program.ddfs.urls(tag, token=program.options.token):
             print '\t'.join(replicas)
 
 @DDFS.command
@@ -421,15 +444,18 @@ def xcat(program, *urls):
     If any of the url[s] are tags,
     the blobs reachable from the tags will be printed after any non-tag url[s].
     """
-    from disco.core import result_iterator
+    from disco.core import RecordIter
     from disco.util import iterify, reify
 
     tags, urls = program.separate_tags(*urls)
-    reader = reify(program.options.reader)
+    stream = reify(program.options.stream)
+    reader = program.options.reader
+    reader = reify('disco.func.chain_reader' if reader is None else reader)
 
-    for result in result_iterator(chain(urls, program.blobs(*tags)),
-                                  reader=reader):
-        print '\t'.join(map(str, iterify(result))).rstrip()
+    for record in RecordIter(chain(urls, program.blobs(*tags)),
+                             input_stream=stream,
+                             reader=reader):
+        print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()

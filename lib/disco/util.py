@@ -39,6 +39,9 @@ class netloc(tuple):
             return cls(netlocstr.split(':'))
         return cls((netlocstr, ''))
 
+    def __nonzero__((host, port)):
+        return bool(host)
+
     def __str__((host, port)):
         return '%s:%s' % (host, port) if port else host
 
@@ -79,7 +82,7 @@ def kvgroup(kviter):
         yield k, (v for _k, v in kvs)
 
 def kvify(entry):
-    return entry if iskv(entry) else ('', entry)
+    return entry if iskv(entry) else (entry, None)
 
 def partition(iterable, fn):
     t, f = [], []
@@ -149,8 +152,13 @@ def pack_stack(stack):
 def unpack_stack(stackstring, globals={}):
     return [unpack(string, globals=globals) for string in unpack(stackstring)]
 
+def urljoin((scheme, netloc, path)):
+    return '%s%s%s' % ('%s://' % scheme if scheme else '',
+                       '%s/' % (netloc, ) if netloc else '',
+                       path)
+
 def schemesplit(url):
-    return url.split('://', 1) if '://' in url else ('file', url)
+    return url.split('://', 1) if '://' in url else ('', url)
 
 def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
@@ -171,8 +179,17 @@ def urlsplit(url, localhost=None, settings=DiscoSettings()):
             path, locstr = locstr, ''
     return scheme, netloc.parse(locstr), path
 
-def urlresolve(url):
-    return '%s://%s/%s' % urlsplit(url)
+def urlresolve(url, settings=DiscoSettings()):
+    scheme, netloc, path = urlsplit(url)
+    if scheme == 'tag':
+        def master((host, port)):
+            if not host:
+                return settings['DISCO_MASTER']
+            if not port:
+                return 'disco://%s' % host
+            return 'http://%s:%s' % (host, port)
+        return urlresolve('%s/ddfs/tag/%s' % (master(netloc), path))
+    return '%s://%s/%s' % (scheme, netloc, path)
 
 def auth_token(url):
     _scheme, rest = schemesplit(url)

@@ -1,9 +1,10 @@
 import httplib, urllib, urlparse
 
 from disco.comm import HTTPConnection
+from disco.util import urlresolve
 
 from core import DiscodexError
-from objects import DataSet, MetaSet, Indices, Index, Results, Query
+from objects import DataSet, Indices, Index, Results, Dict
 from settings import DiscodexSettings
 
 class ResourceNotFound(DiscodexError):
@@ -29,14 +30,15 @@ class DiscodexClient(object):
     def indexurl(self, indexspec):
         resource = urlparse.urlparse(indexspec)
         if resource.netloc:
-            return indexspec
+            return urlresolve(indexspec)
         path = '/indices/%s' % indexspec
         return urlparse.urlunparse(('http', self.netloc, path, '', '', ''))
 
     def request(self, method, url, body=None):
         resource = urlparse.urlparse(url)
-        conn     = HTTPConnection(resource.netloc or self.netloc)
-        conn.request(method, resource.path, body)
+        conn     = HTTPConnection(resource.netloc or self.netloc, timeout=None)
+        path     = urlparse.urlunparse(('', '') + resource[2:])
+        conn.request(method, path, body)
         response = conn.getresponse()
         if response.status == httplib.NOT_FOUND:
             raise ResourceNotFound(url)
@@ -56,7 +58,7 @@ class DiscodexClient(object):
         self.request('POST', self.indexurl(indexaspec), indexbspec)
 
     def put(self, indexspec, index):
-        self.request('PUT', self.indexurl(indexspec), index.dumps())
+        self.request('PUT', self.indexurl(indexspec), index.ichunks.dumps())
 
     def delete(self, indexspec):
         self.request('DELETE', self.indexurl(indexspec))
@@ -64,20 +66,33 @@ class DiscodexClient(object):
     def index(self, dataset):
         return self.request('POST', self.indexurl(''), dataset.dumps()).read()
 
-    def metaindex(self, metaset):
-        return self.request('POST', self.indexurl(''), metaset.dumps()).read()
-
     def clone(self, indexaspec, indexbspec):
-        index = self.get(indexaspec)
-        index['origin'] = self.indexurl(indexaspec)
-        self.put(indexbspec, index)
+        self.put(indexbspec, self.get(indexaspec))
 
-    def keys(self, indexspec):
-        return Results.loads(self.request('GET', '%s/keys' % self.indexurl(indexspec)).read())
+    def inquire(self, indexspec, inquiry, query=None, streams=(), reduce='', params={}):
+        method = 'GET' if query is None else 'POST'
+        body   = Dict(arg=query.urlformat()).dumps() if query else None
+        url    = '%s/%s%s' % (self.indexurl(indexspec),
+                              inquiry,
+                              ''.join('|%s' % stream for stream in streams))
+        if reduce:
+            url += '}%s' % reduce
+        if params:
+            url += '?%s' % '&'.join('='.join(item) for item in params.items())
 
-    def values(self, indexspec):
-        return Results.loads(self.request('GET', '%s/values' % self.indexurl(indexspec)).read())
+        return Results.loads(self.request(method, url, body).read())
 
-    def query(self, indexspec, query):
-        query = Query(query_path=query.urlformat())
-        return Results.loads(self.request('POST', '%s/query/' % self.indexurl(indexspec), query.dumps()).read())
+    def items(self, indexspec, **kwargs):
+        return self.inquire(indexspec, 'items', **kwargs)
+
+    def keys(self, indexspec, **kwargs):
+        return self.inquire(indexspec, 'keys', **kwargs)
+
+    def values(self, indexspec, **kwargs):
+        return self.inquire(indexspec, 'values', **kwargs)
+
+    def query(self, indexspec, query, **kwargs):
+        return self.inquire(indexspec, 'query', query=query, **kwargs)
+
+    def metaquery(self, indexspec, query, **kwargs):
+        return self.inquire(indexspec, 'metaquery', query=query, **kwargs)
