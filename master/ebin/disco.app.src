@@ -1,6 +1,6 @@
 {application, disco, [
         {description, "Disco"},
-        {vsn, "1"},
+        {vsn, "%DISCO_VERSION%"},
         {modules, [disco_server,
                    job_queue,
                    event_server,
@@ -8,7 +8,7 @@
                    disco_config,
                    disco_main,
                    netstring,
-                   json, 
+                   json,
                    trunc_io,
                    scgi,
                    scgi_server]},
