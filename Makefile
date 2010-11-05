@@ -53,14 +53,14 @@ include version.mk
 SED_ARGS = -e s^%DISCO_VERSION%^$(DISCO_VERSION)^ \
            -e s^%DISCO_RELEASE%^$(DISCO_RELEASE)^
 
-build: preprocess master
+build: master
 
 preprocess: master/ebin/disco.app $(HTML_TARGET) doc/conf.py
 
 %: %.src version.mk
 	sed $(SED_ARGS) $< > $@
 
-master: $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
+master: preprocess $(EBIN)/ddfs $(EBIN)/mochiweb $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
 
 clean:
 	- rm -Rf master/ebin/*.beam master/ebin/disco.app
@@ -74,7 +74,7 @@ clean:
 	- rm -f $(HTML_TARGET)
 	- rm -f doc/conf.py
 
-install: preprocess install-master install-lib install-node install-root install-tests
+install: install-master install-lib install-node install-root install-tests
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
