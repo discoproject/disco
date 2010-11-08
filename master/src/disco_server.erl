@@ -4,7 +4,7 @@
 
 -export([start_link/0, stop/0]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-    terminate/2, code_change/3]).
+         terminate/2, code_change/3]).
 
 -include("disco.hrl").
 
@@ -24,10 +24,13 @@
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
 
+%% ===================================================================
+%% API functions
+
 start_link() ->
     error_logger:info_report([{"DISCO SERVER STARTS"}]),
-    case gen_server:start_link({local, disco_server},
-            disco_server, [], disco:debug_flags("disco_server")) of
+    case gen_server:start_link({local, ?MODULE}, ?MODULE,
+                               [], disco:debug_flags("disco_server")) of
         {ok, Server} ->
             case catch disco_config:get_config_table() of
                 {ok, _Config} ->
@@ -40,7 +43,10 @@ start_link() ->
     end.
 
 stop() ->
-    gen_server:call(disco_server, stop).
+    gen_server:call(?MODULE, stop).
+
+%% ===================================================================
+%% gen_server callbacks
 
 init(_Args) ->
     process_flag(trap_exit, true),
@@ -48,15 +54,6 @@ init(_Args) ->
     {ok, #state{workers = gb_trees:empty(),
                 nodes = gb_trees:empty(),
                 purged = gb_trees:empty()}}.
-
-update_nodes(Nodes) ->
-    WhiteNodes = [{N#dnode.name, N#dnode.slots}
-                  || #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
-    DDFSNodes = [{disco:node(N#dnode.name), not (N#dnode.blacklisted == false)}
-                 || N <- gb_trees:values(Nodes)],
-    gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
-    gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
-    gen_server:cast(self(), schedule_next).
 
 handle_cast({update_config_table, Config}, S) ->
     error_logger:info_report([{"Config table update"}]),
@@ -102,18 +99,13 @@ handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
             {ok, {JobSchedPid, {Node, Task}}} ->
                 M = gb_trees:get(Node, Nodes),
                 WorkerPid = start_worker(Node, M#dnode.node_mon, Task),
-                UWorkers = gb_trees:insert(
-                    WorkerPid, {Node, Task}, Workers),
-                gen_server:cast(JobSchedPid,
-                    {task_started, Node, WorkerPid}),
+                UWorkers = gb_trees:insert(WorkerPid, {Node, Task}, Workers),
+                gen_server:cast(JobSchedPid, {task_started, Node, WorkerPid}),
 
-                UNodes = gb_trees:update(Node,
-                    M#dnode{num_running =
-                        M#dnode.num_running + 1},
-                             Nodes),
-                handle_cast(schedule_next,
-                    S#state{nodes = UNodes,
-                        workers = UWorkers});
+                M1 = M#dnode{num_running = M#dnode.num_running + 1},
+                UNodes = gb_trees:update(Node, M1, Nodes),
+                S1 = S#state{nodes = UNodes, workers = UWorkers},
+                handle_cast(schedule_next, S1);
             nojobs ->
                 {noreply, S}
         end;
@@ -142,30 +134,14 @@ handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
         Task#task.from ! {Res, Task, Node},
         gen_server:cast(self(), schedule_next),
         update_stats(Node, gb_trees:lookup(Node, S#state.nodes),
-            Type, S#state{workers = UWorkers})
+                     Type, S#state{workers = UWorkers})
     end.
-
-update_stats(_Node, none, _ReplyType, S) -> {noreply, S};
-update_stats(Node, {value, N}, ReplyType, S) ->
-    M = N#dnode{num_running = N#dnode.num_running - 1},
-    M0 = case ReplyType of
-        job_ok ->
-            M#dnode{stats_ok = M#dnode.stats_ok + 1};
-        data_error ->
-            M#dnode{stats_failed = M#dnode.stats_failed + 1};
-        job_error ->
-            M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
-        _ ->
-            M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
-    end,
-    {noreply, S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
 handle_call({new_job, JobName, JobCoord}, _, S) ->
-    {reply, catch gen_server:call(scheduler,
-        {new_job, JobName, JobCoord}), S};
+    {reply, catch gen_server:call(scheduler, {new_job, JobName, JobCoord}), S};
 
 handle_call({new_task, Task}, _, S) ->
     NodeStats =
@@ -179,7 +155,7 @@ handle_call({new_task, Task}, _, S) ->
             {reply, ok, S};
         Error ->
             error_logger:warning_report({"Scheduling task failed",
-                Task, Error}),
+                                         Task, Error}),
             {reply, failed, S}
     end;
 
@@ -199,14 +175,14 @@ handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
                       stats_failed = N#dnode.stats_failed,
                       stats_crashed = N#dnode.stats_crashed,
                       blacklisted = not (N#dnode.blacklisted == false)}
-           || N <- gb_trees:values(Nodes)],
+            || N <- gb_trees:values(Nodes)],
     {reply, {ok, Info}, S};
 
 handle_call(get_purged, _, #state{purged = Purged} = S) ->
     Now = now(),
     NPurged = gb_trees:from_orddict(
         [{Job, TStamp} || {Job, TStamp} <- gb_trees:to_list(Purged),
-            timer:now_diff(Now, TStamp) < ?PURGE_TIMEOUT * 1000]),
+                          timer:now_diff(Now, TStamp) < ?PURGE_TIMEOUT * 1000]),
     {reply, {ok, gb_trees:keys(NPurged)}, S#state{purged = NPurged}};
 
 handle_call(get_num_cores, _, #state{nodes = Nodes} = S) ->
@@ -225,29 +201,16 @@ handle_call({clean_job, JobName}, From, State) ->
     {reply, ok, State};
 
 handle_call({blacklist, Node, Token}, _From, #state{nodes = Nodes} = S) ->
-    {reply, ok, S#state{nodes =
-        toggle_blacklist(Node, Nodes, true, Token)}};
+    {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, true, Token)}};
 
 handle_call({whitelist, Node, Token}, _From, #state{nodes = Nodes} = S) ->
-    {reply, ok, S#state{nodes =
-        toggle_blacklist(Node, Nodes, false, Token)}}.
-
-process_exit(Pid, Msg, Code, S) ->
-    process_exit1(gb_trees:lookup(Pid, S#state.workers), Pid, Msg, Code, S).
-
-process_exit1(none, _, _, _, S) -> {noreply, S};
-process_exit1({_, {Node, T}}, Pid, Msg, Code, S) ->
-    P = io_lib:fwrite("WARN: [~s:~B] ", [T#task.mode, T#task.taskid]),
-    event_server:event(Node, T#task.jobname, lists:flatten(P, Msg), [],
-            {task_failed, T#task.mode}),
-    gen_server:cast(self(), {exit_worker, Pid, {data_error, Code}}),
-    {noreply, S}.
+    {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, false, Token)}}.
 
 handle_info({'EXIT', Pid, normal}, S) ->
     case gb_trees:lookup(Pid, S#state.workers) of
         none -> {noreply, S};
-        _ -> error_logger:warning_report(
-            {"Task failed to call exit_worker", Pid}),
+        _ -> error_logger:warning_report({"Task failed to call exit_worker",
+                                          Pid}),
              process_exit(Pid, "Died unexpectedly without a reason",
             "unexpected", S)
     end;
@@ -257,30 +220,63 @@ handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
 
 handle_info({'EXIT', Pid, noconnection}, S) ->
     process_exit(Pid, "Connection lost to the node (network busy?)",
-        "noconnection", S);
+                 "noconnection", S);
 
 handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
     error_logger:warning_report(["Disco server dies on error!", Reason]),
     {stop, stop_requested, S};
 
 handle_info({'EXIT', Pid, Reason}, S) ->
-    process_exit(Pid, io_lib:fwrite("Worked died unexpectedly: ~p",
-        [Reason]), "unexpected", S).
+    process_exit(Pid, io_lib:fwrite("Worked died unexpectedly: ~p", [Reason]),
+                 "unexpected", S).
+
+%% ===================================================================
+%% gen_server callback stubs
+
+terminate(Reason, _State) ->
+    error_logger:warning_report({"Disco server dies", Reason}).
+
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+%% ===================================================================
+%% internal functions
+
+update_nodes(Nodes) ->
+    WhiteNodes = [{N#dnode.name, N#dnode.slots}
+                  || #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
+    DDFSNodes = [{disco:node(N#dnode.name), not (N#dnode.blacklisted == false)}
+                 || N <- gb_trees:values(Nodes)],
+    gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
+    gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
+    gen_server:cast(self(), schedule_next).
+
+update_stats(_Node, none, _ReplyType, S) -> {noreply, S};
+update_stats(Node, {value, N}, ReplyType, S) ->
+    M = N#dnode{num_running = N#dnode.num_running - 1},
+    M0 = case ReplyType of
+        job_ok ->
+            M#dnode{stats_ok = M#dnode.stats_ok + 1};
+        data_error ->
+            M#dnode{stats_failed = M#dnode.stats_failed + 1};
+        job_error ->
+            M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
+        _ ->
+            M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
+    end,
+    {noreply, S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}}.
 
 toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
             % blacklist
             {value, M} when IsBlacklisted == true,
-                    M#dnode.blacklisted =/= manual ->
-                gb_trees:update(Node,
-                    M#dnode{blacklisted = Token}, Nodes);
+                            M#dnode.blacklisted =/= manual ->
+                gb_trees:update(Node, M#dnode{blacklisted = Token}, Nodes);
             % whitelist if token is valid
             {value, M} when Token == any;
-                    Token == M#dnode.blacklisted ->
+                            Token == M#dnode.blacklisted ->
                 error_logger:info_report({"Whitelisted", Node}),
-                gb_trees:update(Node,
-                    M#dnode{blacklisted = false}, Nodes);
+                gb_trees:update(Node, M#dnode{blacklisted = false}, Nodes);
             _ -> Nodes
         end,
     update_nodes(UpdatedNodes),
@@ -288,13 +284,17 @@ toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
 
 start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
-        [T#task.mode, T#task.taskid, Node], []),
+                       [T#task.mode, T#task.taskid, Node], []),
     spawn_link(disco_worker, start_link_remote,
-        [self(), whereis(event_server), Node, NodeMon, T]).
+               [self(), whereis(event_server), Node, NodeMon, T]).
 
-% callback stubs
-terminate(Reason, _State) ->
-    error_logger:warning_report({"Disco server dies", Reason}).
+process_exit(Pid, Msg, Code, S) ->
+    process_exit1(gb_trees:lookup(Pid, S#state.workers), Pid, Msg, Code, S).
 
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
+process_exit1(none, _, _, _, S) -> {noreply, S};
+process_exit1({_, {Node, T}}, Pid, Msg, Code, S) ->
+    P = io_lib:fwrite("WARN: [~s:~B] ", [T#task.mode, T#task.taskid]),
+    event_server:event(Node, T#task.jobname, lists:flatten(P, Msg), [],
+                       {task_failed, T#task.mode}),
+    gen_server:cast(self(), {exit_worker, Pid, {data_error, Code}}),
+    {noreply, S}.
