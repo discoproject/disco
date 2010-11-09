@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0]).
--export([get_config_table/0, save_config_table/1]).
+-export([get_config_table/0, save_config_table/1, blacklist/1, whitelist/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
@@ -27,6 +27,14 @@ get_config_table() ->
 save_config_table(Json) ->
     gen_server:call(?MODULE, {save_config_table, Json}).
 
+-spec blacklist(nonempty_string()) -> 'ok'.
+blacklist(Host) ->
+    gen_server:call(?MODULE, {blacklist, Host}).
+
+-spec whitelist(nonempty_string()) -> 'ok'.
+whitelist(Host) ->
+    gen_server:call(?MODULE, {whitelist, Host}).
+
 %% ===================================================================
 %% gen_server callbacks
 
@@ -37,7 +45,13 @@ handle_call(get_config_table, _, S) ->
     {reply, do_get_config_table(), S};
 
 handle_call({save_config_table, Json}, _, S) ->
-    {reply, do_save_config_table(Json), S}.
+    {reply, do_save_config_table(Json), S};
+
+handle_call({blacklist, Host}, _, S) ->
+    {reply, do_blacklist(Host), S};
+
+handle_call({whitelist, Host}, _, S) ->
+    {reply, do_whitelist(Host), S}.
 
 handle_cast(_, S) ->
     {noreply, S}.
@@ -109,3 +123,11 @@ do_save_config_table(Json) ->
         true ->
             {error, <<"duplicate nodes">>}
     end.
+
+-spec do_blacklist(nonempty_string()) -> 'ok'.
+do_blacklist(Host) ->
+    disco_server:blacklist(Host, manual).
+
+-spec do_whitelist(nonempty_string()) -> 'ok'.
+do_whitelist(Host) ->
+    disco_server:whitelist(Host, any).

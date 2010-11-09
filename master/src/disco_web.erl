@@ -160,12 +160,12 @@ postop("get_results", Json) ->
 
 postop("blacklist", Json) ->
     Node = binary_to_list(Json),
-    disco_server:blacklist(Node, manual),
+    disco_config:blacklist(Node),
     {ok, <<>>};
 
 postop("whitelist", Json) ->
     Node = binary_to_list(Json),
-    disco_server:whitelist(Node, any),
+    disco_config:whitelist(Node),
     {ok, <<>>};
 
 postop("save_config_table", Json) ->
