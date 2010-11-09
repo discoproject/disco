@@ -54,7 +54,7 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
             okjson([list_to_binary(U) || U <- Urls], Req);
         E ->
             error_logger:warning_report({"/ddfs/new_blob failed", E}),
-            error(E, Req)
+            on_error(E, Req)
     end;
 
 op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
@@ -63,7 +63,7 @@ op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
         {ok, Tags} ->
             okjson(Tags, Req);
         E ->
-            error(E, Req)
+            on_error(E, Req)
     end;
 
 op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
@@ -85,7 +85,7 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
                 unknown_attribute ->
                     Req:respond({404, [], ["Tag attribute not found."]});
                 E ->
-                    error(E, Req)
+                    on_error(E, Req)
             end
     end;
 
@@ -135,14 +135,14 @@ op('DELETE', "/ddfs/tag/" ++ TagAttrib, Req) ->
                 ok ->
                     Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
                 E ->
-                    error(E, Req)
+                    on_error(E, Req)
             end;
         _ ->
             case ddfs:delete_attrib(ddfs_master, Tag, Attrib, Token) of
                 ok ->
                     Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
                 E ->
-                    error(E, Req)
+                    on_error(E, Req)
             end
     end;
 
@@ -168,26 +168,26 @@ if_set(Flag, QS, True, False) ->
             False
     end.
 
--spec error(_, module()) -> _.
-error(timeout, Req) ->
+-spec on_error(_, module()) -> _.
+on_error(timeout, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});
-error({error, timeout}, Req) ->
+on_error({error, timeout}, Req) ->
     Req:respond({503, [], ["Temporary server error. Try again."]});
-error({error, unauthorized}, Req) ->
+on_error({error, unauthorized}, Req) ->
     Req:respond({401, [], ["Incorrect or missing token."]});
-error({error, invalid_name}, Req) ->
+on_error({error, invalid_name}, Req) ->
     Req:respond({403, [], ["Invalid tag"]});
-error({error, invalid_url_object}, Req) ->
+on_error({error, invalid_url_object}, Req) ->
     Req:respond({403, [], ["Invalid url object"]});
-error({error, invalid_attribute_value}, Req) ->
+on_error({error, invalid_attribute_value}, Req) ->
     Req:respond({403, [], ["Invalid attribute key or value"]});
-error({error, too_many_attributes}, Req) ->
+on_error({error, too_many_attributes}, Req) ->
     Req:respond({403, [], ["Too many attributes"]});
-error({error, unknown_attribute}, Req) ->
+on_error({error, unknown_attribute}, Req) ->
     Req:respond({404, [], ["Tag attribute not found."]});
-error({error, E}, Req) when is_atom(E) ->
+on_error({error, E}, Req) when is_atom(E) ->
     Req:respond({500, [], ["Internal server error: ", atom_to_list(E)]});
-error(E, Req) ->
+on_error(E, Req) ->
     Msg = ["Internal server error: ", io_lib:format("~p", [E])],
     Req:respond({500, [], Msg}).
 
@@ -209,7 +209,7 @@ tag_update(Fun, Req) ->
                         {ok, Dst} ->
                             okjson(Dst, Req);
                         E ->
-                            error(E, Req)
+                            on_error(E, Req)
                     end
             end
     end.

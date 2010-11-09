@@ -281,14 +281,14 @@ filter_nodes(Tasks, AvailableNodes, Local) ->
             _ -> true =:= Local
 		 end].
 
--spec error(task(), nonempty_string()) -> no_return().
-error(T, M) ->
-    event_server:event(get(jobname),
-        lists:flatten(["ERROR: ~s:~B Task is forced to be ", M,
-            " but there are no nodes where it could be run (inputs:~s)."]),
-                [T#task.mode, T#task.taskid,
-                    [binary_to_list(<<" ", Url/binary>>) || {Url, _}
-                        <- T#task.input]], {}),
+-spec on_error(task(), nonempty_string()) -> no_return().
+on_error(T, M) ->
+    Format = lists:flatten(["ERROR: ~s:~B Task is forced to be ", M,
+                            " but there are no nodes where it could be run ",
+                            "(inputs:~s)."]),
+    Args = [T#task.mode, T#task.taskid,
+            [binary_to_list(<<" ", Url/binary>>) || {Url, _} <- T#task.input]],
+    event_server:event(get(jobname), Format, Args, {}),
     exit(normal).
 
 % Assign a new task to a node which hostname match with the hostname
@@ -310,7 +310,7 @@ assign_task(Task, NodeStats, Tasks, Nodes) ->
 assign_task0(Task, _NodeStats, Tasks, Nodes) when Task#task.force_remote ->
     case Nodes -- [N || {_, N} <- Task#task.input] of
         [] ->
-            error(Task, "remote");
+            on_error(Task, "remote");
         _ ->
             assign_nopref(Task, Tasks, Nodes)
     end;
@@ -320,7 +320,7 @@ assign_task0(Task, NodeStats, Tasks, Nodes) ->
 
 -spec assign_nopref(task(), gb_tree(), [node()]) -> gb_tree().
 assign_nopref(Task, _Tasks, _Nodes) when Task#task.force_local ->
-    error(Task, "local");
+    on_error(Task, "local");
 
 assign_nopref(Task, Tasks, _Nodes) ->
     {N, C, L} = gb_trees:get(nopref, Tasks),
