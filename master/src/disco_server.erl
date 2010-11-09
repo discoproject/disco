@@ -3,14 +3,19 @@
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0]).
+-export([update_config_table/1, get_active/1, get_nodeinfo/1,
+         new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
+         new_task/2, blacklist/2, whitelist/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -include("disco.hrl").
 
+-type blacklist_token() :: bool() | 'manual' | timer:timestamp().
+
 -record(dnode, {name :: nonempty_string(),
                 node_mon :: pid(),
-                blacklisted :: bool() | 'manual' | timer:timestamp(),
+                blacklisted :: blacklist_token(),
                 slots :: non_neg_integer(),
                 num_running :: non_neg_integer(),
                 stats_ok :: non_neg_integer(),
@@ -44,6 +49,50 @@ start_link() ->
 
 stop() ->
     gen_server:call(?MODULE, stop).
+
+-spec update_config_table([{nonempty_string(), non_neg_integer()}]) -> 'ok'.
+update_config_table(Config) ->
+    gen_server:cast(?MODULE, {update_config_table, Config}).
+
+-spec get_active(nonempty_string() | 'all') ->
+    {'ok', [{nonempty_string(), task()}]}.
+get_active(JobName) ->
+    gen_server:call(?MODULE, {get_active, JobName}).
+
+-spec get_nodeinfo('all') -> {'ok', [nodeinfo()]}.
+get_nodeinfo(Spec) ->
+    gen_server:call(?MODULE, {get_nodeinfo, Spec}).
+
+-spec new_job(nonempty_string(), pid(), non_neg_integer()) -> 'ok'.
+new_job(JobName, JobCoord, Timeout) ->
+    gen_server:call(?MODULE, {new_job, JobName, JobCoord}, Timeout).
+
+-spec kill_job(nonempty_string()) -> 'ok'.
+kill_job(JobName) ->
+    gen_server:call(?MODULE, {kill_job, JobName}).
+-spec kill_job(nonempty_string(), non_neg_integer()) -> 'ok'.
+kill_job(JobName, Timeout) ->
+    gen_server:call(?MODULE, {kill_job, JobName}, Timeout).
+
+-spec purge_job(nonempty_string()) -> 'ok'.
+purge_job(JobName) ->
+    gen_server:cast(?MODULE, {purge_job, JobName}).
+
+-spec clean_job(nonempty_string()) -> 'ok'.
+clean_job(JobName) ->
+    gen_server:call(?MODULE, {clean_job, JobName}).
+
+-spec new_task(task(), non_neg_integer()) -> 'ok' | 'failed'.
+new_task(Task, Timeout) ->
+    gen_server:call(?MODULE, {new_task, Task}, Timeout).
+
+-spec blacklist(nonempty_string(), blacklist_token()) -> 'ok'.
+blacklist(Host, Token) ->
+    gen_server:call(?MODULE, {blacklist, Host, Token}).
+
+-spec whitelist(nonempty_string(), blacklist_token()) -> 'ok'.
+whitelist(Host, Token) ->
+    gen_server:call(?MODULE, {whitelist, Host, Token}).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -163,8 +212,7 @@ update_stats(Node, {value, N}, ReplyType, S) ->
          end,
     S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}.
 
--spec toggle_blacklist(nonempty_string(), bool(),
-                       bool() | 'manual' | timer:timerstamp(),
+-spec toggle_blacklist(nonempty_string(), bool(), blacklist_token(),
                        #state{}) -> #state{}.
 toggle_blacklist(Node, IsBlacklisted, Token, #state{nodes = Nodes} = S) ->
     UpdatedNodes =

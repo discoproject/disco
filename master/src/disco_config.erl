@@ -29,8 +29,8 @@ parse_row([NodeSpecB, InstancesB]) ->
 
 -spec update_config_table([[binary(), ...]]) -> _.
 update_config_table(Json) ->
-    gen_server:cast(disco_server, {update_config_table,
-        lists:flatten([parse_row(R) || R <- Json])}).
+    Config = lists:flatten([parse_row(R) || R <- Json]),
+    disco_server:update_config_table(Config).
 
 -spec get_config_table() -> {'ok', [[binary(), ...]]}.
 get_config_table() ->

@@ -184,7 +184,7 @@ wait_workers(N, Results, Name, Mode) ->
 
 -spec submit_task(task()) -> _.
 submit_task(Task) ->
-    case catch gen_server:call(disco_server, {new_task, Task}, 30000) of
+    case catch disco_server:new_task(Task, 30000) of
         ok ->
             ok;
         _ ->
@@ -237,7 +237,7 @@ check_failure_rate(Task, MaxFail) ->
 -spec kill_job(nonempty_string(), nonempty_string(), [_], atom()) -> no_return().
 kill_job(Name, Msg, P, Type) ->
     event_server:event(Name, Msg, P, []),
-    gen_server:call(disco_server, {kill_job, Name}, 30000),
+    disco_server:kill_job(Name, 30000),
     gen_server:cast(event_server, {job_done, Name}),
     exit(Type).
 
@@ -283,7 +283,7 @@ job_coordinator(Name, Job) ->
     Started = now(),
     event_server:event(Name, "Starting job", [], {job_data, Job}),
 
-    case catch gen_server:call(disco_server, {new_job, Name, self()}, 30000) of
+    case catch disco_server:new_job(Name, self(), 30000) of
     ok -> ok;
     R ->
         event_server:event(Name,

@@ -60,7 +60,7 @@ getop("joblist", _Query) ->
             <- lists:reverse(lists:keysort(3, Jobs))]};
 
 getop("jobinfo", {_Query, JobName}) ->
-    {ok, Active} = gen_server:call(disco_server, {get_active, JobName}),
+    {ok, Active} = disco_server:get_active(JobName),
     {ok, JobInfo} = gen_server:call(event_server, {get_jobinfo, JobName}),
     {ok, render_jobinfo(JobInfo,
                         lists:unzip([{Host, M}
@@ -84,8 +84,8 @@ getop("jobevents", {Query, Name}) ->
     {raw, Ev};
 
 getop("nodeinfo", _Query) ->
-    {ok, Active} = gen_server:call(disco_server, {get_active, all}),
-    {ok, DiscoNodes} = gen_server:call(disco_server, {get_nodeinfo, all}),
+    {ok, Active} = disco_server:get_active(all),
+    {ok, DiscoNodes} = disco_server:get_nodeinfo(all),
     {ok, DDFSNodes} = gen_server:call(ddfs_master, {get_nodeinfo, all}),
     ActiveNodeInfo = lists:foldl(fun ({Host, #task{jobname = JobName}}, Dict) ->
                                          dict:append(Host,
@@ -113,7 +113,7 @@ getop("nodeinfo", _Query) ->
     {ok, {struct, [{K, {struct, Vs}} || {K, Vs} <- dict:to_list(NodeInfo)]}};
 
 getop("get_blacklist", _Query) ->
-    {ok, Nodes} = gen_server:call(disco_server, {get_nodeinfo, all}),
+    {ok, Nodes} = disco_server:get_nodeinfo(all),
     {ok, [list_to_binary(N#nodeinfo.name)
             || N <- Nodes, N#nodeinfo.blacklisted]};
 
@@ -139,17 +139,17 @@ getop(_, _) -> not_found.
 
 postop("kill_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:call(disco_server, {kill_job, JobName}),
+    disco_server:kill_job(JobName),
     {ok, <<>>};
 
 postop("purge_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:cast(disco_server, {purge_job, JobName}),
+    disco_server:purge_job(JobName),
     {ok, <<>>};
 
 postop("clean_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:call(disco_server, {clean_job, JobName}),
+    disco_server:clean_job(JobName),
     {ok, <<>>};
 
 postop("get_results", Json) ->
@@ -160,12 +160,12 @@ postop("get_results", Json) ->
 
 postop("blacklist", Json) ->
     Node = binary_to_list(Json),
-    gen_server:call(disco_server, {blacklist, Node, manual}),
+    disco_server:blacklist(Node, manual),
     {ok, <<>>};
 
 postop("whitelist", Json) ->
     Node = binary_to_list(Json),
-    gen_server:call(disco_server, {whitelist, Node, any}),
+    disco_server:whitelist(Node, any),
     {ok, <<>>};
 
 postop("save_config_table", Json) ->
