@@ -71,70 +71,35 @@ handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
 handle_call({new_job, JobName, JobCoord}, _, S) ->
-    {reply, catch gen_server:call(scheduler, {new_job, JobName, JobCoord}), S};
+    {reply, do_new_job(JobName, JobCoord, S), S};
 
 handle_call({new_task, Task}, _, S) ->
-    NodeStats =
-        [case gb_trees:lookup(Node, S#state.nodes) of
-            none -> {false, Input};
-            {value, N} -> {N#dnode.num_running, Input}
-         end || {_Url, Node} = Input <- Task#task.input],
-    case catch gen_server:call(scheduler, {new_task, Task, NodeStats}) of
-        ok ->
-            gen_server:cast(self(), schedule_next),
-            {reply, ok, S};
-        Error ->
-            error_logger:warning_report({"Scheduling task failed",
-                                         Task, Error}),
-            {reply, failed, S}
-    end;
+    {reply, do_new_task(Task, S), S};
 
-handle_call({get_active, all}, _From, #state{workers = Workers} = S) ->
-    {reply, {ok, gb_trees:values(Workers)}, S};
+handle_call({get_active, JobName}, _From, S) ->
+    {reply, do_get_active(JobName, S), S};
 
-handle_call({get_active, JobName}, _From, #state{workers = Workers} = S) ->
-    Active = [{Host, Task} || {Host, #task{jobname = N} = Task}
-                                  <- gb_trees:values(Workers), N == JobName],
-    {reply, {ok, Active}, S};
+handle_call({get_nodeinfo, all}, _From, S) ->
+    {reply, do_get_nodeinfo(S), S};
 
-handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
-    Info = [#nodeinfo{name = N#dnode.name,
-                      slots = N#dnode.slots,
-                      num_running = N#dnode.num_running,
-                      stats_ok = N#dnode.stats_ok,
-                      stats_failed = N#dnode.stats_failed,
-                      stats_crashed = N#dnode.stats_crashed,
-                      blacklisted = not (N#dnode.blacklisted == false)}
-            || N <- gb_trees:values(Nodes)],
-    {reply, {ok, Info}, S};
+handle_call(get_purged, _, S) ->
+    {Result, S1} = do_get_purged(S),
+    {reply, Result, S1};
 
-handle_call(get_purged, _, #state{purged = Purged} = S) ->
-    Now = now(),
-    NPurged = gb_trees:from_orddict(
-        [{Job, TStamp} || {Job, TStamp} <- gb_trees:to_list(Purged),
-                          timer:now_diff(Now, TStamp) < ?PURGE_TIMEOUT * 1000]),
-    {reply, {ok, gb_trees:keys(NPurged)}, S#state{purged = NPurged}};
-
-handle_call(get_num_cores, _, #state{nodes = Nodes} = S) ->
-    NumCores = lists:sum([N#dnode.slots || N <- gb_trees:values(Nodes)]),
-    {reply, {ok, NumCores}, S};
+handle_call(get_num_cores, _, S) ->
+    {reply, do_get_num_cores(S), S};
 
 handle_call({kill_job, JobName}, _From, S) ->
-    event_server:event(JobName, "WARN: Job killed", [], []),
-    % Make sure that scheduler don't accept new tasks from this job
-    gen_server:cast(scheduler, {job_done, JobName}),
-    {reply, ok, S};
+    {reply, do_kill_job(JobName), S};
 
-handle_call({clean_job, JobName}, From, State) ->
-    handle_call({kill_job, JobName}, From, State),
-    gen_server:cast(event_server, {clean_job, JobName}),
-    {reply, ok, State};
+handle_call({clean_job, JobName}, _From, S) ->
+    {reply, do_clean_job(JobName), S};
 
-handle_call({blacklist, Node, Token}, _From, #state{nodes = Nodes} = S) ->
-    {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, true, Token)}};
+handle_call({blacklist, Node, Token}, _From, S) ->
+    {reply, ok, toggle_blacklist(Node, true, Token, S)};
 
-handle_call({whitelist, Node, Token}, _From, #state{nodes = Nodes} = S) ->
-    {reply, ok, S#state{nodes = toggle_blacklist(Node, Nodes, false, Token)}}.
+handle_call({whitelist, Node, Token}, _From, S) ->
+    {reply, ok, toggle_blacklist(Node, false, Token, S)}.
 
 handle_info({'EXIT', Pid, normal}, S) ->
     case gb_trees:lookup(Pid, S#state.workers) of
@@ -179,7 +144,7 @@ update_nodes(Nodes) ->
                  || N <- gb_trees:values(Nodes)],
     gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
-    gen_server:cast(self(), schedule_next).
+    schedule_next().
 
 -spec update_stats(nonempty_string(), 'none'|{'value', dnode()}, _,
                    #state{}) -> #state{}.
@@ -198,7 +163,10 @@ update_stats(Node, {value, N}, ReplyType, S) ->
          end,
     S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}.
 
-toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
+-spec toggle_blacklist(nonempty_string(), bool(),
+                       bool() | 'manual' | timer:timerstamp(),
+                       #state{}) -> #state{}.
+toggle_blacklist(Node, IsBlacklisted, Token, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
             % blacklist
@@ -213,7 +181,7 @@ toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
             _ -> Nodes
         end,
     update_nodes(UpdatedNodes),
-    UpdatedNodes.
+    S#state{nodes = UpdatedNodes}.
 
 start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
@@ -322,3 +290,70 @@ do_exit_worker(Pid, {Type, _} = Res, S) ->
             update_stats(Node, gb_trees:lookup(Node, S#state.nodes),
                          Type, S#state{workers = UWorkers})
     end.
+
+-spec do_new_job(nonempty_string(), pid(), #state{}) -> 'ok'.
+do_new_job(JobName, JobCoord, _S) ->
+    catch gen_server:call(scheduler, {new_job, JobName, JobCoord}).
+
+-spec do_new_task(task(), #state{}) -> 'ok' | 'failed'.
+do_new_task(Task, S) ->
+    NodeStats = [case gb_trees:lookup(Node, S#state.nodes) of
+                     none -> {false, Input};
+                     {value, N} -> {N#dnode.num_running, Input}
+                 end || {_Url, Node} = Input <- Task#task.input],
+    case catch gen_server:call(scheduler, {new_task, Task, NodeStats}) of
+        ok ->
+            schedule_next(),
+            ok;
+        Error ->
+            error_logger:warning_report({"Scheduling task failed",
+                                         Task, Error}),
+            failed
+    end.
+
+-spec do_get_active(nonempty_string() | 'all', #state{}) ->
+    {'ok', [{nonempty_string(), task()}]}.
+do_get_active(all, #state{workers = Workers}) ->
+    {ok, gb_trees:values(Workers)};
+do_get_active(JobName, #state{workers = Workers}) ->
+    Active = [{Host, Task} || {Host, #task{jobname = N} = Task}
+                                  <- gb_trees:values(Workers), N == JobName],
+    {ok, Active}.
+
+-spec do_get_nodeinfo(#state{}) -> {'ok', [nodeinfo()]}.
+do_get_nodeinfo(#state{nodes = Nodes}) ->
+    Info = [#nodeinfo{name = N#dnode.name,
+                      slots = N#dnode.slots,
+                      num_running = N#dnode.num_running,
+                      stats_ok = N#dnode.stats_ok,
+                      stats_failed = N#dnode.stats_failed,
+                      stats_crashed = N#dnode.stats_crashed,
+                      blacklisted = not (N#dnode.blacklisted == false)}
+            || N <- gb_trees:values(Nodes)],
+    {ok, Info}.
+
+-spec do_get_purged(#state{}) -> {{'ok', [binary()]}, #state{}}.
+do_get_purged(#state{purged = Purged} = S) ->
+    Now = now(),
+    NPurgedList =
+        [{Job, TStamp} || {Job, TStamp} <- gb_trees:to_list(Purged),
+                          timer:now_diff(Now, TStamp) < ?PURGE_TIMEOUT * 1000],
+    NPurged = gb_trees:from_orddict(NPurgedList),
+    {{ok, gb_trees:keys(NPurged)}, S#state{purged = NPurged}}.
+
+-spec do_get_num_cores(#state{}) -> {'ok', non_neg_integer()}.
+do_get_num_cores(#state{nodes = Nodes}) ->
+    {ok, lists:sum([N#dnode.slots || N <- gb_trees:values(Nodes)])}.
+
+-spec do_kill_job(nonempty_string()) -> 'ok'.
+do_kill_job(JobName) ->
+    event_server:event(JobName, "WARN: Job killed", [], []),
+    % Make sure that scheduler don't accept new tasks from this job
+    gen_server:cast(scheduler, {job_done, JobName}),
+    ok.
+
+-spec do_clean_job(nonempty_string()) -> 'ok'.
+do_clean_job(JobName) ->
+    do_kill_job(JobName),
+    gen_server:cast(event_server, {clean_job, JobName}),
+    ok.
