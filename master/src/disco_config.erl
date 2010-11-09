@@ -67,6 +67,10 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% ===================================================================
 %% internal functions
 
+-type hostinfo_line() :: [binary(),...].
+-type host_info() :: {nonempty_string(), integer()}.
+-type config() :: [{binary(), [binary(),...]}].
+
 -spec expand_range(nonempty_string(), nonempty_string()) -> [nonempty_string()].
 expand_range(FirstNode, Max) ->
     Len = string:len(FirstNode),
@@ -79,15 +83,13 @@ expand_range(FirstNode, Max) ->
     [lists:flatten(io_lib:fwrite(Format, [I])) ||
         I <- lists:seq(MinNum, MaxNum)].
 
--spec add_nodes([nonempty_string(),...],integer()) ->
-    [{nonempty_string(), integer()}] | {nonempty_string(), integer()}.
+-spec add_nodes([nonempty_string(),...], integer()) ->
+    [host_info()] | host_info().
 add_nodes([FirstNode, Max], Instances) ->
     [{N, Instances} || N <- expand_range(FirstNode, Max)];
-
 add_nodes([Node], Instances) -> {Node, Instances}.
 
--spec parse_row([binary(),...]) ->
-    [{[char()], integer()}] | {nonempty_string(), integer()}.
+-spec parse_row(hostinfo_line()) -> [host_info()] | host_info().
 parse_row([NodeSpecB, InstancesB]) ->
     NodeSpec = string:strip(binary_to_list(NodeSpecB)),
     Instances = string:strip(binary_to_list(InstancesB)),
@@ -98,27 +100,62 @@ update_config_table(Json) ->
     Config = lists:flatten([parse_row(R) || R <- Json]),
     disco_server:update_config_table(Config).
 
+-spec get_full_config() -> config().
+get_full_config() ->
+    case file:read_file(os:getenv("DISCO_MASTER_CONFIG")) of
+        {ok, Json} -> ok;
+        {error, enoent} ->
+            Json = "[]"
+    end,
+    case mochijson2:decode(Json) of
+        {struct, Body} -> Body;
+        L when is_list(L) -> [{<<"hosts">>, L}, {<<"blacklist">>, []}]
+    end.
+
+-spec get_raw_hosts(config()) -> [binary(),...].
+get_raw_hosts(Config) ->
+    proplists:get_value(<<"hosts">>, Config).
+
+-spec get_expanded_hosts([binary(),...]) -> [nonempty_string()].
+get_expanded_hosts(RawH) ->
+    {Hosts, _Cores} = lists:unzip(lists:flatten([parse_row(R) || R <- RawH])),
+    Hosts.
+
+-spec get_blacklist(config()) -> [nonempty_string()].
+get_blacklist(Config) ->
+    BL = proplists:get_value(<<"blacklist">>, Config),
+    lists:map(fun(B) -> binary_to_list(B) end, BL).
+
+-spec make_config([binary(),...], [nonempty_string()]) -> config().
+make_config(RawHosts, Blacklist) ->
+    RawBlacklist = lists:map(fun(B) -> list_to_binary(B) end, Blacklist),
+    [{<<"hosts">>, RawHosts}, {<<"blacklist">>, RawBlacklist}].
+
+-spec make_blacklist([nonempty_string()], [nonempty_string()]) ->
+    [nonempty_string()].
+make_blacklist(Hosts, Prospects) ->
+    lists:usort(lists:filter(fun(P) -> lists:member(P, Hosts) end, Prospects)).
+
 -spec do_get_config_table() -> {'ok', [[binary(), ...]]}.
 do_get_config_table() ->
-    case file:read_file(os:getenv("DISCO_MASTER_CONFIG")) of
-        {ok, Config} -> ok;
-        {error, enoent} ->
-            Config = "[]"
-    end,
-    Json = mochijson2:decode(Config),
-    update_config_table(Json),
-    {ok, Json}.
+    RawHosts = get_raw_hosts(get_full_config()),
+    update_config_table(RawHosts),
+    {ok, RawHosts}.
 
 -spec do_save_config_table([[binary(), ...]]) -> {'error' | 'ok', binary()}.
-do_save_config_table(Json) ->
-    {Nodes, _Cores} = lists:unzip(lists:flatten([parse_row(R) || R <- Json])),
-    Sorted = lists:sort(Nodes),
-    USorted = lists:usort(Nodes),
+do_save_config_table(RawHosts) ->
+    Hosts = get_expanded_hosts(RawHosts),
+    Sorted = lists:sort(Hosts),
+    USorted = lists:usort(Hosts),
     if
         length(Sorted) == length(USorted) ->
+            % Retrieve and update old blacklist
+            OldBL = get_blacklist(get_full_config()),
+            NewBL = make_blacklist(Hosts, OldBL),
+            Config = make_config(RawHosts, NewBL),
             ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
-                                 mochijson2:encode(Json)),
-            update_config_table(Json),
+                                 mochijson2:encode({struct, Config})),
+            update_config_table(RawHosts),
             {ok, <<"table saved!">>};
         true ->
             {error, <<"duplicate nodes">>}
@@ -126,8 +163,22 @@ do_save_config_table(Json) ->
 
 -spec do_blacklist(nonempty_string()) -> 'ok'.
 do_blacklist(Host) ->
+    OldConfig = get_full_config(),
+    RawHosts = get_raw_hosts(OldConfig),
+    NewBlacklist = make_blacklist(get_expanded_hosts(RawHosts),
+                                  [Host | get_blacklist(OldConfig)]),
+    NewConfig = make_config(RawHosts, NewBlacklist),
+    ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
+                         mochijson2:encode({struct, NewConfig})),
     disco_server:blacklist(Host, manual).
 
 -spec do_whitelist(nonempty_string()) -> 'ok'.
 do_whitelist(Host) ->
+    OldConfig = get_full_config(),
+    RawHosts = get_raw_hosts(OldConfig),
+    NewBlacklist = make_blacklist(get_expanded_hosts(RawHosts),
+                                  get_blacklist(OldConfig) -- [Host]),
+    NewConfig = make_config(RawHosts, NewBlacklist),
+    ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
+                         mochijson2:encode({struct, NewConfig})),
     disco_server:whitelist(Host, any).
