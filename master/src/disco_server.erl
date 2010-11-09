@@ -56,86 +56,16 @@ init(_Args) ->
                 purged = gb_trees:empty()}}.
 
 handle_cast({update_config_table, Config}, S) ->
-    error_logger:info_report([{"Config table update"}]),
-    NewNodes =
-        lists:foldl(fun({Host, Slots}, NewNodes) ->
-            NewNode =
-                case gb_trees:lookup(Host, S#state.nodes) of
-                    none ->
-                        #dnode{name = Host,
-                               slots = Slots,
-                               node_mon = node_mon:start_link(Host),
-                               blacklisted = false,
-                               num_running = 0,
-                               stats_ok = 0,
-                               stats_failed = 0,
-                               stats_crashed = 0};
-                    {value, N} ->
-                        N#dnode{slots = Slots}
-                end,
-            gb_trees:insert(Host, NewNode, NewNodes)
-        end, gb_trees:empty(), Config),
-    lists:foreach(
-        fun(OldNode) ->
-            case gb_trees:lookup(OldNode#dnode.name, NewNodes) of
-                none ->
-                    unlink(OldNode#dnode.node_mon),
-                    exit(OldNode#dnode.node_mon, kill);
-                _ -> ok
-            end
-        end, gb_trees:values(S#state.nodes)),
-    disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
-    update_nodes(NewNodes),
-    {noreply, S#state{nodes = NewNodes}};
+    {noreply, do_update_config_table(Config, S)};
 
-handle_cast(schedule_next, #state{nodes = Nodes, workers = Workers} = S) ->
+handle_cast(schedule_next, S) ->
+    {noreply, do_schedule_next(S)};
 
-    {_, AvailableNodes} = lists:unzip(lists:keysort(1, [{Y, N} ||
-        #dnode{slots = X, num_running = Y, name = N, blacklisted = false}
-                <- gb_trees:values(Nodes), X > Y])),
+handle_cast({purge_job, JobName}, S) ->
+    {noreply, do_purge_job(JobName, S)};
 
-    if AvailableNodes =/= [] ->
-        case gen_server:call(scheduler, {next_task, AvailableNodes}) of
-            {ok, {JobSchedPid, {Node, Task}}} ->
-                M = gb_trees:get(Node, Nodes),
-                WorkerPid = start_worker(Node, M#dnode.node_mon, Task),
-                UWorkers = gb_trees:insert(WorkerPid, {Node, Task}, Workers),
-                gen_server:cast(JobSchedPid, {task_started, Node, WorkerPid}),
-
-                M1 = M#dnode{num_running = M#dnode.num_running + 1},
-                UNodes = gb_trees:update(Node, M1, Nodes),
-                S1 = S#state{nodes = UNodes, workers = UWorkers},
-                handle_cast(schedule_next, S1);
-            nojobs ->
-                {noreply, S}
-        end;
-    true -> {noreply, S}
-    end;
-
-handle_cast({purge_job, JobName}, #state{purged = Purged} = S) ->
-    handle_call({clean_job, JobName}, none, S),
-    ddfs:delete(ddfs_master, disco:oob_name(JobName), internal),
-    Key = list_to_binary(JobName),
-    NPurged =
-        case gb_trees:is_defined(Key, Purged) of
-            true ->
-                Purged;
-            false ->
-                gb_trees:insert(Key, now(), Purged)
-        end,
-    {noreply, S#state{purged = NPurged}};
-
-handle_cast({exit_worker, Pid, {Type, _} = Res}, S) ->
-    V = gb_trees:lookup(Pid, S#state.workers),
-    if V == none -> {noreply, S};
-    true ->
-        {_, {Node, Task}} = V,
-        UWorkers = gb_trees:delete(Pid, S#state.workers),
-        Task#task.from ! {Res, Task, Node},
-        gen_server:cast(self(), schedule_next),
-        update_stats(Node, gb_trees:lookup(Node, S#state.nodes),
-                     Type, S#state{workers = UWorkers})
-    end.
+handle_cast({exit_worker, Pid, Res}, S) ->
+    {noreply, do_exit_worker(Pid, Res, S)}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -241,6 +171,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% ===================================================================
 %% internal functions
 
+-spec update_nodes(gb_tree()) -> 'ok'.
 update_nodes(Nodes) ->
     WhiteNodes = [{N#dnode.name, N#dnode.slots}
                   || #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
@@ -250,20 +181,22 @@ update_nodes(Nodes) ->
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
     gen_server:cast(self(), schedule_next).
 
-update_stats(_Node, none, _ReplyType, S) -> {noreply, S};
+-spec update_stats(nonempty_string(), 'none'|{'value', dnode()}, _,
+                   #state{}) -> #state{}.
+update_stats(_Node, none, _ReplyType, S) -> S;
 update_stats(Node, {value, N}, ReplyType, S) ->
     M = N#dnode{num_running = N#dnode.num_running - 1},
     M0 = case ReplyType of
-        job_ok ->
-            M#dnode{stats_ok = M#dnode.stats_ok + 1};
-        data_error ->
-            M#dnode{stats_failed = M#dnode.stats_failed + 1};
-        job_error ->
-            M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
-        _ ->
-            M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
-    end,
-    {noreply, S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}}.
+             job_ok ->
+                 M#dnode{stats_ok = M#dnode.stats_ok + 1};
+             data_error ->
+                 M#dnode{stats_failed = M#dnode.stats_failed + 1};
+             job_error ->
+                 M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
+             _ ->
+                 M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
+         end,
+    S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}.
 
 toggle_blacklist(Node, Nodes, IsBlacklisted, Token) ->
     UpdatedNodes =
@@ -298,3 +231,94 @@ process_exit1({_, {Node, T}}, Pid, Msg, Code, S) ->
                        {task_failed, T#task.mode}),
     gen_server:cast(self(), {exit_worker, Pid, {data_error, Code}}),
     {noreply, S}.
+
+-spec do_update_config_table([{nonempty_string(), integer()}],
+                             #state{}) -> #state{}.
+do_update_config_table(Config, S) ->
+    error_logger:info_report([{"Config table update"}]),
+    NewNodes =
+        lists:foldl(fun({Host, Slots}, NewNodes) ->
+            NewNode =
+                case gb_trees:lookup(Host, S#state.nodes) of
+                    none ->
+                        #dnode{name = Host,
+                               slots = Slots,
+                               node_mon = node_mon:start_link(Host),
+                               blacklisted = false,
+                               num_running = 0,
+                               stats_ok = 0,
+                               stats_failed = 0,
+                               stats_crashed = 0};
+                    {value, N} ->
+                        N#dnode{slots = Slots}
+                end,
+            gb_trees:insert(Host, NewNode, NewNodes)
+        end, gb_trees:empty(), Config),
+    lists:foreach(
+        fun(OldNode) ->
+            case gb_trees:lookup(OldNode#dnode.name, NewNodes) of
+                none ->
+                    unlink(OldNode#dnode.node_mon),
+                    exit(OldNode#dnode.node_mon, kill);
+                _ -> ok
+            end
+        end, gb_trees:values(S#state.nodes)),
+    disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
+    update_nodes(NewNodes),
+    S#state{nodes = NewNodes}.
+
+-spec schedule_next() -> 'ok'.
+schedule_next() ->
+    gen_server:cast(?MODULE, schedule_next).
+
+-spec do_schedule_next(#state{}) -> #state{}.
+do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
+    {_, AvailableNodes} = lists:unzip(lists:keysort(1, [{Y, N} ||
+        #dnode{slots = X, num_running = Y, name = N, blacklisted = false}
+                <- gb_trees:values(Nodes), X > Y])),
+
+    if AvailableNodes =/= [] ->
+        case gen_server:call(scheduler, {next_task, AvailableNodes}) of
+            {ok, {JobSchedPid, {Node, Task}}} ->
+                M = gb_trees:get(Node, Nodes),
+                WorkerPid = start_worker(Node, M#dnode.node_mon, Task),
+                UWorkers = gb_trees:insert(WorkerPid, {Node, Task}, Workers),
+                gen_server:cast(JobSchedPid, {task_started, Node, WorkerPid}),
+
+                M1 = M#dnode{num_running = M#dnode.num_running + 1},
+                UNodes = gb_trees:update(Node, M1, Nodes),
+                S1 = S#state{nodes = UNodes, workers = UWorkers},
+                do_schedule_next(S1);
+            nojobs ->
+                S
+        end;
+       true -> S
+    end.
+
+-spec do_purge_job(nonempty_string(), #state{}) -> #state{}.
+do_purge_job(JobName, #state{purged = Purged} = S) ->
+    handle_call({clean_job, JobName}, none, S),
+    ddfs:delete(ddfs_master, disco:oob_name(JobName), internal),
+    Key = list_to_binary(JobName),
+    NPurged =
+        case gb_trees:is_defined(Key, Purged) of
+            true ->
+                Purged;
+            false ->
+                gb_trees:insert(Key, now(), Purged)
+        end,
+    S#state{purged = NPurged}.
+
+-spec do_exit_worker(pid(), _, #state{}) -> #state{}.
+do_exit_worker(Pid, {Type, _} = Res, S) ->
+    V = gb_trees:lookup(Pid, S#state.workers),
+    if V == none ->
+            S;
+       true ->
+            {_, {Node, Task}} = V,
+            UWorkers = gb_trees:delete(Pid, S#state.workers),
+            Task#task.from ! {Res, Task, Node},
+            schedule_next(),
+            update_stats(Node, gb_trees:lookup(Node, S#state.nodes),
+                         Type, S#state{workers = UWorkers})
+    end.
