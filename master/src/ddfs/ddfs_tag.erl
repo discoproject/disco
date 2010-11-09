@@ -522,9 +522,13 @@ put_commit(TagID, TagVol) ->
 
 -spec do_delete(replyto(), #state{}) -> #state{}.
 do_delete(ReplyTo, S) ->
-    {ok, _} = add_to_deleted(S#state.tag),
-    gen_server:reply(ReplyTo, ok),
-    gen_server:cast(self(), {die, none}),
+    case add_to_deleted(S#state.tag) of
+        {ok, _} ->
+            gen_server:reply(ReplyTo, ok),
+            gen_server:cast(self(), {die, none});
+        E ->
+            gen_server:reply(ReplyTo, E)
+    end,
     S.
 
 -spec is_tag_deleted(tagname()) -> _.
