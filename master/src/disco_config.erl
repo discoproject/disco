@@ -1,5 +1,57 @@
 -module(disco_config).
--export([get_config_table/0, save_config_table/1, expand_range/2]).
+-behaviour(gen_server).
+
+-export([start_link/0, stop/0]).
+-export([get_config_table/0, save_config_table/1]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+%% ===================================================================
+%% API functions
+
+start_link() ->
+    error_logger:info_report([{"Disco config starts"}]),
+    case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
+        {ok, Server} -> {ok, Server};
+        {error, {already_started, Server}} -> {ok, Server}
+    end.
+
+stop() ->
+    gen_server:call(?MODULE, stop).
+
+-spec get_config_table() -> {'ok', term()}.
+get_config_table() ->
+    gen_server:call(?MODULE, get_config_table).
+
+-spec save_config_table(term()) -> {'ok' | 'error', binary()}.
+save_config_table(Json) ->
+    gen_server:call(?MODULE, {save_config_table, Json}).
+
+%% ===================================================================
+%% gen_server callbacks
+
+init(_Args) ->
+    {ok, undefined}.
+
+handle_call(get_config_table, _, S) ->
+    {reply, do_get_config_table(), S};
+
+handle_call({save_config_table, Json}, _, S) ->
+    {reply, do_save_config_table(Json), S}.
+
+handle_cast(_, S) ->
+    {noreply, S}.
+
+handle_info(_, S) ->
+    {noreply, S}.
+
+terminate(Reason, _State) ->
+    error_logger:warning_report({"Disco config dies", Reason}).
+
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+%% ===================================================================
+%% internal functions
 
 -spec expand_range(nonempty_string(), nonempty_string()) -> [nonempty_string()].
 expand_range(FirstNode, Max) ->
@@ -32,8 +84,8 @@ update_config_table(Json) ->
     Config = lists:flatten([parse_row(R) || R <- Json]),
     disco_server:update_config_table(Config).
 
--spec get_config_table() -> {'ok', [[binary(), ...]]}.
-get_config_table() ->
+-spec do_get_config_table() -> {'ok', [[binary(), ...]]}.
+do_get_config_table() ->
     case file:read_file(os:getenv("DISCO_MASTER_CONFIG")) of
         {ok, Config} -> ok;
         {error, enoent} ->
@@ -43,8 +95,8 @@ get_config_table() ->
     update_config_table(Json),
     {ok, Json}.
 
--spec save_config_table([[binary(), ...]]) -> {'error' | 'ok', binary()}.
-save_config_table(Json) ->
+-spec do_save_config_table([[binary(), ...]]) -> {'error' | 'ok', binary()}.
+do_save_config_table(Json) ->
     {Nodes, _Cores} = lists:unzip(lists:flatten([parse_row(R) || R <- Json])),
     Sorted = lists:sort(Nodes),
     USorted = lists:usort(Nodes),
