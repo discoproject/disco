@@ -6,6 +6,11 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-type hostinfo_line() :: [binary(),...].
+-type raw_hosts() :: [[hostinfo_line()]].
+-type host_info() :: {nonempty_string(), non_neg_integer()}.
+-type config() :: [{binary(), [binary(),...]}].
+
 %% ===================================================================
 %% API functions
 
@@ -19,11 +24,11 @@ start_link() ->
 stop() ->
     gen_server:call(?MODULE, stop).
 
--spec get_config_table() -> {'ok', term()}.
+-spec get_config_table() -> {'ok', [host_info()]}.
 get_config_table() ->
     gen_server:call(?MODULE, get_config_table).
 
--spec save_config_table(term()) -> {'ok' | 'error', binary()}.
+-spec save_config_table(raw_hosts()) -> {'ok' | 'error', binary()}.
 save_config_table(Json) ->
     gen_server:call(?MODULE, {save_config_table, Json}).
 
@@ -44,8 +49,8 @@ init(_Args) ->
 handle_call(get_config_table, _, S) ->
     {reply, do_get_config_table(), S};
 
-handle_call({save_config_table, Json}, _, S) ->
-    {reply, do_save_config_table(Json), S};
+handle_call({save_config_table, RawHosts}, _, S) ->
+    {reply, do_save_config_table(RawHosts), S};
 
 handle_call({blacklist, Host}, _, S) ->
     {reply, do_blacklist(Host), S};
@@ -66,10 +71,6 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% ===================================================================
 %% internal functions
-
--type hostinfo_line() :: [binary(),...].
--type host_info() :: {nonempty_string(), integer()}.
--type config() :: [{binary(), [binary(),...]}].
 
 -spec expand_range(nonempty_string(), nonempty_string()) -> [nonempty_string()].
 expand_range(FirstNode, Max) ->
@@ -95,9 +96,9 @@ parse_row([NodeSpecB, InstancesB]) ->
     Instances = string:strip(binary_to_list(InstancesB)),
     add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
--spec update_config_table([[binary(), ...]]) -> _.
-update_config_table(Json) ->
-    Config = lists:flatten([parse_row(R) || R <- Json]),
+-spec update_config_table(raw_hosts()) -> _.
+update_config_table(RawHosts) ->
+    Config = lists:flatten([parse_row(R) || R <- RawHosts]),
     disco_server:update_config_table(Config).
 
 -spec get_full_config() -> config().
@@ -112,11 +113,11 @@ get_full_config() ->
         L when is_list(L) -> [{<<"hosts">>, L}, {<<"blacklist">>, []}]
     end.
 
--spec get_raw_hosts(config()) -> [binary(),...].
+-spec get_raw_hosts(config()) -> raw_hosts().
 get_raw_hosts(Config) ->
     proplists:get_value(<<"hosts">>, Config).
 
--spec get_expanded_hosts([binary(),...]) -> [nonempty_string()].
+-spec get_expanded_hosts(raw_hosts()) -> [nonempty_string()].
 get_expanded_hosts(RawH) ->
     {Hosts, _Cores} = lists:unzip(lists:flatten([parse_row(R) || R <- RawH])),
     Hosts.
@@ -126,7 +127,7 @@ get_blacklist(Config) ->
     BL = proplists:get_value(<<"blacklist">>, Config),
     lists:map(fun(B) -> binary_to_list(B) end, BL).
 
--spec make_config([binary(),...], [nonempty_string()]) -> config().
+-spec make_config(raw_hosts(), [nonempty_string()]) -> config().
 make_config(RawHosts, Blacklist) ->
     RawBlacklist = lists:map(fun(B) -> list_to_binary(B) end, Blacklist),
     [{<<"hosts">>, RawHosts}, {<<"blacklist">>, RawBlacklist}].
@@ -136,13 +137,13 @@ make_config(RawHosts, Blacklist) ->
 make_blacklist(Hosts, Prospects) ->
     lists:usort(lists:filter(fun(P) -> lists:member(P, Hosts) end, Prospects)).
 
--spec do_get_config_table() -> {'ok', [[binary(), ...]]}.
+-spec do_get_config_table() -> {'ok', [host_info()]}.
 do_get_config_table() ->
     RawHosts = get_raw_hosts(get_full_config()),
     update_config_table(RawHosts),
     {ok, RawHosts}.
 
--spec do_save_config_table([[binary(), ...]]) -> {'error' | 'ok', binary()}.
+-spec do_save_config_table(raw_hosts()) -> {'ok' | 'error', binary()}.
 do_save_config_table(RawHosts) ->
     Hosts = get_expanded_hosts(RawHosts),
     Sorted = lists:sort(Hosts),
