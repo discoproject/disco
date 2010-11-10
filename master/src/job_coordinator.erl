@@ -5,8 +5,6 @@
 -include("disco.hrl").
 -include("config.hrl").
 
--type result() :: {node(), nonempty_string()}.
-
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
 % Thus, the HTTP request spawns a new process, job_coordinator, that
@@ -14,10 +12,10 @@
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
 -spec new(binary()) -> {'ok', _}.
-new(PostData) ->
+new(JobPack) ->
     TMsg = "couldn't start a new job coordinator in 30s (master busy?)",
     S = self(),
-    P = spawn(fun() -> init_job_coordinator(S, PostData) end),
+    P = spawn(fun() -> init_job_coordinator(S, JobPack) end),
     receive
     {P, ok, JobName} -> {ok, JobName};
     {P, env_failed} -> throw("creating job directories failed "
@@ -32,72 +30,62 @@ new(PostData) ->
 
 % job_coordinator() orchestrates map/reduce tasks for a job
 -spec init_job_coordinator(pid(), binary()) -> _.
-init_job_coordinator(Parent, PostData) ->
-    Msg = netstring:decode_netstring_fd(PostData),
-    case catch find_values(Msg) of
-    {'EXIT', _} ->
-        Parent ! {self(), invalid_jobdesc};
-    Params ->
-        init_job_coordinator(Parent, Params, PostData)
+init_job_coordinator(Parent, JobPack) ->
+    JobDict = bencode:decode(JobPack),
+    case catch find_params(JobDict) of
+        {'EXIT', _} ->
+            Parent ! {self(), invalid_jobdesc};
+        Params ->
+            init_job_coordinator(Parent, Params, JobPack)
     end.
 
 -spec init_job_coordinator(pid(), {nonempty_string(), jobinfo()}, binary()) -> _.
-init_job_coordinator(Parent, {Prefix, JobInfo}, PostData) ->
+init_job_coordinator(Parent, {Prefix, JobInfo}, JobPack) ->
     C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
-    if C > 0 ->
-    Parent ! {self(), invalid_prefix};
-    true ->
-    case gen_server:call(event_server, {new_job, Prefix, self()}, 10000) of
-        {ok, JobName} ->
-        save_params(JobName, PostData),
-        Parent ! {self(), ok, JobName},
-        job_coordinator(JobName, JobInfo);
-        _ ->
-        Parent ! {self(), timeout}
-    end
+    if
+        C > 0 ->
+            Parent ! {self(), invalid_prefix};
+        true ->
+            case gen_server:call(event_server, {new_job, Prefix, self()}, 10000) of
+                {ok, JobName} ->
+                    save_jobpack(JobName, JobPack),
+                    Parent ! {self(), ok, JobName},
+                    job_coordinator(JobName, JobInfo);
+                _ ->
+                    Parent ! {self(), timeout}
+            end
     end.
 
-save_params(Name, PostData) ->
+save_jobpack(Name, JobPack) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
     Home = disco:jobhome(Name),
-    ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
+    ok = file:write_file(filename:join([Root, Home, "jobpack"]), JobPack).
 
--spec field_exists(netstring:kvtable(), binary()) -> bool().
-field_exists(Msg, Opt) ->
-    lists:keysearch(Opt, 1, Msg) =/= false.
+find_bool(Key, Dict) ->
+    case dict:find(Key, Dict) of
+        {ok, Field} ->
+            Field =/= 0;
+        error ->
+            false
+    end.
 
--spec find_values(netstring:kvtable()) -> {nonempty_string(), jobinfo()}.
-find_values(Msg) ->
-    {value, {_, PrefixBinary}} = lists:keysearch(<<"prefix">>, 1, Msg),
-    Prefix = binary_to_list(PrefixBinary),
+find_params(JobDict) ->
+    {ok, Prefix} = dict:find(<<"prefix">>, JobDict),
+    {ok, Inputs} = dict:find(<<"input">>, JobDict),
+    {ok, Owner} = dict:find(<<"owner">>, JobDict),
+    {ok, NReduces} = dict:find(<<"nr_reduces">>, JobDict),
+    {ok, Scheduler} = dict:find(<<"scheduler">>, JobDict),
+    {ok, MaxCores} = dict:find(<<"max_cores">>, Scheduler),
 
-    {value, {_, InputStr}} = lists:keysearch(<<"input">>, 1, Msg),
-    Inputs = [case string:tokens(Inp, "\n") of
-		      [X] -> list_to_binary(X);
-		      Y -> [list_to_binary(X) || X <- Y]
-		  end || Inp <- string:tokens(binary_to_list(InputStr), " ")],
-
-    {value, {_, MaxCStr}} = lists:keysearch(<<"sched_max_cores">>, 1, Msg),
-    MaxCores = list_to_integer(binary_to_list(MaxCStr)),
-
-    {value, {_, NRedStr}} = lists:keysearch(<<"nr_reduces">>, 1, Msg),
-    NumRed = list_to_integer(binary_to_list(NRedStr)),
-
-    User = case lists:keysearch(<<"username">>, 1, Msg) of
-               {value, {_, U}} -> binary_to_list(U);
-               _ -> undefined
-           end,
-
-    {Prefix, #jobinfo{
-       nr_reduce = NumRed,
-       inputs = Inputs,
-       max_cores = MaxCores,
-       map = field_exists(Msg, <<"map">>),
-       reduce = field_exists(Msg, <<"reduce">>),
-       force_local = field_exists(Msg, <<"sched_force_local">>),
-       force_remote = field_exists(Msg, <<"sched_force_remote">>),
-       user_name = User
-    }}.
+    {binary_to_list(Prefix),
+     #jobinfo{inputs = Inputs,
+              owner = Owner,
+              map = find_bool(<<"map?">>, JobDict),
+              reduce = find_bool(<<"reduce?">>, JobDict),
+              nr_reduce = NReduces,
+              max_cores = MaxCores,
+              force_local = find_bool(<<"force_local">>, Scheduler),
+              force_remote = find_bool(<<"force_remote">>, Scheduler)}}.
 
 
 % work() is the heart of the map/reduce show. First it distributes tasks

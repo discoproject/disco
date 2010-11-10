@@ -1,7 +1,6 @@
 import hashlib, os, random, re, subprocess, sys, cPickle, time
 
 from functools import partial
-from itertools import chain
 from types import FunctionType
 
 from disco import func, comm, util
@@ -12,8 +11,7 @@ from disco.events import Status, OutputURL, TaskFailed
 from disco.node import external, worker
 from disco.settings import DiscoSettings
 from disco.sysutil import set_mem_limit
-from disco.fileutils import AtomicFile, ensure_file,\
-                            ensure_path, write_files, sync
+from disco.fileutils import AtomicFile, ensure_file, ensure_path, sync
 
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
@@ -41,9 +39,11 @@ class Task(object):
         set_mem_limit(self.settings['DISCO_WORKER_MAX_MEM'])
 
         if not jobdict:
-            self.jobdict = JobDict.unpack(open(self.jobpack),
+            self.jobdict = JobDict.unpack(open(self.jobpack).read(),
+                                          self.lib,
                                           globals=worker.__dict__)
-        self.insert_globals(self.functions)
+        self.insert_globals(getattr(self, name)
+                            for name in util.flatten(self.jobdict.funcs))
 
     def __getattr__(self, key):
         if key in self.jobdict:
@@ -69,7 +69,7 @@ class Task(object):
 
     @property
     def jobpack(self):
-        jobpack = os.path.join(self.jobroot, 'jobpack.dl')
+        jobpack = os.path.join(self.jobroot, 'jobpack')
         def data():
             return Disco(self.master).jobpack(self.jobname)
         ensure_path(self.jobroot)
@@ -95,6 +95,11 @@ class Task(object):
     @property
     def taskroot(self):
         return os.path.join(self.settings['DISCO_DATA'], self.taskpath)
+
+    @property
+    def isexternal(self):
+        if isinstance(getattr(self, self.mode), dict):
+            return True
 
     @property
     def lib(self):
@@ -212,15 +217,7 @@ class Task(object):
             for entry in fd:
                 yield entry
 
-    @property
-    def functions(self):
-        for fn in chain((getattr(self, name) for name in self.jobdict.functions),
-                        *(getattr(self, stack) for stack in self.jobdict.stacks)):
-            if fn:
-                yield fn
-
     def insert_globals(self, functions):
-        write_files(self.required_files, self.lib)
         sys.path.insert(0, self.lib)
         for fn in functions:
             if isinstance(fn, partial):
@@ -275,7 +272,7 @@ class Map(Task):
         if self.save and not self.reduce and self.ispartitioned:
             TaskFailed("Storing partitioned outputs in DDFS is not yet supported")
 
-        if self.ext_map:
+        if self.isexternal:
             external.prepare(self.map, self.ext_params, self.path('ext.map'))
             self.map = FunctionType(external.ext_map.func_code,
                                     globals=external.__dict__)
@@ -343,7 +340,7 @@ class Reduce(Task):
         red_out, out_url, fd_list = self.connect_output()
         params = self.params
 
-        if self.ext_reduce:
+        if self.isexternal:
             external.prepare(self.reduce, self.ext_params, self.path('ext.reduce'))
             self.reduce = FunctionType(external.ext_reduce.func_code,
                                        globals=external.__dict__)
@@ -423,7 +420,7 @@ class Reduce(Task):
 
     @property
     def params(self):
-        if self.ext_reduce:
+        if self.isexternal:
             return self.ext_params or '0\n'
         return self.jobdict['params']
 

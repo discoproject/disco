@@ -28,18 +28,15 @@ newly started job.
 .. autofunction:: result_iterator
 """
 import sys, os, time, marshal
-from cStringIO import StringIO
 from tempfile import NamedTemporaryFile
-from itertools import chain
 from warnings import warn
 
-from disco import func, util
+from disco import bencode, func, util
 from disco.comm import download, json
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
 from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.modutil import find_modules
-from disco.netstring import decode_netstring_fd, encode_netstring_fd
 from disco.settings import DiscoSettings
 
 class Continue(Exception):
@@ -204,7 +201,7 @@ class Disco(object):
         self.request('/disco/ctrl/purge_job', '"%s"' % name)
 
     def jobdict(self, name):
-        return JobDict.unpack(StringIO(self.jobpack(name)))
+        return JobDict.unpack(self.jobpack(name))
 
     def jobpack(self, name):
         return self.request('/disco/ctrl/parameters?name=%s' % name)
@@ -705,6 +702,8 @@ class JobDict(util.DefaultDict):
                     Default is ``False``.
     """
     defaults = {'input': (),
+                'map?': False,
+                'reduce?': False,
                 'map': None,
                 'map_init': func.noop,
                 'map_reader': None,
@@ -719,9 +718,7 @@ class JobDict(util.DefaultDict):
                 'reduce_input_stream': (func.reduce_input_stream, ),
                 'reduce_output_stream': (func.reduce_output_stream,
                                          func.disco_output_stream),
-                'ext_map': False,
-                'ext_reduce': False,
-                'ext_params': None,
+                'ext_params': {},
                 'merge_partitions': False,
                 'params': Params(),
                 'partitions': 1,
@@ -729,11 +726,13 @@ class JobDict(util.DefaultDict):
                 'profile': False,
                 'required_files': {},
                 'required_modules': None,
-                'scheduler': {'max_cores': '%d' % 2**31},
+                'scheduler': {'force_local': False,
+                              'force_remote': False,
+                              'max_cores': int(2**31),},
                 'save': False,
                 'sort': False,
                 'status_interval': 100000,
-                'username': DiscoSettings()['DISCO_JOB_OWNER'],
+                'owner': DiscoSettings()['DISCO_JOB_OWNER'],
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
                 'nr_reduces': 0,
@@ -743,26 +742,31 @@ class JobDict(util.DefaultDict):
                 }
     default_factory = defaults.__getitem__
 
-    functions = set(['map',
-                     'map_init',
-                     'map_reader',
-                     'map_writer',
-                     'combiner',
-                     'partition',
-                     'reduce',
-                     'reduce_init',
-                     'reduce_reader',
-                     'reduce_writer'])
+    master_keys = set(['prefix',
+                       'input',
+                       'owner',
+                       'nr_reduces',
+                       'scheduler',
+                       'map?',
+                       'reduce?'])
 
-    scheduler_keys = set(['force_local', 'force_remote', 'max_cores'])
+    funcs = set(['map',
+                 'map_init',
+                 'map_reader',
+                 'map_writer',
+                 'combiner',
+                 'partition',
+                 'reduce',
+                 'reduce_init',
+                 'reduce_reader',
+                 'reduce_writer',
+                 'map_input_stream',
+                 'map_output_stream',
+                 'reduce_input_stream',
+                 'reduce_output_stream'])
 
-    stacks = set(['map_input_stream',
-                  'map_output_stream',
-                  'reduce_input_stream',
-                  'reduce_output_stream'])
-
-    def __init__(self, *args, **kwargs):
-        super(JobDict, self).__init__(*args, **kwargs)
+    def __init__(self, ddfs=None, **kwargs):
+        super(JobDict, self).__init__(**kwargs)
 
         # -- backwards compatibility --
         if 'reduce_writer' in kwargs or 'map_writer' in kwargs:
@@ -771,19 +775,11 @@ class JobDict(util.DefaultDict):
 
         # -- required modules and files --
         if self['required_modules'] is None:
-            functions = util.flatten(util.iterify(self[f])
-                                     for f in chain(self.functions, self.stacks))
-            self['required_modules'] = find_modules([f for f in functions
+            funcs = util.flatten(util.iterify(self[f]) for f in self.funcs)
+            self['required_modules'] = find_modules([f for f in funcs
                                                      if callable(f)])
 
-        # -- external flags --
-        if isinstance(self['map'], dict):
-            self['ext_map'] = True
-        if isinstance(self['reduce'], dict):
-            self['ext_reduce'] = True
-
         # -- input --
-        ddfs = self.pop('ddfs', None)
         self['input'] = [list(util.iterify(url))
                          for i in self['input']
                          for url in util.urllist(i, listdirs=bool(self['map']),
@@ -811,16 +807,15 @@ class JobDict(util.DefaultDict):
                 raise DiscoError("Can't merge partitions without partitions")
 
         # -- scheduler --
-        scheduler = self.__class__.defaults['scheduler'].copy()
+        scheduler = self.defaults['scheduler'].copy()
         scheduler.update(self['scheduler'])
-        if int(scheduler['max_cores']) < 1:
+        if scheduler['max_cores'] < 1:
             raise DiscoError("max_cores must be >= 1")
         self['scheduler'] = scheduler
 
-        # -- sanity checks --
-        for key in self:
-            if key not in self.defaults:
-                raise DiscoError("Unknown job argument: %s" % key)
+        # job flow
+        self['map?'] = bool(self['map'])
+        self['reduce?'] = bool(self['reduce'])
 
     def __contains__(self, key):
         return key in self.defaults
@@ -834,59 +829,29 @@ class JobDict(util.DefaultDict):
                 self['required_files'] = util.pack_files(self['required_files'])
         else:
             self['required_files'] = {}
-
         self['required_files'].update(util.pack_files(
             o[1] for o in self['required_modules'] if util.iskv(o)))
 
         for key in self.defaults:
-            if key in ('map', 'reduce'):
-                if self[key] is None:
-                    continue
-            if key == 'input':
-                jobpack['input'] = ' '.join(
-                    '\n'.join(reversed(list(util.iterify(url))))
-                        for url in self['input'])
-            elif key == 'username':
-                jobpack['username'] = str(self['username'])
-            elif key in ('nr_reduces', 'prefix'):
-                jobpack[key] = str(self[key])
-            elif key == 'scheduler':
-                scheduler = self['scheduler']
-                for key in scheduler:
-                    jobpack['sched_%s' % key] = str(scheduler[key])
-            elif key in self.stacks:
-                jobpack[key] = util.pack_stack(self[key])
-            else:
+            if key not in self.master_keys:
                 jobpack[key] = util.pack(self[key])
-        return encode_netstring_fd(jobpack)
+            else:
+                jobpack[key] = self[key]
+        return bencode.dumps(jobpack)
 
     @classmethod
-    def unpack(cls, jobpack, globals={}):
+    def unpack(cls, jobpack, lib=None, globals={'__builtins__': __builtins__}):
         """Unpack the previously packed :class:`JobDict`."""
-
         jobdict = cls.defaults.copy()
-        jobdict.update(**decode_netstring_fd(jobpack))
+        jobdict.update(**bencode.loads(jobpack))
 
-        for key in cls.defaults:
-            if key == 'input':
-                jobdict['input'] = [i.split()
-                                    for i in jobdict['input'].split(' ')]
-            elif key == 'username':
-                pass
-            elif key == 'nr_reduces':
-                jobdict[key] = int(jobdict[key])
-            elif key == 'scheduler':
-                for key in cls.scheduler_keys:
-                    if 'sched_%s' % key in jobdict:
-                        jobdict['scheduler'][key] = jobdict.pop('sched_%s' % key)
-            elif key == 'prefix':
-                pass
-            elif jobdict[key] is None:
-                pass
-            elif key in cls.stacks:
-                jobdict[key] = util.unpack_stack(jobdict[key], globals=globals)
-            else:
+        for key in jobdict:
+            if key not in cls.master_keys:
                 jobdict[key] = util.unpack(jobdict[key], globals=globals)
+
+        if lib:
+            util.unpack_files(jobdict['required_files'], lib)
+
         return cls(**jobdict)
 
     @property

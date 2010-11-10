@@ -133,11 +133,16 @@ def pack(object):
         defs = [pack(x) for x in object.func_defaults]\
                     if object.func_defaults else None
         return marshal.dumps((object.func_code, defs))
+    if isinstance(object, (list, tuple)):
+        object = type(object)(pack(o) for o in object)
     return cPickle.dumps(object, cPickle.HIGHEST_PROTOCOL)
 
 def unpack(string, globals={'__builtins__': __builtins__}):
     try:
-        return cPickle.loads(string)
+        object = cPickle.loads(string)
+        if isinstance(object, (list, tuple)):
+            return type(object)(unpack(s, globals=globals) for s in object)
+        return object
     except Exception:
         try:
             code, defs = marshal.loads(string)
@@ -146,11 +151,18 @@ def unpack(string, globals={'__builtins__': __builtins__}):
         except Exception, e:
             raise ValueError("Could not unpack: %s (%s)" % (string, e))
 
-def pack_stack(stack):
-    return pack([pack(object) for object in stack])
+def pack_files(files):
+    return dict((os.path.basename(f), open(f).read()) for f in files)
 
-def unpack_stack(stackstring, globals={}):
-    return [unpack(string, globals=globals) for string in unpack(stackstring)]
+def unpack_files(filedict, dirname):
+    from disco.fileutils import ensure_path, ensure_file
+    if filedict:
+        ensure_path(dirname)
+    for basename, data in filedict.iteritems():
+        path = os.path.join(dirname, basename)
+        if os.path.dirname(os.path.abspath(path)) != dirname:
+            raise ValueError("Unsafe filename %s" % basename)
+        ensure_file(path, data=data)
 
 def urljoin((scheme, netloc, path)):
     return '%s%s%s' % ('%s://' % scheme if scheme else '',
@@ -249,9 +261,6 @@ def jobname(address):
     if scheme in ('disco', 'dir', 'http'):
         return path.strip('/').split('/')[-2]
     raise DiscoError("Cannot parse jobname from %s" % address)
-
-def pack_files(files):
-    return dict((os.path.basename(f), open(f).read()) for f in files)
 
 def external(files):
     """

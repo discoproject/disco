@@ -43,7 +43,7 @@
                   <div class="body">
                     <b>Job is</b> <span class="val" id="nfo_status"></span><br/>
                     <b>started:</b> <span class="val" id="nfo_started"></span><br/>
-                    <b>by:</b> <span class="val" id="nfo_username"></span><br/>
+                    <b>by:</b> <span class="val" id="nfo_owner"></span><br/>
 
                     <table cols="5">
                       <thead>

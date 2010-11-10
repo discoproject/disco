@@ -74,7 +74,7 @@ getop("jobinfo", {_Query, JobName}) ->
     end;
 
 getop("parameters", {_Query, Name}) ->
-    job_file(Name, "params");
+    job_file(Name, "jobpack");
 
 getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");
@@ -237,10 +237,6 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
                    JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
                true -> 0
            end,
-    User = case JobInfo#jobinfo.user_name of
-               undefined -> nil;
-               U -> U
-           end,
 
     {struct, [{timestamp, Timestamp},
               {active, Status},
@@ -250,7 +246,7 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
               {results, lists:flatten(Results)},
               {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
               {hosts, [list_to_binary(Host) || Host <- Hosts]},
-              {username, list_to_binary(User)}
+              {owner, JobInfo#jobinfo.owner}
              ]}.
 
 status_msg(invalid_job) -> [<<"unknown job">>, []];

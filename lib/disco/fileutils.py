@@ -179,18 +179,6 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
                 raise DataError("Writing external file failed", fname)
     raise DataError("Timeout in writing external file", fname)
 
-def write_files(files, path):
-    if files:
-        path = os.path.abspath(path)
-        ensure_path(path)
-    for fname, data in files.iteritems():
-        # make sure that no files are written outside the given path
-        p = os.path.abspath(os.path.join(path, fname))
-        if os.path.dirname(p) == path:
-            ensure_file(path + "/" + fname, data=data)
-        else:
-            raise ValueError("Unsafe filename %s" % fname)
-
 def ensure_free_space(fname):
     s = os.statvfs(fname)
     free = s.f_bsize * s.f_bavail
