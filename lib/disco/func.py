@@ -451,6 +451,17 @@ def sum_combiner(key, value, buf, done, params):
     else:
         return buf.iteritems()
 
+def sum_reduce(iter, params):
+    """
+    Sums the values for each key.
+
+    This is a convenience function for performing a basic sum in the reduce.
+    """
+    buf = {}
+    for key, value in iter:
+        buf[key] = buf.get(key, 0) + value
+    return buf.iteritems()
+
 def gzip_reader(fd, size, url, params):
     """Wraps the input in a :class:`gzip.GzipFile` object."""
     from gzip import GzipFile
