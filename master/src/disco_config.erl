@@ -96,10 +96,9 @@ parse_row([NodeSpecB, InstancesB]) ->
     Instances = string:strip(binary_to_list(InstancesB)),
     add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
--spec update_config_table(raw_hosts()) -> _.
-update_config_table(RawHosts) ->
-    Config = get_host_info(RawHosts),
-    disco_server:update_config_table(Config).
+-spec update_config_table([host_info()]) -> _.
+update_config_table(HostInfo) ->
+    disco_server:update_config_table(HostInfo).
 
 -spec get_full_config() -> config().
 get_full_config() ->
@@ -144,11 +143,13 @@ make_blacklist(Hosts, Prospects) ->
 -spec do_get_config_table() -> {'ok', raw_hosts()}.
 do_get_config_table() ->
     RawHosts = get_raw_hosts(get_full_config()),
-    update_config_table(RawHosts),
+    update_config_table(get_host_info(RawHosts)),
     {ok, RawHosts}.
 
 -spec do_save_config_table(raw_hosts()) -> {'ok' | 'error', binary()}.
 do_save_config_table(RawHosts) ->
+    HostInfo = get_host_info(RawHosts),
+    {Hosts, _Cores} = lists:unzip(HostInfo),
     Hosts = get_expanded_hosts(RawHosts),
     Sorted = lists:sort(Hosts),
     USorted = lists:usort(Hosts),
@@ -160,7 +161,7 @@ do_save_config_table(RawHosts) ->
             Config = make_config(RawHosts, NewBL),
             ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
                                  mochijson2:encode({struct, Config})),
-            update_config_table(RawHosts),
+            update_config_table(HostInfo),
             {ok, <<"table saved!">>};
         true ->
             {error, <<"duplicate nodes">>}
