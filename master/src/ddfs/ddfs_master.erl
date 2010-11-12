@@ -44,7 +44,7 @@ handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
 handle_call(get_nodes, _From, #state{nodes = Nodes} = S) ->
     {reply, {ok, [Node || {Node, _} <- Nodes]}, S};
 
-handle_call({choose_nodes, K, Exclude}, _, #state{write_blacklist = BL} = S) ->
+handle_call({choose_write_nodes, K, Exclude}, _, #state{write_blacklist = BL} = S) ->
     % Node selection algorithm:
     % 1. try to choose K nodes randomly from all the nodes which have
     %    more than ?MIN_FREE_SPACE bytes free space available and which
@@ -65,7 +65,7 @@ handle_call({new_blob, _, K, _}, _, #state{nodes = N} = S) when K > length(N) ->
     {reply, too_many_replicas, S};
 
 handle_call({new_blob, Obj, K, Exclude}, _, S) ->
-    {_, {ok, Nodes}, _} = handle_call({choose_nodes, K, Exclude}, none, S),
+    {_, {ok, Nodes}, _} = handle_call({choose_write_nodes, K, Exclude}, none, S),
     Urls = [["http://", disco:host(Node), ":", get(put_port), "/ddfs/", Obj]
             || Node <- Nodes],
     {reply, {ok, Urls}, S};

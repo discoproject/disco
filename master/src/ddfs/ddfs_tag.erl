@@ -487,7 +487,7 @@ put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
 put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
-    {ok, Nodes} = gen_server:call(ddfs_master, {choose_nodes, K0, Exclude}),
+    {ok, Nodes} = gen_server:call(ddfs_master, {choose_write_nodes, K0, Exclude}),
     if
         Nodes =:= [], length(OkNodes) < TagMinK ->
             {error, replication_failed};
