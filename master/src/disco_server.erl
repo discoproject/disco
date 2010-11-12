@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0]).
--export([update_config_table/1, get_active/1, get_nodeinfo/1,
+-export([update_config_table/2, get_active/1, get_nodeinfo/1,
          new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
          new_task/2, blacklist/2, whitelist/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -50,9 +50,9 @@ start_link() ->
 stop() ->
     gen_server:call(?MODULE, stop).
 
--spec update_config_table([{nonempty_string(), non_neg_integer()}]) -> 'ok'.
-update_config_table(Config) ->
-    gen_server:cast(?MODULE, {update_config_table, Config}).
+-spec update_config_table([disco_config:host_info()], [nonempty_string()]) -> 'ok'.
+update_config_table(Config, ManualBlacklist) ->
+    gen_server:cast(?MODULE, {update_config_table, Config, ManualBlacklist}).
 
 -spec get_active(nonempty_string() | 'all') ->
     {'ok', [{nonempty_string(), task()}]}.
@@ -104,8 +104,8 @@ init(_Args) ->
                 nodes = gb_trees:empty(),
                 purged = gb_trees:empty()}}.
 
-handle_cast({update_config_table, Config}, S) ->
-    {noreply, do_update_config_table(Config, S)};
+handle_cast({update_config_table, Config, ManualBlacklist}, S) ->
+    {noreply, do_update_config_table(Config, ManualBlacklist, S)};
 
 handle_cast(schedule_next, S) ->
     {noreply, do_schedule_next(S)};
@@ -248,9 +248,9 @@ process_exit1({_, {Node, T}}, Pid, Msg, Code, S) ->
     gen_server:cast(self(), {exit_worker, Pid, {data_error, Code}}),
     {noreply, S}.
 
--spec do_update_config_table([{nonempty_string(), integer()}],
+-spec do_update_config_table([disco_config:host_info()], [nonempty_string()],
                              #state{}) -> #state{}.
-do_update_config_table(Config, S) ->
+do_update_config_table(Config, _ManualBlacklist, S) ->
     error_logger:info_report([{"Config table update"}]),
     NewNodes =
         lists:foldl(fun({Host, Slots}, NewNodes) ->

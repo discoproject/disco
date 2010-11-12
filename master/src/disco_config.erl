@@ -96,9 +96,9 @@ parse_row([NodeSpecB, InstancesB]) ->
     Instances = string:strip(binary_to_list(InstancesB)),
     add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
--spec update_config_table([host_info()]) -> _.
-update_config_table(HostInfo) ->
-    disco_server:update_config_table(HostInfo).
+-spec update_config_table([host_info()], [nonempty_string()]) -> _.
+update_config_table(HostInfo, Blacklist) ->
+    disco_server:update_config_table(HostInfo, Blacklist).
 
 -spec get_full_config() -> config().
 get_full_config() ->
@@ -142,8 +142,10 @@ make_blacklist(Hosts, Prospects) ->
 
 -spec do_get_config_table() -> {'ok', raw_hosts()}.
 do_get_config_table() ->
-    RawHosts = get_raw_hosts(get_full_config()),
-    update_config_table(get_host_info(RawHosts)),
+    Config = get_full_config(),
+    RawHosts = get_raw_hosts(Config),
+    Blacklist = get_blacklist(Config),
+    update_config_table(get_host_info(RawHosts), Blacklist),
     {ok, RawHosts}.
 
 -spec do_save_config_table(raw_hosts()) -> {'ok' | 'error', binary()}.
@@ -161,7 +163,7 @@ do_save_config_table(RawHosts) ->
             Config = make_config(RawHosts, NewBL),
             ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
                                  mochijson2:encode({struct, Config})),
-            update_config_table(HostInfo),
+            update_config_table(HostInfo, NewBL),
             {ok, <<"table saved!">>};
         true ->
             {error, <<"duplicate nodes">>}
