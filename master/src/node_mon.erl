@@ -10,7 +10,10 @@ start_link(Host) ->
 -spec spawn_node(nonempty_string()) -> no_return().
 spawn_node(Host) ->
     process_flag(trap_exit, true),
-    case catch slave_start(Host) of
+    spawn_node(Host, is_master(Host)).
+
+spawn_node(Host, IsMaster) ->
+    case {IsMaster, catch slave_start(Host)} of
         {true, {ok, Node}} ->
             disco_server:connection_status(Host, up),
             % start a dummy ddfs_node process for the master, no get or put
@@ -36,7 +39,7 @@ spawn_node(Host) ->
     end,
     flush(),
     timer:sleep(?RESTART_DELAY),
-    spawn_node(Host).
+    spawn_node(Host, IsMaster).
 
 -spec node_monitor(node(), {bool(), bool()}) -> _.
 node_monitor(Node, WebConfig) ->
@@ -77,15 +80,14 @@ slave_env() ->
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 
--spec slave_start(nonempty_string()) -> {bool(), {'ok', node()} | {'error', _}}.
+-spec slave_start(nonempty_string()) -> {'ok', node()} | {'error', _}.
 slave_start(Host) ->
     error_logger:info_report({"starting node @", Host}),
-    {is_master(Host),
-     slave:start(Host,
-                 disco:node_name(),
-                 slave_env(),
-                 self(),
-                 disco:get_setting("DISCO_ERLANG"))}.
+    slave:start(Host,
+                disco:node_name(),
+                slave_env(),
+                self(),
+                disco:get_setting("DISCO_ERLANG")).
 
 -spec is_master(nonempty_string()) -> bool().
 is_master(Host) ->
