@@ -193,11 +193,20 @@ allow_write(#dnode{connection_status = up,
 allow_write(#dnode{}) ->
     false.
 
+-spec allow_read(#dnode{}) -> bool().
+allow_read(#dnode{connection_status = up}) ->
+    true;
+allow_read(#dnode{}) ->
+    false.
+
+-spec allow_task(#dnode{}) -> bool().
+allow_task(#dnode{} = N) -> allow_write(N).
+
 -spec update_nodes(gb_tree()) -> 'ok'.
 update_nodes(Nodes) ->
     WhiteNodes = [{N#dnode.name, N#dnode.slots}
-                  || N <- gb_trees:values(Nodes), allow_write(N)],
-    DDFSNodes = [{disco:node(N#dnode.name), not allow_write(N)}
+                  || N <- gb_trees:values(Nodes), allow_task(N)],
+    DDFSNodes = [{disco:node(N#dnode.name), allow_write(N), allow_read(N)}
                  || N <- gb_trees:values(Nodes)],
     gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),

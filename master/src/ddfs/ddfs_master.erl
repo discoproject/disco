@@ -12,7 +12,8 @@
 -record(state, {nodes :: [{node(), {non_neg_integer(), non_neg_integer()}}],
                 tags :: gb_tree(),
                 tag_cache :: 'false' | gb_set(),
-                blacklisted :: [node()]}).
+                write_blacklist :: [node()],
+                read_blacklist :: [node()]}).
 
 start_link() ->
     error_logger:info_report([{"DDFS master starts"}]),
@@ -31,7 +32,8 @@ init(_Args) ->
     {ok, #state{tags = gb_trees:empty(),
                 tag_cache = false,
                 nodes = [],
-                blacklisted = []}}.
+                write_blacklist = [],
+                read_blacklist = []}}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -42,7 +44,7 @@ handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
 handle_call(get_nodes, _From, #state{nodes = Nodes} = S) ->
     {reply, {ok, [Node || {Node, _} <- Nodes]}, S};
 
-handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
+handle_call({choose_nodes, K, Exclude}, _, #state{write_blacklist = BL} = S) ->
     % Node selection algorithm:
     % 1. try to choose K nodes randomly from all the nodes which have
     %    more than ?MIN_FREE_SPACE bytes free space available and which
@@ -100,14 +102,15 @@ handle_cast({update_tag_cache, TagCache}, S) ->
 
 handle_cast({update_nodes, NewNodes}, #state{nodes = Nodes, tags = Tags} = S) ->
     error_logger:info_report({"DDFS UPDATE NODES", NewNodes}),
-    Blacklisted = [Node || {Node, true} <- NewNodes],
+    WriteBlacklist = lists:sort([Node || {Node, false, _} <- NewNodes]),
+    ReadBlacklist = lists:sort([Node || {Node, _, false} <- NewNodes]),
     OldNodes = gb_trees:from_orddict(Nodes),
     UpdatedNodes = lists:keysort(1, [case gb_trees:lookup(Node, OldNodes) of
                                          none ->
                                              {Node, {0, 0}};
                                          {value, OldStats} ->
                                              {Node, OldStats}
-                                     end || {Node, _Blacklisted} <- NewNodes]),
+                                     end || {Node, _WB, _RB} <- NewNodes]),
     if
         UpdatedNodes =/= Nodes ->
             [gen_server:cast(Pid, {die, none}) || Pid <- gb_trees:values(Tags)],
@@ -115,11 +118,13 @@ handle_cast({update_nodes, NewNodes}, #state{nodes = Nodes, tags = Tags} = S) ->
                           refresh_tag_cache([Node || {Node, _} <- UpdatedNodes])
                   end),
             {noreply, S#state{nodes = UpdatedNodes,
-                              blacklisted = Blacklisted,
+                              write_blacklist = WriteBlacklist,
+                              read_blacklist = ReadBlacklist,
                               tag_cache = false,
                               tags = gb_trees:empty()}};
         true ->
-            {noreply, S#state{blacklisted = Blacklisted}}
+            {noreply, S#state{write_blacklist = WriteBlacklist,
+                              read_blacklist = ReadBlacklist}}
     end;
 
 handle_cast({update_nodestats, NewNodes}, #state{nodes = Nodes} = S) ->
