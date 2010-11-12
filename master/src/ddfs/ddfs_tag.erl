@@ -321,20 +321,28 @@ send_replies(ReplyToList, Message) ->
 -spec get_tagdata(tagname()) -> {'missing', 'notfound'} | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.
 get_tagdata(TagName) ->
-    {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
-    {Replies, Failed} = gen_server:multi_call(Nodes, ddfs_node,
-        {get_tag_timestamp, TagName}, ?NODE_TIMEOUT),
+    {ok, ReadableNodes, RBSize} = gen_server:call(ddfs_master, get_read_nodes),
     TagMinK = get(min_tagk),
-    case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
-        _ when length(Failed) >= TagMinK ->
+    case RBSize >= TagMinK of
+        true ->
             {error, too_many_failed_nodes};
-        [] ->
-            {missing, notfound};
-        L ->
-            {{Time, _Vol}, _Node} = lists:max(L),
-            Replicas = [X || {{T, _}, _} = X <- L, T == Time],
-            TagID = ddfs_util:pack_objname(TagName, Time),
-            read_tagdata(TagID, Replicas, [], tagdata_failed)
+        false ->
+            {Replies, Failed} =
+                gen_server:multi_call(ReadableNodes,
+                                      ddfs_node,
+                                      {get_tag_timestamp, TagName},
+                                      ?NODE_TIMEOUT),
+            case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
+                _ when length(Failed) + RBSize >= TagMinK ->
+                    {error, too_many_failed_nodes};
+                [] ->
+                    {missing, notfound};
+                L ->
+                    {{Time, _Vol}, _Node} = lists:max(L),
+                    Replicas = [X || {{T, _}, _} = X <- L, T == Time],
+                    TagID = ddfs_util:pack_objname(TagName, Time),
+                    read_tagdata(TagID, Replicas, [], tagdata_failed)
+            end
     end.
 
 read_tagdata(_TagID, Replicas, Failed, Error)

@@ -35,14 +35,21 @@ init(_Args) ->
                 write_blacklist = [],
                 read_blacklist = []}}.
 
+get_readable_nodes(Nodes, ReadBlacklist) ->
+    NodeSet = gb_sets:from_ordset(lists:sort([Node || {Node, _} <- Nodes])),
+    BlackSet = gb_sets:from_ordset(ReadBlacklist),
+    ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
+    {gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
+
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
 handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
     {reply, {ok, Nodes}, S};
 
-handle_call(get_nodes, _From, #state{nodes = Nodes} = S) ->
-    {reply, {ok, [Node || {Node, _} <- Nodes]}, S};
+handle_call(get_read_nodes, _F, #state{nodes = Nodes, read_blacklist = RB} = S) ->
+    {ReadNodes, NumUnreadableNodes} = get_readable_nodes(Nodes, RB),
+    {reply, {ok, ReadNodes, NumUnreadableNodes}, S};
 
 handle_call({choose_write_nodes, K, Exclude}, _, #state{write_blacklist = BL} = S) ->
     % Node selection algorithm:
@@ -115,7 +122,9 @@ handle_cast({update_nodes, NewNodes}, #state{nodes = Nodes, tags = Tags} = S) ->
         UpdatedNodes =/= Nodes ->
             [gen_server:cast(Pid, {die, none}) || Pid <- gb_trees:values(Tags)],
             spawn(fun() ->
-                          refresh_tag_cache([Node || {Node, _} <- UpdatedNodes])
+                      {ReadableNodes, RBSize} =
+                          get_readable_nodes(UpdatedNodes, ReadBlacklist),
+                      refresh_tag_cache(ReadableNodes, RBSize)
                   end),
             {noreply, S#state{nodes = UpdatedNodes,
                               write_blacklist = WriteBlacklist,
@@ -177,8 +186,8 @@ get_tags(safe, Nodes) ->
 
 -spec monitor_diskspace() -> no_return().
 monitor_diskspace() ->
-    {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
-    {Space, _F} = gen_server:multi_call(Nodes,
+    {ok, ReadableNodes, _RBSize} = gen_server:call(ddfs_master, get_read_nodes),
+    {Space, _F} = gen_server:multi_call(ReadableNodes,
                                         ddfs_node,
                                         get_diskspace,
                                         ?NODE_TIMEOUT),
@@ -190,19 +199,20 @@ monitor_diskspace() ->
 
 -spec refresh_tag_cache_proc() -> no_return().
 refresh_tag_cache_proc() ->
-    {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
-    refresh_tag_cache(Nodes),
+    {ok, ReadableNodes, RBSize} = gen_server:call(ddfs_master, get_read_nodes),
+    refresh_tag_cache(ReadableNodes, RBSize),
     timer:sleep(?TAG_CACHE_INTERVAL),
     refresh_tag_cache_proc().
 
--spec refresh_tag_cache([node()]) -> 'ok'.
-refresh_tag_cache(Nodes) ->
+-spec refresh_tag_cache([node()], non_neg_integer()) -> 'ok'.
+refresh_tag_cache(Nodes, BLSize) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
-    {Replies, Failed} = gen_server:multi_call(Nodes,
-        ddfs_node, get_tags, ?NODE_TIMEOUT),
-    if Nodes =/= [], length(Failed) < TagMinK ->
-        {_OkNodes, Tags} = lists:unzip(Replies),
-        gen_server:cast(ddfs_master,
-            {update_tag_cache, gb_sets:from_list(lists:flatten(Tags))});
-    true -> ok
+    {Replies, Failed} =
+        gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
+    if Nodes =/= [], length(Failed) + BLSize < TagMinK ->
+            {_OkNodes, Tags} = lists:unzip(Replies),
+            gen_server:cast(ddfs_master,
+                            {update_tag_cache,
+                             gb_sets:from_list(lists:flatten(Tags))});
+       true -> ok
     end.
