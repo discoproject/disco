@@ -5,17 +5,18 @@
 -export([start_link/0, stop/0]).
 -export([update_config_table/2, get_active/1, get_nodeinfo/1,
          new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
-         new_task/2, blacklist/2, whitelist/2]).
+         new_task/2, connection_status/2, manual_blacklist/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -include("disco.hrl").
 
--type blacklist_token() :: bool() | 'manual' | timer:timestamp().
+-type connection_status() :: 'undefined' | 'up' | timer:timestamp().
 
 -record(dnode, {name :: nonempty_string(),
                 node_mon :: pid(),
-                blacklisted :: blacklist_token(),
+                manual_blacklist :: bool(),
+                connection_status :: connection_status(),
                 slots :: non_neg_integer(),
                 num_running :: non_neg_integer(),
                 stats_ok :: non_neg_integer(),
@@ -86,13 +87,13 @@ clean_job(JobName) ->
 new_task(Task, Timeout) ->
     gen_server:call(?MODULE, {new_task, Task}, Timeout).
 
--spec blacklist(nonempty_string(), blacklist_token()) -> 'ok'.
-blacklist(Host, Token) ->
-    gen_server:call(?MODULE, {blacklist, Host, Token}).
+-spec connection_status(nonempty_string(), 'up' | 'down') -> 'ok'.
+connection_status(Node, Status) ->
+    gen_server:call(?MODULE, {connection_status, Node, Status}).
 
--spec whitelist(nonempty_string(), blacklist_token()) -> 'ok'.
-whitelist(Host, Token) ->
-    gen_server:call(?MODULE, {whitelist, Host, Token}).
+-spec manual_blacklist(nonempty_string(), bool()) -> 'ok'.
+manual_blacklist(Node, True) ->
+    gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -144,11 +145,11 @@ handle_call({kill_job, JobName}, _From, S) ->
 handle_call({clean_job, JobName}, _From, S) ->
     {reply, do_clean_job(JobName), S};
 
-handle_call({blacklist, Node, Token}, _From, S) ->
-    {reply, ok, toggle_blacklist(Node, true, Token, S)};
+handle_call({connection_status, Node, Status}, _From, S) ->
+    {reply, ok, do_connection_status(Node, Status, S)};
 
-handle_call({whitelist, Node, Token}, _From, S) ->
-    {reply, ok, toggle_blacklist(Node, false, Token, S)}.
+handle_call({manual_blacklist, Node, True}, _From, S) ->
+    {reply, ok, do_manual_blacklist(Node, True, S)}.
 
 handle_info({'EXIT', Pid, normal}, S) ->
     case gb_trees:lookup(Pid, S#state.workers) of
@@ -185,11 +186,18 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% ===================================================================
 %% internal functions
 
+-spec allow_write(#dnode{}) -> bool().
+allow_write(#dnode{connection_status = up,
+                   manual_blacklist = false}) ->
+    true;
+allow_write(#dnode{}) ->
+    false.
+
 -spec update_nodes(gb_tree()) -> 'ok'.
 update_nodes(Nodes) ->
     WhiteNodes = [{N#dnode.name, N#dnode.slots}
-                  || #dnode{blacklisted = false} = N <- gb_trees:values(Nodes)],
-    DDFSNodes = [{disco:node(N#dnode.name), not (N#dnode.blacklisted == false)}
+                  || N <- gb_trees:values(Nodes), allow_write(N)],
+    DDFSNodes = [{disco:node(N#dnode.name), not allow_write(N)}
                  || N <- gb_trees:values(Nodes)],
     gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
@@ -212,20 +220,28 @@ update_stats(Node, {value, N}, ReplyType, S) ->
          end,
     S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}.
 
--spec toggle_blacklist(nonempty_string(), bool(), blacklist_token(),
-                       #state{}) -> #state{}.
-toggle_blacklist(Node, IsBlacklisted, Token, #state{nodes = Nodes} = S) ->
+-spec do_connection_status(nonempty_string(), 'up'|'down', #state{}) -> #state{}.
+do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
-            % blacklist
-            {value, M} when IsBlacklisted == true,
-                            M#dnode.blacklisted =/= manual ->
-                gb_trees:update(Node, M#dnode{blacklisted = Token}, Nodes);
-            % whitelist if token is valid
-            {value, M} when Token == any;
-                            Token == M#dnode.blacklisted ->
-                error_logger:info_report({"Whitelisted", Node}),
-                gb_trees:update(Node, M#dnode{blacklisted = false}, Nodes);
+            {value, N} when Status =:= up ->
+                N1 = N#dnode{connection_status = up},
+                gb_trees:update(Node, N1, Nodes);
+            {value, N} when Status =:= down ->
+                N1 = N#dnode{connection_status = now()},
+                gb_trees:update(Node, N1, Nodes);
+            _ -> Nodes
+        end,
+    update_nodes(UpdatedNodes),
+    S#state{nodes = UpdatedNodes}.
+
+-spec do_manual_blacklist(nonempty_string(), bool(), #state{}) -> #state{}.
+do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
+    UpdatedNodes =
+        case gb_trees:lookup(Node, Nodes) of
+            {value, N} when is_boolean(True) ->
+                N1 = N#dnode{manual_blacklist = True},
+                gb_trees:update(Node, N1, Nodes);
             _ -> Nodes
         end,
     update_nodes(UpdatedNodes),
@@ -250,7 +266,7 @@ process_exit1({_, {Node, T}}, Pid, Msg, Code, S) ->
 
 -spec do_update_config_table([disco_config:host_info()], [nonempty_string()],
                              #state{}) -> #state{}.
-do_update_config_table(Config, _ManualBlacklist, S) ->
+do_update_config_table(Config, Blacklist, S) ->
     error_logger:info_report([{"Config table update"}]),
     NewNodes =
         lists:foldl(fun({Host, Slots}, NewNodes) ->
@@ -258,15 +274,17 @@ do_update_config_table(Config, _ManualBlacklist, S) ->
                 case gb_trees:lookup(Host, S#state.nodes) of
                     none ->
                         #dnode{name = Host,
-                               slots = Slots,
                                node_mon = node_mon:start_link(Host),
-                               blacklisted = false,
+                               manual_blacklist = lists:member(Host, Blacklist),
+                               connection_status = undefined,
+                               slots = Slots,
                                num_running = 0,
                                stats_ok = 0,
                                stats_failed = 0,
                                stats_crashed = 0};
                     {value, N} ->
-                        N#dnode{slots = Slots}
+                        N#dnode{slots = Slots,
+                                manual_blacklist = lists:member(Host, Blacklist)}
                 end,
             gb_trees:insert(Host, NewNode, NewNodes)
         end, gb_trees:empty(), Config),
@@ -289,10 +307,9 @@ schedule_next() ->
 
 -spec do_schedule_next(#state{}) -> #state{}.
 do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
-    {_, AvailableNodes} = lists:unzip(lists:keysort(1, [{Y, N} ||
-        #dnode{slots = X, num_running = Y, name = N, blacklisted = false}
-                <- gb_trees:values(Nodes), X > Y])),
-
+    Running = [{Y, N} || #dnode{slots = X, num_running = Y, name = N} = Node
+                             <- gb_trees:values(Nodes), X > Y, allow_write(Node)],
+    {_, AvailableNodes} = lists:unzip(lists:keysort(1, Running)),
     if AvailableNodes =/= [] ->
         case gen_server:call(scheduler, {next_task, AvailableNodes}) of
             {ok, {JobSchedPid, {Node, Task}}} ->
@@ -376,7 +393,7 @@ do_get_nodeinfo(#state{nodes = Nodes}) ->
                       stats_ok = N#dnode.stats_ok,
                       stats_failed = N#dnode.stats_failed,
                       stats_crashed = N#dnode.stats_crashed,
-                      blacklisted = not (N#dnode.blacklisted == false)}
+                      blacklisted = N#dnode.manual_blacklist}
             || N <- gb_trees:values(Nodes)],
     {ok, Info}.
 

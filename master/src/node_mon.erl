@@ -1,8 +1,7 @@
 -module(node_mon).
 -export([start_link/1]).
 
--define(BLACKLIST_PERIOD, 600000).
--define(RESTART_DELAY, 10000).
+-define(RESTART_DELAY, 600000).
 -define(SLAVE_ARGS, "+K true -connect_all false").
 
 start_link(Host) ->
@@ -13,23 +12,27 @@ spawn_node(Host) ->
     process_flag(trap_exit, true),
     case catch slave_start(Host) of
         {true, {ok, Node}} ->
+            disco_server:connection_status(Host, up),
             % start a dummy ddfs_node process for the master, no get or put
             start_ddfs_node(node(), {false, false}),
             % start ddfs_node for the slave on the master node.
             % put enabled, but no get, which is handled by master
             node_monitor(Node, {false, true});
         {false, {ok, Node}} ->
+            disco_server:connection_status(Host, up),
             % normal remote ddfs_node, both put and get enabled
             node_monitor(Node, {true, true});
         {_, {error, {already_running, Node}}} ->
+            disco_server:connection_status(Host, up),
             % normal remote ddfs_node, both put and get enabled
             node_monitor(Node, {true, true});
         {_, {error, timeout}} ->
-            blacklist(Host);
+            error_logger:info_report({"Connection timed out to", Host}),
+            disco_server:connection_status(Host, down);
         Error ->
             error_logger:warning_report(
                 {"Spawning node @", Host, "failed for unknown reason", Error}),
-            blacklist(Host)
+            disco_server:connection_status(Host, down)
     end,
     flush(),
     timer:sleep(?RESTART_DELAY),
@@ -119,11 +122,3 @@ start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
             {get_enabled, GetEnabled},
             {put_enabled, PutEnabled}],
     spawn_link(Node, ddfs_node, start_link, [Args]).
-
-blacklist(Host) ->
-    error_logger:info_report({"Blacklisting", Host,
-                              "for", ?BLACKLIST_PERIOD, "ms."}),
-    Token = now(),
-    gen_server:call(disco_server, {blacklist, Host, Token}),
-    timer:sleep(?BLACKLIST_PERIOD),
-    gen_server:call(disco_server, {whitelist, Host, Token}).
