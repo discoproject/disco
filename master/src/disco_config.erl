@@ -24,7 +24,7 @@ start_link() ->
 stop() ->
     gen_server:call(?MODULE, stop).
 
--spec get_config_table() -> {'ok', [host_info()]}.
+-spec get_config_table() -> {'ok', raw_hosts()}.
 get_config_table() ->
     gen_server:call(?MODULE, get_config_table).
 
@@ -98,7 +98,7 @@ parse_row([NodeSpecB, InstancesB]) ->
 
 -spec update_config_table(raw_hosts()) -> _.
 update_config_table(RawHosts) ->
-    Config = lists:flatten([parse_row(R) || R <- RawHosts]),
+    Config = get_host_info(RawHosts),
     disco_server:update_config_table(Config).
 
 -spec get_full_config() -> config().
@@ -117,9 +117,13 @@ get_full_config() ->
 get_raw_hosts(Config) ->
     proplists:get_value(<<"hosts">>, Config).
 
+-spec get_host_info(raw_hosts()) -> [host_info()].
+get_host_info(RawHosts) ->
+    lists:flatten([parse_row(R) || R <- RawHosts]).
+
 -spec get_expanded_hosts(raw_hosts()) -> [nonempty_string()].
-get_expanded_hosts(RawH) ->
-    {Hosts, _Cores} = lists:unzip(lists:flatten([parse_row(R) || R <- RawH])),
+get_expanded_hosts(RawHosts) ->
+    {Hosts, _Cores} = lists:unzip(get_host_info(RawHosts)),
     Hosts.
 
 -spec get_blacklist(config()) -> [nonempty_string()].
@@ -137,7 +141,7 @@ make_config(RawHosts, Blacklist) ->
 make_blacklist(Hosts, Prospects) ->
     lists:usort(lists:filter(fun(P) -> lists:member(P, Hosts) end, Prospects)).
 
--spec do_get_config_table() -> {'ok', [host_info()]}.
+-spec do_get_config_table() -> {'ok', raw_hosts()}.
 do_get_config_table() ->
     RawHosts = get_raw_hosts(get_full_config()),
     update_config_table(RawHosts),
