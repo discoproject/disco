@@ -3,6 +3,7 @@
 
 -define(RESTART_DELAY, 600000).
 -define(SLAVE_ARGS, "+K true -connect_all false").
+-define(RPC_CALL_TIMEOUT, 30000).
 
 start_link(Host) ->
     spawn_link(fun() -> spawn_node(Host) end).
@@ -91,7 +92,10 @@ slave_start(Host) ->
 
 -spec is_master(nonempty_string()) -> bool().
 is_master(Host) ->
-    case net_adm:names(Host) of
+    % the underlying tcp connection used by net_adm:names() may hang,
+    % so we use a timed rpc.  if the call times out, we assume Host is
+    % remote, and hence cannot be the master.
+    case rpc:call(node(), net_adm, names, [Host], ?RPC_CALL_TIMEOUT) of
         {ok, Names} ->
             Master = string:sub_word(atom_to_list(node()), 1, $@),
             lists:keymember(Master, 1, Names);
