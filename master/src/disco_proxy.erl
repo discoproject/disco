@@ -52,6 +52,10 @@ start() ->
 
 -spec update_nodes([nonempty_string()]) -> 'ok'.
 update_nodes(Nodes) ->
+    update_nodes(Nodes, disco:get_setting("DISCO_PROXY_ENABLED")).
+update_nodes(_Nodes, "") ->
+    ok;
+update_nodes(Nodes, _) ->
     DiscoPort = disco:get_setting("DISCO_PORT"),
     Port = disco:get_setting("DISCO_PROXY_PORT"),
     PidFile = disco:get_setting("DISCO_PROXY_PID"),
