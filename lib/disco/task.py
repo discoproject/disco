@@ -11,6 +11,7 @@ from disco.error import DiscoError, DataError
 from disco.events import Status, OutputURL, TaskFailed
 from disco.node import external, worker
 from disco.settings import DiscoSettings
+from disco.sysutil import set_mem_limit
 from disco.fileutils import AtomicFile, ensure_file,\
                             ensure_path, write_files, sync
 
@@ -36,6 +37,8 @@ class Task(object):
                                          self.id,
                                          int(time.time() * 1000),
                                          os.getpid())
+
+        set_mem_limit(self.settings['DISCO_WORKER_MAX_MEM'])
 
         if not jobdict:
             self.jobdict = JobDict.unpack(open(self.jobpack),
