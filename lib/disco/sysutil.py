@@ -9,14 +9,14 @@ if sys.platform == "darwin":
         size = c_size_t(sizeof(mem))
         libc.sysctlbyname.argtypes = [
             c_char_p, c_void_p, c_void_p, c_void_p, c_ulong
-	    ]
+        ]
         libc.sysctlbyname(
             "hw.memsize",
-	        c_voidp(addressof(mem)),
+            c_voidp(addressof(mem)),
             c_voidp(addressof(size)),
-	        None,
-	        0
-	    )
+            None,
+            0
+        )
         return int(mem.value)
 
 elif "linux" in sys.platform:
