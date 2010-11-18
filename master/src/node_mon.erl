@@ -17,18 +17,15 @@ spawn_node(Host) ->
 spawn_node(Host, IsMaster) ->
     case {IsMaster, catch slave_start(Host)} of
         {true, {ok, Node}} ->
-            disco_server:connection_status(Host, up),
             % start a dummy ddfs_node process for the master, no get or put
             start_ddfs_node(node(), {false, false}),
             % start ddfs_node for the slave on the master node.
             % put enabled, but no get, which is handled by master
             node_monitor(Host, Node, {false, true});
         {false, {ok, Node}} ->
-            disco_server:connection_status(Host, up),
             % normal remote ddfs_node, both put and get enabled
             node_monitor(Host, Node, {true, true});
         {_, {error, {already_running, Node}}} ->
-            disco_server:connection_status(Host, up),
             % normal remote ddfs_node, both put and get enabled
             node_monitor(Host, Node, {true, true});
         {_, {error, timeout}} ->
@@ -48,6 +45,7 @@ node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
     start_temp_gc(Node, disco:host(Node)),
+    disco_server:connection_status(Host, up),
     wait(Node),
     disco_server:connection_status(Host, down).
 
