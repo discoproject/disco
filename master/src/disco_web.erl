@@ -61,10 +61,14 @@ getop("joblist", _Query) ->
 
 getop("jobinfo", {_Query, JobName}) ->
     {ok, Active} = disco_server:get_active(JobName),
-    {ok, JobInfo} = gen_server:call(event_server, {get_jobinfo, JobName}),
-    {ok, render_jobinfo(JobInfo,
-                        lists:unzip([{Host, M}
-                                     || {Host, #task{mode = M}} <- Active]))};
+    case gen_server:call(event_server, {get_jobinfo, JobName}) of
+        {ok, JobInfo} ->
+            HostInfo = lists:unzip([{Host, M}
+                                    || {Host, #task{mode = M}} <- Active]),
+            {ok, render_jobinfo(JobInfo, HostInfo)};
+        invalid_job ->
+            not_found
+    end;
 
 getop("parameters", {_Query, Name}) ->
     job_file(Name, "params");
