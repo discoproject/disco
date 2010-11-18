@@ -22,15 +22,15 @@ spawn_node(Host, IsMaster) ->
             start_ddfs_node(node(), {false, false}),
             % start ddfs_node for the slave on the master node.
             % put enabled, but no get, which is handled by master
-            node_monitor(Node, {false, true});
+            node_monitor(Host, Node, {false, true});
         {false, {ok, Node}} ->
             disco_server:connection_status(Host, up),
             % normal remote ddfs_node, both put and get enabled
-            node_monitor(Node, {true, true});
+            node_monitor(Host, Node, {true, true});
         {_, {error, {already_running, Node}}} ->
             disco_server:connection_status(Host, up),
             % normal remote ddfs_node, both put and get enabled
-            node_monitor(Node, {true, true});
+            node_monitor(Host, Node, {true, true});
         {_, {error, timeout}} ->
             error_logger:info_report({"Connection timed out to", Host}),
             disco_server:connection_status(Host, down);
@@ -43,12 +43,13 @@ spawn_node(Host, IsMaster) ->
     timer:sleep(?RESTART_DELAY),
     spawn_node(Host, IsMaster).
 
--spec node_monitor(node(), {bool(), bool()}) -> _.
-node_monitor(Node, WebConfig) ->
+-spec node_monitor(nonempty_string(), node(), {bool(), bool()}) -> _.
+node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
     start_temp_gc(Node, disco:host(Node)),
-    wait(Node).
+    wait(Node),
+    disco_server:connection_status(Host, down).
 
 -spec wait(node()) -> _.
 wait(Node) ->
