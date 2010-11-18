@@ -150,23 +150,31 @@ do_get_config_table() ->
 
 -spec do_save_config_table(raw_hosts()) -> {'ok' | 'error', binary()}.
 do_save_config_table(RawHosts) ->
-    HostInfo = get_host_info(RawHosts),
-    {Hosts, _Cores} = lists:unzip(HostInfo),
-    Hosts = get_expanded_hosts(RawHosts),
-    Sorted = lists:sort(Hosts),
-    USorted = lists:usort(Hosts),
-    if
-        length(Sorted) == length(USorted) ->
-            % Retrieve and update old blacklist
-            OldBL = get_blacklist(get_full_config()),
-            NewBL = make_blacklist(Hosts, OldBL),
-            Config = make_config(RawHosts, NewBL),
-            ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
-                                 mochijson2:encode({struct, Config})),
-            update_config_table(HostInfo, NewBL),
-            {ok, <<"table saved!">>};
-        true ->
-            {error, <<"duplicate nodes">>}
+    ParsedConfig = try
+                       {get_host_info(RawHosts), get_expanded_hosts(RawHosts)}
+                   catch
+                       error:badarg -> parse_error
+                   end,
+    case ParsedConfig of
+        {HostInfo, Hosts} ->
+            {Hosts, _Cores} = lists:unzip(HostInfo),
+            Sorted = lists:sort(Hosts),
+            USorted = lists:usort(Hosts),
+            if
+                length(Sorted) == length(USorted) ->
+                    % Retrieve and update old blacklist
+                    OldBL = get_blacklist(get_full_config()),
+                    NewBL = make_blacklist(Hosts, OldBL),
+                    Config = make_config(RawHosts, NewBL),
+                    ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
+                                         mochijson2:encode({struct, Config})),
+                    update_config_table(HostInfo, NewBL),
+                    {ok, <<"table saved!">>};
+                true ->
+                    {error, <<"duplicate nodes">>}
+            end;
+        parse_error ->
+            {error, <<"invalid config">>}
     end.
 
 -spec do_blacklist(nonempty_string()) -> 'ok'.
