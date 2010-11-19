@@ -402,6 +402,7 @@ do_get_nodeinfo(#state{nodes = Nodes}) ->
                       stats_ok = N#dnode.stats_ok,
                       stats_failed = N#dnode.stats_failed,
                       stats_crashed = N#dnode.stats_crashed,
+                      connected = N#dnode.connection_status =:= up,
                       blacklisted = N#dnode.manual_blacklist}
             || N <- gb_trees:values(Nodes)],
     {ok, Info}.

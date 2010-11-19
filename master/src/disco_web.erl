@@ -104,6 +104,7 @@ getop("nodeinfo", _Query) ->
                                       {data_error, N#nodeinfo.stats_failed},
                                       {error, N#nodeinfo.stats_crashed},
                                       {max_workers, N#nodeinfo.slots},
+                                      {connected, N#nodeinfo.connected},
                                       {blacklisted, N#nodeinfo.blacklisted}]}
                                     || N <- DiscoNodes]),
     NodeInfo = lists:foldl(fun ({Node, {Free, Used}}, Dict) ->
