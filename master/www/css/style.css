@@ -79,6 +79,10 @@ input {
     font-weight: bold;
 }
 
+.nodebox .disconnected {
+    background: #CC3300;
+}
+
 .nodebox .status {
     height: 1em;
     border-bottom: 1px solid #000;

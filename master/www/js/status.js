@@ -14,7 +14,8 @@ function Node(host, info) {
         return $.create("div", {"class": "jbox", "id": "free"}, []);
       });
 
-    var title = $.create("div", {"class": "title"}, [host]);
+    var disconnected = self.info.connected ? "" : " disconnected";
+    var title = $.create("div", {"class": "title" + disconnected}, [host]);
     var status = $.create("div", {"class": "status", "id": self.id}, jboxes);
     var diskp = 100 * self.info.diskfree / (self.info.diskfree + self.info.diskused);
     var disk = $.create("div", {"class": "disk"});
