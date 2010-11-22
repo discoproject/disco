@@ -64,6 +64,8 @@ class HTTPConnection(object):
 
         if method == 'DELETE':
             self['CUSTOMREQUEST'] = method
+        elif method == 'HEAD':
+            self['NOBODY'] = 1
         elif method == 'PUT':
             self['UPLOAD'] = 1
         elif method == 'POST':
