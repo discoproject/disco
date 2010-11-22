@@ -22,11 +22,10 @@ to name a few examples.
 Batteries included
 ------------------
 
-In contrast to a well-known open-source implementation of the Map-Reduce
-framework, `Hadoop <http://hadoop.apache.org>`_, that is implemented in
-Java, the Disco core is written in `Erlang <http://www.erlang.org>`_,
+The Disco core is written in `Erlang <http://www.erlang.org>`_,
 a functional language that is designed for building robust fault-tolerant
-distributed applications. Users of Disco typically write jobs in Python,
+distributed applications.
+Users of Disco typically write jobs in Python,
 which makes it possible to express even complex algorithms or data
 processing tasks often only in tens of lines of code.
 
@@ -37,27 +36,22 @@ frequencies in a large text corpus using 100 CPUs in parallel:
 
     from disco.core import Disco, result_iterator
 
-    def fun_map(e, params):
-        return [(w, 1) for w in re.sub("\W", " ", e).lower().split()]
+    def fun_map(line, params):
+        for word in line.split():
+            yield word, 1
 
-    def fun_reduce(iter, out, params):
-        s = {}
-        for k, v in iter:
-            if k in s:
-                s[k] += int(v)
-            else:
-                s[k] = int(v)
-        for k, v in s.iteritems():
-            out.add(k, v)
+    def fun_reduce(iter, params):
+        from disco.util import kvgroup
+        for word, counts in kvgroup(sorted(iter)):
+            yield word, sum(counts)
 
-    results = Disco("disco://localhost").new_job(
-                name = 'wordcount',
-                map = fun_map,
-                reduce = fun_reduce,
-                input = ['http://localhost/text-block-1', 'http://localhost/text-block-2'],
-                partitions = 100).wait()
+    job = Disco('disco://localhost').new_job(name='wordcount',
+                                             input=['tag://data'],
+                                             map=fun_map,
+                                             reduce=fun_reduce,
+                                             partitions=100)
 
-    for key, value in result_iterator(results):
+    for key, value in result_iterator(job.wait()):
 	    print key, value
 
 Disco is designed to integrate easily in larger applications, such as
@@ -74,12 +68,12 @@ Disco is a good match for a cluster of commodity Linux servers. New
 nodes can be added to the system on the fly, by a single click on
 the Web interface. If a server crashes, active jobs are automatically
 re-routed to other servers without any interruptions. Together with
-an automatic provisioning mechanism, such as the `Fully Automatic
-Installation for Debian <http://www.informatik.uni-koeln.de/fai/>`_,
-even a large HPC cluster can be maintained with only a minimal amount
-of manual work. As a proof of concept, `Nokia Research Center in Palo
-Alto <http://research.nokia.com>`_ maintains a 800-core cluster running
-Disco using this setup.
+an automatic provisioning mechanism, such as
+`Fully Automatic Installation <http://www.informatik.uni-koeln.de/fai/>`_,
+even a large cluster can be maintained with only a minimal amount
+of manual work. As a proof of concept,
+`Nokia Research Center in Palo Alto <http://research.nokia.com>`_
+maintains an 800-core cluster running Disco using this setup.
 
 
 Main features
