@@ -23,6 +23,7 @@ Getting started
    start/download
    start/install
    start/tutorial
+   start/administer
    start/ddfs
    start/troubleshoot
    start/getinvolved
