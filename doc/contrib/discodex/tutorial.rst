@@ -204,49 +204,6 @@ We can also see which files contain the words ``discodex`` *and* ``build``::
         discodex query words discodex build
 
 Congratulations, you've built a basic search engine!
-
-Build a Metaindex
------------------
-
-A :term:`metaindex` is an index built on top of the keys of another index.
-The easiest way to understand what it does is probably just to build one.
-As an example, let's build a metaindex of our ``words`` index to
-make our documentation search engine slightly more robust::
-
-        discodex metaindex --metakeyer prefixkeyer words
-        discodex clone <METAINDEX> metawords
-
-Using the ``prefixkeyer``, we mapped all possible prefixes of all of the keys
-in our index to the keys themselves, and stored them in the metaindex,
-along with the original index.
-Convince yourself that all the prefixes are actually there::
-
-        discodex keys metawords | sort | less
-
-Now if we query our metaindex,
-we can see not only the files which contain the exact words we are querying,
-but any files which contain words *starting* with our query words::
-
-        discodex query metawords discodex
-
-First, notice how the metaindex returns both the original keys from your index,
-and an iterator over the values of each of those keys.
-Also notice what happens when you execute more complicated queries::
-
-        discodex query metawords discodex build
-
-You shouldn't see any results.
-This is because the query first gets executed on the :class:`discodb.MetaDB`,
-and there aren't any words that begin with both ``discodex`` *and* ``build``.
-Finally, let's see which documents contain words starting with *either*
-``discodex`` *or* ``build``::
-
-        discodex query metawords discodex,build
-
-Hopefully at this point, you can imagine writing
-:mod:`discodex.mapreduce.metakeyers`, that allow you to query your data in
-all kinds of interesting ways.
-
 Remember, Discodex scales automatically with the size of your cluster,
 so don't be afraid to try it out with millions or billions of keys and values!
 
