@@ -4,55 +4,61 @@
 Tutorial
 ========
 
-This tutorial shows how to create and run a Disco job that counts
-words in a large text file. To start with, you need nothing but a
-single large text file.  Let's call the file ``bigfile.txt``. If
-you don't happen to have a suitable file at hand, you can
-download one from `here <http://discoproject.org/media/text/bigfile.txt>`_.
+This tutorial shows how to create and run a Disco job that counts words.
+To start with, you need nothing but a single text file.
+Let's call the file ``bigfile.txt``.
+If you don't happen to have a suitable file on hand,
+you can download one from `here <http://discoproject.org/media/text/bigfile.txt>`_.
 
 1. Prepare input data
 ---------------------
 
-Disco can distribute computation only if data is distributed as well. Thus
-our first step is to split ``bigfile.txt`` into small chunks. There is a
-standard Unix command, ``split``, that can split a file into many pieces,
-which is exactly what we want. We need also a directory where the chunks
-are stored.  Let's call it ``bigtxt``::
+Disco can distribute computation only as well as data can be distributed.
+In general, we can push data to :ref:`DDFS`,
+which will take care of distributing and replicating it.
 
-        mkdir bigtxt
-        split -l 100000 bigfile.txt bigtxt/bigtxt-
+.. note::
+   Prior to Disco 0.3.2, this was done by splitting data manually,
+   and then using ``ddfs push`` to push user-defined blobs.
+   As of Disco 0.3.2, you can use ``ddfs chunk``
+   (with the help of :func:`disco.func.input_stream`\'s)
+   to automatically chunk and push size-limited chunks to DDFS.
 
-After running these lines, the directory ``bigtxt`` contains many files, named
-like ``bigtxt-aa``, ``bigtxt-ab`` etc. which each contain 100,000 lines (except
-the last chunk that might contain fewer).
+Lets chunk and push the data to a tag ``data:bigtxt``::
 
-If your ``bigfile.txt`` contains fewer than 100,000 lines, you can make the chunk
-size smaller. The more chunks you have, the more processes you can run in
-parallel. However, since launching a new process is not free, you shouldn't make
-the chunks too small.
+      ddfs chunk data:bigtxt ./bigfile.txt
 
-2. Distribute chunks to the cluster
------------------------------------
-
-In theory you could use the chunks in the ``bigtxt`` directory
-directly, but in practice it is a good idea to distribute the IO load
-to many separate servers.
-
-We can push the data to :ref:`DDFS`,
-which will take care of distributing and replicating our data::
-
-      ddfs push -r data:bigtxt bigtxt
-
-This pushes all the files under ``bigtxt`` to the tag ``data:bigtxt``.
-You can check where the files are located::
+We should have seen some output telling us that the chunk(s) have been created.
+We can also check where they are located::
 
     ddfs blobs data:bigtxt
 
 and make sure they contain what you think they do::
 
-    ddfs cat data:bigtxt | less
+    ddfs xcat data:bigtxt | less
 
-3. Write job functions
+.. note::
+   Chunks are stored in Disco's internal compressed format,
+   thus we use ``ddfs xcat`` instead of ``ddfs cat`` to view them.
+   ``ddfs xcat`` applies some :func:`disco.func.input_stream`\'s
+   (by default, :func:`disco.func.chain_reader`),
+   whereas ``ddfs cat`` just dumps the raw bytes contained in the blobs.
+
+If you used the file provided above,
+you should have only ended up with a single chunk.
+This is because the default chunk size is 64MB (compressed),
+and the ``bigfile.txt`` is only 12MB (uncompressed).
+You can try with a larger file to see that chunks are created as needed.
+
+.. hint::
+   If you have unchunked data stored in DDFS that you would like to chunk,
+   you can run a Disco job, to parallelize the chunking operation.
+   Disco includes an `example`_ of how to do this,
+   which should work unmodified for most use cases.
+
+.. _example: https://github.com/tuulos/disco/blob/master/examples/util/chunk.py
+
+2. Write job functions
 ----------------------
 
 Next we need to write map and reduce functions to count the words in
@@ -119,7 +125,7 @@ the :class:`disco.func.OutputStream`.
 That's it. Now we have written map and reduce functions for counting
 words in parallel.
 
-4. Run the job
+3. Run the job
 --------------
 
 Now the only thing missing is a command for running the job. First,
