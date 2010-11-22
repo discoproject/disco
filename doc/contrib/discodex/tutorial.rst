@@ -11,23 +11,6 @@ only need to change a few :mod:`discodex.settings`.
 Installation
 ''''''''''''
 
-Install Django
---------------
-
-Discodex uses the Python web framework, `Django`_,
-to handle requests coming to the HTTP server and map them to Disco Jobs.
-The Django server acts as a Disco client for you,
-so that you can use Discodex from thin clients, such as web applications.
-
-Follow the instructions `here <http://docs.djangoproject.com/en/1.2/intro/install/#install-django>`_.
-You must also have `lighttpd <http://www.lighttpd.net/download/>`_ installed,
-as well as `flup <http://trac.saddi.com/flup>`_.
-
-If you want to understand why these other projects are used,
-read `this <http://docs.djangoproject.com/en/dev/howto/deployment/fastcgi/>`_.
-
-.. _Django: http://www.djangoproject.com
-
 Install Discodex
 ----------------
 
@@ -36,6 +19,28 @@ See :mod:`discodex <discodexcli>` for information on installing the command line
 You can install the Python package either using a symlink, or by running::
 
         make install-discodex
+
+Install Django
+--------------
+
+Discodex uses the Python web framework, `Django`_,
+to handle requests coming to the HTTP server and map them to Disco jobs.
+The Django server acts as a Disco client for you,
+so that you can use Discodex from thin clients, such as web applications.
+
+Follow the instructions `here <http://docs.djangoproject.com/en/1.2/intro/install/#install-django>`_.
+To use Discodex out of the box,
+you must also have `lighttpd <http://www.lighttpd.net/download/>`_ installed,
+as well as `flup <http://trac.saddi.com/flup>`_.
+
+If you want to understand why these other projects are used,
+read `this <http://docs.djangoproject.com/en/dev/howto/deployment/fastcgi/>`_.
+
+.. note::
+   If you prefer, you can use Discodex as a library,
+   in which case you can configure your web server however you like.
+
+.. _Django: http://www.djangoproject.com
 
 Using Discodex
 ''''''''''''''

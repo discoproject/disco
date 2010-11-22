@@ -94,7 +94,12 @@ class DiscoDB(_DiscoDB):
         return DiscoDBItemInquiry(lambda: query.metaquery(self))
 
     def query(self, query):
-        """an inquiry over the values of self whose keys satisfy the query."""
+        """
+        an inquiry over the values of self whose keys satisfy the query.
+
+        The query can be either a :class:`Q` object, or a string.
+        If a string, it is transformed into a :class:`Q` via :meth:`Q.parse`.
+        """
         if isinstance(query, basestring):
             query = Q.parse(query)
         return DiscoDBLazyInquiry(lambda: super(DiscoDB, self).query(query))
@@ -109,7 +114,7 @@ class DiscoDB(_DiscoDB):
 __all__ = ['DiscoDB',
            'DiscoDBConstructor',
            'DiscoDBError',
-           'DIscoDBInquiry',
+           'DiscoDBInquiry',
            'DiscoDBIter',
            'Q',
            'kvgroup']

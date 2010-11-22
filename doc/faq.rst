@@ -4,9 +4,6 @@ Disco FAQ
 
 .. contents::
 
-Using Disco
------------
-
 I tried to install Disco but it doesn't work. Why?
 ''''''''''''''''''''''''''''''''''''''''''''''''''
 
