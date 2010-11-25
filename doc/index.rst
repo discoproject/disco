@@ -32,6 +32,7 @@ Disco In Depth
 .. toctree::
    :maxdepth: 1
 
+   howto/administer
    howto/dataflow
    howto/ddfs
 

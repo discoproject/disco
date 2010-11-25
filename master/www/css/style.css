@@ -77,6 +77,11 @@ input {
     color: white;
     padding-left: 5px;
     font-weight: bold;
+    border-bottom: 1px solid black;
+}
+
+.nodebox .disconnected {
+    background: #CC3300;
 }
 
 .nodebox .status {

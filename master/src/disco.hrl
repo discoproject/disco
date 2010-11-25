@@ -10,6 +10,7 @@
 -type jobinfo() :: #jobinfo{}.
 
 -record(nodeinfo, {name :: nonempty_string(),
+                   connected :: bool(),
                    blacklisted :: bool(),
                    slots :: non_neg_integer(),
                    num_running :: non_neg_integer(),

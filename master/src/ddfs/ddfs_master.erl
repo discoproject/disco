@@ -12,7 +12,8 @@
 -record(state, {nodes :: [{node(), {non_neg_integer(), non_neg_integer()}}],
                 tags :: gb_tree(),
                 tag_cache :: 'false' | gb_set(),
-                blacklisted :: [node()]}).
+                write_blacklist :: [node()],
+                read_blacklist :: [node()]}).
 
 start_link() ->
     error_logger:info_report([{"DDFS master starts"}]),
@@ -31,7 +32,14 @@ init(_Args) ->
     {ok, #state{tags = gb_trees:empty(),
                 tag_cache = false,
                 nodes = [],
-                blacklisted = []}}.
+                write_blacklist = [],
+                read_blacklist = []}}.
+
+get_readable_nodes(Nodes, ReadBlacklist) ->
+    NodeSet = gb_sets:from_ordset(lists:sort([Node || {Node, _} <- Nodes])),
+    BlackSet = gb_sets:from_ordset(ReadBlacklist),
+    ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
+    {gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -39,10 +47,11 @@ handle_call(dbg_get_state, _, S) ->
 handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
     {reply, {ok, Nodes}, S};
 
-handle_call(get_nodes, _From, #state{nodes = Nodes} = S) ->
-    {reply, {ok, [Node || {Node, _} <- Nodes]}, S};
+handle_call(get_read_nodes, _F, #state{nodes = Nodes, read_blacklist = RB} = S) ->
+    {ReadNodes, NumUnreadableNodes} = get_readable_nodes(Nodes, RB),
+    {reply, {ok, ReadNodes, NumUnreadableNodes}, S};
 
-handle_call({choose_nodes, K, Exclude}, _, #state{blacklisted = BL} = S) ->
+handle_call({choose_write_nodes, K, Exclude}, _, #state{write_blacklist = BL} = S) ->
     % Node selection algorithm:
     % 1. try to choose K nodes randomly from all the nodes which have
     %    more than ?MIN_FREE_SPACE bytes free space available and which
@@ -63,7 +72,7 @@ handle_call({new_blob, _, K, _}, _, #state{nodes = N} = S) when K > length(N) ->
     {reply, too_many_replicas, S};
 
 handle_call({new_blob, Obj, K, Exclude}, _, S) ->
-    {_, {ok, Nodes}, _} = handle_call({choose_nodes, K, Exclude}, none, S),
+    {_, {ok, Nodes}, _} = handle_call({choose_write_nodes, K, Exclude}, none, S),
     Urls = [["http://", disco:host(Node), ":", get(put_port), "/ddfs/", Obj]
             || Node <- Nodes],
     {reply, {ok, Urls}, S};
@@ -100,26 +109,31 @@ handle_cast({update_tag_cache, TagCache}, S) ->
 
 handle_cast({update_nodes, NewNodes}, #state{nodes = Nodes, tags = Tags} = S) ->
     error_logger:info_report({"DDFS UPDATE NODES", NewNodes}),
-    Blacklisted = [Node || {Node, true} <- NewNodes],
+    WriteBlacklist = lists:sort([Node || {Node, false, _} <- NewNodes]),
+    ReadBlacklist = lists:sort([Node || {Node, _, false} <- NewNodes]),
     OldNodes = gb_trees:from_orddict(Nodes),
     UpdatedNodes = lists:keysort(1, [case gb_trees:lookup(Node, OldNodes) of
                                          none ->
                                              {Node, {0, 0}};
                                          {value, OldStats} ->
                                              {Node, OldStats}
-                                     end || {Node, _Blacklisted} <- NewNodes]),
+                                     end || {Node, _WB, _RB} <- NewNodes]),
     if
         UpdatedNodes =/= Nodes ->
             [gen_server:cast(Pid, {die, none}) || Pid <- gb_trees:values(Tags)],
             spawn(fun() ->
-                          refresh_tag_cache([Node || {Node, _} <- UpdatedNodes])
+                      {ReadableNodes, RBSize} =
+                          get_readable_nodes(UpdatedNodes, ReadBlacklist),
+                      refresh_tag_cache(ReadableNodes, RBSize)
                   end),
             {noreply, S#state{nodes = UpdatedNodes,
-                              blacklisted = Blacklisted,
+                              write_blacklist = WriteBlacklist,
+                              read_blacklist = ReadBlacklist,
                               tag_cache = false,
                               tags = gb_trees:empty()}};
         true ->
-            {noreply, S#state{blacklisted = Blacklisted}}
+            {noreply, S#state{write_blacklist = WriteBlacklist,
+                              read_blacklist = ReadBlacklist}}
     end;
 
 handle_cast({update_nodestats, NewNodes}, #state{nodes = Nodes} = S) ->
@@ -172,8 +186,8 @@ get_tags(safe, Nodes) ->
 
 -spec monitor_diskspace() -> no_return().
 monitor_diskspace() ->
-    {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
-    {Space, _F} = gen_server:multi_call(Nodes,
+    {ok, ReadableNodes, _RBSize} = gen_server:call(ddfs_master, get_read_nodes),
+    {Space, _F} = gen_server:multi_call(ReadableNodes,
                                         ddfs_node,
                                         get_diskspace,
                                         ?NODE_TIMEOUT),
@@ -185,19 +199,20 @@ monitor_diskspace() ->
 
 -spec refresh_tag_cache_proc() -> no_return().
 refresh_tag_cache_proc() ->
-    {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
-    refresh_tag_cache(Nodes),
+    {ok, ReadableNodes, RBSize} = gen_server:call(ddfs_master, get_read_nodes),
+    refresh_tag_cache(ReadableNodes, RBSize),
     timer:sleep(?TAG_CACHE_INTERVAL),
     refresh_tag_cache_proc().
 
--spec refresh_tag_cache([node()]) -> 'ok'.
-refresh_tag_cache(Nodes) ->
+-spec refresh_tag_cache([node()], non_neg_integer()) -> 'ok'.
+refresh_tag_cache(Nodes, BLSize) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
-    {Replies, Failed} = gen_server:multi_call(Nodes,
-        ddfs_node, get_tags, ?NODE_TIMEOUT),
-    if Nodes =/= [], length(Failed) < TagMinK ->
-        {_OkNodes, Tags} = lists:unzip(Replies),
-        gen_server:cast(ddfs_master,
-            {update_tag_cache, gb_sets:from_list(lists:flatten(Tags))});
-    true -> ok
+    {Replies, Failed} =
+        gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
+    if Nodes =/= [], length(Failed) + BLSize < TagMinK ->
+            {_OkNodes, Tags} = lists:unzip(Replies),
+            gen_server:cast(ddfs_master,
+                            {update_tag_cache,
+                             gb_sets:from_list(lists:flatten(Tags))});
+       true -> ok
     end.

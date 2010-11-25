@@ -321,20 +321,28 @@ send_replies(ReplyToList, Message) ->
 -spec get_tagdata(tagname()) -> {'missing', 'notfound'} | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.
 get_tagdata(TagName) ->
-    {ok, Nodes} = gen_server:call(ddfs_master, get_nodes),
-    {Replies, Failed} = gen_server:multi_call(Nodes, ddfs_node,
-        {get_tag_timestamp, TagName}, ?NODE_TIMEOUT),
+    {ok, ReadableNodes, RBSize} = gen_server:call(ddfs_master, get_read_nodes),
     TagMinK = get(min_tagk),
-    case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
-        _ when length(Failed) >= TagMinK ->
+    case RBSize >= TagMinK of
+        true ->
             {error, too_many_failed_nodes};
-        [] ->
-            {missing, notfound};
-        L ->
-            {{Time, _Vol}, _Node} = lists:max(L),
-            Replicas = [X || {{T, _}, _} = X <- L, T == Time],
-            TagID = ddfs_util:pack_objname(TagName, Time),
-            read_tagdata(TagID, Replicas, [], tagdata_failed)
+        false ->
+            {Replies, Failed} =
+                gen_server:multi_call(ReadableNodes,
+                                      ddfs_node,
+                                      {get_tag_timestamp, TagName},
+                                      ?NODE_TIMEOUT),
+            case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
+                _ when length(Failed) + RBSize >= TagMinK ->
+                    {error, too_many_failed_nodes};
+                [] ->
+                    {missing, notfound};
+                L ->
+                    {{Time, _Vol}, _Node} = lists:max(L),
+                    Replicas = [X || {{T, _}, _} = X <- L, T == Time],
+                    TagID = ddfs_util:pack_objname(TagName, Time),
+                    read_tagdata(TagID, Replicas, [], tagdata_failed)
+            end
     end.
 
 read_tagdata(_TagID, Replicas, Failed, Error)
@@ -487,7 +495,7 @@ put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
 put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
-    {ok, Nodes} = gen_server:call(ddfs_master, {choose_nodes, K0, Exclude}),
+    {ok, Nodes} = gen_server:call(ddfs_master, {choose_write_nodes, K0, Exclude}),
     if
         Nodes =:= [], length(OkNodes) < TagMinK ->
             {error, replication_failed};
@@ -522,9 +530,13 @@ put_commit(TagID, TagVol) ->
 
 -spec do_delete(replyto(), #state{}) -> #state{}.
 do_delete(ReplyTo, S) ->
-    {ok, _} = add_to_deleted(S#state.tag),
-    gen_server:reply(ReplyTo, ok),
-    gen_server:cast(self(), {die, none}),
+    case add_to_deleted(S#state.tag) of
+        {ok, _} ->
+            gen_server:reply(ReplyTo, ok),
+            gen_server:cast(self(), {die, none});
+        E ->
+            gen_server:reply(ReplyTo, E)
+    end,
     S.
 
 -spec is_tag_deleted(tagname()) -> _.
