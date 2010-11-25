@@ -150,11 +150,15 @@ do_get_config_table() ->
 
 -spec do_save_config_table(raw_hosts()) -> {'ok' | 'error', binary()}.
 do_save_config_table(RawHosts) ->
-    ParsedConfig = try
-                       {get_host_info(RawHosts), get_expanded_hosts(RawHosts)}
-                   catch
-                       error:badarg -> parse_error
-                   end,
+    ParsedConfig =
+        try
+            {get_host_info(RawHosts), get_expanded_hosts(RawHosts)}
+        catch
+            _:_ ->
+                error_logger:warning_report({"Disco config: parse error",
+                                             RawHosts}),
+                parse_error
+        end,
     case ParsedConfig of
         {HostInfo, Hosts} ->
             {Hosts, _Cores} = lists:unzip(HostInfo),

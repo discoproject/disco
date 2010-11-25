@@ -201,14 +201,14 @@ def auth_token(url):
 def urllist(url, partid=None, listdirs=True, ddfs=None):
     from disco.ddfs import DDFS, istag
     if istag(url):
+        token = auth_token(url)
         ret = []
-        for name, tags, blobs in DDFS(ddfs).findtags(url):
+        for name, tags, blobs in DDFS(ddfs).findtags(url, token=token):
             ret += blobs
         return ret
     if isiterable(url):
         return [list(url)]
     scheme, netloc, path = urlsplit(url)
-    ddfs_token = auth_token(url)
     if scheme == 'dir' and listdirs:
         return parse_dir(url, partid=partid)
     return [url]

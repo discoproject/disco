@@ -162,7 +162,7 @@ $(DIALYZER_PLT):
 		$(ERL_LIBDIR)/lib/inets*/ebin $(ERL_LIBDIR)/lib/xmerl*/ebin
 
 dialyzer: $(DIALYZER_PLT)
-	$(DIALYZER) -Wspecdiffs --get_warnings --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
+	$(DIALYZER) --get_warnings --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
 
 typer:
 	$(TYPER) --plt $(DIALYZER_PLT) -r $(ESRC)
