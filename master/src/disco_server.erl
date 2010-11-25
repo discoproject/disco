@@ -248,7 +248,7 @@ do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
 do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
-            {value, N} when is_boolean(True) ->
+            {value, N} ->
                 N1 = N#dnode{manual_blacklist = True},
                 gb_trees:update(Node, N1, Nodes);
             _ -> Nodes
@@ -317,7 +317,7 @@ schedule_next() ->
 -spec do_schedule_next(#state{}) -> #state{}.
 do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
     Running = [{Y, N} || #dnode{slots = X, num_running = Y, name = N} = Node
-                             <- gb_trees:values(Nodes), X > Y, allow_write(Node)],
+                             <- gb_trees:values(Nodes), X > Y, allow_task(Node)],
     {_, AvailableNodes} = lists:unzip(lists:keysort(1, Running)),
     if AvailableNodes =/= [] ->
         case gen_server:call(scheduler, {next_task, AvailableNodes}) of
