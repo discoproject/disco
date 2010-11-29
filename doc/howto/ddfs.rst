@@ -142,6 +142,22 @@ Tags may also reference overlapping sets of blobs, as in
 many alternative views to the same data. DDFS is designed to scale to millions
 of tags, so you can use them without hesitation.
 
+Tags also support a token-based authorization mechanism to control
+read and write access.  If a write-token is specified for a tag, all
+operations that wish to modify the tag will need to provide this
+write-token.  Without this token, any write operation will return an
+"unauthorized" error.  Similarly, a read-token can be used to control
+accesses that read the tag.  Read and write tokens can be
+independently specified.
+
+When a token is specified for an operation that creates a new tag,
+that token becomes the new tag's read and write token.  This allows
+the atomic creation of access-controlled tags.
+
+In addition to being a container of metadata about blobs, a tag can
+also contain a limited number of user-defined attributes, each with a
+name and a string value.
+
 Implementation
 ''''''''''''''
 .. image:: ../images/ddfs-arch.png
@@ -195,6 +211,10 @@ Blobs can be accessed either over HTTP, using DDFS's built-in web server on each
 storage node, or directly on local disk. The latter feature is heavily utilized
 by Disco, which prefers to run tasks on the nodes where data is physically
 stored, to minimize network traffic.
+
+The token-based authorization scheme is implemented using the basic
+access authentication scheme of HTTP, as described in `RFC 2617
+<http://tools.ietf.org/html/rfc2617.html#section-2>`_.
 
 Settings
 ''''''''
@@ -307,6 +327,49 @@ by replacing colons with slashes in the URL. For instance, all tags starting wit
 which is equal to
 
 ``http://disco:8989/ddfs/tags/data:log:website``
+
+**Set an attribute on a tag**
+
+PUT ``http://disco:8989/ddfs/tag/TAG/ATTR``
+
+Sets the ATTR attribute of the tag TAG to a value VAL, where VAL is
+the request body.  If the attribute did not exist, it is created; if
+it did exist, its value is overwritten.  ATTR must match the character
+class ``[A-Za-z0-9_\-@:]+``, while VAL should be a UTF8 string.
+
+**Get a tag attribute**
+
+GET ``http://disco:8989/ddfs/tag/TAG/ATTR``
+
+Retrieves the value of the ATTR attribute of the tag TAG.  The value
+is returned in the request body.
+
+**Delete a tag attribute**
+
+DELETE ``http://disco:8989/ddfs/tag/TAG/ATTR``
+
+Deletes the ATTR attribute of the tag TAG.  No error is returned if
+the tag does not possess the attribute ATTR.
+
+**Token-based Authorization**
+
+A token for a tag operation is provided in an Authorization header
+field for the corresponding HTTP request. The userid for the HTTP
+basic credential is set to the string ``token``, and the token is used
+as the value of the password.  For example, the operation to retrieve
+the tag TAG protected by the read-token TOKEN will look like
+
+GET ``http://disco:8989/ddfs/tag/TAG``
+Authorization: ``Basic dG9rZW46VE9LRU4=``
+
+where "dG9rZW46VE9LRU4=" is the base64 encoding of "token:TOKEN".
+
+Tokens are stored in tags as attributes in a separate ``ddfs:``
+namespace; i.e. the read-token is stored as the ``ddfs:read-token``
+attribute of the tag, while the write-token is the
+``ddfs:write-token`` attribute.  Hence, the above-described calls to
+get, set, and delete attributes can also be used to perform the
+corresponding operations on a tag's read and write tokens.
 
 Internals
 ---------
