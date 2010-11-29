@@ -87,7 +87,7 @@ also shows how they relate to the five main tasks of DDFS, data
 Concepts
 ''''''''
 
-Consider that you have a log file containing data of a single day. 
+Consider that you have a log file containing data of a single day.
 
 .. image:: ../images/ddfs-concept-1.png
 
@@ -113,7 +113,7 @@ The green tag allows you to query data behind `data:log:website` using
 :ref:`ddfsapi` and retrieve a tag object that contains URLs to the
 blobs. You can **access** the blobs using their URLs over HTTP as usual,
 or give the list to Disco to be used as inputs for a Map/Reduce job.
-Naturally metadata should not be lost under any circumstances, so 
+Naturally metadata should not be lost under any circumstances, so
 tags are replicated and distributed to many nodes similarly to blobs.
 
 Each blob *must* have at least one tag linking to it. Otherwise the blob
@@ -125,7 +125,7 @@ the blobs which makes them orphaned and subject to eventual removal.
 .. image:: ../images/ddfs-concept-4.png
 
 Eventually you want to add more daily logs (blobs) under the tag `data:log:website`.
-Each daily log is replicated separately, so the tag ends up containing many 
+Each daily log is replicated separately, so the tag ends up containing many
 *replication sets*, that is, lists of URLs that pointing at replicas of a blob.
 Replications sets are represented by dotted boxes above.
 
@@ -235,7 +235,7 @@ specified in the settings file is maintained.
 You can also specify a list of nodes, ``NODE1`` etc., to exclude from the
 returned list of URLs.
 
-Returns a list of URLs on storage nodes where the blob can be pushed using 
+Returns a list of URLs on storage nodes where the blob can be pushed using
 HTTP PUT requests.
 
 **Add blobs to a tag**
@@ -261,7 +261,7 @@ Alternatively, you can specify
 
 to add links to existing tags.
 
-Returns a list of tag URLs. 
+Returns a list of tag URLs.
 
 **Return a tag**
 
@@ -304,7 +304,7 @@ by replacing colons with slashes in the URL. For instance, all tags starting wit
 
 ``http://disco:8989/ddfs/tags/data/log/website``
 
-which is equal to 
+which is equal to
 
 ``http://disco:8989/ddfs/tags/data:log:website``
 
