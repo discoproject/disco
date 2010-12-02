@@ -98,9 +98,9 @@ is_master(Host) ->
         {ok, Names} ->
             Master = string:sub_word(atom_to_list(node()), 1, $@),
             lists:keymember(Master, 1, Names);
-        _ ->
+        R ->
             % retry the connection, after a while.
-            error_logger:warning_report({"net_adm:names() timed out", Host}),
+            error_logger:warning_report({"net_adm:names() failed", Host, R}),
             timer:sleep(?RPC_RETRY_TIMEOUT),
             is_master(Host)
     end.
