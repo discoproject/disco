@@ -141,5 +141,5 @@ def upload(urls, source, token, retries=10):
             raise CommError("Upload failed: %s" % response.read(), url, status)
 
     if unavailable:
-        for response in upload(unavailable, source, retries=retries-1):
+        for response in upload(unavailable, source, token, retries=retries-1):
             yield response
