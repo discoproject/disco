@@ -18,11 +18,11 @@ New features
  - List of blacklisted nodes is persistent over restarts.
  - Disconnected nodes are now highlighted in the web UI.
  - Explicit hostname (``tag://host/tag``) is now allowed in tag urls.
- - Some commonly used unctions added to :mod:`disco.func`:
+ - Some commonly used functions added to :mod:`disco.func`:
     - :func:`disco.func.gzip_line_reader`
     - :func:`disco.func.sum_combiner`
     - :func:`disco.func.sum_reduce`
- - Job owner shown in the web UI (can be overriden with the ``DISCO_JOB_OWNER`` setting).
+ - Job owner shown in the web UI (can be overridden with the ``DISCO_JOB_OWNER`` setting).
  - ``DISCO_WORKER_MAX_MEM`` setting can be used to limit the maximum amount of memory that can be used by a worker process.
  - :ref:`ddfs`:
     - Tags can now contain arbitrary user-defined attributes (see :ref:`ddfsapi` and :meth:`disco.ddfs.DDFS.setattr` and :meth:`disco.ddfs.DDFS.getattr`).
@@ -35,7 +35,7 @@ New features
 
 Bugfixes
 ''''''''
- - Several bugfixed in DDFS garbage collection.
+ - Several bugfixes in DDFS garbage collection.
  - Tasks may be marked successful before results are persisted to disk (#208).
  - Improved error handling for badly dying tasks (#162).
  - Allow dots in DDFS paths (#196).

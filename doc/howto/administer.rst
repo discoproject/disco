@@ -63,7 +63,7 @@ across a restart.
 .. _adjustsettings:
 
 Adjusting Disco system settings
----------------------
+-------------------------------
 
 Disco provides a tunable parameter ``max_failure_rate`` to
 administrators to control the number of recoverable task failures a
@@ -73,10 +73,10 @@ can be set on the configuration page.
 .. _removenodes:
 
 Removing nodes from Disco
------------------------
+-------------------------
 
 You probably went through the process of adding a node to the cluster
-when you configured the Disco cluster in :ref:`confignodes`.  Removing
+when you configured the Disco cluster in :ref:`confignodes`. Removing
 a node is a very similar process, except that you need to click
 ``remove`` next to the node(s) you wish to remove, and then click
 ``save table`` when you are done.  If any DDFS tags or blobs were
