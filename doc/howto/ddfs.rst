@@ -24,7 +24,7 @@ Distributed *filesystem*, it is not a general-purpose POSIX-compatible
 filesystem. Rather, it is a special purpose storage layer similar to `the
 Google filesystem <http://labs.google.com/papers/gfs.html>`_ or related
 open-source projects such as `Hadoop Distributed Filesystem (HDFS)
-<http://hadoop.apache.org/common/docs/current/hdfs_design.html>`_,
+<http://hadoop.apache.org/hdfs/docs/current/hdfs_design.html>`_,
 `MogileFS <http://danga.com/mogilefs/>`_ or `Tabled
 <https://hail.wiki.kernel.org/index.php/Tabled>`_.
 
