@@ -176,6 +176,14 @@ Settings used by DDFS:
                 The default write authorization token to use.
                 Default is ``None``.
 
+        :envvar:`DDFS_PARANOID_DELETE`
+                Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_ROOT = "/srv/disco/ddfs"``)::
+
+                    find /srv/disco/ddfs/ -perm 600 -iname '!trash*' -exec rm {} \;
+
+                Default is ``''``.
+
+
 The following settings are used by DDFS to determine the number of replicas for data/metadata to keep
 (it is not recommended to use the provided defaults in a multinode cluster):
 
