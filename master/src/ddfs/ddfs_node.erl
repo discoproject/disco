@@ -215,7 +215,7 @@ init_vols(Root, VolNames) ->
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
 -spec find_vols(nonempty_string()) ->
-    {'ok', [{diskinfo(), nonempty_string()}]} | {'error', _}.
+    'eof' | 'ok' | {'ok', [{diskinfo(), nonempty_string()}]} | {'error', _}.
 find_vols(Root) ->
     case prim_file:list_dir(Root) of
         {ok, Files} ->

@@ -43,6 +43,7 @@
                   <div class="body">
                     <b>Job is</b> <span class="val" id="nfo_status"></span><br/>
                     <b>started:</b> <span class="val" id="nfo_started"></span><br/>
+                    <b>by:</b> <span class="val" id="nfo_username"></span><br/>
 
                     <table cols="5">
                       <thead>
@@ -123,7 +124,7 @@
       </div>
 
       <div id="ft">
-        Disco 0.3.1
+        Disco %DISCO_VERSION%
       </div>
 
     </div>

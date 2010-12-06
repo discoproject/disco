@@ -77,6 +77,11 @@ input {
     color: white;
     padding-left: 5px;
     font-weight: bold;
+    border-bottom: 1px solid black;
+}
+
+.nodebox .disconnected {
+    background: #CC3300;
 }
 
 .nodebox .status {
@@ -187,7 +192,7 @@ input {
 
 .job .infobox {
     width: 20em;
-    height: 12em;
+    height: 14em;
     border: 1px solid #666;
     float: left;
     margin: 10px;
@@ -201,7 +206,7 @@ input {
 
 .job .infobox > .body {
     padding: 5px;
-    height: 9.3em;
+    height: 11.3em;
     overflow: auto;
 }
 

@@ -47,7 +47,10 @@ reply({file, File, Docroot}, Req) ->
     Req:serve_file(File, Docroot);
 reply(not_found, Req) ->
     Req:not_found();
-reply(_, Req) ->
+reply({error, E}, Req) ->
+    Req:respond({400, [], mochijson2:encode(E)});
+reply(E, Req) ->
+    error_logger:error_report({"500 Error", E}),
     Req:respond({500, [], ["Internal server error"]}).
 
 getop("load_config_table", _Query) ->
@@ -60,11 +63,15 @@ getop("joblist", _Query) ->
             <- lists:reverse(lists:keysort(3, Jobs))]};
 
 getop("jobinfo", {_Query, JobName}) ->
-    {ok, Active} = gen_server:call(disco_server, {get_active, JobName}),
-    {ok, JobInfo} = gen_server:call(event_server, {get_jobinfo, JobName}),
-    {ok, render_jobinfo(JobInfo,
-                        lists:unzip([{Host, M}
-                                     || {Host, #task{mode = M}} <- Active]))};
+    {ok, Active} = disco_server:get_active(JobName),
+    case gen_server:call(event_server, {get_jobinfo, JobName}) of
+        {ok, JobInfo} ->
+            HostInfo = lists:unzip([{Host, M}
+                                    || {Host, #task{mode = M}} <- Active]),
+            {ok, render_jobinfo(JobInfo, HostInfo)};
+        invalid_job ->
+            not_found
+    end;
 
 getop("parameters", {_Query, Name}) ->
     job_file(Name, "params");
@@ -84,8 +91,8 @@ getop("jobevents", {Query, Name}) ->
     {raw, Ev};
 
 getop("nodeinfo", _Query) ->
-    {ok, Active} = gen_server:call(disco_server, {get_active, all}),
-    {ok, DiscoNodes} = gen_server:call(disco_server, {get_nodeinfo, all}),
+    {ok, Active} = disco_server:get_active(all),
+    {ok, DiscoNodes} = disco_server:get_nodeinfo(all),
     {ok, DDFSNodes} = gen_server:call(ddfs_master, {get_nodeinfo, all}),
     ActiveNodeInfo = lists:foldl(fun ({Host, #task{jobname = JobName}}, Dict) ->
                                          dict:append(Host,
@@ -97,6 +104,7 @@ getop("nodeinfo", _Query) ->
                                       {data_error, N#nodeinfo.stats_failed},
                                       {error, N#nodeinfo.stats_crashed},
                                       {max_workers, N#nodeinfo.slots},
+                                      {connected, N#nodeinfo.connected},
                                       {blacklisted, N#nodeinfo.blacklisted}]}
                                     || N <- DiscoNodes]),
     NodeInfo = lists:foldl(fun ({Node, {Free, Used}}, Dict) ->
@@ -113,7 +121,7 @@ getop("nodeinfo", _Query) ->
     {ok, {struct, [{K, {struct, Vs}} || {K, Vs} <- dict:to_list(NodeInfo)]}};
 
 getop("get_blacklist", _Query) ->
-    {ok, Nodes} = gen_server:call(disco_server, {get_nodeinfo, all}),
+    {ok, Nodes} = disco_server:get_nodeinfo(all),
     {ok, [list_to_binary(N#nodeinfo.name)
             || N <- Nodes, N#nodeinfo.blacklisted]};
 
@@ -139,17 +147,17 @@ getop(_, _) -> not_found.
 
 postop("kill_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:call(disco_server, {kill_job, JobName}),
+    disco_server:kill_job(JobName),
     {ok, <<>>};
 
 postop("purge_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:cast(disco_server, {purge_job, JobName}),
+    disco_server:purge_job(JobName),
     {ok, <<>>};
 
 postop("clean_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:call(disco_server, {clean_job, JobName}),
+    disco_server:clean_job(JobName),
     {ok, <<>>};
 
 postop("get_results", Json) ->
@@ -160,12 +168,12 @@ postop("get_results", Json) ->
 
 postop("blacklist", Json) ->
     Node = binary_to_list(Json),
-    gen_server:call(disco_server, {blacklist, Node, manual}),
+    disco_config:blacklist(Node),
     {ok, <<>>};
 
 postop("whitelist", Json) ->
     Node = binary_to_list(Json),
-    gen_server:call(disco_server, {whitelist, Node, any}),
+    disco_config:whitelist(Node),
     {ok, <<>>};
 
 postop("save_config_table", Json) ->
@@ -229,6 +237,10 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
                    JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
                true -> 0
            end,
+    User = case JobInfo#jobinfo.user_name of
+               undefined -> nil;
+               U -> U
+           end,
 
     {struct, [{timestamp, Timestamp},
               {active, Status},
@@ -237,7 +249,8 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
               {reduce, JobInfo#jobinfo.reduce},
               {results, lists:flatten(Results)},
               {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
-              {hosts, [list_to_binary(Host) || Host <- Hosts]}
+              {hosts, [list_to_binary(Host) || Host <- Hosts]},
+              {username, list_to_binary(User)}
              ]}.
 
 status_msg(invalid_job) -> [<<"unknown job">>, []];

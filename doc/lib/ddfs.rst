@@ -1,2 +1,1 @@
 .. automodule:: disco.ddfs
-   :members:

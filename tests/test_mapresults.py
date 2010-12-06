@@ -20,7 +20,7 @@ class MapResultsTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     def map_1(e, params):
         if type(e) == tuple:
             e = e[0]
-        yield (e + "!", '')
+        yield (e.strip() + "!", '')
 
     @staticmethod
     def reduce_1(iter, out, params):

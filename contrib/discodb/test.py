@@ -1,7 +1,7 @@
 import doctest, unittest
 from random import randint
 
-from discodb import DiscoDB, DiscoDict, MetaDB, Q
+from discodb import DiscoDB, Q
 from discodb import DiscoDBConstructor
 from discodb import query
 from discodb import tools
@@ -52,6 +52,12 @@ class TestMappingProtocol(unittest.TestCase):
     def test_contains(self):
         assert "0" in self.discodb
         assert "key" not in self.discodb
+
+    def test_nonzero(self):
+        self.assertFalse(self.discodb.query('NONKEY'))
+        self.assertTrue(self.discodb.query('0'))
+        self.assertTrue(self.discodb.values())
+        self.assertTrue(self.discodb.keys())
 
     def test_length(self):
         self.assertEquals(len(self.discodb), self.numkeys)
@@ -149,55 +155,6 @@ class TestUniqueItems(TestMappingProtocol, TestSerializationProtocol):
     def test_uniq(self):
         self.assertEqual(list(self.discodb['0']), ['1', '2'])
 
-class TestDiscoDict(TestMappingProtocol):
-    def setUp(self):
-        self.discodb = DiscoDict(k_vs_iter(self.numkeys))
-
-    def test_query(self):
-        pass
-
-    def test_query_results(self):
-        pass
-
-    def test_query_results_nonkey(self):
-        pass
-
-class TestMetaDBMappingProtocol(TestMappingProtocol):
-    def setUp(self):
-        datadb = DiscoDB(k_vs_iter(self.numkeys))
-        metadb = DiscoDB(k_vs_iter(self.numkeys, max_values=self.numkeys))
-        self.discodb = MetaDB(datadb, metadb)
-
-    def test_peek(self):
-        pass
-
-    def test_query_results(self):
-        pass
-
-    def test_query_results_nonkey(self):
-        pass
-
-class TestMetaDBSerializationProtocol(unittest.TestCase):
-    numkeys = 1000
-
-    def setUp(self):
-        datadb = DiscoDB(k_vs_iter(self.numkeys))
-        metadb = DiscoDB(k_vs_iter(self.numkeys, max_values=self.numkeys))
-        self.metadb = MetaDB(datadb, metadb)
-
-    def test_dump_load(self):
-        from tempfile import NamedTemporaryFile
-        handle = NamedTemporaryFile()
-        self.metadb.dump(handle)
-        def metavaldict(metavals):
-            return dict((k, list(v)) for k, v in metavals)
-        handle.seek(0)
-        metadb = MetaDB.load(handle)
-        assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
-        handle.seek(0)
-        metadb = MetaDB.load(handle.name)
-        assert metavaldict(metadb.values()) == metavaldict(self.metadb.values())
-
 class TestQuery(unittest.TestCase):
     def setUp(self):
         self.discodb = DiscoDB(
@@ -218,22 +175,22 @@ class TestQuery(unittest.TestCase):
         self.assertEquals(len(self.discodb.get('bob')), 1)
         self.assertEquals(len(self.discodb.get('carol')), 2)
 
-#     def test_query_len(self):
-#         self.assertEquals(len(self.q('alice')), 1)
-#         self.assertEquals(len(self.q('bob')), 1)
-#         self.assertEquals(len(self.q('carol')), 2)
-#         self.assertEquals(len(self.q('alice & bob')), 0)
-#         self.assertEquals(len(self.q('alice | bob')), 2)
-#         self.assertEquals(len(self.q('alice & carol')), 1)
-#         self.assertEquals(len(self.q('alice | carol')), 2)
-#         self.assertEquals(len(self.q('alice|bob|carol')), 2)
-#         self.assertEquals(len(self.q('alice&bob&carol')), 0)
+    def test_query_len(self):
+        self.assertEquals(len(self.q('alice')), 1)
+        self.assertEquals(len(self.q('bob')), 1)
+        self.assertEquals(len(self.q('carol')), 2)
+        self.assertEquals(len(self.q('alice & bob')), 0)
+        self.assertEquals(len(self.q('alice | bob')), 2)
+        self.assertEquals(len(self.q('alice & carol')), 1)
+        self.assertEquals(len(self.q('alice | carol')), 2)
+        self.assertEquals(len(self.q('alice|bob|carol')), 2)
+        self.assertEquals(len(self.q('alice&bob&carol')), 0)
 
-#     def test_query_len_doesnt_advance_iter(self):
-#         # check that calling len() doesn't advance the iterator
-#         res = self.q('alice')
-#         self.assertEquals(len(res), 1)
-#         self.assertEquals(len(res), 1)
+    def test_query_len_doesnt_advance_iter(self):
+        # check that calling len() doesn't advance the iterator
+        res = self.q('alice')
+        self.assertEquals(len(res), 1)
+        self.assertEquals(len(res), 1)
 
     def test_query_results(self):
         self.assertEquals(set(self.q('alice')), set(['blue']))
@@ -246,11 +203,11 @@ class TestQuery(unittest.TestCase):
         self.assertEquals(set(self.q('alice|bob|carol')), set(['blue', 'red']))
         self.assertEquals(set(self.q('alice&bob&carol')), set())
 
-#     def test_query_len_nonkey(self):
-#         self.assertEquals(len(self.q('nonkey')), 0)
-#         self.assertEquals(len(self.q('~nonkey')), 3)
-#         self.assertEquals(len(self.q('nonkey & alice')), 0)
-#         self.assertEquals(len(self.q('nonkey | alice')), 1)
+    def test_query_len_nonkey(self):
+        self.assertEquals(len(self.q('nonkey')), 0)
+        self.assertEquals(len(self.q('~nonkey')), 2)
+        self.assertEquals(len(self.q('nonkey & alice')), 0)
+        self.assertEquals(len(self.q('nonkey | alice')), 1)
 
     def test_query_results_nonkey(self):
         self.assertEquals(set(self.q('nonkey')), set())

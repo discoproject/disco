@@ -2,6 +2,50 @@
 Release notes
 =============
 
+Disco 0.3.2 (Dec 6th 2010)
+--------------------------
+
+.. note::
+   In contrast to earlier releases, in ``0.3.2`` purging a job does not delete
+   OOB results of the job automatically. This is listed as issue #227 and will
+   be fixed in the next release together with other changes in OOB handling.
+   Meanwhile, you can use :meth:`disco.ddfs.DDFS.delete` to delete OOB
+   results if needed.
+
+New features
+''''''''''''
+ - Built-in support for chunking large inputs (see :ref:`tutorial` and :meth:`disco.ddfs.DDFS.chunk`).
+ - List of blacklisted nodes is persistent over restarts.
+ - Disconnected nodes are now highlighted in the web UI.
+ - Explicit hostname (``tag://host/tag``) is now allowed in tag urls.
+ - Some commonly used unctions added to :mod:`disco.func`:
+    - :func:`disco.func.gzip_line_reader`
+    - :func:`disco.func.sum_combiner`
+    - :func:`disco.func.sum_reduce`
+ - Job owner shown in the web UI (can be overriden with the ``DISCO_JOB_OWNER`` setting).
+ - ``DISCO_WORKER_MAX_MEM`` setting can be used to limit the maximum amount of memory that can be used by a worker process.
+ - :ref:`ddfs`:
+    - Tags can now contain arbitrary user-defined attributes (see :ref:`ddfsapi` and :meth:`disco.ddfs.DDFS.setattr` and :meth:`disco.ddfs.DDFS.getattr`).
+    - Basic token-based permission control for tags (see :ref:`ddfsapi`).
+    - Improved REST API (see :ref:`ddfsapi`).
+    - ``DDFS_PARANOID_DELETE`` setting allows an external program to be used to delete or verify obsolete files (see :mod:`disco.settings`).
+ - Functions are now allowed in arguments of `partial job functions <http://docs.python.org/library/functools.html#functools.partial>`_.
+ - Improvements in :mod:`discodb` and :ref:`discodex`.
+ - Improved documentation, and a new document :ref:`administer`.
+
+Bugfixes
+''''''''
+ - Several bugfixed in DDFS garbage collection.
+ - Tasks may be marked successful before results are persisted to disk (#208).
+ - Improved error handling for badly dying tasks (#162).
+ - Allow dots in DDFS paths (#196).
+ - Improved handling of out of memory conditions (#168, #200).
+ - Fix blocking ``net_adm:names`` in ``node_mon`` (#216).
+ - Fix a badmatch error on unknown jobname (#81).
+ - Fixed error handling if sort fails.
+ - Tutorial example fixed.
+ - HTTP error message made more informative.
+
 Disco 0.3.1 (Sep 1st 2010)
 --------------------------
 
@@ -49,10 +93,9 @@ New features
  - Enhanced Java support added as a Git submodule under ``contrib/java-ext``
    (`Thanks to Ryan Maus <http://github.com/ryan-maus/disco-java-ext>`_).
  - Disk space monitoring for DDFS added to the Web UI.
- - Lots of enhancements to :mod:`discodex <discodex>` and :mod:`disco <discocli>` command line utilities.
+ - Lots of enhancements to :mod:`discodex <discodexcli>` and :mod:`disco <discocli>` command line utilities.
  - New setting ``DISCO_SORT_BUFFER_SIZE`` to control memory usage of the external sort (see :mod:`disco.settings`).
  - :func:`disco.func.gzip_reader` for reading gzipped inputs.
- - Alternative reduce signature using an iterator.
  - Easier single-node installation with default localhost configuration.
 
 Deprecated

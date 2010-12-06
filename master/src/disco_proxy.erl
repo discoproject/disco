@@ -1,5 +1,9 @@
 -module(disco_proxy).
--export([start/0, update_nodes/1]).
+-behaviour(gen_server).
+
+-export([start/0, stop/0, update_nodes/1]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
 
 -define(PROXY_CHECK_INTERVAL, 30000).
 -define(PROXY_RESTART_DELAY, 10000).
@@ -43,15 +47,56 @@ start() ->
         ignore;
     true ->
         error_logger:info_report({"Disco proxy enabled"}),
-        {ok, spawn_link(fun() ->
-            process_flag(trap_exit, true),
-            register(disco_proxy, self()),
-            proxy_monitor(start_proxy())
-        end)}
+        case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
+            {ok, Server} -> {ok, Server};
+            {error, {already_started, Server}} -> {ok, Server}
+        end
+    end.
+
+stop() ->
+    case whereis(?MODULE) of
+        undefined -> ok;
+        _Pid -> gen_server:call(?MODULE, stop)
     end.
 
 -spec update_nodes([nonempty_string()]) -> 'ok'.
 update_nodes(Nodes) ->
+    case disco:get_setting("DISCO_PROXY_ENABLED") of
+        "" -> ok;
+        _ -> gen_server:cast(?MODULE, {update_nodes, Nodes})
+    end.
+
+init(_Args) ->
+    process_flag(trap_exit, true),
+    ProxyMonitor = spawn_link(fun() -> proxy_monitor(start_proxy()) end),
+    {ok, ProxyMonitor}.
+
+handle_call(_Req, _From, S) ->
+    {noreply, S}.
+
+handle_cast({update_nodes, Nodes}, ProxyMonitor) ->
+    do_update_nodes(Nodes),
+    exit(ProxyMonitor, config_change),
+    Monitor = spawn_link(fun() -> proxy_monitor(start_proxy()) end),
+    {noreply, Monitor}.
+
+handle_info({'EXIT', ProxyMonitor, Reason}, ProxyMonitor) ->
+    error_logger:warning_report({"Proxy monitor exited", Reason}),
+    Monitor = spawn_link(fun() -> proxy_monitor(start_proxy()) end),
+    {noreply, Monitor};
+handle_info({'EXIT', _Other, config_change}, S) ->
+    {noreply, S};
+handle_info({'EXIT', Other, Reason}, S) ->
+    error_logger:warning_report({"Proxy: received unknown exit:", Other, Reason}),
+    {noreply, S}.
+
+terminate(Reason, _State) ->
+    error_logger:warning_report({"Disco config dies", Reason}).
+
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+-spec do_update_nodes([nonempty_string()]) -> 'ok'.
+do_update_nodes(Nodes) ->
     DiscoPort = disco:get_setting("DISCO_PORT"),
     Port = disco:get_setting("DISCO_PROXY_PORT"),
     PidFile = disco:get_setting("DISCO_PROXY_PID"),
@@ -59,11 +104,7 @@ update_nodes(Nodes) ->
     Httpd = disco:get_setting("DISCO_HTTPD"),
     Type = filename:basename(string:sub_word(Httpd, 1, $\ )),
     Body = make_config(Type, Nodes, Port, DiscoPort, PidFile),
-    ok = file:write_file(Config, Body),
-    case whereis(disco_proxy) of
-        undefined -> ok;
-        Pid -> exit(Pid, restart)
-    end.
+    ok = file:write_file(Config, Body).
 
 proxy_monitor(Pid) ->
     case catch string:str(os:cmd(["ps -p", Pid]), Pid) of
@@ -95,7 +136,7 @@ start_proxy() ->
         _ ->
             error_logger:warning_report(
                 {"Could not start proxy (PID file not found or empty)", Out}),
-             exit(proxy_init_failed)
+            exit(proxy_init_failed)
     end.
 
 kill_proxy() ->

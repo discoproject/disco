@@ -28,6 +28,7 @@ newly started job.
 .. autofunction:: result_iterator
 """
 import sys, os, time, marshal
+from cStringIO import StringIO
 from tempfile import NamedTemporaryFile
 from itertools import chain
 from warnings import warn
@@ -36,6 +37,7 @@ from disco import func, util
 from disco.comm import download, json
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
+from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.modutil import find_modules
 from disco.netstring import decode_netstring_fd, encode_netstring_fd
 from disco.settings import DiscoSettings
@@ -202,7 +204,6 @@ class Disco(object):
         self.request('/disco/ctrl/purge_job', '"%s"' % name)
 
     def jobdict(self, name):
-        from cStringIO import StringIO
         return JobDict.unpack(StringIO(self.jobpack(name)))
 
     def jobpack(self, name):
@@ -482,7 +483,7 @@ class JobDict(util.DefaultDict):
                               to serialize key, value pairs output by the map.
                               (*Added in version 0.2.4*)
 
-    :type  map_reader: :func:`disco.func.input_stream`
+    :type  map_reader: ``None`` or :func:`disco.func.input_stream`
     :param map_reader: Convenience function to define the last :func:`disco.func.input_stream`
                        function in the *map_input_stream* chain.
 
@@ -493,12 +494,12 @@ class JobDict(util.DefaultDict):
                        If you want to use outputs of an earlier job as inputs,
                        use :func:`disco.func.chain_reader` as the *map_reader*.
 
-                       Default is :func:`disco.func.map_line_reader`.
+                       Default is ``None``.
 
-                       (*Changing after version 0.3.1*)
-                       The default map_reader will become ``None``.
+                       (*Changed after version 0.3.1*)
+                       The default map_reader became ``None``.
                        See the note in :func:`disco.func.map_line_reader`
-                       for information on how this might affect you.
+                       for information on how this might affect older jobs.
 
     :param map_writer: (*Deprecated in version 0.3*) This function comes in
                        handy e.g. when *reduce* is not
@@ -699,7 +700,7 @@ class JobDict(util.DefaultDict):
     defaults = {'input': (),
                 'map': None,
                 'map_init': func.noop,
-                'map_reader': func.map_line_reader,
+                'map_reader': None,
                 'map_input_stream': (func.map_input_stream, ),
                 'map_output_stream': (func.map_output_stream,
                                       func.disco_output_stream),
@@ -725,6 +726,7 @@ class JobDict(util.DefaultDict):
                 'save': False,
                 'sort': False,
                 'status_interval': 100000,
+                'username': DiscoSettings()['DISCO_JOB_OWNER'],
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
                 'nr_reduces': 0,
@@ -837,6 +839,8 @@ class JobDict(util.DefaultDict):
                 jobpack['input'] = ' '.join(
                     '\n'.join(reversed(list(util.iterify(url))))
                         for url in self['input'])
+            elif key == 'username':
+                jobpack['username'] = str(self['username'])
             elif key in ('nr_reduces', 'prefix'):
                 jobpack[key] = str(self[key])
             elif key == 'scheduler':
@@ -860,6 +864,8 @@ class JobDict(util.DefaultDict):
             if key == 'input':
                 jobdict['input'] = [i.split()
                                     for i in jobdict['input'].split(' ')]
+            elif key == 'username':
+                pass
             elif key == 'nr_reduces':
                 jobdict[key] = int(jobdict[key])
             elif key == 'scheduler':
@@ -1009,6 +1015,21 @@ class Job(object):
             raise DiscoError("Failed to start a job. Server replied: " + reply)
         self.name = reply[1]
         return self
+
+class ChunkIter(object):
+    def __init__(self, url,
+                 chunk_size=CHUNK_SIZE,
+                 reader=None,
+                 **kwargs):
+        self.url = url
+        self.chunk_size= chunk_size
+        self.kwargs = kwargs
+        self.kwargs.update(dict(reader=reader))
+
+    def __iter__(self):
+        chunker = Chunker(chunk_size=self.chunk_size)
+        for chunk in chunker.chunks(RecordIter([self.url], **self.kwargs)):
+            yield chunk
 
 class RecordIter(object):
     """

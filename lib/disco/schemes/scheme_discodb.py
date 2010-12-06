@@ -12,10 +12,9 @@ def input_stream(fd, size, url, params):
         discodb = DiscoDB.loads(download('disco://%s/%s' % (netloc, path)))
 
     if rest:
-        method, arg = rest.split('/', 1)
-        if method == 'query':
-            if hasattr(params, 'discodb_query'):
-                return discodb.query(params.discodb_query), size, url
-            return discodb.query(Q.urlscan(arg)), size, url
-        return getattr(discodb, method)(), size, url
+        method_name, arg = rest.split('/', 1) if '/' in rest else (rest, None)
+        method = getattr(discodb, method_name)
+        if method_name in ('metaquery', 'query'):
+            return method(Q.urlscan(arg)), size, url
+        return method(*filter(None, arg)), size, url
     return discodb, size, url

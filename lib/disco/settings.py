@@ -91,6 +91,11 @@ Possible settings for Disco are as follows:
                 The user Disco should run as.
                 Default obtained using ``os.getenv(LOGNAME)``.
 
+        :envvar:`DISCO_JOB_OWNER`
+                User name shown on the job status page for the user who
+                submitted the job.
+                Default is the login name @ host.
+
         :envvar:`DISCO_WORKER`
                 Executable which launches the Disco worker process.
                 Default obtained using ``os.path.join(DISCO_HOME, node, disco-worker)``.
@@ -163,6 +168,22 @@ Settings used by DDFS:
                 The maximum default number of retries for a `GET` operation.
                 Default is ``3``.
 
+        :envvar:`DDFS_READ_TOKEN`
+                The default read authorization token to use.
+                Default is ``None``.
+
+        :envvar:`DDFS_WRITE_TOKEN`
+                The default write authorization token to use.
+                Default is ``None``.
+
+        :envvar:`DDFS_PARANOID_DELETE`
+                Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_ROOT = "/srv/disco/ddfs"``)::
+
+                    find /srv/disco/ddfs/ -perm 600 -iname '!trash*' -exec rm {} \;
+
+                Default is ``''``.
+
+
 The following settings are used by DDFS to determine the number of replicas for data/metadata to keep
 (it is not recommended to use the provided defaults in a multinode cluster):
 
@@ -178,7 +199,7 @@ The following settings are used by DDFS to determine the number of replicas for 
                 The number of replicas of blobs that DDFS should aspire to keep.
                 Default is ``1``.
 """
-import os, socket
+import os, socket, pwd
 
 from clx.settings import Settings
 
@@ -205,8 +226,10 @@ class DiscoSettings(Settings):
         'DISCO_SETTINGS':        "''",
         'DISCO_SETTINGS_FILE':   "guess_settings()",
         'DISCO_SORT_BUFFER_SIZE':"'10%'",
+        'DISCO_WORKER_MAX_MEM':  "'80%'",
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
+        'DISCO_JOB_OWNER':       "job_owner()",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_LIB",
@@ -231,9 +254,12 @@ class DiscoSettings(Settings):
         'DDFS_PUT_PORT':         "8990",
         'DDFS_PUT_MAX':          "3",
         'DDFS_GET_MAX':          "3",
+        'DDFS_READ_TOKEN':       "''",
+        'DDFS_WRITE_TOKEN':      "''",
         'DDFS_TAG_MIN_REPLICAS': "1",
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
+        'DDFS_PARANOID_DELETE':  "''"
         }
 
     globals = globals()
@@ -261,6 +287,10 @@ class DiscoSettings(Settings):
         config = self['DISCO_MASTER_CONFIG']
         if not os.path.exists(config):
             open(config, 'w').write('[["localhost","1"]]')
+
+def job_owner():
+    return "%s@%s" % (pwd.getpwuid(os.getuid()).pw_name,
+                      socket.gethostname())
 
 def guess_erlang():
     if os.uname()[0] == 'Darwin':

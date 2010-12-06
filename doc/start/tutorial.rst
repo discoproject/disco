@@ -4,78 +4,83 @@
 Tutorial
 ========
 
-This tutorial shows how to create and run a Disco job that counts
-words in a large text file. To start with, you need nothing but a
-single large text file.  Let's call the file ``bigfile.txt``. If
-you don't happen to have a suitable file at hand, you can
-download one from `here <http://discoproject.org/media/text/bigfile.txt>`_.
+This tutorial shows how to create and run a Disco job that counts words.
+To start with, you need nothing but a single text file.
+Let's call the file ``bigfile.txt``.
+If you don't happen to have a suitable file on hand,
+you can download one from `here <http://discoproject.org/media/text/bigfile.txt>`_.
 
 1. Prepare input data
 ---------------------
 
-Disco can distribute computation only if data is distributed as well. Thus
-our first step is to split ``bigfile.txt`` into small chunks. There is a
-standard Unix command, ``split``, that can split a file into many pieces,
-which is exactly what we want. We need also a directory where the chunks
-are stored.  Let's call it ``bigtxt``::
+Disco can distribute computation only as well as data can be distributed.
+In general, we can push data to :ref:`DDFS`,
+which will take care of distributing and replicating it.
 
-        mkdir bigtxt
-        split -l 100000 bigfile.txt bigtxt/bigtxt-
+.. note::
+   Prior to Disco 0.3.2, this was done by splitting data manually,
+   and then using ``ddfs push`` to push user-defined blobs.
+   As of Disco 0.3.2, you can use ``ddfs chunk``
+   (with the help of :func:`disco.func.input_stream`\'s)
+   to automatically chunk and push size-limited chunks to DDFS.
 
-After running these lines, the directory ``bigtxt`` contains many files, named
-like ``bigtxt-aa``, ``bigtxt-ab`` etc. which each contain 100,000 lines (except
-the last chunk that might contain fewer).
+Lets chunk and push the data to a tag ``data:bigtxt``::
 
-If your ``bigfile.txt`` contains fewer than 100,000 lines, you can make the chunk
-size smaller. The more chunks you have, the more processes you can run in
-parallel. However, since launching a new process is not free, you shouldn't make
-the chunks too small.
+      ddfs chunk data:bigtxt ./bigfile.txt
 
-2. Distribute chunks to the cluster
------------------------------------
-
-In theory you could use the chunks in the ``bigtxt`` directory
-directly, but in practice it is a good idea to distribute the IO load
-to many separate servers.
-
-We can push the data to :ref:`DDFS`,
-which will take care of distributing and replicating our data::
-
-      ddfs push -r data:bigtxt bigtxt
-
-This pushes all the files under ``bigtxt`` to the tag ``data:bigtxt``.
-You can check where the files are located::
+We should have seen some output telling us that the chunk(s) have been created.
+We can also check where they are located::
 
     ddfs blobs data:bigtxt
 
 and make sure they contain what you think they do::
 
-    ddfs cat data:bigtxt | less
+    ddfs xcat data:bigtxt | less
 
-3. Write job functions
+.. note::
+   Chunks are stored in Disco's internal compressed format,
+   thus we use ``ddfs xcat`` instead of ``ddfs cat`` to view them.
+   ``ddfs xcat`` applies some :func:`disco.func.input_stream`\'s
+   (by default, :func:`disco.func.chain_reader`),
+   whereas ``ddfs cat`` just dumps the raw bytes contained in the blobs.
+
+If you used the file provided above,
+you should have only ended up with a single chunk.
+This is because the default chunk size is 64MB (compressed),
+and the ``bigfile.txt`` is only 12MB (uncompressed).
+You can try with a larger file to see that chunks are created as needed.
+
+.. hint::
+   If you have unchunked data stored in DDFS that you would like to chunk,
+   you can run a Disco job, to parallelize the chunking operation.
+   Disco includes an `example`_ of how to do this,
+   which should work unmodified for most use cases.
+
+.. _example: https://github.com/tuulos/disco/blob/master/examples/util/chunk.py
+
+2. Write job functions
 ----------------------
 
-Next we need to write map and reduce functions to count the words in
-the chunks.
-
-Start your favorite text editor and open a file called, say,
-``count_words.py``. Let's write first our map function::
+Next we need to write map and reduce functions to count words.
+Start your favorite text editor and open a file called, say, ``count_words.py``.
+First, let's write our map function::
 
         def fun_map(line, params):
                 for word in line.split():
-                        yield w, 1
+                        yield word, 1
 
-Quite compact, eh? The map function always takes two parameters, here they
-are called *line* and *params*. The first parameter contains an input entry,
-which is by default a line of input. An input entry can be anything, as
-you can define a custom function that extracts them from an input stream
---- see the parameter *map_reader* in :func:`disco.core.Job` for more
-information. The second parameter, *params*, can be any object that you
-specify, in case that you need some additional input for your functions.
+Quite compact, eh?
+The map function takes two parameters, here they are called *line* and *params*.
+The first parameter contains an input entry, which is by default a line of text.
+An input entry can be anything though,
+since you can define a custom function that parses an input stream
+(see the parameter *map_reader* in :func:`disco.core.Job` for more information).
+The second parameter, *params*, can be any object that you specify,
+in case that you need some additional input for your functions.
 
-However, here we can happily process input line by line.
+For our example, we can happily process input line by line.
 The map function needs to return an iterator over of key-value pairs.
-Here we split a line into tokens with the standard ``string.split()`` function.
+Here we split a line into tokens using the builtin :meth:`string.split`.
 Each token is output separately as a key, together with the value *1*.
 
 Now, let's write the corresponding reduce function::
@@ -87,25 +92,25 @@ Now, let's write the corresponding reduce function::
                 for word, total in stats.iteritems():
                         out.add(word, total)
 
-The reduce function takes three parameters: The first parameter, *iter*,
-is an iterator that loops through the intermediate values produced by
-the map function, which belong to this reduce instance or partition.
+The reduce function takes three parameters:
+The first parameter, *iter*,
+is an iterator over those keys and values produced by the map function,
+which belong to this reduce instance (see :term:`partitioning`).
 
-In this case, different words are randomly assigned to different reduce
-instances. Again, this is something that can be changed --- see the
-parameter *partition* in :func:`disco.core.Job` for more information. However,
-as long as all occurrences of the same word go to the same reduce,
+In this case, words are randomly assigned to different reduce instances.
+Again, this is something that can be changed
+(see :func:`disco.func.partition` for more information).
+However, as long as all occurrences of the same word go to the same reduce,
 we can be sure that the final counts are correct.
 
-So we iterate through all the words, and increment a counter in the
-dictionary *stats* for each word. Once the iterator has finished, we know the
-final counts, which are then sent to the output stream using the *out*
-:class:`disco.func.OutputStream`.
-The object contains a method, *out.add(key, value)* that takes a key-value
-pair and saves it to a result file.
+So we iterate through all the words, and count them in the *stats* dict.
+Once the iterator has finished, we know the final counts,
+which are then added to the output stream via the *out* parameter
+(see :class:`disco.func.OutputStream`).
+The object contains a method, :meth:`disco.func.OutputStream.add`,
+that takes a key and a value and writes them to a result file.
 
-The third parameter *params* contains the same additional input as in
-the map function.
+The third parameter *params* is the same as in the map function.
 
 We could also write our reduce without *out* and using :func:`disco.util.kvgroup`::
 
@@ -116,18 +121,18 @@ We could also write our reduce without *out* and using :func:`disco.util.kvgroup
 In this case, all the ``key, val`` pairs generated by the reduce are added to
 the :class:`disco.func.OutputStream`.
 
-That's it. Now we have written map and reduce functions for counting
-words in parallel.
+That's it.
+Now we have written map and reduce functions for counting words in parallel.
 
-4. Run the job
+3. Run the job
 --------------
 
-Now the only thing missing is a command for running the job. First,
-we establish a connection to the Disco master by instantiating a
-:class:`disco.core.Disco` object. After that, we can start the job by
-calling :meth:`disco.core.Disco.new_job`. There's a large number of
-parameters that you can use to specify your job but only three of them
-are required for a simple job like ours.
+Now the only thing missing is a command for running the job.
+First, we must establish a connection to the Disco master by instantiating a
+:class:`disco.core.Disco` object.
+After that, we can start the job by calling :meth:`disco.core.Disco.new_job`.
+There's a large number of parameters that you can use to specify your job,
+but only three of them are required for a simple job like ours.
 
 In addition to starting the job, we want to print out the results as well.
 First, however, we have to wait until the job has finished. This is done with
@@ -141,25 +146,23 @@ a list of addresses to the result files, that is returned by
 :meth:`disco.core.Disco.wait`, and iterates through all key-value pairs
 in the results.
 
-The following lines run the job and print out the results. Write them to the end
-of your file::
+The following lines run the job and print out the results::
+
 
         import sys
         from disco.core import Disco, result_iterator
 
-        results = Disco(sys.argv[1]).new_job(
-                name='disco_tut',
-                input=sys.argv[2:],
-                map=fun_map,
-                reduce=fun_reduce).wait()
+        results = Disco(sys.argv[1]).new_job(name='disco_tut',
+                                             input=sys.argv[2:],
+                                             map=fun_map,
+                                             reduce=fun_reduce).wait()
 
         for word, total in result_iterator(results):
                 print word, total
 
-Here we read the address of the Disco master and the input files from
-the command line. Note how the map and reduce functions are provided to
-:meth:`disco.core.Disco.new_job` simply as normal keywords arguments *map*
-and *reduce*.
+Here we read the address of the master and the input from the command line.
+Note how the map and reduce functions are provided to
+:meth:`disco.core.Disco.new_job` as keywords arguments *map* and *reduce*.
 
 Now comes the moment of truth.
 
@@ -178,21 +181,26 @@ browser at ``http://localhost:8989`` (or some other port where you run the
 Disco master) which lets you follow the progress of your job in real-time.
 
 You can also set the environment variable ``DISCO_EVENTS=1`` to see job
-events on your console instead of the web UI.
+events on your console instead of the web UI::
+
+       DISCO_EVENTS=1 python count_words.py disco://localhost tag://data:bigtxt > bigtxt.results
 
 What next?
 ----------
 
-As you saw, creating a new Disco job is pretty straightforward. Next you could
-write functions for a bit more complex job, which could, for instance, count
-only words that are provided as a parameter to the map function.
+As you saw, creating a new Disco job is pretty straightforward.
+You could extend this simple example in any number of ways.
+For instance, by using the params object to include a list of stop words.
 
-You can also experiment with providing custom partitioning and reader
-functions. They are written in the same way as map and reduce functions.
-Just see some examples in the :mod:`disco.func` module. After that,
-you could try to chain many map/reduce jobs together, so that outputs
-of the previous job are used as the inputs for the next one --- in that
-case you need to use :func:`disco.func.chain_reader`.
+You could try using :func:`disco.func.sum_combiner`,
+to make the job more efficient.
+
+You can also experiment with custom partitioning and reader functions.
+They are written in the same way as map and reduce functions.
+Just see some examples in the :mod:`disco.func` module.
+After that, you could try to chain many map/reduce jobs together,
+so that output of the previous job becomes input for the next one -
+in that case you will need to use :func:`disco.func.chain_reader`.
 
 The best way to learn is to pick a problem or algorithm that you know
 well, and implement it with Disco. After all, Disco was designed to

@@ -34,9 +34,13 @@ class MessageWriter(object):
 class netloc(tuple):
     @classmethod
     def parse(cls, netlocstr):
+        netlocstr = netlocstr.split('@', 1)[1] if '@' in netlocstr else netlocstr
         if ':' in netlocstr:
             return cls(netlocstr.split(':'))
         return cls((netlocstr, ''))
+
+    def __nonzero__((host, port)):
+        return bool(host)
 
     def __str__((host, port)):
         return '%s:%s' % (host, port) if port else host
@@ -78,7 +82,7 @@ def kvgroup(kviter):
         yield k, (v for _k, v in kvs)
 
 def kvify(entry):
-    return entry if iskv(entry) else ('', entry)
+    return entry if iskv(entry) else (entry, None)
 
 def partition(iterable, fn):
     t, f = [], []
@@ -106,10 +110,15 @@ def argcount(object):
     return argcount - len(object.args or ()) - len(object.keywords or ())
 
 def unpickle_partial(func, args, kwargs):
-    return functools.partial(unpack(func), *unpack(args), **unpack(kwargs))
+    return functools.partial(unpack(func),
+                             *[unpack(x) for x in args],
+                             **dict((k, unpack(v)) for k, v in kwargs))
 
 def pickle_partial(p):
-    return unpickle_partial, (pack(p.func), pack(p.args), pack(p.keywords or {}))
+    kw = p.keywords or {}
+    return unpickle_partial, (pack(p.func),
+                              [pack(x) for x in p.args],
+                              [(k, pack(v)) for k, v in kw.iteritems()])
 
 # support functools.partial also on Pythons prior to 3.1
 if sys.version_info < (3,1):
@@ -143,8 +152,13 @@ def pack_stack(stack):
 def unpack_stack(stackstring, globals={}):
     return [unpack(string, globals=globals) for string in unpack(stackstring)]
 
+def urljoin((scheme, netloc, path)):
+    return '%s%s%s' % ('%s://' % scheme if scheme else '',
+                       '%s/' % (netloc, ) if netloc else '',
+                       path)
+
 def schemesplit(url):
-    return url.split('://', 1) if '://' in url else ('file', url)
+    return url.split('://', 1) if '://' in url else ('', url)
 
 def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
@@ -165,14 +179,31 @@ def urlsplit(url, localhost=None, settings=DiscoSettings()):
             path, locstr = locstr, ''
     return scheme, netloc.parse(locstr), path
 
-def urlresolve(url):
-    return '%s://%s/%s' % urlsplit(url)
+def urlresolve(url, settings=DiscoSettings()):
+    scheme, netloc, path = urlsplit(url)
+    if scheme == 'tag':
+        def master((host, port)):
+            if not host:
+                return settings['DISCO_MASTER']
+            if not port:
+                return 'disco://%s' % host
+            return 'http://%s:%s' % (host, port)
+        return urlresolve('%s/ddfs/tag/%s' % (master(netloc), path))
+    return '%s://%s/%s' % (scheme, netloc, path)
+
+def auth_token(url):
+    _scheme, rest = schemesplit(url)
+    locstr, _path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
+    if '@' in locstr:
+        auth = locstr.split('@', 1)[0]
+        return auth.split(':')[1] if ':' in auth else auth
 
 def urllist(url, partid=None, listdirs=True, ddfs=None):
     from disco.ddfs import DDFS, istag
     if istag(url):
+        token = auth_token(url)
         ret = []
-        for name, tags, blobs in DDFS(ddfs).findtags(url):
+        for name, tags, blobs in DDFS(ddfs).findtags(url, token=token):
             ret += blobs
         return ret
     if isiterable(url):
@@ -275,7 +306,7 @@ def parse_dir(dir_url, partid=None):
     return [url for id, url in read_index(dir_url)
             if partid is None or partid == int(id)]
 
-def save_oob(host, name, key, value):
+def save_oob(host, name, key, value, ddfs_token=None):
     from disco.ddfs import DDFS
     DDFS(host).push(ddfs_oobname(name), [(StringIO(value), key)], delayed=True)
 

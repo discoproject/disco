@@ -23,9 +23,18 @@ Getting started
    start/download
    start/install
    start/tutorial
-   start/ddfs
    start/troubleshoot
    start/getinvolved
+
+Disco In Depth
+--------------
+
+.. toctree::
+   :maxdepth: 1
+
+   howto/administer
+   howto/dataflow
+   howto/ddfs
 
 Batteries Included
 ------------------
@@ -33,16 +42,9 @@ Batteries Included
 .. toctree::
    :maxdepth: 1
 
-   Discodex -- Distributed Indexing System <contrib/discodex/index>
+   contrib/discodex/index
    contrib/discodb/discodb
-
-HOWTO
------
-
-.. toctree::
-   :maxdepth: 1
-
-   howto/dataflow
+   contrib/discodb/query
 
 References
 ----------
@@ -50,11 +52,11 @@ References
 .. toctree::
    :maxdepth: 1
 
-   py/index
-   external
+   lib/index
+   lib/settings
+   lib/node/external
    man/disco
    man/ddfs
-   py/settings
 
 Indices and tables
 ------------------

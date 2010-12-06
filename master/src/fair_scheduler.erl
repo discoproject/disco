@@ -69,7 +69,7 @@ handle_call({new_task, Task, NodeStats}, _, Nodes) ->
     end;
 
 handle_call(dbg_get_state, _, S) ->
-    {reply, S, S};
+    {reply, {S, ets:tab2list(jobs)}, S};
 
 handle_call({next_task, AvailableNodes}, _From, Nodes) ->
     Jobs = [JobPid || {_, {JobPid, _}} <- ets:tab2list(jobs)],

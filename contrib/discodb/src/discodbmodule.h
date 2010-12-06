@@ -9,6 +9,7 @@ typedef struct {
 
 typedef struct {
     PyObject_HEAD
+    PyTypeObject    *ddb_type;
     struct ddb_cons *ddb_cons;
 } DiscoDBConstructor;
 
@@ -23,21 +24,14 @@ typedef struct {
 
 static PyObject * DiscoDB_new     (PyTypeObject *, PyObject *, PyObject *);
 static void       DiscoDB_dealloc (DiscoDB *);
-static PyObject * DiscoDB_repr    (DiscoDB *);
-static PyObject * DiscoDB_str     (DiscoDB *);
 
 /* Mapping Formal / Informal Protocol */
 
 static int        DiscoDB_contains     (DiscoDB *,      PyObject *);
-static Py_ssize_t DiscoDB_length       (DiscoDB *);
-static PyObject * DiscoDB_get          (DiscoDB *,      PyObject *);
 static PyObject * DiscoDB_getitem      (DiscoDB *,      PyObject *);
-static PyObject * DiscoDB_iter         (DiscoDB *);
-static PyObject * DiscoDB_items        (DiscoDB *);
 static PyObject * DiscoDB_keys         (DiscoDB *);
 static PyObject * DiscoDB_values       (DiscoDB *);
 static PyObject * DiscoDB_unique_values(DiscoDB *);
-static PyObject * DiscoDB_peek         (DiscoDB *,      PyObject *);
 static PyObject * DiscoDB_query        (DiscoDB *,      PyObject *);
 
 /* Serialization / Deserialization Informal Protocol */
@@ -58,16 +52,13 @@ static PyObject * DiscoDBConstructor_finalize(DiscoDBConstructor *, PyObject *, 
 
 /* DiscoDB Iterator Types */
 
-static PyTypeObject DiscoDBIterEntryType;
-static PyTypeObject DiscoDBIterItemType;
+static PyTypeObject DiscoDBIterType;
 
-static PyObject * DiscoDBIter_new          (PyTypeObject *, DiscoDB *, struct ddb_cursor *);
-static void       DiscoDBIter_dealloc      (DiscoDBIter *);
-static Py_ssize_t DiscoDBIter_length       (DiscoDBIter *);
-static PyObject * DiscoDBIter_iternextentry(DiscoDBIter *);
-static PyObject * DiscoDBIter_iternextitem (DiscoDBIter *);
-static PyObject * DiscoDBIter_str          (DiscoDBIter *);
-static PyObject * DiscoDBIter_format       (DiscoDBIter *, PyObject *, int);
+static PyObject * DiscoDBIter_new      (PyTypeObject *, DiscoDB *, struct ddb_cursor *);
+static void       DiscoDBIter_dealloc  (DiscoDBIter *);
+static PyObject * DiscoDBIter_count    (DiscoDBIter *);
+static PyObject * DiscoDBIter_size     (DiscoDBIter *);
+static PyObject * DiscoDBIter_iternext (DiscoDBIter *);
 
 /* ddb helpers */
 

@@ -1,5 +1,6 @@
 """
-Supporting Python objects for the query interface.
+:mod:`discodb.query` -- Supporting objects for the DiscoDB query interface
+==========================================================================
 
 >>> Q.parse('~(B | C)') == Q.parse('~B & ~C')
 True
@@ -7,11 +8,36 @@ True
 True
 >>> Q.parse('A & (B | (D & E))') == Q.parse('A & (B | D) & (B | E)')
 True
->>> Q.scan(Q.parse('a | b | c & d | e').format()) == Q.parse('a | b | c & d | e')
+>>> Q.parse(str(Q.parse('a | b | c & d | e'))) == Q.parse('a | b | c & d | e')
 True
 >>> Q.urlscan(Q.parse('(a | b) & ~c').urlformat()) == Q.parse('~c & (a | b)')
 True
+
+>>> from .discodb import DiscoDB
+>>> discodb = DiscoDB({'A': ['B', 'C'], 'B': 'D', 'C': 'E', 'D': 'F', 'E': 'G'})
+>>> sorted(discodb.query(Q.parse('A')))
+['B', 'C']
+>>> sorted(discodb.query(Q.parse('*A')))
+['D', 'E']
+>>> sorted(discodb.query(Q.parse('A | B')))
+['B', 'C', 'D']
+>>> sorted(discodb.query(Q.parse('*A | B')))
+['D', 'E']
+>>> sorted(discodb.query(Q.parse('**A | *B')))
+['F', 'G']
+
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('A')))
+[('(A)', ['B', 'C'])]
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('*A')))
+[('(B)', ['D']), ('(C)', ['E'])]
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('A | B')))
+[('(A | B)', ['B', 'C', 'D'])]
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('*A | B')))
+[('(B)', ['D']), ('(C | B)', ['D', 'E'])]
+>>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('**A | *B')))
+[('(D)', ['F']), ('(E | D)', ['F', 'G'])]
 """
+from operator import __and__, __or__
 
 class Q(object):
     """
@@ -39,8 +65,15 @@ class Q(object):
 
         ~(c & ...) -> (~c) | ... -> ~(C) -> Q
         """
-        from operator import __or__
+        if not self.clauses:
+            return self
         return Q.wrap(reduce(__or__, (~c for c in self.clauses)))
+
+    def __pos__(self):
+        return Q((Clause((MetaLiteral(self), )), ))
+
+    def __cmp__(self, other):
+        return cmp(str(self), str(other))
 
     def __eq__(self, other):
         return self.clauses == other.clauses
@@ -51,30 +84,91 @@ class Q(object):
     def __str__(self):
         return ' & '.join('(%s)' % c for c in self.clauses)
 
-    def format(self, and_op='&', or_op='|', not_op='~', encoding=str):
-        return and_op.join(c.format(or_op=or_op,
-                                    not_op=not_op,
-                                    encoding=encoding) for c in self.clauses)
+    def expand(self, discodb):
+        from itertools import product
+        for combo in product(*(c.expand(discodb) for c in self.clauses)):
+            yield reduce(__and__, combo)
 
-    @classmethod
-    def scan(cls, string, and_op='&', or_op='|', not_op='~', decoding=str):
-        return Q(Clause.scan(c, or_op=or_op,
-                             not_op=not_op,
-                             decoding=decoding) for c in string.split(and_op))
+    def metaquery(self, discodb):
+        for q in self.expand(discodb):
+            yield q, discodb.query(q)
 
-    def urlformat(self, safe=':'):
+    def resolve(self, discodb):
+        return reduce(__and__, (c.resolve(discodb) for c in self.clauses), Q([]))
+
+    def urlformat(self, safe=':()/,~'):
         from urllib import quote
-        return self.format(and_op='/', or_op=',', encoding=lambda q: quote(q, safe))
+        return quote(str(self)
+                     .replace('&', '/')
+                     .replace('|', ',')
+                     .replace(' ' ,''),
+                     safe)
 
     @classmethod
     def urlscan(cls, string):
         from urllib import unquote
-        return cls.scan(string, and_op='/', or_op=',', decoding=unquote)
+        return cls.parse(unquote(string)\
+                         .strip().strip('/')\
+                         .replace('/', '&')\
+                         .replace(',', '|'))
 
     @classmethod
     def parse(cls, string):
+        """
+        Parse a string into a Q object.
+
+        The parsed string is subject to the following conditions:
+
+         - `*` characters will be replaced with `+`
+         - literal terms cannot contain the characters `&|~+()`
+         - leading and trailing spaces will be stripped from terms
+         - the characters `&|~` signify the corresponding logical operations
+         - parentheses make operator precedence explicit
+         - `+` characters introduce a dereferencing operation
+
+        The string will be parsed into a logical combination of the terms,
+        which will be stored internally in :term:`conjunctive normal form`.
+
+        Dereferencing is performed when the
+        :class:`Q` object is actually used to query a :class:`discodb.DiscoDB`.
+
+        In queries (:meth:`discodb.DiscoDB.query`),
+        the dereferencing operation replaces an expression with
+        the union of the values which result from querying with the expression.
+
+        Thus in the case of::
+
+                discodb = DiscoDB({'A': ['B', 'C'], 'B': 'D'})
+
+        The following queries would be equivalent::
+
+                discodb.query(Q.parse('+A'))
+                discodb.query(Q.parse('*A'))
+                discodb.query(Q.parse('B | C'))
+
+        and would result in an iterator containing only the value ``'D'``.
+
+        In metaqueries (:meth:`discodb.DiscoDB.metaquery`),
+        the dereferencing operation replaces an expression with
+        each value which results from querying with the expression,
+        and yields a (query, values) pair for each item in the expansion.
+
+        Thus, for the discodb above::
+
+                discodb.metaquery('A')
+
+        would return an iterator roughly equivalent to
+        `[(Q.parse('A'), ['B', 'C'])]`, while::
+
+                discodb.metaquery('*A')
+
+        would return an iterator roughly equivalent to
+        `[(Q.parse('B'), ['D']), (Q.parse('C'), [])]`.
+        """
         import re
-        return eval(re.sub(r'(\w+)', r'Q.wrap("""\1""")', string) or 'Q([])')
+        return eval(re.sub(r'([^&|~+()\s][^&|~+()]*)',
+                           r'Q.wrap("""\1""".strip())',
+                           string.replace('*', '+')) or 'Q([])')
 
     @classmethod
     def wrap(cls, proposition):
@@ -114,7 +208,6 @@ class Clause(object):
 
         ~(l | ...) -> (~l) & ... -> Q
         """
-        from operator import __and__
         return Q.wrap(reduce(__and__, (~l for l in self.literals)))
 
     def __eq__(self, other):
@@ -126,12 +219,13 @@ class Clause(object):
     def __str__(self):
         return ' | '.join('%s' % l for l in self.literals)
 
-    def format(self, or_op='|', not_op='~', encoding=str):
-        return or_op.join(l.format(not_op=not_op, encoding=encoding) for l in self.literals)
+    def expand(self, discodb):
+        from itertools import product
+        for combo in product(*(l.expand(discodb) for l in self.literals)):
+            yield reduce(__or__, combo)
 
-    @classmethod
-    def scan(cls, string, or_op='|', not_op='~', decoding=str):
-        return Clause(Literal.scan(l, not_op=not_op, decoding=decoding) for l in string.split(or_op))
+    def resolve(self, discodb):
+        return reduce(__or__, (l.resolve(discodb) for l in self.literals))
 
 class Literal(object):
     """
@@ -157,7 +251,7 @@ class Literal(object):
         """
         Inversion of a Literal is always a Literal.
         """
-        return Literal(self.term, negated=not self.negated)
+        return type(self)(self.term, negated=not self.negated)
 
     def __eq__(self, other):
         return self.term == other.term and self.negated == other.negated
@@ -168,14 +262,22 @@ class Literal(object):
     def __str__(self):
         return '%s%s' % ('~' if self.negated else '', self.term)
 
-    def format(self, not_op='~', encoding=str):
-        return '%s%s' % (not_op if self.negated else '', encoding(self.term))
+    def expand(self, discodb):
+        yield Q.wrap(self)
 
-    @classmethod
-    def scan(cls, string, or_op='|', not_op='~', decoding=str):
-        negated = string.startswith(not_op)
-        return Literal(decoding(string.lstrip(not_op)), negated=negated)
+    def resolve(self, discodb):
+        return Q.wrap(self)
 
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
+class MetaLiteral(Literal):
+    def __str__(self):
+        return '%s+(%s)' % ('~' if self.negated else '', self.term)
+
+    def expand(self, discodb):
+        for q in self.term.expand(discodb):
+            for v in discodb.query(q):
+                yield not Q.wrap(v) if self.negated else Q.wrap(v)
+
+    def resolve(self, discodb):
+        q = self.term.resolve(discodb)
+        clause = Clause(Literal(v) for v in discodb.query(q))
+        return Q.wrap(not clause if self.negated else clause)

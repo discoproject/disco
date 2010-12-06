@@ -193,6 +193,16 @@ Click the cells on the new empty row, and add hostname of an available server
 available cores (CPUs) on that server in the right cell.
 Once you have entered a value, click the cell again to save it.
 
+.. warning::
+    Keep in mind that for more than one node, hostnames need to resolve globally
+    (e.g. you should be relying on DNS to resolve hostnames,
+    **not** `/etc/hosts` on an individual machine).
+    A relatively common mistake is that ``master`` is just an alias for the loopback address,
+    such as ``localhost``, provided in `/etc/hosts` on the master machine.
+    In such cases, some nodes may **not** be able to resolve the master properly:
+    they may all resolve to themselves (if they all have the same hosts file),
+    nothing at all, or different machines (if they are configured differently).
+
 You can add as many rows as needed to fully specify your cluster, which may
 have varying number of cores on different nodes. Click ``save table``
 when you are done.
@@ -226,7 +236,7 @@ to see that the system works correctly.
 
 Run the script as follows from ``DISCO_HOME``::
 
-        python examples/utils/count_words.py
+        python examples/util/count_words.py
 
 Disco attempts to use the current hostname as ``DISCO_MASTER_HOST`` if it is not
 defined in any settings file.

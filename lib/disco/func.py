@@ -58,8 +58,12 @@ These functions are provided by Disco to help :class:`disco.core.Job` creation:
 
 .. autofunction:: default_partition
 .. autofunction:: make_range_partition
+.. autofunction:: nop_map
 .. autofunction:: nop_reduce
+.. autofunction:: sum_combiner
+.. autofunction:: sum_reduce
 .. autofunction:: gzip_reader
+.. autofunction:: gzip_line_reader
 .. autofunction:: map_line_reader
 .. autofunction:: chain_reader
 .. autofunction:: netstr_reader
@@ -213,7 +217,7 @@ def output_stream(stream, partition, url, params):
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
 
-    Returns a triplet (:class:`disco.func.OutputStream`, size, url) that is
+    Returns a pair (:class:`disco.func.OutputStream`, url) that is
     passed to the next *output_stream* function in the chain. The
     :meth:`disco.func.OutputStream.add` method of the last
     :class:`disco.func.OutputStream` object returned by the chain is used
@@ -229,16 +233,20 @@ class OutputStream:
     ``reduce_output_stream`` chain of :func:`disco.func.output_stream` functions.
     Used to encode key, value pairs add write them to the underlying file object.
     """
-    def write(data):
-        """
-        Writes serialized key, value pairs to the underlying file object.
-        """
-
     def add(key, value):
         """
-        Adds a key, value pair to the output stream. This method typically
-        calls *self.write()* to write a serialized pair to the actual
-        file object.
+        Adds a key, value pair to the output stream.
+        """
+
+    def close(self):
+        """
+        Close the output stream.
+        """
+
+    def write(data):
+        """
+        *(Deprecated in 0.3)*
+        Writes `data` to the underlying file object.
         """
 
 class InputStream:
@@ -434,10 +442,41 @@ def nop_reduce(iter, out, params):
     for k, v in iter:
         out.add(k, v)
 
+def sum_combiner(key, value, buf, done, params):
+    """
+    Sums the values for each key.
+
+    This is a convenience function for performing a basic sum in the combiner.
+    """
+    if not done:
+        buf[key] = buf.get(key, 0) + value
+    else:
+        return buf.iteritems()
+
+def sum_reduce(iter, params):
+    """
+    Sums the values for each key.
+
+    This is a convenience function for performing a basic sum in the reduce.
+    """
+    buf = {}
+    for key, value in iter:
+        buf[key] = buf.get(key, 0) + value
+    return buf.iteritems()
+
 def gzip_reader(fd, size, url, params):
     """Wraps the input in a :class:`gzip.GzipFile` object."""
     from gzip import GzipFile
     return GzipFile(fileobj=fd), size, url
+
+def gzip_line_reader(fd, size, url, params):
+    """Yields as many lines from the gzipped fd as possible, prints exception if fails."""
+    from gzip import GzipFile
+    try:
+        for line in GzipFile(fileobj=fd):
+            yield line
+    except Exception, e:
+        print e
 
 def map_line_reader(fd, sze, fname):
     """
@@ -496,8 +535,8 @@ def map_input_stream(stream, size, url, params):
     """
     from disco.util import schemesplit
     scheme, _url = schemesplit(url)
-    mod = __import__('disco.schemes.scheme_%s' % scheme,
-                     fromlist=['scheme_%s' % scheme])
+    scheme_ = 'scheme_%s' % (scheme or 'file')
+    mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
     Task.insert_globals([mod.input_stream])
     return mod.input_stream(stream, size, url, params)
 
@@ -530,13 +569,9 @@ def reduce_output_stream(stream, partition, url, params):
     Task.blobs.append(path)
     return AtomicFile(path, 'w'), url
 
-def disco_output_stream(stream, partition, url, params, version = -1,
-                        compress_level = 2, min_chunk = 1 * 1024**2):
+def disco_output_stream(stream, partition, url, params):
     from disco.fileutils import DiscoOutput
-    return DiscoOutput(stream,
-                       version = version,
-                       compress_level = compress_level,
-                       min_chunk = min_chunk), url
+    return DiscoOutput(stream), url
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
     import struct, cStringIO, gzip, cPickle, zlib
@@ -550,28 +585,54 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 yield e
             return
         try:
-            is_compressed, checksum, chunk_size =\
+            is_compressed, checksum, hunk_size =\
                 struct.unpack('<BIQ', stream.read(13))
         except:
             raise DataError("Truncated data at %d bytes" % offset, url)
-        if not chunk_size:
+        if not hunk_size:
             return
-        chunk = stream.read(chunk_size)
+        hunk = stream.read(hunk_size)
         data = ''
         try:
-            data = zlib.decompress(chunk) if is_compressed else chunk
+            data = zlib.decompress(hunk) if is_compressed else hunk
             if checksum != (zlib.crc32(data) & 0xFFFFFFFF):
                 raise ValueError("Checksum does not match")
         except (ValueError, zlib.error), e:
             if not ignore_corrupt:
                 raise DataError("Corrupted data between bytes %d-%d: %s" %
-                                (offset, offset + chunk_size, e), url)
-        offset += chunk_size
-        chunk = cStringIO.StringIO(data)
+                                (offset, offset + hunk_size, e), url)
+        offset += hunk_size
+        hunk = cStringIO.StringIO(data)
         while True:
             try:
-                yield cPickle.load(chunk)
+                yield cPickle.load(hunk)
             except EOFError:
                 break
 
+class DiscoDBOutput(object):
+    def __init__(self, stream, params):
+        from discodb import DiscoDBConstructor
+        self.discodb_constructor = DiscoDBConstructor()
+        self.stream = stream
+        self.params = params
+
+    def add(self, key, val):
+        self.discodb_constructor.add(key, val)
+
+    def close(self):
+        def flags():
+            return dict((flag, getattr(self.params, flag))
+                        for flag in ('unique_items', 'disable_compression')
+                        if hasattr(self.params, flag))
+        self.discodb_constructor.finalize(**flags()).dump(self.stream)
+
+def discodb_output(stream, partition, url, params):
+    from disco.func import DiscoDBOutput
+    return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
+
 chain_reader = netstr_reader = disco_input_stream
+
+chain_stream = (map_input_stream, chain_reader)
+default_stream = (map_input_stream, )
+gzip_stream = (map_input_stream, gzip_reader)
+gzip_line_stream = (map_input_stream, gzip_line_reader)

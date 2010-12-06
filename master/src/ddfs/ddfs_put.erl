@@ -82,7 +82,7 @@ receive_blob(Req, IO, Dst, Url) ->
     error_logger:info_report({"PUT BLOB", Req:get(path), Req:get_header_value("content-length")}),
     case receive_body(Req, IO) of
         ok ->
-            [_, Fname] = string:tokens(Dst, "."),
+            [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
             % NB: Renaming is not atomic below, thus there's a small
             % race condition if two clients are PUTting the same blob

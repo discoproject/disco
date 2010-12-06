@@ -1,6 +1,8 @@
 -module(ddfs_gc_node).
 -export([gc_node/2]).
 
+-include_lib("kernel/include/file.hrl").
+
 -include("config.hrl").
 
 % see ddfs_gc.erl for comments
@@ -50,26 +52,27 @@ send_blob(Obj, DstUrl, Root) ->
         DstUrl, ?GC_PUT_TIMEOUT).
 
 -spec traverse(timer:timestamp(), nonempty_string(),
-    nonempty_string(), nonempty_string(), atom()) -> _.
+               [nonempty_string()], nonempty_string(), 'blob' | 'tag') -> _.
 traverse(Now, Root, VolNames, Mode, Ets) ->
-    lists:foldl(fun(VolName, _) ->
-                        ddfs_util:fold_files(filename:join([Root, VolName, Mode]),
-                                             fun(Obj, Dir, _) ->
-                                                     handle_file(Obj, Dir, VolName, Ets, Now)
-                                             end,
-                                             nil)
-                end, nil, VolNames).
+    lists:foldl(
+        fun(VolName, _) ->
+            ddfs_util:fold_files(filename:join([Root, VolName, Mode]),
+                                 fun(Obj, Dir, _) ->
+                                     handle_file(Obj, Dir, VolName, Ets, Now)
+                                 end, nil)
+        end, nil, VolNames).
 
 %%%
 %%% O1) Remove leftover !partial. files
 %%%
 -spec handle_file(nonempty_string(), nonempty_string(),
-    nonempty_string(), atom(), timer:timestamp()) -> _.
+    nonempty_string(), 'blob' | 'tag', timer:timestamp()) -> _.
+handle_file("!trash" ++ _, _, _, _, _) ->
+    ok;
 handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     [_, Obj] = string:tokens(File, "."),
     {_, Time} = ddfs_util:unpack_objname(Obj),
     delete_if_expired(filename:join(Dir, File), Now, Time, ?PARTIAL_EXPIRES);
-
 handle_file(Obj, _, VolName, Ets, _) ->
     % We could check a checksum of Obj here
     ets:insert(Ets, {list_to_binary(Obj), VolName, false}).
@@ -81,14 +84,17 @@ handle_file(Obj, _, VolName, Ets, _) ->
 -spec delete_orphaned(pid(), timer:timestamp(), nonempty_string(),
     nonempty_string(), atom(), non_neg_integer()) -> _.
 delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
-    error_logger:info_report({"GC: # orphaned", Mode, ets:info(Ets, size)}),
-    lists:foreach(fun([Obj, VolName]) ->
-                          {_, Time} = ddfs_util:unpack_objname(Obj),
-                          {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", Mode, Root, VolName),
-                          is_really_orphan(Master, Obj) andalso
-                              delete_if_expired(filename:join(Path, binary_to_list(Obj)),
-                                                Now, Time, Expires)
-                  end, ets:match(Ets, {'$1', '$2', false})).
+    Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
+    lists:foreach(
+        fun([Obj, VolName]) ->
+            {_, Time} = ddfs_util:unpack_objname(Obj),
+            {ok, Path, _} =
+                ddfs_util:hashdir(Obj, "nonode!", Mode, Root, VolName),
+            FullPath = filename:join(Path, binary_to_list(Obj)),
+            Diff = timer:now_diff(Now, Time) / 1000,
+            is_really_orphan(Master, Obj) andalso
+                delete_if_expired(FullPath, Diff, Expires, Paranoid)
+        end, ets:match(Ets, {'$1', '$2', false})).
 
 -spec is_really_orphan(pid(), binary()) -> bool().
 is_really_orphan(Master, Obj) ->
@@ -99,15 +105,28 @@ is_really_orphan(Master, Obj) ->
         E ->
             ddfs_gc:abort({"GC: Erroneous message received", E},
                           orphans_failed)
+    after 10000 ->
+        ddfs_gc:abort({"GC: Master stopped responding"}, orphan_timeout),
+        timeout
     end.
 
--spec delete_if_expired(nonempty_string(), timer:timestamp(),
-    timer:timestamp(), non_neg_integer()) -> _.
-delete_if_expired(Path, Now, Time, Expires) ->
-    Diff = timer:now_diff(Now, Time) / 1000,
-    if Diff > Expires ->
-        error_logger:info_report({"GC: Deleting expired object", Path}),
-        prim_file:delete(Path);
-    true ->
-        ok
-    end.
+-spec delete_if_expired(string(),
+    non_neg_integer(), non_neg_integer(), bool()) -> _.
+delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
+    error_logger:info_report({"GC: Deleting expired object (paranoid)", Path}),
+    Trash = "!trash." ++ filename:basename(Path),
+    Deleted = filename:join(filename:dirname(Path), Trash),
+    % Chmod u+w deleted files, so they can removed safely with rm without -f
+    prim_file:write_file_info(Path, #file_info{mode = 8#00600}),
+    prim_file:rename(Path, Deleted),
+    % Sleep here two prevent master being DDOS'ed by info_reports above
+    timer:sleep(100);
+
+delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
+    error_logger:info_report({"GC: Deleting expired object", Path}),
+    prim_file:delete(Path),
+    timer:sleep(100);
+
+delete_if_expired(_Path, _Diff, _Expires, _Paranoid) ->
+    ok.
+

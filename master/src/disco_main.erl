@@ -46,6 +46,8 @@ init([Port]) ->
             permanent, 10, worker, dynamic},
          {event_server, {event_server, start_link, []},
             permanent, 10, worker, dynamic},
+         {disco_config, {disco_config, start_link, []},
+            permanent, 10, worker, dynamic},
          {disco_server, {disco_server, start_link, []},
             permanent, 10, worker, dynamic},
          {mochi_server, {web_server, start, [Port]},

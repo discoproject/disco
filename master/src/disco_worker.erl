@@ -123,17 +123,17 @@ event({_Type, Message}, #state{task = T,
     event_server:event(EventServer, Host, T#task.jobname, "[~s:~B] ~s",
                        [T#task.mode, T#task.taskid, Message], Params).
 
-error(State) ->
+on_error(State) ->
     {stop, worker_exit(State, {job_error, "Worker killed"}), State}.
 
-error(Reason, State) ->
-    error(nonrecoverable, Reason, State).
+on_error(Reason, State) ->
+    on_error(nonrecoverable, Reason, State).
 
-error(recoverable, Reason, State) ->
+on_error(recoverable, Reason, State) ->
     Task = State#state.task,
     event({"WARN", Reason}, State, {task_failed, Task#task.mode}),
     {stop, worker_exit(State, {data_error, Reason}), State};
-error(nonrecoverable, Reason, State) ->
+on_error(nonrecoverable, Reason, State) ->
     event({"ERROR", Reason}, State),
     {stop, worker_exit(State, {job_error, Reason}), State}.
 
@@ -149,17 +149,17 @@ handle_call(start_worker, _From, S) ->
     {reply, ok, S#state{port = Port}, 30000}.
 
 handle_cast(kill_worker, S) ->
-    error(S).
+    on_error(S).
 
 handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
-    error(recoverable, Message, S);
+    on_error(recoverable, Message, S);
 
 handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, S) ->
     event({"END", "Task finished in " ++ disco:format_time(S#state.start_time)}, S),
     {stop, worker_exit(S, {job_ok, S#state.results}), S};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
-    error(Message, S);
+    on_error(Message, S);
 
 handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
     % event({"PID", "Child PID is " ++ ChildPID}, S),
@@ -182,7 +182,7 @@ handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
             event({Type, Payload}, S),
             {noreply, S#state{last_event = Now, event_counter = 1}};
         S#state.event_counter > ?RATE_LIMIT ->
-            error("Event rate limit exceeded. Too many msg() calls?", S);
+            on_error("Event rate limit exceeded. Too many msg() calls?", S);
         true ->
             event({Type, Payload}, S),
             {noreply, S#state{event_counter = S#state.event_counter + 1}}
@@ -190,14 +190,14 @@ handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
 
 handle_event({errline, _Line}, #state{errlines = {_Q, overflow, _Max}} = S) ->
     Garbage = message_buffer:to_string(S#state.errlines),
-    error("Worker failed (too much garbage on stderr):\n" ++ Garbage, S);
+    on_error("Worker failed (too much garbage on stderr):\n" ++ Garbage, S);
 
 handle_event({errline, Line}, S) ->
     {noreply, S#state{errlines =
         message_buffer:append(Line, S#state.errlines)}};
 
 handle_event({malformed_event, Reason}, S) ->
-    error(Reason, S);
+    on_error(Reason, S);
 
 handle_event(_EventState, S) ->
     {noreply, S}.
@@ -211,20 +211,20 @@ handle_info({_Port, {data, Data}}, #state{eventstream = EventStream} = S) ->
 handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
     Reason = "Worker didn't start.\nSpawn command was: " ++ spawn_cmd(S) ++
         "Last words:\n" ++ message_buffer:to_string(S#state.errlines),
-    error(recoverable, Reason, S);
+    on_error(recoverable, Reason, S);
 
 handle_info({_, {exit_status, _Status}}, S) ->
     Reason =  "Worker failed. Last words:\n" ++ message_buffer:to_string(S#state.errlines),
-    error(Reason, S);
+    on_error(Reason, S);
 
 handle_info({_, closed}, S) ->
-    error(S);
+    on_error(S);
 
 handle_info(timeout, #state{linecount = 0} = S) ->
-    error(recoverable, "Worker didn't start in 30 seconds", S);
+    on_error(recoverable, "Worker didn't start in 30 seconds", S);
 
 handle_info({'DOWN', _, _, _, _}, S) ->
-    error(S).
+    on_error(S).
 
 terminate(_Reason, State) ->
     % Possible bug: If we end up here before knowing child_pid, the

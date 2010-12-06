@@ -2,9 +2,9 @@
 
 -include("config.hrl").
 
--export([new_blob/4, tags/2, get_tag/2, update_tag/3, update_tag/4,
-         update_tag_delayed/3, update_tag_delayed/4,
-         replace_tag/3, get_tag_replicas/2, delete/2]).
+-export([new_blob/4, tags/2, get_tag/4, update_tag/4, update_tag/5,
+         update_tag_delayed/4, update_tag_delayed/5,
+         replace_tag/5, delete/3, delete_attrib/4]).
 
 -spec new_blob(node(), string(), non_neg_integer(), [node()]) ->
     'invalid_name' | 'too_many_replicas' | {'ok', [string()]} | _.
@@ -28,56 +28,51 @@ tags(Host, Prefix) ->
         E -> E
     end.
 
--spec get_tag(node(), string()) ->
-    'invalid_name' | {'ok', binary()} | {'error', _}.
-get_tag(Host, Tag) ->
+-spec get_tag(node(), string(), atom() | string(), ddfs_tag:token() | 'internal') ->
+    'invalid_name' | {'missing', _} | 'unknown_attribute'
+    | {'ok', binary()} | {'error', _}.
+get_tag(Host, Tag, Attrib, Token) ->
     validate(Tag, fun() ->
-        case gen_server:call(Host,
-                {tag, get, list_to_binary(Tag)}, ?NODEOP_TIMEOUT) of
-            TagData when is_binary(TagData) ->
-                {ok, TagData};
-            E -> E
-        end
+        gen_server:call(Host, {tag, {get, Attrib, Token}, list_to_binary(Tag)},
+                        ?NODEOP_TIMEOUT)
     end).
 
--spec get_tag_replicas(node(), string()) -> _.
-get_tag_replicas(Host, Tag) ->
-    tagop(Host, Tag, get_replicas).
+-spec update_tag(node(), string(), [[binary()]], ddfs_tag:token()) -> _.
+update_tag(Host, Tag, Urls, Token) ->
+    update_tag(Host, Tag, Urls, Token, []).
 
--spec update_tag(node(), string(), [binary()]) -> _.
-update_tag(Host, Tag, Urls) ->
-    update_tag(Host, Tag, Urls, []).
+-spec update_tag(node(), string(), [[binary()]], ddfs_tag:token(), [term()]) -> _.
+update_tag(Host, Tag, Urls, Token, Opt) ->
+    tagop(Host, Tag, {update, Urls, Token, Opt}).
 
--spec update_tag(node(), string(), [binary()], [term()]) -> _.
-update_tag(Host, Tag, Urls, Opt) ->
-    tagop(Host, Tag, {update, Urls, Opt}).
+-spec update_tag_delayed(node(), string(), [[binary()]], ddfs_tag:token()) -> _.
+update_tag_delayed(Host, Tag, Urls, Token) ->
+    update_tag_delayed(Host, Tag, Urls, Token, []).
 
--spec update_tag_delayed(node(), string(), [binary()]) -> _.
-update_tag_delayed(Host, Tag, Urls) ->
-    update_tag_delayed(Host, Tag, Urls, []).
+-spec update_tag_delayed(node(), string(), [[binary()]],
+                         ddfs_tag:token(), [term()]) -> _.
+update_tag_delayed(Host, Tag, Urls, Token, Opt) ->
+    tagop(Host, Tag, {delayed_update, Urls, Token, Opt}).
 
--spec update_tag_delayed(node(), string(), [binary()], [term()]) -> _.
-update_tag_delayed(Host, Tag, Urls, Opt) ->
-    tagop(Host, Tag, {delayed_update, Urls, Opt}).
+-spec replace_tag(node(), string(),
+                  ddfs_tag:attrib(), [binary()] | [[binary()]], ddfs_tag:token()) -> _.
+replace_tag(Host, Tag, Field, Value, Token) ->
+    tagop(Host, Tag, {put, Field, Value, Token}).
 
--spec replace_tag(node(), string(), [binary()]) -> _.
-replace_tag(Host, Tag, Urls) ->
-    tagop(Host, Tag, {put, Urls}).
+-spec delete_attrib(node(), string(), ddfs_tag:attrib(), ddfs_tag:token()) -> _.
+delete_attrib(Host, Tag, Field, Token) ->
+    tagop(Host, Tag, {delete_attrib, Field, Token}).
 
--spec delete(node(), string()) -> _.
-delete(Host, Tag) ->
-    Fun =
-        fun() ->
-            BTag = list_to_binary(Tag),
-            Urls = [[<<"tag://", BTag/binary>>]],
-            Msg = {tag, {update, Urls, [nodup]}, <<"+deleted">>},
-            {ok, _} = gen_server:call(Host, Msg, ?TAG_UPDATE_TIMEOUT),
-            (catch gen_server:call(ddfs_master, {tag, die, BTag}, 1)),
-            ok
-        end,
-    validate(Tag, Fun).
+-spec delete(node(), string(), ddfs_tag:token() | 'internal') -> _.
+delete(Host, Tag, Token) ->
+    tagop(Host, Tag, {delete, Token}).
 
--spec tagop(node(), string(), _) -> _.
+-spec tagop(node(), string(),
+            {'delete', _}
+            | {'delete_attrib', _, _}
+            | {'delayed_update', _, _, _}
+            | {'update', _, _, _}
+            | {'put', _, _, _}) -> _.
 tagop(Host, Tag, Op) ->
    validate(Tag, fun() ->
         case gen_server:call(Host,
@@ -93,11 +88,11 @@ tagop(Host, Tag, Op) ->
 validate(Name, Fun) ->
     case ddfs_util:is_valid_name(Name) of
         false ->
-            invalid_name;
+            {error, invalid_name};
         true ->
             case catch Fun() of
                 {'EXIT', {timeout, _}} ->
-                    timeout;
+                    {error, timeout};
                 Ret ->
                     Ret
             end

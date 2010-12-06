@@ -65,7 +65,7 @@ process_job(JobPath, Purged) ->
             IsPurged = gb_sets:is_member(list_to_binary(Job), Purged),
             GCAfter = get(gcafter),
             if IsPurged; Now - T > GCAfter ->
-                ddfs:delete(get(ddfs), disco:oob_name(Job)),
+                ddfs:delete(get(ddfs), disco:oob_name(Job), internal),
                 os:cmd("rm -Rf " ++ JobPath);
             true ->
                 ok

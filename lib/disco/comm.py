@@ -1,4 +1,4 @@
-import httplib, os, random, struct, time, socket
+import httplib, os, random, struct, time, socket, base64
 from cStringIO import StringIO
 
 from disco.error import CommError
@@ -52,6 +52,11 @@ def range_header(offset):
         return {'Range': 'bytes=%s' % httprange(*tuple(iterify(offset)))}
     return {}
 
+def auth_header(token):
+    if token:
+        return {'Authorization': 'Basic ' + base64.b64encode("token:" + token)}
+    return {}
+
 def resolveuri(baseuri, uri):
     if uri.startswith('/'):
         scheme, netloc, _path = urlsplit(baseuri)
@@ -90,25 +95,30 @@ def request(method, url, data=None, headers={}, sleep=0):
         raise CommError(response.read(), url, status)
     return response
 
-def download(url, method='GET', data=None, offset=()):
+def download(url, method='GET', data=None, offset=(), token=None):
+    headers = range_header(offset)
+    headers.update(auth_header(token))
     return request(method if data is None else 'POST',
                    url,
                    data=data,
-                   headers=range_header(offset)).read()
+                   headers=headers).read()
 
-def upload(urls, source, **kwargs):
+def upload(urls, source, token=None, **kwargs):
     source = FileSource(source)
     if nocurl:
-        return [request('PUT', url, data=source.read()).read() for url in urls]
-    return list(comm_pycurl.upload(urls, source, **kwargs))
+        return [request('PUT',
+                        url,
+                        data=source.read(),
+                        headers=auth_header(token)).read() for url in urls]
+    return list(comm_pycurl.upload(urls, source, token, **kwargs))
 
 def open_local(path):
     fd = open(path, 'r', BUFFER_SIZE)
     size = os.stat(path).st_size
     return fd, size, 'file://%s' % path
 
-def open_remote(url):
-    conn = Connection(urlresolve(url))
+def open_remote(url, token=None):
+    conn = Connection(urlresolve(url), token)
     return conn, len(conn), conn.url
 
 class FileSource(object):
@@ -128,8 +138,9 @@ class FileSource(object):
         return open(self.source, 'r').read
 
 class Connection(object):
-    def __init__(self, url):
+    def __init__(self, url, token=None):
         self.url = url
+        self.token = token
         self.buf = None
         self.offset = 0
         self.orig_offset = 0
@@ -175,9 +186,11 @@ class Connection(object):
                 end = min(len(self), self.offset + CHUNK_SIZE) - 1
             else:
                 end = self.offset + CHUNK_SIZE - 1
+            headers = auth_header(self.token)
+            headers.update(range_header((self.offset, end)))
             response = request('GET',
                                self.url,
-                               headers=range_header((self.offset, end)))
+                               headers=headers)
             self.buf = response.read()
             self.headers = dict(response.getheaders())
             self.orig_offset = self.offset

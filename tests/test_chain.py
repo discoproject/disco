@@ -22,7 +22,7 @@ class ChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map_1(e, params):
-        yield e + params['suffix'], 0
+        yield e.strip() + params['suffix'], 0
 
     @staticmethod
     def reduce_1(iter, out, params):

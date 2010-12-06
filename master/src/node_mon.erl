@@ -1,9 +1,10 @@
 -module(node_mon).
 -export([start_link/1]).
 
--define(BLACKLIST_PERIOD, 600000).
--define(RESTART_DELAY, 10000).
+-define(RESTART_DELAY, 15000).
 -define(SLAVE_ARGS, "+K true -connect_all false").
+-define(RPC_CALL_TIMEOUT, 30000).
+-define(RPC_RETRY_TIMEOUT, 120000).
 
 start_link(Host) ->
     spawn_link(fun() -> spawn_node(Host) end).
@@ -11,36 +12,42 @@ start_link(Host) ->
 -spec spawn_node(nonempty_string()) -> no_return().
 spawn_node(Host) ->
     process_flag(trap_exit, true),
-    case catch slave_start(Host) of
+    spawn_node(Host, is_master(Host)).
+
+spawn_node(Host, IsMaster) ->
+    case {IsMaster, catch slave_start(Host)} of
         {true, {ok, Node}} ->
             % start a dummy ddfs_node process for the master, no get or put
             start_ddfs_node(node(), {false, false}),
             % start ddfs_node for the slave on the master node.
             % put enabled, but no get, which is handled by master
-            node_monitor(Node, {false, true});
+            node_monitor(Host, Node, {false, true});
         {false, {ok, Node}} ->
             % normal remote ddfs_node, both put and get enabled
-            node_monitor(Node, {true, true});
+            node_monitor(Host, Node, {true, true});
         {_, {error, {already_running, Node}}} ->
             % normal remote ddfs_node, both put and get enabled
-            node_monitor(Node, {true, true});
+            node_monitor(Host, Node, {true, true});
         {_, {error, timeout}} ->
-            blacklist(Host);
+            error_logger:info_report({"Connection timed out to", Host}),
+            disco_server:connection_status(Host, down);
         Error ->
             error_logger:warning_report(
                 {"Spawning node @", Host, "failed for unknown reason", Error}),
-            blacklist(Host)
+            disco_server:connection_status(Host, down)
     end,
     flush(),
     timer:sleep(?RESTART_DELAY),
-    spawn_node(Host).
+    spawn_node(Host, IsMaster).
 
--spec node_monitor(node(), {bool(), bool()}) -> _.
-node_monitor(Node, WebConfig) ->
+-spec node_monitor(nonempty_string(), node(), {bool(), bool()}) -> _.
+node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
     start_temp_gc(Node, disco:host(Node)),
-    wait(Node).
+    disco_server:connection_status(Host, up),
+    wait(Node),
+    disco_server:connection_status(Host, down).
 
 -spec wait(node()) -> _.
 wait(Node) ->
@@ -74,24 +81,28 @@ slave_env() ->
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 
--spec slave_start(nonempty_string()) -> {bool(), {'ok', node()} | {'error', _}}.
+-spec slave_start(nonempty_string()) -> {'ok', node()} | {'error', _}.
 slave_start(Host) ->
     error_logger:info_report({"starting node @", Host}),
-    {is_master(Host),
-     slave:start(Host,
-                 disco:node_name(),
-                 slave_env(),
-                 self(),
-                 disco:get_setting("DISCO_ERLANG"))}.
+    slave:start(Host,
+                disco:node_name(),
+                slave_env(),
+                self(),
+                disco:get_setting("DISCO_ERLANG")).
 
 -spec is_master(nonempty_string()) -> bool().
 is_master(Host) ->
-    case net_adm:names(Host) of
+    % the underlying tcp connection used by net_adm:names() may hang,
+    % so we use a timed rpc.
+    case rpc:call(node(), net_adm, names, [Host], ?RPC_CALL_TIMEOUT) of
         {ok, Names} ->
             Master = string:sub_word(atom_to_list(node()), 1, $@),
             lists:keymember(Master, 1, Names);
-        _ ->
-            false
+        R ->
+            % retry the connection, after a while.
+            error_logger:warning_report({"net_adm:names() failed", Host, R}),
+            timer:sleep(?RPC_RETRY_TIMEOUT),
+            is_master(Host)
     end.
 
 -spec start_temp_gc(node(), nonempty_string()) -> pid().
@@ -119,11 +130,3 @@ start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
             {get_enabled, GetEnabled},
             {put_enabled, PutEnabled}],
     spawn_link(Node, ddfs_node, start_link, [Args]).
-
-blacklist(Host) ->
-    error_logger:info_report({"Blacklisting", Host,
-                              "for", ?BLACKLIST_PERIOD, "ms."}),
-    Token = now(),
-    gen_server:call(disco_server, {blacklist, Host, Token}),
-    timer:sleep(?BLACKLIST_PERIOD),
-    gen_server:call(disco_server, {whitelist, Host, Token}).

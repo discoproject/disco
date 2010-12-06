@@ -1,4 +1,4 @@
-import httplib, time
+import httplib, time, base64
 from cStringIO import StringIO
 
 import pycurl
@@ -28,13 +28,15 @@ class HTTPConnection(object):
     defaults = {'CONNECTTIMEOUT': 20,
                 'FRESH_CONNECT': 1,
                 'LOW_SPEED_LIMIT': 1024, # 1kbps
-                'LOW_SPEED_TIME': 2 * 60,
                 'NOSIGNAL': 1}
 
-    def __init__(self, netloc):
+    def __init__(self, netloc, timeout=120):
         self.handle = pycurl.Curl()
         for k, v in self.defaults.items():
             self[k] = v
+
+        if timeout:
+            self['LOW_SPEED_TIME'] = timeout
 
         self.netloc = netloc
         self.response = CurlResponse()
@@ -62,6 +64,8 @@ class HTTPConnection(object):
 
         if method == 'DELETE':
             self['CUSTOMREQUEST'] = method
+        elif method == 'HEAD':
+            self['NOBODY'] = 1
         elif method == 'PUT':
             self['UPLOAD'] = 1
         elif method == 'POST':
@@ -92,15 +96,22 @@ class HTTPConnection(object):
             raise httplib.HTTPException(self.handle.errstr())
 
 class MultiPut(object):
-    def __init__(self, urls, source):
+    def __init__(self, urls, source, token=None):
         from disco.util import urlresolve
         self.multi = pycurl.CurlMulti()
+        headers = self.auth_header(token)
         self.pending = [(url, HTTPConnection('').prepare('PUT',
                                                          urlresolve(url),
-                                                         body=source))
+                                                         body=source,
+                                                         headers=headers))
                         for url in urls]
         for url, conn in self.pending:
             self.multi.add_handle(conn.handle)
+
+    def auth_header(self, token):
+        if token:
+            return {'Authorization': 'Basic ' + base64.b64encode("token:" + token)}
+        return {}
 
     def perform(self):
         num_handles = True
@@ -115,10 +126,10 @@ class MultiPut(object):
         for url, conn in self.pending:
             yield url, conn.getresponse()
 
-def upload(urls, source, retries=10):
+def upload(urls, source, token, retries=10):
     unavailable = []
 
-    for url, response in MultiPut(urls, source).perform():
+    for url, response in MultiPut(urls, source, token).perform():
         status = response.status
         if str(status).startswith('2'):
             yield response.read()
@@ -130,5 +141,5 @@ def upload(urls, source, retries=10):
             raise CommError("Upload failed: %s" % response.read(), url, status)
 
     if unavailable:
-        for response in upload(unavailable, source, retries=retries-1):
+        for response in upload(unavailable, source, token, retries=retries-1):
             yield response

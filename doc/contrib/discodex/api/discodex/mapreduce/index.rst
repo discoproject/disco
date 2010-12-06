@@ -13,6 +13,3 @@
 .. automodule:: discodex.mapreduce.balancers
    :members:
 
-.. automodule:: discodex.mapreduce.metakeyers
-   :members:
-

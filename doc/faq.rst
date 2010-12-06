@@ -4,9 +4,6 @@ Disco FAQ
 
 .. contents::
 
-Using Disco
------------
-
 I tried to install Disco but it doesn't work. Why?
 ''''''''''''''''''''''''''''''''''''''''''''''''''
 
@@ -14,29 +11,22 @@ See :ref:`troubleshooting`.
 If the problem persists,
 contact Disco developers :doc:`on IRC or the mailing list <start/getinvolved>`.
 
-Why not `Hadoop <http://hadoop.apache.org>`_?
-'''''''''''''''''''''''''''''''''''''''''''''
+How come ``ssh localhost erl`` doesn't use my normal ``$PATH``?
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-Why `Vim <http://www.vim.org>`_ and not `Emacs
-<http://www.gnu.org/software/emacs/>`_?
+::
 
-We see that platforms for distributed computing will be of such high
-importance in the future that it is crucial to have a wide variety of
-different approaches which produces healthy competition and co-evolution
-between the projects. In this respect, Hadoop and Disco can be seen as
-complementary projects, similar to `Apache <http://httpd.apache.org>`_,
-`Lighttpd <http://lighttpd.net>`_ and `Nginx <http://nginx.net>`_.
+        ssh localhost erl
 
-It is a matter of taste whether Erlang and Python are more suitable for
-the task than Java. We feel much more productive with Python than with
-Java. We also feel that Erlang is a perfect match for the Disco core
-that needs to handle tens of thousands of tasks in parallel.
+is different from::
 
-Thanks to Erlang, the Disco core is remarkably compact, currently less
-than 6000 lines of code. It is relatively easy to understand how
-the core works, and start experimenting with it or adapt it to new
-environments. Thanks to Python, it is easy to add new features around
-the core which ensures that Disco can respond quickly to real-world needs.
+        ssh localhost
+        erl
+
+In general, interactive shells behave differently than non-interactive ones.
+For example, see the `Bash Reference Manual`_.
+
+.. _Bash Reference Manual: http://www.gnu.org/software/bash/manual/bashref.html#Interactive-Shells
 
 .. _profiling:
 
@@ -171,8 +161,8 @@ value in the input by one::
 
         disco = Disco("disco://localhost")
         results = disco.new_job(name = "inc_init",
-                               input = sys.argv[2:],
-                               map = init_map).wait()
+                                input = sys.argv[2:],
+                                map = init_map).wait()
 
         for i in range(9):
                 results = disco.new_job(name =  "inc_%d" % i,
@@ -258,6 +248,30 @@ My input files are stored in CSV / XML / XYZ format. What is the easiest to use 
 If the format is textual, it may be possible to define a regular
 expression that can be used to extract input entries from the files. See
 :func:`disco.func.re_reader` for more information.
+
+Why not `Hadoop <http://hadoop.apache.org>`_?
+'''''''''''''''''''''''''''''''''''''''''''''
+
+Why `Vim <http://www.vim.org>`_ and not `Emacs
+<http://www.gnu.org/software/emacs/>`_?
+
+We see that platforms for distributed computing will be of such high
+importance in the future that it is crucial to have a wide variety of
+different approaches which produces healthy competition and co-evolution
+between the projects. In this respect, Hadoop and Disco can be seen as
+complementary projects, similar to `Apache <http://httpd.apache.org>`_,
+`Lighttpd <http://lighttpd.net>`_ and `Nginx <http://nginx.net>`_.
+
+It is a matter of taste whether Erlang and Python are more suitable for
+the task than Java. We feel much more productive with Python than with
+Java. We also feel that Erlang is a perfect match for the Disco core
+that needs to handle tens of thousands of tasks in parallel.
+
+Thanks to Erlang, the Disco core is remarkably compact, currently less
+than 6000 lines of code. It is relatively easy to understand how
+the core works, and start experimenting with it or adapt it to new
+environments. Thanks to Python, it is easy to add new features around
+the core which ensures that Disco can respond quickly to real-world needs.
 
 .. _ec2:
 
