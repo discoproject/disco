@@ -15,6 +15,14 @@ Recommends: python-pycurl
 Description: Disco client
  This is Disco client.
 
+Package: python-discodb
+Architecture: amd64
+Section: python
+Build-Depends: python-support (>= 0.5.3), python (>= 2.5), python-all-dev, gcc, libcmph-dev (>= 0.9)
+Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.5), libcmph0 (>= 0.9)
+Description: DiscoDB
+ This is DiscoDB.
+
 Package: disco-node
 Architecture: all
 Depends: ${misc:Depends}, adduser, erlang-base (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a,  python-disco (= ${source:Version})

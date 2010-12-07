@@ -19,6 +19,7 @@ export DH_OPTIONS
 DESTDIR=$(CURDIR)/debian/disco-master
 NODEDEST=$(CURDIR)/debian/disco-node
 PYDISCODEST=$(CURDIR)/debian/python-disco
+PYDISCODBDEST=$(CURDIR)/debian/python-discodb
 
 clean: 
 	dh_testdir
@@ -37,6 +38,7 @@ install:
 	$(MAKE) install-master UNAME=Debian PREFIX=/usr DESTDIR=$(DESTDIR) 
 	$(MAKE) install-lib UNAME=Debian PREFIX=/usr DESTDIR=$(PYDISCODEST)
 	$(MAKE) install-node UNAME=Debian PREFIX=/usr DESTDIR=$(NODEDEST)
+	$(MAKE) install-discodb UNAME=Debian PREFIX=/usr DESTDIR=$(PYDISCODBDEST)
 
 	# disco.conf is provided by disco-node, so it should
 	# be removed from disco-master
