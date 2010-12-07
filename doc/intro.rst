@@ -61,8 +61,8 @@ extremely compact Python API -- typically only two functions are needed --
 as well as a REST-style Web API for job control and a easy-to-use Web
 interface for status monitoring.
 
-High-performance computing made easy
-------------------------------------
+Distributed computing made easy
+-------------------------------
 
 Disco is a good match for a cluster of commodity Linux servers. New
 nodes can be added to the system on the fly, by a single click on
