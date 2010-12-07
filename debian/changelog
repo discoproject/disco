@@ -1,3 +1,9 @@
+disco (0.3.2) unstable; urgency=low
+  
+  * Bugfixes and some minor features added
+   
+ -- Ville Tuulos <tuulos@nxfront.nokiapaloalto.com>  Mon, 31 Oct 2008 15:30:32 -0700
+
 disco (0.3.1) unstable; urgency=low
   
   * Bugfixes and some minor features added
