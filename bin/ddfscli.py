@@ -120,7 +120,7 @@ class DDFS(Program):
 
 @DDFS.command
 def attrs(program, tag):
-    """Usage: tag
+    """Usage: [-t token] tag
 
     List the attributes of a tag.
     """
@@ -130,7 +130,7 @@ def attrs(program, tag):
 
 @DDFS.command
 def blobs(program, *tags):
-    """Usage: [-i] [-p] [tag ...]
+    """Usage: [-i] [-p] [-t token] [tag ...]
 
     List all blobs reachable from tag[s].
     """
@@ -139,7 +139,7 @@ def blobs(program, *tags):
 
 @DDFS.command
 def cat(program, *urls):
-    """Usage: [-i] [-p] [url ...]
+    """Usage: [-i] [-p] [-t token] [url ...]
 
     Concatenate the contents of all url[s] and print to stdout.
     If any of the url[s] are tags,
@@ -167,7 +167,7 @@ def cat(program, *urls):
 
 @DDFS.command
 def chunk(program, tag, *urls):
-    """Usage: [-n replicas] [-S stream] [-R reader] [-u] tag [url ...]
+    """Usage: [-n replicas] [-S stream] [-R reader] [-t token] [-u] tag [url ...]
 
     Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
     """
@@ -187,7 +187,7 @@ def chunk(program, tag, *urls):
 
 @DDFS.command
 def cp(program, source_tag, target_tag):
-    """Usage: source_tag target_tag
+    """Usage: [-t token] source_tag target_tag
 
     Copies one tag to another, overwriting it if it exists.
     """
@@ -198,7 +198,7 @@ def cp(program, source_tag, target_tag):
 
 @DDFS.command
 def delattr(program, tag, attr):
-    """Usage: tag attr
+    """Usage: [-t token] tag attr
 
     Delete an attribute of a tag.
     """
@@ -232,7 +232,7 @@ def exists(program, tag):
 
 @DDFS.command
 def find(program, *tags):
-    """Usage: [-i|-w] [-p] [tag ...]
+    """Usage: [-i|-w] [-p] [-t token] [tag ...]
 
     Walk the tag hierarchy starting at tag[s].
     Prints each path as it is encountered.
@@ -260,7 +260,7 @@ def find(program, *tags):
 
 @DDFS.command
 def get(program, tag):
-    """Usage: tag
+    """Usage: [-t token] tag
 
     Gets the contents of the tag.
     """
@@ -268,7 +268,7 @@ def get(program, tag):
 
 @DDFS.command
 def getattr(program, tag, attr):
-    """Usage: tag attr
+    """Usage: [-t token] tag attr
 
     Get an attribute of a tag.
     """
@@ -292,11 +292,11 @@ def help(program, *args):
 
 @DDFS.command
 def ls(program, *prefixes):
-    """Usage: [-i] [-r] [prefix ...]
+    """Usage: [-i] [-r] [-t token] [prefix ...]
 
     List all tags starting with prefix[es].
 
-    	-r	lists the blobs reachable from each tag.
+        -r      lists the blobs reachable from each tag.
     """
     from disco.error import CommError
 
@@ -312,21 +312,23 @@ def ls(program, *prefixes):
 
 @DDFS.command
 def push(program, tag, *files):
-    """Usage: [-I I] [-E E] [-n N] [-r] [-x] tag [file ...]
+    """Usage: [-I I] [-E E] [-n N] [-r] [-t token] [-x] tag [file ...]
 
     Push file[s] to DDFS and tag them with the given tag.
 
-        -I I	include tar blobs that contain I.
+        -I I    include tar blobs that contain I.
 
-        -E E	exclude tar blobs that contain E.
+        -E E    exclude tar blobs that contain E.
 
-    	-n N	creates N replicas instead of the default.
+        -n N    creates N replicas instead of the default.
 
-    	-r	recursively push directories.
+        -r      recursively push directories.
 
-    	-x	extract files as tarballs.
+        -t T    uses write token T
 
-        -z	compress tar blobs.
+        -x      extract files as tarballs.
+
+        -z      compress tar blobs.
     """
     replicas = program.options.replicas
     tarballs = program.options.tarballs
@@ -354,7 +356,7 @@ def push(program, tag, *files):
 
 @DDFS.command
 def put(program, tag, *urls):
-    """Usage: tag [-f] [url ...]
+    """Usage: [-f] [-t token] tag [url ...]
 
     Put the urls[s] to the given tag.
     Urls may be quoted whitespace-separated lists of replicas.
@@ -365,7 +367,7 @@ def put(program, tag, *urls):
 
 @DDFS.command
 def readtoken(program, tag, tok):
-    """Usage: tag token
+    """Usage: [-t token] tag token
 
     Set the read token of a tag.
     """
@@ -373,7 +375,7 @@ def readtoken(program, tag, tok):
 
 @DDFS.command
 def rm(program, *tags):
-    """Usage: [-i] [-r] [-p] [tag ...]
+    """Usage: [-i] [-r] [-p] [-t token] [tag ...]
 
     Remove the tag[s].
     """
@@ -382,7 +384,7 @@ def rm(program, *tags):
 
 @DDFS.command
 def setattr(program, tag, attr, val):
-    """Usage: tag attr val
+    """Usage: [-t token] tag attr val
 
     Set the value of an attribute of a tag.
     """
@@ -390,7 +392,7 @@ def setattr(program, tag, attr, val):
 
 @DDFS.command
 def stat(program, *tags):
-    """Usage: [tag ...]
+    """Usage: [-t token] [tag ...]
 
     Display information about the tag[s].
     """
@@ -400,7 +402,7 @@ def stat(program, *tags):
 
 @DDFS.command
 def tag(program, tag, *urls):
-    """Usage: tag [-f] [url ...]
+    """Usage: [-f] [-t token] tag [url ...]
 
     Tags the urls[s] with the given tag.
     Urls may be quoted whitespace-separated lists of replicas.
@@ -411,7 +413,7 @@ def tag(program, tag, *urls):
 
 @DDFS.command
 def touch(program, *tags):
-    """Usage: [tag ...]
+    """Usage: [-t token] [tag ...]
 
     Creates the tag[s] if they do not exist.
     """
@@ -420,7 +422,7 @@ def touch(program, *tags):
 
 @DDFS.command
 def urls(program, *tags):
-    """Usage: [-p] [tag ...]
+    """Usage: [-p] [-t token] [tag ...]
 
     List the urls pointed to by the tag[s].
     """
@@ -430,7 +432,7 @@ def urls(program, *tags):
 
 @DDFS.command
 def writetoken(program, tag, tok):
-    """Usage: tag token
+    """Usage: [-t token] tag token
 
     Set the write token of a tag.
     """
@@ -438,7 +440,7 @@ def writetoken(program, tag, tok):
 
 @DDFS.command
 def xcat(program, *urls):
-    """Usage: [-i] [-p] [-R reader] [urls ...]
+    """Usage: [-i] [-p] [-R reader] [-t token] [urls ...]
 
     Concatenate the extracted results stored in url[s] and print to stdout.
     If any of the url[s] are tags,
