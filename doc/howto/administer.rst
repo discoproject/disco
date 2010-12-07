@@ -85,5 +85,5 @@ tags or blobs falls below the configured minimum
 (``DDFS_BLOB_REPLICAS``), then DDFS will start re-replicating them
 from the existing replicas on the other nodes as described in
 :ref:`ddfs`.  Note that it is never a good idea to remove more than
-``DDFS_BLOB_REPLICAS` nodes at a time, since you may lose any data all
+``DDFS_BLOB_REPLICAS`` nodes at a time, since you may lose any data all
 of whose replicas were hosted on those nodes.
