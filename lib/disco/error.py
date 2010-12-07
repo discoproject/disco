@@ -11,18 +11,17 @@ class DiscoError(Exception):
     pass
 
 class JobError(DiscoError):
-    """
-    An error that occurs when a client submits or interacts with a Disco job.
+    """An error that occurs when a client submits or interacts with a Disco job.
 
-    .. attribute:: msg
+    .. attribute:: error
 
         Error message.
 
-   .. attribute:: name
+    .. attribute:: name
 
         Name of the failed job.
 
-   .. attribute:: master
+    .. attribute:: master
 
         Address of the Disco master that produced the error.
     """
