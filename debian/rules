@@ -56,7 +56,7 @@ binary-common:
 	dh_installchangelogs -A
 	dh_installdocs -A
 	dh_installexamples -A
-	dh_pysupport -i
+	dh_pysupport -A
 #	dh_installmenu
 #	dh_installdebconf	
 #	dh_installlogrotate	

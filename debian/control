@@ -2,14 +2,13 @@ Source: disco
 Section: admin
 Priority: extra
 Maintainer: Ville Tuulos <ville.h.tuulos@nokia.com>
-Build-depends: debhelper (>= 7), python-support, erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a
+Build-depends: debhelper (>= 7), python-support (>= 0.5.3), erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), erlang-abi-13.a, python-all-dev, gcc, libcmph-dev (>= 0.9)
 Standards-Version: 3.7.3
 Homepage: http://www.discoproject.org
 
 Package: python-disco
 Architecture: all
 Section: python
-Build-Depends: python-support (>= 0.5.3), python (>= 2.5)
 Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.5), python-cjson
 Recommends: python-pycurl
 Description: Disco client
@@ -18,7 +17,6 @@ Description: Disco client
 Package: python-discodb
 Architecture: amd64
 Section: python
-Build-Depends: python-support (>= 0.5.3), python (>= 2.5), python-all-dev, gcc, libcmph-dev (>= 0.9)
 Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.5), libcmph0 (>= 0.9)
 Description: DiscoDB
  This is DiscoDB.
