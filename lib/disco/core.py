@@ -453,6 +453,13 @@ class JobDict(util.DefaultDict):
                    * ``raw://some_string`` - pseudo-address; instead of fetching data from a remote source, use ``some_string`` in the address as data. Useful for specifying dummy inputs for generator maps.
                    * ``tag://tagname`` - a tag stored in :ref:`DDFS` (*Added in version 0.3*)
 
+                  (*Added in version 0.3.2*)
+                  Tags can be token protected. For the data in such
+                  token-protected tags to be used as job inputs, the
+                  tags should be resolved into the constituent urls or
+                  replica sets (e.g. using util.urllist), and provided
+                  as the value of the input parameter.
+
                   (*Added in version 0.2.2*):
                   An input entry can be a list of inputs:
                   This lets you specify redundant versions of an input file.
