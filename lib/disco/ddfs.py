@@ -101,7 +101,7 @@ class DDFS(object):
                     yield replicas
 
     def delattr(self, tag, attr, token=None):
-        """Delete the attribute ``attr` of the tag ``tag``."""
+        """Delete the attribute ``attr`` of the tag ``tag``."""
         return self._download(self._tagattr(tag, attr),
                               method='DELETE',
                               token=token)
@@ -183,7 +183,7 @@ class DDFS(object):
         return self._download(canonizetag(tag), token=token)
 
     def getattr(self, tag, attr, token=None):
-        """Return the value of the attribute ``attr` of the tag ``tag``."""
+        """Return the value of the attribute ``attr`` of the tag ``tag``."""
         return self._download(self._tagattr(tag, attr), token=token)
 
     def urls(self, tag, token=None):
@@ -191,7 +191,7 @@ class DDFS(object):
         return self.get(tag, token=token)['urls']
 
     def list(self, prefix=''):
-        """Return a list of all tags starting wtih ``prefix``."""
+        """Return a list of all tags starting with ``prefix``."""
         return self._download('%s/ddfs/tags/%s' % (self.master, prefix))
 
     def pull(self, tag, blobfilter=lambda x: True, token=None):
@@ -250,7 +250,7 @@ class DDFS(object):
                             token=token)
 
     def setattr(self, tag, attr, val, token=None):
-        """Set the value of the attribute ``attr` of the tag ``tag``."""
+        """Set the value of the attribute ``attr`` of the tag ``tag``."""
         return self._upload(self._tagattr(tag, attr),
                             StringIO(json.dumps(val)),
                             token=token)
