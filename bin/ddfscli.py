@@ -28,7 +28,7 @@ See also: :mod:`disco.settings`
 
 """
 
-import os, sys
+import fileinput, os, sys
 from itertools import chain
 
 if '.disco-home' in os.listdir('.'):
@@ -43,6 +43,9 @@ class DDFSOptionParser(OptionParser):
                         help='exclude match')
         self.add_option('-I', '--include',
                         help='include match')
+        self.add_option('-f', '--files',
+                        action='store_true',
+                        help='file mode for commands that take it')
         self.add_option('-i', '--ignore-missing',
                         action='store_true',
                         help='ignore missing tags')
@@ -50,10 +53,20 @@ class DDFSOptionParser(OptionParser):
                         help='number of replicas to create when pushing')
         self.add_option('-p', '--prefix',
                         action='store_true',
-                        help='prefix mode for commands that take it.')
+                        help='prefix mode for commands that take it')
+        self.add_option('-R', '--reader',
+                        help='input reader to import and use')
         self.add_option('-r', '--recursive',
                         action='store_true',
                         help='recursively perform operations')
+        self.add_option('-T', '--stream',
+                        default='disco.func.default_stream',
+                        help='input stream to import and use')
+        self.add_option('-t', '--token',
+                        help='authorization token for the command')
+        self.add_option('-u', '--update',
+                        action='store_true',
+                        help='whether to perform an update or an append')
         self.add_option('-w', '--warn-missing',
                         action='store_true',
                         help='warn about missing tags')
@@ -70,6 +83,14 @@ class DDFS(Program):
         from disco.settings import DiscoSettings
         return DiscoSettings
 
+    def blobs(self, *tags):
+        ignore_missing = self.options.ignore_missing
+        for tag in self.prefix_mode(*tags):
+            for replicas in self.ddfs.blobs(tag,
+                                            ignore_missing=ignore_missing,
+                                            token=self.options.token):
+                yield replicas
+
     def default(self, program, *args):
         if args:
             raise Exception("unrecognized command: %s" % ' '.join(args))
@@ -78,38 +99,57 @@ class DDFS(Program):
     @property
     def ddfs(self):
         from disco.ddfs import DDFS
-        return DDFS(self.settings['DISCO_MASTER'])
+        return DDFS(master=self.settings['DISCO_MASTER'])
+
+    def file_mode(self, *urls):
+        if self.options.files:
+            return fileinput.input(urls)
+        return urls
 
     def prefix_mode(self, *tags):
-        from itertools import chain
         if self.options.prefix:
             return chain(match
                          for tag in tags
                          for match in self.ddfs.list(tag))
         return tags
 
+    def separate_tags(self, *urls):
+        from disco.util import partition
+        from disco.ddfs import istag
+        return partition(urls, istag)
+
+@DDFS.command
+def attrs(program, tag):
+    """Usage: [-t token] tag
+
+    List the attributes of a tag.
+    """
+    d = program.ddfs.attrs(tag, token=program.options.token)
+    for k,v in d.iteritems():
+        print ("%s: %s" % (k, v))
+
 @DDFS.command
 def blobs(program, *tags):
-    """Usage: [-i] [-p] tag ...
+    """Usage: [-i] [-p] [-t token] [tag ...]
 
     List all blobs reachable from tag[s].
     """
-    ignore_missing = program.options.ignore_missing
-    for tag in program.prefix_mode(*tags):
-        for replicas in program.ddfs.blobs(tag, ignore_missing=ignore_missing):
-            print '\t'.join(replicas)
+    for replicas in program.blobs(*tags):
+        print '\t'.join(replicas)
 
 @DDFS.command
-def cat(program, *tags):
-    """Usage: [-i] [-p] tag ...
+def cat(program, *urls):
+    """Usage: [-i] [-p] [-t token] [url ...]
 
-    Concatenate the contents of all blobs reachable from tag[s],
-    and print to stdout.
+    Concatenate the contents of all url[s] and print to stdout.
+    If any of the url[s] are tags,
+    the blobs reachable from the tags will be printed after any non-tag url[s].
     """
     from subprocess import call
     from disco.comm import download
 
     ignore_missing = program.options.ignore_missing
+    tags, urls     = program.separate_tags(*urls)
 
     def curl(replicas):
         for replica in replicas:
@@ -117,17 +157,52 @@ def cat(program, *tags):
                 return download(replica)
             except Exception, e:
                 sys.stderr.write("%s\n" % e)
-        raise Exception("Failed downloading all replicas: %s" % replicas)
-    for tag in program.prefix_mode(*tags):
-        for replicas in program.ddfs.blobs(tag, ignore_missing=ignore_missing):
-            sys.stdout.write(curl(replicas))
+        if not ignore_missing:
+            raise Exception("Failed downloading all replicas: %s" % replicas)
+        return ''
 
+    for replicas in chain(([url] for url in urls),
+                          program.blobs(*tags)):
+        sys.stdout.write(curl(replicas))
+
+@DDFS.command
+def chunk(program, tag, *urls):
+    """Usage: [-n replicas] [-S stream] [-R reader] [-t token] [-u] tag [url ...]
+
+    Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
+    """
+    from disco.util import reify
+
+    tags, urls = program.separate_tags(*urls)
+    stream = reify(program.options.stream)
+    reader = reify(program.options.reader or 'None')
+    tag, blobs = program.ddfs.chunk(tag,
+                                    chain(urls, program.blobs(*tags)),
+                                    input_stream=stream,
+                                    reader=reader,
+                                    replicas=program.options.replicas,
+                                    update=program.options.update)
+    for replicas in blobs:
+        print 'created: %s' % '\t'.join(replicas)
+
+@DDFS.command
 def cp(program, source_tag, target_tag):
-    """Usage: source_tag target_tag
+    """Usage: [-t token] source_tag target_tag
 
     Copies one tag to another, overwriting it if it exists.
     """
-    program.ddfs.put(target_tag, program.ddfs.get(target_tag)['urls'])
+    token = program.options.token
+    program.ddfs.put(target_tag,
+                     program.ddfs.get(source_tag, token=token)['urls'],
+                     token=token)
+
+@DDFS.command
+def delattr(program, tag, attr):
+    """Usage: [-t token] tag attr
+
+    Delete an attribute of a tag.
+    """
+    program.ddfs.delattr(tag, attr, token=program.options.token)
 
 def df(program, *args):
     """Usage: <undefined>
@@ -157,7 +232,7 @@ def exists(program, tag):
 
 @DDFS.command
 def find(program, *tags):
-    """Usage: [-i|-w] [-p] tag ...
+    """Usage: [-i|-w] [-p] [-t token] [tag ...]
 
     Walk the tag hierarchy starting at tag[s].
     Prints each path as it is encountered.
@@ -168,27 +243,36 @@ def find(program, *tags):
     """
     ignore_missing = program.options.ignore_missing
     warn_missing   = program.options.warn_missing
+    token          = program.options.token
 
     if warn_missing:
         ignore_missing = True
 
     for tag in program.prefix_mode(*tags):
-        found = program.ddfs.walk(tag, ignore_missing=ignore_missing)
+        found = program.ddfs.walk(tag, ignore_missing=ignore_missing, token=token)
         for tagpath, subtags, blobs in found:
             if subtags == blobs == None:
                 print "Tag not found: %s" % "\t".join(tagpath)
             elif subtags == blobs == () and warn_missing:
                 print "Tag not found: %s" % "\t".join(tagpath)
             else:
-                print os.path.join(*tagpath)
+                print '\t'.join(tagpath)
 
 @DDFS.command
 def get(program, tag):
-    """Usage: tag
+    """Usage: [-t token] tag
 
     Gets the contents of the tag.
     """
-    print program.ddfs.get(tag)
+    print program.ddfs.get(tag, token=program.options.token)
+
+@DDFS.command
+def getattr(program, tag, attr):
+    """Usage: [-t token] tag attr
+
+    Get an attribute of a tag.
+    """
+    print program.ddfs.getattr(tag, attr, token=program.options.token)
 
 def grep(program, *args):
     """Usage: <undefined>
@@ -208,39 +292,47 @@ def help(program, *args):
 
 @DDFS.command
 def ls(program, *prefixes):
-    """Usage: [-i] [-r] prefix ...
+    """Usage: [-i] [-r] [-t token] [prefix ...]
 
     List all tags starting with prefix[es].
 
-    	-r	lists the blobs reachable from each tag.
+        -r      lists the blobs reachable from each tag.
     """
+    from disco.error import CommError
+
     for prefix in prefixes or ('', ):
         for tag in program.ddfs.list(prefix):
             print tag
             if program.options.recursive:
-                blobs(program, tag)
+                try:
+                    blobs(program, tag)
+                except CommError, e:
+                    print e
                 print
 
 @DDFS.command
 def push(program, tag, *files):
-    """Usage: [-I I] [-E E] [-n N] [-r] [-x] tag file ...
+    """Usage: [-I I] [-E E] [-n N] [-r] [-t token] [-x] tag [file ...]
 
     Push file[s] to DDFS and tag them with the given tag.
 
-        -I I	include tar blobs that contain I.
+        -I I    include tar blobs that contain I.
 
-        -E E	exclude tar blobs that contain E.
+        -E E    exclude tar blobs that contain E.
 
-    	-n N	creates N replicas instead of the default.
+        -n N    creates N replicas instead of the default.
 
-    	-r	recursively push directories.
+        -r      recursively push directories.
 
-    	-x	extract files as tarballs.
+        -t T    uses write token T
 
-        -z	compress tar blobs.
+        -x      extract files as tarballs.
+
+        -z      compress tar blobs.
     """
     replicas = program.options.replicas
     tarballs = program.options.tarballs
+    token    = program.options.token
 
     blobs = [] if tarballs else [file for file in files
                                  if os.path.isfile(file)]
@@ -260,72 +352,112 @@ def push(program, tag, *files):
             else:
                 print "%s is a directory (not pushing)." % file
     print "pushing..."
-    program.ddfs.push(tag, blobs, replicas=replicas)
+    program.ddfs.push(tag, blobs, replicas=replicas, token=token)
 
 @DDFS.command
 def put(program, tag, *urls):
-    """Usage: tag url ...
+    """Usage: [-f] [-t token] tag [url ...]
 
     Put the urls[s] to the given tag.
+    Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.put(tag, [[url] for url in urls])
+    program.ddfs.put(tag,
+                     [url.split() for url in program.file_mode(*urls)],
+                     token=program.options.token)
+
+@DDFS.command
+def readtoken(program, tag, tok):
+    """Usage: [-t token] tag token
+
+    Set the read token of a tag.
+    """
+    program.ddfs.setattr(tag, 'ddfs:read-token', tok, token=program.options.token)
 
 @DDFS.command
 def rm(program, *tags):
-    """Usage: [-i] [-r] tag ...
+    """Usage: [-i] [-r] [-p] [-t token] [tag ...]
 
     Remove the tag[s].
     """
-    for tag in tags:
-        print program.ddfs.delete(tag)
+    for tag in program.prefix_mode(*tags):
+        print program.ddfs.delete(tag, token=program.options.token)
+
+@DDFS.command
+def setattr(program, tag, attr, val):
+    """Usage: [-t token] tag attr val
+
+    Set the value of an attribute of a tag.
+    """
+    program.ddfs.setattr(tag, attr, val, token=program.options.token)
 
 @DDFS.command
 def stat(program, *tags):
-    """Usage: tag ...
+    """Usage: [-t token] [tag ...]
 
     Display information about the tag[s].
     """
     for tag in tags:
-        tag = program.ddfs.get(tag)
+        tag = program.ddfs.get(tag, token=program.options.token)
         print '\t'.join('%s' % tag[key] for key in tag.keys() if key != 'urls')
 
 @DDFS.command
 def tag(program, tag, *urls):
-    """Usage: tag url ...
+    """Usage: [-f] [-t token] tag [url ...]
 
     Tags the urls[s] with the given tag.
+    Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.tag(tag, [[url] for url in urls])
+    program.ddfs.tag(tag,
+                     [url.split() for url in program.file_mode(*urls)],
+                     token=program.options.token)
 
 @DDFS.command
 def touch(program, *tags):
-    """Usage: tag ...
+    """Usage: [-t token] [tag ...]
 
     Creates the tag[s] if they do not exist.
     """
     for tag in tags:
-        program.ddfs.tag(tag, [])
+        program.ddfs.tag(tag, [], token=program.options.token)
 
 @DDFS.command
 def urls(program, *tags):
-    """Usage: [-p] tag ...
+    """Usage: [-p] [-t token] [tag ...]
 
     List the urls pointed to by the tag[s].
     """
     for tag in program.prefix_mode(*tags):
-        for replicas in program.ddfs.get(tag)['urls']:
+        for replicas in program.ddfs.urls(tag, token=program.options.token):
             print '\t'.join(replicas)
 
 @DDFS.command
-def xcat(program, *urls):
-    """Usage: [urls ...]
+def writetoken(program, tag, tok):
+    """Usage: [-t token] tag token
 
-    Concatenate the extracted results stored in url[s],
-    and print to stdout.
+    Set the write token of a tag.
     """
-    from disco.core import result_iterator
-    for result in result_iterator(urls):
-        print result
+    program.ddfs.setattr(tag, 'ddfs:write-token', tok, token=program.options.token)
+
+@DDFS.command
+def xcat(program, *urls):
+    """Usage: [-i] [-p] [-R reader] [-t token] [urls ...]
+
+    Concatenate the extracted results stored in url[s] and print to stdout.
+    If any of the url[s] are tags,
+    the blobs reachable from the tags will be printed after any non-tag url[s].
+    """
+    from disco.core import RecordIter
+    from disco.util import iterify, reify
+
+    tags, urls = program.separate_tags(*urls)
+    stream = reify(program.options.stream)
+    reader = program.options.reader
+    reader = reify('disco.func.chain_reader' if reader is None else reader)
+
+    for record in RecordIter(chain(urls, program.blobs(*tags)),
+                             input_stream=stream,
+                             reader=reader):
+        print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()

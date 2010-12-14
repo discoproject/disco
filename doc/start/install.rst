@@ -6,16 +6,13 @@ Setting up Disco
 
 This document helps you to install Disco either on a single server or a
 cluster of servers. This requires installation of several packages, which
-may or may not be totally straightforward. If you want to get something
-working quickly, you should consider trying out Disco in Amazon EC2
-(:ref:`ec2setup`) which requires no configuration on your side.
+may or may not be totally straightforward.
 
 **Shortcut for Debian / Ubuntu users:** If you run Debian testing or
 some recent version of Ubuntu on the AMD64 architecture, you may try
-out our **experimental** deb-packages which are available at `Disco
-download page <http://discoproject.org/download.html>`_. If you managed
-to install the packages, you can skip over the steps 0-3 below and go
-to :ref:`configauth` directly.
+out our **experimental** deb-packages which are available at the :doc:`Disco
+download page <download>`. If you managed to install the packages,
+you can skip over the steps 0-3 below and go to :ref:`configauth` directly.
 
 
 Background
@@ -28,7 +25,7 @@ story short, Disco works as follows:
  * Disco users start Disco jobs in Python scripts.
  * Jobs requests are sent over HTTP to the master.
  * Master is an Erlang process that receives requests over HTTP.
- * Master launches another Erlang process, worker supervisor, on each node over
+ * Master launches another Erlang process, the worker supervisor, on each node over
    SSH.
  * Worker supervisors run Disco jobs as Python processes.
 
@@ -46,16 +43,15 @@ On each server the following applications / libraries are required:
  * `Python 2.5 or newer <http://www.python.org>`_
  * `cJSON module for Python <http://pypi.python.org/pypi/python-cjson>`_ (for Python < 2.6)
 
-Optionally, ``DISCO_PROXY`` needs
- 
+Optionally, ``DISCO_PROXY`` needs one of
+
  * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
+ * `Varnish 2.1.3 or newer <http://varnish-cache.org>`_
 
 1. Install Disco
 ----------------
 
-Download `the latest Disco package from discoproject.org
-<http://discoproject.org/download.html>`_. Alternatively you can download `the
-latest development snapshot from GitHub <http://github.com/tuulos/disco>`_.
+Download :doc:`a recent version of Disco <download>`.
 
 Extract the package (if necessary) and ``cd`` into it.
 We will refer to this directory as ``DISCO_HOME``.
@@ -83,9 +79,9 @@ directories).
     ``make install`` installs a configuration file to
     ``/etc/disco/settings.py`` that is tuned for clusters, not a single
     machine.
-    
+
     By default, the settings assume that you have at least three nodes in your
-    cluster, so DDFS can use three-way replication. If you have less nodes,
+    cluster, so DDFS can use three-way replication. If you have fewer nodes,
     you need to lower the number of replicas in ``/etc/disco/settings.py``::
 
         DDFS_TAG_MIN_REPLICAS=1
@@ -110,11 +106,13 @@ or similar mechanism). However, you can use any account for running
 Disco. In the following, we refer to the user that runs ``disco-master``
 as the Disco user.
 
-Open ``DISCO_HOME/conf/settings.py``. This file sets a number of environment
-variables that define the runtime environment for Disco.
-Most likely you do not need to modify this file right away.
-You can change the paths if the defaults are not suitable for your system.
-See :mod:`disco.settings` for more information on the various settings and their default values.
+If you have run ``make install``, open ``/etc/disco/settings.py``. This
+file sets a number of environment variables that define the runtime
+environment for Disco.  Most likely you do not need to modify this
+file right away (however, see the note above on replication).  You can
+change the paths if the defaults are not suitable for your system.
+See :mod:`disco.settings` for more information on the various settings
+and their default values.
 
 3. Start Disco
 --------------
@@ -124,7 +122,7 @@ On the master node, start the Disco master by executing ``disco start``.
 
 You can easily integrate ``disco`` into your system's startup sequence.
 For instance, you can see how ``debian/disco-master.init`` and
-``debian/disco-node.init`` are implemented in the Disco's ``debian``
+``debian/disco-node.init`` are implemented in Disco's ``debian``
 branch.
 
 If Disco has started up properly, you should see ``beam.smp`` running on your
@@ -163,13 +161,17 @@ have only one machine. You should not need to give a password nor answer
 to any questions after the first login attempt.
 
 As the last step, if you run Disco on many machines, you need to make
-sure that all servers in the Disco cluster use the same Erlang cookie,
+sure that all servers in the Disco cluster use the same `Erlang cookie`_,
 which is used for authentication between Erlang nodes. Run the following
 command as the Disco user on the master server::
 
         scp ~/.erlang.cookie nodeX:
 
 Repeat the command for all the servers ``nodeX``.
+
+.. _Erlang cookie: http://www.erlang.org/doc/getting_started/conc_prog.html#id2264467
+
+.. _confignodes:
 
 5. Add nodes to Disco
 ---------------------
@@ -183,14 +185,23 @@ replaced with the actual hostname of your machine or ``localhost``
 if you run Disco locally or through an SSH tunnel.
 The default port is ``8989``.
 
-You should see the Disco main screen (see `a screenshot here
-<http://discoproject.org/screenshots.html>`_). Click ``configure`` on
-the right side of the page. On the configuration page, click ``add row``
-to add a new set of available nodes. Click the cells on the new empty
-row, and add hostname of an available server (or a range of hostnames,
-see below) in the left cell and the number of available cores (CPUs)
-on that server in the right cell. Once you have entered a value, click
-the cell again to save it.
+You should see the Disco main screen (see :ref:`a screenshot <screenshots>`).
+Click ``configure`` on the right side of the page.
+On the configuration page, click ``add row`` to add a new set of available nodes.
+Click the cells on the new empty row, and add hostname of an available server
+(or a range of hostnames, see below) in the left cell and the number of
+available cores (CPUs) on that server in the right cell.
+Once you have entered a value, click the cell again to save it.
+
+.. warning::
+    Keep in mind that for more than one node, hostnames need to resolve globally
+    (e.g. you should be relying on DNS to resolve hostnames,
+    **not** `/etc/hosts` on an individual machine).
+    A relatively common mistake is that ``master`` is just an alias for the loopback address,
+    such as ``localhost``, provided in `/etc/hosts` on the master machine.
+    In such cases, some nodes may **not** be able to resolve the master properly:
+    they may all resolve to themselves (if they all have the same hosts file),
+    nothing at all, or different machines (if they are configured differently).
 
 You can add as many rows as needed to fully specify your cluster, which may
 have varying number of cores on different nodes. Click ``save table``
@@ -217,52 +228,30 @@ This table specifies that there are 30 nodes available in the cluster, from
 Now Disco should be ready for use.
 
 We can use the following simple Disco script that computes word
-frequencies in `a text file <http://discoproject.org/chekhov.txt>`_
-to see that the system works correctly. Copy the following code to a
-file called ``count_words.py``::
+frequencies in `a text file <http://discoproject.org/media/text/chekhov.txt>`_
+to see that the system works correctly.
 
-        import sys
-        from disco.core import Disco, result_iterator
+.. literalinclude:: ../../examples/util/count_words.py
+   :language: python
 
-        def fun_map(e, params):
-            return [(w, 1) for w in e.split()]
+Run the script as follows from ``DISCO_HOME``::
 
-        def fun_reduce(iter, out, params):
-            s = {}
-            for w, f in iter:
-                s[w] = s.get(w, 0) + int(f)
-            for w, f in s.iteritems():
-                out.add(w, f)
+        python examples/util/count_words.py
 
-        master = sys.argv[1]
-        print "Starting Disco job.."
-        print "Go to %s to see status of the job." % master
-        results = Disco(master).new_job(
-                        name = "wordcount",
-                        input = ["http://discoproject.org/chekhov.txt"],
-                        map = fun_map,
-                        reduce = fun_reduce).wait()
+Disco attempts to use the current hostname as ``DISCO_MASTER_HOST`` if it is not
+defined in any settings file.
 
-        print "Job done. Results:"
-        for word, frequency in result_iterator(results):
-                print word, frequency
+If you are runing Disco on multiple machines you must use the same version of
+Python for running Disco scripts as you use on the server side.
 
-Run the script as follows::
-
-        python count_words.py http://master:8989
-
-Replace the address above with the same address you used to
-configure Disco earlier. You must use the same version of Python for
-running Disco scripts as you use on the server side.
-
-You can run the script on any machine that can access Disco on the
-specified address. The safest bet is to run the script on
-the master node itself.
+You can run the script on any machine that can access Disco on the configured
+``DISCO_MASTER_HOST``. The safest bet is to run the script on the master node
+itself.
 
 If the machine where you run the script can access the master node but
 not other nodes in the cluster, you need to set the environment variable
 ``DISCO_PROXY=http://master:8989``. The proxy address should be the
-same as the master's above. This makes Disco to fetch results through
+same as the master's above. This makes Disco fetch results through
 the master node, instead of connecting to the nodes directly.
 
 If the script produces some results, congratulations, you have a

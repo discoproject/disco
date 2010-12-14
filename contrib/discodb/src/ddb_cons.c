@@ -1,389 +1,434 @@
 
 #include <string.h>
+#include <limits.h>
 
 #include <cmph.h>
 
 #include <discodb.h>
 #include <ddb_internal.h>
 
-#define BUF_INC (1024 * 1024 * 10)
+#include <ddb_profile.h>
+#include <ddb_map.h>
+#include <ddb_list.h>
+#include <ddb_delta.h>
+#include <ddb_cmph.h>
 
-struct ddb_cons_sect{
-        char *ptr;
-        uint64_t size;
-        uint64_t offset;
-};
+
+#define BUFFER_INC (1024 * 1024 * 64)
 
 struct ddb_cons{
-        struct ddb_cons_sect toc;
-        struct ddb_cons_sect data;
-        struct ddb_cons_sect values;
-        struct ddb_cons_sect values_toc;
-
-        uint32_t is_multiset;
-        uint32_t num_keys;
-        uint64_t num_values;
-        
-        void *valmap;
-
-        char *tmpbuf;
-        uint32_t tmpbuf_len;
-
-        valueid_t next_id;
-        valueid_t *idbuf;
-        uint32_t idbuf_len;
+    struct ddb_map *values_map;
+    struct ddb_map *keys_map;
+    uint64_t uvalues_total_size;
 };
 
-static int ddb_write(struct ddb_cons_sect *d, const void *buf, uint64_t len)
+struct ddb_packed{
+    uint64_t toc_offs;
+    uint64_t offs;
+    uint64_t size;
+
+    char *buffer;
+    struct ddb_header *head;
+
+    struct ddb_codebook codebook[DDB_CODEBOOK_SIZE];
+};
+
+static int _buffer_grow(struct ddb_packed *p, uint64_t size)
 {
-        if (d->offset + len > d->size){
-                d->size += len + BUF_INC;
-                if (!(d->ptr = realloc(d->ptr, d->size)))
-                        return -1;
-        }
-        memcpy(&d->ptr[d->offset], buf, len);
-        d->offset += len;
-        return 0;
+    if (p->offs + size > p->size){
+        p->size += size + BUFFER_INC;
+        if (!(p->head = (struct ddb_header*)
+                (p->buffer = realloc(p->buffer, p->size))))
+            return -1;
+    }
+    return 0;
 }
 
-static int id_cmp(const void *p1, const void *p2)
+static void buffer_shrink(struct ddb_packed *p)
 {
-        const valueid_t x = *(const valueid_t*)p1;
-        const valueid_t y = *(const valueid_t*)p2;
-
-        if (x > y)
-                return 1;
-        else if (x < y)
-                return -1;
-        return 0;
+    p->buffer = realloc(p->buffer, p->offs);
 }
 
-static void ddb_cons_free(struct ddb_cons *db)
+static struct ddb_packed *buffer_init(void)
 {
-        free(db->toc.ptr);
-        free(db->data.ptr);
-        free(db->values.ptr);
-        free(db->values_toc.ptr);
-
-        ddb_valuemap_free(db->valmap);
-
-        free(db->tmpbuf);
-        free(db->idbuf);
-        free(db);
+    struct ddb_packed *p;
+    if (!(p = calloc(1, sizeof(struct ddb_packed))))
+        return NULL;
+    p->offs = sizeof(struct ddb_header);
+    if (_buffer_grow(p, sizeof(struct ddb_header))){
+        free(p);
+        return NULL;
+    }
+    return p;
 }
 
-static uint32_t allocate_bits(struct ddb_cons *db, uint32_t size_in_bits)
+static int buffer_new_section(struct ddb_packed *p, uint64_t num_items)
 {
-        uint32_t len = size_in_bits >> 3;
-        if (size_in_bits & 7)
-                len += 1;
-        /* + 8 is for write_bits and read_bits which may try to access
-         * at most 7 bytes out of array bounds */
-        if (len + 8 > db->tmpbuf_len){
-                db->tmpbuf_len = len + 8;
-                if (!(db->tmpbuf = realloc(db->tmpbuf, len + 8)))
-                        return 0;
-        }
-        memset(db->tmpbuf, 0, len + 8);
-        return len;
+    if (_buffer_grow(p, num_items * 8))
+        return -1;
+    p->toc_offs = p->offs;
+    p->offs += num_items * 8;
+    return 0;
 }
 
-
-static uint32_t encode_values(struct ddb_cons *db, uint32_t num_values)
+static void buffer_toc_mark(struct ddb_packed *p)
 {
-        /* find maximum delta -> bits needed per id */
-        uint32_t i, max_diff = db->idbuf[0];
-        for (i = 1; i < num_values; i++){
-                uint32_t d = db->idbuf[i] - db->idbuf[i - 1];
-                if (!d)
-                        db->is_multiset = 1;
-                if (d > max_diff)
-                        max_diff = d;
-        }
-        
-        uint64_t offs = 0;
-        uint32_t prev = 0;
-        uint32_t bits = bits_needed(max_diff);
-        uint32_t size;
-        if (!(size = allocate_bits(db, 5 + bits * num_values)))
-                return 0;
-        
-        /* values field:
-           [ bits_needed (5 bits) | delta-encoded values (bits * num_values) ]
-        */
-         
-        write_bits(db->tmpbuf, offs, bits - 1);
-        offs = 5;
-        for (i = 0; i < num_values; i++){
-                write_bits(db->tmpbuf, offs, db->idbuf[i] - prev);
-                prev = db->idbuf[i];
-                offs += bits;
-        }
-        return size;
+    memcpy(&p->buffer[p->toc_offs], &p->offs, 8);
+    p->toc_offs += 8;
 }
 
-static int write_offset(const struct ddb_cons_sect *d, struct ddb_cons_sect *toc)
+static int buffer_write_data(struct ddb_packed *p,
+                             const char *src, uint64_t size)
 {
-        return ddb_write(toc, &d->offset, 8);
+    if (_buffer_grow(p, size))
+        return -1;
+    memcpy(&p->buffer[p->offs], src, size);
+    p->offs += size;
+    return 0;
 }
 
-static valueid_t new_value(struct ddb_cons *db, const struct ddb_entry *e)
+static int pack_key2values(struct ddb_packed *pack,
+                           const struct ddb_entry *keys,
+                           const struct ddb_map *keys_map,
+                           int unique_items)
 {
-        int err = 0;
-        if (++db->next_id == DDB_MAX_NUM_VALUES)
-                return 0;
-        
-        err |= write_offset(&db->values, &db->values_toc);
-        err |= ddb_write(&db->values, e->data, e->length);
-        if (err)
-                return 0;
-        return db->next_id;
+    char *buf = NULL;
+    uint64_t buf_size = 0;
+    int i, ret = -1;
+    uint32_t num = pack->head->num_keys;
+
+    if (buffer_new_section(pack, num + 1))
+        goto end;
+
+    for (i = 0; i < num; i++){
+        uint64_t *ptr = ddb_map_lookup_str(keys_map, &keys[i]);
+        const struct ddb_list *values = (const struct ddb_list*)*ptr;
+        uint64_t size = 0;
+        int duplicates = 0;
+        uint32_t num_written = 0;
+
+        if (ddb_delta_encode(values, &buf, &buf_size, &size,
+                &num_written, &duplicates, unique_items))
+            goto end;
+
+        pack->head->num_values += num_written;
+        if (duplicates){
+            SETFLAG(pack->head, F_MULTISET);
+        }
+
+        buffer_toc_mark(pack);
+        if (buffer_write_data(pack, (const char*)&keys[i].length, 4))
+            goto end;
+        if (buffer_write_data(pack, keys[i].data, keys[i].length))
+            goto end;
+        if (buffer_write_data(pack, buf, size))
+            goto end;
+    }
+    buffer_toc_mark(pack);
+    ret = 0;
+end:
+    free(buf);
+    return ret;
 }
 
-static char *pack(const struct ddb_cons *db, char *hash, 
-        uint32_t hash_size, uint64_t *length)
+#ifdef HUFFMAN_DEBUG
+static int ccmp(const char *x, const char *y, uint32_t len)
 {
-        struct ddb_cons_sect hash_sect = {.ptr = hash, .offset = hash_size};
-        struct ddb_cons_sect sect[] =
-                {db->toc, db->values_toc, db->data, db->values, hash_sect};
-
-        int i, num_sect = sizeof(sect) / sizeof(struct ddb_cons_sect);
-        *length = sizeof(struct ddb_header);
-        for (i = 0; i < num_sect; i++)
-                *length += sect[i].offset;
-        
-        char *p = NULL;
-        if (!(p = malloc(*length)))
-                return NULL;
-
-        struct ddb_header *head = (struct ddb_header*)p;
-        
-        uint64_t *offsets[] = 
-                {&head->toc_offs, &head->values_toc_offs, 
-                 &head->data_offs, &head->values_offs, &head->hash_offs};
-
-        head->magic = DISCODB_MAGIC;
-        head->size = *length;
-        head->num_keys = db->num_keys;
-        head->num_values = db->num_values;
-        head->num_uniq_values = db->next_id;
-        head->flags = 0;
-       
-        if (hash_size){
-                SETFLAG(head, F_HASH);
+    uint32_t i = 0;
+    for (i = 0; i < len; i++)
+        if (x[i] != y[i]){
+            fprintf(stderr, "%u) GOT %c SHOULD BE %c\n", i, x[i], y[i]);
+            return 1;
         }
-        if (db->is_multiset){
-                SETFLAG(head, F_MULTISET);
+    return 0;
+}
+#endif
+
+static int pack_id2value(struct ddb_packed *pack,
+                         const struct ddb_map *values_map,
+                         int disable_compr)
+{
+    struct ddb_map *code = NULL;
+    struct ddb_map_cursor *c = NULL;
+    struct ddb_entry key;
+    uint32_t size;
+    int err = -1;
+
+    char *buf = NULL;
+    const char *val = NULL;
+    uint64_t buf_len = 0;
+
+    if (buffer_new_section(pack, ddb_map_num_items(values_map) + 1))
+        goto end;
+
+    if (!disable_compr){
+        SETFLAG(pack->head, F_COMPRESSED);
+        if (!(code = ddb_create_codemap(values_map)))
+            goto end;
+        if (ddb_save_codemap(code, pack->codebook))
+            goto end;
+    }
+
+    if (!(c = ddb_map_cursor_new(values_map)))
+        goto end;
+
+    #ifdef HUFFMAN_DEBUG
+    uint32_t dsize;
+    char *dbuf = NULL;
+    uint64_t dbuf_len = 0;
+    #endif
+
+    while (ddb_map_next_str(c, &key)){
+        if (disable_compr){
+            val = key.data;
+            size = key.length;
+        }else{
+            if (ddb_compress(code, key.data, key.length,
+                             &size, &buf, &buf_len))
+                goto end;
+            val = buf;
+            #ifdef HUFFMAN_DEBUG
+            ddb_decompress(pack->codebook, buf, size,
+                &dsize, &dbuf, &dbuf_len);
+            if (dsize != key.length || ccmp(dbuf, key.data, dsize)){
+                fprintf(stderr, "ORIG: <%.*s> DECOMP: <%.*s> (%u and %u)\n",
+                    key.length, key.data, dsize, dbuf, dsize, key.length);
+                exit(1);
+            }
+            #endif
         }
 
-        uint64_t offs = sizeof(struct ddb_header);
-        for (i = 0; i < num_sect; i++){
-                *offsets[i] = offs;
-                memcpy(&p[offs], sect[i].ptr, sect[i].offset);
-                offs += sect[i].offset;
-        }
-        
-        return p;
+        buffer_toc_mark(pack);
+        if (buffer_write_data(pack, val, size))
+            goto end;
+    }
+    buffer_toc_mark(pack);
+
+    /* write dummy data in the end, to make sure that ddb_decompress
+       never exceed the section limits */
+    size = 0;
+    if (buffer_write_data(pack, (const char*)&size, 4))
+        goto end;
+
+    err = 0;
+end:
+    #ifdef HUFFMAN_DEBUG
+    free(dbuf);
+    #endif
+    ddb_map_cursor_free(c);
+    ddb_map_free(code);
+    free(buf);
+    return err;
 }
 
-static int reorder_items(struct ddb_cons *db, char *hash)
+static int pack_codebook(struct ddb_packed *pack)
 {
-        uint64_t *new_toc = NULL;
-        if (!(new_toc = malloc(db->toc.offset)))
-                return -1;
-
-        const uint64_t *old_toc = (const uint64_t*)db->toc.ptr;
-        uint32_t i = db->num_keys;
-        while (i--){
-                struct ddb_entry key;
-                struct ddb_value_cursor val;
-                ddb_fetch_item(i, old_toc, db->data.ptr, &key, &val);
-                uint32_t id = cmph_search_packed(hash, key.data, key.length);
-                new_toc[id] = old_toc[i];
-        }
-        free(db->toc.ptr);
-        db->toc.ptr = (char*)new_toc;
-        return 0;
+    buffer_new_section(pack, 0);
+    return buffer_write_data(pack,
+        (char*)pack->codebook, sizeof(pack->codebook));
 }
 
-static char *build_hash(const struct ddb_cons *db, uint32_t *size)
+static struct ddb_entry *pack_hash(struct ddb_packed *pack,
+                                   struct ddb_map *keys_map)
 {
-        struct hash_cursor {
-                const uint64_t *toc;
-                const char *data;
-                uint32_t i;
-                char *buf;
-                uint32_t buf_size;
-        } cur = {.toc = (const uint64_t*)db->toc.ptr,
-                 .data = db->data.ptr,
-                 .buf = NULL,
-                 .buf_size = 0,
-                 .i = 0};
+    char *hash = NULL;
+    struct ddb_entry *order = NULL;
+    struct ddb_map_cursor *c = NULL;
+    struct ddb_entry key;
+    uint32_t i = 0;
+    int err = -1;
 
-        int hash_failed = 0;
+    if (!(order = malloc(pack->head->num_keys * sizeof(struct ddb_entry))))
+        goto end;
 
-        void xdispose(void *data, char *key, cmph_uint32 l) { }
-        void xrewind(void *data) { ((struct hash_cursor*)data)->i = 0; }
-        int xread(void *data, char **p, cmph_uint32 *len)
-        {
-                struct hash_cursor *hc = (struct hash_cursor*)data;
-                struct ddb_entry key;
-                struct ddb_value_cursor val;
+    if (pack->head->num_keys > DDB_HASH_MIN_KEYS){
+        uint32_t hash_size = 0;
+        if (!(hash = ddb_build_cmph(keys_map, &hash_size)))
+            goto end;
+        buffer_new_section(pack, 0);
+        if (buffer_write_data(pack, hash, hash_size))
+            goto end;
+        SETFLAG(pack->head, F_HASH);
+    }
 
-                ddb_fetch_item(hc->i++, hc->toc, hc->data, &key, &val);
+    if (!(c = ddb_map_cursor_new(keys_map)))
+        goto end;
+    while (ddb_map_next_str(c, &key)){
+        if (hash)
+            i = cmph_search_packed(hash, key.data, key.length);
+        order[i++] = key;
+    }
+    err = 0;
+end:
+    ddb_map_cursor_free(c);
+    free(hash);
+    if (err){
+        free(order);
+        return NULL;
+    }
+    return order;
+}
 
-                if (key.length > hc->buf_size){
-                        hc->buf_size = key.length;
-                        if (!(hc->buf = realloc(hc->buf, hc->buf_size)))
-                                hash_failed = 1;
-                }
-                if (hash_failed){
-                        *len = 0;
-                        *p = NULL;
-                }else{
-                        memcpy(hc->buf, key.data, key.length);
-                        *len = key.length;
-                        *p = hc->buf;
-                }
-                return key.length;
-        }
+static int pack_header(struct ddb_packed *pack, const struct ddb_cons *cons)
+{
+    struct ddb_header *head = pack->head;
+    memset(head, 0, sizeof(struct ddb_header));
 
-        cmph_io_adapter_t r;
-        r.data = &cur;
-        r.nkeys = db->num_keys;
-        r.read = xread;
-        r.dispose = xdispose;
-        r.rewind = xrewind;
+    buffer_new_section(pack, 0);
+    head->magic = DISCODB_MAGIC;
+    head->flags = 0;
+    head->num_keys = ddb_map_num_items(cons->keys_map);
+    head->num_uniq_values = ddb_map_num_items(cons->values_map);
+    /* num_values is set in key2values after removing duplicates (maybe) */
+    head->num_values = 0;
+    return 0;
+}
 
-        cmph_config_t *c = cmph_config_new(&r);
-        cmph_config_set_algo(c, CMPH_CHD);
-    
-        if (getenv("DDB_DEBUG"))
-                cmph_config_set_verbosity(c, 5);
-        
-        char *hash = NULL;
-        cmph_t *g = cmph_new(c);
-        *size = 0;
-        if (g && !hash_failed){
-                *size = cmph_packed_size(g);
-                if ((hash = malloc(*size)))
-                        cmph_pack(g, hash);
-        }
-        if (g)
-                cmph_destroy(g);
-        cmph_config_destroy(c);
-        free(cur.buf);
-        return hash;
+static int maybe_disable_compression(const struct ddb_cons *cons)
+{
+    /* It doesn't make sense to compress a small set of values as
+     * the huffman codebook has 0.5M overhead. */
+    if (cons->uvalues_total_size < COMPRESS_MIN_TOTAL_SIZE)
+        return DDB_OPT_DISABLE_COMPRESSION;
+    /* Compression ignores values less than 4 bytes. Values that
+     * are exactly 4 bytes are handled by duplicate removal, so
+     * compressing them is useless. Hence, values need to be at
+     * least 5 bytes to benefit from compression. */
+    double num = ddb_map_num_items(cons->values_map);
+    if (cons->uvalues_total_size / num < COMPRESS_MIN_AVG_VALUE_SIZE)
+        return DDB_OPT_DISABLE_COMPRESSION;
+    return 0;
+}
+
+char *ddb_cons_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
+{
+    struct ddb_packed *pack = NULL;
+    struct ddb_entry *order = NULL;
+    char *buf;
+    int disable_compression, err = 1;
+    DDB_TIMER_DEF
+
+    if (!(pack = buffer_init()))
+        goto err;
+
+    if (pack_header(pack, cons))
+        goto err;
+
+    DDB_TIMER_START
+    pack->head->hash_offs = pack->offs;
+    if (!(order = pack_hash(pack, cons->keys_map)))
+        goto err;
+    DDB_TIMER_END("hash")
+
+    DDB_TIMER_START
+    pack->head->key2values_offs = pack->offs;
+    if (pack_key2values(pack, order, cons->keys_map,
+            flags & DDB_OPT_UNIQUE_ITEMS))
+        goto err;
+    DDB_TIMER_END("key2values")
+
+    DDB_TIMER_START
+    flags |= maybe_disable_compression(cons);
+    disable_compression = flags & DDB_OPT_DISABLE_COMPRESSION;
+    pack->head->id2value_offs = pack->offs;
+    if (pack_id2value(pack, cons->values_map, disable_compression))
+        goto err;
+    else{
+        ddb_map_free(cons->values_map);
+        cons->values_map = NULL;
+    }
+    DDB_TIMER_END("id2values")
+
+    if (!disable_compression){
+        DDB_TIMER_START
+        pack->head->codebook_offs = pack->offs;
+        if (pack_codebook(pack))
+            goto err;
+        DDB_TIMER_END("save_codebook")
+    }
+    pack->head->size = *length = pack->offs;
+    buffer_shrink(pack);
+    err = 0;
+err:
+    buf = pack->buffer;
+    free(order);
+    free(pack);
+    if (err){
+        free(buf);
+        return NULL;
+    }
+    return buf;
 }
 
 struct ddb_cons *ddb_cons_new()
 {
-        struct ddb_cons* db;
-        if (!(db = calloc(1, sizeof(struct ddb_cons))))
-                return NULL;
-        db->valmap = ddb_valuemap_init();
-        return db;
+    struct ddb_cons* db;
+    if (!(db = calloc(1, sizeof(struct ddb_cons))))
+        return NULL;
+
+    db->keys_map = ddb_map_new(UINT_MAX);
+    db->values_map = ddb_map_new(UINT_MAX);
+
+    if (!(db->keys_map && db->values_map)){
+        ddb_map_free(db->keys_map);
+        ddb_map_free(db->values_map);
+        free(db);
+        return NULL;
+    }
+    return db;
 }
 
-int ddb_add(struct ddb_cons *db, const struct ddb_entry *key, 
-        const struct ddb_entry *values, uint32_t num_values)
+void ddb_cons_free(struct ddb_cons *cons)
 {
-        int valeq(const struct ddb_entry *val, valueid_t id)
-        {
-                const uint64_t *toc = (const uint64_t*)db->values_toc.ptr;
-                uint64_t offset = toc[id - 1];
-                const char *p = &db->values.ptr[offset];
-                uint32_t size = 0;
-                if (id == db->next_id)
-                        size = db->values.offset - offset;
-                else
-                        size = toc[id] - offset;
-                if (size != val->length)
-                        return 0;
-                else
-                        return memcmp(p, val->data, size) == 0;
-        }
-        uint32_t i;
-        
-        if (num_values > db->idbuf_len){
-                db->idbuf_len = num_values;
-                if (!(db->idbuf = realloc(db->idbuf, num_values * 4)))
-                        goto err;
-        }
+    struct ddb_map_cursor *c;
+    struct ddb_entry key;
+    uint64_t *ptr;
 
-        /* find IDs for values */
-        for (i = 0; i < num_values; i++){
-                valueid_t *id;
-                if (!(id = ddb_valuemap_lookup(db->valmap, &values[i], valeq)))
-                        goto err;
-                if (!*id && !(*id = new_value(db, &values[i])))
-                        goto err;
-                db->idbuf[i] = *id;
-        }
+    ddb_map_free(cons->values_map);
 
-        /* sort by ascending IDs */
-        qsort(db->idbuf, num_values, 4, id_cmp);
+    if (!(cons->keys_map && (c = ddb_map_cursor_new(cons->keys_map))))
+        /* memory leak! not everything was freed */
+        return;
 
-        /* delta-encode value ID list */
-        uint32_t size = 0;
-        if (num_values && !(size = encode_values(db, num_values)))
-                goto err;
-        
-        /* write data 
-         
-           attribute entry:
-           [ key_len | key | num_values | val_bits | delta-encoded values ] 
-        */
-        int r = 0;
-        r |= write_offset(&db->data, &db->toc);
-        r |= ddb_write(&db->data, &key->length, 4);
-        r |= ddb_write(&db->data, key->data, key->length);
-        r |= ddb_write(&db->data, &num_values, 4);
-        if (size)
-                r |= ddb_write(&db->data, db->tmpbuf, size);
-        if (r)
-                goto err;
+    while (ddb_map_next_item_str(c, &key, &ptr))
+        free((void*)*ptr);
 
-        db->num_values += num_values;
-        if (++db->num_keys == DDB_MAX_NUM_KEYS)
-                goto err;
+    ddb_map_cursor_free(c);
+    ddb_map_free(cons->keys_map);
+    free(cons);
+}
 
-        return 0;
-err:
-        ddb_cons_free(db);
+
+int ddb_cons_add(struct ddb_cons *db,
+            const struct ddb_entry *key,
+            const struct ddb_entry *value)
+{
+    uint64_t *val_ptr;
+    uint64_t *key_ptr;
+    valueid_t value_id;
+    struct ddb_list *value_list;
+
+    if (!(key_ptr = ddb_map_insert_str(db->keys_map, key)))
         return -1;
-}
+    if (!*key_ptr && !(*key_ptr = (uint64_t)ddb_list_new()))
+        return -1;
+    value_list = (struct ddb_list*)*key_ptr;
 
-char *ddb_finalize(struct ddb_cons *db, uint64_t *length)
-{
-        static char pad[7];
-        char *packed = NULL;
-        char *hash = NULL; 
-        int err = 0;
-
-        /* write final offsets to tocs */
-        err |= write_offset(&db->data, &db->toc);
-        err |= write_offset(&db->values, &db->values_toc);
-
-        /* write zero padding to data, so read_bits is always safe */ 
-        err |= ddb_write(&db->data, pad, 7);
-        if (err)
-                goto end;
-
-        ddb_valuemap_free(db->valmap);
-        db->valmap = NULL;
-
-        uint32_t hash_size = 0;
-        if (db->num_keys > DDB_HASH_MIN_KEYS){
-                if (!(hash = build_hash(db, &hash_size)))
-                        goto end;
-                if (reorder_items(db, hash))
-                        goto end;
+    if (value){
+        if (!(val_ptr = ddb_map_insert_str(db->values_map, value)))
+            return -1;
+        if (!*val_ptr){
+            *val_ptr = ddb_map_num_items(db->values_map);
+            db->uvalues_total_size += value->length;
         }
-        packed = pack(db, hash, hash_size, length);
-end:
-        free(hash);
-        ddb_cons_free(db);
-        return packed;
+        value_id = *val_ptr;
+
+        if (!(value_list = ddb_list_append(value_list, value_id)))
+            return -1;
+        *key_ptr = (uint64_t)value_list;
+    }
+    return 0;
 }
+
+
 

@@ -8,18 +8,26 @@
 -export([start/2, serve_ddfs_file/2, serve_disco_file/2]).
 
 start(MochiConfig, Roots) ->
-    mochiweb_http:start([{name, ddfs_get},
-        {loop, fun(Req) -> loop(Req:get(raw_path), Req, Roots) end}
-            | MochiConfig]).
+    mochiweb_http:start([
+        {name, ddfs_get},
+        {max, ?HTTP_MAX_CONNS},
+        {loop, fun(Req) ->
+                    loop(Req:get(raw_path), Req, Roots)
+                end}
+        | MochiConfig]).
 
+-spec serve_ddfs_file(nonempty_string(), module()) -> _.
 serve_ddfs_file(Path, Req) ->
     DdfsRoot = disco:get_setting("DDFS_ROOT"),
     loop(Path, Req, {DdfsRoot, none}).
 
+-spec serve_disco_file(nonempty_string(), module()) -> _.
 serve_disco_file(Path, Req) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     loop(Path, Req, {none, DiscoRoot}).
 
+-spec loop(nonempty_string(), module(),
+    {nonempty_string() | 'none', nonempty_string() | 'none'}) -> _.
 loop("/proxy/" ++ Path, Req, Roots) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
@@ -31,6 +39,7 @@ loop("/ddfs/" ++ Path, Req, {DdfsRoot, _DiscoRoot}) ->
 loop("/disco/" ++ Path, Req, {_DdfsRoot, DiscoRoot}) ->
     send_file(Req, Path, DiscoRoot).
 
+-spec send_file(module(), nonempty_string(), nonempty_string()) -> _.
 send_file(Req, Path, Root) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
@@ -52,14 +61,16 @@ send_file(Req, Path, Root) ->
             end;
         _ ->
             Req:respond({501, [], ["Method not supported"]})
-    end. 
+    end.
 
+-spec send_file(module(), nonempty_string()) -> _.
 send_file(Req, Path) ->
     case prim_file:read_file_info(Path) of
         {ok, #file_info{type = regular}} ->
             case file:open(Path, [read, raw, binary]) of
                 {ok, IO} ->
-                    Req:ok({"application/octet-stream", [], {file, IO}}); 
+                    Req:ok({"application/octet-stream", [], {file, IO}}),
+                    file:close(IO);
                 _ ->
                     Req:respond({500, [], ["Access failed"]})
             end;
@@ -70,4 +81,3 @@ send_file(Req, Path) ->
         _ ->
             Req:respond({500, [], ["Access failed"]})
     end.
-

@@ -9,7 +9,8 @@ class WriterTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [('=' + e, e)]
+        e = e.strip()
+        yield '=' + e, e
 
     @staticmethod
     def map_writer(fd, key, value, params):

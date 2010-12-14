@@ -11,18 +11,17 @@ class DiscoError(Exception):
     pass
 
 class JobError(DiscoError):
-    """
-    An error that occurs when a client submits or interacts with a Disco job.
+    """An error that occurs when a client submits or interacts with a Disco job.
 
-    .. attribute:: msg
+    .. attribute:: error
 
         Error message.
 
-   .. attribute:: name
+    .. attribute:: name
 
         Name of the failed job.
 
-   .. attribute:: master
+    .. attribute:: master
 
         Address of the Disco master that produced the error.
     """
@@ -50,7 +49,7 @@ class DataError(DiscoError):
         if self.code == None:
             return 'Unable to access resource (%s): %s' % (self.url, self.msg)
         else:
-            return 'Unable to access resource (%s): %s (HTTP error %d)' %\
+            return 'Unable to access resource (%s): %s (HTTP status %d)' %\
                 (self.url, self.msg, self.code)
 
 class CommError(DataError):

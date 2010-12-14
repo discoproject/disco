@@ -1,87 +1,153 @@
 
-import sys, time, os, cPickle, cStringIO, struct, zlib
+import sys, time, os, cPickle, struct, zlib
 import errno, fcntl
+from cStringIO import StringIO
 
 from disco.error import DataError
 
-MIN_DISK_SPACE = 1024**2
+MB = 1024**2
+MIN_DISK_SPACE  = 1 * MB
+MAX_RECORD_SIZE = 1 * MB
+HUNK_SIZE       = 1 * MB
+CHUNK_SIZE      = 64 * MB
 
-class DiscoOutput(object):
-    VERSION = 1
-    def __init__(self, stream, compress_level, min_chunk, version):
-        self.compress_level = compress_level
-        self.min_chunk = min_chunk
-        self.version = self.VERSION if version < 0 else version
+# chunk size seems to be ~ half what it should be
+
+class Chunker(object):
+    """
+    chunks contain hunks
+    bounds on hunk sizes do not include headers
+    desired chunk size is C bytes compressed
+    desired hunk size is H bytes uncompressed
+    each record is at most R bytes uncompressed
+    compression expands data by a factor of at most S
+    each hunk is at most ((H - 1) + (R - 1)) * S bytes compressed
+    a hunk will only be added to a chunk if sizeof(chunk) < C
+
+    in the worst case for a chunk:
+      sizeof(chunk) = C - 1
+      a new hunk is added with size ((H - 1) + (R - 1)) * S
+      sizoof(chunk) = C - 1 + ((H - 1) + (R - 1)) * S + len(header)
+    """
+    def __init__(self, chunk_size=CHUNK_SIZE):
+        self.chunk_size = chunk_size
+
+    def chunks(self, records):
+        out = self.makeout()
+        for record in records:
+            if out.size > self.chunk_size:
+                yield out.dumps()
+                out = self.makeout()
+            out.append(record)
+        if out.hunk_size:
+            yield out.dumps()
+
+    def makeout(self):
+        return DiscoOutput(StringIO(), max_record_size=MAX_RECORD_SIZE)
+
+class DiscoOutput_v0(object):
+    def __init__(self, stream):
         self.stream = stream
-        self.chunk = cStringIO.StringIO()
-        self.chunk_size = 0
-        self.newstream = False
-
-    def write(self, buf):
-        self.stream.write(buf)
-
-    def dump(self):
-        encoded_data = self.chunk.getvalue()
-        checksum = zlib.crc32(encoded_data) & 0xFFFFFFFF
-        if self.compress_level:
-            encoded_data = zlib.compress(encoded_data, self.compress_level)
-        self.stream.write(struct.pack('<BBIQ',
-                          128 + self.VERSION,
-                          int(self.compress_level > 0),
-                          checksum,
-                          len(encoded_data)) + encoded_data)
-        self.chunk = cStringIO.StringIO()
-        self.chunk_size = 0
 
     def add(self, k, v):
-        if self.version == 0:
-            k = str(k)
-            v = str(v)
-            self.stream.write("%d %s %d %s\n" % (len(k), k, len(v), v))
-            return
-        self.newstream = True
-        buf = cPickle.dumps((k, v), 1)
-        self.chunk_size += len(buf)
-        self.chunk.write(buf)
-        if self.chunk_size > self.min_chunk:
-            self.dump()
+        k, v = str(k), str(v)
+        self.stream.write("%d %s %d %s\n" % (len(k), k, len(v), v))
 
     def close(self):
-        if self.newstream:
-            if self.chunk_size:
-                self.dump()
-            self.dump()
+        pass
+
+    def write(self, data):
+        self.stream.write(data)
+
+class DiscoOutput_v1(object):
+    def __init__(self, stream,
+                 version=None,
+                 compression_level=2,
+                 min_hunk_size=HUNK_SIZE,
+                 max_record_size=None):
+        self.stream = stream
+        self.version = version
+        self.compression_level = compression_level
+        self.max_record_size = max_record_size
+        self.min_hunk_size = min_hunk_size
+        self.size = 0
+        self.hunk_size = 0
+        self.hunk = StringIO()
+        self.writer = False
+
+    def add(self, k, v):
+        self.append((k, v))
+
+    def append(self, record):
+        self.hunk_write(cPickle.dumps(record, 1))
+        if self.hunk_size > self.min_hunk_size:
+            self.flush()
+
+    def close(self):
+        if not self.writer:
+            if self.hunk_size:
+                self.flush()
+            self.flush()
+
+    def dumps(self):
+        self.close()
+        return self.stream.getvalue()
+
+    def flush(self):
+        hunk = self.hunk.getvalue()
+        checksum = zlib.crc32(hunk) & 0xFFFFFFFF
+        iscompressed = int(self.compression_level > 0)
+        if iscompressed:
+            hunk = zlib.compress(hunk, self.compression_level)
+        data = '%s%s' % (struct.pack('<BBIQ',
+                                     128 + self.version,
+                                     iscompressed,
+                                     checksum,
+                                     len(hunk)),
+                         hunk)
+
+        self.stream.write(data)
+        self.size += len(data)
+        self.hunk_size = 0
+        self.hunk = StringIO()
+
+    def hunk_write(self, data):
+        size = len(data)
+        if self.max_record_size and size > self.max_record_size:
+            raise ValueError("Record too big to write to hunk: %s" % record)
+        self.hunk.write(data)
+        self.hunk_size += size
+
+    def write(self, data):
+        self.writer = True
+        self.stream.write(data)
+
+class DiscoOutput(object):
+    def __new__(cls, stream, version=-1, **kwargs):
+        if version == 0:
+            return DiscoOutput_v0(stream, **kwargs)
+        return DiscoOutput_v1(stream, version=1, **kwargs)
 
 class AtomicFile(file):
-    def __init__(self, fname, *args, **kw):
-        dir = os.path.dirname(fname)
+    def __init__(self, path, *args, **kwargs):
+        dir = os.path.dirname(path)
         ensure_path(dir)
         ensure_free_space(dir)
-        self.fname = fname
+        self.path = path
+        self.partial = '%s.partial' % path
         self.isopen = True
-        super(AtomicFile, self).__init__(
-            fname + ".partial", *args, **kw)
+        super(AtomicFile, self).__init__(self.partial, *args, **kwargs)
 
     def close(self):
         if self.isopen:
+            sync(self)
             super(AtomicFile, self).close()
-            os.rename(self.fname + ".partial", self.fname)
+            os.rename(self.partial, self.path)
             self.isopen = False
 
-class PartitionFile(AtomicFile):
-    def __init__(self, partfile, tmpname, *args, **kw):
-        self.partfile = partfile
-        self.tmpname = tmpname
-        self.isopen = True
-        super(PartitionFile, self).__init__(
-            tmpname, *args, **kw)
-
-    def close(self):
-        if self.isopen:
-            super(PartitionFile, self).close()
-            safe_append(file(self.tmpname), self.partfile)
-            os.remove(self.tmpname)
-            self.isopen = False
+def sync(fd):
+    fd.flush()
+    os.fsync(fd.fileno())
 
 def ensure_path(path):
     try:
@@ -91,57 +157,6 @@ def ensure_path(path):
         # It may happen if two tasks are racing to create the directory
         if x.errno != errno.EEXIST:
             raise
-
-
-# About concurrent append operations:
-#
-# Posix spec says:
-#
-# If the O_APPEND flag of the file status flags is set, the file
-# offset shall be set to the end of the file prior to each write and no
-# intervening file modification operation shall occur between changing the
-# file offset and the write operation.
-#
-# See also
-# http://www.perlmonks.org/?node_id=486488
-#
-def safe_append(instream, outfile, timeout = 60):
-    def append(outstream):
-        while True:
-            buf = instream.read(8192)
-            if not buf:
-                instream.close()
-                return
-            outstream.write(buf)
-    return _safe_fileop(append, "a", outfile, timeout = timeout)
-
-def safe_update(outfile, lines, timeout = 60):
-    def update(outstream):
-        outstream.seek(0)
-        d = dict((x.strip(), True) for x in outstream)
-        for x in lines:
-            if x not in d:
-                outstream.write("%s\n" % x)
-    return _safe_fileop(update, "a+", outfile, timeout = timeout)
-
-def _safe_fileop(op, mode, outfile, timeout):
-    ensure_free_space(os.path.dirname(outfile))
-    outstream = file(outfile, mode)
-    while timeout > 0:
-        try:
-            fcntl.flock(outstream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            r = op(outstream)
-            outstream.close()
-            return r
-        except IOError, x:
-            # Python / BSD doc guides us to check for these errors
-            if x.errno in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
-                time.sleep(0.1)
-                timeout -= 0.1
-            else:
-                raise
-    raise DataError("Timeout when updating file", outfile)
-
 
 def ensure_file(fname, data = None, timeout = 60, mode = 500):
     while timeout > 0:
@@ -164,11 +179,11 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
                 raise DataError("Writing external file failed", fname)
     raise DataError("Timeout in writing external file", fname)
 
-
-def write_files(ext_data, path):
-    path = os.path.abspath(path)
-    ensure_path(path)
-    for fname, data in ext_data.iteritems():
+def write_files(files, path):
+    if files:
+        path = os.path.abspath(path)
+        ensure_path(path)
+    for fname, data in files.iteritems():
         # make sure that no files are written outside the given path
         p = os.path.abspath(os.path.join(path, fname))
         if os.path.dirname(p) == path:
@@ -181,6 +196,3 @@ def ensure_free_space(fname):
     free = s.f_bsize * s.f_bavail
     if free < MIN_DISK_SPACE:
         raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
-
-
-

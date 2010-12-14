@@ -16,7 +16,7 @@ straightforward.
 
 Here we assume that you have installed Disco locally with the following steps:
 
- * Downloaded the latest source package from `discoproject.org <http://discoproject.org/download.html>`_ or from the `GitHub repository <http://github.com/tuulos/disco>`_.
+ * Downloaded :doc:`a recent version of Disco <download>`.
  * Extracted the package to your home directory, say ``~/disco/``.
  * Compiled the sources by writing ``make`` in ``~/disco/``.
  * Started Disco with ``disco start``.
@@ -24,7 +24,7 @@ Here we assume that you have installed Disco locally with the following steps:
 
 but the script crashed and/or didn't produce any results.
 
-Let's find out what goes wrong. Follow the next steps in order.
+Let's find out what went wrong. Follow the next steps in order.
 
 0. Start Disco locally
 ----------------------
@@ -59,16 +59,13 @@ started up. Say::
 
 If the master is running, you should see something like this::
 
-        disco 6848 0.0 0.7 317220 125960 ? Sl Oct07 3:46
-        /usr/lib/erlang/erts-5.6.3/bin/beam.smp -K true -- -root
-        /usr/lib/erlang -progname erl -- -home /srv/disco -heart -noshell
-        -sname disco_8989_master -rsh ssh -pa /usr/lib/disco//ebin
-        -boot /usr/lib/disco//disco -kernel error_logger {file,
-        "/var/log/disco//disco_8989.log"} -eval [handle_job,
-        handle_ctrl] -disco disco_name "disco_8989" -disco disco_root
-        "/srv/disco//data/_disco_8989" -disco disco_master_host "" -disco
-        disco_slaves_os "linux" -disco scgi_port 8989 -disco disco_config
-        "/srv/disco//disco_8989.config
+        disco 4625 2.5 0.2 67392 10496 ? Sl 13:12 0:00
+        /usr/lib/erlang/erts-5.7.5/bin/beam.smp -K true -- -root
+        /usr/lib/erlang -progname erl -- -home /srv/disco -- -smp
+        -rsh ssh -connect_all false -sname disco_8989_master
+        -pa /usr/local/lib/disco/ebin/ -pa /usr/local/lib/disco/ebin/mochiweb
+        -pa /usr/local/lib/disco/ebin/ddfs -eval application:start(disco)
+        -noshell -noinput -heart -kernel error_logger {file, "/var/log/disco/Master-host_8989.log"}
 
 If you do see output like above, the master is running correctly and
 you can proceed to the next step.
@@ -84,7 +81,7 @@ They often reveal what went wrong during the startup.
    If you do not know what DISCO_LOG_DIR should be,
    you can find out the environment Disco is using to run itself by running::
 
-       disco -p
+       disco -v|grep DISCO
 
 
 If you can't find the log file, the master didn't start at all. See
@@ -118,8 +115,8 @@ be able to configure the system. Open your web browser and go to
 page should open.
 
 Do you see any boxes with black title bars on the status page (like `in
-this screenshot <http://discoproject.org/img/disco-main.png>`_)? If not,
-add nodes to the system as instructed in :ref:`setup`, section 5.
+this screenshot <../_static/screenshots/disco-main.png>`_)? If not,
+add nodes to the system as instructed in :ref:`confignodes`.
 
 If adding nodes through the web interface fails, it may be a bug in
 Disco. In that case you can edit the config file manually. For instance,
@@ -130,6 +127,15 @@ the following command initializes a configuration file with one node::
 Remember to restart the master after editing the config file by hand::
 
          disco restart
+
+.. note::
+
+    Note that as of version 0.3.1 of Disco, jobs can be submitted to
+    Disco even if there are no nodes configured.  Disco assumes that
+    this configuration is a temporary state, and some nodes will be
+    added.  In the meantime, Disco retains the jobs, and will start or
+    resume them once nodes are added to the configuration and become
+    available.
 
 3. Is worker supervisor running?
 --------------------------------
@@ -164,7 +170,7 @@ with ssh authentication. Try the following command::
         ssh localhost erl
 
 If ssh asks for a password, or any other confirmation, you need to
-configure ssh properly as instructed in :ref:`setup` in section 4.
+configure ssh properly as instructed in :ref:`configauth`.
 
 If ssh seems to work correctly, you should check that the Erlang's
 ``slave`` module works correctly. You can check it as follows::
@@ -182,7 +188,7 @@ If Erlang doesn't return ``{ok..`` for the first expression or if it
 returns ``pang`` for the second expression, there's something wrong either
 with your ssh or Erlang configuration. You should double-check that
 the Erlang security cookie at ``~/.erlang.cookie`` is the same on all
-the nodes (see :ref:`setup`, section 4). The cookie must be readable only to the
+the nodes (see :ref:`configauth`). The cookie must be readable only to the
 disco user, so run ``chmod 400 ~/.erlang.cookie`` on all the nodes.
 
 Note that node names need to be consistent. If your master node is called
@@ -226,9 +232,9 @@ This way you can easily see how ``disco-worker`` fails.
 Still no success?
 -----------------
 
-If the problem persists, or you can't get one of the steps above
-work correctly, do not feel desperate! Report your problem to
-friendly Disco developers `either on IRC or on the mailing list
-<http://discoproject.org/getinvolved.html>`_. Please mention in your
-report the steps that you've tried and the results you got.
+If the problem persists, or you can't get one of the steps above working,
+do not despair!
+Report your problem to friendly Disco developers
+:doc:`on IRC or the mailing list <getinvolved>`.
+Please mention in your report the steps you followed and the results you got.
 

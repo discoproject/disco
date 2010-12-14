@@ -23,7 +23,7 @@ Of these functions, only *map* is required.
           The task uses stderr to signal events to the master.
           You can raise a :class:`disco.error.DataError`,
           to abort the task on this node and try again on another node.
-          It is usually a best to let the task fail if any exceptions occur:
+          It is usually best to let the task fail if any exceptions occur:
           do not catch any exceptions from which you can't recover.
           When exceptions occur, the disco worker will catch them and
           signal an appropriate event to the master.
@@ -37,6 +37,7 @@ The following types of functions can be provided by the user:
 .. autofunction:: partition
 .. autofunction:: combiner
 .. autofunction:: reduce
+.. autofunction:: reduce2
 .. autofunction:: init
 .. autofunction:: input_stream
 .. autofunction:: output_stream
@@ -48,7 +49,7 @@ Interfaces
 .. autoclass:: InputStream
     :members: __iter__, read
 .. autoclass:: OutputStream
-    :members: 
+    :members:
 
 Default/Utility Functions
 -------------------------
@@ -57,7 +58,12 @@ These functions are provided by Disco to help :class:`disco.core.Job` creation:
 
 .. autofunction:: default_partition
 .. autofunction:: make_range_partition
+.. autofunction:: nop_map
 .. autofunction:: nop_reduce
+.. autofunction:: sum_combiner
+.. autofunction:: sum_reduce
+.. autofunction:: gzip_reader
+.. autofunction:: gzip_line_reader
 .. autofunction:: map_line_reader
 .. autofunction:: chain_reader
 .. autofunction:: netstr_reader
@@ -136,7 +142,7 @@ def reduce(input_stream, output_stream, params):
 
     :param input_stream: :class:`disco.func.InputStream` object that is used
         to iterate through input entries.
-    :param output_stream: :class:`disco.func.InputStream` object that is used
+    :param output_stream: :class:`disco.func.OutputStream` object that is used
         to output results.
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
@@ -145,15 +151,33 @@ def reduce(input_stream, output_stream, params):
 
         def fun_reduce(iter, out, params):
             d = {}
-            for w, c in iter:
-                d[w] = d.get(w, 1) + 1
-            for w, c in d.iteritems():
-                out.add(w, c)
+            for k, v in iter:
+                d[k] = d.get(k, 0) + 1
+            for k, c in d.iteritems():
+                out.add(k, c)
 
-    This example counts how many teams each key appears.
+    This example counts how many times each key appears.
 
     The reduce task can also be an external program.
     For more information, see :ref:`discoext`.
+    """
+
+def reduce2(input_stream, params):
+    """
+    Alternative reduce signature which takes 2 parameters.
+
+    Reduce functions with this signature should return an iterator
+    of ``key, value`` pairs, which will be implicitly added to the
+    :class:`disco.func.OutputStream`.
+
+    For instance::
+
+        def fun_reduce(iter, params):
+            from disco.util import kvgroup
+            for k, vs in kvgroup(sorted(iter)):
+                yield k, sum(1 for v in vs)
+
+    This example counts the number of values for each key.
     """
 
 def init(input_iter, params):
@@ -192,8 +216,8 @@ def output_stream(stream, partition, url, params):
     :param url: url of the input
     :param params: the :class:`disco.core.Params` object specified
                    by the *params* parameter in :class:`disco.core.JobDict`.
-    
-    Returns a triplet (:class:`disco.func.OutputStream`, size, url) that is
+
+    Returns a pair (:class:`disco.func.OutputStream`, url) that is
     passed to the next *output_stream* function in the chain. The
     :meth:`disco.func.OutputStream.add` method of the last
     :class:`disco.func.OutputStream` object returned by the chain is used
@@ -205,25 +229,29 @@ def output_stream(stream, partition, url, params):
 
 class OutputStream:
     """
-    A file-like object returned by the ``map_output_stream`` or 
+    A file-like object returned by the ``map_output_stream`` or
     ``reduce_output_stream`` chain of :func:`disco.func.output_stream` functions.
     Used to encode key, value pairs add write them to the underlying file object.
     """
-    def write(data):
-        """
-        Writes serialized key, value pairs to the underlying file object.
-        """
-
     def add(key, value):
         """
-        Adds a key, value pair to the output stream. This method typically
-        calls *self.write()* to write a serialized pair to the actual 
-        file object.
+        Adds a key, value pair to the output stream.
+        """
+
+    def close(self):
+        """
+        Close the output stream.
+        """
+
+    def write(data):
+        """
+        *(Deprecated in 0.3)*
+        Writes `data` to the underlying file object.
         """
 
 class InputStream:
     """
-    A file-like object returned by the ``map_input_stream`` or 
+    A file-like object returned by the ``map_input_stream`` or
     ``reduce_input_stream`` chain of :func:`disco.func.input_stream` functions.
     Used either to read bytes from the input source or to iterate through input
     entries.
@@ -234,14 +262,14 @@ class InputStream:
         bytes from the underlying file object, which are deserialized to the
         actual input entries.
         """
-    
+
     def read(num_bytes=None):
         """
         Reads at most *num_bytes* from the input source, or until EOF if *num_bytes*
         is not specified.
         """
 
-def old_netstr_reader(fd, size, fname, head = ''):
+def old_netstr_reader(fd, size, fname, head=''):
     """
     Reader for Disco's default/internal key-value format.
 
@@ -250,18 +278,19 @@ def old_netstr_reader(fd, size, fname, head = ''):
     to use the output of a previous job as input to another job.
     :func:`chain_reader` is an alias for :func:`netstr_reader`.
     """
-    if size == None:
-        err("Content-length must be defined for netstr_reader")
+    if size is None:
+        raise ValueError("Content-length must be defined for netstr_reader")
+
     def read_netstr(idx, data, tot):
         ldata = len(data)
         i = 0
-        lenstr = ""
+        lenstr = ''
         if ldata - idx < 11:
             data = data[idx:] + fd.read(8192)
             ldata = len(data)
             idx = 0
 
-        i = data.find(" ", idx, idx + 11)
+        i = data.find(' ', idx, idx + 11)
         if i == -1:
             raise DataError("Corrupted input: "\
                             "Could not parse a value length at %d bytes."\
@@ -302,7 +331,7 @@ def old_netstr_reader(fd, size, fname, head = ''):
     data = head + fd.read(8192)
     tot = idx = 0
     while tot < size:
-        key = val = ""
+        key = val = ''
         idx, data, tot, key = read_netstr(idx, data, tot)
         idx, data, tot, val = read_netstr(idx, data, tot)
         yield key, val
@@ -375,11 +404,9 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
                     "Some bytes may be missing from input." % (len(buf), fname)
             break
 
-
 def default_partition(key, nr_partitions, params):
     """Returns ``hash(str(key)) % nr_partitions``."""
     return hash(str(key)) % nr_partitions
-
 
 def make_range_partition(min_val, max_val):
     """
@@ -394,9 +421,16 @@ def make_range_partition(min_val, max_val):
         (min_val, r)
     return eval(f)
 
-
 def noop(*args, **kwargs):
     pass
+
+def nop_map(entry, params):
+    """
+    No-op map.
+
+    This function can be used to yield the results from the input stream.
+    """
+    yield entry
 
 def nop_reduce(iter, out, params):
     """
@@ -408,8 +442,58 @@ def nop_reduce(iter, out, params):
     for k, v in iter:
         out.add(k, v)
 
+def sum_combiner(key, value, buf, done, params):
+    """
+    Sums the values for each key.
+
+    This is a convenience function for performing a basic sum in the combiner.
+    """
+    if not done:
+        buf[key] = buf.get(key, 0) + value
+    else:
+        return buf.iteritems()
+
+def sum_reduce(iter, params):
+    """
+    Sums the values for each key.
+
+    This is a convenience function for performing a basic sum in the reduce.
+    """
+    buf = {}
+    for key, value in iter:
+        buf[key] = buf.get(key, 0) + value
+    return buf.iteritems()
+
+def gzip_reader(fd, size, url, params):
+    """Wraps the input in a :class:`gzip.GzipFile` object."""
+    from gzip import GzipFile
+    return GzipFile(fileobj=fd), size, url
+
+def gzip_line_reader(fd, size, url, params):
+    """Yields as many lines from the gzipped fd as possible, prints exception if fails."""
+    from gzip import GzipFile
+    try:
+        for line in GzipFile(fileobj=fd):
+            yield line
+    except Exception, e:
+        print e
+
 def map_line_reader(fd, sze, fname):
-    """Yields each line of input."""
+    """
+    Yields each line of input.
+
+    (*Deprecated in 0.3.1*)
+    This reader is deprecated in favor of using the default Python
+    file-like object iterator.
+    Since 0.3, no reader is necessary for iterable objects returned from the
+    :func:`input_stream`.
+    For :func:`map` functions previously relying on this reader,
+    there is one small caveat to be aware of:
+    this reader has always stripped newline characters from the end of lines.
+    For file-like object iterators, lines are left in tact.
+    This may or may not affect jobs relying on this reader,
+    depending on how the lines are used.
+    """
     for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
         yield x[0]
 
@@ -421,7 +505,7 @@ def netstr_writer(fd, key, value, params):
 
 def object_writer(fd, key, value, params):
     """
-    *(Deprecated in 0.3)*
+    (*Deprecated in 0.3*)
     A wrapper for :func:`netstr_writer` that uses Python's ``cPickle``
     module to deserialize strings to Python objects.
    """
@@ -431,7 +515,7 @@ def object_writer(fd, key, value, params):
 
 def object_reader(fd, sze, fname):
     """
-    *(Deprecated in 0.3)*
+    (*Deprecated in 0.3*)
     A wrapper for :func:`netstr_reader` that uses Python's ``cPickle``
     module to serialize arbitrary Python objects to strings.
     """
@@ -449,10 +533,10 @@ def map_input_stream(stream, size, url, params):
     If no scheme is found in the url, ``file`` is used.
     The resulting input stream is then used.
     """
-    m = re.match('(\w+)://', url)
-    scheme = m.group(1) if m else 'file'
-    mod = __import__('disco.schemes.scheme_%s' % scheme,
-                     fromlist=['scheme_%s' % scheme])
+    from disco.util import schemesplit
+    scheme, _url = schemesplit(url)
+    scheme_ = 'scheme_%s' % (scheme or 'file')
+    mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
     Task.insert_globals([mod.input_stream])
     return mod.input_stream(stream, size, url, params)
 
@@ -467,15 +551,13 @@ def map_output_stream(stream, partition, url, params):
     An :func:`output_stream` which returns a handle to a partition output.
     The handle ensures that if a task fails, partially written data is ignored.
     """
-    from disco.fileutils import AtomicFile, PartitionFile
-    mpath, murl = Task.map_output(partition)
-    if not Task.ispartitioned:
-        Task.add_blob(mpath)
-        return AtomicFile(mpath, 'w'), murl
+    from disco.fileutils import AtomicFile
+    if Task.ispartitioned:
+        path, url = Task.partition_output(partition)
     else:
-        ppath, purl = Task.partition_output(partition)
-        Task.add_blob(ppath)
-        return PartitionFile(ppath, mpath, 'w'), purl
+        path, url = Task.map_output(partition)
+    Task.blobs.append(path)
+    return AtomicFile(path, 'w'), url
 
 def reduce_output_stream(stream, partition, url, params):
     """
@@ -483,36 +565,13 @@ def reduce_output_stream(stream, partition, url, params):
     The handle ensures that if a task fails, partially written data is ignored.
     """
     from disco.fileutils import AtomicFile
-    path, url = Task.reduce_output()
-    Task.add_blob(path)
+    path, url = Task.reduce_output
+    Task.blobs.append(path)
     return AtomicFile(path, 'w'), url
 
-# backwards compatibility for readers and writers
-# remove when readers and writers are gone
-
-def reader_wrapper(reader):
-    from util import argcount
-    if argcount(reader) == 3:
-        # old style reader without params
-        def reader_input_stream(stream, size, url, params):
-            return reader(stream, size, url)
-        return reader_input_stream
-    else:
-        return reader
-
-def writer_wrapper(writer):
-    def writer_output_stream(stream, partition, url, params):
-        stream.add = lambda k, v: writer(stream, k, v, params)
-        return stream, url
-    return writer_output_stream
-
-def disco_output_stream(stream, partition, url, params, version = -1,
-                        compress_level = 2, min_chunk = 1 * 1024**2):
+def disco_output_stream(stream, partition, url, params):
     from disco.fileutils import DiscoOutput
-    return DiscoOutput(stream,
-                       version = version,
-                       compress_level = compress_level,
-                       min_chunk = min_chunk), url
+    return DiscoOutput(stream), url
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
     import struct, cStringIO, gzip, cPickle, zlib
@@ -526,28 +585,54 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 yield e
             return
         try:
-            is_compressed, checksum, chunk_size =\
+            is_compressed, checksum, hunk_size =\
                 struct.unpack('<BIQ', stream.read(13))
         except:
             raise DataError("Truncated data at %d bytes" % offset, url)
-        if not chunk_size:
+        if not hunk_size:
             return
-        chunk = stream.read(chunk_size)
+        hunk = stream.read(hunk_size)
         data = ''
         try:
-            data = zlib.decompress(chunk) if is_compressed else chunk
+            data = zlib.decompress(hunk) if is_compressed else hunk
             if checksum != (zlib.crc32(data) & 0xFFFFFFFF):
                 raise ValueError("Checksum does not match")
         except (ValueError, zlib.error), e:
             if not ignore_corrupt:
                 raise DataError("Corrupted data between bytes %d-%d: %s" %
-                                (offset, offset + chunk_size, e), url)
-        offset += chunk_size
-        chunk = cStringIO.StringIO(data)
+                                (offset, offset + hunk_size, e), url)
+        offset += hunk_size
+        hunk = cStringIO.StringIO(data)
         while True:
             try:
-                yield cPickle.load(chunk)
+                yield cPickle.load(hunk)
             except EOFError:
                 break
 
+class DiscoDBOutput(object):
+    def __init__(self, stream, params):
+        from discodb import DiscoDBConstructor
+        self.discodb_constructor = DiscoDBConstructor()
+        self.stream = stream
+        self.params = params
+
+    def add(self, key, val):
+        self.discodb_constructor.add(key, val)
+
+    def close(self):
+        def flags():
+            return dict((flag, getattr(self.params, flag))
+                        for flag in ('unique_items', 'disable_compression')
+                        if hasattr(self.params, flag))
+        self.discodb_constructor.finalize(**flags()).dump(self.stream)
+
+def discodb_output(stream, partition, url, params):
+    from disco.func import DiscoDBOutput
+    return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
+
 chain_reader = netstr_reader = disco_input_stream
+
+chain_stream = (map_input_stream, chain_reader)
+default_stream = (map_input_stream, )
+gzip_stream = (map_input_stream, gzip_reader)
+gzip_line_stream = (map_input_stream, gzip_line_reader)

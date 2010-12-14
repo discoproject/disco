@@ -6,6 +6,8 @@
 -define(CONNECT_TIMEOUT, 60000).
 -define(BUFFER_SIZE, 8192).
 
+-spec http_put(nonempty_string(), nonempty_string(), integer()) ->
+    'ok' | {'error', 'crashed' | 'timeout'}.
 http_put(SrcPath, DstUrl, Timeout) ->
     % We use a middleman process to prevent messages received after timeout
     % reaching the original caller.
@@ -29,6 +31,7 @@ http_put(SrcPath, DstUrl, Timeout) ->
         {Pid, ddfs_util, Reply} -> Reply
     end.
 
+-spec http_put_conn(nonempty_string(), nonempty_string(), pid()) -> _.
 http_put_conn(SrcPath, DstUrl, Parent) ->
     {_, Addr, Path, _, _} = mochiweb_util:urlsplit(lists:flatten(DstUrl)),
     {Host, Port} = parse_host(Addr),
@@ -49,18 +52,21 @@ http_put_conn(SrcPath, DstUrl, Parent) ->
             die(Parent, E)
     end.
 
+-spec parse_host(nonempty_string()) -> {string(), integer()}.
 parse_host(Addr) ->
     case string:tokens(Addr, ":") of
         [Host, Port] -> {Host, list_to_integer(Port)};
         _ -> {Addr, 80}
     end.
 
+-spec content_length(nonempty_string(), pid()) -> string().
 content_length(File, Parent) ->
     case prim_file:read_file_info(File) of
         {ok, #file_info{size = S}} -> integer_to_list(S);
         E -> die(Parent, E)
     end.
 
+-spec send_body(port(), file:io_device()) -> 'ok'.
 send_body(Socket, IO) ->
     send_body(Socket, IO, prim_file:read(IO, ?BUFFER_SIZE)).
 send_body(_, _, eof) -> ok;
@@ -68,6 +74,8 @@ send_body(Socket, IO, {ok, Data}) ->
     ok = gen_tcp:send(Socket, Data),
     send_body(Socket, IO).
 
+-spec read_response(port()) ->
+    {'error', 'invalid_response'} | {'ok', [_]} | {'error', integer(), [_]}.
 read_response(Socket) ->
     {ok, RBin} = recv_all(Socket),
     Resp = binary_to_list(RBin),
@@ -83,13 +91,14 @@ read_response(Socket) ->
             {error, invalid_response}
     end.
 
+-spec recv_all(port()) -> {'ok', binary()}.
 recv_all(Socket) ->
     recv_all(Socket, gen_tcp:recv(Socket, 0), <<>>).
+
 recv_all(_, {error, closed}, Buf) -> {ok, Buf};
 recv_all(Socket, {ok, Bin}, Buf) ->
     recv_all(Socket, gen_tcp:recv(Socket, 0), <<Buf/binary, Bin/binary>>).
-    
+
 die(Parent, E) ->
     Parent ! E,
     exit(error).
-    

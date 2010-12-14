@@ -32,16 +32,23 @@ import fileinput
 from itertools import chain
 
 from clx import OptionParser, Program
+from disco.util import iterify
 
 class DiscodexOptionParser(OptionParser):
     def __init__(self, **kwargs):
         OptionParser.__init__(self, **kwargs)
+        self.add_option('-f', '--files',
+                        action='store_true',
+                        help='file mode for commands that take it.')
         self.add_option('-H', '--host',
                         help='host that the client should connect to')
         self.add_option('-P', '--port',
                         help='port that the client should connect to')
         self.add_option('-n', '--nr-ichunks',
                         help='the number of ichunks to create')
+        self.add_option('-u', '--unique-items',
+                        action='store_true',
+                        help='ensure unique items in discodbs')
         self.add_option('-p', '--profile',
                         action='store_true',
                         help='turn on job profiling')
@@ -51,21 +58,25 @@ class DiscodexOptionParser(OptionParser):
                         help='demuxer object to user for indexing')
         self.add_option('--balancer',
                         help='balancer to use for indexing')
-        self.add_option('--metakeyer',
-                        help='balancer to use for indexing')
-        self.add_option('--no-sort',
-                        action='store_true',
-                        help='whether or not to sort before writing discodbs')
-        self.add_option('--k-viter',
-                        action='store_true',
-                        help='treat the dataset as a precomputed k-viter list')
+        self.add_option('--param',
+                        action='append',
+                        default=[],
+                        dest='params',
+                        nargs=2,
+                        help='add a param to the inquiry job params')
+        self.add_option('--stream',
+                        action='append',
+                        default=[],
+                        dest='streams',
+                        help='add a stream for indexing or filtering inquiries')
+        self.add_option('--reduce',
+                        help='reduce used for filtering inquiries')
 
 class Discodex(Program):
     @property
     def client(self):
         from discodex.client import DiscodexClient
-        return DiscodexClient(self.options.host or self.settings['DISCODEX_HTTP_HOST'],
-                              self.options.port or self.settings['DISCODEX_HTTP_PORT'])
+        return DiscodexClient(self.options.host, self.options.port)
 
     @property
     def djangoscgi(self):
@@ -94,18 +105,25 @@ class Discodex(Program):
                                             self.settings['DISCODEX_HTTP_PORT'])
         print "Disco master at %s" % self.settings['DISCODEX_DISCO_MASTER']
 
+    def file_mode(self, *urls):
+        if self.options.files:
+            return fileinput.input(urls)
+        return urls
+
     def server_command(self, command):
         for message in chain(getattr(self.djangoscgi, command)(),
                              getattr(self.lighttpd, command)()):
             print message
 
 @Discodex.command
-def help(program):
-    print program
-    print """
-    <indexspec> is the full URI to an index, or the name of an index on --host and --port.
-    [query] is a query in CNF form: ','-separated literals, ' '-separated clauses a,b c == (a or b) and c
-    """
+def help(program, *args):
+    command, leftover = program.search(args)
+    print command
+    if not args:
+        print """
+        <indexspec> is the full URI to an index, or the name of an index on --host and --port.
+        [query] is a query in CNF form: ','-separated literals, ' '-separated clauses a,b c == (a or b) and c
+        """
 
 @Discodex.command
 def restart(program):
@@ -122,6 +140,14 @@ def status(program):
 @Discodex.command
 def stop(program):
     program.server_command('stop')
+
+@Discodex.command
+def append(program, indexaspec, indexbspec):
+    """Usage: <indexaspec> <indexbspec>
+
+    Append a pointer to indexbspec to the index at indexaspec.
+    """
+    program.client.append(indexaspec, indexbspec)
 
 @Discodex.command
 def clone(program, indexaspec, indexbspec):
@@ -151,6 +177,16 @@ def get(program, indexspec):
     print program.client.get(indexspec)
 
 @Discodex.command
+def put(program, indexspec, *urls):
+    """Usage: [-f] <indexspec> url ...
+
+    Read ichunk urls from url[s], and put them to an index at indexspec.
+    """
+    from discodex.objects import Index
+    index = Index(urls=[url.split() for url in program.file_mode(*urls)])
+    program.client.put(indexspec, index)
+
+@Discodex.command
 def list(program):
     """Usage:
 
@@ -160,15 +196,32 @@ def list(program):
         print index
 
 @Discodex.command
-def index(program, *files):
-    """Usage: [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [--no-sort] [file ...]
+def index(program, *urls):
+    """Usage: [-f] [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [url ...]
 
-    Read input urls from file[s], and index using the specified options.
+    Read input urls from urls[s], and index using the specified options.
     """
     from discodex.objects import DataSet
     dataset = DataSet(options=program.option_dict,
-                      input=[line.strip() for line in fileinput.input(files)])
+                      input=[url.split() for url in program.file_mode(*urls)])
     print program.client.index(dataset)
+
+
+def inquire(program, indexspec, inquiry, query=None):
+    for result in program.client.inquire(indexspec, inquiry,
+                                         query=query,
+                                         streams=program.options.streams,
+                                         reduce=program.options.reduce,
+                                         params=dict(program.options.params)):
+        print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
+
+@Discodex.command
+def items(program, indexspec):
+    """Usage: <indexspec>
+
+    Print the items in the specified index.
+    """
+    inquire(program, indexspec, 'items')
 
 @Discodex.command
 def keys(program, indexspec):
@@ -176,41 +229,7 @@ def keys(program, indexspec):
 
     Print the keys of the specified index.
     """
-    for key in program.client.keys(indexspec):
-        print key
-
-@Discodex.command
-def metaindex(program, indexspec):
-    """Usage: [--metakeyer] [-n N] [--profile] [--no-sort] <indexspec>
-
-    Build a metaindex of the index at indexspec, using the specified options.
-    """
-    from discodex.objects import MetaSet
-    client = program.client
-    metaset = MetaSet(options=program.option_dict,
-                      urls=client.get(indexspec).ichunks)
-    print client.metaindex(metaset)
-
-@Discodex.command
-def put(program, indexspec, *files):
-    """Usage: <indexspec> file ...
-
-    Read ichunk urls from file[s], and put them to an index at indexspec.
-    """
-    from discodex.objects import Index
-    index = Index(urls=[[line.strip()] for line in fileinput.input(files)])
-    program.client.put(indexspec, index)
-
-@Discodex.command
-def query(program, indexspec, *args):
-    """Usage: <indexspec> [query]
-
-    Query the specified index using the given clauses.
-    """
-    from discodb import Q
-    query = Q.scan(' '.join(args), and_op=' ', or_op=',')
-    for result in program.client.query(indexspec, query):
-        print result
+    inquire(program, indexspec, 'keys')
 
 @Discodex.command
 def values(program, indexspec):
@@ -218,8 +237,27 @@ def values(program, indexspec):
 
     Print the values of the specified index.
     """
-    for value in program.client.values(indexspec):
-        print value
+    inquire(program, indexspec, 'values')
+
+@Discodex.command
+def query(program, indexspec, *args):
+    """Usage: <indexspec> [query]
+
+    Query the specified index using the given clauses.
+    """
+    from discodb.query import Q, Clause
+    query = Q.parse('&'.join(arg.replace(',', '|') for arg in args))
+    inquire(program, indexspec, 'query', query)
+
+@Discodex.command
+def metaquery(program, indexspec, *args):
+    """Usage: <indexspec> q[uery]
+
+    Metaquery the specified index using the given clauses.
+    """
+    from discodb.query import Q, Clause
+    query = Q.parse('&'.join(arg.replace(',', '|') for arg in args))
+    inquire(program, indexspec, 'metaquery', query)
 
 if __name__ == '__main__':
     Discodex(option_parser=DiscodexOptionParser()).main()

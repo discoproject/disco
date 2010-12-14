@@ -7,7 +7,10 @@ Latest release
 
 Get one of the `official releases`_ and follow the :doc:`installation instructions <install>` after downloading the package.
 
-Download the latest development version from `github`_::
+Development branches
+--------------------
+
+Clone a bleeding edge version from `github`_::
 
         git clone git://github.com/tuulos/disco.git
 
@@ -40,5 +43,3 @@ Disco master or nodes.
 
 .. _official releases: http://github.com/tuulos/disco/downloads
 .. _github: http://github.com/tuulos/disco
-.. _EC2: http://aws.amazon.com
-.. _setup-instances.py: http://github.com/tuulos/disco/blob/master/aws/setup-instances.py

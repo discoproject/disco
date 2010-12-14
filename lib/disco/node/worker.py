@@ -57,14 +57,14 @@ Utility functions
 """
 import os
 
-from disco.events import AnnouncePID, Message, WorkerDone
+from disco.events import AnnouncePID, Status, WorkerDone
 from disco.func import * # XXX: hack so disco.func fns dont need to import
 
 class Worker(object):
     def __init__(self, mode, **taskargs):
         from disco import task
         AnnouncePID(os.getpid())
-        Message("Received a new %s task!" % mode)
+        Status("Received a new %s task!" % mode)
         self.task = getattr(task, mode.capitalize())(**taskargs)
         self.task.run()
         WorkerDone("Worker done")

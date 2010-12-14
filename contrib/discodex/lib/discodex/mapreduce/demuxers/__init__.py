@@ -13,11 +13,6 @@ def nodemux(kvrecord, params):
     """Yields the `kvrecord` itself."""
     yield kvrecord
 
-def iterdemux((k, viter), params):
-    """Ungroups the `(k, viter)` to produce `(k, v)` for every `v` in `viter`."""
-    for v in viter:
-        yield k, v
-
 def namedfielddemux(record, params):
     """
     Produce `(fieldname, value)` pairs for a record.
@@ -32,8 +27,9 @@ def inverteddemux(record, params):
 
     Can be used to produce an inverted index.
     """
+    recstr = str(record)
     for item in record:
-        yield '%s:%s' % item, record
+        yield '%s:%s' % item, recstr
 
 def invertediddemux(record, params):
     """
@@ -43,3 +39,14 @@ def invertediddemux(record, params):
     """
     for item in record:
         yield '%s:%s' % item, record.id
+
+def itemdemux(kvsdict, params):
+    """
+    Unpacks the kvsdict to produce all `('k:v', kvsdict)` pairs.
+
+    If a key has no values, a `('k', kvsdict)` pair is produced instead.
+    """
+    import cPickle
+    for k, vs in kvsdict.items():
+        for key in ('%s:%s' % (k, v) for v in vs) if vs else (k,):
+            yield key, cPickle.dumps(kvsdict)

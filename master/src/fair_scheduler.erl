@@ -4,12 +4,12 @@
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, 
     handle_info/2, terminate/2, code_change/3]).
 
--include("task.hrl").
+-include("disco.hrl").
 
 start_link() ->
     error_logger:info_report([{"Fair scheduler starts"}]),
     case gen_server:start_link({local, scheduler}, fair_scheduler, [],
-            disco_server:debug_flags("fair_scheduler")) of
+            disco:debug_flags("fair_scheduler")) of
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
     end.
@@ -69,7 +69,7 @@ handle_call({new_task, Task, NodeStats}, _, Nodes) ->
     end;
 
 handle_call(dbg_get_state, _, S) ->
-    {reply, S, S};
+    {reply, {S, ets:tab2list(jobs)}, S};
 
 handle_call({next_task, AvailableNodes}, _From, Nodes) ->
     Jobs = [JobPid || {_, {JobPid, _}} <- ets:tab2list(jobs)],

@@ -9,6 +9,6 @@ export PYTHONPATH=$PYTHONPATH:../lib
 for i in $TESTS;
 do
 	echo "Test $i"
-	../bin/disco.py test $i
+	../bin/disco test $i
 done
 

@@ -23,20 +23,29 @@
 -export([encode_netstring_fd/1, decode_netstring_fd/1,
      decode_netstring_fdx/1]).
 
+-type key() :: binary().
+-type value() :: binary().
+-type kvtable() :: [{key(), value()}].
+
+-spec encode_netstring_fd(kvtable()) -> binary().
 encode_netstring_fd(Lst) ->
     B = << <<(encode_item(K))/binary, " ", 
          (encode_item(V))/binary, "\n">> || {K, V} <- Lst>>,
     S = list_to_binary(integer_to_list(size(B))),
     <<S/binary, "\n", B/binary>>.  
 
+-spec encode_item(key() | value() | [value()]) -> binary().
 encode_item(E) when is_list(E) -> encode_item(list_to_binary(E));
 encode_item(E) ->
     S = list_to_binary(integer_to_list(size(E))),
     <<S/binary, " ", E/binary>>.
 
+
+-spec decode_netstring_fd(binary()) -> kvtable().
 decode_netstring_fd(Msg) ->
     {L, _} = decode_netstring_fdx(Msg), L.
 
+-spec decode_netstring_fdx(binary()) -> {kvtable(), binary()}.
 decode_netstring_fdx(Msg) ->
     Len = bin_sub_word(Msg, <<>>, <<"\n">>),
     P1 = size(Len) + 1,
@@ -44,12 +53,14 @@ decode_netstring_fdx(Msg) ->
     <<_:P1/binary, Msg0:P2/binary, Rest/binary>> = Msg,
     {decode_next_pair(Msg0, []), Rest}.
 
+-spec decode_next_pair(binary(), kvtable()) -> kvtable().
 decode_next_pair(<<>>, Lst) -> Lst;
 decode_next_pair(Msg, Lst) ->
     {Msg1, Key} = decode_next_item(Msg),
     {Msg2, Val} = decode_next_item(Msg1),
     decode_next_pair(Msg2, [{Key, Val}|Lst]).
 
+-spec decode_next_item(binary()) -> {binary(), binary()}.
 decode_next_item(Msg) ->
     Len = bin_sub_word(Msg, <<>>, <<" ">>),
     P = size(Len) + 1,
@@ -57,6 +68,7 @@ decode_next_item(Msg) ->
     <<_:P/binary, X:I/binary, _:1/binary, Rest/binary>> = Msg,
     {Rest, X}.
 
+-spec bin_sub_word(binary(), binary(), binary()) -> binary().
 bin_sub_word(<<C:1/binary, _/binary>>, Buf, Delim) when C == Delim -> Buf;
 bin_sub_word(<<C:1/binary, Rest/binary>>, Buf, Delim) ->
     bin_sub_word(Rest, <<Buf/binary, C/binary>>, Delim).

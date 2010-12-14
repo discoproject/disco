@@ -1,4 +1,4 @@
-Discodex - Distributed indices for Disco
+discodex - Distributed indices for Disco
 ========================================
 
 Getting Started

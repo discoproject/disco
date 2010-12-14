@@ -2,7 +2,7 @@
 -module(disco_web).
 -export([op/3]).
 
--include("task.hrl").
+-include("disco.hrl").
 -include("config.hrl").
 
 op('POST', "/disco/job/" ++ _, Req) ->
@@ -43,13 +43,14 @@ reply({ok, Data}, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)});
 reply({raw, Data}, Req) ->
     Req:ok({"text/plain", [], Data});
-reply({relo, Loc}, Req) ->
-    Req:respond({302, [{"Location", Loc}], <<>>});
 reply({file, File, Docroot}, Req) ->
     Req:serve_file(File, Docroot);
 reply(not_found, Req) ->
     Req:not_found();
-reply(_, Req) ->
+reply({error, E}, Req) ->
+    Req:respond({400, [], mochijson2:encode(E)});
+reply(E, Req) ->
+    error_logger:error_report({"500 Error", E}),
     Req:respond({500, [], ["Internal server error"]}).
 
 getop("load_config_table", _Query) ->
@@ -61,13 +62,16 @@ getop("joblist", _Query) ->
         {Name, Status, {MSec, Sec, _USec}, _Pid}
             <- lists:reverse(lists:keysort(3, Jobs))]};
 
-getop("jobinfo", {_Query, Name}) ->
-    {ok, {Nodes, Tasks}} =
-        gen_server:call(disco_server, {get_active, Name}),
-    {ok, {TStamp, Pid, JobNfo, Res, Ready, Failed}} =
-        gen_server:call(event_server, {get_jobinfo, Name}),
-    {ok, render_jobinfo(TStamp, Pid, JobNfo, Nodes,
-        Res, Tasks, Ready, Failed)};
+getop("jobinfo", {_Query, JobName}) ->
+    {ok, Active} = disco_server:get_active(JobName),
+    case gen_server:call(event_server, {get_jobinfo, JobName}) of
+        {ok, JobInfo} ->
+            HostInfo = lists:unzip([{Host, M}
+                                    || {Host, #task{mode = M}} <- Active]),
+            {ok, render_jobinfo(JobInfo, HostInfo)};
+        invalid_job ->
+            not_found
+    end;
 
 getop("parameters", {_Query, Name}) ->
     job_file(Name, "params");
@@ -87,21 +91,39 @@ getop("jobevents", {Query, Name}) ->
     {raw, Ev};
 
 getop("nodeinfo", _Query) ->
-    {ok, {Available, Active}} =
-        gen_server:call(disco_server, {get_nodeinfo, all}),
-    ActiveB = lists:map(fun({Node, JobName}) ->
-        {struct, [{node, list_to_binary(Node)},
-               {jobname, list_to_binary(JobName)}]}
-    end, Active),
-    {ok, {struct, [{available, Available}, {active, ActiveB}]}};
+    {ok, Active} = disco_server:get_active(all),
+    {ok, DiscoNodes} = disco_server:get_nodeinfo(all),
+    {ok, DDFSNodes} = gen_server:call(ddfs_master, {get_nodeinfo, all}),
+    ActiveNodeInfo = lists:foldl(fun ({Host, #task{jobname = JobName}}, Dict) ->
+                                         dict:append(Host,
+                                                     list_to_binary(JobName),
+                                                     Dict)
+                                 end, dict:new(), Active),
+    DiscoNodeInfo = dict:from_list([{N#nodeinfo.name,
+                                     [{job_ok, N#nodeinfo.stats_ok},
+                                      {data_error, N#nodeinfo.stats_failed},
+                                      {error, N#nodeinfo.stats_crashed},
+                                      {max_workers, N#nodeinfo.slots},
+                                      {connected, N#nodeinfo.connected},
+                                      {blacklisted, N#nodeinfo.blacklisted}]}
+                                    || N <- DiscoNodes]),
+    NodeInfo = lists:foldl(fun ({Node, {Free, Used}}, Dict) ->
+                                   dict:append_list(disco:host(Node),
+                                                    [{diskfree, Free},
+                                                     {diskused, Used}],
+                                                    Dict)
+                           end,
+                           dict:merge(fun (_Key, Tasks, Other) ->
+                                              [{tasks, Tasks}|Other]
+                                      end,
+                                      ActiveNodeInfo, DiscoNodeInfo),
+                           DDFSNodes),
+    {ok, {struct, [{K, {struct, Vs}} || {K, Vs} <- dict:to_list(NodeInfo)]}};
 
 getop("get_blacklist", _Query) ->
-    {ok, {A, _}} = gen_server:call(disco_server, {get_nodeinfo, all}),
-    {ok, [N0 || {N0, true} <- lists:map(fun({struct, L}) ->
-        {value, {_, N}} = lists:keysearch(node, 1, L),
-        {value, {_, B}} = lists:keysearch(blacklisted, 1, L),
-        {N, B}
-    end, A)]};
+    {ok, Nodes} = disco_server:get_nodeinfo(all),
+    {ok, [list_to_binary(N#nodeinfo.name)
+            || N <- Nodes, N#nodeinfo.blacklisted]};
 
 getop("get_settings", _Query) ->
     L = [max_failure_rate],
@@ -125,17 +147,17 @@ getop(_, _) -> not_found.
 
 postop("kill_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:call(disco_server, {kill_job, JobName}),
+    disco_server:kill_job(JobName),
     {ok, <<>>};
 
 postop("purge_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:cast(disco_server, {purge_job, JobName}),
+    disco_server:purge_job(JobName),
     {ok, <<>>};
 
 postop("clean_job", Json) ->
     JobName = binary_to_list(Json),
-    gen_server:call(disco_server, {clean_job, JobName}),
+    disco_server:clean_job(JobName),
     {ok, <<>>};
 
 postop("get_results", Json) ->
@@ -146,12 +168,12 @@ postop("get_results", Json) ->
 
 postop("blacklist", Json) ->
     Node = binary_to_list(Json),
-    gen_server:call(disco_server, {blacklist, Node, manual}),
+    disco_config:blacklist(Node),
     {ok, <<>>};
 
 postop("whitelist", Json) ->
     Node = binary_to_list(Json),
-    gen_server:call(disco_server, {whitelist, Node, any}),
+    disco_config:whitelist(Node),
     {ok, <<>>};
 
 postop("save_config_table", Json) ->
@@ -169,10 +191,10 @@ postop(_, _) -> not_found.
 
 job_file(Name, File) ->
     Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    Home = disco_server:jobhome(Name),
+    Home = disco:jobhome(Name),
     {file, File, filename:join([Root, Home])}.
 
-update_setting("max_failure_rate", Val, App) ->
+update_setting(<<"max_failure_rate">>, Val, App) ->
     ok = application:set_env(App, max_failure_rate,
         list_to_integer(binary_to_list(Val)));
 
@@ -180,43 +202,59 @@ update_setting(Key, Val, _) ->
     error_logger:info_report([{"Unknown setting", Key, Val}]).
 
 count_maps(L) ->
-    {M, N} = lists:foldl(fun
-        ("map", {M, N}) -> {M + 1, N + 1};
-        (["map"], {M, N}) -> {M + 1, N + 1};
-        (_, {M, N}) -> {M, N + 1}
-    end, {0, 0}, L),
+    {M, N} = lists:foldl(fun ("map", {M, N}) ->
+                                 {M + 1, N + 1};
+                             (["map"], {M, N}) ->
+                                 {M + 1, N + 1};
+                             (_, {M, N}) ->
+                                 {M, N + 1}
+                         end, {0, 0}, L),
     {M, N - M}.
 
-render_jobinfo(Tstamp, JobPid, JobInfo, Nodes, Res, Tasks, Ready, Failed) ->
-    {NMapRun, NRedRun} = count_maps(Tasks),
+render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
+               {Hosts, Modes}) ->
+    {NMapRun, NRedRun} = count_maps(Modes),
     {NMapDone, NRedDone} = count_maps(Ready),
     {NMapFail, NRedFail} = count_maps(Failed),
 
-    R = case {Res, is_process_alive(JobPid)} of
-        {_, true} -> <<"active">>;
-        {[], false} -> <<"dead">>;
-        {_, false} -> <<"ready">>
-    end,
+    Status = case is_process_alive(Pid) of
+                 true ->
+                     <<"active">>;
+                 false when Results == [] ->
+                     <<"dead">>;
+                 false ->
+                     <<"ready">>
+             end,
 
-    MapI = if JobInfo#jobinfo.map ->
-            length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun);
-        true -> 0 end,
-    RedI = if JobInfo#jobinfo.reduce ->
-            JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
-           true -> 0 end,
+    MapI = if
+               JobInfo#jobinfo.map ->
+                   length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun);
+               true ->
+                   0
+           end,
+    RedI = if
+               JobInfo#jobinfo.reduce ->
+                   JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
+               true -> 0
+           end,
+    User = case JobInfo#jobinfo.user_name of
+               undefined -> nil;
+               U -> U
+           end,
 
-    {struct, [{timestamp, Tstamp},
-           {active, R},
-           {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
-           {redi, [RedI, NRedRun, NRedDone, NRedFail]},
-           {reduce, JobInfo#jobinfo.reduce},
-           {results, lists:flatten(Res)},
-           {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
-           {nodes, [list_to_binary(N) || N <- Nodes]}
-    ]}.
+    {struct, [{timestamp, Timestamp},
+              {active, Status},
+              {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
+              {redi, [RedI, NRedRun, NRedDone, NRedFail]},
+              {reduce, JobInfo#jobinfo.reduce},
+              {results, lists:flatten(Results)},
+              {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
+              {hosts, [list_to_binary(Host) || Host <- Hosts]},
+              {username, list_to_binary(User)}
+             ]}.
 
 status_msg(invalid_job) -> [<<"unknown job">>, []];
-status_msg({ready, _, Res}) -> [<<"ready">>, Res];
+status_msg({ready, _, Results}) -> [<<"ready">>, Results];
 status_msg({active, _}) -> [<<"active">>, []];
 status_msg({dead, _}) -> [<<"dead">>, []].
 

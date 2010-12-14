@@ -4,19 +4,19 @@ from disco.core import func
 from math import pi
 
 class ObjectRWTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs       = ['01/11/1965', '14/03/1983', '12/12/2002']
-    map_writer       = func.object_writer
-    reduce_reader    = func.object_reader
-    reduce_writer    = func.object_writer
-    result_reader    = staticmethod(func.object_reader)
-    sort         = False
+    inputs        = ['01/11/1965', '14/03/1983', '12/12/2002']
+    map_writer    = staticmethod(func.object_writer)
+    reduce_reader = staticmethod(func.object_reader)
+    reduce_writer = staticmethod(func.object_writer)
+    result_reader = staticmethod(func.object_reader)
+    sort          = False
 
     def getdata(self, path):
         return ('%s\n' % path) * 10
 
     @staticmethod
     def map(e, params):
-        return [({'PI': math.pi}, time.strptime(e, '%d/%m/%Y'))]
+        return [({'PI': math.pi}, time.strptime(e.strip(), '%d/%m/%Y'))]
 
     @staticmethod
     def reduce(iter, out, params):

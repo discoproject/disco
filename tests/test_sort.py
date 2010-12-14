@@ -1,10 +1,9 @@
 import base64, string
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 
-class MemorySortTestCase(DiscoJobTestFixture, DiscoTestCase):
+class SortTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs     = [''] * 100
     sort       = True
-    mem_sort_limit = 1024 ** 4
 
     def getdata(self, path):
         return '\n'
@@ -20,27 +19,22 @@ class MemorySortTestCase(DiscoJobTestFixture, DiscoTestCase):
     @staticmethod
     def reduce(iter, out, params):
         d = set()
-        for k, v in itertools.groupby(iter, key=lambda x: x[0]):
+        for k, vs in disco.util.kvgroup(iter):
             assert k not in d, "Key %s seen already, sorting failed." % k
             d.add(k)
-            out.add(k, len(list(v)))
+            out.add(base64.decodestring(k), len(list(vs)))
 
     @property
     def answers(self):
-        return dict((str(k), 1000) for k in list(string.ascii_lowercase) + range(10))
+        return sorted((str(k), 1000) for k in list(string.ascii_lowercase) + range(10))
 
-    def runTest(self):
-        answers = self.answers
-        for key, value in self.results:
-            self.assertEquals(value, answers.pop(base64.decodestring(key)))
-        self.assertEquals(answers, {})
+class MergeSortTestCase(SortTestCase):
+    partitions = 0
+    sort       = 'merge'
 
-class ExternalSortTestCase(MemorySortTestCase):
-    mem_sort_limit = 0
-
-
-
-
-
-
-
+    @staticmethod
+    def map(e, params):
+        letters = list(string.ascii_lowercase * 10)
+        numbers = [str(i) for i in range(10)] * 10
+        for char in sorted(letters + numbers):
+            yield base64.encodestring(char), ''

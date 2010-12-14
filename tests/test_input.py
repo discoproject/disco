@@ -103,11 +103,13 @@ class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
             self.assertEquals(answer, result)
         self.assertEquals(len(answers), len(results))
 
+"""
 class MismatchedPartitionedInputTestCase(ReducePartitionedInputTestCase):
     partitions_1 = 2
 
     def runTest(self):
         self.assertRaises(JobError, self.job_3.wait)
+"""
 
 class MergeReducePartitionedInputTestCase(ReducePartitionedInputTestCase):
     merge_partitions_3 = True

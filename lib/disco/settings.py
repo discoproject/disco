@@ -23,7 +23,7 @@ Possible settings for Disco are as follows:
 
         :envvar:`DISCO_DEBUG`
                 Sets the debugging level for Disco.
-                Default is 1.
+                Default is ``1``.
 
         :envvar:`DISCO_ERLANG`
                 Command used to launch Erlang on all nodes in the cluster.
@@ -33,6 +33,7 @@ Possible settings for Disco are as follows:
                 If set, events are logged to `stdout`.
                 If set to ``json``, events will be written as JSON strings.
                 If set to ``nocolor``, ANSI color escape sequences will not be used, even if the terminal supports it.
+                Default is unset (the empty string).
 
         :envvar:`DISCO_FLAGS`
                 Default is the empty string.
@@ -50,8 +51,7 @@ Possible settings for Disco are as follows:
 
         :envvar:`DISCO_MASTER_HOME`
                 Directory containing the Disco ``master`` directory.
-                Default is ``/usr/lib/disco``.
-                ``conf/settings.py.template`` provides a reasonable override.
+                Default is obtained using ``os.path.join(DISCO_HOME, 'master')``.
 
         :envvar:`DISCO_MASTER_HOST`
                 The hostname of the master.
@@ -72,27 +72,29 @@ Possible settings for Disco are as follows:
         :envvar:`DISCO_LOG_DIR`
                 Directory where log-files are created.
                 The same path is used for all nodes in the cluster.
-                Default is ``/var/log/disco``.
-                ``conf/settings.py.template`` provides a reasonable override.
+                Default is obtained using ``os.path.join(DISCO_HOME, 'log')``.
 
         :envvar:`DISCO_PID_DIR`
                 Directory where pid-files are created.
                 The same path is used for all nodes in the cluster.
-                Default is ``/var/run``.
-                ``conf/settings.py.template`` provides a reasonable override.
+                Default is obtained using ``os.path.join(DISCO_HOME, 'run')``.
 
         :envvar:`DISCO_PORT`
                 The port the workers use for `HTTP` communication.
-                Default is 8989.
+                Default is ``8989``.
 
         :envvar:`DISCO_ROOT`
                 Root directory for Disco-written data and metadata.
-                Default is ``/srv/disco``.
-                ``conf/settings.py.template`` provides a reasonable override.
+                Default is obtained using ``os.path.join(DISCO_HOME, 'root')``.
 
         :envvar:`DISCO_USER`
                 The user Disco should run as.
                 Default obtained using ``os.getenv(LOGNAME)``.
+
+        :envvar:`DISCO_JOB_OWNER`
+                User name shown on the job status page for the user who
+                submitted the job.
+                Default is the login name @ host.
 
         :envvar:`DISCO_WORKER`
                 Executable which launches the Disco worker process.
@@ -106,6 +108,14 @@ Possible settings for Disco are as follows:
                 How long to wait before garbage collecting data.
                 Only results explictly saved to DDFS won't be garbage collected.
                 Default is ``100 * 365 * 24 * 60 * 60`` (100 years).
+
+        :envvar:`DISCO_SORT_BUFFER_SIZE`
+                How much memory can be used by external sort. Passed as the '-S'
+                parameter for the Unix `sort` command (see *man sort*). Default
+                is ``10%`` i.e. 10% of the total available memory.
+
+        :envvar:`DISCO_WORKER_MAX_MEM`
+                How much memory can be used by worker in total. Worker calls `resource.setrlimit(RLIMIT_AS, limit) <http://docs.python.org/library/resource.html#resource.setrlimit>`_ to set the limit when it starts. Can be either a percentage of total available memory or an exact number of bytes. Note that ``setrlimit`` behaves differently on Linux and Mac OS X, see *man setrlimit* for more information. Default is ``80%`` i.e. 80% of the total available memory.
 
 Settings to control the proxying behavior:
 
@@ -140,13 +150,13 @@ Settings used by the testing environment:
 
         :envvar:`DISCO_TEST_PORT`
                 The port that the test data server should bind to.
-                Default is 9444.
+                Default is ``9444``.
 
 Settings used by DDFS:
 
         :envvar:`DDFS_ROOT`
                 The root data directory for DDFS.
-                Default is ``os.path.join(DISCO_ROOT, 'ddfs')``.
+                Default is obtained using ``os.path.join(DISCO_ROOT, 'ddfs')``.
 
         :envvar:`DDFS_PUT_PORT`
                 The port to use for writing to DDFS nodes.
@@ -160,6 +170,22 @@ Settings used by DDFS:
         :envvar:`DDFS_GET_MAX`
                 The maximum default number of retries for a `GET` operation.
                 Default is ``3``.
+
+        :envvar:`DDFS_READ_TOKEN`
+                The default read authorization token to use.
+                Default is ``None``.
+
+        :envvar:`DDFS_WRITE_TOKEN`
+                The default write authorization token to use.
+                Default is ``None``.
+
+        :envvar:`DDFS_PARANOID_DELETE`
+                Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_ROOT = "/srv/disco/ddfs"``)::
+
+                    find /srv/disco/ddfs/ -perm 600 -iname '!trash*' -exec rm {} \;
+
+                Default is ``''``.
+
 
 The following settings are used by DDFS to determine the number of replicas for data/metadata to keep
 (it is not recommended to use the provided defaults in a multinode cluster):
@@ -176,7 +202,7 @@ The following settings are used by DDFS to determine the number of replicas for 
                 The number of replicas of blobs that DDFS should aspire to keep.
                 Default is ``1``.
 """
-import os, socket
+import os, socket, pwd
 
 from clx.settings import Settings
 
@@ -188,7 +214,7 @@ class DiscoSettings(Settings):
         'DISCO_EVENTS':          "''",
         'DISCO_FLAGS':           "''",
         'DISCO_HOME':            "guess_home()",
-        'DISCO_HTTPD':           "'lighttpd'",
+        'DISCO_HTTPD':           "'lighttpd -f $DISCO_PROXY_CONFIG'",
         'DISCO_MASTER':          "'http://%s:%s' % (DISCO_MASTER_HOST, DISCO_PORT)",
         'DISCO_MASTER_HOME':     "os.path.join(DISCO_HOME, 'master')",
         'DISCO_MASTER_HOST':     "socket.gethostname()",
@@ -202,8 +228,11 @@ class DiscoSettings(Settings):
         'DISCO_ROOT':            "os.path.join(DISCO_HOME, 'root')",
         'DISCO_SETTINGS':        "''",
         'DISCO_SETTINGS_FILE':   "guess_settings()",
+        'DISCO_SORT_BUFFER_SIZE':"'10%'",
+        'DISCO_WORKER_MAX_MEM':  "'80%'",
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
+        'DISCO_JOB_OWNER':       "job_owner()",
         'DISCO_WORKER':          "os.path.join(DISCO_HOME, 'node', 'disco-worker')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_LIB",
@@ -228,9 +257,12 @@ class DiscoSettings(Settings):
         'DDFS_PUT_PORT':         "8990",
         'DDFS_PUT_MAX':          "3",
         'DDFS_GET_MAX':          "3",
+        'DDFS_READ_TOKEN':       "''",
+        'DDFS_WRITE_TOKEN':      "''",
         'DDFS_TAG_MIN_REPLICAS': "1",
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
+        'DDFS_PARANOID_DELETE':  "''"
         }
 
     globals = globals()
@@ -255,6 +287,13 @@ class DiscoSettings(Settings):
     def ensuredirs(self):
         for name in self.must_exist:
             self.safedir(name)
+        config = self['DISCO_MASTER_CONFIG']
+        if not os.path.exists(config):
+            open(config, 'w').write('[["localhost","1"]]')
+
+def job_owner():
+    return "%s@%s" % (pwd.getpwuid(os.getuid()).pw_name,
+                      socket.gethostname())
 
 def guess_erlang():
     if os.uname()[0] == 'Darwin':
