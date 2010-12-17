@@ -1,9 +1,18 @@
 -module(disco).
 
--export([get_setting/1, has_setting/1,
-         host/1, node/1, node_name/0, node_safe/1,
-         oob_name/1, jobhome/1, debug_flags/1,
-         format_time/1, settings/0, disco_url_path/1]).
+-export([get_setting/1,
+         has_setting/1,
+         settings/0,
+         host/1,
+         node/1,
+         node_name/0,
+         node_safe/1,
+         oob_name/1,
+         jobhome/1,
+         debug_flags/1,
+         format/2,
+         format_time/1,
+         disco_url_path/1]).
 
 -spec get_setting(string()) -> string().
 get_setting(SettingName) ->
@@ -69,6 +78,9 @@ jobhome(JobName) ->
     Prefix = case D1 of [_] -> "0"; _ -> "" end,
     lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
 
+format(Format, Args) ->
+    lists:flatten(io_lib:format(Format, Args)).
+
 format_time(T) ->
     MS = 1000,
     SEC = 1000 * MS,
@@ -79,8 +91,7 @@ format_time(T) ->
     Sec = (D rem MIN) div SEC,
     Min = (D rem HOUR) div MIN,
     Hour = D div HOUR,
-    lists:flatten(io_lib:format("~B:~2.10.0B:~2.10.0B.~3.10.0B",
-        [Hour, Min, Sec, Ms])).
+    format("~B:~2.10.0B:~2.10.0B.~3.10.0B", [Hour, Min, Sec, Ms]).
 
 disco_url_path(Url) ->
     {match, [Path]} = re:run(Url,
