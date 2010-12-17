@@ -24,7 +24,7 @@ class Event(object):
         tags = ' '.join(tag for tag in self.tags if self.tag_re.match(tag))
         msg = '**<%s> %s %s\n%s\n<>**\n' % (self.type, self.timestamp, tags, self.message)
         try:
-            return msg.encode('utf-8')
+            return msg.decode('utf-8', 'replace').encode('utf-8')
         except UnicodeError:
             hexmsg = hexlify(self.message)
             msg = ('**<%s> %s %s\nWarning: non-UTF8 output from worker: %s\n<>**\n'
