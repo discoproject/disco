@@ -72,6 +72,7 @@ find_bool(Key, Dict) ->
 find_params(JobDict) ->
     {ok, Prefix} = dict:find(<<"prefix">>, JobDict),
     {ok, Inputs} = dict:find(<<"input">>, JobDict),
+    {ok, Worker} = dict:find(<<"worker">>, JobDict),
     {ok, Owner} = dict:find(<<"owner">>, JobDict),
     {ok, NReduces} = dict:find(<<"nr_reduces">>, JobDict),
     {ok, Scheduler} = dict:find(<<"scheduler">>, JobDict),
@@ -79,6 +80,7 @@ find_params(JobDict) ->
 
     {binary_to_list(Prefix),
      #jobinfo{inputs = Inputs,
+              worker = Worker,
               owner = Owner,
               map = find_bool(<<"map?">>, JobDict),
               reduce = find_bool(<<"reduce?">>, JobDict),
@@ -101,16 +103,16 @@ find_params(JobDict) ->
 work([{TaskID, Input}|Inputs], Mode, Name, N, Job, Res)
     when N < Job#jobinfo.max_cores ->
 
-    Task = #task{jobname = Name,
-         taskid = TaskID,
-         mode = Mode,
-         taskblack = [],
-         fail_count = 0,
-         input = Input,
-         from = self(),
-         force_local = Job#jobinfo.force_local,
-         force_remote = Job#jobinfo.force_remote
-    },
+    Task = #task{from = self(),
+                 taskblack = [],
+                 fail_count = 0,
+                 force_local = Job#jobinfo.force_local,
+                 force_remote = Job#jobinfo.force_remote,
+                 jobname = Name,
+                 taskid = TaskID,
+                 mode = Mode,
+                 input = Input,
+                 worker = Job#jobinfo.worker},
     submit_task(Task),
     work(Inputs, Mode, Name, N + 1, Job, Res);
 

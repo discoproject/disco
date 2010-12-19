@@ -131,8 +131,10 @@ on_error(nonrecoverable, Reason, State) ->
     event({"ERROR", Reason}, State),
     {stop, worker_exit(State, {job_error, Reason}), State}.
 
-handle_call(start_worker, _From, S) ->
-    Command = "nice -n 19 $DISCO_WORKER",
+handle_call(start_worker, _From, #state{task = Task} = State) ->
+    % unpack worker home
+    % cd worker home
+    Command = "nice -n 19 " ++ binary_to_list(Task#task.worker),
     Options = [{line, 100000},
                binary,
                exit_status,
@@ -140,7 +142,9 @@ handle_call(start_worker, _From, S) ->
                stderr_to_stdout,
                {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}] ++
                 [{Setting, disco:get_setting(Setting)} || Setting <- disco:settings()]}],
-    {reply, ok, S#state{port = open_port({spawn, Command}, Options)}, 30000}.
+    {reply, ok,
+     State#state{port = open_port({spawn, Command}, Options)},
+     30000}.
 
 handle_cast(kill_worker, S) ->
     on_error(S).

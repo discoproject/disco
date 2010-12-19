@@ -245,6 +245,7 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
               {reduce, JobInfo#jobinfo.reduce},
               {results, lists:flatten(Results)},
               {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
+              {worker, JobInfo#jobinfo.worker},
               {hosts, [list_to_binary(Host) || Host <- Hosts]},
               {owner, JobInfo#jobinfo.owner}
              ]}.

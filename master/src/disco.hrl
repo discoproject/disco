@@ -3,6 +3,7 @@
                   force_remote :: bool(),
                   owner :: binary(),
                   inputs :: [binary()] | [[binary()]],
+                  worker :: binary(),
                   map :: bool(),
                   max_cores :: non_neg_integer(),
                   nr_reduce :: non_neg_integer(),
@@ -24,6 +25,7 @@
                force_remote :: bool(),
                from :: pid(),
                input :: [{binary(), nonempty_string()}],
+               worker :: worker,
                jobname :: nonempty_string(),
                mode :: nonempty_string(), %"map" | "reduce"
                taskid :: non_neg_integer(),

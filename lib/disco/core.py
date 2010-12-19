@@ -680,6 +680,7 @@ class JobDict(util.DefaultDict):
                     Default is ``False``.
     """
     defaults = {'input': (),
+                'worker': DiscoSettings()['DISCO_WORKER'],
                 'map?': False,
                 'reduce?': False,
                 'map': None,
@@ -718,6 +719,7 @@ class JobDict(util.DefaultDict):
 
     master_keys = set(['prefix',
                        'input',
+                       'worker',
                        'owner',
                        'nr_reduces',
                        'scheduler',
