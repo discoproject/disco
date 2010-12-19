@@ -7,7 +7,7 @@ from disco import func, comm, util
 from disco.ddfs import DDFS
 from disco.core import Disco, JobDict
 from disco.error import DiscoError, DataError
-from disco.events import Status, OutputURL, TaskFailed
+from disco.events import Status, Output
 from disco.node import external, worker
 from disco.settings import DiscoSettings
 from disco.sysutil import set_mem_limit
@@ -15,15 +15,18 @@ from disco.fileutils import AtomicFile, ensure_file, ensure_path, sync
 
 oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
 
+def status(message):
+    return Status(message).send()
+
 class Task(object):
     def __init__(self,
-                 netlocstr='',
+                 host='',
                  id=-1,
                  inputs=None,
                  jobdict=None,
                  jobname='',
                  settings=DiscoSettings()):
-        self.netloc   = util.netloc.parse(netlocstr)
+        self.netloc   = util.netloc.parse(host)
         self.id       = int(id)
         self.inputs   = inputs
         self.jobdict  = jobdict
@@ -165,9 +168,9 @@ class Task(object):
         n = -1
         for n, item in enumerate(iterator):
             if status_interval and (n + 1) % status_interval == 0:
-                Status(message_template % (n + 1))
+                status(message_template % (n + 1))
             yield item
-        Status("Done: %s" % (message_template % (n + 1)))
+        status("Done: %s" % (message_template % (n + 1)))
 
     def connect_input(self, url, fd=None, size=None):
         def fd_tuple(object, *args):
@@ -267,10 +270,10 @@ class Task(object):
 class Map(Task):
     def _run(self):
         if len(self.inputs) != 1:
-            TaskFailed("Map takes 1 input, got: %s" % ' '.join(self.inputs))
+            raise DiscoError("Map takes 1 input, got: %s" % ' '.join(self.inputs))
 
         if self.save and not self.reduce and self.ispartitioned:
-            TaskFailed("Storing partitioned outputs in DDFS is not yet supported")
+            raise NotImplementedError("Storing partitioned outputs in DDFS is not yet supported")
 
         if self.isexternal:
             external.prepare(self.map, self.ext_params, self.path('ext.map'))
@@ -300,10 +303,10 @@ class Map(Task):
         f.close()
 
         if self.save and not self.reduce:
-            OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
-            Status("Results pushed to DDFS")
+            Output([util.ddfs_save(self.blobs, self.jobname, self.master)]).send()
+            status("Results pushed to DDFS")
         else:
-            OutputURL(index_url)
+            Output([index_url]).send()
 
 class MapOutput(object):
     def __init__(self, task, id):
@@ -347,7 +350,7 @@ class Reduce(Task):
             self.insert_globals([self.reduce])
 
         total_size = sum(size for fd, size, url in self.connected_inputs)
-        Status("Input is %s" % (util.format_size(total_size)))
+        status("Input is %s" % (util.format_size(total_size)))
 
         self.init(entries, params)
         if util.argcount(self.reduce) < 3:
@@ -360,15 +363,15 @@ class Reduce(Task):
         external.close_ext()
 
         if self.save:
-            OutputURL(util.ddfs_save(self.blobs, self.jobname, self.master))
-            Status("Results pushed to DDFS")
+            Output([util.ddfs_save(self.blobs, self.jobname, self.master)]).send()
+            status("Results pushed to DDFS")
         else:
             index, index_url = self.reduce_index
             f = file(index, 'w')
             print >> f, '%d %s' % (self.id, out_url)
             sync(f)
             f.close()
-            OutputURL(index_url)
+            Output([index_url]).send()
 
     def __iter__(self):
         if self.sort == 'merge':
@@ -378,7 +381,7 @@ class Reduce(Task):
         return self.entries
 
     def disk_sort(self, filename):
-        Status("Sorting %s..." % filename)
+        status("Sorting %s..." % filename)
         try:
             subprocess.check_call(['sort',
                                    '-z',
@@ -390,7 +393,7 @@ class Reduce(Task):
                                    filename])
         except subprocess.CalledProcessError, e:
             raise DataError("Sorting %s failed: %s" % (filename, e), filename)
-        Status("Finished sorting")
+        status("Finished sorting")
 
     @property
     def merge_sorted_entries(self):
@@ -400,7 +403,7 @@ class Reduce(Task):
     @property
     def sorted_entries(self):
         dlname = self.path('reduce-in-%d.dl' % self.id)
-        Status("Downloading %s" % dlname)
+        status("Downloading %s" % dlname)
         out_fd = AtomicFile(dlname, 'w')
         for key, value in self.entries:
             if not isinstance(key, str):
@@ -411,7 +414,7 @@ class Reduce(Task):
                 # value pickled using protocol 0 will always be printable ASCII
                 out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
         out_fd.close()
-        Status("Downloaded OK")
+        status("Downloaded OK")
 
         self.disk_sort(dlname)
         fd, size, url = comm.open_local(dlname)

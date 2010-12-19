@@ -158,15 +158,15 @@ wait_workers(N, Results, Name, Mode) ->
 
         {{error, Error}, Task, Node} ->
             event_server:event(Name,
-            "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
-                [Task#task.mode, Task#task.taskid,
-                Node, Error], []),
+                               "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
+                               [Task#task.mode, Task#task.taskid,
+                                Node, Error], []),
             throw(logged_error);
 
         Error ->
             event_server:event(Name,
-            "ERROR: Received an unknown error: ~p",
-                [Error], []),
+                               "ERROR: Received an unknown error: ~p",
+                               [Error], []),
             throw(logged_error)
     end.
 
@@ -281,8 +281,7 @@ job_coordinator(Name, Job) ->
 
     RedInputs = if Job#jobinfo.map ->
         event_server:event(Name, "Map phase", [], {}),
-        MapResults = run_task(map_input(Job#jobinfo.inputs),
-            "map", Name, Job),
+        MapResults = run_task(map_input(Job#jobinfo.inputs), "map", Name, Job),
         event_server:event(Name, "Map phase done", [], {map_ready, MapResults}),
         MapResults;
     true ->
@@ -314,9 +313,9 @@ map_input(Inputs) ->
 -spec map_input1(binary() | [binary()]) ->
     [{binary(), nonempty_string() | 'false'}].
 map_input1(Inp) when is_list(Inp) ->
-    [{<<"'", X/binary, "' ">>, pref_node(X)} || X <- Inp];
+    [{X, pref_node(X)} || X <- Inp];
 map_input1(Inp) ->
-    [{<<"'", Inp/binary, "' ">>, pref_node(Inp)}].
+    [{Inp, pref_node(Inp)}].
 
 -spec reduce_input(nonempty_string(), _, non_neg_integer()) ->
     [{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}].
@@ -328,11 +327,10 @@ reduce_input(Name, Inputs, NRed) ->
     throw({error, "redundant inputs in reduce"});
     true -> ok
     end,
-    B = << <<"'", X/binary, "' ">> || X <- Inputs >>,
     U = lists:usort([pref_node(X) || X <- Inputs]),
     N = length(U),
     D = dict:from_list(lists:zip(lists:seq(0, N - 1), U)),
-    [{X, [{B, dict:fetch(X rem N, D)}]} || X <- lists:seq(0, NRed - 1)].
+    [{X, [{Inputs, dict:fetch(X rem N, D)}]} || X <- lists:seq(0, NRed - 1)].
 
 % pref_node() suggests a preferred node for a task (one preserving locality)
 % given the url of its input.

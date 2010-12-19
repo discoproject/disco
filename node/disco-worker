@@ -6,23 +6,16 @@ from disco.events import DataUnavailable, TaskFailed
 from disco.node.worker import Worker
 from disco.util import MessageWriter
 
-def main(inputs, mode, jobname, netlocstr, id):
-    Worker(mode,
-           netlocstr=netlocstr,
-           id=id,
-           inputs=inputs,
-           jobname=jobname)
-
 if __name__ == '__main__':
     try:
         sys.stdout = MessageWriter()
-        main(sys.argv[5:], *sys.argv[1:5])
+        Worker()
     except (DataError, EnvironmentError, MemoryError), e:
         # check the number of open file descriptors (under proc), warn if close to max
         # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
         # also check for other known reasons for error, such as if disk is full
-        DataUnavailable(traceback.format_exc())
+        DataUnavailable(traceback.format_exc()).send()
         raise
     except Exception, e:
-        TaskFailed(traceback.format_exc())
+        TaskFailed(MessageWriter.force_utf8(traceback.format_exc())).send()
         raise

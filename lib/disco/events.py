@@ -1,41 +1,43 @@
 import os, re, sys
 from datetime import datetime
-from binascii import hexlify
+
+from disco.bencode import dumps, loads
 
 class Event(object):
     type             = 'EV'
+    version          = '00'
     tag_re           = re.compile(r'^\w+$')
     timestamp_format = '%y/%m/%d %H:%M:%S'
 
-    def __init__(self, message='', tags=()):
-        self.message = message
+    def __init__(self, payload='', tags=()):
+        self.payload = payload
         self.tags    = tags
         self.time    = datetime.now()
-        self.log()
 
     @property
     def timestamp(self):
         return self.time.strftime(self.timestamp_format)
 
-    def log(self):
+    def send(self):
         sys.stderr.write('%s' % self)
+        return loads(sys.stdin.read(int(sys.stdin.readline()) + 1)[:-1])
 
     def __str__(self):
         tags = ' '.join(tag for tag in self.tags if self.tag_re.match(tag))
-        msg = '**<%s> %s %s\n%s\n<>**\n' % (self.type, self.timestamp, tags, self.message)
-        try:
-            return msg.encode('utf-8')
-        except UnicodeError:
-            hexmsg = hexlify(self.message)
-            msg = ('**<%s> %s %s\nWarning: non-UTF8 output from worker: %s\n<>**\n'
-                   % (self.type, self.timestamp, tags, hexmsg))
-            return msg
+        return '**<%s:%s> %s %s\n%s\n<>**\n' % (self.type,
+                                                self.version,
+                                                self.timestamp,
+                                                tags,
+                                                dumps(self.payload))
 
 class Status(Event):
     type = 'STA'
 
 class Message(Event):
     type = 'MSG'
+
+class TaskInfo(Event):
+    type = 'TSK'
 
 class Signal(Event):
     pass
@@ -52,15 +54,15 @@ class WorkerDone(Signal):
 class TaskFailed(Signal):
     type = 'ERR'
 
-class OutputURL(Signal):
+class Output(Signal):
     type = 'OUT'
 
 class EventRecord(object):
-    type_raw      = r'\*\*<(?P<type>\w+)>'
+    type_raw      = r'\*\*<(?P<type>\w+)(?::(?P<version>.{2}))?>'
     timestamp_raw = r'(?P<timestamp>\d{2}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})'
     tags_raw      = r'(?P<tags>[^\n]*)'
-    message_raw   = r'(?P<message>.*)'
-    event_re = re.compile(r'^%s %s %s\n%s\n<>\*\*\n$' % (type_raw, timestamp_raw, tags_raw, message_raw),
+    payload_raw   = r'(?P<payload>.*)'
+    event_re = re.compile(r'^%s %s %s\n%s\n<>\*\*\n$' % (type_raw, timestamp_raw, tags_raw, payload_raw),
                           re.MULTILINE | re.S)
 
     def __init__(self, string):
@@ -70,4 +72,4 @@ class EventRecord(object):
         self.type    = match.group('type')
         self.time    = datetime.strptime(match.group('timestamp'), Event.timestamp_format)
         self.tags    = match.group('tags').split()
-        self.message = match.group('message')
+        self.payload = loads(match.group('payload'))

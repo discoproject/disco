@@ -33,7 +33,7 @@ json_list([X|R], L) ->
 -spec unique_key(nonempty_string(), dict()) -> nonempty_string().
 unique_key(Prefix, Dict) ->
     {MegaSecs, Secs, MicroSecs} = now(),
-    Key = lists:flatten(io_lib:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs])),
+    Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
     case dict:is_key(Key, Dict) of
         false ->
             Key;
@@ -223,10 +223,10 @@ event(Host, JobName, Format, Args, Params) ->
 %-spec event(atom(), nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(EventServer, Host, JobName, Format, Args, Params) ->
     SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 10000 of
-		     true -> trunc_io:fprint(X, 10000);
-		     false -> X 
-		 end || X <- Args],
-    RawMsg = lists:flatten(io_lib:fwrite(Format, SArgs)),
+                 true -> trunc_io:fprint(X, 10000);
+                 false -> X
+             end || X <- Args],
+    RawMsg = disco:format(Format, SArgs),
     Json = case catch mochijson2:encode(list_to_binary(RawMsg)) of
                {'EXIT', _} ->
                    Hex = ["WARNING: Binary message data: ",

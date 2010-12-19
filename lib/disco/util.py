@@ -28,8 +28,14 @@ class DefaultDict(defaultdict):
         return self.default_factory(key)
 
 class MessageWriter(object):
+    @classmethod
+    def force_utf8(cls, string):
+        if isinstance(string, unicode):
+            return string.encode('utf-8', 'replace')
+        return string.decode('utf-8', 'replace').encode('utf-8')
+
     def write(self, string):
-        Message(string.strip())
+        Message(self.force_utf8(string.strip())).send()
 
 class netloc(tuple):
     @classmethod
@@ -232,7 +238,7 @@ def msg(message):
     master, the maximum *message* size is set to 255 characters and job is
     allowed to send at most 10 messages per second.
     """
-    return Message(message)
+    return Message(message).send()
 
 def err(message):
     """Raises an exception with the reason *message*. This terminates the job."""

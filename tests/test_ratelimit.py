@@ -25,7 +25,7 @@ class InternalRateLimitTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        Status("Internal msg")
+        Status("Internal msg").send()
         return []
 
     def runTest(self):

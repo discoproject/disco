@@ -4,6 +4,7 @@
 
 -define(MESSAGES_MAX, 100).
 -define(EVENT_OPEN,  "**<", EventType:3/binary, ">").
+-define(EVENT_OPENV, "**<", EventType:3/binary, ":", Version:2/binary, ">").
 -define(EVENT_CLOSE, "<>**").
 -define(TIMESTAMP,
     Year:2/binary, "/", Month:2/binary, "/",  Day:2/binary, " ",
@@ -27,45 +28,51 @@ new() ->
 -spec feed(data(), event_stream()) -> event_stream().
 feed(Data, {next_stream, State}) -> handle_state(State, Data).
 
--spec handle_state(state(), data()) -> event_stream().
-handle_state({outside_event, _StateData}, Data) ->
-    case Data of
-        {eol, <<?EVENT_OPEN, " ", ?TIMESTAMP, TagBin/binary>>} ->
-            Tags = string:tokens(binary_to_list(TagBin), " "),
-            {next_stream, {inside_event,
-                       {EventType,
+handle_event_header(EventType, _Version, <<" ", ?TIMESTAMP, TagBin/binary>>) ->
+    Tags = string:tokens(binary_to_list(TagBin), " "),
+    {next_stream, {inside_event,
+                   {EventType,
                     {Year, Month, Day, Hour, Minute, Second},
                     Tags,
                     message_buffer:new(?MESSAGES_MAX)}}};
-        {eol, <<?EVENT_OPEN, " ", Message/binary>>} ->
-            {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_local_time(now()),
-            Messages = message_buffer:new(?MESSAGES_MAX),
-            {next_stream, {outside_event,
-                       event({EventType,
+
+handle_event_header(EventType, _Version, <<" ", Message/binary>>) ->
+    {{Year, Month, Day}, {Hour, Minute, Second}} = calendar:now_to_local_time(now()),
+    Messages = message_buffer:new(?MESSAGES_MAX),
+    {next_stream, {outside_event,
+                   event({EventType,
                           {Year, Month, Day, Hour, Minute, Second},
                           [],
-                         message_buffer:append(binary_to_list(Message), Messages)})}};
-        {IsEOL, <<BadMessage/binary>>} ->
-            {next_stream, {outside_event,
-                       {errline, binary_to_list(BadMessage) ++
-                    case IsEOL of
-                        eol -> "";
-                        _ -> "..."
-                    end}}}
-    end;
+                          message_buffer:append(Message, Messages)})}};
 
-handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData}, Data) ->
-    case Data of
-        {eol, <<?EVENT_CLOSE>>} ->
-            {next_stream, {outside_event,
-                       event({EventType, Time, Tags, Messages})}};
-        {_IsEOL, <<Message/binary>>} ->
-            {next_stream, {inside_event,
-                      {EventType, Time, Tags,
-                       message_buffer:append(binary_to_list(Message), Messages)}}}
-    end.
+handle_event_header(_EventType, _Version, <<BadMessage/binary>>) ->
+    {next_stream, {outside_event, {errline, BadMessage}}}.
 
--spec event({event_type(), gen_time(), [string()],
+-spec handle_state(state(), data()) -> event_stream().
+handle_state({outside_event, _StateData}, {eol, <<?EVENT_OPEN, Rest/binary>>}) ->
+    handle_event_header(EventType, <<"00">>, Rest);
+
+handle_state({outside_event, _StateData}, {eol, <<?EVENT_OPENV, Rest/binary>>}) ->
+    handle_event_header(EventType, Version, Rest);
+
+handle_state({outside_event, _StateData}, {eol, <<BadMessage/binary>>}) ->
+    handle_event_header(notype, noversion, BadMessage);
+
+handle_state({outside_event, _StateData}, {noeol, <<BadMessage/binary>>}) ->
+    handle_event_header(notype, noversion, <<BadMessage/binary, "...">>);
+
+handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData},
+             {eol, <<?EVENT_CLOSE>>}) ->
+    {next_stream, {outside_event,
+                   event({EventType, Time, Tags, Messages})}};
+
+handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData},
+             {_IsEOL, <<Message/binary>>}) ->
+    {next_stream, {inside_event,
+                   {EventType, Time, Tags,
+                    message_buffer:append(Message, Messages)}}}.
+
+-spec event({event_type(), gen_time(), [binary()],
     message_buffer:message_buffer()}) -> outside_event().
 event({EventType, Time, Tags, Messages}) ->
     case catch finalize_event({EventType, Time, Tags, Messages}) of
@@ -75,19 +82,11 @@ event({EventType, Time, Tags, Messages}) ->
             {malformed_event, Reason};
         _Else ->
             {malformed_event,
-             "Invalid " ++ EventType ++ ": " ++
-             message_buffer:to_string(Messages)}
+             disco:format("Invalid '~s' event in stream:~n~s",
+                          [EventType, message_buffer:to_string(Messages)])}
     end.
 
--spec finalize_event({event_type(), gen_time(), [string()],
+-spec finalize_event({event_type(), gen_time(), [binary()],
     message_buffer:message_buffer()}) -> {'ok', string()}.
-finalize_event({<<"PID">>, _Time, _Tags, Messages}) ->
-    [ChildPID] = message_buffer:to_list(Messages),
-    {ok, ChildPID};
-
-finalize_event({<<"OUT">>, _Time, _Tags, Messages}) ->
-    [Results] = message_buffer:to_list(Messages),
-    {ok, Results};
-
 finalize_event({_EventType, _Time, _Tags, Messages}) ->
-    {ok, message_buffer:to_string(Messages)}.
+    {ok, bencode:decode(list_to_binary(message_buffer:to_string(Messages)))}.

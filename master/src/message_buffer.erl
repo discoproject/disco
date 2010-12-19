@@ -1,6 +1,6 @@
 -module(message_buffer).
 
--export([new/1, has_overflow/1, to_list/1, to_string/1, append/2]).
+-export([new/1, has_overflow/1, to_binary/1, to_list/1, to_string/1, append/2]).
 
 -type message_buffer() :: {queue(), 'nooverflow' | 'overflow', non_neg_integer()}.
 
@@ -12,7 +12,11 @@ new(MessagesMax) when is_integer(MessagesMax), MessagesMax >= 0 ->
 has_overflow({_MessageQ, Overflow, _MessagesMax}) ->
     Overflow.
 
--spec to_list(message_buffer()) -> [string()].
+-spec to_binary(message_buffer()) -> binary().
+to_binary({_MessageQ, _Overflow, _MessagesMax} = MessageBuffer) ->
+    list_to_binary(to_list(MessageBuffer)).
+
+-spec to_list(message_buffer()) -> [term()].
 to_list({MessageQ, _Overflow, _MessagesMax}) ->
     queue:to_list(MessageQ).
 
@@ -21,7 +25,7 @@ to_string({_MessageQ, Overflow, _MessagesMax} = MessageBuffer) ->
     case Overflow of
         overflow -> "...\n";
         nooverflow -> ""
-    end ++ string:join(to_list(MessageBuffer), "\n").
+    end ++ lists:flatten([[Msg, "\n"] || Msg <- to_list(MessageBuffer)]).
 
 -spec append(string(), message_buffer()) -> message_buffer().
 append(Message, {MessageQ, Overflow, MessagesMax}) ->
