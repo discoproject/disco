@@ -562,9 +562,6 @@ class JobDict(util.DefaultDict):
 
                              Default is ``False``.
 
-    :type  nr_reduces: *Deprecated in version 0.3* integer
-    :param nr_reduces: Use *partitions* instead.
-
     :type  scheduler: dict
     :param scheduler: options for the job scheduler.
                       The following keys are supported:
@@ -701,6 +698,7 @@ class JobDict(util.DefaultDict):
                                          func.disco_output_stream),
                 'ext_params': {},
                 'merge_partitions': False,
+                'nr_reduces': 0,
                 'params': Params(),
                 'partitions': 1,
                 'prefix': '',
@@ -715,9 +713,6 @@ class JobDict(util.DefaultDict):
                 'status_interval': 100000,
                 'owner': DiscoSettings()['DISCO_JOB_OWNER'],
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
-                # deprecated
-                'nr_reduces': 0,
-                'mem_sort_limit': 0,
                 }
     default_factory = defaults.__getitem__
 
@@ -939,17 +934,6 @@ class Job(object):
 
         A :class:`JobError` is raised if an error occurs while starting the job.
         """
-        if 'nr_reduces' in kwargs:
-            warn("Use partitions instead of nr_reduces", DeprecationWarning)
-            if 'partitions' in kwargs or 'merge_partitions' in kwargs:
-                raise DeprecationWarning("Cannot specify nr_reduces with "
-                                         "partitions and/or merge_partitions")
-            kwargs['partitions'] = kwargs.pop('nr_reduces')
-
-        if 'mem_sort_limit' in kwargs:
-            warn("mem_sort_limit deprecated: sort=True always uses disk sort",
-                 DeprecationWarning)
-
         jobpack = Job.JobDict(self,
                               prefix=self.name,
                               ddfs=self.master.master,

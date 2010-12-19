@@ -111,7 +111,6 @@ class DiscoJobTestFixture(object):
                'map_input_stream',
                'map_output_stream',
                'map_reader',
-               'mem_sort_limit',
                'merge_partitions',
                'params',
                'partition',
