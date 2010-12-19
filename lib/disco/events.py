@@ -54,6 +54,9 @@ class WorkerDone(Signal):
 class TaskFailed(Signal):
     type = 'ERR'
 
+class Input(Event):
+    type = 'INP'
+
 class Output(Signal):
     type = 'OUT'
 

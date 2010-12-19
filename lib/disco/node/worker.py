@@ -57,7 +57,7 @@ Utility functions
 """
 import os
 
-from disco.events import AnnouncePID, Status, WorkerDone, TaskInfo
+from disco.events import AnnouncePID, Input, Status, WorkerDone, TaskInfo
 from disco.func import * # XXX: hack so disco.func fns dont need to import
 
 class Worker(object):
@@ -66,8 +66,9 @@ class Worker(object):
         AnnouncePID(str(os.getpid())).send()
         task_info = TaskInfo().send()
         mode = task_info.pop('mode')
+        inputs = Input().send()
         Status("Running a new %s task!" % mode)
-        self.task = getattr(task, mode.capitalize())(**task_info)
+        self.task = getattr(task, mode.capitalize())(inputs=inputs, **task_info)
         self.task.run()
         WorkerDone("Worker done").send()
 

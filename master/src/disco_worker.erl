@@ -176,17 +176,20 @@ handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, S) ->
 handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
              #state{task = Task, host = Host} = S) ->
     event({<<"TSK">>, "Task info requested"}, S),
-    Inputs = case Task#task.chosen_input of
-                 List when is_list(List) ->
-                     List;
-                 Binary when is_binary(Binary) ->
-                     [Binary]
-             end,
     worker_send(dict:from_list([{<<"id">>, Task#task.taskid},
                                 {<<"mode">>, list_to_binary(Task#task.mode)},
                                 {<<"jobname">>, list_to_binary(Task#task.jobname)},
-                                {<<"inputs">>, Inputs},
                                 {<<"host">>, list_to_binary(Host)}]), S),
+    {noreply, S};
+
+handle_event({event, {<<"INP">>, _Time, _Tags, _Message}},
+             #state{task = Task} = S) ->
+    worker_send(case Task#task.chosen_input of
+                    List when is_list(List) ->
+                        List;
+                    Binary when is_binary(Binary) ->
+                        [Binary]
+                end, S),
     {noreply, S};
 
 % rate limited event
