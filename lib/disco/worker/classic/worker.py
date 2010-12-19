@@ -1,14 +1,14 @@
 """
-:mod:`disco.node.worker` -- Runtime environment for Disco jobs
-==============================================================
+:mod:`disco.worker.classic` -- Classic Disco Runtime Environment
+================================================================
 
-Disco master runs :mod:`disco.node.worker` to execute map and reduce functions
+Disco master runs :mod:`disco.worker.classic` to execute map and reduce functions
 for a Disco job. The module contains several classes and functions that
 are used by Disco internally to connect to input sources, write output
 files etc. However, this page only documents features that may be useful
 for writing new Disco jobs.
 
-As job functions are imported to the :mod:`disco.node.worker` namespace
+As job functions are imported to the :mod:`disco.worker.classic` namespace
 for execution, they can use functions in this module directly without
 importing the module explicitly.
 
@@ -62,7 +62,7 @@ from disco.func import * # XXX: hack so disco.func fns dont need to import
 
 class Worker(object):
     def __init__(self):
-        from disco import task
+        from disco.worker.classic import task
         AnnouncePID(str(os.getpid())).send()
         task_info = TaskInfo().send()
         mode = task_info.pop('mode')

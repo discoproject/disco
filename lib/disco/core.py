@@ -117,7 +117,7 @@ class Disco(object):
         """
         Returns an out-of-band value assigned to *key* for the job *name*.
 
-        See :mod:`disco.node.worker` for more information on using OOB.
+        See :mod:`discoworker.classic.worker` for more information on using OOB.
         """
         try:
             return util.load_oob(self.master, name, key)
@@ -986,7 +986,7 @@ class RecordIter(object):
                  input_stream=(func.map_input_stream, ),
                  params=None,
                  ddfs=None):
-        from disco.task import Map
+        from disco.worker.classic.task import Map
         self.task = Map(jobdict=JobDict(map_input_stream=input_stream,
                                         map_reader=reader,
                                         params=params))

@@ -3,7 +3,7 @@ import os, sys, traceback
 
 from disco.error import DataError
 from disco.events import DataUnavailable, TaskFailed
-from disco.node.worker import Worker
+from disco.worker.classic.worker import Worker
 from disco.util import MessageWriter
 
 if __name__ == '__main__':

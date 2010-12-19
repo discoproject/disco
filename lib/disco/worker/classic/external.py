@@ -1,8 +1,8 @@
 """
 .. _discoext:
 
-:mod:`disco.node.external` - Disco External Interface
-=====================================================
+:mod:`disco.worker.classic.external` - Classic Disco External Interface
+=======================================================================
 
 Disco provides an external interface for specifying map and reduce
 functions as external programs, instead of Python functions. This feature
