@@ -1,6 +1,6 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.core import result_iterator
-from disco.func import map_input_stream, netstr_writer
+from disco.func import map_input_stream, disco_output_stream
 
 def map_input_stream1(stream, size, url, params):
     r = stream.read()
@@ -21,10 +21,9 @@ def reduce_output_stream2(stream, size, url, params):
     return disco.fileutils.AtomicFile(path, 'w'), url.replace('disco://', 'foobar://')
 
 class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs           = ['apple', 'orange', 'pear']
-    reduce_writer        = netstr_writer
-    map_input_stream     = [map_input_stream, map_input_stream1, map_input_stream2]
-    reduce_output_stream = [reduce_output_stream1, reduce_output_stream2]
+    inputs = ['apple', 'orange', 'pear']
+    map_input_stream = [map_input_stream, map_input_stream1, map_input_stream2]
+    reduce_output_stream = [reduce_output_stream1, reduce_output_stream2, disco_output_stream]
 
     def getdata(self, path):
         return path
@@ -40,9 +39,9 @@ class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):
         return [(e, '')]
 
     @staticmethod
-    def reduce(iter, out, params):
+    def reduce(iter, params):
         for k, v in iter:
-            out.add('red:' + k, v)
+            yield 'red:' + k, v
 
     @property
     def results(self):

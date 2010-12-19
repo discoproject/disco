@@ -64,12 +64,7 @@ These functions are provided by Disco to help :class:`disco.core.Job` creation:
 .. autofunction:: sum_reduce
 .. autofunction:: gzip_reader
 .. autofunction:: gzip_line_reader
-.. autofunction:: map_line_reader
 .. autofunction:: chain_reader
-.. autofunction:: netstr_reader
-.. autofunction:: netstr_writer
-.. autofunction:: object_reader
-.. autofunction:: object_writer
 .. autofunction:: re_reader
 .. autofunction:: map_input_stream
 .. autofunction:: map_output_stream
@@ -276,10 +271,9 @@ def old_netstr_reader(fd, size, fname, head=''):
     Reads output of a map / reduce job as the input for a new job.
     Specify this function as your :func:`map_reader`
     to use the output of a previous job as input to another job.
-    :func:`chain_reader` is an alias for :func:`netstr_reader`.
     """
     if size is None:
-        raise ValueError("Content-length must be defined for netstr_reader")
+        raise ValueError("Content-length must be defined")
 
     def read_netstr(idx, data, tot):
         ldata = len(data)
@@ -478,51 +472,6 @@ def gzip_line_reader(fd, size, url, params):
     except Exception, e:
         print e
 
-def map_line_reader(fd, sze, fname):
-    """
-    Yields each line of input.
-
-    (*Deprecated in 0.3.1*)
-    This reader is deprecated in favor of using the default Python
-    file-like object iterator.
-    Since 0.3, no reader is necessary for iterable objects returned from the
-    :func:`input_stream`.
-    For :func:`map` functions previously relying on this reader,
-    there is one small caveat to be aware of:
-    this reader has always stripped newline characters from the end of lines.
-    For file-like object iterators, lines are left in tact.
-    This may or may not affect jobs relying on this reader,
-    depending on how the lines are used.
-    """
-    for x in re_reader("(.*?)\n", fd, sze, fname, output_tail = True):
-        yield x[0]
-
-def netstr_writer(fd, key, value, params):
-    """Writer for Disco's default/internal key-value format."""
-    skey = str(key)
-    sval = str(value)
-    fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
-
-def object_writer(fd, key, value, params):
-    """
-    (*Deprecated in 0.3*)
-    A wrapper for :func:`netstr_writer` that uses Python's ``cPickle``
-    module to deserialize strings to Python objects.
-   """
-    skey = cPickle.dumps(key, cPickle.HIGHEST_PROTOCOL)
-    sval = cPickle.dumps(value, cPickle.HIGHEST_PROTOCOL)
-    fd.write("%d %s %d %s\n" % (len(skey), skey, len(sval), sval))
-
-def object_reader(fd, sze, fname):
-    """
-    (*Deprecated in 0.3*)
-    A wrapper for :func:`netstr_reader` that uses Python's ``cPickle``
-    module to serialize arbitrary Python objects to strings.
-    """
-    print"NOTE! Object_reader and object_writer are deprecated. "\
-         "Python objects are now serialized by default."
-    for k, v in netstr_reader(fd, sze, fname):
-        yield (cPickle.loads(k), cPickle.loads(v))
 
 def map_input_stream(stream, size, url, params):
     """
@@ -630,7 +579,7 @@ def discodb_output(stream, partition, url, params):
     from disco.func import DiscoDBOutput
     return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
 
-chain_reader = netstr_reader = disco_input_stream
+chain_reader = disco_input_stream
 
 chain_stream = (map_input_stream, chain_reader)
 default_stream = (map_input_stream, )

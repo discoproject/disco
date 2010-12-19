@@ -73,7 +73,6 @@ class DiscoOutput_v1(object):
         self.size = 0
         self.hunk_size = 0
         self.hunk = StringIO()
-        self.writer = False
 
     def add(self, k, v):
         self.append((k, v))
@@ -84,10 +83,9 @@ class DiscoOutput_v1(object):
             self.flush()
 
     def close(self):
-        if not self.writer:
-            if self.hunk_size:
-                self.flush()
+        if self.hunk_size:
             self.flush()
+        self.flush()
 
     def dumps(self):
         self.close()
@@ -119,7 +117,6 @@ class DiscoOutput_v1(object):
         self.hunk_size += size
 
     def write(self, data):
-        self.writer = True
         self.stream.write(data)
 
 class DiscoOutput(object):

@@ -9,13 +9,9 @@ def init(items, params, extra):
     pass
 
 def reader(fd, size, fname, extra):
-    from disco.func import netstr_reader
-    for k,v in netstr_reader(fd, size, fname):
+    from disco.func import chain_reader
+    for k,v in chain_reader(fd, size, fname):
         yield k+extra, v
-
-def writer(fd, k, v, params, extra):
-    from disco.func import netstr_writer
-    netstr_writer(fd, k+extra, v, params)
 
 def map(e, params, extra):
     return [(e[0]+params.foo(extra), e[1])]
@@ -42,11 +38,9 @@ class PartialTestCase(DiscoJobTestFixture, DiscoTestCase):
     map_init=partial(init, extra='d')
     reduce_init=partial(init, extra='e')
     map_reader=partial(reader, extra='f')
-    map_writer=partial(writer, extra='g')
     reduce_reader=partial(reader, extra='h')
-    reduce_writer=partial(writer, extra='i')
     params=Params(foo=partial(foo, extra='z'))
 
     def runTest(self):
         for k, v in self.results:
-            self.assertEquals(k, '_fazbghczi')
+            self.assertEquals(k, '_fazbhcz')

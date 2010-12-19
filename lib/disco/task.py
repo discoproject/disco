@@ -194,10 +194,6 @@ class Task(object):
         for output_stream in self.output_stream:
             fd, url = output_stream(fd, part, url, self.params)
             fd_list.append(fd)
-
-        # backwards compatibility for writers
-        if self.writer:
-            fd.add = lambda k, v: self.writer(fd, k, v, self.params)
         return fd, url, fd_list
 
     def close_output(self, fd_list):

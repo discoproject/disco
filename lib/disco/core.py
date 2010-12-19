@@ -505,18 +505,6 @@ class JobDict(util.DefaultDict):
                        See the note in :func:`disco.func.map_line_reader`
                        for information on how this might affect older jobs.
 
-    :param map_writer: (*Deprecated in version 0.3*) This function comes in
-                       handy e.g. when *reduce* is not
-                       specified and you want *map* output in a specific format.
-                       Another typical case is to use
-                       :func:`disco.func.object_writer` as *map_writer* and
-                       :func:`disco.func.object_reader` as *reduce_reader*
-                       so you can produce arbitrary Python objects in *map*.
-
-                       Remember to specify a *reduce_reader*
-                       that can read the format produced by *map_writer*.
-                       (*Added in version 0.2*)
-
     :type  reduce: :func:`disco.func.reduce`
     :param reduce: If no reduce function is specified, the job will quit after
                    the map phase has finished.
@@ -547,7 +535,7 @@ class JobDict(util.DefaultDict):
                               (*Added in version 0.2.4*)
 
     :type  reduce_reader: :func:`disco.func.input_stream`
-    :param reduce_reader: This function needs to match with *map_writer*,
+    :param reduce_reader: Convenience function to define the last func:`disco.func.input_stream`
                           if *map* is specified.
                           If *map* is not specified,
                           you can read arbitrary inputs with this function,
@@ -555,13 +543,6 @@ class JobDict(util.DefaultDict):
                           (*Added in version 0.2*)
 
                           Default is :func:`disco.func.chain_reader`.
-
-    :param reduce_writer: (*Deprecated in version 0.3*) You can use this function to output results
-                          in an arbitrary format from your map/reduce job.
-                          If you use :func:`result_iterator` to read results,
-                          set its *reader* parameter to a function
-                          that can read the format produced by *reduce_writer*.
-                          (*Added in version 0.2*)
 
     :type  combiner: :func:`disco.func.combiner`
     :param combiner: called after the partitioning function, for each partition.
@@ -736,9 +717,7 @@ class JobDict(util.DefaultDict):
                 'version': '.'.join(str(s) for s in sys.version_info[:2]),
                 # deprecated
                 'nr_reduces': 0,
-                'map_writer': None,
                 'mem_sort_limit': 0,
-                'reduce_writer': None
                 }
     default_factory = defaults.__getitem__
 
@@ -753,13 +732,11 @@ class JobDict(util.DefaultDict):
     funcs = set(['map',
                  'map_init',
                  'map_reader',
-                 'map_writer',
                  'combiner',
                  'partition',
                  'reduce',
                  'reduce_init',
                  'reduce_reader',
-                 'reduce_writer',
                  'map_input_stream',
                  'map_output_stream',
                  'reduce_input_stream',
@@ -767,11 +744,6 @@ class JobDict(util.DefaultDict):
 
     def __init__(self, ddfs=None, **kwargs):
         super(JobDict, self).__init__(**kwargs)
-
-        # -- backwards compatibility --
-        if 'reduce_writer' in kwargs or 'map_writer' in kwargs:
-            warn("Writers are deprecated - use output_stream.add() instead",
-                    DeprecationWarning)
 
         # -- required modules and files --
         if self['required_modules'] is None:

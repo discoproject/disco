@@ -111,7 +111,6 @@ class DiscoJobTestFixture(object):
                'map_input_stream',
                'map_output_stream',
                'map_reader',
-               'map_writer',
                'mem_sort_limit',
                'merge_partitions',
                'params',
@@ -126,7 +125,6 @@ class DiscoJobTestFixture(object):
                'reduce_input_stream',
                'reduce_output_stream',
                'reduce_reader',
-               'reduce_writer',
                'required_files',
                'required_modules',
                'ext_params',
@@ -199,7 +197,7 @@ class DiscoJobTestFixture(object):
 
 class DiscoMultiJobTestFixture(DiscoJobTestFixture):
     def result_reader(self, m):
-        return disco.func.netstr_reader
+        return disco.func.chain_reader
 
     def profile(self, m):
         return bool(self.disco_settings['DISCO_TEST_PROFILE'])
