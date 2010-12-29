@@ -355,8 +355,8 @@ MAX_NUM_OUTPUT = 1000000
 proc, in_fd, out_fd = None, None, None
 
 def pack_kv(k, v):
-    return struct.pack("I", len(k)) + k +\
-           struct.pack("I", len(v)) + v
+    return (struct.pack("I", len(k)) + k +
+            struct.pack("I", len(v)) + v)
 
 def unpack_kv():
     le = struct.unpack("I", out_fd.read(4))[0]
@@ -398,9 +398,9 @@ def ext_reduce(red_in, red_out, params):
                 num = struct.unpack("I",
                     out_fd.read(4))[0]
                 if num > MAX_NUM_OUTPUT:
-                    raise DiscoError("External output limit "\
-                        "exceeded: %d > %d" %\
-                        (num, MAX_NUM_OUTPUT))
+                    raise DiscoError("External output limit "
+                                     "exceeded: %d > %d" %
+                                     (num, MAX_NUM_OUTPUT))
                 for i in range(num):
                     red_out.add(*unpack_kv())
                     tt += 1
@@ -416,8 +416,8 @@ def ext_reduce(red_in, red_out, params):
                 return
 
 def prepare(ext_task, params, path):
-    params = encode_netstring_fd(params)\
-        if params and isinstance(params, dict) else "0\n"
+    params = (encode_netstring_fd(params)
+              if params and isinstance(params, dict) else "0\n")
     write_files(ext_task, path)
     open_ext(path + "/op", params)
 
