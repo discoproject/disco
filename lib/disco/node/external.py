@@ -337,7 +337,12 @@ In addition, the library contains the following utility functions:
    Copies *src* to *dst*. Grows *dst* if needed, or allocates a new
    :ctype:`p_entry` if *dst = NULL*.
 """
-import os, os.path, time, struct, marshal
+import os
+import os.path
+import time
+import struct
+import marshal
+
 from subprocess import Popen, PIPE
 from disco.netstring import decode_netstring_str, encode_netstring_fd
 from disco.fileutils import write_files
@@ -419,7 +424,7 @@ def prepare(ext_task, params, path):
 def open_ext(fname, params):
     # XXX! Run external programs in /data/ dir, not /temp/
     global proc, in_fd, out_fd
-    proc = Popen([fname], stdin = PIPE, stdout = PIPE)
+    proc = Popen([fname], stdin=PIPE, stdout=PIPE)
     in_fd = proc.stdin
     out_fd = proc.stdout
     in_fd.write(params)
