@@ -12,8 +12,9 @@ class FiveTestCase(DiscoJobTestFixture, DiscoTestCase):
         return min(self.num_workers * 10, 300)
 
     @staticmethod
-    def map(e, params):
-        return [(w, 1) for w in re.sub(r'\W', ' ', e).lower().split()]
+    def map(line, params):
+        for word in line.lower().split():
+            yield word, 1
 
     @staticmethod
     def reduce(iter, out, params):

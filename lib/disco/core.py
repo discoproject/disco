@@ -38,6 +38,7 @@ from disco.eventmonitor import EventMonitor
 from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.modutil import find_modules
 from disco.settings import DiscoSettings
+from disco.worker.classic import worker
 
 class Continue(Exception):
     pass
@@ -117,7 +118,7 @@ class Disco(object):
         """
         Returns an out-of-band value assigned to *key* for the job *name*.
 
-        See :mod:`discoworker.classic.worker` for more information on using OOB.
+        See :mod:`disco.worker.classic.worker` for more information on using OOB.
         """
         try:
             return util.load_oob(self.master, name, key)
@@ -680,6 +681,7 @@ class JobDict(util.DefaultDict):
                     Default is ``False``.
     """
     defaults = {'input': (),
+                'jobhome': worker.jobhome,
                 'worker': DiscoSettings()['DISCO_WORKER'],
                 'map?': False,
                 'reduce?': False,
@@ -719,6 +721,7 @@ class JobDict(util.DefaultDict):
 
     master_keys = set(['prefix',
                        'input',
+                       'jobhome',
                        'worker',
                        'owner',
                        'nr_reduces',
@@ -940,10 +943,10 @@ class Job(object):
                               prefix=self.name,
                               ddfs=self.master.master,
                               **kwargs).pack()
-        reply = json.loads(self.master.request('/disco/job/new', jobpack))
-        if reply[0] != 'ok':
-            raise DiscoError("Failed to start a job. Server replied: " + reply)
-        self.name = reply[1]
+        status, response = json.loads(self.master.request('/disco/job/new', jobpack))
+        if status != 'ok':
+            raise DiscoError("Failed to start a job. Server replied: " + response)
+        self.name = response
         return self
 
 class ChunkIter(object):

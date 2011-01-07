@@ -233,7 +233,7 @@ class DiscoSettings(Settings):
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
         'DISCO_JOB_OWNER':       "job_owner()",
-        'DISCO_WORKER':          "os.path.join(DISCO_LIB, 'disco', 'worker', 'classic', 'disco-worker')",
+        'DISCO_WORKER':          "os.path.join('lib', 'disco', 'worker', 'classic', 'worker.py')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_LIB",
 # GC

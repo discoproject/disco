@@ -15,8 +15,9 @@ op('POST', "/disco/job/" ++ _, Req) ->
             {ok, JobName} ->
                 reply({ok, [<<"ok">>, list_to_binary(JobName)]}, Req);
             {'EXIT', Error} ->
-                error_logger:warning_report({"could not start job", Error}),
-                reply({ok, [<<"error">>, <<"could not start job">>]}, Req)
+                ErrorString = disco:format("could not start job: ~p", [Error]),
+                error_logger:warning_report(ErrorString),
+                reply({ok, [<<"error">>, list_to_binary(ErrorString)]}, Req)
         end
     end;
 
@@ -74,7 +75,7 @@ getop("jobinfo", {_Query, JobName}) ->
     end;
 
 getop("parameters", {_Query, Name}) ->
-    job_file(Name, "jobpack");
+    job_file(Name, "jobfile");
 
 getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");

@@ -9,10 +9,19 @@
          node_safe/1,
          oob_name/1,
          jobhome/1,
+         jobhome/2,
          debug_flags/1,
+         disco_url_path/1,
          format/2,
          format_time/1,
-         disco_url_path/1]).
+         format_time/4,
+         format_time_since/1,
+         make_dir/1]).
+
+-define(MILLISECOND, 1000).
+-define(SECOND, (1000 * ?MILLISECOND)).
+-define(MINUTE, (60 * ?SECOND)).
+-define(HOUR, (60 * ?MINUTE)).
 
 -spec get_setting(string()) -> string().
 get_setting(SettingName) ->
@@ -32,6 +41,11 @@ has_setting(SettingName) ->
         ""    -> false;
         _Val  -> true
     end.
+
+-spec settings() -> [string()].
+settings() ->
+    lists:filter(fun has_setting/1,
+                 string:tokens(get_setting("DISCO_SETTINGS"), ",")).
 
 -spec host(node()) -> string().
 host(Node) ->
@@ -56,10 +70,16 @@ node_safe(Host) ->
 oob_name(JobName) ->
     lists:flatten(["disco:job:oob:", JobName]).
 
--spec settings() -> [string()].
-settings() ->
-    lists:filter(fun has_setting/1,
-                 string:tokens(get_setting("DISCO_SETTINGS"), ",")).
+jobhome(JobName) ->
+    jobhome(JobName, get_setting("DISCO_MASTER_ROOT")).
+
+jobhome(JobName, Root) when is_list(JobName) ->
+    jobhome(list_to_binary(JobName), Root);
+jobhome(JobName, Root) ->
+    <<Hash:8, _/binary>> = erlang:md5(JobName),
+    filename:join([Root,
+                   io_lib:format("~2.16.0b", [Hash]),
+                   binary_to_list(JobName)]).
 
 debug_flags(Server) ->
     case os:getenv("DISCO_DEBUG") of
@@ -70,32 +90,38 @@ debug_flags(Server) ->
         _ -> []
     end.
 
-jobhome(JobName) when is_list(JobName) ->
-    jobhome(list_to_binary(JobName));
-jobhome(JobName) ->
-    <<D0:8, _/binary>> = erlang:md5(JobName),
-    [D1] = io_lib:format("~.16b", [D0]),
-    Prefix = case D1 of [_] -> "0"; _ -> "" end,
-    lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
-
-format(Format, Args) ->
-    lists:flatten(io_lib:format(Format, Args)).
-
-format_time(T) ->
-    MS = 1000,
-    SEC = 1000 * MS,
-    MIN = 60 * SEC,
-    HOUR = 60 * MIN,
-    D = timer:now_diff(now(), T),
-    Ms = (D rem SEC) div MS,
-    Sec = (D rem MIN) div SEC,
-    Min = (D rem HOUR) div MIN,
-    Hour = D div HOUR,
-    format("~B:~2.10.0B:~2.10.0B.~3.10.0B", [Hour, Min, Sec, Ms]).
-
 disco_url_path(Url) ->
     {match, [Path]} = re:run(Url,
                              ".*?://.*?/disco/(.*)",
                              [{capture, all_but_first, list}]),
     Path.
 
+format(Format, Args) ->
+    lists:flatten(io_lib:format(Format, Args)).
+
+format_time(Ms) when is_integer(Ms) ->
+    format_time((Ms rem ?SECOND) div ?MILLISECOND,
+                (Ms rem ?MINUTE) div ?SECOND,
+                (Ms rem ?HOUR) div ?MINUTE,
+                (Ms div ?HOUR)).
+
+format_time(Ms, Second, Minute, Hour) ->
+    format("~B:~2.10.0B:~2.10.0B.~3.10.0B", [Hour, Minute, Second, Ms]).
+
+format_time_since(Time) ->
+    format_time(timer:now_diff(now(), Time)).
+
+make_dir(Dir) ->
+    case filelib:ensure_dir(Dir) of
+        ok ->
+            case file:make_dir(Dir) of
+                ok ->
+                    {ok, Dir};
+                {error, eexist} ->
+                    {ok, Dir};
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+        {error, Reason} ->
+            {error, Reason}
+    end.

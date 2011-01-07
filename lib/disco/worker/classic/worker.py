@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 :mod:`disco.worker.classic` -- Classic Disco Runtime Environment
 ================================================================
@@ -55,10 +56,20 @@ Utility functions
 .. autofunction:: this_master
 .. autofunction:: this_inputs
 """
-import os
+import os, sys, traceback
 
+from disco.error import DataError
+from disco.events import DataUnavailable, TaskFailed
 from disco.events import AnnouncePID, Input, Status, WorkerDone, TaskInfo
+from disco.fileutils import DiscoZipFile
 from disco.func import * # XXX: hack so disco.func fns dont need to import
+from disco.util import MessageWriter
+from disco import __file__ as discopath
+
+jobhome = DiscoZipFile()
+jobhome.writepy(os.path.dirname(discopath))
+jobhome.close()
+jobhome = jobhome.dumps()
 
 class Worker(object):
     def __init__(self):
@@ -67,7 +78,7 @@ class Worker(object):
         task_info = TaskInfo().send()
         mode = task_info.pop('mode')
         inputs = Input().send()
-        Status("Running a new %s task!" % mode)
+        Status("Running a new %s task!" % mode).send()
         self.task = getattr(task, mode.capitalize())(inputs=inputs, **task_info)
         self.task.run()
         WorkerDone("Worker done").send()
@@ -108,3 +119,17 @@ def this_partition():
 def this_inputs():
     """List of input files for this task."""
     return Task.inputs
+
+if __name__ == '__main__':
+    try:
+        sys.stdout = MessageWriter()
+        Worker()
+    except (DataError, EnvironmentError, MemoryError), e:
+        # check the number of open file descriptors (under proc), warn if close to max
+        # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
+        # also check for other known reasons for error, such as if disk is full
+        DataUnavailable(traceback.format_exc()).send()
+        raise
+    except Exception, e:
+        TaskFailed(MessageWriter.force_utf8(traceback.format_exc())).send()
+        raise

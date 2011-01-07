@@ -1,15 +1,14 @@
 -module(shuffle).
 -export([combine_tasks/3, combine_tasks_node/4, process_url/3]).
 
-combine_tasks(Name, Mode, DirUrls) ->
+combine_tasks(JobName, Mode, DirUrls) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
-    JobHome = disco:jobhome(Name),
     NodeGroups = disco_util:groupby(1, lists:keysort(1, DirUrls)),
     Messages = [begin
                    {[Node|_], NodeDirUrls} = lists:unzip(NodeUrls),
-                   {Node, [DataRoot, JobHome, Mode, NodeDirUrls]}
+                   {Node, [DataRoot, JobName, Mode, NodeDirUrls]}
                 end || NodeUrls <- NodeGroups],
-    {ok, wait_replies(Name, call_nodes(Name, Messages, 0), [])}.
+    {ok, wait_replies(JobName, call_nodes(JobName, Messages, 0), [])}.
 
 call_nodes(Name, Messages, FailCount) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
@@ -50,18 +49,19 @@ wait_replies(Name, {Promises, FailCount}, Results) ->
 % combine_tasks_node are running in parallel on a single node. Thus, all
 % operations it performs on shared resources should be atomic.
 
-combine_tasks_node(DataRoot, JobHome, Mode, DirUrls) ->
+combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     process_flag(priority, low),
     Host = disco:host(node()),
-    JobRoot = filename:join([DataRoot, Host, JobHome]),
+    JobHome = disco:jobhome(JobName, filename:join([DataRoot, Host])),
+    JobLink = disco:jobhome(JobName, filename:join([Host, "disco", Host])),
 
     PartDir = ["partitions-", ddfs_util:timestamp()],
-    PartPath = filename:join(JobRoot, PartDir),
-    PartUrl = ["disco://", Host, "/disco/", Host, "/", JobHome, PartDir],
+    PartPath = filename:join(JobHome, PartDir),
+    PartUrl = ["disco://", JobLink, "/", PartDir],
 
     IndexFile = [Mode, "-index.txt.gz"],
-    IndexPath = filename:join([JobRoot, IndexFile]),
-    IndexUrl = ["dir://", Host, "/disco/", Host, "/", JobHome, IndexFile],
+    IndexPath = filename:join(JobHome, IndexFile),
+    IndexUrl = ["dir://", JobLink, "/", IndexFile],
 
     prim_file:make_dir(PartPath),
     Index = merged_index(DirUrls, DataRoot, {PartPath, PartUrl}),

@@ -1,7 +1,7 @@
-
 import sys, time, os, cPickle, struct, zlib
 import errno, fcntl
 from cStringIO import StringIO
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from disco.error import DataError
 
@@ -125,6 +125,33 @@ class DiscoOutput(object):
             return DiscoOutput_v0(stream, **kwargs)
         return DiscoOutput_v1(stream, version=1, **kwargs)
 
+class DiscoZipFile(ZipFile, object):
+    def __init__(self):
+        self.buffer = StringIO()
+        super(DiscoZipFile, self).__init__(self.buffer, 'w', ZIP_DEFLATED)
+
+    def writemodule(self, module, basename='lib'):
+        self.write(module.__file__,
+                   os.path.join(basename, *module.__name__.split('.')))
+
+    def writepath(self, pathname, basename='files'):
+        for file in files(pathname):
+            self.write(file, os.path.join(basename, file.strip('/')))
+
+    def writepy(self, pathname, basename='lib'):
+        if ispackage(pathname):
+            basename = os.path.join(basename, os.path.basename(pathname))
+        for module in modules(pathname):
+            self.write(os.path.join(pathname, module),
+                       os.path.join(basename, module))
+
+    def dump(self, handle):
+        handle.write(self.dumps())
+
+    def dumps(self):
+        self.buffer.reset()
+        return self.buffer.read()
+
 class AtomicFile(file):
     def __init__(self, path, *args, **kwargs):
         dir = os.path.dirname(path)
@@ -181,3 +208,26 @@ def ensure_free_space(fname):
     free = s.f_bsize * s.f_bavail
     if free < MIN_DISK_SPACE:
         raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
+
+def ismodule(path):
+    return os.path.isfile(path) and path.endswith('.py')
+
+def ispackage(path):
+    return os.path.isdir(path) and '__init__.py' in os.listdir(path)
+
+def files(path):
+    if os.path.isdir(path):
+        for name in os.listdir(path):
+            for file in files(os.path.join(path, name)):
+                yield file
+    else:
+        yield path
+
+def modules(dirpath):
+    for name in os.listdir(dirpath):
+        path = os.path.join(dirpath, name)
+        if ismodule(path):
+            yield name
+        elif ispackage(path):
+            for submodule in modules(path):
+                yield '%s/%s' % (name, submodule)

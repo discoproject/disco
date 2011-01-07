@@ -73,12 +73,7 @@ class Task(object):
 
     @property
     def jobpack(self):
-        jobpack = os.path.join(self.jobroot, 'jobpack')
-        def data():
-            return Disco(self.master).jobpack(self.jobname)
-        ensure_path(self.jobroot)
-        ensure_file(jobpack, data=data, mode=444)
-        return jobpack
+        return os.path.join(self.jobroot, 'jobfile')
 
     @property
     def jobpath(self):

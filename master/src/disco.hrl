@@ -1,5 +1,6 @@
 
--record(jobinfo, {force_local :: bool(),
+-record(jobinfo, {jobfile :: nonempty_string(),
+                  force_local :: bool(),
                   force_remote :: bool(),
                   owner :: binary(),
                   inputs :: [binary()] | [[binary()]],
