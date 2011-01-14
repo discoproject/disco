@@ -167,7 +167,7 @@ def cat(program, *urls):
 
 @DDFS.command
 def chunk(program, tag, *urls):
-    """Usage: [-n replicas] [-S stream] [-R reader] [-t token] [-u] tag [url ...]
+    """Usage: [-n replicas] [-T stream] [-R reader] [-t token] [-u] tag [url ...]
 
     Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
     """
@@ -440,7 +440,7 @@ def writetoken(program, tag, tok):
 
 @DDFS.command
 def xcat(program, *urls):
-    """Usage: [-i] [-p] [-R reader] [-t token] [urls ...]
+    """Usage: [-i] [-p] [-T stream] [-R reader] [-t token] [urls ...]
 
     Concatenate the extracted results stored in url[s] and print to stdout.
     If any of the url[s] are tags,
