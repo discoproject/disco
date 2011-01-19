@@ -295,7 +295,7 @@ merge_urls(NewUrls, OldUrls, true, Cache) ->
 find_unseen([], Seen, Urls) ->
     {Seen, Urls};
 find_unseen([[Url|_] = Repl|Rest], Seen, Urls) ->
-    Name = ddfs_util:name_from_url(Url),
+    Name = ddfs_util:url_to_name(Url),
     case {Name, gb_sets:is_member(Name, Seen)} of
         {false, _} ->
             find_unseen(Rest, Seen, [Repl|Urls]);
@@ -306,7 +306,7 @@ find_unseen([[Url|_] = Repl|Rest], Seen, Urls) ->
     end.
 
 init_url_cache(Urls) ->
-    gb_sets:from_list([ddfs_util:name_from_url(Url) || [Url|_] <- Urls]).
+    gb_sets:from_list([ddfs_util:url_to_name(Url) || [Url|_] <- Urls]).
 
 -spec send_replies(replyto() | [replyto()],
                    {'error', 'commit_failed' | 'invalid_attribute_value' |

@@ -1,53 +1,64 @@
 -module(ddfs_node).
 -behaviour(gen_server).
 
--export([start_link/1, stop/0, init/1, handle_call/3, handle_cast/2,
-        handle_info/2, terminate/2, code_change/3]).
+-export([start/1, start_link/1]).
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
 
 -include("config.hrl").
 
 % Diskinfo is {FreeSpace, UsedSpace}.
 -type diskinfo() :: {non_neg_integer(), non_neg_integer()}.
--record(state, {nodename :: string(),
-                root :: nonempty_string(),
+-record(state, {root :: nonempty_string(),
                 vols :: [{diskinfo(), nonempty_string()},...],
                 putq :: http_queue:q(),
                 getq :: http_queue:q(),
                 tags :: gb_tree()}).
 
-start_link(Config) ->
-    process_flag(trap_exit, true),
-    error_logger:info_report([{"DDFS node starts"}]),
-    case catch gen_server:start_link(
-            {local, ddfs_node}, ddfs_node, Config, [{timeout, ?NODE_STARTUP}]) of
-        {ok, _Server} ->
-            ok;
-        {error, {already_started, _Server}} ->
-            exit(already_started);
-        {'EXIT', Reason} ->
-            exit(Reason)
-    end,
-    receive
-        {'EXIT', _, Reason0} ->
-            exit(Reason0)
+is_master() ->
+    case net_adm:names() of
+        {ok, Names} ->
+            lists:keymember(disco:master_name(), 1, Names);
+        {error, address} ->
+            false
     end.
 
-stop() ->
-    gen_server:call(ddfs_node, stop).
+start(Master) ->
+    case is_master() of
+        true ->
+            % the master handles GET requests specially using a dummy ddfs_node
+            spawn_link(Master, ?MODULE, start_link, [{false, false}]),
+            spawn_link(?MODULE, start_link, [{false, true}]);
+        false ->
+            spawn_link(?MODULE, start_link, [{true, true}])
+    end.
 
-init(Config) ->
-    {nodename, NodeName} = proplists:lookup(nodename, Config),
-    {ddfs_root, DdfsRoot} = proplists:lookup(ddfs_root, Config),
-    {disco_root, DiscoRoot} = proplists:lookup(disco_root, Config),
-    {put_max, PutMax} = proplists:lookup(put_max, Config),
-    {get_max, GetMax} = proplists:lookup(get_max, Config),
-    {put_port, PutPort} = proplists:lookup(put_port, Config),
-    {get_port, GetPort} = proplists:lookup(get_port, Config),
-    {get_enabled, GetEnabled} = proplists:lookup(get_enabled, Config),
-    {put_enabled, PutEnabled} = proplists:lookup(put_enabled, Config),
+start_link(Config) ->
+    error_logger:info_report({"DDFS node starts"}),
+    case gen_server:start_link({local, ?MODULE},
+                               ?MODULE,
+                               Config,
+                               [{timeout, ?NODE_STARTUP}]) of
+        {ok, _Pid} ->
+            ok;
+        {error, Reason} ->
+            exit(Reason)
+    end.
 
-    {ok, Vols} = find_vols(DdfsRoot),
-    {ok, Tags} = find_tags(DdfsRoot, Vols),
+init({GetEnabled, PutEnabled}) ->
+    DDFSRoot = disco:get_setting("DDFS_ROOT"),
+    DiscoRoot = disco:get_setting("DISCO_DATA"),
+    PutMax = list_to_integer(disco:get_setting("DDFS_PUT_MAX")),
+    GetMax = list_to_integer(disco:get_setting("DDFS_GET_MAX")),
+    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
+    GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
+
+    {ok, Vols} = find_vols(DDFSRoot),
+    {ok, Tags} = find_tags(DDFSRoot, Vols),
 
     if
         PutEnabled ->
@@ -58,16 +69,15 @@ init(Config) ->
     if
         GetEnabled ->
             {ok, _GetPid} = ddfs_get:start([{port, GetPort}],
-                                           {DdfsRoot, DiscoRoot});
+                                           {DDFSRoot, DiscoRoot});
         true ->
             ok
     end,
 
-    spawn_link(fun() -> refresh_tags(DdfsRoot, Vols) end),
-    spawn_link(fun() -> monitor_diskspace(DdfsRoot, Vols) end),
+    spawn_link(fun() -> refresh_tags(DDFSRoot, Vols) end),
+    spawn_link(fun() -> monitor_diskspace(DDFSRoot, Vols) end),
 
-    {ok, #state{nodename = NodeName,
-                root = DdfsRoot,
+    {ok, #state{root = DDFSRoot,
                 vols = Vols,
                 tags = Tags,
                 putq = http_queue:new(PutMax, ?HTTP_QUEUE_LENGTH),
@@ -98,7 +108,7 @@ handle_call({put_blob, BlobName}, {Pid, _Ref} = From, #state{putq = Q} = S) ->
     Reply = fun() ->
                     {_Space, VolName} = choose_vol(S#state.vols),
                     {ok, Local, Url} = ddfs_util:hashdir(list_to_binary(BlobName),
-                                                         S#state.nodename,
+                                                         disco:host(node()),
                                                          "blob",
                                                          S#state.root,
                                                          VolName),
@@ -125,16 +135,28 @@ handle_call({get_tag_timestamp, TagName}, _From, S) ->
             {reply, {ok, TagNfo}, S}
     end;
 
-handle_call({get_tag_data, TagName, TagNfo}, From, S) ->
+handle_call({get_tag_data, Tag, {_Time, VolName}}, From, State) ->
     spawn(fun() ->
-        read_tag(TagName, S#state.nodename, S#state.root, TagNfo, From)
-    end),
-    {noreply, S};
+                  {ok, TagDir, _Url} = ddfs_util:hashdir(Tag,
+                                                         disco:host(node()),
+                                                         "tag",
+                                                         State#state.root,
+                                                         VolName),
+                  TagPath = filename:join(TagDir, binary_to_list(Tag)),
+                  case prim_file:read_file(TagPath) of
+                      {ok, Binary} ->
+                          gen_server:reply(From, {ok, Binary});
+                      {error, Reason} ->
+                          error_logger:warning_report({"Read failed", TagPath, Reason}),
+                          gen_server:reply(From, {error, read_failed})
+                  end
+          end),
+    {noreply, State};
 
 handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
     {_Space, VolName} = choose_vol(S#state.vols),
     {ok, Local, _} = ddfs_util:hashdir(Tag,
-                                       S#state.nodename,
+                                       disco:host(node()),
                                        "tag",
                                        S#state.root,
                                        VolName),
@@ -154,7 +176,7 @@ handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
 handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
     {value, {_, VolName}} = lists:keysearch(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag,
-                                         S#state.nodename,
+                                         disco:host(node()),
                                          "tag",
                                          S#state.root,
                                          VolName),
@@ -189,21 +211,11 @@ handle_info({'DOWN', _, _, Pid, _}, #state{putq = PutQ, getq = GetQ} = S) ->
     {noreply, S#state{putq = NewPutQ, getq = NewGetQ}}.
 
 % callback stubs
-terminate(_Reason, _State) -> {}.
+terminate(_Reason, _State) ->
+    {}.
 
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
--spec read_tag(binary(), nonempty_string(), nonempty_string(),
-               {_, nonempty_string()}, {pid(), reference()}) -> _.
-read_tag(Tag, NodeName, Root, {_, VolName}, From) ->
-    {ok, D, _} = ddfs_util:hashdir(Tag, NodeName, "tag", Root, VolName),
-    case prim_file:read_file(filename:join(D, binary_to_list(Tag))) of
-        {ok, Bin} ->
-            gen_server:reply(From, {ok, Bin});
-        E ->
-            error_logger:warning_report({"Read failed", Tag, D, E}),
-            gen_server:reply(From, {error, read_failed})
-    end.
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
 
 -spec init_vols(nonempty_string(), [nonempty_string(),...]) ->
     {'ok', [{diskinfo(), nonempty_string()},...]}.

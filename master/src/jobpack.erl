@@ -1,6 +1,12 @@
 -module(jobpack).
 
--export([exists/1, extract/2, read/1, save/2, jobdict/1, jobinfo/1]).
+-export([exists/1,
+         extract/2,
+         extracted/1,
+         read/1,
+         save/2,
+         jobdict/1,
+         jobinfo/1]).
 
 -include("disco.hrl").
 
@@ -27,17 +33,22 @@ extract(JobPack, JobHome) ->
     JobHomeZip = find(<<"jobhome">>, jobdict(JobPack)),
     case zip:extract(JobHomeZip, [{cwd, JobHome}]) of
         {ok, Files} ->
+            prim_file:write_file(filename:join(JobHome, ".jobhome"), <<"">>),
             Files;
         {error, Reason} ->
             throw({"Couldn't extract jobhome", JobHome, Reason})
     end.
 
+extracted(JobHome) ->
+    filelib:is_file(filename:join(JobHome, ".jobhome")).
+
 read(JobHome) ->
-    case prim_file:read_file(filename:join(JobHome, "jobfile")) of
+    JobFile = filename:join(JobHome, "jobfile"),
+    case prim_file:read_file(JobFile) of
         {ok, JobPack} ->
             JobPack;
         {error, Reason} ->
-            throw({"Couldn't read jobpack", JobHome, Reason})
+            throw({"Couldn't read jobfile", JobFile, Reason})
     end.
 
 save(JobPack, JobHome) ->

@@ -1,10 +1,23 @@
 -module(ddfs_util).
--export([is_valid_name/1, timestamp/0, timestamp/1, timestamp_to_time/1,
-         ensure_dir/1, hashdir/5, safe_rename/2, format_timestamp/0,
-         diskspace/1, fold_files/3, pack_objname/2, unpack_objname/1,
-         choose_random/1, choose_random/2, replace/3, startswith/2,
-         concatenate/2, name_from_url/1]).
--export([to_hex/1]).
+-export([choose_random/1,
+         choose_random/2,
+         concatenate/2,
+         diskspace/1,
+         ensure_dir/1,
+         fold_files/3,
+         format_timestamp/0,
+         hashdir/5,
+         is_valid_name/1,
+         pack_objname/2,
+         replace/3,
+         safe_rename/2,
+         startswith/2,
+         timestamp/0,
+         timestamp/1,
+         timestamp_to_time/1,
+         to_hex/1,
+         unpack_objname/1,
+         url_to_name/1]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -59,9 +72,9 @@ unpack_objname(Obj) ->
     [Name, Tstamp] = string:tokens(Obj, "$"),
     {list_to_binary(Name), timestamp_to_time(Tstamp)}.
 
-name_from_url(<<"tag://", Name/binary>>) ->
+url_to_name(<<"tag://", Name/binary>>) ->
     Name;
-name_from_url(Url) ->
+url_to_name(Url) ->
     case re:run(Url, "/../(.*)[$]", [{capture, all_but_first, binary}]) of
         {match, [Name]} ->
             Name;
@@ -84,8 +97,12 @@ format_timestamp() ->
     TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
     list_to_binary([DateStr, TimeStr]).
 
--spec to_hex_helper(non_neg_integer(), string()) -> nonempty_string().
-to_hex_helper(Int, L) ->
+-spec to_hex(non_neg_integer()) -> nonempty_string().
+to_hex(Int) ->
+    to_hex(Int, []).
+
+-spec to_hex(non_neg_integer(), string()) -> nonempty_string().
+to_hex(Int, L) ->
     case {Int, L} of
         {0, []} -> "00";
         {0, _ } -> L;
@@ -95,21 +112,17 @@ to_hex_helper(Int, L) ->
             C = if R < 10 -> $0 + R;
                    true   -> $a + R - 10
                 end,
-            to_hex_helper(D, [C|L])
+            to_hex(D, [C|L])
     end.
-
--spec to_hex(non_neg_integer()) -> nonempty_string().
-to_hex(Int) ->
-    to_hex_helper(Int, []).
 
 -spec hashdir(binary(), nonempty_string(), nonempty_string(),
     nonempty_string(), nonempty_string()) -> {'ok', string(), binary()}.
-hashdir(Name, Node, Mode, Root, Vol) ->
+hashdir(Name, Host, Type, Root, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
     D1 = to_hex(D0),
     Dir = lists:flatten([if length(D1) == 1 -> "0"; true -> "" end, D1]),
-    Path = filename:join([Vol, Mode, Dir]),
-    Url = list_to_binary(["disco://", Node, "/ddfs/", Path, "/", Name]),
+    Path = filename:join([Vol, Type, Dir]),
+    Url = list_to_binary(["disco://", Host, "/ddfs/", Path, "/", Name]),
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
 

@@ -47,17 +47,16 @@ send_file(Req, Path, Root) ->
         {'GET', undefined} ->
             Req:not_found();
         {'GET', SafePath} ->
-            case catch gen_server:call(ddfs_node, get_blob,
-                    ?GET_WAIT_TIMEOUT) of
+            case catch gen_server:call(ddfs_node, get_blob, ?GET_WAIT_TIMEOUT) of
                 ok ->
                     send_file(Req, filename:join(Root, SafePath));
                 {'EXIT', {noproc, _}} ->
                     Req:respond({403, [],
-                        ["Disco node is not running on this host"]});
+                                 ["Disco node is not running on this host"]});
                 _ ->
                     Req:respond({503, [],
-                        ["Maximum number of downloaders reached. ",
-                            "Try again later"]})
+                                 ["Maximum number of downloaders reached. ",
+                                  "Try again later"]})
             end;
         _ ->
             Req:respond({501, [], ["Method not supported"]})

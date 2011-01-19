@@ -4,12 +4,18 @@
          has_setting/1,
          settings/0,
          host/1,
-         node/1,
-         node_name/0,
-         node_safe/1,
+         name/1,
+         master_name/0,
+         master_node/1,
+         slave_name/0,
+         slave_node/1,
+         slave_safe/1,
          oob_name/1,
+         hexhash/1,
          jobhome/1,
          jobhome/2,
+         data_root/1,
+         data_path/2,
          debug_flags/1,
          disco_url_path/1,
          format/2,
@@ -51,35 +57,57 @@ settings() ->
 host(Node) ->
     string:sub_word(atom_to_list(Node), 2, $@).
 
--spec node(string()) -> node().
-node(Host) ->
-    list_to_atom(node_name() ++ "@" ++ Host).
+-spec name(node()) -> string().
+name(Node) ->
+    string:sub_word(atom_to_list(Node), 1, $@).
 
--spec node_name() -> string().
-node_name() ->
+-spec master_name() -> string().
+master_name() ->
+    get_setting("DISCO_NAME") ++ "_master".
+
+master_node(Host) ->
+    list_to_atom(master_name() ++ "@" ++ Host).
+
+-spec slave_name() -> string().
+slave_name() ->
     get_setting("DISCO_NAME") ++ "_slave".
 
--spec node_safe(string()) -> 'false' | node().
-node_safe(Host) ->
-    case catch list_to_existing_atom(node_name() ++ "@" ++ Host) of
-        {'EXIT', _} -> false;
-        Node -> Node
+-spec slave_node(string()) -> node().
+slave_node(Host) ->
+    list_to_atom(slave_name() ++ "@" ++ Host).
+
+-spec slave_safe(string()) -> 'false' | node().
+slave_safe(Host) ->
+    case catch list_to_existing_atom(slave_name() ++ "@" ++ Host) of
+        {'EXIT', _Reason} ->
+            false;
+        Node ->
+            Node
     end.
 
 -spec oob_name(string()) -> string().
 oob_name(JobName) ->
     lists:flatten(["disco:job:oob:", JobName]).
 
+hexhash(Path) when is_list(Path) ->
+    hexhash(list_to_binary(Path));
+hexhash(Path) ->
+    <<Hash:8, _/binary>> = erlang:md5(Path),
+    lists:flatten(io_lib:format("~2.16.0b", [Hash])).
+
 jobhome(JobName) ->
     jobhome(JobName, get_setting("DISCO_MASTER_ROOT")).
 
-jobhome(JobName, Root) when is_list(JobName) ->
-    jobhome(list_to_binary(JobName), Root);
 jobhome(JobName, Root) ->
-    <<Hash:8, _/binary>> = erlang:md5(JobName),
-    filename:join([Root,
-                   io_lib:format("~2.16.0b", [Hash]),
-                   binary_to_list(JobName)]).
+    filename:join([Root, hexhash(JobName), JobName]).
+
+data_root(Node) when is_atom(Node) ->
+    data_root(host(Node));
+data_root(Host) ->
+    filename:join(get_setting("DISCO_DATA"), Host).
+
+data_path(NodeOrHost, Path) ->
+    filename:join(data_root(NodeOrHost), Path).
 
 debug_flags(Server) ->
     case os:getenv("DISCO_DEBUG") of

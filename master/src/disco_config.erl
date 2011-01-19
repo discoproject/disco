@@ -190,7 +190,7 @@ do_blacklist(Host) ->
     NewConfig = make_config(RawHosts, NewBlacklist),
     ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
                          mochijson2:encode({struct, NewConfig})),
-    disco_server:manual_blacklist(Host, true).
+    disco_server:blacklist(Host, true).
 
 -spec do_whitelist(nonempty_string()) -> 'ok'.
 do_whitelist(Host) ->
@@ -201,4 +201,4 @@ do_whitelist(Host) ->
     NewConfig = make_config(RawHosts, NewBlacklist),
     ok = file:write_file(os:getenv("DISCO_MASTER_CONFIG"),
                          mochijson2:encode({struct, NewConfig})),
-    disco_server:manual_blacklist(Host, false).
+    disco_server:blacklist(Host, false).

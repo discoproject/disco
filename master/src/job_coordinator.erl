@@ -129,7 +129,7 @@ wait_workers(N, Results, _JobName, Mode) ->
                                     disco:format("Received results from ~s", [Host]),
                                     {task_ready, Mode}),
             {N - 1, gb_trees:enter(Task#task.taskid,
-                                   {disco:node(Host), list_to_binary(Result)},
+                                   {disco:slave_node(Host), list_to_binary(Result)},
                                    Results)};
         {{error, Error}, Task, Host} ->
             event_server:task_event(Task, {<<"WARN">>, Error}, {task_failed, Task#task.mode}),
@@ -278,4 +278,3 @@ pref_node(Url) ->
     nomatch -> false;
     {match, [{S, L}]} -> string:sub_string(Url, S + 1, S + L)
     end.
-
