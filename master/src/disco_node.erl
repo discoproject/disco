@@ -45,7 +45,7 @@ init(Master) ->
 
 handle_cast({start_worker, Manager, Task}, #state{master = Master} = State) ->
     spawn(fun () ->
-                  gen_server:reply(Manager, disco_worker:start_worker(Master, node(), Task))
+                  gen_server:reply(Manager, disco_worker:start_worker(Master, Task))
           end),
     {noreply, State}.
 

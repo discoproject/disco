@@ -1,7 +1,7 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_worker/3]).
+-export([start_worker/2]).
 -export([init/1,
          handle_call/3,
          handle_cast/2,
@@ -12,7 +12,6 @@
 -include("disco.hrl").
 
 -record(state, {master :: node(),
-                slave :: node(),
                 task :: task(),
                 port :: port(),
                 child_pid :: 'none' | string(),
@@ -29,10 +28,10 @@
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 
-start_worker(Master, Slave, Task) ->
-    gen_server:start(?MODULE, {Master, Slave, Task}, [{timeout, 30000}]).
+start_worker(Master, Task) ->
+    gen_server:start(?MODULE, {Master, Task}, [{timeout, 30000}]).
 
-init({Master, Slave, Task}) ->
+init({Master, Task}) ->
     erlang:monitor(process, Task#task.from),
     WorkerPid = self(),
     spawn(fun () ->
@@ -40,7 +39,6 @@ init({Master, Slave, Task}) ->
           end),
     {ok,
      #state{master = Master,
-            slave = Slave,
             task = Task,
             port = none,
             child_pid = none,
@@ -58,8 +56,8 @@ worker_send(Data, #state{port = Port}) ->
     Length = list_to_binary(integer_to_list(size(Message))),
     port_command(Port, <<Length/binary, "\n", Message/binary, "\n">>).
 
-event(Event, #state{master = Master, slave = Slave, task = Task}) ->
-    event_server:task_event(Task, Event, {}, disco:host(Slave), {event_server, Master}).
+event(Event, #state{master = Master, task = Task}) ->
+    event_server:task_event(Task, Event, {}, disco:host(node()), {event_server, Master}).
 
 handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, State) ->
     {stop, {shutdown, {error, Message}}, State};
@@ -88,12 +86,12 @@ handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, State) ->
     {noreply, State};
 
 handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
-             #state{task = Task, slave = Slave} = State) ->
+             #state{task = Task} = State) ->
     event({<<"TSK">>, "Task info requested"}, State),
     worker_send(dict:from_list([{<<"id">>, Task#task.taskid},
                                 {<<"mode">>, list_to_binary(Task#task.mode)},
                                 {<<"jobname">>, list_to_binary(Task#task.jobname)},
-                                {<<"host">>, list_to_binary(disco:host(Slave))}]), State),
+                                {<<"host">>, list_to_binary(disco:host(node()))}]), State),
     {noreply, State};
 
 handle_event({event, {<<"INP">>, _Time, _Tags, _Message}}, #state{task = Task} = State) ->
