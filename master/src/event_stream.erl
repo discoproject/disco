@@ -89,4 +89,4 @@ event({EventType, Time, Tags, Messages}) ->
 -spec finalize_event({event_type(), gen_time(), [binary()],
     message_buffer:message_buffer()}) -> {'ok', string()}.
 finalize_event({_EventType, _Time, _Tags, Messages}) ->
-    {ok, bencode:decode(list_to_binary(message_buffer:to_string(Messages)))}.
+    {ok, dencode:decode(list_to_binary(message_buffer:to_string(Messages)))}.

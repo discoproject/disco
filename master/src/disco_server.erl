@@ -309,15 +309,16 @@ do_update_config_table(Config, Blacklist, State) ->
                                               Nodes)
                       end
               end, gb_trees:empty(), Config),
-    lists:foreach(fun(OldNode) ->
-                          case gb_trees:lookup(OldNode#dnode.host, Nodes) of
-                              none ->
-                                  unlink(OldNode#dnode.node_monitor),
-                                  exit(OldNode#dnode.node_monitor, kill);
-                              _ ->
-                                  ok
-                          end
-                  end, gb_trees:values(State#state.nodes)),
+    lists:foreach(
+      fun(OldNode) ->
+              case gb_trees:lookup(OldNode#dnode.host, Nodes) of
+                  none ->
+                      unlink(OldNode#dnode.node_monitor),
+                      exit(OldNode#dnode.node_monitor, kill);
+                  Node ->
+                      Node
+              end
+      end, gb_trees:values(State#state.nodes)),
     disco_proxy:update_nodes(gb_trees:keys(Nodes)),
     update_nodes(Nodes),
     State#state{nodes = Nodes}.

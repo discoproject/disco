@@ -31,7 +31,7 @@ import sys, os, time, marshal
 from tempfile import NamedTemporaryFile
 from warnings import warn
 
-from disco import bencode, func, util
+from disco import dencode, func, util
 from disco.comm import download, json
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
@@ -809,13 +809,13 @@ class JobDict(util.DefaultDict):
                 jobpack[key] = util.pack(self[key])
             else:
                 jobpack[key] = self[key]
-        return bencode.dumps(jobpack)
+        return dencode.dumps(jobpack)
 
     @classmethod
     def unpack(cls, jobpack, lib=None, globals={'__builtins__': __builtins__}):
         """Unpack the previously packed :class:`JobDict`."""
         jobdict = cls.defaults.copy()
-        jobdict.update(**bencode.loads(jobpack))
+        jobdict.update(**dencode.loads(jobpack))
 
         for key in jobdict:
             if key not in cls.master_keys:

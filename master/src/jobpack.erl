@@ -84,7 +84,7 @@ jobinfo(JobDict) ->
               force_remote = find_bool(<<"force_remote">>, Scheduler)}}.
 
 jobdict(JobPack) ->
-    bencode:decode(JobPack).
+    dencode:decode(JobPack).
 
 validate_prefix(Prefix) when is_binary(Prefix)->
     validate_prefix(binary_to_list(Prefix));

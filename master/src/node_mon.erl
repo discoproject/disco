@@ -45,10 +45,6 @@ init(Host) ->
     process_flag(trap_exit, true),
     {ok, #state{host = Host}, 1000}.
 
-handle_call({start_worker, Task}, From, #state{slave = Slave} = State) ->
-    gen_server:cast({disco_node, Slave}, {start_worker, From, Task}),
-    {noreply, State}.
-
 handle_cast(start_slave, #state{host = Host} = State) ->
     disco_server:connection_status(Host, down),
     Slave = slave_start(Host),
@@ -56,6 +52,10 @@ handle_cast(start_slave, #state{host = Host} = State) ->
     disco_node:spawn_node(Slave),
     disco_server:connection_status(Host, up),
     {noreply, State#state{slave = Slave}}.
+
+handle_call({start_worker, Task}, From, #state{slave = Slave} = State) ->
+    gen_server:cast({disco_node, Slave}, {start_worker, From, Task}),
+    {noreply, State}.
 
 handle_info(nodedown, #state{slave = Slave} = State) ->
     error_logger:info_report({"slave down", Slave}),

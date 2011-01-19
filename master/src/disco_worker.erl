@@ -54,7 +54,7 @@ init({Master, Slave, Task}) ->
      60000}.
 
 worker_send(Data, #state{port = Port}) ->
-    Message = bencode:encode(Data),
+    Message = dencode:encode(Data),
     Length = list_to_binary(integer_to_list(size(Message))),
     port_command(Port, <<Length/binary, "\n", Message/binary, "\n">>).
 
