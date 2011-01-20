@@ -175,9 +175,10 @@ of the external program to read all bytes that belong to the parameter set
 before starting to receive key-value pairs.
 
 As a special case, the standard C interface for Disco, as specified
-below, accepts a dictionary of string-string pairs as *ext_params*. The
-dictionary is then encoded by :func:`disco.core.Job` using the *netstring*
-module. The *netstring* format is extremely simple, consisting of consequent
+below, accepts a dictionary of string-string pairs as *ext_params*.
+The dictionary is then encoded by :func:`disco.core.Job`
+using the :mod:`disco.worker.classic.netstring` module.
+The *netstring* format is extremely simple, consisting of consequent
 key-value pairs. An example how to parse parameters in this case can be
 found in the :cfunc:`read_parameters` function in *ext/disco.c*.
 
@@ -339,7 +340,7 @@ In addition, the library contains the following utility functions:
 """
 import os, os.path, time, struct, marshal
 from subprocess import Popen, PIPE
-from disco.netstring import decode_netstring_str, encode_netstring_fd
+from netstring import decode_netstring_str, encode_netstring_fd
 from disco.util import msg, unpack_files
 from disco.error import DiscoError
 

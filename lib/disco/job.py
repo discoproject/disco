@@ -234,17 +234,7 @@ class JobDict(util.DefaultDict):
                        typically specified using :func:`disco.util.external`,
                        this object is used to deliver parameters to the program.
 
-                       The default C interface for external Disco functions uses
-                       :mod:`netstring` to encode the parameter dictionary.
-                       Hence the *ext_params* value must be a dictionary
-                       string ``(key, value)`` pairs.
-
-                       However, if the external program doesn't use the default
-                       C interface, it can receive parameters in any format.
-                       In this case, the *ext_params* value can be an arbitrary
-                       string which can be decoded by the program properly.
-
-                       For more information, see :ref:`discoext`.
+                       See :mod:`disco.worker.classic.external`.
 
     :type  required_files: list of paths or dict
     :param required_files: additional files that are required by the job.
