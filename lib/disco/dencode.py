@@ -37,30 +37,30 @@ def loads(string):
 def load(handle):
     return decode(handle)
 
-def decode_int(buf):
-    return int(buf.readline()[:-1])
+def decode_int(file):
+    return int(file.readline()[:-1])
 
-def decode_bytes(buf):
-    length = decode_int(buf)
-    return buf.read(length)
+def decode_bytes(file):
+    length = decode_int(file)
+    return file.read(length)
 
-def decode_dict(buf):
-    return dict(n_at_a_time(decode_list(buf), 2))
+def decode_dict(file):
+    return dict(n_at_a_time(decode_list(file), 2))
 
-def decode_list(buf):
-    return list(decode_iter(buf))
+def decode_list(file):
+    return list(decode_iter(file))
 
-def decode_iter(buf):
+def decode_iter(file):
     separator = ','
     while separator == ',':
-        yield decode(buf)
-        separator = buf.read(1)
+        yield decode(file)
+        separator = file.read(1)
 
-def decode(buf):
+def decode(file):
     return {'i': decode_int,
             'd': decode_dict,
             'l': decode_list,
-            'b': decode_bytes}[buf.read(1)](buf)
+            'b': decode_bytes}[file.read(1)](file)
 
 def n_at_a_time(iter, n):
     from itertools import cycle, groupby

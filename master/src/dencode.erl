@@ -5,47 +5,53 @@
 ascii(Int) when is_integer(Int) ->
     list_to_binary(integer_to_list(Int)).
 
-decode(Binary) when is_binary(Binary) ->
-    {Object, _Rest} = decode_(Binary),
+read(<<Binary/binary>>, Num) ->
+    <<Bin:Num/binary, Rest/binary>> = Binary,
+    {Bin, Rest};
+read(File, Num) ->
+    {prim_file:read(File, Num), File}.
+
+decode(Stream) ->
+    {Object, _Rest} = decode_(read(Stream, 1)),
     Object.
 
-decode_(<<$i, Rest/binary>>) ->
-    decode_int(Rest, []);
-decode_(<<$d, Rest/binary>>) ->
-    decode_dict(Rest, dict:new());
-decode_(<<$l, Rest/binary>>) ->
-    decode_list(Rest, []);
-decode_(<<$b, Rest/binary>>) ->
-    decode_bytes(Rest, []).
+decode_({<<$i>>, Stream}) ->
+    decode_int(read(Stream, 1), []);
+decode_({<<$b>>, Stream}) ->
+    decode_bytes(read(Stream, 1), []);
+decode_({<<$d>>, Stream}) ->
+    decode_dict(read(Stream, 1), dict:new());
+decode_({<<$l>>, Stream}) ->
+    decode_list(read(Stream, 1), []).
 
-decode_int(<<$\n, Rest/binary>>, Acc) ->
-    {list_to_integer(lists:reverse(Acc)), Rest};
-decode_int(<<Digit, Rest/binary>>, Acc) ->
-    decode_int(Rest, [Digit|Acc]).
+decode_int({<<$\n>>, Stream}, Acc) ->
+    {list_to_integer(lists:flatten(lists:reverse(Acc))), Stream};
+decode_int({<<Digit/binary>>, Stream}, Acc) ->
+    decode_int(read(Stream, 1), [binary_to_list(Digit)|Acc]).
 
-decode_bytes(<<$\n, Rest0/binary>>, Acc) ->
+decode_bytes({<<$\n>>, Stream}, Acc) ->
     Size = list_to_integer(lists:reverse(Acc)),
-    <<Bytes:Size/binary, Rest1/binary>> = Rest0,
-    {Bytes, Rest1};
-decode_bytes(<<Digit, Rest/binary>>, Acc) ->
-    decode_bytes(Rest, [Digit|Acc]).
+    read(Stream, Size);
+decode_bytes({<<Digit>>, Stream}, Acc) ->
+    decode_bytes(read(Stream, 1), [Digit|Acc]).
 
-decode_dict(<<$\n, Rest/binary>>, Acc) ->
-    {Acc, Rest};
-decode_dict(<<$,, Rest/binary>>, Acc) ->
-    decode_dict(Rest, Acc);
-decode_dict(Data, Acc) ->
-    {Key, <<$,, Rest0/binary>>} = decode_(Data),
-    {Val, Rest1} = decode_(Rest0),
-    decode_dict(Rest1, dict:store(Key, Val, Acc)).
+decode_dict({<<$\n>>, Stream}, Acc) ->
+    {Acc, Stream};
+decode_dict({<<$,>>, Stream}, Acc) ->
+    decode_dict(read(Stream, 1), Acc);
+decode_dict({Byte, Stream}, Acc) ->
+    {Key, Stream1} = decode_({Byte, Stream}),
+    {<<$,>>, Stream2} = read(Stream1, 1),
+    {Val, Stream3} = decode_(read(Stream2, 1)),
+    decode_dict(read(Stream3, 1), dict:store(Key, Val, Acc)).
 
-decode_list(<<$\n, Rest/binary>>, Acc) ->
-    {lists:reverse(Acc), Rest};
-decode_list(<<$,, Rest/binary>>, Acc) ->
-    decode_list(Rest, Acc);
-decode_list(Data, Acc) ->
-    {Item, Rest} = decode_(Data),
-    decode_list(Rest, [Item|Acc]).
+decode_list({<<$\n>>, Stream}, Acc) ->
+    {lists:reverse(Acc), Stream};
+decode_list({<<$,>>, Stream}, Acc) ->
+    decode_list(read(Stream, 1), Acc);
+decode_list({Byte, Stream}, Acc) ->
+    {Item, Stream1} = decode_({Byte, Stream}),
+    decode_list(read(Stream1, 1), [Item|Acc]).
 
 encode(Bytes) when is_binary(Bytes) ->
     <<$b, (ascii(size(Bytes)))/binary, $\n, Bytes/binary>>;
