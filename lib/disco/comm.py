@@ -22,20 +22,6 @@ else:
     from disco import comm_pycurl
     from disco.comm_pycurl import HTTPConnection
 
-# get rid of this for python2.6+
-try:
-    import json
-except ImportError:
-    try:
-        import simplejson as json
-    except ImportError:
-        import cjson
-        class Dummy(object):
-            pass
-        json = Dummy()
-        json.loads = cjson.decode
-        json.dumps = cjson.encode
-
 def isredirection(status):
     return str(status).startswith('3')
 

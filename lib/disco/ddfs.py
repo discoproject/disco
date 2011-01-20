@@ -16,7 +16,8 @@ import os, re, random
 from cStringIO import StringIO
 from urllib import urlencode
 
-from disco.comm import upload, download, json, open_remote
+from disco import json
+from disco.comm import upload, download, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
 from disco.util import isiterable, iterify, partition
