@@ -151,29 +151,12 @@ handle_call({connection_status, Node, Status}, _From, S) ->
 handle_call({manual_blacklist, Node, True}, _From, S) ->
     {reply, ok, do_manual_blacklist(Node, True, S)}.
 
-handle_info({'EXIT', Pid, normal}, S) ->
-    case gb_trees:lookup(Pid, S#state.workers) of
-        none -> {noreply, S};
-        _ -> error_logger:warning_report({"Task failed to call exit_worker",
-                                          Pid}),
-             process_exit(Pid, "Died unexpectedly without a reason",
-            "unexpected", S)
-    end;
-
-handle_info({'EXIT', Pid, {worker_dies, {Msg, Args}}}, S) ->
-    process_exit(Pid, io_lib:fwrite(Msg, Args), "worker_dies", S);
-
-handle_info({'EXIT', Pid, noconnection}, S) ->
-    process_exit(Pid, "Connection lost to the node (network busy?)",
-                 "noconnection", S);
-
 handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
     error_logger:warning_report(["Disco server dies on error!", Reason]),
     {stop, stop_requested, S};
 
 handle_info({'EXIT', Pid, Reason}, S) ->
-    process_exit(Pid, io_lib:fwrite("Worked died unexpectedly: ~p", [Reason]),
-                 "unexpected", S).
+    {noreply, process_exit(Pid, Reason, S)}.
 
 %% ===================================================================
 %% gen_server callback stubs
@@ -262,16 +245,48 @@ start_worker(Node, NodeMon, T) ->
     spawn_link(disco_worker, start_link_remote,
                [self(), whereis(event_server), Node, NodeMon, T]).
 
-process_exit(Pid, Msg, Code, S) ->
-    process_exit1(gb_trees:lookup(Pid, S#state.workers), Pid, Msg, Code, S).
+process_exit(Pid, Code, S) ->
+    case gb_trees:lookup(Pid, S#state.workers) of
+        {value, {Node, T}} ->
+            Msg = worker_exit_msg(Pid, Node, Code),
+            process_worker_exit(Node, T, Pid, Msg, Code),
+            S;
+        none ->
+            process_nodemon_exit(Pid, Code, S)
+    end.
 
-process_exit1(none, _, _, _, S) -> {noreply, S};
-process_exit1({_, {Node, T}}, Pid, Msg, Code, S) ->
+-spec process_worker_exit(nonempty_string(), task(), pid(), _, _) -> 'ok'.
+process_worker_exit(Node, T, Pid, Msg, Code) ->
     P = io_lib:fwrite("WARN: [~s:~B] ", [T#task.mode, T#task.taskid]),
     event_server:event(Node, T#task.jobname, lists:flatten(P, Msg), [],
                        {task_failed, T#task.mode}),
-    gen_server:cast(self(), {exit_worker, Pid, {data_error, Code}}),
-    {noreply, S}.
+    gen_server:cast(self(), {exit_worker, Pid, {data_error, Code}}).
+
+worker_exit_msg(Pid, Node, normal) ->
+    error_logger:warning_report({"Task failed to call exit_worker", Pid}),
+    io_lib:fwrite("Worker on ~p died unexpectedly without a reason", [Node]);
+worker_exit_msg(_Pid, _Node, {worker_dies, {Msg, Args}}) ->
+    io_lib:fwrite(Msg, Args);
+worker_exit_msg(_Pid, Node, noconnection) ->
+    io_lib:fwrite("Connection lost to node ~p (network busy?)", [Node]);
+worker_exit_msg(_Pid, Node, Reason) ->
+    io_lib:fwrite("Worker on ~p died unexpectedly: ~p", [Node, Reason]).
+
+-spec process_nodemon_exit(pid(), _, #state{}) -> #state{}.
+process_nodemon_exit(Pid, Code, S) ->
+    Iter = gb_trees:iterator(S#state.nodes),
+    process_nodemon_exit1(Pid, Code, S, gb_trees:next(Iter)).
+process_nodemon_exit1(_Pid, _Code, S, none) -> S;
+process_nodemon_exit1(Pid, Code, S, {Host, N, Iter}) ->
+    case N#dnode.node_mon =:= Pid of
+        true ->
+            error_logger:warning_report({"Restarting monitor for", Host, Code}),
+            N1 = N#dnode{node_mon = node_mon:start_link(Host)},
+            S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},
+            do_connection_status(Host, down, S1);
+        false ->
+            process_nodemon_exit1(Pid, Code, S, gb_trees:next(Iter))
+    end.
 
 -spec do_update_config_table([disco_config:host_info()], [nonempty_string()],
                              #state{}) -> #state{}.
