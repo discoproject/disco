@@ -276,17 +276,16 @@ worker_exit_msg(_Pid, Node, Reason) ->
 process_nodemon_exit(Pid, Code, S) ->
     Iter = gb_trees:iterator(S#state.nodes),
     process_nodemon_exit1(Pid, Code, S, gb_trees:next(Iter)).
-process_nodemon_exit1(_Pid, _Code, S, none) -> S;
-process_nodemon_exit1(Pid, Code, S, {Host, N, Iter}) ->
-    case N#dnode.node_mon =:= Pid of
-        true ->
-            error_logger:warning_report({"Restarting monitor for", Host, Code}),
-            N1 = N#dnode{node_mon = node_mon:start_link(Host)},
-            S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},
-            do_connection_status(Host, down, S1);
-        false ->
-            process_nodemon_exit1(Pid, Code, S, gb_trees:next(Iter))
-    end.
+
+process_nodemon_exit1(Pid, Code, S, {Host, N, _Iter})
+                      when N#dnode.node_mon =:= Pid ->
+    error_logger:warning_report({"Restarting monitor for", Host, Code}),
+    N1 = N#dnode{node_mon = node_mon:start_link(Host)},
+    S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},
+    do_connection_status(Host, down, S1);
+process_nodemon_exit1(Pid, Code, S, {_Host, _N, Iter}) ->
+    process_nodemon_exit1(Pid, Code, S, gb_trees:next(Iter));
+process_nodemon_exit1(_Pid, _Code, S, none) -> S.
 
 -spec do_update_config_table([disco_config:host_info()], [nonempty_string()],
                              #state{}) -> #state{}.
