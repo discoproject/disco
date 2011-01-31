@@ -1,7 +1,6 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 
 from disco.ddfs import DDFS
-from disco.util import ddfs_name
 
 from cStringIO import StringIO
 

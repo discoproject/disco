@@ -93,9 +93,7 @@ process_task(DirUrl, DataRoot, PartInfo) ->
 % i.e. potentially millions of times for a job. Be careful when making
 % any changes to it. Especially measure the performance impact of your
 % changes!
-process_url([Id, <<"part://", _/binary>> = Url],
-            DataRoot,
-            {PartPath, PartUrl}) ->
+process_url([Id, <<"part://", _/binary>> = Url], DataRoot, {PartPath, PartUrl}) ->
     PartFile = ["part-", Id],
     PartSrc = [DataRoot, "/", disco:disco_url_path(Url)],
     PartDst = [PartPath, "/", PartFile],
@@ -105,6 +103,8 @@ process_url([Id, <<"part://", _/binary>> = Url],
 process_url([Id, Url], _DataRoot, _PartInfo) ->
     list_to_binary([Id, " ", Url, "\n"]).
 
+parse_index(<<"">>) ->
+    [];
 parse_index(Index) ->
     {match, Lines} = re:run(Index,
                             "(.*?) (.*?)\n",

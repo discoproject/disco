@@ -375,11 +375,12 @@ do_purge_job(JobName, #state{purged = Purged} = S) ->
 -spec do_new_task(task(), #state{}) -> 'ok' | 'failed'.
 do_new_task(Task, S) ->
     NodeStats = [case gb_trees:lookup(Host, S#state.nodes) of
-                     none ->
-                         {false, Input};
                      {value, Node} ->
-                         {Node#dnode.num_running, Input}
-                 end || {_Url, Host} = Input <- Task#task.input],
+                         {Node#dnode.num_running, Input};
+                     none ->
+                         {false, Input}
+                 end
+                 || {_Url, Host} = Input <- Task#task.input],
     case catch gen_server:call(scheduler, {new_task, Task, NodeStats}) of
         ok ->
             schedule_next(),

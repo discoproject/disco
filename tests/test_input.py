@@ -20,7 +20,7 @@ class MapPartitionedOutputTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        assert Task.jobdict['partitions'] == 2
+        assert Task.partitions == 2
         yield e, 'against_me'
 
     @property
@@ -32,20 +32,12 @@ class MapNonPartitionedOutputTestCase(MapPartitionedOutputTestCase):
 
     @staticmethod
     def map(e, params):
-        assert Task.jobdict['partitions'] == 0
-        yield e, 'against_me'
-
-class MapNonPartitionedOutputTestCase2(MapPartitionedOutputTestCase):
-    partitions = 0
-
-    @staticmethod
-    def map(e, params):
-        assert Task.jobdict['partitions'] == 0
+        assert not Task.partitions
         yield e, 'against_me'
 
 class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs        = ['test']
-    reduce_reader = func.map_line_reader
+    reduce_reader = None
 
     def getdata(self, path):
         return 'smoothies'

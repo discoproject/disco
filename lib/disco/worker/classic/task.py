@@ -1,99 +1,72 @@
-import hashlib, os, random, re, subprocess, sys, cPickle, time
+import os, re, sys, cPickle, time
 
 from functools import partial
 from types import FunctionType
 
-from disco import func, comm, util
+from disco import comm, job, util
 from disco.ddfs import DDFS
-from disco.core import Disco, JobDict
-from disco.error import DiscoError, DataError
-from disco.events import Status, Output
-from disco.settings import DiscoSettings
-from disco.sysutil import set_mem_limit
-from disco.fileutils import AtomicFile, ensure_file, ensure_path, sync
+from disco.core import Disco
+from disco.error import DiscoError
+from disco.events import Output, Status
+from disco.fileutils import ensure_file, ensure_path, AtomicFile
 
-from disco.worker.classic import external, worker
+from disco.worker.classic import external, func
 
-oob_chars = re.compile(r'[^a-zA-Z_\-:0-9]')
+def putout(output):
+    return Output(output).send()
 
 def status(message):
     return Status(message).send()
 
-class Task(object):
-    def __init__(self,
-                 host='',
-                 id=-1,
-                 inputs=None,
-                 jobdict=None,
-                 jobname='',
-                 settings=DiscoSettings()):
-        self.netloc   = util.netloc.parse(host)
-        self.id       = int(id)
-        self.inputs   = inputs
-        self.jobdict  = jobdict
-        self.jobname  = jobname
-        self.settings = settings
-        self.blobs    = []
-        self.mode     = self.__class__.__name__.lower()
-        self.run_id   = "%s:%d-%x-%x" % (self.mode,
-                                         self.id,
-                                         int(time.time() * 1000),
-                                         os.getpid())
+def task(worker, jobdict, mode='map', **taskinfo):
+    return globals()[mode.capitalize()](worker, jobdict, mode=mode, **taskinfo)
 
-        set_mem_limit(self.settings['DISCO_WORKER_MAX_MEM'])
+class Task(job.Task):
+    def __init__(self, worker, jobdict, **taskinfo):
+        super(Task, self).__init__(worker, jobdict, **taskinfo)
+        for value in util.flatten(worker.values()):
+            self.insert_task(value)
 
-        if not jobdict:
-            self.jobdict = JobDict.unpack(open(self.jobpack).read(),
-                                          self.lib,
-                                          globals=worker.__dict__)
-        self.insert_globals(getattr(self, name)
-                            for name in util.flatten(self.jobdict.funcs))
+    def open_url(self, url):
+        file, size, url = self.connect_input(url)
+        self.open_hook(file, size, url)
+        return file
+
+    def open_hook(self, fd, size, url):
+        pass
+
+    def open(self, input):
+        self.notifier(input)
+        return super(Task, self).open(input)
+
+    def run(self, *inputs):
+        assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
+        ensure_path(self.taskpath)
+
+        def open_hook(file, size, url):
+            status("Input is %s" % (util.format_size(size)))
+        self.open_hook = open_hook
+
+        if self.isexternal:
+            setattr(self, *external.prepare(self.params, self.mode))
+        output = self._run(self.params, *inputs)
+        output.close()
+        external.close()
+
+        if self.should_save:
+            putout([DDFS(self.master).save(self.jobname, output.paths)])
+            status("Results pushed to DDFS")
+        else:
+            putout([self.index('%s-index' % self.mode, output)])
+            status("Wrote index file")
 
     def __getattr__(self, key):
-        if key in self.jobdict:
-            return self.jobdict[key]
+        if key in self.worker:
+            return self.worker[key]
         task_key = '%s_%s' % (self.mode, key)
-        if task_key in self.jobdict:
-            return self.jobdict[task_key]
+        if task_key in self.worker:
+            return self.worker[task_key]
         raise AttributeError("%s has no attribute %s" % (self, key))
-
-    def __iter__(self):
-        return self.entries
-
-    def hex_key(self, name):
-        return hashlib.md5(name).hexdigest()[:2]
-
-    @property
-    def host(self):
-        return self.netloc[0]
-
-    @property
-    def ispartitioned(self):
-        return bool(self.jobdict['partitions'])
-
-    @property
-    def jobpack(self):
-        return os.path.join(self.jobroot, 'jobfile')
-
-    @property
-    def jobpath(self):
-        return os.path.join(self.host,
-                            self.hex_key(self.jobname),
-                            self.jobname)
-
-    @property
-    def taskpath(self):
-        return os.path.join(self.jobpath,
-                            self.hex_key(self.run_id),
-                            self.run_id)
-
-    @property
-    def jobroot(self):
-        return os.path.join(self.settings['DISCO_DATA'], self.jobpath)
-
-    @property
-    def taskroot(self):
-        return os.path.join(self.settings['DISCO_DATA'], self.taskpath)
 
     @property
     def isexternal(self):
@@ -101,72 +74,14 @@ class Task(object):
             return True
 
     @property
-    def lib(self):
-        return os.path.join(self.jobroot, 'lib')
+    def params(self):
+        if self.isexternal:
+            return self.ext_params
+        return self.worker['params']
 
     @property
-    def master(self):
-        return self.settings['DISCO_MASTER']
-
-    @property
-    def partid(self):
-        return None
-
-    @property
-    def port(self):
-        return self.settings['DISCO_PORT']
-
-    @property
-    def root(self):
-        return self.settings['DISCO_ROOT']
-
-    @property
-    def sort_buffer_size(self):
-        return self.settings['DISCO_SORT_BUFFER_SIZE']
-
-    @property
-    def map_index(self):
-        filename = 'map-index.txt'
-        return self.path(filename), self.url(filename, scheme='dir')
-
-    @property
-    def reduce_index(self):
-        filename = 'reduce-index.txt'
-        return self.path(filename), self.url(filename, scheme='dir')
-
-    @property
-    def reduce_output(self):
-        filename = 'reduce-disco-%d' % self.id
-        return self.path(filename), self.url(filename)
-
-    def map_output(self, partition):
-        filename = 'map-disco-%d-%.9d' % (self.id, partition)
-        return self.path(filename), self.url(filename)
-
-    def partition_output(self, partition):
-        filename = 'part-disco-%.9d' % partition
-        return self.path(filename), self.url(filename, scheme='part')
-
-    def path(self, filename):
-        return os.path.join(self.taskroot, filename)
-
-    def url(self, filename, scheme='disco'):
-        return '%s://%s/disco/%s/%s' % (scheme, self.host, self.taskpath, filename)
-
-    def open_url(self, url):
-        scheme, netloc, rest = util.urlsplit(url, localhost=self.host)
-        if not scheme or scheme == 'file':
-            return comm.open_local(rest)
-        return comm.open_remote('%s://%s/%s' % (scheme, netloc, rest))
-
-    def track_status(self, iterator, message_template):
-        status_interval = self.status_interval
-        n = -1
-        for n, item in enumerate(iterator):
-            if status_interval and (n + 1) % status_interval == 0:
-                status(message_template % (n + 1))
-            yield item
-        status("Done: %s" % (message_template % (n + 1)))
+    def should_save(self):
+        return self.save
 
     def connect_input(self, url, fd=None, size=None):
         def fd_tuple(object, *args):
@@ -175,252 +90,155 @@ class Task(object):
             return (object,) + args
 
         for input_stream in self.input_stream:
-            fd, size, url = fd_tuple(input_stream(fd, size, url, self.params),
-                                     size, url)
+            fd, size, url = fd_tuple(input_stream(fd, size, url, self.params), size, url)
 
-        # backwards compatibility for readers
         if self.reader:
             if util.argcount(self.reader) == 3:
                 return fd_tuple(self.reader(fd, size, url), size, url)
             return fd_tuple(self.reader(fd, size, url, self.params), size, url)
         return fd, size, url
 
-    def connect_output(self, part=0, fd=None, url=None):
-        fd_list = []
-        for output_stream in self.output_stream:
-            fd, url = output_stream(fd, part, url, self.params)
-            fd_list.append(fd)
-        return fd, url, fd_list
+    def index(self, name, output):
+        index = AtomicFile(self.path(name), 'w')
+        index.write(output.index)
+        index.close()
+        return self.url(name, scheme='dir')
 
-    def close_output(self, fd_list):
-        for fd in reversed(fd_list):
+    def insert_task(self, object):
+        if isinstance(object, partial):
+            object = object.func
+        if isinstance(object, FunctionType):
+            object.func_globals.setdefault('Task', self)
+
+    def outname(self, id):
+        return '%s-disco-%s' % (self.mode, id)
+
+    def outurls(self, partition):
+        name = self.outname('%s-%s' % (self.taskid, partition))
+        return self.path(name), self.url(name)
+
+    def status_iter(self, iterator, message_template):
+        status_interval = self.status_interval
+        n = -1
+        for n, item in enumerate(iterator):
+            if status_interval and (n + 1) % status_interval == 0:
+                status(message_template % (n + 1))
+            yield item
+        status("Done: %s" % (message_template % (n + 1)))
+
+class Map(Task):
+    def read(self, *inputs):
+        return super(Map, self).read(*util.inputlist(*inputs))
+
+    @property
+    def should_save(self):
+        return self.save and not self.reduce
+
+    def _run(self, params, *inputs):
+        if self.save and self.partitions and not self.reduce:
+            raise NotImplementedError("Storing partitioned outputs in DDFS is not yet supported")
+        output = OutputStreamDict(self)
+        entries = self.status_iter(self.read(*inputs), "%s entries mapped")
+        combiners = {}
+        nr_partitions = max(1, self.partitions)
+        self.init(entries, params)
+        for entry in entries:
+            for key, val in self.map(entry, params):
+                partition = self.partition(key, nr_partitions, params)
+                if self.combiner:
+                    if partition not in combiners:
+                        combiners[partition] = Combiner(self.combiner, params)
+                    for record in combiners[partition].combine(key, val):
+                        output.add(partition, *record)
+                else:
+                    output.add(partition, key, val)
+        for partition, combiner in combiners.items():
+            for record in combiner.combine(None, None, done=True):
+                output.add(partition, *record)
+        return output
+
+    def outurls(self, partition):
+        if self.partitions:
+            name = self.outname(partition)
+            return self.path(name), self.url(name, scheme='part')
+        return super(Map, self).outurls(partition)
+
+class Reduce(Task):
+    def read(self, *inputs):
+        from disco.util import inputlist, ispartitioned, shuffled
+        if isinstance(self.sort, FunctionType):
+            sort = self.sort
+        elif self.sort:
+            sort = func.disk_sort
+        else:
+            sort = func.nop_sort
+        partition = None
+        if ispartitioned(inputs) and not self.merge_partitions:
+            partition = self.taskid
+        return sort(self, (self.open(i)
+                           for i in shuffled(inputlist(*inputs, partition=partition))))
+
+    def _run(self, params, *inputs):
+        entries = self.status_iter(self.read(*inputs), "%s entries reduced")
+        output = OutputStream(self, self.taskid)
+        self.init(entries, params)
+        if util.argcount(self.reduce) < 3:
+            for record in self.reduce(entries, *(params, )):
+                output.add(*record)
+        else:
+            self.reduce(entries, output.fd, params)
+        return output
+
+class Combiner(object):
+    def __init__(self, combiner, params):
+        self.combiner = combiner
+        self.buffer = {}
+        self.params = params
+
+    def combine(self, key, val, done=False):
+        return self.combiner(key, val, self.buffer, done, self.params) or ()
+
+class OutputStream(object):
+    def __init__(self, task, id, fd=None, url=None):
+        self.fds = []
+        for output_stream in task.output_stream:
+            fd, url = output_stream(fd, id, url, task.params)
+            self.fds.append(fd)
+        self.id, self.fd, self.url = id, fd, url
+
+    def add(self, *record):
+        self.fd.add(*record)
+
+    def close(self):
+        for fd in reversed(self.fds):
             if hasattr(fd, 'close'):
                 fd.close()
 
     @property
-    def connected_inputs(self):
-        shuffled = list(self.inputs)
-        random.shuffle(shuffled)
-        inputs = [url for input in shuffled
-                  for url in util.urllist(input, partid=self.partid)]
-        for input in inputs:
-            yield self.connect_input(input)
+    def index(self):
+        return '%s %s\n' % (self.id, self.url)
 
     @property
-    def entries(self):
-        for fd, size, url in self.connected_inputs:
-            for entry in fd:
-                yield entry
+    def paths(self):
+        yield self.fd.path
 
-    def insert_globals(self, functions):
-        sys.path.insert(0, self.lib)
-        for fn in functions:
-            if isinstance(fn, partial):
-                fn = fn.func
-            if isinstance(fn, FunctionType):
-                fn.func_globals.setdefault('Task', self)
-                for module in self.required_modules:
-                    mod_name = module[0] if util.iskv(module) else module
-                    mod = __import__(mod_name, fromlist=[mod_name])
-                    fn.func_globals.setdefault(mod_name.split('.')[-1], mod)
-
-    def run(self):
-        assert self.version == '%s.%s' % sys.version_info[:2], "Python version mismatch"
-        ensure_path(self.taskroot)
-        os.chdir(self.taskroot)
-        os.symlink(self.lib, 'lib')
-        self._run_profile() if self.profile else self._run()
-
-    def _run_profile(self):
-        from cProfile import runctx
-        name = 'profile-%s-%s' % (self.mode, self.id)
-        path = os.path.join(self.taskroot, name)
-        runctx('self._run()', globals(), locals(), path)
-        self.put(name, file(path).read())
-
-    def get(self, key, job=None):
-        """
-        Gets an out-of-band result assigned with the key *key*. The job name *job*
-        defaults to the current job.
-
-        Given the semantics of OOB results (see above), this means that the default
-        value is only good for the reduce phase which can access results produced
-        in the preceding map phase.
-        """
-        return util.load_oob(self.master, job or self.jobname, key)
-
-    def put(self, key, value):
-        """
-        Stores an out-of-band result *value* with the key *key*. Key must be unique in
-        this job. Maximum key length is 256 characters. Only characters in the set
-        ``[a-zA-Z_\-:0-9@]`` are allowed in the key.
-        """
-        if DDFS.safe_name(key) != key:
-            raise DiscoError("OOB key contains invalid characters (%s)" % key)
-        util.save_oob(self.master, self.jobname, key, value)
-
-class Map(Task):
-    def _run(self):
-        if len(self.inputs) != 1:
-            raise DiscoError("Map takes 1 input, got: %s" % ' '.join(self.inputs))
-
-        if self.save and not self.reduce and self.ispartitioned:
-            raise NotImplementedError("Storing partitioned outputs in DDFS is not yet supported")
-
-        if self.isexternal:
-            external.prepare(self.map, self.ext_params, self.path('ext.map'))
-            self.map = FunctionType(external.ext_map.func_code,
-                                    globals=external.__dict__)
-            self.insert_globals([self.map])
-
-        entries = self.track_status(self, "%s entries mapped")
-        params  = self.params
-        outputs = [MapOutput(self, i)
-                   for i in xrange(max(1, int(self.jobdict['partitions'])))]
-
-        self.init(entries, params)
-        for entry in entries:
-            for k, v in self.map(entry, params):
-                outputs[self.partition(k, len(outputs), params)].add(k, v)
-
-        external.close_ext()
-
-        index, index_url = self.map_index
-
-        f = file(index, 'w')
-        for i, output in enumerate(outputs):
-            print >> f, '%d %s' % (i, output.url)
-            output.close()
-        sync(f)
-        f.close()
-
-        if self.save and not self.reduce:
-            Output([util.ddfs_save(self.blobs, self.jobname, self.master)]).send()
-            status("Results pushed to DDFS")
-        else:
-            Output([index_url]).send()
-
-class MapOutput(object):
-    def __init__(self, task, id):
+class OutputStreamDict(dict):
+    def __init__(self, task):
         self.task = task
-        self.comb_buffer = {}
-        self.fd, self.url, self.fd_list = task.connect_output(id)
 
-    def add(self, key, value):
-        if self.task.combiner:
-            ret = self.task.combiner(key, value,
-                                     self.comb_buffer,
-                                     0,
-                                     self.task.params)
-            if ret:
-                for key, value in ret:
-                    self.fd.add(key, value)
-        else:
-            self.fd.add(key, value)
+    def add(self, id, *record):
+        if id not in self:
+            self[id] = OutputStream(self.task, id)
+        self[id].add(*record)
 
     def close(self):
-        if self.task.combiner:
-            ret = self.task.combiner(None, None,
-                                     self.comb_buffer,
-                                     1,
-                                     self.task.params)
-            if ret:
-                for key, value in ret:
-                    self.fd.add(key, value)
-        self.task.close_output(self.fd_list)
-
-class Reduce(Task):
-    def _run(self):
-        entries = self.track_status(self, "%s entries reduced")
-        red_out, out_url, fd_list = self.connect_output()
-        params = self.params
-
-        if self.isexternal:
-            external.prepare(self.reduce, self.ext_params, self.path('ext.reduce'))
-            self.reduce = FunctionType(external.ext_reduce.func_code,
-                                       globals=external.__dict__)
-            self.insert_globals([self.reduce])
-
-        total_size = sum(size for fd, size, url in self.connected_inputs)
-        status("Input is %s" % (util.format_size(total_size)))
-
-        self.init(entries, params)
-        if util.argcount(self.reduce) < 3:
-            for k, v in self.reduce(entries, *(params, )):
-                red_out.add(k, v)
-        else:
-            self.reduce(entries, red_out, params)
-
-        self.close_output(fd_list)
-        external.close_ext()
-
-        if self.save:
-            Output([util.ddfs_save(self.blobs, self.jobname, self.master)]).send()
-            status("Results pushed to DDFS")
-        else:
-            index, index_url = self.reduce_index
-            f = file(index, 'w')
-            print >> f, '%d %s' % (self.id, out_url)
-            sync(f)
-            f.close()
-            Output([index_url]).send()
-
-    def __iter__(self):
-        if self.sort == 'merge':
-            return self.merge_sorted_entries
-        elif self.sort:
-            return self.sorted_entries
-        return self.entries
-
-    def disk_sort(self, filename):
-        status("Sorting %s..." % filename)
-        try:
-            subprocess.check_call(['sort',
-                                   '-z',
-                                   '-t', '\xff',
-                                   '-k', '1,1',
-                                   '-T', '.',
-                                   '-S', self.sort_buffer_size,
-                                   '-o', filename,
-                                   filename])
-        except subprocess.CalledProcessError, e:
-            raise DataError("Sorting %s failed: %s" % (filename, e), filename)
-        status("Finished sorting")
+        for output in self.values():
+            output.close()
 
     @property
-    def merge_sorted_entries(self):
-        from disco.future import merge
-        return merge(*(fd for fd, size, url in self.connected_inputs))
+    def index(self):
+        return ''.join(output.index for output in self.values())
 
     @property
-    def sorted_entries(self):
-        dlname = self.path('reduce-in-%d.dl' % self.id)
-        status("Downloading %s" % dlname)
-        out_fd = AtomicFile(dlname, 'w')
-        for key, value in self.entries:
-            if not isinstance(key, str):
-                raise ValueError("Keys must be strings for external sort", key)
-            if '\xff' in key or '\x00' in key:
-                raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
-            else:
-                # value pickled using protocol 0 will always be printable ASCII
-                out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
-        out_fd.close()
-        status("Downloaded OK")
-
-        self.disk_sort(dlname)
-        fd, size, url = comm.open_local(dlname)
-        for k, v in func.re_reader("(?s)(.*?)\xff(.*?)\x00", fd, size, url):
-            yield k, cPickle.loads(v)
-
-    @property
-    def params(self):
-        if self.isexternal:
-            return self.ext_params or '0\n'
-        return self.jobdict['params']
-
-    @property
-    def partid(self):
-        if self.ispartitioned or self.jobdict.input_is_partitioned:
-            if not self.jobdict['merge_partitions']:
-                return self.id
+    def paths(self):
+        return util.flatten(output.paths for output in self.values())

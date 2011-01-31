@@ -1,15 +1,12 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 
-import os
+import os, sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'support'))
 
 class RequiredFilesTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs       = ['123']
+    inputs = ['123']
     required_modules = ['extramodule1', 'extramodule2']
-
-    @property
-    def required_files(self):
-        return [os.path.join(self.disco_settings['DISCO_HOME'], 'tests', 'support', module)
-            for module in ('extramodule1.py', 'extramodule2.py')]
 
     def getdata(self, path):
         return '%s\n' % path

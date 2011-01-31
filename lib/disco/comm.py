@@ -98,10 +98,16 @@ def upload(urls, source, token=None, **kwargs):
                         headers=auth_header(token)).read() for url in urls]
     return list(comm_pycurl.upload(urls, source, token, **kwargs))
 
+def open_url(url, *args, **kwargs):
+    from disco.util import schemesplit
+    scheme, url_ = schemesplit(url)
+    if not scheme or scheme == 'file':
+        return open_local(url, *args, **kwargs)
+    return open_remote(url, *args, **kwargs)
+
 def open_local(path):
-    fd = open(path, 'r', BUFFER_SIZE)
-    size = os.stat(path).st_size
-    return fd, size, 'file://%s' % path
+    file = File(path, 'r', BUFFER_SIZE)
+    return file, len(file), file.url
 
 def open_remote(url, token=None):
     conn = Connection(urlresolve(url), token)
@@ -122,6 +128,14 @@ class FileSource(object):
         if self.isopen:
             return StringIO(self.source).read
         return open(self.source, 'r').read
+
+class File(file):
+    def __len__(self):
+        return os.path.getsize(self.name)
+
+    @property
+    def url(self):
+        return 'file://%s' % self.name
 
 class Connection(object):
     def __init__(self, url, token=None):

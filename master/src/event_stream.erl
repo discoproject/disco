@@ -26,7 +26,8 @@ new() ->
     {next_stream, {outside_event, {}}}.
 
 -spec feed(data(), event_stream()) -> event_stream().
-feed(Data, {next_stream, State}) -> handle_state(State, Data).
+feed(Data, {next_stream, State}) ->
+    handle_state(State, Data).
 
 handle_event_header(EventType, _Version, <<" ", ?TIMESTAMP, TagBin/binary>>) ->
     Tags = string:tokens(binary_to_list(TagBin), " "),
@@ -43,7 +44,8 @@ handle_event_header(EventType, _Version, <<" ", Message/binary>>) ->
                    event({EventType,
                           {Year, Month, Day, Hour, Minute, Second},
                           [],
-                          message_buffer:append(Message, Messages)})}};
+                          message_buffer:append(Message, Messages)},
+                         raw)}};
 
 handle_event_header(_EventType, _Version, <<BadMessage/binary>>) ->
     {next_stream, {outside_event, {errline, BadMessage}}}.
@@ -64,7 +66,7 @@ handle_state({outside_event, _StateData}, {noeol, <<BadMessage/binary>>}) ->
 handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData},
              {eol, <<?EVENT_CLOSE>>}) ->
     {next_stream, {outside_event,
-                   event({EventType, Time, Tags, Messages})}};
+                   event({EventType, Time, Tags, Messages}, dencode)}};
 
 handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData},
              {_IsEOL, <<Message/binary>>}) ->
@@ -73,9 +75,9 @@ handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData},
                     message_buffer:append(Message, Messages)}}}.
 
 -spec event({event_type(), gen_time(), [binary()],
-    message_buffer:message_buffer()}) -> outside_event().
-event({EventType, Time, Tags, Messages}) ->
-    case catch finalize_event({EventType, Time, Tags, Messages}) of
+             message_buffer:message_buffer()}, atom()) -> outside_event().
+event({EventType, Time, Tags, Messages}, Encoding) ->
+    case catch finalize_event({EventType, Time, Tags, Messages}, Encoding) of
         {ok, Payload} ->
             {event, {EventType, Time, Tags, Payload}};
         {error, Reason} ->
@@ -87,6 +89,8 @@ event({EventType, Time, Tags, Messages}) ->
     end.
 
 -spec finalize_event({event_type(), gen_time(), [binary()],
-    message_buffer:message_buffer()}) -> {'ok', string()}.
-finalize_event({_EventType, _Time, _Tags, Messages}) ->
-    {ok, dencode:decode(list_to_binary(message_buffer:to_string(Messages)))}.
+                      message_buffer:message_buffer()}, atom()) -> {'ok', string()}.
+finalize_event({_EventType, _Time, _Tags, Messages}, dencode) ->
+    {ok, dencode:decode(list_to_binary(message_buffer:to_string(Messages)))};
+finalize_event({_EventType, _Time, _Tags, Messages}, raw) ->
+    {ok, message_buffer:to_binary(Messages)}.

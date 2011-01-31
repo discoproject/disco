@@ -14,7 +14,7 @@ op('POST', "/disco/job/" ++ _, Req) ->
         case catch job_coordinator:new(Body) of
             {ok, JobName} ->
                 reply({ok, [<<"ok">>, list_to_binary(JobName)]}, Req);
-            {'EXIT', Error} ->
+            Error ->
                 ErrorString = disco:format("could not start job: ~p", [Error]),
                 error_logger:warning_report(ErrorString),
                 reply({ok, [<<"error">>, list_to_binary(ErrorString)]}, Req)

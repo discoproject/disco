@@ -36,29 +36,29 @@ class Status(Event):
 class Message(Event):
     type = 'MSG'
 
-class TaskInfo(Event):
-    type = 'TSK'
-
-class Signal(Event):
-    pass
-
-class AnnouncePID(Signal):
+class AnnouncePID(Event):
     type = 'PID'
 
-class DataUnavailable(Signal):
+class DataUnavailable(Event):
     type = 'DAT'
-
-class WorkerDone(Signal):
-    type = 'END'
-
-class TaskFailed(Signal):
-    type = 'ERR'
 
 class Input(Event):
     type = 'INP'
 
-class Output(Signal):
+class JobFile(Event):
+    type = 'JOB'
+
+class Output(Event):
     type = 'OUT'
+
+class TaskFailed(Event):
+    type = 'ERR'
+
+class TaskInfo(Event):
+    type = 'TSK'
+
+class WorkerDone(Event):
+    type = 'END'
 
 class EventRecord(object):
     type_raw      = r'\*\*<(?P<type>\w+)(?::(?P<version>.{2}))?>'

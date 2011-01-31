@@ -338,50 +338,50 @@ In addition, the library contains the following utility functions:
    Copies *src* to *dst*. Grows *dst* if needed, or allocates a new
    :ctype:`p_entry` if *dst = NULL*.
 """
-import os, os.path, time, struct, marshal
+import os, time, struct, marshal
 from subprocess import Popen, PIPE
 from netstring import decode_netstring_str, encode_netstring_fd
-from disco.util import msg, unpack_files
+from disco.util import msg
 from disco.error import DiscoError
 
 MAX_ITEM_SIZE = 1024**3
 MAX_NUM_OUTPUT = 1000000
 
-proc, in_fd, out_fd = None, None, None
+proc = None
 
 def pack_kv(k, v):
     return struct.pack("I", len(k)) + k +\
            struct.pack("I", len(v)) + v
 
 def unpack_kv():
-    le = struct.unpack("I", out_fd.read(4))[0]
+    le = struct.unpack("I", proc.stdout.read(4))[0]
     if le > MAX_ITEM_SIZE:
         raise DiscoError("External key size exceeded: %d bytes" % le)
-    k = out_fd.read(le)
-    le = struct.unpack("I", out_fd.read(4))[0]
+    k = proc.stdout.read(le)
+    le = struct.unpack("I", proc.stdout.read(4))[0]
     if le > MAX_ITEM_SIZE:
         raise DiscoError("External key size exceeded: %d bytes" % le)
-    v = out_fd.read(le)
+    v = proc.stdout.read(le)
     return k, v
 
-def ext_map(e, params):
+def map(e, params):
     if isinstance(e, basestring):
         k = ""
         v = e
     else:
         k, v = e
-    in_fd.write(pack_kv(k, v))
-    in_fd.flush()
-    num = struct.unpack("I", out_fd.read(4))[0]
+    proc.stdin.write(pack_kv(k, v))
+    proc.stdin.flush()
+    num = struct.unpack("I", proc.stdout.read(4))[0]
     r = [unpack_kv() for i in range(num)]
     return r
 
-def ext_reduce(red_in, red_out, params):
+def reduce(red_in, red_out, params):
     import select
     p = select.poll()
     eof = select.POLLHUP | select.POLLNVAL | select.POLLERR
-    p.register(out_fd, select.POLLIN | eof)
-    p.register(in_fd, select.POLLOUT | eof)
+    p.register(proc.stdout, select.POLLIN | eof)
+    p.register(proc.stdin, select.POLLOUT | eof)
     MAX_NUM_OUTPUT = MAX_NUM_OUTPUT
 
     tt = 0
@@ -391,7 +391,7 @@ def ext_reduce(red_in, red_out, params):
                 raise DiscoError("Pipe to the external process failed")
             elif event & select.POLLIN:
                 num = struct.unpack("I",
-                    out_fd.read(4))[0]
+                    proc.stdout.read(4))[0]
                 if num > MAX_NUM_OUTPUT:
                     raise DiscoError("External output limit "\
                         "exceeded: %d > %d" %\
@@ -402,29 +402,47 @@ def ext_reduce(red_in, red_out, params):
             elif event & select.POLLOUT:
                 try:
                     msg = pack_kv(*red_in.next())
-                    in_fd.write(msg)
-                    in_fd.flush()
+                    proc.stdin.write(msg)
+                    proc.stdin.flush()
                 except StopIteration:
-                    p.unregister(in_fd)
-                    in_fd.close()
+                    p.unregister(proc.stdin)
+                    proc.stdin.close()
             else:
                 return
 
-def prepare(ext_task, params, path):
-    params = encode_netstring_fd(params)\
-        if params and isinstance(params, dict) else "0\n"
-    unpack_files(ext_task, path)
-    open_ext(path + "/op", params)
+def prepare(params, mode):
+    global proc
+    # op -> worker
+    # find required files
+    proc = Popen([os.path.join('ext.%s' % mode, 'op')], stdin=PIPE, stdout=PIPE)
+    if params and isinstance(params, dict):
+        proc.stdin.write(encode_netstring_fd(params))
+    else:
+        proc.stdin.write('0\n')
+    return mode, globals()[mode]
 
-def open_ext(fname, params):
-    # XXX! Run external programs in /data/ dir, not /temp/
-    global proc, in_fd, out_fd
-    proc = Popen([fname], stdin = PIPE, stdout = PIPE)
-    in_fd = proc.stdin
-    out_fd = proc.stdout
-    in_fd.write(params)
-
-def close_ext():
+def close():
     if proc:
         os.kill(proc.pid, 9)
 
+def package(files):
+    """
+    Packages an external program, together with other files it depends
+    on, to be used either as a map or reduce function.
+
+    :param files: a list of paths to files so that the first file points
+                  at the actual executable.
+
+    This example shows how to use an external program, *cmap* that needs a
+    configuration file *cmap.conf*, as the map function::
+
+        disco.new_job(input=["disco://localhost/myjob/file1"],
+                      fun_map=disco.util.external(["/home/john/bin/cmap",
+                                                   "/home/john/cmap.conf"]))
+
+    All files listed in *files* are copied to the same directory so any file
+    hierarchy is lost between the files. For more information, see :ref:`discoext`.
+    """
+    msg = dict((os.path.basename(f), open(f).read()) for f in files[1:])
+    msg['op'] = open(files[0]).read()
+    return msg

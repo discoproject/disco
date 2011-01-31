@@ -14,12 +14,21 @@
 -spec new(binary()) -> {'ok', _}.
 new(JobPack) ->
     Self = self(),
-    spawn_link (fun() -> job_coordinator(Self, JobPack) end),
+    process_flag(trap_exit, true),
+    spawn_link(fun() -> case catch job_coordinator(Self, JobPack) of
+                            ok ->
+                                ok;
+                            Error ->
+                                exit(Error)
+                        end
+               end),
     receive
         {job_submitted, JobName} ->
-            {ok, JobName}
+            {ok, JobName};
+        {'EXIT', _From, Reason} ->
+            throw(Reason)
     after 30000 ->
-            exit("couldn't start a new job in 30s (master busy?)")
+            throw("timed out after 30s (master busy?)")
     end.
 
 job_event(JobName, {EventFormat, Args, Params}) ->
@@ -164,21 +173,21 @@ handle_data_error(Task, Host) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     check_failure_rate(Task, MaxFail),
     spawn_link(fun() ->
-        {A1, A2, A3} = now(),
-        random:seed(A1, A2, A3),
-        T = Task#task.taskblack,
-        C = Task#task.fail_count + 1,
-        S = lists:min([C * ?FAILED_MIN_PAUSE, ?FAILED_MAX_PAUSE]) +
-                random:uniform(?FAILED_PAUSE_RANDOMIZE),
-        event_server:event(
-            Task#task.jobname,
-            "~s:~B Task failed for the ~Bth time. "
-                "Sleeping ~B seconds before retrying.",
-            [Task#task.mode, Task#task.taskid, C, round(S / 1000)],
-            []),
-        timer:sleep(S),
-        submit_task(Task#task{taskblack = [Host|T], fail_count = C})
-    end).
+                       {A1, A2, A3} = now(),
+                       random:seed(A1, A2, A3),
+                       T = Task#task.taskblack,
+                       C = Task#task.fail_count + 1,
+                       S = lists:min([C * ?FAILED_MIN_PAUSE, ?FAILED_MAX_PAUSE]) +
+                           random:uniform(?FAILED_PAUSE_RANDOMIZE),
+                       event_server:event(
+                         Task#task.jobname,
+                         "~s:~B Task failed for the ~Bth time. "
+                         "Sleeping ~B seconds before retrying.",
+                         [Task#task.mode, Task#task.taskid, C, round(S / 1000)],
+                         []),
+                       timer:sleep(S),
+                       submit_task(Task#task{taskblack = [Host|T], fail_count = C})
+               end).
 
 -spec check_failure_rate(task(), non_neg_integer()) -> _.
 check_failure_rate(Task, MaxFail) when Task#task.fail_count + 1 < MaxFail ->
@@ -241,20 +250,21 @@ shuffle(JobName, Mode, DirUrls) ->
 -spec map_input([binary() | [binary()]]) ->
     [{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}].
 map_input(Inputs) ->
-    Prefs = [map_input1(I) || I <- Inputs],
+    Prefs = [case Input of
+                 List when is_list(List) ->
+                     [{I, pref_node(I)} || I <- List];
+                 I ->
+                     [{I, pref_node(I)}]
+             end
+             || Input <- Inputs],
     lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
-
--spec map_input1(binary() | [binary()]) ->
-    [{binary(), nonempty_string() | 'false'}].
-map_input1(Inp) when is_list(Inp) ->
-    [{X, pref_node(X)} || X <- Inp];
-map_input1(Inp) ->
-    [{Inp, pref_node(Inp)}].
 
 -spec reduce_input(nonempty_string(), _, non_neg_integer()) ->
     [{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}].
 reduce_input(JobName, Inputs, NRed) ->
-    V = lists:any(fun erlang:is_list/1, Inputs),
+    V = lists:any(fun (Input) ->
+                          is_list(Input) andalso length(Input) > 1
+                  end, Inputs),
     if V ->
             event_server:event(JobName,
                                "ERROR: Reduce doesn't support redundant inputs", [], []),
@@ -270,11 +280,12 @@ reduce_input(JobName, Inputs, NRed) ->
 % pref_node() suggests a preferred node for a task (one preserving locality)
 % given the url of its input.
 
--spec pref_node(binary() | string()) -> 'false' | nonempty_string().
-pref_node(Url) when is_binary(Url) -> pref_node(binary_to_list(Url));
+-spec pref_node(binary()) -> 'false' | nonempty_string().
 pref_node(Url) ->
-    case re:run(Url ++ "/", "[a-zA-Z0-9]+://(.*?)[/:]",
-        [{capture, all_but_first}]) of
-    nomatch -> false;
-    {match, [{S, L}]} -> string:sub_string(Url, S + 1, S + L)
+    case re:run(Url, "^[a-zA-Z0-9]+://([^/:]*)",
+                [{capture, all_but_first, binary}]) of
+        {match, [Match]} ->
+            binary_to_list(Match);
+        nomatch ->
+            false
     end.

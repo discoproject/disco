@@ -109,11 +109,6 @@ Possible settings for Disco are as follows:
                 Only results explictly saved to DDFS won't be garbage collected.
                 Default is ``100 * 365 * 24 * 60 * 60`` (100 years).
 
-        :envvar:`DISCO_SORT_BUFFER_SIZE`
-                How much memory can be used by external sort. Passed as the '-S'
-                parameter for the Unix `sort` command (see *man sort*). Default
-                is ``10%`` i.e. 10% of the total available memory.
-
         :envvar:`DISCO_WORKER_MAX_MEM`
                 How much memory can be used by worker in total. Worker calls `resource.setrlimit(RLIMIT_AS, limit) <http://docs.python.org/library/resource.html#resource.setrlimit>`_ to set the limit when it starts. Can be either a percentage of total available memory or an exact number of bytes. Note that ``setrlimit`` behaves differently on Linux and Mac OS X, see *man setrlimit* for more information. Default is ``80%`` i.e. 80% of the total available memory.
 
@@ -228,7 +223,6 @@ class DiscoSettings(Settings):
         'DISCO_ROOT':            "os.path.join(DISCO_HOME, 'root')",
         'DISCO_SETTINGS':        "''",
         'DISCO_SETTINGS_FILE':   "guess_settings()",
-        'DISCO_SORT_BUFFER_SIZE':"'10%'",
         'DISCO_WORKER_MAX_MEM':  "'80%'",
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",

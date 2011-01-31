@@ -8,14 +8,14 @@ class ForceLocalTestCase(DiscoJobTestFixture, DiscoTestCase):
     @property
     def input(self):
         return ['http://%s' % node
-            for node, max_workers in self.nodes.iteritems()
-            for x in xrange(max_workers * 2)]
+                for node, max_workers in self.nodes.iteritems()
+                for x in xrange(max_workers * 2)]
 
     def map_input_stream(stream, size, url, params):
         from disco.func import string_input_stream
         from disco.util import urlsplit
         scheme, netloc, path = urlsplit(url)
-        assert netloc == Task.netloc
+        assert netloc.host == Task.host
         return string_input_stream(str(netloc), size, url, params)
     map_input_stream = [map_input_stream]
 
@@ -48,7 +48,7 @@ class ForceRemoteNoNodeTestCase(ForceLocalTestCase):
         from disco.func import string_input_stream
         from disco.util import urlsplit
         scheme, netloc, path = urlsplit(url)
-        assert netloc != Task.netloc
+        assert netloc.host != Task.host
         return string_input_stream(str(netloc), size, url, params)
     map_input_stream = [map_input_stream]
 

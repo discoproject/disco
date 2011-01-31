@@ -1,7 +1,6 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 
 from disco.ddfs import DDFS
-from disco.util import ddfs_name
 
 from cStringIO import StringIO
 
@@ -67,12 +66,12 @@ class DDFSWriteTestCase(DiscoTestCase):
         self.ddfs = DDFS(self.disco_master_url)
 
     def test_chunk(self):
-        from disco.core import RecordIter
+        from disco.core import ClassicIter
         url = 'http://discoproject.org/media/text/chekhov.txt'
         self.ddfs.chunk('disco:test:chunk', [url], chunk_size=100*1024)
         self.assert_(0 < len(list(self.ddfs.blobs('disco:test:chunk'))) <= 4)
-        self.assert_(list(RecordIter(['tag://disco:test:chunk'])),
-                     list(RecordIter([url], reader=None)))
+        self.assert_(list(ClassicIter(['tag://disco:test:chunk'])),
+                     list(ClassicIter([url], reader=None)))
         self.ddfs.delete('disco:test:chunk')
 
     def test_push(self):

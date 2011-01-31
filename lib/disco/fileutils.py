@@ -4,6 +4,7 @@ from cStringIO import StringIO
 from zipfile import ZipFile, ZIP_DEFLATED
 
 from disco.error import DataError
+from disco.util import modulify
 
 MB = 1024**2
 MIN_DISK_SPACE  = 1 * MB
@@ -49,6 +50,10 @@ class DiscoOutput_v0(object):
     def __init__(self, stream):
         self.stream = stream
 
+    @property
+    def path(self):
+        return self.stream.path
+
     def add(self, k, v):
         k, v = str(k), str(v)
         self.stream.write("%d %s %d %s\n" % (len(k), k, len(v), v))
@@ -59,7 +64,7 @@ class DiscoOutput_v0(object):
     def write(self, data):
         self.stream.write(data)
 
-class DiscoOutput_v1(object):
+class DiscoOutput_v1(DiscoOutput_v0):
     def __init__(self, stream,
                  version=None,
                  compression_level=2,
@@ -116,9 +121,6 @@ class DiscoOutput_v1(object):
         self.hunk.write(data)
         self.hunk_size += size
 
-    def write(self, data):
-        self.stream.write(data)
-
 class DiscoOutput(object):
     def __new__(cls, stream, version=-1, **kwargs):
         if version == 0:
@@ -130,11 +132,20 @@ class DiscoZipFile(ZipFile, object):
         self.buffer = StringIO()
         super(DiscoZipFile, self).__init__(self.buffer, 'w', ZIP_DEFLATED)
 
-    def writemodule(self, module, basename='lib'):
-        self.write(module.__file__,
-                   os.path.join(basename, *module.__name__.split('.')))
+    def modulepath(self, module, basename='lib'):
+        module = modulify(module)
+        name, ext = os.path.splitext(module.__file__)
+        modpath = '%s%s' % (os.path.join(*module.__name__.split('.')), ext)
+        return os.path.join(basename, modpath)
 
-    def writepath(self, pathname, basename='files'):
+    def writebytes(self, pathname, bytes, basename=''):
+        self.writestr(os.path.join(basename, pathname.strip('/')), bytes)
+
+    def writemodule(self, module, basename='lib'):
+        module = modulify(module)
+        self.write(module.__file__, self.modulepath(module, basename=basename))
+
+    def writepath(self, pathname, basename=''):
         for file in files(pathname):
             self.write(file, os.path.join(basename, file.strip('/')))
 
@@ -154,7 +165,7 @@ class DiscoZipFile(ZipFile, object):
 
 class AtomicFile(file):
     def __init__(self, path, *args, **kwargs):
-        dir = os.path.dirname(path)
+        dir = os.path.dirname(path) or '.'
         ensure_path(dir)
         ensure_free_space(dir)
         self.path = path
@@ -210,7 +221,9 @@ def ensure_free_space(fname):
         raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
 
 def ismodule(path):
-    return os.path.isfile(path) and path.endswith('.py')
+    if os.path.isfile(path):
+        name, ext = os.path.splitext(path)
+        return ext in ('.py', '.so')
 
 def ispackage(path):
     return os.path.isdir(path) and '__init__.py' in os.listdir(path)

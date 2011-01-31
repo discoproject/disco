@@ -19,11 +19,11 @@ class BlacklistTestCase(DiscoJobTestFixture, DiscoTestCase):
     def map_input_stream(stream, size, url, params):
         from disco.util import urlsplit
         from disco import comm
-        scheme, netloc, path = urlsplit(url)
+        scheme, (host, port), path = urlsplit(url)
         # test that scheduler preserved data locality
-        msg("NODE %s GOT URL %s" % (Task.netloc, url))
-        assert netloc == Task.netloc
-        return comm.open_remote("http://%s/%s" % (path, netloc))
+        msg("NODE %s GOT URL %s" % (Task.host, url))
+        assert host == Task.host
+        return comm.open_remote("http://%s/%s" % (path, host))
     map_input_stream = [map_input_stream]
 
     def map(e, params):

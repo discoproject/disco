@@ -70,6 +70,13 @@ handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, State) ->
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, State) ->
     {stop, {shutdown, {fatal, Message}}, State};
 
+handle_event({event, {<<"JOB">>, _Time, _Tags, _Message}},
+             #state{task = Task} = State) ->
+    event({<<"TSK">>, "Task info requested"}, State),
+    JobHome = jobhome(Task#task.jobname),
+    worker_send(list_to_binary(jobpack:jobfile(JobHome)), State),
+    {noreply, State};
+
 handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, State) ->
     event({"PID", "Child PID is " ++ binary_to_list(ChildPID)}, State),
     worker_send(<<"ok">>, State),
@@ -88,7 +95,7 @@ handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, State) ->
 handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
              #state{task = Task} = State) ->
     event({<<"TSK">>, "Task info requested"}, State),
-    worker_send(dict:from_list([{<<"id">>, Task#task.taskid},
+    worker_send(dict:from_list([{<<"taskid">>, Task#task.taskid},
                                 {<<"mode">>, list_to_binary(Task#task.mode)},
                                 {<<"jobname">>, list_to_binary(Task#task.jobname)},
                                 {<<"host">>, list_to_binary(disco:host(node()))}]), State),
@@ -178,8 +185,11 @@ terminate(_Reason, State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+jobhome(JobName) ->
+    disco:jobhome(JobName, disco_node:home()).
+
 jobhome(JobName, Master) ->
-    JobHome = disco:jobhome(JobName, disco_node:home()),
+    JobHome = jobhome(JobName),
     JobAtom = list_to_atom(disco:hexhash(JobName)),
     case jobpack:extracted(JobHome) of
         true ->

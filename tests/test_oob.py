@@ -38,7 +38,8 @@ class OOBTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map_2(e, params):
-        x = get(e, params.job)
+        from disco.util import load_oob
+        x = load_oob(Task.master, params.job, e)
         assert x == 'value:%s' % e
         return [('good', '')]
 

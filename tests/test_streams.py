@@ -12,12 +12,12 @@ def map_input_stream2(stream, size, url, params):
     fd = cStringIO.StringIO('b' + r)
     return fd, len(r) + 1, url + 'b:%d' % Task.partitions
 
-def reduce_output_stream1(stream, size, url, params):
+def reduce_output_stream1(stream, id, url, params):
     return 'fd', 'url:%d' % Task.partitions
 
-def reduce_output_stream2(stream, size, url, params):
+def reduce_output_stream2(stream, id, url, params):
     assert stream == 'fd' and url == 'url:%d' % Task.partitions
-    path, url = Task.reduce_output
+    path, url = Task.outurls(id)
     return disco.fileutils.AtomicFile(path, 'w'), url.replace('disco://', 'foobar://')
 
 class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):

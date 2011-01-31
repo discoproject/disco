@@ -21,7 +21,7 @@ from disco.comm import upload, download, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
 from disco.util import isiterable, iterify, partition
-from disco.util import urljoin, urlsplit, urlresolve
+from disco.util import urljoin, urlsplit, urlresolve, urltoken
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
@@ -67,9 +67,7 @@ class DDFS(object):
     :param master: address of the master,
                    for instance ``disco://localhost``.
     """
-    def __init__(self, master=None,
-                 proxy=None,
-                 settings=DiscoSettings()):
+    def __init__(self, master=None, proxy=None, settings=DiscoSettings()):
         self.proxy  = proxy or settings['DISCO_PROXY']
         self.master = self.proxy or master or settings['DISCO_MASTER']
         self.settings = settings
@@ -82,6 +80,18 @@ class DDFS(object):
     @classmethod
     def blob_name(cls, url):
         return url.split('/')[-1].split('$')[0]
+
+    @classmethod
+    def job_blob(self, jobname, filename):
+        return 'disco:blob:%s:%s' % (jobname, os.path.basename(filename))
+
+    @classmethod
+    def job_oob(self, jobname):
+        return 'disco:job:oob:%s' % jobname
+
+    @classmethod
+    def job_tag(self, jobname):
+        return 'disco:job:results:%s' % jobname
 
     def attrs(self, tag, token=None):
         """Get a list of the attributes of the tag ``tag`` and their values."""
@@ -253,6 +263,12 @@ class DDFS(object):
                             StringIO(json.dumps(urls)),
                             token=token)
 
+    def save(self, jobname, paths, retries=600):
+        tag = self.job_tag(jobname)
+        blobs = [(p, self.job_blob(jobname, p)) for p in paths]
+        self.push(tag, blobs, retries=retries, delayed=True, update=True)
+        return tag
+
     def setattr(self, tag, attr, val, token=None):
         """Set the value of the attribute ``attr`` of the tag ``tag``."""
         return self._upload(self._tagattr(tag, attr),
@@ -361,11 +377,13 @@ class DDFS(object):
     def _tagattr(self, tag, attr):
         return '%s/%s' % (self._resolve(canonizetag(tag)), attr)
 
-    def _token(self, token, method):
+    def _token(self, url, token, method):
         if token is None:
-            if method == 'GET':
-                return self.settings['DDFS_READ_TOKEN']
-            return self.settings['DDFS_WRITE_TOKEN']
+            token = urltoken(url)
+            if token is None:
+                if method == 'GET':
+                    return self.settings['DDFS_READ_TOKEN']
+                return self.settings['DDFS_WRITE_TOKEN']
         return token
 
     def _resolve(self, url):
@@ -375,9 +393,9 @@ class DDFS(object):
         return json.loads(download(self._resolve(url),
                                    data=data,
                                    method=method,
-                                   token=self._token(token, method)))
+                                   token=self._token(url, token, method)))
 
     def _upload(self, urls, source, token=None, **kwargs):
         urls = [self._resolve(self._maybe_proxy(url, method='PUT'))
                 for url in iterify(urls)]
-        return upload(urls, source, token=self._token(token, 'PUT'), **kwargs)
+        return upload(urls, source, token=self._token(url, token, 'PUT'), **kwargs)

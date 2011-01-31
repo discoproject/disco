@@ -31,6 +31,12 @@ from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.job import Job, JobDict
 from disco.settings import DiscoSettings
 
+from disco.worker.classic.worker import Params # backwards compatibility
+
+class Job(Job):
+    def __init__(self, master, name, **kwargs):
+        super(Job, self).__init__(name, master=master, *kwargs)
+
 class Continue(Exception):
     pass
 
@@ -41,7 +47,7 @@ class Disco(object):
     :param master: address of the Disco master,
                    for instance ``disco://localhost``.
     """
-    def __init__(self, master):
+    def __init__(self, master=DiscoSettings()['DISCO_MASTER']):
         self.master = master
 
     def request(self, url, data=None, offset=0):
@@ -125,7 +131,7 @@ class Disco(object):
         OOB data is stored by the tasks of job *name*,
         using the :func:`disco_worker.put` function.
         """
-        urls = self.ddfs.get(util.ddfs_oobname(name))['urls']
+        urls = self.ddfs.get(self.ddfs.job_oob(name))['urls']
         return list(set(self.ddfs.blob_name(replicas[0])
                         for replicas in urls))
 
@@ -160,14 +166,13 @@ class Disco(object):
 
     def new_job(self, name, **kwargs):
         """
-        Submits a new job request to the master.
+        Submits a new job request to the master using the classic interface.
 
-        This method accepts the same set of keyword args as :meth:`Job.run`.
-        The `master` argument for the :class:`Job` constructor is provided by
-        this method. Returns a :class:`Job` object that corresponds to the
-        newly submitted job request.
+        This method accepts the same set of keyword args as
+        :meth:`disco.worker.classic.job.Job.run`.
+        Returns a :class:`disco.worker.classic.job.Job`.
         """
-        return Job(self, name=name).run(**kwargs)
+        return Job(self, name).run(**kwargs)
 
     def kill(self, name):
         """Kills the job *name*."""
@@ -193,7 +198,7 @@ class Disco(object):
         self.request('/disco/ctrl/purge_job', '"%s"' % name)
 
     def jobdict(self, name):
-        return JobDict.unpack(self.jobpack(name))
+        return JobDict.loads(self.jobpack(name))
 
     def jobpack(self, name):
         return self.request('/disco/ctrl/parameters?name=%s' % name)
@@ -396,7 +401,7 @@ class ChunkIter(object):
 
     def __iter__(self):
         chunker = Chunker(chunk_size=self.chunk_size)
-        for chunk in chunker.chunks(RecordIter([self.url], **self.kwargs)):
+        for chunk in chunker.chunks(ClassicIter([self.url], **self.kwargs)):
             yield chunk
 
 class RecordIter(object):
@@ -407,58 +412,46 @@ class RecordIter(object):
     :param urls: urls of the inputs
                  e.g. as returned by :meth:`Disco.wait`.
 
-    :type  notifier: function
-    :param notifier: called when the iterator moves to the next url::
-
-                      def notifier(url[s]):
-                          ...
-
-                     .. note::
-
-                         notifier argument is a list if urls are replicated.
-
-    :type  reader: :func:`disco.func.input_stream`
-    :param reader: used to read from a custom :func:`disco.func.output_stream`.
+    :type  task: :class:`disco.job.Task`
+    :param task: task used to read the urls
     """
-    def __init__(self, urls,
-                 notifier=func.noop,
-                 reader=func.chain_reader,
-                 input_stream=(func.map_input_stream, ),
-                 params=None,
-                 ddfs=None):
-        from disco.worker.classic.task import Map
-        self.task = Map(jobdict=JobDict(map_input_stream=input_stream,
-                                        map_reader=reader,
-                                        params=params))
+    def __init__(self, task, *urls):
+        self.task = task
         self.urls = urls
-        self.notifier = notifier
-        self.ddfs = ddfs
 
     def __iter__(self):
-        for urls in self.urls:
-            for replicas in util.urllist(urls, ddfs=self.ddfs):
-                self.notifier(replicas)
-                for entry in self.try_replicas(list(util.iterify(replicas))):
-                    yield entry
+        return self.task.read(*self.urls)
 
-    def try_replicas(self, urls, start=0):
-        while urls:
-            try:
-                for entry in self.entries(urls.pop(0), start=start):
-                    yield entry
-                    start += 1
-            except Exception:
-                if not urls:
-                    raise
+class ClassicIter(RecordIter):
+        """
+        A :class:`RecordIter` which uses a dummy classic Disco Map task.
 
-    def entries(self, url, start=0):
-        fd, _size, _url = self.task.connect_input(url)
-        for n, entry in enumerate(fd):
-            if n >= start:
-                yield entry
+        :type  reader: :func:`disco.func.input_stream`
+        :param reader: used to read from a custom :func:`disco.func.output_stream`.
 
-def result_iterator(*args, **kwargs):
-    return RecordIter(*args, **kwargs)
+        :type  notifier: :func:`disco.func.notifier`
+        :param notifier: called when the task opens a url.
+        """
+        def __init__(self, urls,
+                     reader=func.chain_reader,
+                     input_stream=(func.map_input_stream, ),
+                     params=None,
+                     ddfs=None,
+                     settings=DiscoSettings(),
+                     notifier=func.notifier):
+            from disco.worker.classic.task import task
+            from disco.worker.classic.worker import Worker
+            ddfs = ddfs or settings['DISCO_MASTER'],
+            task = task(Worker(settings=DiscoSettings(DISCO_MASTER=ddfs),
+                               map_reader=reader,
+                               map_input_stream=input_stream,
+                               params=params,
+                               notifier=notifier),
+                        JobDict(settings))
+            super(ClassicIter, self).__init__(task, *urls)
+
+def result_iterator(urls, **kwargs):
+    return ClassicIter(urls, **kwargs)
 
 class Stats(object):
     def __init__(self, prof_data):

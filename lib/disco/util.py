@@ -13,19 +13,13 @@ import cPickle, marshal, time, gzip
 import copy_reg, functools
 
 from cStringIO import StringIO
-from collections import defaultdict
-from itertools import groupby, repeat
+from itertools import chain, groupby, repeat
 from types import CodeType, FunctionType
 from urllib import urlencode
 
 from disco.error import DiscoError, DataError, CommError
 from disco.events import Message
 from disco.settings import DiscoSettings
-
-class DefaultDict(defaultdict):
-    """Like a defaultdict, but calls the default_factory with the key argument."""
-    def __missing__(self, key):
-        return self.default_factory(key)
 
 class MessageWriter(object):
     @classmethod
@@ -45,11 +39,22 @@ class netloc(tuple):
             return cls(netlocstr.split(':'))
         return cls((netlocstr, ''))
 
+    @property
+    def host(self):
+        return self[0]
+
+    @property
+    def port(self):
+        return self[1]
+
     def __nonzero__((host, port)):
         return bool(host)
 
     def __str__((host, port)):
         return '%s:%s' % (host, port) if port else host
+
+def chainify(iterable):
+    return list(chain(*iterable))
 
 def flatten(iterable):
     for item in iterable:
@@ -58,6 +63,10 @@ def flatten(iterable):
                 yield subitem
         else:
             yield item
+
+def hexhash(string):
+    from hashlib import md5
+    return md5(string).hexdigest()[:2]
 
 def isiterable(object):
     return hasattr(object, '__iter__')
@@ -90,6 +99,15 @@ def kvgroup(kviter):
 def kvify(entry):
     return entry if iskv(entry) else (entry, None)
 
+def listify(object):
+    return list(iterify(object))
+
+def modulify(module):
+    if isinstance(module, basestring):
+        __import__(module)
+        module = sys.modules[module]
+    return module
+
 def partition(iterable, fn):
     t, f = [], []
     for item in iterable:
@@ -108,6 +126,12 @@ def reify(dotted_name, globals=globals()):
         package, name = dotted_name.rsplit('.', 1)
         return getattr(__import__(package, fromlist=[name]), name)
     return eval(dotted_name, globals)
+
+def shuffled(object):
+    from random import shuffle
+    shuffled = listify(object)
+    shuffle(shuffled)
+    return shuffled
 
 def argcount(object):
     if hasattr(object, 'func_code'):
@@ -133,11 +157,12 @@ if sys.version_info < (3,1):
 def pack(object):
     if hasattr(object, 'func_code'):
         if object.func_closure != None:
-            raise TypeError("Function must not have closures: "\
-                            "%s (try using functools.partial instead)"\
+            raise TypeError("Function must not have closures: "
+                            "%s (try using functools.partial instead)"
                             % object.func_name)
-        defs = [pack(x) for x in object.func_defaults]\
-                    if object.func_defaults else None
+        defs = None
+        if object.func_defaults:
+            defs = [pack(x) for x in object.func_defaults]
         return marshal.dumps((object.func_code, defs))
     if isinstance(object, (list, tuple)):
         object = type(object)(pack(o) for o in object)
@@ -153,22 +178,9 @@ def unpack(string, globals={'__builtins__': __builtins__}):
         try:
             code, defs = marshal.loads(string)
             defs = tuple([unpack(x) for x in defs]) if defs else None
-            return FunctionType(code, globals, argdefs = defs)
+            return FunctionType(code, globals, argdefs=defs)
         except Exception, e:
             raise ValueError("Could not unpack: %s (%s)" % (string, e))
-
-def pack_files(files):
-    return dict((os.path.basename(f), open(f).read()) for f in files)
-
-def unpack_files(filedict, dirname):
-    from disco.fileutils import ensure_path, ensure_file
-    if filedict:
-        ensure_path(dirname)
-    for basename, data in filedict.iteritems():
-        path = os.path.join(dirname, basename)
-        if os.path.dirname(os.path.abspath(path)) != dirname:
-            raise ValueError("Unsafe filename %s" % basename)
-        ensure_file(path, data=data)
 
 def urljoin((scheme, netloc, path)):
     return '%s%s%s' % ('%s://' % scheme if scheme else '',
@@ -198,38 +210,25 @@ def urlsplit(url, localhost=None, settings=DiscoSettings()):
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url, settings=DiscoSettings()):
+    def master((host, port)):
+        if not host:
+            return settings['DISCO_MASTER']
+        if not port:
+            return 'disco://%s' % host
+        return 'http://%s:%s' % (host, port)
     scheme, netloc, path = urlsplit(url)
+    if scheme == 'dir':
+        return urlresolve('%s/%s' % (master(netloc), path))
     if scheme == 'tag':
-        def master((host, port)):
-            if not host:
-                return settings['DISCO_MASTER']
-            if not port:
-                return 'disco://%s' % host
-            return 'http://%s:%s' % (host, port)
         return urlresolve('%s/ddfs/tag/%s' % (master(netloc), path))
     return '%s://%s/%s' % (scheme, netloc, path)
 
-def auth_token(url):
+def urltoken(url):
     _scheme, rest = schemesplit(url)
     locstr, _path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
     if '@' in locstr:
         auth = locstr.split('@', 1)[0]
         return auth.split(':')[1] if ':' in auth else auth
-
-def urllist(url, partid=None, listdirs=True, ddfs=None):
-    from disco.ddfs import DDFS, istag
-    if istag(url):
-        token = auth_token(url)
-        ret = []
-        for name, tags, blobs in DDFS(ddfs).findtags(url, token=token):
-            ret += blobs
-        return ret
-    if isiterable(url):
-        return [list(url)]
-    scheme, netloc, path = urlsplit(url)
-    if scheme == 'dir' and listdirs:
-        return parse_dir(url, partid=partid)
-    return [url]
 
 def msg(message):
     """
@@ -269,47 +268,10 @@ def jobname(address):
     raise DiscoError("Cannot parse jobname from %s" % address)
 
 def external(files):
-    """
-    Packages an external program, together with other files it depends
-    on, to be used either as a map or reduce function.
+    from disco.worker.classic.external import package
+    return package(files)
 
-    :param files: a list of paths to files so that the first file points
-                  at the actual executable.
-
-    This example shows how to use an external program, *cmap* that needs a
-    configuration file *cmap.conf*, as the map function::
-
-        disco.new_job(input=["disco://localhost/myjob/file1"],
-                      fun_map=disco.util.external(["/home/john/bin/cmap",
-                                                   "/home/john/cmap.conf"]))
-
-    All files listed in *files* are copied to the same directory so any file
-    hierarchy is lost between the files. For more information, see :ref:`discoext`.
-    """
-    msg = pack_files(files[1:])
-    msg['op'] = open(files[0]).read()
-    return msg
-
-def proxy_url(path, node='x'):
-    settings = DiscoSettings()
-    port, proxy = settings['DISCO_PORT'], settings['DISCO_PROXY']
-    if proxy:
-        scheme, netloc, x = urlsplit(proxy)
-        return '%s://%s/disco/node/%s/%s' % (scheme, netloc, node, path)
-    return 'http://%s:%s/%s' % (node, port, path)
-
-def read_index(dir_url):
-    from disco.comm import download
-    scheme, netloc, path = urlsplit(dir_url)
-    url = proxy_url(path, netloc)
-    body = StringIO(download(url))
-    if url.endswith(".gz"):
-        body = gzip.GzipFile(fileobj = body)
-    for line in body:
-        id, url = line.split()
-        yield int(id), url
-
-def parse_dir(dir_url, partid=None):
+def parse_dir(dir_url, partition=None):
     """
     Translates a directory URL to a list of normal URLs.
 
@@ -318,38 +280,55 @@ def parse_dir(dir_url, partid=None):
 
     :param dir_url: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
-    return [url for id, url in read_index(dir_url)
-            if partid is None or partid == int(id)]
+    return [url for id, url in read_index(dir_url) if partition in (None, int(id))]
+
+def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
+    if proxy:
+        scheme, (host, port), path = urlsplit(url)
+        return '%s/disco/node/%s/%s' % (proxy, host, path)
+    return url
+
+def read_index(dir_url):
+    from disco.comm import open_url
+    body, size, url = open_url(proxy_url(dir_url))
+    if dir_url.endswith(".gz"):
+        body = gzip.GzipFile(fileobj=body)
+    for line in body:
+        yield line.split()
+
+def ispartitioned(input):
+    if isiterable(input):
+        return all(ispartitioned(i) for i in input) and len(input)
+    return input.startswith('dir://')
+
+def inputexpand(input, partition=None, settings=DiscoSettings()):
+    from disco.ddfs import DDFS, istag
+    if isiterable(input):
+        return [inputlist(*input, partition=partition, settings=settings)]
+    if ispartitioned(input) and partition is not False:
+        return parse_dir(input, partition=partition)
+    if istag(input):
+        ddfs = DDFS(settings=settings)
+        return chainify(blobs for name, tags, blobs in ddfs.findtags(input))
+    return [input]
+
+def inputlist(*inputs, **kwargs):
+    return chainify(inputexpand(input, **kwargs) for input in inputs)
 
 def save_oob(host, name, key, value, ddfs_token=None):
     from disco.ddfs import DDFS
-    DDFS(host).push(ddfs_oobname(name), [(StringIO(value), key)], delayed=True)
+    DDFS(host).push(DDFS.job_oob(name), [(StringIO(value), key)], delayed=True)
 
 def load_oob(host, name, key):
     from disco.ddfs import DDFS
     # NB: this assumes that blobs are listed in LIFO order.
     # We want to return the latest version
-    for fd, sze, url in DDFS(host).pull(ddfs_oobname(name),
+    for fd, sze, url in DDFS(host).pull(DDFS.job_oob(name),
                                         blobfilter=lambda x: x == key):
         return fd.read()
 
-def ddfs_name(jobname):
-    return 'disco:job:results:%s' % jobname
-
-def ddfs_oobname(jobname):
-    return 'disco:job:oob:%s' % jobname
-
-def ddfs_save(blobs, name, master):
-    from disco.ddfs import DDFS
-    ddfs = DDFS(master)
-    blobs = [(blob, ('discoblob:%s:%s' % (name, os.path.basename(blob))))
-             for blob in blobs]
-    tag = ddfs_name(name)
-    ddfs.push(tag, blobs, retries=600, delayed=True, update=True)
-    return "tag://%s" % tag
-
 def format_size(num):
-    for unit in ['bytes','KB','MB','GB','TB']:
+    for unit in [' bytes','KB','MB','GB','TB']:
         if num < 1024.:
             return "%3.1f%s" % (num, unit)
         num /= 1024.
