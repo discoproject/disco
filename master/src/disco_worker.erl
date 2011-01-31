@@ -214,7 +214,7 @@ jobhome(JobName, Master) ->
                                 {'EXIT', noproc} ->
                                     jobhome(JobName, Master);
                                 {'EXIT', JobProc, normal} ->
-                                    JobHome
+                                    jobhome(JobName, Master)
                             end
                     end
             end
