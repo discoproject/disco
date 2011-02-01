@@ -35,7 +35,7 @@ from disco.worker.classic.worker import Params # backwards compatibility
 
 class Job(Job):
     def __init__(self, master, name, **kwargs):
-        super(Job, self).__init__(name, master=master, *kwargs)
+        super(Job, self).__init__(name, master=master, **kwargs)
 
 class Continue(Exception):
     pass

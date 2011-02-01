@@ -265,10 +265,10 @@ class Job(object):
                        'mapresults',
                        'wait')
 
-    def __init__(self, name, master=None, worker=None, settings=DiscoSettings()):
+    def __init__(self, name=None, master=None, worker=None, settings=DiscoSettings()):
         from disco.core import Disco
         from disco.worker.classic.worker import Worker
-        self.name = name
+        self.name = name or type(self).__name__
         self.master = master or Disco()
         self.worker = worker or Worker()
         self.settings = settings
