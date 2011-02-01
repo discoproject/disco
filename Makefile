@@ -69,12 +69,10 @@ clean:
 	- rm -Rf master/tests/*.beam
 	- rm -Rf lib/build
 	- rm -Rf lib/disco.egg-info
-	- rm -Rf node/build
-	- rm -Rf node/disco_node.egg-info
 	- rm -f $(HTML_TARGET)
 	- rm -f doc/conf.py
 
-install: install-master install-lib install-node install-root install-tests
+install: install-master install-lib install-root install-tests
 
 install-ebin:
 	install -d $(TARGETDIR)/ebin $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
@@ -87,9 +85,6 @@ install-master: master install-ebin install-config install-bin
 
 	cp -r master/www $(TARGETDIR)
 	chmod -R u=rwX,g=rX,o=rX $(TARGETDIR)/www
-
-install-node: master install-ebin install-config install-bin
-	install -m 0755 node/disco-worker $(TARGETBIN)
 
 install-bin:
 	install -d $(TARGETBIN)
