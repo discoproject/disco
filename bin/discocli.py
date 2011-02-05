@@ -140,6 +140,7 @@ class Master(Server):
         ebin = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'ebin', d)
         return settings['DISCO_ERLANG'].split() + \
                ['+K', 'true',
+                '+P', '10000000',
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
                 '-sname', self.name,
