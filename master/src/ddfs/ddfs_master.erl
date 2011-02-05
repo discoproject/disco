@@ -150,7 +150,8 @@ handle_info({'DOWN', _, _, Pid, _}, S) ->
         [X || {_, V} = X <- gb_trees:to_list(S#state.tags), V =/= Pid])}}.
 
 % callback stubs
-terminate(_Reason, _State) -> {}.
+terminate(Reason, _State) ->
+    error_logger:warning_report({"DDFS master dies", Reason}).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
