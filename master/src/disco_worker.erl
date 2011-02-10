@@ -118,12 +118,18 @@ handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
     {noreply, State};
 
 handle_event({event, {<<"INP">>, _Time, _Tags, _Message}}, #state{task = Task} = State) ->
-    worker_send("INP", case Task#task.chosen_input of
-                           List when is_list(List) ->
-                               List;
-                           Binary when is_binary(Binary) ->
-                               [Binary]
-                       end, State),
+    % The response structure is:
+    % (more|done, [{integer_id, "ok"|"busy"|"failed", ["url"+]}])
+    % For now, we will always return a non-incremental response:
+    % ('done', [{id, "failed", ["url"+ ]}])
+    Inputs = case Task#task.chosen_input of
+                 Binary when is_binary(Binary) ->
+                     [[0, <<"failed">>, [Binary]]];
+                 List when is_list(List) ->
+                     Enum = lists:seq(0, length(List)-1),
+                     [[I, <<"failed">>, [Url]] || {I,Url} <- lists:zip(Enum, List)]
+             end,
+    worker_send("INP", [<<"done">>, Inputs], State),
     {noreply, State};
 
 % rate limited event
