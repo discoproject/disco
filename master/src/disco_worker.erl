@@ -51,10 +51,11 @@ init({Master, Task}) ->
             results = []},
      60000}.
 
-worker_send(Data, #state{port = Port}) ->
-    Message = dencode:encode(Data),
-    Length = list_to_binary(integer_to_list(size(Message))),
-    port_command(Port, <<Length/binary, "\n", Message/binary, "\n">>).
+worker_send(MsgName, Payload, #state{port = Port}) ->
+    Msg = list_to_binary(MsgName),
+    Data = dencode:encode(Payload),
+    Length = list_to_binary(integer_to_list(size(Data))),
+    port_command(Port, <<Msg/binary, " ", Length/binary, "\n", Data/binary, "\n">>).
 
 event(Event, #state{master = Master, task = Task}) ->
     event_server:task_event(Task, Event, {}, disco:host(node()), {event_server, Master}).
@@ -72,42 +73,57 @@ handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, State) ->
 
 handle_event({event, {<<"JOB">>, _Time, _Tags, _Message}},
              #state{task = Task} = State) ->
-    event({<<"TSK">>, "Task info requested"}, State),
+    event({<<"JOB">>, "Job file requested"}, State),
     JobHome = jobhome(Task#task.jobname),
-    worker_send(list_to_binary(jobpack:jobfile(JobHome)), State),
+    worker_send("JOB", list_to_binary(jobpack:jobfile(JobHome)), State),
+    {noreply, State};
+
+handle_event({event, {<<"VSN">>, _Time, _Tags, ChildVSN}}, State) ->
+    event({"VSN", "Child Version is " ++ binary_to_list(ChildVSN)}, State),
+    worker_send("OK", <<"ok">>, State),
     {noreply, State};
 
 handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, State) ->
     event({"PID", "Child PID is " ++ binary_to_list(ChildPID)}, State),
-    worker_send(<<"ok">>, State),
+    worker_send("OK", <<"ok">>, State),
     {noreply, State#state{child_pid = binary_to_list(ChildPID)}};
+
+handle_event({event, {<<"SET">>, _Time, _Tags, _Message}}, State) ->
+    event({<<"SET">>, "Settings requested"}, State),
+    Port = list_to_integer(disco:get_setting("DISCO_PORT")),
+    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
+    Settings = dict:from_list([{<<"port">>, Port},
+                               {<<"put_port">>, PutPort}]),
+    worker_send("SET", Settings, State),
+    {noreply, State};
 
 handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, State) ->
     event({"OUT", "Results at " ++ Results}, State),
-    worker_send(<<"ok">>, State),
+    worker_send("OK", <<"ok">>, State),
     {noreply, State#state{results = Results}};
 
 handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, State) ->
     event({<<"STA">>, Message}, State),
-    worker_send(<<"ok">>, State),
+    worker_send("OK", <<"ok">>, State),
     {noreply, State};
 
 handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
              #state{task = Task} = State) ->
     event({<<"TSK">>, "Task info requested"}, State),
-    worker_send(dict:from_list([{<<"taskid">>, Task#task.taskid},
-                                {<<"mode">>, list_to_binary(Task#task.mode)},
-                                {<<"jobname">>, list_to_binary(Task#task.jobname)},
-                                {<<"host">>, list_to_binary(disco:host(node()))}]), State),
+    TaskInfo = dict:from_list([{<<"taskid">>, Task#task.taskid},
+                               {<<"mode">>, list_to_binary(Task#task.mode)},
+                               {<<"jobname">>, list_to_binary(Task#task.jobname)},
+                               {<<"host">>, list_to_binary(disco:host(node()))}]),
+    worker_send("TSK", TaskInfo, State),
     {noreply, State};
 
 handle_event({event, {<<"INP">>, _Time, _Tags, _Message}}, #state{task = Task} = State) ->
-    worker_send(case Task#task.chosen_input of
-                    List when is_list(List) ->
-                        List;
-                    Binary when is_binary(Binary) ->
-                        [Binary]
-                end, State),
+    worker_send("INP", case Task#task.chosen_input of
+                           List when is_list(List) ->
+                               List;
+                           Binary when is_binary(Binary) ->
+                               [Binary]
+                       end, State),
     {noreply, State};
 
 % rate limited event
@@ -116,13 +132,13 @@ handle_event({event, {Type, _Time, _Tags, Payload}}, State) ->
     EventGap = timer:now_diff(Now, State#state.last_event),
     if EventGap > ?RATE_WINDOW ->
             event({Type, Payload}, State),
-            worker_send(<<"ok">>, State),
+            worker_send("OK", <<"ok">>, State),
             {noreply, State#state{last_event = Now, event_counter = 1}};
        State#state.event_counter > ?RATE_LIMIT ->
             {stop, {shutdown, {fatal, "Event rate limit exceeded. Too many msg() calls?"}}, State};
        true ->
             event({Type, Payload}, State),
-            worker_send(<<"ok">>, State),
+            worker_send("OK", <<"ok">>, State),
             {noreply, State#state{event_counter = State#state.event_counter + 1}}
     end;
 

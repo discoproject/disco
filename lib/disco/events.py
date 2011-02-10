@@ -20,7 +20,7 @@ class Event(object):
 
     def send(self):
         sys.stderr.write('%s' % self)
-        return loads(sys.stdin.read(int(sys.stdin.readline()) + 1)[:-1])
+        return loads(sys.stdin.read(int(sys.stdin.readline().split()[1]) + 1)[:-1])
 
     def __str__(self):
         tags = ' '.join(tag for tag in self.tags if self.tag_re.match(tag))
