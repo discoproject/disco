@@ -133,6 +133,11 @@ wait_workers(0, _Res, _JobName, _Mode) ->
     throw("Nothing to wait");
 wait_workers(N, Results, _JobName, Mode) ->
     receive
+        {{done, none}, Task, Host} ->
+            event_server:task_event(Task,
+                                    disco:format("Received results (no output) from ~s", [Host]),
+                                    {task_ready, Mode}),
+            {N - 1, Results};
         {{done, Result}, Task, Host} ->
             event_server:task_event(Task,
                                     disco:format("Received results from ~s", [Host]),

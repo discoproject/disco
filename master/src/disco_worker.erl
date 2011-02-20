@@ -21,7 +21,9 @@
                 errlines :: message_buffer:message_buffer(),
                 event_counter :: non_neg_integer(),
                 event_stream :: event_stream:event_stream(),
-                results :: string()}).
+                persisted_output :: 'none' | string(),
+                output_filename :: 'none' | string(),
+                output_file :: 'none' | file:io_device()}).
 
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
@@ -48,7 +50,9 @@ init({Master, Task}) ->
             errlines = message_buffer:new(?ERRLINES_MAX),
             event_counter = 0,
             event_stream = event_stream:new(),
-            results = []},
+            persisted_output = none,
+            output_filename = none,
+            output_file = none},
      60000}.
 
 worker_send(MsgName, Payload, #state{port = Port}) ->
@@ -61,14 +65,17 @@ event(Event, #state{master = Master, task = Task}) ->
     event_server:task_event(Task, Event, {}, disco:host(node()), {event_server, Master}).
 
 handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, State) ->
+    ok = close_output(State),
     {stop, {shutdown, {error, Message}}, State};
 
 handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, State) ->
+    ok = close_output(State),
     Message = "Task finished in " ++ disco:format_time_since(State#state.start_time),
     event({<<"DONE">>, Message}, State),
-    {stop, {shutdown, {done, State#state.results}}, State};
+    {stop, {shutdown, {done, results_url(State)}}, State};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, State) ->
+    ok = close_output(State),
     {stop, {shutdown, {fatal, Message}}, State};
 
 handle_event({event, {<<"JOB">>, _Time, _Tags, _Message}},
@@ -98,9 +105,9 @@ handle_event({event, {<<"SET">>, _Time, _Tags, _Message}}, State) ->
     {noreply, State};
 
 handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, State) ->
-    event({"OUT", "Results at " ++ Results}, State),
-    worker_send("OK", <<"ok">>, State),
-    {noreply, State#state{results = Results}};
+    S = add_output(Results, State),
+    worker_send("OK", <<"ok">>, S),
+    {noreply, S};
 
 handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, State) ->
     event({<<"STA">>, Message}, State),
@@ -241,3 +248,55 @@ jobhome(JobName, Master) ->
                     end
             end
     end.
+
+results_filename(Task) ->
+    TimeStamp = timer:now_diff(now(), {0,0,0}),
+    FileName = io_lib:format("~s-~B-~B.results", [Task#task.mode,
+                                                  Task#task.taskid,
+                                                  TimeStamp]),
+    filename:join(".disco", FileName).
+
+url_path(Task, Host, LocalFile) ->
+    LocationPrefix = disco:joburl(Host, Task#task.jobname),
+    filename:join(LocationPrefix, LocalFile).
+
+results_url(#state{persisted_output = Output}) when Output =/= none ->
+    Output;
+results_url(#state{output_filename = none}) ->
+    none;
+results_url(#state{task = Task, output_filename = FileName}) ->
+    Host = disco:host(node()),
+    io_lib:format("dir://~s/~s",
+                  [Host, url_path(Task, Host, FileName)]).
+
+format_output_line(S, [LocalFile, Type]) ->
+    format_output_line(S, [LocalFile, Type, <<"0">>]);
+format_output_line(#state{task = Task},
+                   [LocalFile, Type, Label]) ->
+    Host = disco:host(node()),
+    io_lib:format("~s ~s://~s/~s\n",
+                  [Label, Type, Host, url_path(Task, Host, LocalFile)]).
+
+-spec add_output(list(), #state{}) -> #state{}.
+add_output([Tag, <<"tag">>], S) ->
+    Result = io_lib:format("tag://~s", [Tag]),
+    S#state{persisted_output = lists:flatten(Result)};
+
+add_output(RL, #state{task = Task, output_file = none} = S) ->
+    ResultsFileName = results_filename(Task),
+    Path = filename:join(jobhome(Task#task.jobname), ResultsFileName),
+    ok = filelib:ensure_dir(Path),
+    {ok, ResultsFile} = prim_file:open(Path, [write, raw]),
+    add_output(RL, S#state{output_filename = ResultsFileName,
+                           output_file = ResultsFile});
+
+add_output(RL, #state{output_file = RF} = S) ->
+    prim_file:write(RF, format_output_line(S, RL)),
+    S.
+
+-spec close_output(#state{}) -> 'ok'.
+close_output(#state{output_file = none}) -> ok;
+close_output(#state{output_file = File}) ->
+    prim_file:close(File),
+    ok.
+

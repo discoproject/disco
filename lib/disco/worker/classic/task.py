@@ -12,7 +12,10 @@ from disco.fileutils import ensure_file, ensure_path, AtomicFile
 
 from disco.worker.classic import external, func
 
-def putout(output):
+def putout(ofile, otype, olabel=None):
+    output = [ofile, otype]
+    if olabel:
+        output.append(str(olabel))
     return Output(output).send()
 
 def status(message):
@@ -54,10 +57,11 @@ class Task(job.Task):
         external.close()
 
         if self.should_save:
-            putout([DDFS(self.master).save(self.jobname, output.paths)])
+            putout(DDFS(self.master).save(self.jobname, output.paths), 'tag')
             status("Results pushed to DDFS")
         else:
-            putout([self.index('%s-index' % self.mode, output)])
+            for path, type, id in output.index:
+                putout(path, type, id)
             status("Wrote index file")
 
     def __getattr__(self, key):
@@ -199,12 +203,12 @@ class Combiner(object):
         return self.combiner(key, val, self.buffer, done, self.params) or ()
 
 class OutputStream(object):
-    def __init__(self, task, id, fd=None, url=None):
+    def __init__(self, task, id, type='disco', fd=None, url=None):
         self.fds = []
         for output_stream in task.output_stream:
             fd, url = output_stream(fd, id, url, task.params)
             self.fds.append(fd)
-        self.id, self.fd, self.url = id, fd, url
+        self.type, self.id, self.fd, self.url = type, id, fd, url
 
     def add(self, *record):
         self.fd.add(*record)
@@ -216,7 +220,11 @@ class OutputStream(object):
 
     @property
     def index(self):
-        return '%s %s\n' % (self.id, self.url)
+        return [(self.fd.path, self.type, self.id)]
+
+    @property
+    def path(self):
+        return self.fd.path
 
     @property
     def paths(self):
@@ -228,7 +236,7 @@ class OutputStreamDict(dict):
 
     def add(self, id, *record):
         if id not in self:
-            self[id] = OutputStream(self.task, id)
+            self[id] = OutputStream(self.task, id, type='part')
         self[id].add(*record)
 
     def close(self):
@@ -237,7 +245,8 @@ class OutputStreamDict(dict):
 
     @property
     def index(self):
-        return ''.join(output.index for output in self.values())
+        for output in self.values():
+            yield (output.path, output.type, output.id)
 
     @property
     def paths(self):
