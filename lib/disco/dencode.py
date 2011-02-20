@@ -8,27 +8,49 @@
 >>> loads(dumps(obj)) == obj
 True
 """
+
 def dumps(object):
+    import cStringIO
+    return dumps2(cStringIO.StringIO(), object).getvalue()
+
+def dumps2(s, object):
     if isinstance(object, (int, long)):
-        return encode_int(object)
+        return encode_int(s, object)
     if isinstance(object, basestring):
-        return encode_bytes(object)
+        return encode_bytes(s, object)
     if isinstance(object, dict):
-        return encode_dict(object)
-    return encode_list(object)
+        return encode_dict(s, object)
+    return encode_list(s, object)
 
-def encode_int(object):
-    return 'i%d\n' % object
+def encode_int(s, object):
+    s.write('i%d\n' % object)
+    return s
 
-def encode_bytes(object):
-    return 'b%d\n%s' % (len(object), object)
+def encode_bytes(s, object):
+    s.write('b%d\n' % len(object))
+    s.write(object)
+    return s
 
-def encode_dict(object):
-    return 'd%s\n' % ','.join('%s,%s' % (dumps(k), dumps(v))
-                             for k, v in sorted(object.items()))
+def encode_dict(s, object):
+    s.write('d')
+    n = len(object)
+    for i, (k,v) in enumerate(sorted(object.items())):
+        dumps2(s, k).write(',')
+        dumps2(s, v)
+        if i+1 != n:
+            s.write(',')
+    s.write('\n')
+    return s
 
-def encode_list(object):
-    return 'l%s\n' % ','.join(dumps(item) for item in object)
+def encode_list(s, object):
+    s.write('l')
+    n = len(object)
+    for i, item in enumerate(object):
+        dumps2(s, item)
+        if i+1 != n:
+            s.write(',')
+    s.write('\n')
+    return s
 
 def loads(string):
     from cStringIO import StringIO
