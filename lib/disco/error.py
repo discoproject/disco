@@ -33,6 +33,15 @@ class JobError(DiscoError):
     def __str__(self):
         return "Job %s/%s failed: %s" % (self.master, self.jobname, self.error)
 
+class JobPackError(DiscoError):
+    """An error caused by encountering a job packet in an invalid format.
+    """
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return "Invalid jobpack (%s)" % self.msg
+
 class DataError(DiscoError):
     """
     An error caused by an inability to access a data resource.

@@ -42,7 +42,7 @@ exists(JobHome) ->
     filelib:is_file(jobfile(JobHome)).
 
 extract(JobPack, JobHome) ->
-    JobHomeZip = find(<<"jobhome">>, jobdict(JobPack)),
+    JobHomeZip = jobhomezip(JobPack),
     case zip:extract(JobHomeZip, [{cwd, JobHome}]) of
         {ok, Files} ->
             prim_file:write_file(filename:join(JobHome, ".jobhome"), <<"">>),
@@ -96,7 +96,16 @@ jobinfo(JobDict) ->
               force_remote = find_bool(<<"force_remote">>, Scheduler)}}.
 
 jobdict(JobPack) ->
-    dencode:decode(JobPack).
+    <<_Magic:32/big, JDOfs:32/big, JHOfs:32/big, _/binary>> = JobPack,
+    JDLen = JHOfs - JDOfs,
+    <<_:JDOfs/bytes, JobDict:JDLen/bytes, _/binary>> = JobPack,
+    dencode:decode(JobDict).
+
+jobhomezip(JobPack) ->
+    <<_Magic:32/big, _JDOfs:32/big, JHOfs:32/big, WDOfs:32/big, _/binary>> = JobPack,
+    JHLen = WDOfs - JHOfs,
+    <<_:JHOfs/bytes, JobHomeZip:JHLen/bytes, _/binary>> = JobPack,
+    JobHomeZip.
 
 validate_prefix(Prefix) when is_binary(Prefix)->
     validate_prefix(binary_to_list(Prefix));
