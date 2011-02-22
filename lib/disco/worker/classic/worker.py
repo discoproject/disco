@@ -461,9 +461,9 @@ class Worker(dict):
         check_len(jd_len, "Invalid job dict size")
         check_len(jh_len, "Invalid job home size")
 
-        pad = jobfile.read(JOBPACK_HDR_SIZE - toc_size)
+        jobfile.seek(JOBPACK_HDR_SIZE - toc_size, os.SEEK_CUR)
         jd = jobfile.read(jd_len)
-        jh = jobfile.read(jh_len)
+        jobfile.seek(jh_len, os.SEEK_CUR)
         wd = jobfile.read(wd_len)
         return JobDict.loads(jd), cls.loads(wd)
 
