@@ -37,7 +37,7 @@ init({Master, Task}) ->
     erlang:monitor(process, Task#task.from),
     WorkerPid = self(),
     spawn(fun () ->
-                  WorkerPid ! {work, jobhome(Task#task.jobname, Master)}
+                  WorkerPid ! {work, make_jobhome(Task#task.jobname, Master)}
           end),
     {ok,
      #state{master = Master,
@@ -217,35 +217,37 @@ code_change(_OldVsn, State, _Extra) ->
 jobhome(JobName) ->
     disco:jobhome(JobName, disco_node:home()).
 
-jobhome(JobName, Master) ->
+make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
-    JobAtom = list_to_atom(disco:hexhash(JobName)),
     case jobpack:extracted(JobHome) of
+        true -> JobHome;
+        false -> make_jobhome(JobName, JobHome, Master)
+    end.
+make_jobhome(JobName, JobHome, Master) ->
+    JobAtom = list_to_atom(disco:hexhash(JobName)),
+    case catch register(JobAtom, self()) of
         true ->
+            disco:make_dir(JobHome),
+            JobPack = gen_server:call({disco_server, Master},
+                                      {jobpack, JobName}),
+            jobpack:save(JobPack, JobHome),
+            jobpack:extract(JobPack, JobHome),
             JobHome;
-        false ->
-            case catch register(JobAtom, self()) of
-                true ->
-                    disco:make_dir(JobHome),
-                    JobPack = gen_server:call({disco_server, Master},
-                                              {jobpack, JobName}),
-                    jobpack:save(JobPack, JobHome),
-                    jobpack:extract(JobPack, JobHome),
-                    JobHome;
-                _Else ->
-                    case whereis(JobAtom) of
-                        undefined ->
-                            jobhome(JobName, Master);
-                        JobProc ->
-                            process_flag(trap_exit, true),
-                            link(JobProc),
-                            receive
-                                {'EXIT', noproc} ->
-                                    jobhome(JobName, Master);
-                                {'EXIT', JobProc, normal} ->
-                                    jobhome(JobName, Master)
-                            end
-                    end
+        _Else ->
+            wait_for_jobhome(JobAtom, JobName, Master)
+    end.
+wait_for_jobhome(JobAtom, JobName, Master) ->
+    case whereis(JobAtom) of
+        undefined ->
+            make_jobhome(JobName, Master);
+        JobProc ->
+            process_flag(trap_exit, true),
+            link(JobProc),
+            receive
+                {'EXIT', noproc} ->
+                    make_jobhome(JobName, Master);
+                {'EXIT', JobProc, normal} ->
+                    make_jobhome(JobName, Master)
             end
     end.
 
