@@ -305,7 +305,7 @@ from disco.worker.classic.func import * # XXX: hack so func fns dont need to imp
 # WorkerDict (parameters for worker only)
 # WorkerData (data for worker only)
 
-JOBPACK_FMT_MAGIC = 0xd5c0*256 + 0x0001
+JOBPACK_FMT_MAGIC = (0xd5c0 << 16) + 0x0001
 JOBPACK_HDR_FMT = "IIIII"
 JOBPACK_HDR_SIZE = 128
 
