@@ -15,12 +15,17 @@
 new(JobPack) ->
     Self = self(),
     process_flag(trap_exit, true),
-    spawn_link(fun() -> case catch job_coordinator(Self, JobPack) of
-                            ok ->
-                                ok;
-                            Error ->
-                                exit(Error)
-                        end
+    spawn_link(fun() ->
+                   case jobpack:validate(JobPack) of
+                       false -> exit(invalid_jobpacket);
+                       true ->  ok
+                   end,
+                   case catch job_coordinator(Self, JobPack) of
+                       ok ->
+                           ok;
+                       Error ->
+                           exit(Error)
+                   end
                end),
     receive
         {job_submitted, JobName} ->
