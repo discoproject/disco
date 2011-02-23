@@ -138,17 +138,12 @@ wait_workers(0, _Res, _JobName, _Mode) ->
     throw("Nothing to wait");
 wait_workers(N, Results, _JobName, Mode) ->
     receive
-        {{done, none}, Task, Host} ->
-            event_server:task_event(Task,
-                                    disco:format("Received results (no output) from ~s", [Host]),
-                                    {task_ready, Mode}),
-            {N - 1, Results};
-        {{done, Result}, Task, Host} ->
+        {{done, TaskResults}, Task, Host} ->
             event_server:task_event(Task,
                                     disco:format("Received results from ~s", [Host]),
                                     {task_ready, Mode}),
             {N - 1, gb_trees:enter(Task#task.taskid,
-                                   {disco:slave_node(Host), list_to_binary(Result)},
+                                   {disco:slave_node(Host), TaskResults},
                                    Results)};
         {{error, Error}, Task, Host} ->
             event_server:task_event(Task, {<<"WARN">>, Error}, {task_failed, Task#task.mode}),
@@ -236,16 +231,15 @@ run_task(Inputs, Mode, JobName, Job) ->
 
 run_task_do(Inputs, Mode, JobName, Job) ->
     {ok, Results} = work(Inputs, Mode, JobName, 0, Job, gb_trees:empty()),
-    % if save=True, tasks output tag:// urls, not dir://.
-    % We don't need to shuffle tags.
-    Fun = fun ({_, <<"dir://", _/binary>>}) ->
-                  true;
-              (_) ->
-                  false
+    Fun = fun ({_Node, {none, GResults}}, {Local, Global}) ->
+                  {Local, GResults ++ Global};
+              ({Node, {LResult, GResults}}, {Local, Global}) ->
+                  {[{Node, LResult} | Local], GResults ++ Global}
           end,
-    {DirUrls, Others} = lists:partition(Fun, gb_trees:values(Results)),
-    {ok, Combined} = shuffle(JobName, Mode, DirUrls),
-    {ok, lists:usort(([Url || {_Node, Url} <- Others])) ++ Combined}.
+    {LResults, GResults} = lists:foldl(Fun, {[], []}, gb_trees:values(Results)),
+    % Only local results need to be shuffled.
+    {ok, Combined} = shuffle(JobName, Mode, LResults),
+    {ok, lists:usort(GResults ++ Combined)}.
 
 shuffle(_JobName, _Mode, []) ->
     {ok, []};

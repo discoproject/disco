@@ -21,7 +21,7 @@
                 errlines :: message_buffer:message_buffer(),
                 event_counter :: non_neg_integer(),
                 event_stream :: event_stream:event_stream(),
-                persisted_output :: 'none' | string(),
+                persisted_outputs :: [string()],
                 output_filename :: 'none' | string(),
                 output_file :: 'none' | file:io_device()}).
 
@@ -50,7 +50,7 @@ init({Master, Task}) ->
             errlines = message_buffer:new(?ERRLINES_MAX),
             event_counter = 0,
             event_stream = event_stream:new(),
-            persisted_output = none,
+            persisted_outputs = [],
             output_filename = none,
             output_file = none},
      60000}.
@@ -72,7 +72,7 @@ handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, State) ->
     ok = close_output(State),
     Message = "Task finished in " ++ disco:format_time_since(State#state.start_time),
     event({<<"DONE">>, Message}, State),
-    {stop, {shutdown, {done, results_url(State)}}, State};
+    {stop, {shutdown, {done, results(State)}}, State};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, State) ->
     ok = close_output(State),
@@ -262,14 +262,17 @@ url_path(Task, Host, LocalFile) ->
     LocationPrefix = disco:joburl(Host, Task#task.jobname),
     filename:join(LocationPrefix, LocalFile).
 
-results_url(#state{persisted_output = Output}) when Output =/= none ->
-    Output;
-results_url(#state{output_filename = none}) ->
-    none;
-results_url(#state{task = Task, output_filename = FileName}) ->
+local_results(Task, FileName) ->
     Host = disco:host(node()),
-    io_lib:format("dir://~s/~s",
-                  [Host, url_path(Task, Host, FileName)]).
+    Output = io_lib:format("dir://~s/~s",
+                           [Host, url_path(Task, Host, FileName)]),
+    list_to_binary(Output).
+
+results(#state{output_filename = none, persisted_outputs = Outputs}) ->
+    {none, Outputs};
+results(#state{output_filename = FileName, task = Task,
+               persisted_outputs = Outputs}) ->
+    {local_results(Task, FileName), Outputs}.
 
 format_output_line(S, [LocalFile, Type]) ->
     format_output_line(S, [LocalFile, Type, <<"0">>]);
@@ -281,8 +284,9 @@ format_output_line(#state{task = Task},
 
 -spec add_output(list(), #state{}) -> #state{}.
 add_output([Tag, <<"tag">>], S) ->
-    Result = io_lib:format("tag://~s", [Tag]),
-    S#state{persisted_output = lists:flatten(Result)};
+    Result = list_to_binary(io_lib:format("tag://~s", [Tag])),
+    Outputs = [Result | S#state.persisted_outputs],
+    S#state{persisted_outputs = Outputs};
 
 add_output(RL, #state{task = Task, output_file = none} = S) ->
     ResultsFileName = results_filename(Task),
@@ -301,4 +305,3 @@ close_output(#state{output_file = none}) -> ok;
 close_output(#state{output_file = File}) ->
     prim_file:close(File),
     ok.
-
