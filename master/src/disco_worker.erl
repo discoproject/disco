@@ -277,8 +277,9 @@ results(#state{output_filename = FileName, task = Task,
 format_output_line(S, [LocalFile, Type]) ->
     format_output_line(S, [LocalFile, Type, <<"0">>]);
 format_output_line(#state{task = Task},
-                   [LocalFile, Type, Label]) ->
+                   [BLocalFile, Type, Label]) ->
     Host = disco:host(node()),
+    LocalFile = binary_to_list(BLocalFile),
     io_lib:format("~s ~s://~s/~s\n",
                   [Label, Type, Host, url_path(Task, Host, LocalFile)]).
 
