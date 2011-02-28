@@ -228,8 +228,7 @@ make_jobhome(JobName, JobHome, Master) ->
     case catch register(JobAtom, self()) of
         true ->
             disco:make_dir(JobHome),
-            JobPack = gen_server:call({disco_server, Master},
-                                      {jobpack, JobName}),
+            JobPack = disco_server:get_worker_jobpack(Master, JobName),
             jobpack:save(JobPack, JobHome),
             jobpack:extract(JobPack, JobHome),
             JobHome;

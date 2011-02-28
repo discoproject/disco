@@ -1,7 +1,7 @@
 -module(disco_node).
 -behaviour(gen_server).
 
--export([home/0, spawn_node/1, start_node/1]).
+-export([home/0, spawn_node/1, start_node/1, start_worker/3]).
 -export([init/1,
          handle_call/3,
          handle_cast/2,
@@ -36,6 +36,9 @@ start_node(Master) ->
         {'EXIT', _From, Reason} ->
             exit(Reason)
     end.
+
+start_worker(Slave, Manager, Task) ->
+    gen_server:cast({?MODULE, Slave}, {start_worker, Manager, Task}).
 
 init(Master) ->
     process_flag(trap_exit, true),

@@ -54,7 +54,7 @@ handle_cast(start_slave, #state{host = Host} = State) ->
     {noreply, State#state{slave = Slave}}.
 
 handle_call({start_worker, Task}, From, #state{slave = Slave} = State) ->
-    gen_server:cast({disco_node, Slave}, {start_worker, From, Task}),
+    disco_node:start_worker(Slave, From, Task),
     {noreply, State}.
 
 handle_info(nodedown, #state{slave = Slave} = State) ->

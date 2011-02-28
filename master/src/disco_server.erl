@@ -11,6 +11,7 @@
          kill_job/2,
          purge_job/1,
          clean_job/1,
+         get_worker_jobpack/2,
          new_task/2,
          connection_status/2,
          blacklist/2]).
@@ -106,6 +107,11 @@ connection_status(Node, Status) ->
 -spec blacklist(nonempty_string(), bool()) -> 'ok'.
 blacklist(Node, True) ->
     gen_server:call(?MODULE, {blacklist, Node, True}).
+
+% called from remote nodes
+-spec get_worker_jobpack(pid(), nonempty_string()) -> binary().
+get_worker_jobpack(Master, JobName) ->
+    gen_server:call({?MODULE, Master}, {jobpack, JobName}).
 
 %% ===================================================================
 %% gen_server callbacks
