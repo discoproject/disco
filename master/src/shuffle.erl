@@ -95,8 +95,10 @@ process_task(DirUrl, DataRoot, PartInfo) ->
 % i.e. potentially millions of times for a job. Be careful when making
 % any changes to it. Especially measure the performance impact of your
 % changes!
-process_url([Id, <<"part://", _/binary>> = Url], DataRoot, {PartPath, PartUrl}) ->
-    PartFile = ["part-", Id],
+process_url([Id, <<"part://", _/binary>> = Url],
+            DataRoot,
+            {PartPath, PartUrl}) ->
+    PartFile = ["part-", binary_to_list(Id)],
     PartSrc = [DataRoot, "/", disco:disco_url_path(Url)],
     PartDst = [PartPath, "/", PartFile],
     ok = ddfs_util:concatenate(PartSrc, PartDst),
