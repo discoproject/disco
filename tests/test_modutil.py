@@ -45,8 +45,8 @@ class ModUtilLocalTestCase(DiscoTestCase):
 
     def test_recursive(self):
         self.assertFindsModules([recursive_module],
-                                [('mod1', os.path.join(self.support, 'mod1.py')),
-                                 ('mod2', os.path.join(self.support, 'mod2.py'))],
+                                [('mod1', os.path.normpath(os.path.join(self.support, 'mod1.py'))),
+                                 ('mod2', os.path.normpath(os.path.join(self.support, 'mod2.py')))],
                                 send_modules=True)
 
     def test_norecursive(self):

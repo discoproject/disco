@@ -14,6 +14,7 @@
          hexhash/1,
          jobhome/1,
          jobhome/2,
+         joburl/2,
          data_root/1,
          data_path/2,
          debug_flags/1,
@@ -100,6 +101,9 @@ jobhome(JobName) ->
 
 jobhome(JobName, Root) ->
     filename:join([Root, hexhash(JobName), JobName]).
+
+joburl(Host, JobName) ->
+    filename:join(["disco", Host, hexhash(JobName), JobName]).
 
 data_root(Node) when is_atom(Node) ->
     data_root(host(Node));

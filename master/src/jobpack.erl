@@ -6,10 +6,12 @@
          extracted/1,
          read/1,
          save/2,
-         jobdict/1,
+         validate/1,
          jobinfo/1]).
 
 -include("disco.hrl").
+
+-define(JOBPACK_HDR_SIZE, 128).
 
 find(Key, Dict) ->
     case catch dict:find(Key, Dict) of
@@ -42,7 +44,7 @@ exists(JobHome) ->
     filelib:is_file(jobfile(JobHome)).
 
 extract(JobPack, JobHome) ->
-    JobHomeZip = find(<<"jobhome">>, jobdict(JobPack)),
+    JobHomeZip = jobhomezip(JobPack),
     case zip:extract(JobHomeZip, [{cwd, JobHome}]) of
         {ok, Files} ->
             prim_file:write_file(filename:join(JobHome, ".jobhome"), <<"">>),
@@ -95,8 +97,27 @@ jobinfo(JobDict) ->
               force_local = find_bool(<<"force_local">>, Scheduler),
               force_remote = find_bool(<<"force_remote">>, Scheduler)}}.
 
+validate(JobPack) when size(JobPack) < ?JOBPACK_HDR_SIZE -> false;
+validate(<<M:32/big, _/binary>>) when M =/= 16#d5c00001 -> false;
+validate(<<_M:32/big, JD:32/big, JH:32/big, WD:32/big, _/binary>>)
+  when JD < ?JOBPACK_HDR_SIZE; JH < JD; WD < JH -> false;
+validate(JobPack) ->
+    case zip:table(jobhomezip(JobPack)) of
+        {ok, _} -> true;  % Not quite enough; it would be nice to validate jobdict here as well.
+        {error, _} -> false
+    end.
+
 jobdict(JobPack) ->
-    dencode:decode(JobPack).
+    <<_Magic:32/big, JDOfs:32/big, JHOfs:32/big, _/binary>> = JobPack,
+    JDLen = JHOfs - JDOfs,
+    <<_:JDOfs/bytes, JobDict:JDLen/bytes, _/binary>> = JobPack,
+    dencode:decode(JobDict).
+
+jobhomezip(JobPack) ->
+    <<_Magic:32/big, _JDOfs:32/big, JHOfs:32/big, WDOfs:32/big, _/binary>> = JobPack,
+    JHLen = WDOfs - JHOfs,
+    <<_:JHOfs/bytes, JobHomeZip:JHLen/bytes, _/binary>> = JobPack,
+    JobHomeZip.
 
 validate_prefix(Prefix) when is_binary(Prefix)->
     validate_prefix(binary_to_list(Prefix));

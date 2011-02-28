@@ -53,15 +53,17 @@ combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     process_flag(priority, low),
     Host = disco:host(node()),
     JobHome = disco:jobhome(JobName, filename:join([DataRoot, Host])),
+    ResultsHome = filename:join(JobHome, ".disco"),
     JobLink = disco:jobhome(JobName, filename:join([Host, "disco", Host])),
+    ResultsLink = filename:join(JobLink, ".disco"),
 
     PartDir = ["partitions-", ddfs_util:timestamp()],
-    PartPath = filename:join(JobHome, PartDir),
-    PartUrl = ["disco://", JobLink, "/", PartDir],
+    PartPath = filename:join(ResultsHome, PartDir),
+    PartUrl = ["disco://", ResultsLink, "/", PartDir],
 
     IndexFile = [Mode, "-index.txt.gz"],
-    IndexPath = filename:join(JobHome, IndexFile),
-    IndexUrl = ["dir://", JobLink, "/", IndexFile],
+    IndexPath = filename:join(ResultsHome, IndexFile),
+    IndexUrl = ["dir://", ResultsLink, "/", IndexFile],
 
     prim_file:make_dir(PartPath),
     Index = merged_index(DirUrls, DataRoot, {PartPath, PartUrl}),
@@ -93,8 +95,10 @@ process_task(DirUrl, DataRoot, PartInfo) ->
 % i.e. potentially millions of times for a job. Be careful when making
 % any changes to it. Especially measure the performance impact of your
 % changes!
-process_url([Id, <<"part://", _/binary>> = Url], DataRoot, {PartPath, PartUrl}) ->
-    PartFile = ["part-", Id],
+process_url([Id, <<"part://", _/binary>> = Url],
+            DataRoot,
+            {PartPath, PartUrl}) ->
+    PartFile = ["part-", binary_to_list(Id)],
     PartSrc = [DataRoot, "/", disco:disco_url_path(Url)],
     PartDst = [PartPath, "/", PartFile],
     ok = ddfs_util:concatenate(PartSrc, PartDst),

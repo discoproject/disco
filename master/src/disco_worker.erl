@@ -21,7 +21,9 @@
                 errlines :: message_buffer:message_buffer(),
                 event_counter :: non_neg_integer(),
                 event_stream :: event_stream:event_stream(),
-                results :: string()}).
+                persisted_outputs :: [string()],
+                output_filename :: 'none' | string(),
+                output_file :: 'none' | file:io_device()}).
 
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
@@ -35,7 +37,7 @@ init({Master, Task}) ->
     erlang:monitor(process, Task#task.from),
     WorkerPid = self(),
     spawn(fun () ->
-                  WorkerPid ! {work, jobhome(Task#task.jobname, Master)}
+                  WorkerPid ! {work, make_jobhome(Task#task.jobname, Master)}
           end),
     {ok,
      #state{master = Master,
@@ -48,66 +50,93 @@ init({Master, Task}) ->
             errlines = message_buffer:new(?ERRLINES_MAX),
             event_counter = 0,
             event_stream = event_stream:new(),
-            results = []},
+            persisted_outputs = [],
+            output_filename = none,
+            output_file = none},
      60000}.
 
-worker_send(Data, #state{port = Port}) ->
-    Message = dencode:encode(Data),
-    Length = list_to_binary(integer_to_list(size(Message))),
-    port_command(Port, <<Length/binary, "\n", Message/binary, "\n">>).
+worker_send(MsgName, Payload, #state{port = Port}) ->
+    Msg = list_to_binary(MsgName),
+    Data = dencode:encode(Payload),
+    Length = list_to_binary(integer_to_list(size(Data))),
+    port_command(Port, <<Msg/binary, " ", Length/binary, "\n", Data/binary, "\n">>).
 
 event(Event, #state{master = Master, task = Task}) ->
     event_server:task_event(Task, Event, {}, disco:host(node()), {event_server, Master}).
 
 handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, State) ->
+    ok = close_output(State),
     {stop, {shutdown, {error, Message}}, State};
 
 handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, State) ->
+    ok = close_output(State),
     Message = "Task finished in " ++ disco:format_time_since(State#state.start_time),
     event({<<"DONE">>, Message}, State),
-    {stop, {shutdown, {done, State#state.results}}, State};
+    {stop, {shutdown, {done, results(State)}}, State};
 
 handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, State) ->
+    ok = close_output(State),
     {stop, {shutdown, {fatal, Message}}, State};
 
 handle_event({event, {<<"JOB">>, _Time, _Tags, _Message}},
              #state{task = Task} = State) ->
-    event({<<"TSK">>, "Task info requested"}, State),
+    event({<<"JOB">>, "Job file requested"}, State),
     JobHome = jobhome(Task#task.jobname),
-    worker_send(list_to_binary(jobpack:jobfile(JobHome)), State),
+    worker_send("JOB", list_to_binary(jobpack:jobfile(JobHome)), State),
+    {noreply, State};
+
+handle_event({event, {<<"VSN">>, _Time, _Tags, ChildVSN}}, State) ->
+    event({"VSN", "Child Version is " ++ binary_to_list(ChildVSN)}, State),
+    worker_send("OK", <<"ok">>, State),
     {noreply, State};
 
 handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, State) ->
     event({"PID", "Child PID is " ++ binary_to_list(ChildPID)}, State),
-    worker_send(<<"ok">>, State),
+    worker_send("OK", <<"ok">>, State),
     {noreply, State#state{child_pid = binary_to_list(ChildPID)}};
 
+handle_event({event, {<<"SET">>, _Time, _Tags, _Message}}, State) ->
+    event({<<"SET">>, "Settings requested"}, State),
+    Port = list_to_integer(disco:get_setting("DISCO_PORT")),
+    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
+    Settings = dict:from_list([{<<"port">>, Port},
+                               {<<"put_port">>, PutPort}]),
+    worker_send("SET", Settings, State),
+    {noreply, State};
+
 handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, State) ->
-    event({"OUT", "Results at " ++ Results}, State),
-    worker_send(<<"ok">>, State),
-    {noreply, State#state{results = Results}};
+    S = add_output(Results, State),
+    worker_send("OK", <<"ok">>, S),
+    {noreply, S};
 
 handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, State) ->
     event({<<"STA">>, Message}, State),
-    worker_send(<<"ok">>, State),
+    worker_send("OK", <<"ok">>, State),
     {noreply, State};
 
 handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
              #state{task = Task} = State) ->
     event({<<"TSK">>, "Task info requested"}, State),
-    worker_send(dict:from_list([{<<"taskid">>, Task#task.taskid},
-                                {<<"mode">>, list_to_binary(Task#task.mode)},
-                                {<<"jobname">>, list_to_binary(Task#task.jobname)},
-                                {<<"host">>, list_to_binary(disco:host(node()))}]), State),
+    TaskInfo = dict:from_list([{<<"taskid">>, Task#task.taskid},
+                               {<<"mode">>, list_to_binary(Task#task.mode)},
+                               {<<"jobname">>, list_to_binary(Task#task.jobname)},
+                               {<<"host">>, list_to_binary(disco:host(node()))}]),
+    worker_send("TSK", TaskInfo, State),
     {noreply, State};
 
 handle_event({event, {<<"INP">>, _Time, _Tags, _Message}}, #state{task = Task} = State) ->
-    worker_send(case Task#task.chosen_input of
-                    List when is_list(List) ->
-                        List;
-                    Binary when is_binary(Binary) ->
-                        [Binary]
-                end, State),
+    % The response structure is:
+    % (more|done, [{integer_id, "ok"|"busy"|"failed", ["url"+]}])
+    % For now, we will always return a non-incremental response:
+    % ('done', [{id, "failed", ["url"+ ]}])
+    Inputs = case Task#task.chosen_input of
+                 Binary when is_binary(Binary) ->
+                     [[0, <<"failed">>, [Binary]]];
+                 List when is_list(List) ->
+                     Enum = lists:seq(0, length(List)-1),
+                     [[I, <<"failed">>, [Url]] || {I,Url} <- lists:zip(Enum, List)]
+             end,
+    worker_send("INP", [<<"done">>, Inputs], State),
     {noreply, State};
 
 % rate limited event
@@ -116,13 +145,13 @@ handle_event({event, {Type, _Time, _Tags, Payload}}, State) ->
     EventGap = timer:now_diff(Now, State#state.last_event),
     if EventGap > ?RATE_WINDOW ->
             event({Type, Payload}, State),
-            worker_send(<<"ok">>, State),
+            worker_send("OK", <<"ok">>, State),
             {noreply, State#state{last_event = Now, event_counter = 1}};
        State#state.event_counter > ?RATE_LIMIT ->
             {stop, {shutdown, {fatal, "Event rate limit exceeded. Too many msg() calls?"}}, State};
        true ->
             event({Type, Payload}, State),
-            worker_send(<<"ok">>, State),
+            worker_send("OK", <<"ok">>, State),
             {noreply, State#state{event_counter = State#state.event_counter + 1}}
     end;
 
@@ -188,34 +217,92 @@ code_change(_OldVsn, State, _Extra) ->
 jobhome(JobName) ->
     disco:jobhome(JobName, disco_node:home()).
 
-jobhome(JobName, Master) ->
+make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
-    JobAtom = list_to_atom(disco:hexhash(JobName)),
     case jobpack:extracted(JobHome) of
+        true -> JobHome;
+        false -> make_jobhome(JobName, JobHome, Master)
+    end.
+make_jobhome(JobName, JobHome, Master) ->
+    JobAtom = list_to_atom(disco:hexhash(JobName)),
+    case catch register(JobAtom, self()) of
         true ->
+            disco:make_dir(JobHome),
+            JobPack = gen_server:call({disco_server, Master},
+                                      {jobpack, JobName}),
+            jobpack:save(JobPack, JobHome),
+            jobpack:extract(JobPack, JobHome),
             JobHome;
-        false ->
-            case catch register(JobAtom, self()) of
-                true ->
-                    disco:make_dir(JobHome),
-                    JobPack = gen_server:call({disco_server, Master},
-                                              {jobpack, JobName}),
-                    jobpack:save(JobPack, JobHome),
-                    jobpack:extract(JobPack, JobHome),
-                    JobHome;
-                _Else ->
-                    case whereis(JobAtom) of
-                        undefined ->
-                            jobhome(JobName, Master);
-                        JobProc ->
-                            process_flag(trap_exit, true),
-                            link(JobProc),
-                            receive
-                                {'EXIT', noproc} ->
-                                    jobhome(JobName, Master);
-                                {'EXIT', JobProc, normal} ->
-                                    jobhome(JobName, Master)
-                            end
-                    end
+        _Else ->
+            wait_for_jobhome(JobAtom, JobName, Master)
+    end.
+wait_for_jobhome(JobAtom, JobName, Master) ->
+    case whereis(JobAtom) of
+        undefined ->
+            make_jobhome(JobName, Master);
+        JobProc ->
+            process_flag(trap_exit, true),
+            link(JobProc),
+            receive
+                {'EXIT', noproc} ->
+                    make_jobhome(JobName, Master);
+                {'EXIT', JobProc, normal} ->
+                    make_jobhome(JobName, Master)
             end
     end.
+
+results_filename(Task) ->
+    TimeStamp = timer:now_diff(now(), {0,0,0}),
+    FileName = io_lib:format("~s-~B-~B.results", [Task#task.mode,
+                                                  Task#task.taskid,
+                                                  TimeStamp]),
+    filename:join(".disco", FileName).
+
+url_path(Task, Host, LocalFile) ->
+    LocationPrefix = disco:joburl(Host, Task#task.jobname),
+    filename:join(LocationPrefix, LocalFile).
+
+local_results(Task, FileName) ->
+    Host = disco:host(node()),
+    Output = io_lib:format("dir://~s/~s",
+                           [Host, url_path(Task, Host, FileName)]),
+    list_to_binary(Output).
+
+results(#state{output_filename = none, persisted_outputs = Outputs}) ->
+    {none, Outputs};
+results(#state{output_filename = FileName, task = Task,
+               persisted_outputs = Outputs}) ->
+    {local_results(Task, FileName), Outputs}.
+
+format_output_line(S, [LocalFile, Type]) ->
+    format_output_line(S, [LocalFile, Type, <<"0">>]);
+format_output_line(#state{task = Task},
+                   [BLocalFile, Type, Label]) ->
+    Host = disco:host(node()),
+    LocalFile = binary_to_list(BLocalFile),
+    io_lib:format("~s ~s://~s/~s\n",
+                  [Label, Type, Host, url_path(Task, Host, LocalFile)]).
+
+-spec add_output(list(), #state{}) -> #state{}.
+add_output([Tag, <<"tag">>], S) ->
+    Result = list_to_binary(io_lib:format("tag://~s", [Tag])),
+    Outputs = [Result | S#state.persisted_outputs],
+    S#state{persisted_outputs = Outputs};
+
+add_output(RL, #state{task = Task, output_file = none} = S) ->
+    ResultsFileName = results_filename(Task),
+    Path = filename:join(jobhome(Task#task.jobname), ResultsFileName),
+    ok = filelib:ensure_dir(Path),
+    {ok, ResultsFile} = prim_file:open(Path, [write, raw]),
+    add_output(RL, S#state{output_filename = ResultsFileName,
+                           output_file = ResultsFile});
+
+add_output(RL, #state{output_file = RF} = S) ->
+    prim_file:write(RF, format_output_line(S, RL)),
+    S.
+
+-spec close_output(#state{}) -> 'ok'.
+close_output(#state{output_file = none}) -> ok;
+close_output(#state{output_file = File}) ->
+    prim_file:close(File),
+    ok.

@@ -277,7 +277,7 @@ Utility functions
 """
 import os, sys, traceback
 
-from disco.error import DataError, DiscoError
+from disco.error import DataError, DiscoError, JobPackError
 from disco.events import DataUnavailable, TaskFailed
 from disco.events import AnnouncePID, Input, Status, WorkerDone, TaskInfo, JobFile
 from disco.fileutils import DiscoZipFile
@@ -291,6 +291,23 @@ from disco.util import (MessageWriter,
 
 from disco import __file__ as discopath
 from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
+
+# The format for the jobpack is as follows:
+# Header (128 bytes)
+# 4: magic/version d5c0 0001
+# 4: job dict offset
+# 4: jobhome zip offset
+# 4: worker dict offset
+# 4: worker data offset
+# [remaining header: reserved]
+# JobDict (parameters for master)
+# JobHome (zip file unpacked by master)
+# WorkerDict (parameters for worker only)
+# WorkerData (data for worker only)
+
+JOBPACK_FMT_MAGIC = (0xd5c0 << 16) + 0x0001
+JOBPACK_HDR_FMT = "IIIII"
+JOBPACK_HDR_SIZE = 128
 
 class Worker(dict):
     def __init__(self, **kwargs):
@@ -331,10 +348,10 @@ class Worker(dict):
         return dumps(dict((k, pack(v)) for k, v in self.iteritems()))
 
     @classmethod
-    def load(cls, jobfile):
-        from disco.dencode import load
+    def loads(cls, jobpack):
+        from disco.dencode import loads
         worker = dict((k, unpack(v) if k == 'required_modules' else v)
-                           for k, v in load(jobfile).iteritems())
+                           for k, v in loads(jobpack).iteritems())
         globals_ = globals().copy()
         for req in worker['required_modules'] or ():
             name = req[0] if iskv(req) else req
@@ -399,18 +416,56 @@ class Worker(dict):
                 raise DiscoError("Can't merge partitions without partitions")
 
         jobdict.update({'input': input,
-                        'jobhome': jobhome.dumps(),
                         'worker': 'lib/disco/worker/classic/worker.py',
                         'map?': has_map,
                         'reduce?': has_reduce,
                         'profile?': self['profile'],
                         'nr_reduces': nr_reduces})
-        return jobdict.dumps() + self.dumps()
+
+        from socket import htonl
+        from struct import pack
+        jd, jh, wd = jobdict.dumps(), jobhome.dumps(), self.dumps()
+        jd_len, jh_len, wd_len = len(jd), len(jh), len(wd)
+        jd_ofs = JOBPACK_HDR_SIZE
+        jh_ofs = jd_ofs + jd_len
+        wd_ofs = jh_ofs + jh_len
+        pr_ofs = wd_ofs + wd_len
+        toc = pack(JOBPACK_HDR_FMT, htonl(JOBPACK_FMT_MAGIC),
+                   htonl(jd_ofs), htonl(jh_ofs), htonl(wd_ofs), htonl(pr_ofs))
+        hdr = toc + '\0'*(JOBPACK_HDR_SIZE - len(toc))
+        return hdr + jd + jh + wd
 
     @classmethod
     def unpack(cls, jobfile):
+        from socket import ntohl
+        from struct import calcsize, unpack
         sys.path.insert(0, 'lib')
-        return JobDict.load(jobfile), cls.load(jobfile)
+        toc_size = calcsize(JOBPACK_HDR_FMT)
+        hdr = jobfile.read(toc_size)
+        (magic, jd_ofs, jh_ofs, wd_ofs, pr_ofs) = unpack(JOBPACK_HDR_FMT, hdr)
+        magic, jd_ofs, jh_ofs  = ntohl(magic), ntohl(jd_ofs), ntohl(jh_ofs)
+        wd_ofs, pr_ofs = ntohl(wd_ofs), ntohl(pr_ofs)
+
+        def check_val(rcvd, expected, msg):
+            if rcvd != expected:
+                raise JobPackError(msg)
+        check_val(magic, JOBPACK_FMT_MAGIC, "Invalid jobpacket identifier.")
+        check_val(jd_ofs, JOBPACK_HDR_SIZE, "Unexpected jobpacket header.")
+
+        def check_len(len, msg):
+            if len < 0:
+                raise JobPackError(msg)
+        jd_len = jh_ofs - jd_ofs
+        jh_len = wd_ofs - jh_ofs
+        wd_len = pr_ofs - wd_ofs
+        check_len(jd_len, "Invalid job dict size")
+        check_len(jh_len, "Invalid job home size")
+
+        jobfile.seek(JOBPACK_HDR_SIZE - toc_size, os.SEEK_CUR)
+        jd = jobfile.read(jd_len)
+        jobfile.seek(jh_len, os.SEEK_CUR)
+        wd = jobfile.read(wd_len)
+        return JobDict.loads(jd), cls.loads(wd)
 
     @classmethod
     def work(cls):

@@ -20,7 +20,7 @@ class Event(object):
 
     def send(self):
         sys.stderr.write('%s' % self)
-        return loads(sys.stdin.read(int(sys.stdin.readline()) + 1)[:-1])
+        return loads(sys.stdin.read(int(sys.stdin.readline().split()[1]) + 1)[:-1])
 
     def __str__(self):
         tags = ' '.join(tag for tag in self.tags if self.tag_re.match(tag))
@@ -44,6 +44,12 @@ class DataUnavailable(Event):
 
 class Input(Event):
     type = 'INP'
+
+    def send(self):
+        # Temp hack to understand new message format, but return previous api.
+        ret = super(Input, self).send()
+        done, inps = ret[0], ret[1]
+        return [i[2] for i in inps]
 
 class JobFile(Event):
     type = 'JOB'
