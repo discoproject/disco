@@ -19,12 +19,12 @@ class Settings(dict):
                 execfile(settings_file, {}, self)
 
     def __getitem__(self, key):
-        """Get the setting `key`, first checking the environment, then the instance."""
+        """Get `key`: check the instance, then the env, then defaults."""
+        if key in self:
+            return super(Settings, self).__getitem__(key)
         if key in os.environ:
             return os.environ[key]
-        if key not in self:
-            return eval(self.defaults[key], self.globals, self)
-        return super(Settings, self).__getitem__(key)
+        return eval(self.defaults[key], self.globals, self)
 
     def safedir(self, key):
         """Make sure the directory path stored in the setting `key` exists."""
