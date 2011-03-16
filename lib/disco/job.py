@@ -47,12 +47,16 @@ from disco.settings import DiscoSettings
 
 class JobPack(object):
     """
-    +---------------- 4 -------------- 8 ------------- 12 ------------- 16
-    | magic / version | jobdict offset | jobhome offset | jobdata offset |
+    +---------------- 4
+    | magic / version |
+    +---------------- 8 -------------- 12 ------------- 16 ------------- 20
+    | jobdict offset  | jobenvs offset | jobhome offset | jobdata offset |
     +--------------------------------------------------------------------+
     |                         ...  reserved ...                          |
     128 -----------------------------------------------------------------+
     |                               jobdict                              |
+    +--------------------------------------------------------------------+
+    |                               jobenvs                              |
     +--------------------------------------------------------------------+
     |                               jobhome                              |
     +--------------------------------------------------------------------+
@@ -60,10 +64,10 @@ class JobPack(object):
     +--------------------------------------------------------------------+
     """
     MAGIC = (0xd5c0 << 16) + 0x0001
-    HEADER_FORMAT = "IIII"
+    HEADER_FORMAT = "IIIII"
     HEADER_SIZE = 128
-    def __init__(self, jobdict, jobhome, jobdata):
-        self.jobdict, self.jobhome, self.jobdata = jobdict, jobhome, jobdata
+    def __init__(self, *fields):
+        self.jobdict, self.jobenvs, self.jobhome, self.jobdata = fields
 
     def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
         from socket import htonl
@@ -72,7 +76,10 @@ class JobPack(object):
         return toc + '\0' * (size - len(toc))
 
     def contents(self, offset=HEADER_SIZE):
-        for field in (json.dumps(self.jobdict), self.jobhome, self.jobdata):
+        for field in (json.dumps(self.jobdict),
+                      json.dumps(self.jobenvs),
+                      self.jobhome,
+                      self.jobdata):
             yield offset, field
             offset += len(field)
 
@@ -109,19 +116,25 @@ class PackedJobPack(JobPack):
 
     @property
     def jobdict(self):
-        dict_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
         self.jobfile.seek(dict_offset)
+        return json.loads(self.jobfile.read(envs_offset - dict_offset))
+
+    @property
+    def jobenvs(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(envs_offset)
         return json.loads(self.jobfile.read(home_offset - dict_offset))
 
     @property
     def jobhome(self):
-        dict_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
         self.jobfile.seek(home_offset)
         return self.jobfile.read(data_offset - home_offset)
 
     @property
     def jobdata(self):
-        dict_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
         self.jobfile.seek(data_offset)
         return self.jobfile.read()
 
@@ -221,6 +234,7 @@ class Job(object):
 
     def run(self, **jobargs):
         jobpack = JobPack(self.worker.jobdict(self, **jobargs),
+                          self.worker.jobenvs(self, **jobargs),
                           self.worker.jobhome(self, **jobargs),
                           self.worker.jobdata(self, **jobargs))
         status, response = json.loads(self.disco.request('/disco/job/new',

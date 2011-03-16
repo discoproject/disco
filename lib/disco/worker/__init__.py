@@ -69,6 +69,13 @@ class Worker(dict):
                 'scheduler': get('scheduler'),
                 'owner': job.settings['DISCO_JOB_OWNER']}
 
+    def jobenvs(self, job, **jobargs):
+        settings = job.settings
+        settings['LC_ALL'] = 'C'
+        settings['LD_LIBRARY_PATH'] = 'lib'
+        settings['PYTHONPATH'] = ':'.join((settings.get('PYTHONPATH', ''), 'lib'))
+        return settings
+
     def jobhome(self, job, **jobargs):
         jobzip = self.jobzip(job, **jobargs)
         jobzip.close()
@@ -131,9 +138,6 @@ class Worker(dict):
 
     @classmethod
     def main(cls):
-        # we have a bootstrapping problem if we send the disco lib and someone subclasses Worker
-        # add jobenv to jobpack, master should set these for the process
-        sys.path.insert(0, 'lib')
         from disco.error import DataError
         from disco.events import AnnouncePID, WorkerDone, DataUnavailable, TaskFailed
         from disco.job import JobPack

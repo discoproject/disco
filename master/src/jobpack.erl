@@ -6,12 +6,14 @@
          extracted/1,
          read/1,
          save/2,
-         jobinfo/1]).
+         jobinfo/1,
+         jobenvs/1]).
 
 -include("disco.hrl").
 
 -define(MAGIC, 16#d5c0).
 -define(VERSION, 16#0001).
+
 
 dict({struct, List}) ->
     dict:from_list(List).
@@ -92,16 +94,34 @@ jobinfo(JobDict) ->
               force_local = find(<<"force_local">>, Scheduler, false),
               force_remote = find(<<"force_remote">>, Scheduler, false)}}.
 
-jobdict(JobPack) ->
-    <<?MAGIC:16/big, _Vsn:16/big, JDOfs:32/big, JHOfs:32/big, _/binary>> = JobPack,
-    JDLen = JHOfs - JDOfs,
-    <<_:JDOfs/bytes, JobDict:JDLen/bytes, _/binary>> = JobPack,
+jobdict(<<?MAGIC:16/big,
+         _Version:16/big,
+         JobDictOffset:32/big,
+         JobEnvsOffset:32/big,
+         _/binary>> = JobPack) ->
+    JobDictLength = JobEnvsOffset - JobDictOffset,
+    <<_:JobDictOffset/bytes, JobDict:JobDictLength/bytes, _/binary>> = JobPack,
     dict(mochijson2:decode(JobDict)).
 
-jobzip(JobPack) ->
-    <<?MAGIC:16/big, _Vsn:16/big, _JDOfs:32/big, JHOfs:32/big, WDOfs:32/big, _/binary>> = JobPack,
-    JHLen = WDOfs - JHOfs,
-    <<_:JHOfs/bytes, JobZip:JHLen/bytes, _/binary>> = JobPack,
+jobenvs(<<?MAGIC:16/big,
+         _Version:16/big,
+         _JobDictOffset:32/big,
+         JobEnvsOffset:32/big,
+         JobHomeOffset:32/big,
+         _/binary>> = JobPack) ->
+    JobEnvsLength = JobHomeOffset - JobEnvsOffset,
+    <<_:JobEnvsOffset/bytes, JobEnvs:JobEnvsLength/bytes, _/binary>> = JobPack,
+    dict(mochijson2:decode(JobEnvs)).
+
+jobzip(<<?MAGIC:16/big,
+        _Version:16/big,
+        _JobDictOffset:32/big,
+        _JobEnvsOffset:32/big,
+        JobHomeOffset:32/big,
+        JobDataOffset:32/big,
+        _/binary>> = JobPack) ->
+    JobHomeLength = JobDataOffset - JobHomeOffset,
+    <<_:JobHomeOffset/bytes, JobZip:JobHomeLength/bytes, _/binary>> = JobPack,
     JobZip.
 
 validate_prefix(Prefix) when is_binary(Prefix)->

@@ -172,17 +172,14 @@ handle_info({work, JobHome}, #state{task = Task, port = none} = State) ->
     Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
     file:change_mode(Worker, 8#755),
     Command = "nice -n 19 " ++ Worker,
+    JobEnvs = jobpack:jobenvs(jobpack:read(JobHome)),
     Options = [{cd, JobHome},
                {line, 100000},
                binary,
                exit_status,
                use_stdio,
                stderr_to_stdout,
-               {env,
-                [{"LD_LIBRARY_PATH", "lib"},
-                 {"LC_ALL", "C"}] ++
-                [{Setting, disco:get_setting(Setting)}
-                 || Setting <- disco:settings()]}],
+               {env, dict:to_list(JobEnvs)}],
     {noreply, State#state{port = open_port({spawn, Command}, Options)}};
 
 handle_info({_Port, {data, Data}}, #state{event_stream = EventStream} = State) ->
