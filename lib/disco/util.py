@@ -114,13 +114,6 @@ def partition(iterable, fn):
         (t if fn(item) else f).append(item)
     return t, f
 
-def rapply(iterable, fn):
-    for item in iterable:
-        if isiterable(item):
-            yield rapply(item, fn)
-        else:
-            yield fn(item)
-
 def reify(dotted_name, globals=globals()):
     if '.' in dotted_name:
         package, name = dotted_name.rsplit('.', 1)
@@ -139,6 +132,13 @@ def argcount(object):
     argcount = object.func.func_code.co_argcount
     return argcount - len(object.args or ()) - len(object.keywords or ())
 
+def globalize(object, globals):
+    if isinstance(object, functools.partial):
+        object = object.func
+    if hasattr(object, 'func_globals'):
+        for k, v in globals.iteritems():
+            object.func_globals.setdefault(k, v)
+
 def unpickle_partial(func, args, kwargs):
     return functools.partial(unpack(func),
                              *[unpack(x) for x in args],
@@ -153,6 +153,7 @@ def pickle_partial(p):
 # support functools.partial also on Pythons prior to 3.1
 if sys.version_info < (3,1):
     copy_reg.pickle(functools.partial, pickle_partial)
+copy_reg.pickle(FunctionType, lambda func: (unpack, (pack(func),)))
 
 def pack(object):
     if hasattr(object, 'func_code'):
@@ -160,10 +161,7 @@ def pack(object):
             raise TypeError("Function must not have closures: "
                             "%s (try using functools.partial instead)"
                             % object.func_name)
-        defs = None
-        if object.func_defaults:
-            defs = [pack(x) for x in object.func_defaults]
-        return marshal.dumps((object.func_code, defs))
+        return marshal.dumps((object.func_code, object.func_defaults))
     if isinstance(object, (list, tuple)):
         object = type(object)(pack(o) for o in object)
     return cPickle.dumps(object, cPickle.HIGHEST_PROTOCOL)
@@ -177,7 +175,6 @@ def unpack(string, globals={'__builtins__': __builtins__}):
     except Exception:
         try:
             code, defs = marshal.loads(string)
-            defs = tuple([unpack(x) for x in defs]) if defs else None
             return FunctionType(code, globals, argdefs=defs)
         except Exception, e:
             raise ValueError("Could not unpack: %s (%s)" % (string, e))
@@ -280,7 +277,7 @@ def parse_dir(dir_url, partition=None):
 
     :param dir_url: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
-    return [url for id, url in read_index(dir_url) if partition in (None, int(id))]
+    return [url for id, url in read_index(dir_url) if partition in (None, id)]
 
 def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
     if proxy:
@@ -303,17 +300,17 @@ def ispartitioned(input):
 
 def inputexpand(input, partition=None, settings=DiscoSettings()):
     from disco.ddfs import DDFS, istag
-    if isiterable(input):
-        return [inputlist(*input, partition=partition, settings=settings)]
     if ispartitioned(input) and partition is not False:
-        return parse_dir(input, partition=partition)
+        return zip(*(parse_dir(i, partition=partition) for i in iterify(input)))
+    if isiterable(input):
+        return [inputlist(input, partition=partition, settings=settings)]
     if istag(input):
         ddfs = DDFS(settings=settings)
         return chainify(blobs for name, tags, blobs in ddfs.findtags(input))
     return [input]
 
-def inputlist(*inputs, **kwargs):
-    return chainify(inputexpand(input, **kwargs) for input in inputs)
+def inputlist(inputs, **kwargs):
+    return filter(None, chainify(inputexpand(input, **kwargs) for input in inputs))
 
 def save_oob(host, name, key, value, ddfs_token=None):
     from disco.ddfs import DDFS

@@ -11,7 +11,7 @@
 -define(MAX_RECV_BODY, (1024*1024*1024*1024)).
 
 start(MochiConfig) ->
-    error_logger:info_report({"START PID", self()}),
+    error_logger:info_report({"START", ?MODULE, self()}),
     mochiweb_http:start([
         {name, ddfs_put},
         {max, ?HTTP_MAX_CONNS},

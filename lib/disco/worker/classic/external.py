@@ -419,7 +419,7 @@ def prepare(params, mode):
         proc.stdin.write(encode_netstring_fd(params))
     else:
         proc.stdin.write('0\n')
-    return mode, globals()[mode]
+    return globals()[mode]
 
 def close():
     if proc:

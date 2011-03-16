@@ -32,7 +32,7 @@ class ModUtilLocalTestCase(DiscoTestCase):
         self.assertEquals(sorted(modutil.find_modules(functions,
                                                       send_modules=send_modules,
                                                       recurse=recurse)),
-                          sorted(modules))
+                          sorted(['test_modutil'] + modules))
 
     def test_system(self):
         self.assertFindsModules([system_modules], ['os', 'random', 'time'])

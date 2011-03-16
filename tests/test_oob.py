@@ -68,6 +68,7 @@ class LargeOOBTestCase(DiscoJobTestFixture, DiscoTestCase):
     def input(self):
         return ['raw://%d' % i for i in range(self.num_workers)]
 
+    @staticmethod
     def map(e, params):
         for i in range(10):
             put("%s-%d" % (e, i), "val:%s-%d" % (e, i))

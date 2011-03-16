@@ -273,11 +273,16 @@ task_event(Task, {Type, Message}, Params, Host, EventServer) ->
     event(EventServer,
           Host,
           Task#task.jobname,
-          "~s: [~s:~B] ~s",
+          "~s: [~s:~B] " ++ task_format(Message),
           [Type, Task#task.mode, Task#task.taskid, Message],
           Params);
 task_event(Task, Message, Params, Host, EventServer) ->
     task_event(Task, {<<"SYS">>, Message}, Params, Host, EventServer).
+
+task_format(Msg) when is_atom(Msg) or is_binary(Msg) or is_list(Msg) ->
+    "~s";
+task_format(_Msg) ->
+    "~w".
 
 % callback stubs
 terminate(_Reason, _State) -> {}.

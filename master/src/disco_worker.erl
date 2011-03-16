@@ -118,25 +118,25 @@ handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
              #state{task = Task} = State) ->
     event({<<"TSK">>, "Task info requested"}, State),
     TaskInfo = dict:from_list([{<<"taskid">>, Task#task.taskid},
+                               {<<"master">>, list_to_binary(disco:get_setting("DISCO_MASTER"))},
                                {<<"mode">>, list_to_binary(Task#task.mode)},
                                {<<"jobname">>, list_to_binary(Task#task.jobname)},
                                {<<"host">>, list_to_binary(disco:host(node()))}]),
     worker_send("TSK", TaskInfo, State),
     {noreply, State};
 
-handle_event({event, {<<"INP">>, _Time, _Tags, _Message}}, #state{task = Task} = State) ->
-    % The response structure is:
-    % (more|done, [{integer_id, "ok"|"busy"|"failed", ["url"+]}])
-    % For now, we will always return a non-incremental response:
-    % ('done', [{id, "failed", ["url"+ ]}])
-    Inputs = case Task#task.chosen_input of
-                 Binary when is_binary(Binary) ->
-                     [[0, <<"failed">>, [Binary]]];
-                 List when is_list(List) ->
-                     Enum = lists:seq(0, length(List)-1),
-                     [[I, <<"failed">>, [Url]] || {I,Url} <- lists:zip(Enum, List)]
-             end,
-    worker_send("INP", [<<"done">>, Inputs], State),
+handle_event({event, {<<"INP">>, _Time, _Tags, <<>>}}, #state{task = Task} = State) ->
+    worker_send("INP",
+                [<<"done">>, [[Id, Status, Urls] || {Id, Status, Urls} <- input(Task)]],
+                State),
+    {noreply, State};
+handle_event({event, {<<"INP">>, _Time, _Tags, Id}}, #state{task = Task} = State) ->
+    case lists:keyfind(Id, 1, input(Task)) of
+        {Id, Status, Urls} ->
+            worker_send("INP", [Status, Urls], State);
+        false ->
+            worker_send("ERROR", [<<"No such input">>, Id], State)
+    end,
     {noreply, State};
 
 % rate limited event
@@ -220,8 +220,10 @@ jobhome(JobName) ->
 make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
     case jobpack:extracted(JobHome) of
-        true -> JobHome;
-        false -> make_jobhome(JobName, JobHome, Master)
+        true ->
+            JobHome;
+        false ->
+            make_jobhome(JobName, JobHome, Master)
     end.
 make_jobhome(JobName, JobHome, Master) ->
     JobAtom = list_to_atom(disco:hexhash(JobName)),
@@ -236,6 +238,7 @@ make_jobhome(JobName, JobHome, Master) ->
         _Else ->
             wait_for_jobhome(JobAtom, JobName, Master)
     end.
+
 wait_for_jobhome(JobAtom, JobName, Master) ->
     case whereis(JobAtom) of
         undefined ->
@@ -244,11 +247,18 @@ wait_for_jobhome(JobAtom, JobName, Master) ->
             process_flag(trap_exit, true),
             link(JobProc),
             receive
-                {'EXIT', noproc} ->
-                    make_jobhome(JobName, Master);
-                {'EXIT', JobProc, normal} ->
+                _Any ->
                     make_jobhome(JobName, Master)
             end
+    end.
+
+input(Task) ->
+    case Task#task.chosen_input of
+        Binary when is_binary(Binary) ->
+            [{1, <<"ok">>, [Binary]}];
+        List when is_list(List) ->
+            Enum = lists:seq(1, length(List)),
+            [{I, <<"ok">>, lists:flatten([Url])} || {I, Url} <- lists:zip(Enum, List)]
     end.
 
 results_filename(Task) ->

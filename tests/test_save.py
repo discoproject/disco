@@ -13,7 +13,7 @@ class SaveOnlyMapTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [(e.strip() + "#", '')]
+        yield e.strip() + "#", ''
 
     @property
     def answers(self):
@@ -35,7 +35,7 @@ class SaveTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     inputs_1 = ['huey', 'dewey', 'louie']
     partitions_1 = 3
     partitions_2 = 1
-    map_reader_2 = chain_reader
+    map_reader_2 = staticmethod(chain_reader)
     save_1 = True
     save_2 = True
     sort_2 = True

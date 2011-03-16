@@ -1,8 +1,9 @@
 # get rid of this for python2.6+
-import imp, sys
+import imp, sys, os
 
 def imp_path():
-    return [path for path in sys.path if path != '.']
+    cwd = os.path.realpath('.')
+    return [path for path in sys.path if os.path.realpath(path) != cwd]
 
 try:
     json = imp.load_module('json', *imp.find_module('json', imp_path()))

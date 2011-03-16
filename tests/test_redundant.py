@@ -11,7 +11,7 @@ class RedundantTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [(e, '')]
+        yield e, ''
 
     @staticmethod
     def reduce(iter, out, params):
@@ -37,12 +37,10 @@ class RedundantOutputTestCase(DiscoTestCase):
 
     def test_corrupt(self):
         def corrupt_reader(fd, size, url, params):
+            yield 'hello'
             if 'corrupt' in url:
-                yield 'hello'
                 raise Exception("Corrupt!")
-            elif 'decent' in url:
-                yield '-skip-'
-                yield 'there'
-        results = list(result_iterator([['raw://corrupt', 'raw://decent']],
+            yield 'there'
+        results = list(result_iterator([['raw://corrupt'] * 9 + ['raw://decent']],
                                        reader=corrupt_reader))
         self.assertEquals(results, ['hello', 'there'])

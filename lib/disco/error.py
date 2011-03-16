@@ -33,15 +33,6 @@ class JobError(DiscoError):
     def __str__(self):
         return "Job %s/%s failed: %s" % (self.master, self.jobname, self.error)
 
-class JobPackError(DiscoError):
-    """An error caused by encountering a job packet in an invalid format.
-    """
-    def __init__(self, msg):
-        self.msg = msg
-
-    def __str__(self):
-        return "Invalid jobpack (%s)" % self.msg
-
 class DataError(DiscoError):
     """
     An error caused by an inability to access a data resource.
@@ -55,11 +46,9 @@ class DataError(DiscoError):
         self.code = code
 
     def __str__(self):
-        if self.code == None:
-            return 'Unable to access resource (%s): %s' % (self.url, self.msg)
-        else:
-            return 'Unable to access resource (%s): %s (HTTP status %d)' %\
-                (self.url, self.msg, self.code)
+        def msg(msg):
+            return msg if self.code is None else '%s (%s)' % (msg, self.code)
+        return 'Unable to access resource (%s): %s' % (self.url, msg(self.msg))
 
 class CommError(DataError):
     """An error caused by the inability to access a resource over the network."""

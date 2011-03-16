@@ -6,12 +6,15 @@
          extracted/1,
          read/1,
          save/2,
-         validate/1,
          jobinfo/1]).
 
 -include("disco.hrl").
 
--define(JOBPACK_HDR_SIZE, 128).
+-define(MAGIC, 16#d5c0).
+-define(VERSION, 16#0001).
+
+dict({struct, List}) ->
+    dict:from_list(List).
 
 find(Key, Dict) ->
     case catch dict:find(Key, Dict) of
@@ -29,14 +32,6 @@ find(Key, Dict, Default) ->
             Default
     end.
 
-find_bool(Key, Dict) ->
-    case dict:find(Key, Dict) of
-        {ok, Field} ->
-            Field =/= 0;
-        error ->
-            false
-    end.
-
 jobfile(JobHome) ->
     filename:join(JobHome, "jobfile").
 
@@ -44,8 +39,8 @@ exists(JobHome) ->
     filelib:is_file(jobfile(JobHome)).
 
 extract(JobPack, JobHome) ->
-    JobHomeZip = jobhomezip(JobPack),
-    case zip:extract(JobHomeZip, [{cwd, JobHome}]) of
+    JobZip = jobzip(JobPack),
+    case zip:extract(JobZip, [{cwd, JobHome}]) of
         {ok, Files} ->
             prim_file:write_file(filename:join(JobHome, ".jobhome"), <<"">>),
             Files;
@@ -85,39 +80,29 @@ save(JobPack, JobHome) ->
 jobinfo(JobPack) when is_binary(JobPack) ->
     jobinfo(jobdict(JobPack));
 jobinfo(JobDict) ->
-    Scheduler = find(<<"scheduler">>, JobDict),
+    Scheduler = dict(find(<<"scheduler">>, JobDict)),
     {validate_prefix(find(<<"prefix">>, JobDict)),
      #jobinfo{inputs = find(<<"input">>, JobDict),
               worker = find(<<"worker">>, JobDict),
               owner = find(<<"owner">>, JobDict),
-              map = find_bool(<<"map?">>, JobDict),
-              reduce = find_bool(<<"reduce?">>, JobDict),
+              map = find(<<"map?">>, JobDict, false),
+              reduce = find(<<"reduce?">>, JobDict, false),
               nr_reduce = find(<<"nr_reduces">>, JobDict),
               max_cores = find(<<"max_cores">>, Scheduler, 1 bsl 31),
-              force_local = find_bool(<<"force_local">>, Scheduler),
-              force_remote = find_bool(<<"force_remote">>, Scheduler)}}.
-
-validate(JobPack) when size(JobPack) < ?JOBPACK_HDR_SIZE -> false;
-validate(<<M:32/big, _/binary>>) when M =/= 16#d5c00001 -> false;
-validate(<<_M:32/big, JD:32/big, JH:32/big, WD:32/big, _/binary>>)
-  when JD < ?JOBPACK_HDR_SIZE; JH < JD; WD < JH -> false;
-validate(JobPack) ->
-    case zip:table(jobhomezip(JobPack)) of
-        {ok, _} -> true;  % Not quite enough; it would be nice to validate jobdict here as well.
-        {error, _} -> false
-    end.
+              force_local = find(<<"force_local">>, Scheduler, false),
+              force_remote = find(<<"force_remote">>, Scheduler, false)}}.
 
 jobdict(JobPack) ->
-    <<_Magic:32/big, JDOfs:32/big, JHOfs:32/big, _/binary>> = JobPack,
+    <<?MAGIC:16/big, _Vsn:16/big, JDOfs:32/big, JHOfs:32/big, _/binary>> = JobPack,
     JDLen = JHOfs - JDOfs,
     <<_:JDOfs/bytes, JobDict:JDLen/bytes, _/binary>> = JobPack,
-    dencode:decode(JobDict).
+    dict(mochijson2:decode(JobDict)).
 
-jobhomezip(JobPack) ->
-    <<_Magic:32/big, _JDOfs:32/big, JHOfs:32/big, WDOfs:32/big, _/binary>> = JobPack,
+jobzip(JobPack) ->
+    <<?MAGIC:16/big, _Vsn:16/big, _JDOfs:32/big, JHOfs:32/big, WDOfs:32/big, _/binary>> = JobPack,
     JHLen = WDOfs - JHOfs,
-    <<_:JHOfs/bytes, JobHomeZip:JHLen/bytes, _/binary>> = JobPack,
-    JobHomeZip.
+    <<_:JHOfs/bytes, JobZip:JHLen/bytes, _/binary>> = JobPack,
+    JobZip.
 
 validate_prefix(Prefix) when is_binary(Prefix)->
     validate_prefix(binary_to_list(Prefix));

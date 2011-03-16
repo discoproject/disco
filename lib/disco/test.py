@@ -14,7 +14,7 @@ except ImportError:
 import disco
 from disco.core import Disco, result_iterator
 from disco.settings import DiscoSettings
-from disco.util import rapply
+from disco.util import iterify
 
 class TestServer(ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
@@ -41,7 +41,7 @@ class TestServer(ThreadingMixIn, HTTPServer):
     def urls(self, inputs):
         def serverify(input):
             return '%s/%s' % (self.address, input)
-        return rapply(inputs, serverify)
+        return [[serverify(url) for url in iterify(input)] for input in inputs]
 
 class FailedReply(Exception):
     pass
@@ -195,7 +195,8 @@ class DiscoJobTestFixture(object):
             pass
 
 class DiscoMultiJobTestFixture(DiscoJobTestFixture):
-    def result_reader(self, m):
+    @staticmethod
+    def result_reader(m):
         return disco.func.chain_reader
 
     def profile(self, m):
@@ -203,7 +204,7 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
 
     def results(self, m):
         return result_iterator(self.jobs[m].wait(),
-                       reader=getattr(self, 'result_reader_%d' % (m + 1)))
+                               reader=getattr(self, 'result_reader_%d' % (m + 1)))
 
     def input(self, m):
         return self.test_servers[m].urls(getattr(self, 'inputs_%d' % (m + 1)))

@@ -9,7 +9,7 @@ class ChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
 
     njobs        = 2
     inputs_1     = [''] * 100
-    map_reader_2 = chain_reader
+    map_reader_2 = staticmethod(chain_reader)
     partitions_1 = 4
     partitions_2 = 4
     params_1     = {'suffix': '0'}
@@ -50,11 +50,12 @@ class DavinChainTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs        = 3
     input_1      = ['raw://0', 'raw://1', 'raw://2']
     input_2      = ['raw://3', 'raw://4', 'raw://5']
-    map_reader_3 = chain_reader
-    reduce_3     = nop_reduce
+    map_reader_3 = staticmethod(chain_reader)
+    reduce_3     = staticmethod(nop_reduce)
     # assert this fails sometime:
     # partitions_3 = 2
 
+    @staticmethod
     def map_1(e, params):
         yield e, ''
 

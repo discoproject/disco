@@ -1,6 +1,5 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 from disco.error import JobError
-from disco.events import Status
 
 class RateLimitTestCase(DiscoJobTestFixture, DiscoTestCase):
     inputs = [1]
@@ -25,6 +24,7 @@ class InternalRateLimitTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
+        from disco.events import Status
         Status("Internal msg").send()
         return []
 
