@@ -1,7 +1,7 @@
 import os, re, sys
 from datetime import datetime
 
-from disco.dencode import dumps, loads
+from disco.json import dumps, loads
 
 class Event(object):
     type             = 'EV'

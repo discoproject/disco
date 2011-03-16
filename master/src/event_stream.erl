@@ -66,7 +66,7 @@ handle_state({outside_event, _StateData}, {noeol, <<BadMessage/binary>>}) ->
 handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData},
              {eol, <<?EVENT_CLOSE>>}) ->
     {next_stream, {outside_event,
-                   event({EventType, Time, Tags, Messages}, dencode)}};
+                   event({EventType, Time, Tags, Messages}, json)}};
 
 handle_state({inside_event, {EventType, Time, Tags, Messages} = _StateData},
              {_IsEOL, <<Message/binary>>}) ->
@@ -90,7 +90,7 @@ event({EventType, Time, Tags, Messages}, Encoding) ->
 
 -spec finalize_event({event_type(), gen_time(), [binary()],
                       message_buffer:message_buffer()}, atom()) -> {'ok', string()}.
-finalize_event({_EventType, _Time, _Tags, Messages}, dencode) ->
-    {ok, dencode:decode(list_to_binary(message_buffer:to_string(Messages)))};
+finalize_event({_EventType, _Time, _Tags, Messages}, json) ->
+    {ok, mochijson2:decode(list_to_binary(message_buffer:to_string(Messages)))};
 finalize_event({_EventType, _Time, _Tags, Messages}, raw) ->
     {ok, message_buffer:to_binary(Messages)}.

@@ -57,7 +57,7 @@ init({Master, Task}) ->
 
 worker_send(MsgName, Payload, #state{port = Port}) ->
     Msg = list_to_binary(MsgName),
-    Data = dencode:encode(Payload),
+    Data = list_to_binary(mochijson2:encode(Payload)),
     Length = list_to_binary(integer_to_list(size(Data))),
     port_command(Port, <<Msg/binary, " ", Length/binary, "\n", Data/binary, "\n">>).
 
@@ -99,8 +99,8 @@ handle_event({event, {<<"SET">>, _Time, _Tags, _Message}}, State) ->
     event({<<"SET">>, "Settings requested"}, State),
     Port = list_to_integer(disco:get_setting("DISCO_PORT")),
     PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
-    Settings = dict:from_list([{<<"port">>, Port},
-                               {<<"put_port">>, PutPort}]),
+    Settings = {struct, [{<<"port">>, Port},
+                         {<<"put_port">>, PutPort}]},
     worker_send("SET", Settings, State),
     {noreply, State};
 
@@ -117,11 +117,11 @@ handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, State) ->
 handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
              #state{task = Task} = State) ->
     event({<<"TSK">>, "Task info requested"}, State),
-    TaskInfo = dict:from_list([{<<"taskid">>, Task#task.taskid},
-                               {<<"master">>, list_to_binary(disco:get_setting("DISCO_MASTER"))},
-                               {<<"mode">>, list_to_binary(Task#task.mode)},
-                               {<<"jobname">>, list_to_binary(Task#task.jobname)},
-                               {<<"host">>, list_to_binary(disco:host(node()))}]),
+    TaskInfo = {struct, [{<<"taskid">>, Task#task.taskid},
+                         {<<"master">>, list_to_binary(disco:get_setting("DISCO_MASTER"))},
+                         {<<"mode">>, list_to_binary(Task#task.mode)},
+                         {<<"jobname">>, list_to_binary(Task#task.jobname)},
+                         {<<"host">>, list_to_binary(disco:host(node()))}]},
     worker_send("TSK", TaskInfo, State),
     {noreply, State};
 
