@@ -137,7 +137,9 @@ wait_workers(N, Results, Mode) ->
                                    {disco:slave_node(Host), TaskResults},
                                    Results)};
         {{error, Error}, Task, Host} ->
-            event_server:task_event(Task, {<<"WARN">>, Error}, {task_failed, Task#task.mode}),
+            event_server:task_event(Task,
+                                    {<<"WARNING">>, Error},
+                                    {task_failed, Task#task.mode}),
             handle_data_error(Task, Host),
             {N, Results};
         {{fatal, Error}, Task, Host} ->

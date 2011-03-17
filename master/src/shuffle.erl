@@ -35,7 +35,7 @@ wait_replies(Name, {Promises, FailCount}, Results) ->
     {OkReplies, Failed} = lists:partition(Fun, Replies),
     Messages =
         [begin
-            M = "WARN: Creating index file failed at ~s: ~p (retrying)",
+            M = "WARNING: Creating index file failed at ~s: ~p (retrying)",
             event_server:event(Name, M, [disco:host(Node), Reply], {}),
             timer:sleep(10000),
             Msg

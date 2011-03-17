@@ -206,7 +206,7 @@ terminate(_Reason, #state{child_pid = Pid}) when Pid =/= none ->
     % Kill the worker process
     os:cmd("kill -9 " ++ Pid);
 terminate(_Reason, State) ->
-    event({<<"WARN">>, "PID unknown: worker could not be killed"}, State).
+    event({<<"WARNING">>, "PID unknown: worker could not be killed"}, State).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.

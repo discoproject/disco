@@ -130,7 +130,7 @@ function make_event(E, i) {
   var tstamp = E[0];
   var host = E[1];
   var msg = E[2];
-  var type = (msg.match("^(WARN|ERROR|READY)") || [""])[0].toLowerCase();
+  var type = (msg.match("^(WARNING|ERROR|READY)") || [""])[0].toLowerCase();
 
   var msg = $.map(msg.split("\n"), function (x, i) {
       return $.create("pre", {}, [x])
