@@ -88,7 +88,7 @@ Now, let's write the corresponding reduce function::
         def fun_reduce(iter, out, params):
                 stats = {}
                 for word, count in iter:
-                        stats[word] += stats.get(word, 0) + int(count)
+                        stats[word] = stats.get(word, 0) + int(count)
                 for word, total in stats.iteritems():
                         out.add(word, total)
 
@@ -132,7 +132,9 @@ First, we must establish a connection to the Disco master by instantiating a
 :class:`disco.core.Disco` object.
 After that, we can start the job by calling :meth:`disco.core.Disco.new_job`.
 There's a large number of parameters that you can use to specify your job,
-but only three of them are required for a simple job like ours.
+but only four of them are required for a simple job like ours. If we had chosen
+to not use :ref:`DDFS`, we would not need :meth:`disco.func.chain_reader`, which
+is used for making input out of previous Disco output (such as ``ddfs chunk``).
 
 In addition to starting the job, we want to print out the results as well.
 First, however, we have to wait until the job has finished. This is done with
@@ -151,10 +153,12 @@ The following lines run the job and print out the results::
 
         import sys
         from disco.core import Disco, result_iterator
+        from disco.func import chain_reader
 
         results = Disco(sys.argv[1]).new_job(name='disco_tut',
                                              input=sys.argv[2:],
                                              map=fun_map,
+                                             map_reader=chain_reader,
                                              reduce=fun_reduce).wait()
 
         for word, total in result_iterator(results):
