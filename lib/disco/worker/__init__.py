@@ -19,6 +19,7 @@ class Worker(dict):
 
     def defaults(self):
         return {'map': None,
+                'merge_partitions': False, # XXX: maybe deprecated
                 'reduce': None,
                 'required_files': {},
                 'required_modules': None,
@@ -57,6 +58,9 @@ class Worker(dict):
                                  for id, url in read_index(dir))
         else:
             # no map, without partitions can only have 1 reduce
+            nr_reduces = 1
+
+        if get('merge_partitions'):
             nr_reduces = 1
 
         return {'input': input,

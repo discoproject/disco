@@ -170,7 +170,7 @@ class ReplicaIter(object):
             self.used.add(url)
             return url
         if self.id:
-            DataUnavailable([self.id, self.used]).send()
+            DataUnavailable([self.id, list(self.used)]).send()
         raise StopIteration
 
 class InputIter(object):

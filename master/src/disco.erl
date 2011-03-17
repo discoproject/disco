@@ -19,6 +19,7 @@
          data_path/2,
          debug_flags/1,
          disco_url_path/1,
+         enum/1,
          format/2,
          format_time/1,
          format_time/4,
@@ -127,6 +128,9 @@ disco_url_path(Url) ->
                              ".*?://.*?/disco/(.*)",
                              [{capture, all_but_first, list}]),
     Path.
+
+enum(List) ->
+    lists:zip(lists:seq(0, length(List) - 1), List).
 
 format(Format, Args) ->
     lists:flatten(io_lib:format(Format, Args)).

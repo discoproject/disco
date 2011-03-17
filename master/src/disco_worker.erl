@@ -254,8 +254,7 @@ input(Task) ->
         Binary when is_binary(Binary) ->
             [{1, <<"ok">>, [Binary]}];
         List when is_list(List) ->
-            Enum = lists:seq(1, length(List)),
-            [{I, <<"ok">>, lists:flatten([Url])} || {I, Url} <- lists:zip(Enum, List)]
+            [{I, <<"ok">>, lists:flatten([Url])} || {I, Url} <- disco:enum(List)]
     end.
 
 results_filename(Task) ->
@@ -277,18 +276,19 @@ local_results(Task, FileName) ->
 
 results(#state{output_filename = none, persisted_outputs = Outputs}) ->
     {none, Outputs};
-results(#state{output_filename = FileName, task = Task,
+results(#state{task = Task,
+               output_filename = FileName,
                persisted_outputs = Outputs}) ->
     {local_results(Task, FileName), Outputs}.
 
 format_output_line(S, [LocalFile, Type]) ->
     format_output_line(S, [LocalFile, Type, <<"0">>]);
-format_output_line(#state{task = Task},
-                   [BLocalFile, Type, Label]) ->
+format_output_line(#state{task = Task}, [LocalFile, Type, Label]) ->
     Host = disco:host(node()),
-    LocalFile = binary_to_list(BLocalFile),
     io_lib:format("~s ~s://~s/~s\n",
-                  [Label, Type, Host, url_path(Task, Host, LocalFile)]).
+                  [Label, Type, Host, url_path(Task,
+                                               Host,
+                                               binary_to_list(LocalFile))]).
 
 -spec add_output(list(), #state{}) -> #state{}.
 add_output([Tag, <<"tag">>], S) ->

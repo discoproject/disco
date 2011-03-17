@@ -8,18 +8,16 @@ combine_tasks(JobName, Mode, DirUrls) ->
                    {[Node|_], NodeDirUrls} = lists:unzip(NodeUrls),
                    {Node, [DataRoot, JobName, Mode, NodeDirUrls]}
                 end || NodeUrls <- NodeGroups],
-    {ok, wait_replies(JobName, call_nodes(JobName, Messages, 0), [])}.
+    {ok, wait_replies(JobName, call_nodes(Messages, 0), [])}.
 
-call_nodes(Name, Messages, FailCount) ->
+call_nodes(Messages, FailCount) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     if FailCount >= MaxFail ->
-        event_server:event(Name,
-            "ERROR: Shuffling failed ~B times. At most ~B failures "
-            "are allowed. Aborting job.",
-            [FailCount, MaxFail], []),
-        throw(logged_error);
-    true ->
-        call_nodes_do(Messages, FailCount + 1)
+            throw({error,
+                   {"Shuffling failed ~B times. At most ~B failures are allowed.",
+                    [FailCount, MaxFail]}});
+       true ->
+            call_nodes_do(Messages, FailCount + 1)
     end.
 
 call_nodes_do(Messages, FailCount) ->
@@ -43,7 +41,7 @@ wait_replies(Name, {Promises, FailCount}, Results) ->
             Msg
          end || {Reply, {Node, _Arg} = Msg} <- Failed],
     Ok = Results ++ [Url || {{ok, Url}, _} <- OkReplies],
-    wait_replies(Name, call_nodes(Name, Messages, FailCount), Ok).
+    wait_replies(Name, call_nodes(Messages, FailCount), Ok).
 
 % NB: Under rare circumstances it is possible that several instances of
 % combine_tasks_node are running in parallel on a single node. Thus, all

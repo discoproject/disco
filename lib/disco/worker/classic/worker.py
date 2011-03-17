@@ -299,19 +299,12 @@ class Worker(worker.Worker):
                          'reduce_output_stream': (reduce_output_stream,
                                                   disco_output_stream),
                          'ext_params': {},
-                         'merge_partitions': False,
                          'params': None,
                          'sort': False,
                          'sort_buffer_size': '10%',
                          'status_interval': 100000,
                          'version': '.'.join(str(s) for s in sys.version_info[:2])})
         return defaults
-
-    def jobdict(self, job, **jobargs):
-        jobdict = super(Worker, self).jobdict(job, **jobargs)
-        if self.getitem('merge_partitions', job, **jobargs):
-            jobdict.update({'nr_reduces': 1})
-        return jobdict
 
     def jobzip(self, job, **jobargs):
         from disco.modutil import find_modules
