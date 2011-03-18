@@ -1,5 +1,5 @@
 #!/bin/bash
-# This file is used by "make install" on Linux.
+# This file is used by Debian packaging.
 
 cat << EOF
 # Disco settings
@@ -25,9 +25,6 @@ DISCO_PID_DIR = "/var/run/disco/"
 # --
 # -- Variables below this line rarely need to be modified
 # --
-
-# disco_worker is installed by setuptools to the system default bin directory
-DISCO_WORKER = "/usr/bin/disco-worker"
 
 DISCO_MASTER_HOME = DISCO_HOME
 
