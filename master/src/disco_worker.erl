@@ -57,7 +57,7 @@ init({Master, Task}) ->
 
 worker_send(MsgName, Payload, #state{port = Port}) ->
     Msg = list_to_binary(MsgName),
-    Data = dencode:encode(Payload),
+    Data = list_to_binary(mochijson2:encode(Payload)),
     Length = list_to_binary(integer_to_list(size(Data))),
     port_command(Port, <<Msg/binary, " ", Length/binary, "\n", Data/binary, "\n">>).
 
@@ -99,8 +99,8 @@ handle_event({event, {<<"SET">>, _Time, _Tags, _Message}}, State) ->
     event({<<"SET">>, "Settings requested"}, State),
     Port = list_to_integer(disco:get_setting("DISCO_PORT")),
     PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
-    Settings = dict:from_list([{<<"port">>, Port},
-                               {<<"put_port">>, PutPort}]),
+    Settings = {struct, [{<<"port">>, Port},
+                         {<<"put_port">>, PutPort}]},
     worker_send("SET", Settings, State),
     {noreply, State};
 
@@ -117,26 +117,26 @@ handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, State) ->
 handle_event({event, {<<"TSK">>, _Time, _Tags, _Message}},
              #state{task = Task} = State) ->
     event({<<"TSK">>, "Task info requested"}, State),
-    TaskInfo = dict:from_list([{<<"taskid">>, Task#task.taskid},
-                               {<<"mode">>, list_to_binary(Task#task.mode)},
-                               {<<"jobname">>, list_to_binary(Task#task.jobname)},
-                               {<<"host">>, list_to_binary(disco:host(node()))}]),
+    TaskInfo = {struct, [{<<"taskid">>, Task#task.taskid},
+                         {<<"master">>, list_to_binary(disco:get_setting("DISCO_MASTER"))},
+                         {<<"mode">>, list_to_binary(Task#task.mode)},
+                         {<<"jobname">>, list_to_binary(Task#task.jobname)},
+                         {<<"host">>, list_to_binary(disco:host(node()))}]},
     worker_send("TSK", TaskInfo, State),
     {noreply, State};
 
-handle_event({event, {<<"INP">>, _Time, _Tags, _Message}}, #state{task = Task} = State) ->
-    % The response structure is:
-    % (more|done, [{integer_id, "ok"|"busy"|"failed", ["url"+]}])
-    % For now, we will always return a non-incremental response:
-    % ('done', [{id, "failed", ["url"+ ]}])
-    Inputs = case Task#task.chosen_input of
-                 Binary when is_binary(Binary) ->
-                     [[0, <<"failed">>, [Binary]]];
-                 List when is_list(List) ->
-                     Enum = lists:seq(0, length(List)-1),
-                     [[I, <<"failed">>, [Url]] || {I,Url} <- lists:zip(Enum, List)]
-             end,
-    worker_send("INP", [<<"done">>, Inputs], State),
+handle_event({event, {<<"INP">>, _Time, _Tags, <<>>}}, #state{task = Task} = State) ->
+    worker_send("INP",
+                [<<"done">>, [[Id, Status, Urls] || {Id, Status, Urls} <- input(Task)]],
+                State),
+    {noreply, State};
+handle_event({event, {<<"INP">>, _Time, _Tags, Id}}, #state{task = Task} = State) ->
+    case lists:keyfind(Id, 1, input(Task)) of
+        {Id, Status, Urls} ->
+            worker_send("INP", [Status, Urls], State);
+        false ->
+            worker_send("ERROR", [<<"No such input">>, Id], State)
+    end,
     {noreply, State};
 
 % rate limited event
@@ -172,17 +172,14 @@ handle_info({work, JobHome}, #state{task = Task, port = none} = State) ->
     Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
     file:change_mode(Worker, 8#755),
     Command = "nice -n 19 " ++ Worker,
+    JobEnvs = jobpack:jobenvs(jobpack:read(JobHome)),
     Options = [{cd, JobHome},
                {line, 100000},
                binary,
                exit_status,
                use_stdio,
                stderr_to_stdout,
-               {env,
-                [{"LD_LIBRARY_PATH", "lib"},
-                 {"LC_ALL", "C"}] ++
-                [{Setting, disco:get_setting(Setting)}
-                 || Setting <- disco:settings()]}],
+               {env, dict:to_list(JobEnvs)}],
     {noreply, State#state{port = open_port({spawn, Command}, Options)}};
 
 handle_info({_Port, {data, Data}}, #state{event_stream = EventStream} = State) ->
@@ -209,7 +206,7 @@ terminate(_Reason, #state{child_pid = Pid}) when Pid =/= none ->
     % Kill the worker process
     os:cmd("kill -9 " ++ Pid);
 terminate(_Reason, State) ->
-    event({<<"WARN">>, "PID unknown: worker could not be killed"}, State).
+    event({<<"WARNING">>, "PID unknown: worker could not be killed"}, State).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -220,8 +217,10 @@ jobhome(JobName) ->
 make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
     case jobpack:extracted(JobHome) of
-        true -> JobHome;
-        false -> make_jobhome(JobName, JobHome, Master)
+        true ->
+            JobHome;
+        false ->
+            make_jobhome(JobName, JobHome, Master)
     end.
 make_jobhome(JobName, JobHome, Master) ->
     JobAtom = list_to_atom(disco:hexhash(JobName)),
@@ -235,6 +234,7 @@ make_jobhome(JobName, JobHome, Master) ->
         _Else ->
             wait_for_jobhome(JobAtom, JobName, Master)
     end.
+
 wait_for_jobhome(JobAtom, JobName, Master) ->
     case whereis(JobAtom) of
         undefined ->
@@ -243,11 +243,17 @@ wait_for_jobhome(JobAtom, JobName, Master) ->
             process_flag(trap_exit, true),
             link(JobProc),
             receive
-                {'EXIT', noproc} ->
-                    make_jobhome(JobName, Master);
-                {'EXIT', JobProc, normal} ->
+                _Any ->
                     make_jobhome(JobName, Master)
             end
+    end.
+
+input(Task) ->
+    case Task#task.chosen_input of
+        Binary when is_binary(Binary) ->
+            [{1, <<"ok">>, [Binary]}];
+        List when is_list(List) ->
+            [{I, <<"ok">>, lists:flatten([Url])} || {I, Url} <- disco:enum(List)]
     end.
 
 results_filename(Task) ->
@@ -269,18 +275,19 @@ local_results(Task, FileName) ->
 
 results(#state{output_filename = none, persisted_outputs = Outputs}) ->
     {none, Outputs};
-results(#state{output_filename = FileName, task = Task,
+results(#state{task = Task,
+               output_filename = FileName,
                persisted_outputs = Outputs}) ->
     {local_results(Task, FileName), Outputs}.
 
 format_output_line(S, [LocalFile, Type]) ->
     format_output_line(S, [LocalFile, Type, <<"0">>]);
-format_output_line(#state{task = Task},
-                   [BLocalFile, Type, Label]) ->
+format_output_line(#state{task = Task}, [LocalFile, Type, Label]) ->
     Host = disco:host(node()),
-    LocalFile = binary_to_list(BLocalFile),
     io_lib:format("~s ~s://~s/~s\n",
-                  [Label, Type, Host, url_path(Task, Host, LocalFile)]).
+                  [Label, Type, Host, url_path(Task,
+                                               Host,
+                                               binary_to_list(LocalFile))]).
 
 -spec add_output(list(), #state{}) -> #state{}.
 add_output([Tag, <<"tag">>], S) ->

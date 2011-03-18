@@ -20,7 +20,6 @@ class MapPartitionedOutputTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        assert Task.partitions == 2
         yield e, 'against_me'
 
     @property
@@ -32,7 +31,6 @@ class MapNonPartitionedOutputTestCase(MapPartitionedOutputTestCase):
 
     @staticmethod
     def map(e, params):
-        assert not Task.partitions
         yield e, 'against_me'
 
 class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
@@ -53,7 +51,7 @@ class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
 
 class MapReducePartitionedTestCase(ReduceNonPartitionedInputTestCase):
     partitions = 8
-    reduce_reader = func.chain_reader
+    reduce_reader = staticmethod(func.chain_reader)
 
     @staticmethod
     def map(e, params):
@@ -84,13 +82,13 @@ class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     def input_3(self):
         return self.job_1.wait() + self.job_2.wait()
 
-    def reduce_3(iter, out, params):
-        for k, v in iter:
-            out.add(k, v)
+    @staticmethod
+    def reduce_3(iter, params):
+        return iter
 
     def runTest(self):
         answers = sorted(self.beers * 2)
-        results = sorted(k for k, v in self.results_3 if v is None)
+        results = sorted(k for k, v in self.results_3)
         for answer, result in zip(answers, results):
             self.assertEquals(answer, result)
         self.assertEquals(len(answers), len(results))

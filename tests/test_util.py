@@ -1,5 +1,5 @@
 from disco.test import DiscoTestCase
-from disco.util import flatten, iterify, rapply, pack, unpack, urlsplit
+from disco.util import flatten, iterify, pack, unpack, urlsplit
 
 import os
 from datetime import datetime
@@ -16,11 +16,6 @@ class UtilTestCase(DiscoTestCase):
     def test_iterify(self):
         self.assertEquals([5], list(iterify(5)))
         self.assertEquals([5], list(iterify([5])))
-
-    def test_rapply(self):
-        for x, y in zip(xrange(7), flatten(rapply(sequence, function))):
-            self.assertEquals(function(x), y)
-
 
     def test_pack(self):
         now = datetime.now()

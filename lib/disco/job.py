@@ -4,122 +4,11 @@
 
 .. autoclass:: Task
         :members:
-.. autoclass:: JobDict
-        :members:
 .. autoclass:: Job
         :members:
-"""
-import os, sys, time
 
-from disco import dencode, func, json
-from disco.error import DiscoError
-from disco.util import hexhash, isiterable, netloc, load_oob, save_oob
-from disco.settings import DiscoSettings
 
-class Task(object):
-    def __init__(self,
-                 worker,
-                 jobdict,
-                 jobname='',
-                 taskid=-1,
-                 mode=None,
-                 host=''):
-        self.worker = worker
-        self.jobdict = jobdict
-        self.jobname = jobname
-        self.taskid = taskid
-        self.mode = mode
-        self.host = host
-        self.uid = '%s:%s-%s-%x' % (mode,
-                                    taskid,
-                                    hexhash(str((time.time()))),
-                                    os.getpid())
-
-    @property
-    def jobpath(self):
-        return os.path.join(self.host, hexhash(self.jobname), self.jobname)
-
-    @property
-    def master(self):
-        return self.jobdict.settings['DISCO_MASTER']
-
-    @property
-    def taskpath(self):
-        return os.path.join(hexhash(self.uid), self.uid)
-
-    def path(self, name):
-        return os.path.join(self.taskpath, name)
-
-    def url(self, name, scheme='disco'):
-        return '%s://%s/disco/%s/%s/%s' % (scheme, self.host, self.jobpath, self.taskpath, name)
-
-    def open_url(self, url):
-        from disco.comm import open_url
-        file, _size, _url = open_url(url)
-        return file
-
-    def open_replicas(self, input, start=0):
-        from itertools import dropwhile
-        replicas = list(input)
-        while replicas:
-            try:
-                records = enumerate(self.open_url(replicas.pop(0)))
-                for start, record in dropwhile(lambda (n, rec): n < start, records):
-                    yield record
-            except Exception:
-                start += 1
-                if not replicas:
-                    raise
-
-    def open(self, input):
-        if isiterable(input):
-            return self.open_replicas(input)
-        return self.open_url(input)
-
-    def read(self, *inputs):
-        for input in inputs:
-            for record in self.open(input):
-                yield record
-
-    def start(self, *inputs):
-        if self.jobdict['profile?']:
-            return self.run_profile(*inputs)
-        return self.run(*inputs)
-
-    def run(self, *inputs):
-        return self.read(*inputs)
-
-    def run_profile(self, *inputs):
-        from cProfile import runctx
-        name = 'profile-%s' % self.uid
-        path = self.path(name)
-        runctx('self.run(*inputs)', globals(), locals(), path)
-        self.put(name, open(path).read())
-
-    def get(self, key):
-        """
-        Gets an out-of-band result for the task with the key *key*.
-
-        Given the semantics of OOB results, this means that only the reduce
-        phase can access results produced in the preceding map phase.
-        """
-        return load_oob(self.master, self.jobname, key)
-
-    def put(self, key, value):
-        """
-        Stores an out-of-band result *value* with the key *key*.
-
-        Key must be unique in this job.
-        Maximum key length is 256 characters.
-        Only characters in the set ``[a-zA-Z_\-:0-9@]`` are allowed in the key.
-        """
-        from disco.ddfs import DDFS
-        if DDFS.safe_name(key) != key:
-            raise DiscoError("OOB key contains invalid characters (%s)" % key)
-        save_oob(self.master, self.jobname, key, value)
-
-class JobDict(dict):
-    """
+XXX: fix these docs
     :meth:`Disco.new_job` and :meth:`Job.run`
     accept the same set of keyword arguments as specified below.
 
@@ -148,42 +37,106 @@ class JobDict(dict):
                   Redundant inputs are tried one by one until the task succeeds.
                   Redundant inputs require that the *map* function is specified.
 
+"""
+import os, sys, time
+
+from disco import func, json
+from disco.error import DiscoError
+from disco.util import hexhash, isiterable, netloc, load_oob, save_oob
+from disco.settings import DiscoSettings
+
+class JobPack(object):
     """
+    +---------------- 4
+    | magic / version |
+    +---------------- 8 -------------- 12 ------------- 16 ------------- 20
+    | jobdict offset  | jobenvs offset | jobhome offset | jobdata offset |
+    +--------------------------------------------------------------------+
+    |                         ...  reserved ...                          |
+    128 -----------------------------------------------------------------+
+    |                               jobdict                              |
+    +--------------------------------------------------------------------+
+    |                               jobenvs                              |
+    +--------------------------------------------------------------------+
+    |                               jobhome                              |
+    +--------------------------------------------------------------------+
+    |                               jobdata                              |
+    +--------------------------------------------------------------------+
+    """
+    MAGIC = (0xd5c0 << 16) + 0x0001
+    HEADER_FORMAT = "IIIII"
+    HEADER_SIZE = 128
+    def __init__(self, *fields):
+        self.jobdict, self.jobenvs, self.jobhome, self.jobdata = fields
 
-    def __init__(self, settings, **jobargs):
-        self.settings = settings
-        super(JobDict, self).__init__(self.defaults())
-        self.update(jobargs)
+    def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
+        from socket import htonl
+        from struct import pack
+        toc = pack(format, htonl(magic), *(htonl(o) for o in offsets))
+        return toc + '\0' * (size - len(toc))
 
-    def copy(self):
-        return type(self)(self.settings, **super(JobDict, self).copy())
-
-    def defaults(self):
-        return {'input': (),
-                'jobhome': '',
-                'worker': self.settings['DISCO_WORKER'],
-                'map?': False,
-                'reduce?': False,
-                'profile?': False,
-                'nr_reduces': 0,
-                'prefix': '',
-                'scheduler': {'force_local': False,
-                              'force_remote': False,
-                              'max_cores': int(2**31),},
-                'owner': self.settings['DISCO_JOB_OWNER']}
+    def contents(self, offset=HEADER_SIZE):
+        for field in (json.dumps(self.jobdict),
+                      json.dumps(self.jobenvs),
+                      self.jobhome,
+                      self.jobdata):
+            yield offset, field
+            offset += len(field)
 
     def dumps(self):
-        """Pack up the :class:`JobDict` for sending over the wire."""
-        return dencode.dumps(self)
+        offsets, fields = zip(*self.contents())
+        return self.header(offsets) + ''.join(fields)
 
     @classmethod
-    def load(cls, jobfile, settings=DiscoSettings()):
-        """Unpack the previously packed :class:`JobDict` from a file."""
-        return cls(settings, **dencode.load(jobfile))
+    def offsets(cls, jobfile, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
+        from socket import ntohl
+        from struct import calcsize, unpack
+        jobfile.seek(0)
+        header = [ntohl(i) for i in unpack(format, jobfile.read(calcsize(format)))]
+        if header[0] != magic:
+            raise DiscoError("Invalid jobpack magic.")
+        if header[1] != size:
+            raise DiscoError("Invalid jobpack header.")
+        if header[1:] != sorted(header[1:]):
+            raise DiscoError("Invalid jobpack offsets.")
+        return header[1:]
 
     @classmethod
-    def loads(cls, jobpack, settings=DiscoSettings()):
-        return cls(settings, **dencode.loads(jobpack))
+    def load(cls, jobfile):
+        return PackedJobPack(jobfile)
+
+    @classmethod
+    def request(cls):
+        from disco.events import JobFile
+        return cls.load(open(JobFile().send()))
+
+class PackedJobPack(JobPack):
+    def __init__(self, jobfile):
+        self.jobfile = jobfile
+
+    @property
+    def jobdict(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(dict_offset)
+        return json.loads(self.jobfile.read(envs_offset - dict_offset))
+
+    @property
+    def jobenvs(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(envs_offset)
+        return json.loads(self.jobfile.read(home_offset - dict_offset))
+
+    @property
+    def jobhome(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(home_offset)
+        return self.jobfile.read(data_offset - home_offset)
+
+    @property
+    def jobdata(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(data_offset)
+        return self.jobfile.read()
 
 class Job(object):
     """
@@ -203,7 +156,7 @@ class Job(object):
 
                         Only characters in ``[a-zA-Z0-9_]`` are allowed in the job name.
 
-    :type worker: :class:`disco.core.Worker`
+    :type worker: :class:`disco.worker.Worker`
 
     :type settings: :class:`disco.settings.DiscoSettings`
 
@@ -213,8 +166,8 @@ class Job(object):
     that is, to block the script until the job has finished.
     This is accomplished as follows::
 
-        from disco.core import Job
-        results = Job(master, name, ...).run().wait()
+        from disco.job import Job
+        results = Job(name, ...).run().wait()
 
     Note that job methods of :class:`disco.core.Disco` objects are directly
     accessible through the :class:`Job` object, such as :meth:`Job.wait`
@@ -230,7 +183,7 @@ class Job(object):
         - :meth:`disco.core.Disco.events`
         - :meth:`disco.core.Disco.kill`
         - :meth:`disco.core.Disco.jobinfo`
-        - :meth:`disco.core.Disco.jobspec`
+        - :meth:`disco.core.Disco.jobpack`
         - :meth:`disco.core.Disco.oob_get`
         - :meth:`disco.core.Disco.oob_list`
         - :meth:`disco.core.Disco.profile_stats`
@@ -247,7 +200,7 @@ class Job(object):
     A typical case is that you no longer need the results of a job.
     You can delete the unneeded job files as follows::
 
-        from disco.core import Job
+        from disco.job import Job
         from disco.util import jobname
 
         Job(master, jobname(results[0])).purge()
@@ -256,7 +209,7 @@ class Job(object):
                        'events',
                        'kill',
                        'jobinfo',
-                       'jobspec',
+                       'jobpack',
                        'oob_get',
                        'oob_list',
                        'profile_stats',
@@ -264,30 +217,28 @@ class Job(object):
                        'results',
                        'mapresults',
                        'wait')
+    from disco.worker.classic.worker import Worker as worker
 
-    def __init__(self, name, master=None, worker=None, settings=DiscoSettings()):
+    def __init__(self, name=None, master=None, worker=None, settings=DiscoSettings()):
         from disco.core import Disco
-        from disco.worker.classic.worker import Worker
-        self.name = name
-        self.master = master or Disco()
-        self.worker = worker or Worker()
+        self.name = name or type(self).__name__
+        self.disco = master if isinstance(master, Disco) else Disco(master)
+        self.worker = worker or self.worker()
         self.settings = settings
 
     def __getattr__(self, attr):
         if attr in self.proxy_functions:
             from functools import partial
-            return partial(getattr(self.master, attr), self.name)
+            return partial(getattr(self.disco, attr), self.name)
         raise AttributeError("%r has no attribute %r" % (self, attr))
 
-    def run(self, **kwargs):
-        for key in self.worker:
-            if key in kwargs:
-                self.worker[key] = kwargs.pop(key)
-            elif hasattr(self, key):
-                self.worker[key] = getattr(self, key)
-        jobdict = JobDict(self.settings, prefix=self.name, **kwargs)
-        jobpack = self.worker.jobpack(jobdict)
-        status, response = json.loads(self.master.request('/disco/job/new', jobpack))
+    def run(self, **jobargs):
+        jobpack = JobPack(self.worker.jobdict(self, **jobargs),
+                          self.worker.jobenvs(self, **jobargs),
+                          self.worker.jobhome(self, **jobargs),
+                          self.worker.jobdata(self, **jobargs))
+        status, response = json.loads(self.disco.request('/disco/job/new',
+                                                         jobpack.dumps()))
         if status != 'ok':
             raise DiscoError("Failed to start job. Server replied: %s" % response)
         self.name = response

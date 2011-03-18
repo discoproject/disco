@@ -417,10 +417,11 @@ def run(program, jobclass, *inputs):
     from disco.util import reify
     def maybe_list(seq):
         return seq[0] if len(seq) == 1 else seq
-    name = program.options.name or jobclass.split('.')[-1]
     input = inputs or [maybe_list(line.split())
                        for line in fileinput.input(inputs)]
-    job = reify(jobclass)(program.disco, name)
+    job = reify(jobclass)(name=program.options.name,
+                          master=program.disco,
+                          settings=program.settings)
 
     try:
         params = job.params

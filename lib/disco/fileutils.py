@@ -164,14 +164,14 @@ class DiscoZipFile(ZipFile, object):
         return self.buffer.read()
 
 class AtomicFile(file):
-    def __init__(self, path, *args, **kwargs):
+    def __init__(self, path):
         dir = os.path.dirname(path) or '.'
         ensure_path(dir)
         ensure_free_space(dir)
         self.path = path
         self.partial = '%s.partial' % path
         self.isopen = True
-        super(AtomicFile, self).__init__(self.partial, *args, **kwargs)
+        super(AtomicFile, self).__init__(self.partial, 'w')
 
     def close(self):
         if self.isopen:

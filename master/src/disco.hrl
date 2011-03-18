@@ -1,5 +1,6 @@
 
--record(jobinfo, {jobfile :: nonempty_string(),
+-record(jobinfo, {jobname :: nonempty_string(),
+                  jobfile :: nonempty_string(),
                   force_local :: bool(),
                   force_remote :: bool(),
                   owner :: binary(),

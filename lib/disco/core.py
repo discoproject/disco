@@ -28,14 +28,10 @@ from disco.comm import download
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
 from disco.fileutils import Chunker, CHUNK_SIZE
-from disco.job import Job, JobDict
+from disco.job import Job
 from disco.settings import DiscoSettings
 
-from disco.worker.classic.worker import Params # backwards compatibility
-
-class Job(Job):
-    def __init__(self, master, name, **kwargs):
-        super(Job, self).__init__(name, master=master, *kwargs)
+from disco.worker.classic.worker import Params # backwards compatibility XXX: deprecate
 
 class Continue(Exception):
     pass
@@ -47,8 +43,9 @@ class Disco(object):
     :param master: address of the Disco master,
                    for instance ``disco://localhost``.
     """
-    def __init__(self, master=DiscoSettings()['DISCO_MASTER']):
-        self.master = master
+    def __init__(self, master=None, settings=DiscoSettings()):
+        self.master = master or settings['DISCO_MASTER']
+        self.settings = settings
 
     def request(self, url, data=None, offset=0):
         """
@@ -172,7 +169,7 @@ class Disco(object):
         :meth:`disco.worker.classic.job.Job.run`.
         Returns a :class:`disco.worker.classic.job.Job`.
         """
-        return Job(self, name).run(**kwargs)
+        return Job(name=name, master=self.master).run(**kwargs)
 
     def kill(self, name):
         """Kills the job *name*."""
@@ -198,19 +195,12 @@ class Disco(object):
         self.request('/disco/ctrl/purge_job', '"%s"' % name)
 
     def jobdict(self, name):
-        return JobDict.loads(self.jobpack(name))
+        return self.jobpack(name).jobdict
 
     def jobpack(self, name):
-        return self.request('/disco/ctrl/parameters?name=%s' % name)
-
-    def jobspec(self, name):
-        """
-        Returns the raw job request package, as constructed by
-        :meth:`Disco.new_job`, for the job *name*.
-
-        .. todo:: deprecate this in favor of jobdict/jobpack
-        """
-        return self.jobdict(name)
+        from cStringIO import StringIO
+        from disco.job import JobPack
+        return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name=%s' % name)))
 
     def events(self, name, offset=0):
         """
@@ -289,8 +279,14 @@ class Disco(object):
         Note how the list of active jobs, ``jobs``, returned by :meth:`Disco.results`
         can be used as the input to the function itself.
         """
-        jobspecifier = JobSpecifier(jobspec)
-        data = json.dumps([timeout, list(jobspecifier.jobnames)])
+        def jobname(job):
+            if isinstance(job, basestring):
+                return job
+            elif isinstance(job, list):
+                return job[0]
+            return job.name
+        jobnames = [jobname(job) for job in util.iterify(jobspec)]
+        data = json.dumps([timeout, jobnames])
         results = json.loads(self.request('/disco/ctrl/get_results', data))
 
         if isinstance(jobspec, basestring):
@@ -321,11 +317,7 @@ class Disco(object):
             raise JobError("Timeout", self.master, name)
         raise Continue()
 
-    def wait(self, name,
-             poll_interval=2,
-             timeout=None,
-             clean=False,
-             show=DiscoSettings()['DISCO_EVENTS']):
+    def wait(self, name, poll_interval=2, timeout=None, clean=False, show=None):
         """
         Block until the job *name* has finished. Returns a list URLs to the
         results files which is typically processed with :func:`result_iterator`.
@@ -351,7 +343,9 @@ class Disco(object):
                      See ``DISCO_EVENTS`` in :mod:`disco.settings`.
                      (*Added in version 0.2.3*)
         """
-        event_monitor = EventMonitor(Job(self, name=name),
+        if show is None:
+            show = self.settings['DISCO_EVENTS']
+        event_monitor = EventMonitor(Job(name=name, master=self.master),
                                      format=show,
                                      poll_interval=poll_interval)
         start_time    = time.time()
@@ -371,24 +365,6 @@ class Disco(object):
         kwargs['ddfs'] = self.master
         return result_iterator(*args, **kwargs)
 
-class JobSpecifier(list):
-    def __init__(self, jobspec):
-        super(JobSpecifier, self).__init__([jobspec]
-            if isinstance(jobspec, basestring) else jobspec)
-
-    @property
-    def jobnames(self):
-        for job in self:
-            if isinstance(job, basestring):
-                yield job
-            elif isinstance(job, list):
-                yield job[0]
-            else:
-                yield job.name
-
-    def __str__(self):
-        return '{%s}' % ', '.join(self.jobnames)
-
 class ChunkIter(object):
     def __init__(self, url,
                  chunk_size=CHUNK_SIZE,
@@ -401,57 +377,32 @@ class ChunkIter(object):
 
     def __iter__(self):
         chunker = Chunker(chunk_size=self.chunk_size)
-        for chunk in chunker.chunks(ClassicIter([self.url], **self.kwargs)):
+        for chunk in chunker.chunks(classic_iterator([self.url], **self.kwargs)):
             yield chunk
 
-class RecordIter(object):
-    """
-    Produces an iterator over the records in a list of inputs.
-
-    :type  urls: list of urls
-    :param urls: urls of the inputs
-                 e.g. as returned by :meth:`Disco.wait`.
-
-    :type  task: :class:`disco.job.Task`
-    :param task: task used to read the urls
-    """
-    def __init__(self, task, *urls):
-        self.task = task
-        self.urls = urls
-
-    def __iter__(self):
-        return self.task.read(*self.urls)
-
-class ClassicIter(RecordIter):
-        """
-        A :class:`RecordIter` which uses a dummy classic Disco Map task.
-
-        :type  reader: :func:`disco.func.input_stream`
-        :param reader: used to read from a custom :func:`disco.func.output_stream`.
-
-        :type  notifier: :func:`disco.func.notifier`
-        :param notifier: called when the task opens a url.
-        """
-        def __init__(self, urls,
+def classic_iterator(urls,
                      reader=func.chain_reader,
                      input_stream=(func.map_input_stream, ),
+                     notifier=func.notifier,
                      params=None,
-                     ddfs=None,
-                     settings=DiscoSettings(),
-                     notifier=func.notifier):
-            from disco.worker.classic.task import task
-            from disco.worker.classic.worker import Worker
-            ddfs = ddfs or settings['DISCO_MASTER'],
-            task = task(Worker(settings=DiscoSettings(DISCO_MASTER=ddfs),
-                               map_reader=reader,
-                               map_input_stream=input_stream,
-                               params=params,
-                               notifier=notifier),
-                        JobDict(settings))
-            super(ClassicIter, self).__init__(task, *urls)
+                     ddfs=None):
+    """
+    An iterator over records as seen by the classic map interface.
 
-def result_iterator(urls, **kwargs):
-    return ClassicIter(urls, **kwargs)
+    :type  reader: :func:`disco.func.input_stream`
+    :param reader: used to read from a custom :func:`disco.func.output_stream`.
+
+    :type  notifier: :func:`disco.func.notifier`
+    :param notifier: called when the task opens a url.
+    """
+    from disco.task import TaskInput
+    from disco.worker.classic.worker import Worker
+    worker = Worker(map_reader=reader, map_input_stream=input_stream)
+    for input in util.inputlist(urls, settings=DiscoSettings(DISCO_MASTER=ddfs)):
+        notifier(input)
+        for record in TaskInput(input, open=worker.opener('map', 'in', params)):
+            yield record
+result_iterator = classic_iterator
 
 class Stats(object):
     def __init__(self, prof_data):

@@ -27,14 +27,3 @@ class SortTestCase(DiscoJobTestFixture, DiscoTestCase):
     @property
     def answers(self):
         return sorted((str(k), 1000) for k in list(string.ascii_lowercase) + range(10))
-
-class MergeSortTestCase(SortTestCase):
-    partitions = 0
-    sort       = 'merge'
-
-    @staticmethod
-    def map(e, params):
-        letters = list(string.ascii_lowercase * 10)
-        numbers = [str(i) for i in range(10)] * 10
-        for char in sorted(letters + numbers):
-            yield base64.encodestring(char), ''

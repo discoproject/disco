@@ -273,211 +273,179 @@ Utility functions
 .. autofunction:: this_partition
 .. autofunction:: this_host
 .. autofunction:: this_master
-.. autofunction:: this_inputs
 """
-import os, sys, traceback
+import os, sys
 
-from disco.error import DataError, DiscoError, JobPackError
-from disco.events import DataUnavailable, TaskFailed
-from disco.events import AnnouncePID, Input, Status, WorkerDone, TaskInfo, JobFile
-from disco.fileutils import DiscoZipFile
-from disco.job import JobDict
-from disco.modutil import find_modules
-from disco.sysutil import set_mem_limit
-from disco.util import (MessageWriter,
-                        pack, unpack,
-                        read_index, inputlist, ispartitioned,
-                        flatten, isiterable, iskv, iterify)
-
-from disco import __file__ as discopath
+from disco import events, util, worker
+from disco.worker.classic import external
 from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
 
-# The format for the jobpack is as follows:
-# Header (128 bytes)
-# 4: magic/version d5c0 0001
-# 4: job dict offset
-# 4: jobhome zip offset
-# 4: worker dict offset
-# 4: worker data offset
-# [remaining header: reserved]
-# JobDict (parameters for master)
-# JobHome (zip file unpacked by master)
-# WorkerDict (parameters for worker only)
-# WorkerData (data for worker only)
+def status(message):
+    return events.Status(message).send()
 
-JOBPACK_FMT_MAGIC = (0xd5c0 << 16) + 0x0001
-JOBPACK_HDR_FMT = "IIIII"
-JOBPACK_HDR_SIZE = 128
-
-class Worker(dict):
-    def __init__(self, **kwargs):
-        super(Worker, self).__init__(self.defaults())
-        self.update(kwargs)
-
+class Worker(worker.Worker):
     def defaults(self):
-        return {'map': None,
-                'map_init': init,
-                'map_reader': None,
-                'map_input_stream': (map_input_stream, ),
-                'map_output_stream': (map_output_stream,
-                                      disco_output_stream),
-                'combiner': None,
-                'partition': default_partition,
-                'reduce': None,
-                'reduce_init': init,
-                'reduce_reader': chain_reader,
-                'reduce_input_stream': (reduce_input_stream, ),
-                'reduce_output_stream': (reduce_output_stream,
-                                         disco_output_stream),
-                'notifier': notifier,
-                'ext_params': {},
-                'merge_partitions': False,
-                'params': None,
-                'partitions': 1,
-                'profile': False,
-                'required_files': {},
-                'required_modules': None,
-                'save': False,
-                'sort': False,
-                'sort_buffer_size': '10%',
-                'status_interval': 100000,
-                'version': '.'.join(str(s) for s in sys.version_info[:2])}
+        defaults = super(Worker, self).defaults()
+        defaults.update({'map_init': init,
+                         'map_reader': None,
+                         'map_input_stream': (map_input_stream, ),
+                         'map_output_stream': (map_output_stream,
+                                               disco_output_stream),
+                         'combiner': None,
+                         'partition': default_partition,
+                         'reduce_init': init,
+                         'reduce_reader': chain_reader,
+                         'reduce_input_stream': (reduce_input_stream, ),
+                         'reduce_output_stream': (reduce_output_stream,
+                                                  disco_output_stream),
+                         'ext_params': {},
+                         'params': None,
+                         'sort': False,
+                         'sort_buffer_size': '10%',
+                         'status_interval': 100000,
+                         'version': '.'.join(str(s) for s in sys.version_info[:2])})
+        return defaults
 
-    def dumps(self):
-        from disco.dencode import dumps
-        return dumps(dict((k, pack(v)) for k, v in self.iteritems()))
-
-    @classmethod
-    def loads(cls, jobpack):
-        from disco.dencode import loads
-        worker = dict((k, unpack(v) if k == 'required_modules' else v)
-                           for k, v in loads(jobpack).iteritems())
-        globals_ = globals().copy()
-        for req in worker['required_modules'] or ():
-            name = req[0] if iskv(req) else req
-            globals_[name.split('.')[-1]] = __import__(name, fromlist=[name])
-        return cls(**dict((k, v if k == 'required_modules'
-                           else unpack(v, globals=globals_))
-                          for k, v in worker.iteritems()))
-
-    def jobpack(self, jobdict):
-        jobdict = jobdict.copy()
-        has_map = bool(self['map'])
-        has_reduce = bool(self['reduce'])
-        has_partitions = bool(self['partitions'])
-
-        input = inputlist(*jobdict['input'],
-                          partition=None if has_map else False,
-                          settings=jobdict.settings)
-
-        # -- required modules and files --
-        jobhome = DiscoZipFile()
-        jobhome.writepy(os.path.dirname(discopath), 'lib')
-        if isinstance(self['required_files'], dict):
-            for path, bytes in self['required_files'].iteritems():
-                    jobhome.writebytes(path, bytes)
-        else:
-            for path in self['required_files']:
-                jobhome.writepath(path)
-        if self['required_modules'] is None:
+    def jobzip(self, job, **jobargs):
+        from disco.modutil import find_modules
+        def get(key):
+            return self.getitem(key, job, **jobargs)
+        if get('required_modules') is None:
             self['required_modules'] = find_modules([obj
-                                                     for val in self.values()
-                                                     for obj in iterify(val)
-                                                     if callable(obj)])
-        for mod in self['required_modules']:
-            jobhome.writemodule((mod[0] if iskv(mod) else mod), 'lib')
+                                                     for key in self
+                                                     for obj in util.iterify(get(key))
+                                                     if callable(obj)],
+                                                    exclude=['Task'])
+        jobzip = super(Worker, self).jobzip(job, **jobargs)
         for func in ('map', 'reduce'):
             if isinstance(self[func], dict):
                 for path, bytes in self[func].iteritems():
-                    jobhome.writebytes(os.path.join('ext.%s' % func, path), bytes)
-        jobhome.close()
+                    jobzip.writebytes(os.path.join('ext.%s' % func, path), bytes)
+        return jobzip
 
-        # -- nr_reduces --
-        # ignored if there is not actually a reduce specified
-        if has_map:
-            # partitioned map has N reduces; non-partitioned map has 1 reduce
-            nr_reduces = self['partitions'] or 1
-        elif ispartitioned(input):
-            # no map, with partitions: len(dir://) specifies nr_reduces
-            has_partitions = True
-            nr_reduces = 1 + max(int(id)
-                                 for dir in input
-                                 for id, url in read_index(dir))
-        else:
-            # no map, without partitions can only have 1 reduce
-            has_partitions = False
-            nr_reduces = 1
-
-        # merge_partitions iff the inputs to reduce are partitioned
-        if self['merge_partitions']:
-            if has_partitions:
-                nr_reduces = 1
-            else:
-                raise DiscoError("Can't merge partitions without partitions")
-
-        jobdict.update({'input': input,
-                        'worker': 'lib/disco/worker/classic/worker.py',
-                        'map?': has_map,
-                        'reduce?': has_reduce,
-                        'profile?': self['profile'],
-                        'nr_reduces': nr_reduces})
-
-        from socket import htonl
-        from struct import pack
-        jd, jh, wd = jobdict.dumps(), jobhome.dumps(), self.dumps()
-        jd_len, jh_len, wd_len = len(jd), len(jh), len(wd)
-        jd_ofs = JOBPACK_HDR_SIZE
-        jh_ofs = jd_ofs + jd_len
-        wd_ofs = jh_ofs + jh_len
-        pr_ofs = wd_ofs + wd_len
-        toc = pack(JOBPACK_HDR_FMT, htonl(JOBPACK_FMT_MAGIC),
-                   htonl(jd_ofs), htonl(jh_ofs), htonl(wd_ofs), htonl(pr_ofs))
-        hdr = toc + '\0'*(JOBPACK_HDR_SIZE - len(toc))
-        return hdr + jd + jh + wd
-
-    @classmethod
-    def unpack(cls, jobfile):
-        from socket import ntohl
-        from struct import calcsize, unpack
-        sys.path.insert(0, 'lib')
-        toc_size = calcsize(JOBPACK_HDR_FMT)
-        hdr = jobfile.read(toc_size)
-        (magic, jd_ofs, jh_ofs, wd_ofs, pr_ofs) = unpack(JOBPACK_HDR_FMT, hdr)
-        magic, jd_ofs, jh_ofs  = ntohl(magic), ntohl(jd_ofs), ntohl(jh_ofs)
-        wd_ofs, pr_ofs = ntohl(wd_ofs), ntohl(pr_ofs)
-
-        def check_val(rcvd, expected, msg):
-            if rcvd != expected:
-                raise JobPackError(msg)
-        check_val(magic, JOBPACK_FMT_MAGIC, "Invalid jobpacket identifier.")
-        check_val(jd_ofs, JOBPACK_HDR_SIZE, "Unexpected jobpacket header.")
-
-        def check_len(len, msg):
-            if len < 0:
-                raise JobPackError(msg)
-        jd_len = jh_ofs - jd_ofs
-        jh_len = wd_ofs - jh_ofs
-        wd_len = pr_ofs - wd_ofs
-        check_len(jd_len, "Invalid job dict size")
-        check_len(jh_len, "Invalid job home size")
-
-        jobfile.seek(JOBPACK_HDR_SIZE - toc_size, os.SEEK_CUR)
-        jd = jobfile.read(jd_len)
-        jobfile.seek(jh_len, os.SEEK_CUR)
-        wd = jobfile.read(wd_len)
-        return JobDict.loads(jd), cls.loads(wd)
-
-    @classmethod
-    def work(cls):
+    def run(self, task):
         global Task
-        from disco.worker.classic.task import task
-        AnnouncePID(str(os.getpid())).send()
-        jobdict, worker = cls.unpack(open(JobFile().send()))
-        set_mem_limit(jobdict.settings['DISCO_WORKER_MAX_MEM'])
-        Task = task(worker, jobdict, **TaskInfo().send())
-        Status("Starting a new task").send()
-        Task.start(*Input().send())
-        WorkerDone("Worker done").send()
+        Task = task
+        assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
+
+        def open_hook(file, size, url):
+            status("Input is %s" % (util.format_size(size)))
+            return file
+        self.open_hook = open_hook
+
+        params = self['params']
+        if isinstance(self[task.mode], dict):
+            params = self['ext_params']
+            self[task.mode] = external.prepare(params, task.mode)
+
+        globals_ = globals().copy()
+        for module in self['required_modules'] or ():
+            name = module[0] if util.iskv(module) else module
+            globals_[name.split('.')[-1]] = __import__(name, fromlist=[name])
+        for obj in util.flatten(self.values()):
+            util.globalize(obj, globals_)
+
+        getattr(self, task.mode)(task, params)
+        external.close()
+
+    def map(self, task, params):
+        if self['save'] and self['partitions'] and not self['reduce']:
+            raise NotImplementedError("Storing partitioned outputs in DDFS is not yet supported")
+        entries = self.status_iter(task.input(open=self.opener('map', 'in', params)),
+                                   "%s entries mapped")
+        bufs = {}
+        self['map_init'](entries, params)
+        def output(partition):
+            return task.output(partition, open=self.opener('map', 'out', params)).file.fds[-1]
+        for entry in entries:
+            for key, val in self['map'](entry, params):
+                part = None
+                if self['partitions']:
+                    part = str(self['partition'](key, self['partitions'], params))
+                if self['combiner']:
+                    if part not in bufs:
+                        bufs[part] = {}
+                    for record in self['combiner'](key, val, bufs[part], False, params) or ():
+                        output(part).add(*record)
+                else:
+                    output(part).add(key, val)
+        for part, buf in bufs.items():
+            for record in self['combiner'](None, None, buf, True, params) or ():
+                output(part).add(*record)
+
+    def reduce(self, task, params):
+        from disco.task import input, inputs, SerialInput
+        from disco.util import inputlist, ispartitioned, shuffled
+        # master should feed only the partitioned inputs to reduce (and shuffle them?)
+        # should be able to just use task.input(parallel=True) for normal reduce
+        inputs = [input(id) for id in inputs()]
+        partition = None
+        if ispartitioned(inputs) and not self['merge_partitions']:
+            partition = str(task.taskid)
+        ordered = self.sort(SerialInput(shuffled(inputlist(inputs, partition=partition)),
+                                        open=self.opener('reduce', 'in', params)),
+                            task)
+        entries = self.status_iter(ordered, "%s entries reduced")
+        output = task.output(None, open=self.opener('reduce', 'out', params)).file.fds[-1]
+        self['reduce_init'](entries, params)
+        if util.argcount(self['reduce']) < 3:
+            for record in self['reduce'](entries, *(params, )):
+                output.add(*record)
+        else:
+            self['reduce'](entries, output, params)
+
+    def sort(self, input, task):
+        if self['sort']:
+            return disk_sort(input,
+                             task.path('sort.dl'),
+                             sort_buffer_size=self['sort_buffer_size'])
+        return input
+
+    def status_iter(self, iterator, message_template):
+        status_interval = self['status_interval']
+        n = -1
+        for n, item in enumerate(iterator):
+            if status_interval and (n + 1) % status_interval == 0:
+                status(message_template % (n + 1))
+            yield item
+        status("Done: %s" % (message_template % (n + 1)))
+
+    def opener(self, mode, direction, params):
+        if direction == 'in':
+            from itertools import chain
+            streams = filter(None, chain(self['%s_input_stream' % mode],
+                                         (self['%s_reader' % mode],
+                                          self.open_hook)))
+        else:
+            streams = self['%s_output_stream' % mode]
+        def open(url):
+            return ClassicFile(url, streams, params)
+        return open
+
+    @staticmethod
+    def open_hook(file, size, url):
+        return file
+
+class ClassicFile(object):
+    def __init__(self, url, streams, params, fd=None, size=None):
+        self.fds = []
+        for stream in streams:
+            maybe_params = (params,) if util.argcount(stream) == 4 else ()
+            fd = stream(fd, size, url, *maybe_params)
+            if isinstance(fd, tuple):
+                if len(fd) == 3:
+                    fd, size, url = fd
+                else:
+                    fd, url = fd
+            self.fds.append(fd)
+
+    def __iter__(self):
+        return iter(self.fds[-1])
+
+    def close(self):
+        for fd in reversed(self.fds):
+            if hasattr(fd, 'close'):
+                fd.close()
 
 class Params(object):
     """
@@ -511,15 +479,14 @@ class Params(object):
         self.__dict__.update(kwargs)
 
     def __getstate__(self):
-        return dict((k, pack(v))
+        return dict((k, util.pack(v))
             for k, v in self.__dict__.iteritems()
                 if not k.startswith('_'))
 
     def __setstate__(self, state):
         for k, v in state.iteritems():
-            self.__dict__[k] = unpack(v)
+            self.__dict__[k] = util.unpack(v)
 
-# XXX: deprecate these functions and fully remove global Task
 from disco.util import msg, err, data_err
 
 def get(*args, **kwargs):
@@ -552,20 +519,5 @@ def this_partition():
     """
     return Task.taskid
 
-def this_inputs():
-    """List of input files for this task."""
-    return Task.inputs
-
 if __name__ == '__main__':
-    try:
-        sys.stdout = MessageWriter()
-        Worker.work()
-    except (DataError, EnvironmentError, MemoryError), e:
-        # check the number of open file descriptors (under proc), warn if close to max
-        # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
-        # also check for other known reasons for error, such as if disk is full
-        DataUnavailable(traceback.format_exc()).send()
-        raise
-    except Exception, e:
-        TaskFailed(MessageWriter.force_utf8(traceback.format_exc())).send()
-        raise
+    Worker.main()

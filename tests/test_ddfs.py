@@ -66,12 +66,12 @@ class DDFSWriteTestCase(DiscoTestCase):
         self.ddfs = DDFS(self.disco_master_url)
 
     def test_chunk(self):
-        from disco.core import ClassicIter
+        from disco.core import classic_iterator
         url = 'http://discoproject.org/media/text/chekhov.txt'
         self.ddfs.chunk('disco:test:chunk', [url], chunk_size=100*1024)
         self.assert_(0 < len(list(self.ddfs.blobs('disco:test:chunk'))) <= 4)
-        self.assert_(list(ClassicIter(['tag://disco:test:chunk'])),
-                     list(ClassicIter([url], reader=None)))
+        self.assert_(list(classic_iterator(['tag://disco:test:chunk'])),
+                     list(classic_iterator([url], reader=None)))
         self.ddfs.delete('disco:test:chunk')
 
     def test_push(self):

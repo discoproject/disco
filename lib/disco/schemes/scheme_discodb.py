@@ -1,15 +1,12 @@
 def input_stream(fd, size, url, params):
     import os
     from disco import util
-    from disco.comm import download
+    from disco.settings import DiscoSettings
     from discodb import DiscoDB, Q
     scheme, netloc, rest = util.urlsplit(url)
-    path, rest   = rest.split('!', 1) if '!' in rest else (rest, '')
-
-    if netloc.host == Task.host:
-        discodb = DiscoDB.load(open(os.path.join(Task.root, path)))
-    else:
-        discodb = DiscoDB.loads(download('disco://%s/%s' % (netloc, path)))
+    path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
+    root = DiscoSettings()['DISCO_ROOT']
+    discodb = DiscoDB.load(open(os.path.join(root, path)))
 
     if rest:
         method_name, arg = rest.split('/', 1) if '/' in rest else (rest, None)

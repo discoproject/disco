@@ -164,7 +164,7 @@ def locate_modules(modules, recurse=True, include_sys=False):
     return found.items()
 
 
-def find_modules(functions, send_modules=True, recurse=True, exclude=['Task']):
+def find_modules(functions, send_modules=True, recurse=True, exclude=()):
     """
     Tries to guess and locate modules that are used by *functions*.
     Returns a list of required modules as specified in :ref:`modspec`.
@@ -195,4 +195,6 @@ def find_modules(functions, send_modules=True, recurse=True, exclude=['Task']):
             modules.update((k, v) if v else k for k, v in m)
         else:
             modules.update(fmod)
+        if hasattr(function, '__module__'):
+            modules.update([function.__module__])
     return list(modules)

@@ -137,6 +137,7 @@ class File(file):
     def url(self):
         return 'file://%s' % self.name
 
+# should raise DataError
 class Connection(object):
     def __init__(self, url, token=None):
         self.url = url

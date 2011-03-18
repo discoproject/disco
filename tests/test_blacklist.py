@@ -26,6 +26,7 @@ class BlacklistTestCase(DiscoJobTestFixture, DiscoTestCase):
         return comm.open_remote("http://%s/%s" % (path, host))
     map_input_stream = [map_input_stream]
 
+    @staticmethod
     def map(e, params):
         return [(e, '')]
 
@@ -34,8 +35,8 @@ class BlacklistTestCase(DiscoJobTestFixture, DiscoTestCase):
         # assumption: scheduler starts scheduling tasks in the
         # order specified by self.input
         self.blacklisted = sorted(self.nodes.keys())
-        self.input = flatten([N * ['http://%s/%s:%d' % (node, host, port)]
-                for node in self.blacklisted])
+        self.input = list(flatten([N * ['http://%s/%s:%d' % (node, host, port)]
+                                   for node in self.blacklisted]))
         self.whitelist = {}
         for i in range(len(self.blacklisted) - 1):
             self.disco.blacklist(self.blacklisted[i + 1])

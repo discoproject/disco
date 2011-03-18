@@ -96,10 +96,6 @@ Possible settings for Disco are as follows:
                 submitted the job.
                 Default is the login name @ host.
 
-        :envvar:`DISCO_WORKER`
-                Executable which launches the Disco worker process.
-                Default obtained using ``os.path.join(DISCO_LIB, disco, worker, classic, disco-worker)``.
-
         :envvar:`DISCO_WWW_ROOT`
                 Directory that is the document root for the master `HTTP` server.
                 Default obtained using ``os.path.join(DISCO_MASTER_HOME, www)``.
@@ -227,7 +223,6 @@ class DiscoSettings(Settings):
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
         'DISCO_JOB_OWNER':       "job_owner()",
-        'DISCO_WORKER':          "os.path.join('lib', 'disco', 'worker', 'classic', 'worker.py')",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
         'PYTHONPATH':            "DISCO_LIB",
 # GC

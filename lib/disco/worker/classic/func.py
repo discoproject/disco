@@ -492,11 +492,11 @@ def map_input_stream(stream, size, url, params):
     If no scheme is found in the url, ``file`` is used.
     The resulting input stream is then used.
     """
-    from disco.util import schemesplit
+    from disco.util import globalize, schemesplit
     scheme, _url = schemesplit(url)
     scheme_ = 'scheme_%s' % (scheme or 'file')
     mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
-    Task.insert_task(mod.input_stream)
+    globalize(mod.input_stream, globals())
     return mod.input_stream(stream, size, url, params)
 
 reduce_input_stream = map_input_stream
@@ -511,13 +511,12 @@ def task_output_stream(stream, partition, url, params):
     The handle ensures that if a task fails, partially written data is ignored.
     """
     from disco.fileutils import AtomicFile
-    path, url = Task.outurls(partition)
-    return AtomicFile(path, 'w'), url
+    return AtomicFile(url)
 map_output_stream = reduce_output_stream = task_output_stream
 
 def disco_output_stream(stream, partition, url, params):
     from disco.fileutils import DiscoOutput
-    return DiscoOutput(stream), url
+    return DiscoOutput(stream)
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
     import struct, cStringIO, gzip, cPickle, zlib
@@ -577,39 +576,28 @@ def discodb_output(stream, partition, url, params):
     from disco.worker.classic.func import DiscoDBOutput
     return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
 
-def merge_sort(task, files):
-    from disco.future import merge
-    return merge(*files)
-
-def nop_sort(task, files):
-    for file in files:
-        for record in file:
-            yield record
-
-def disk_sort(task, files):
+def disk_sort(input, filename, sort_buffer_size='10%'):
     from os.path import getsize
     from disco.comm import open_local
     from disco.util import format_size
     from disco.events import Status
     from disco.fileutils import AtomicFile
-    dlname = task.path('reduce-in-%d.dl' % task.taskid)
-    Status("Downloading %s" % dlname).send()
-    out_fd = AtomicFile(dlname, 'w')
-    for file in files:
-        for key, value in file:
-            if not isinstance(key, str):
-                raise ValueError("Keys must be strings for external sort", key)
-            if '\xff' in key or '\x00' in key:
-                raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
-            else:
-                # value pickled using protocol 0 will always be printable ASCII
-                out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
+    Status("Downloading %s" % filename).send()
+    out_fd = AtomicFile(filename)
+    for key, value in input:
+        if not isinstance(key, str):
+            raise ValueError("Keys must be strings for external sort", key)
+        if '\xff' in key or '\x00' in key:
+            raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
+        else:
+            # value pickled using protocol 0 will always be printable ASCII
+            out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
     out_fd.close()
-    Status("Downloaded %s OK" % format_size(getsize(dlname))).send()
-    Status("Sorting %s..." % dlname).send()
-    unix_sort(dlname, sort_buffer_size=task.worker['sort_buffer_size'])
+    Status("Downloaded %s OK" % format_size(getsize(filename))).send()
+    Status("Sorting %s..." % filename).send()
+    unix_sort(filename, sort_buffer_size=sort_buffer_size)
     Status("Finished sorting").send()
-    fd, size, url = open_local(dlname)
+    fd, size, url = open_local(filename)
     for k, v in re_reader("(?s)(.*?)\xff(.*?)\x00", fd, size, url):
         yield k, cPickle.loads(v)
 

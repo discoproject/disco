@@ -433,7 +433,7 @@ do_get_num_cores(#state{nodes = Nodes}) ->
 
 -spec do_kill_job(nonempty_string()) -> 'ok'.
 do_kill_job(JobName) ->
-    event_server:event(JobName, "WARN: Job killed", [], []),
+    event_server:event(JobName, "WARNING: Job killed", [], []),
     % Make sure that scheduler don't accept new tasks from this job
     gen_server:cast(scheduler, {job_done, JobName}),
     ok.
