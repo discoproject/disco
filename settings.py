@@ -27,7 +27,8 @@ class Settings(dict):
         return eval(self.defaults[key], self.globals, self)
 
     def __reduce__(self):
-        return type(self), (self.env,)
+        return type(self), (dict((k, self[k]) for k in self
+                                 if k in self.defaults),)
 
     def safedir(self, key):
         """Make sure the directory path stored in the setting `key` exists."""
