@@ -11,8 +11,8 @@ class Settings(dict):
     globals  = globals()
     settings_file_var = None
 
-    def __init__(self, **kwargs):
-        super(Settings, self).__init__(kwargs)
+    def __init__(self, *args, **kwargs):
+        super(Settings, self).__init__(*args, **kwargs)
         if self.settings_file_var:
             settings_file = self[self.settings_file_var]
             if os.path.exists(settings_file):
@@ -25,6 +25,9 @@ class Settings(dict):
         if key in os.environ:
             return os.environ[key]
         return eval(self.defaults[key], self.globals, self)
+
+    def __reduce__(self):
+        return type(self), (self.env,)
 
     def safedir(self, key):
         """Make sure the directory path stored in the setting `key` exists."""
