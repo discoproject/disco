@@ -3,7 +3,7 @@
 *.log
 *.pid
 *.pyc
-master/.dialyzer_plt
+*.dialyzer_plt
 master/ebin/disco.app
 master/www/*.html
 conf/settings.py

@@ -41,7 +41,6 @@ WWW   = master/www
 EBIN  = master/ebin
 ESRC  = master/src
 ETEST = master/test
-EPLT  = master/.dialyzer_plt
 
 ELIBS    = $(ESRC) $(ESRC)/ddfs $(ESRC)/mochiweb
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
@@ -52,7 +51,9 @@ ETARGETS = $(foreach object,$(EOBJECTS),$(TARGETLIB)/$(object))
 ETESTSOURCES = $(wildcard $(ETEST)/*.erl)
 ETESTOBJECTS = $(ETESTSOURCES:.erl=.beam)
 
-.PHONY: all master clean doc
+EPLT  = .dialyzer_plt
+
+.PHONY: all master clean distclean doc
 .PHONY: install \
 	install-master \
 	install-core \
@@ -67,8 +68,11 @@ all: master
 master: $(EBIN)/disco.app $(EOBJECTS)
 
 clean:
-	- rm -Rf $(EBIN) $(ETESTOBJECTS) $(EPLT)
+	- rm -Rf $(EBIN) $(ETESTOBJECTS)
 	- rm -Rf lib/build lib/disco.egg-info
+
+distclean: clean
+	- rm -Rf $(EPLT)
 
 doc:
 	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) html)
