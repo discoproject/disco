@@ -135,6 +135,12 @@ class Worker(dict):
 
     @classmethod
     def unpack(cls, jobpack):
+        try:
+            from imp import find_module, load_module
+            __disco__ = load_module('__disco__', *find_module('__main__', ['lib']))
+            sys.modules['__main__'].__dict__.update(__disco__.__dict__)
+        except ImportError:
+            pass
         worker, job, jobargs = cPickle.loads(jobpack.jobdata)
         for key in worker:
             worker[key] = worker.getitem(key, job, **jobargs)
