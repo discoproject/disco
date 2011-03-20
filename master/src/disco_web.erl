@@ -5,6 +5,10 @@
 -include("disco.hrl").
 -include("config.hrl").
 
+op('GET', "/disco/version", Req) ->
+    {ok, Vsn} = application:get_key(vsn),
+    reply({ok, list_to_binary(Vsn)}, Req);
+
 op('POST', "/disco/job/" ++ _, Req) ->
     BodySize = list_to_integer(Req:get_header_value("content-length")),
     if BodySize > ?MAX_JOB_PACKET ->

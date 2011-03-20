@@ -2,179 +2,151 @@ DISCO_VERSION = 0.3.2
 DISCO_RELEASE = 0.3.2
 
 # standard make installation variables
-prefix      = /usr/local
-exec_prefix = $(prefix)
-bindir      = $(exec_prefix)/bin
-sysconfdir  = $(prefix)/etc
+sysconfdir    = /etc
+prefix        = /usr/local
+exec_prefix   = $(prefix)
+localstatedir = $(prefix)/var
+bindir        = $(exec_prefix)/bin
+libdir        = $(exec_prefix)/lib
 
+SHELL           = /bin/sh
+INSTALL         = /usr/bin/install -c
+INSTALL_PROGRAM = $(INSTALL)
+INSTALL_DATA    = $(INSTALL) -m 644
+INSTALL_TREE    = cp -r
+
+# installation directories
+TARGETBIN = $(DESTDIR)$(bindir)
+TARGETLIB = $(DESTDIR)$(libdir)/disco
+TARGETCFG = $(DESTDIR)$(sysconfdir)/disco
+TARGETSRV = $(DESTDIR)$(localstatedir)/disco
+
+# options to sphinx for building the docs
+SPHINXOPTS = "-D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)"
+
+# used to choose which conf file will be generated
+UNAME = $(shell uname)
+
+# utilities used for building disco
 ERL        = erl
 ERLC       = erlc
 EOPT       = -W
-PYTHON     = python
 DIALYZER   = dialyzer
 TYPER      = typer
-INSTALL    = /usr/bin/install -c
+PYTHON     = python
 PY_INSTALL = $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(prefix)
+RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
 
-EBIN = master/ebin
-ESRC = master/src
-ETEST = master/tests
-EWWW = master/www
+WWW   = master/www
+EBIN  = master/ebin
+ESRC  = master/src
+ETEST = master/test
+EPLT  = master/.dialyzer_plt
 
-ERL_LIBDIR = /usr/lib/erlang
+ELIBS    = $(ESRC) $(ESRC)/ddfs $(ESRC)/mochiweb
+ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
+EAPPS    = $(subst $(ESRC),$(EBIN),$(ELIBS))
+EOBJECTS = $(subst $(ESRC),$(EBIN),$(ESOURCES:.erl=.beam))
+ETARGETS = $(foreach object,$(EOBJECTS),$(TARGETLIB)/$(object))
 
-DISCO_HOME = $(prefix)/lib/disco
-DISCO_CONF = $(sysconfdir)/disco
-DISCO_ROOT = /srv/disco
+ETESTSOURCES = $(wildcard $(ETEST)/*.erl)
+ETESTOBJECTS = $(ETESTSOURCES:.erl=.beam)
 
-TARGETBIN = $(DESTDIR)$(bindir)
-TARGETCFG = $(DESTDIR)$(DISCO_CONF)
-TARGETDIR = $(DESTDIR)$(DISCO_HOME)
-TARGETSRV = $(DESTDIR)$(DISCO_ROOT)
-
-SRC = $(wildcard $(ESRC)/*.erl)
-TARGET = $(addsuffix .beam, $(basename \
-             $(addprefix $(EBIN)/, $(notdir $(SRC)))))
-
-
-SRC2 = $(wildcard $(ESRC)/mochiweb/*.erl)
-MOCHI_TARGET = $(addsuffix .beam, $(basename \
-             $(addprefix $(EBIN)/mochiweb/, $(notdir $(SRC2)))))
-
-SRC3 = $(wildcard $(ESRC)/ddfs/*.erl)
-DDFS_TARGET = $(addsuffix .beam, $(basename \
-             $(addprefix $(EBIN)/ddfs/, $(notdir $(SRC3)))))
-
-TESTSRC = $(wildcard $(ETEST)/*.erl)
-TEST_TARGET = $(addsuffix .beam, $(basename $(TESTSRC)))
-
-HTMLSRC = $(wildcard $(EWWW)/*.html.src)
-HTML_TARGET = $(basename $(HTMLSRC) .src)
-
-UNAME = $(shell uname)
-
-SED_ARGS = -e s^%DISCO_VERSION%^$(DISCO_VERSION)^ \
-	   -e s^%DISCO_RELEASE%^$(DISCO_RELEASE)^
-
-.PHONY: build preprocess master clean
-
-build: master
-
-preprocess: $(EBIN) $(EBIN)/disco.app $(HTML_TARGET) doc/conf.py
-
-%: %.src
-	- sed $(SED_ARGS) $< > $@
-
-master: preprocess $(TARGET) $(MOCHI_TARGET) $(DDFS_TARGET)
-
-clean:
-	- rm -Rf $(EBIN)
-	- rm -Rf master/tests/*.beam
-	- rm -Rf lib/build
-	- rm -Rf lib/disco.egg-info
-	- rm -f  $(HTML_TARGET)
-	- rm -f  doc/conf.py
-
+.PHONY: all master clean doc
 .PHONY: install \
 	install-master \
-	install-ebin \
-	install-bin \
-	install-config \
-	install-lib \
+	install-core \
 	install-discodb \
 	install-discodex \
-	install-home \
-	install-root \
 	install-examples \
-	install-ext \
 	install-tests
-	install-www \
+.PHONY: test dialyzer typer
 
-install: install-master install-lib install-root install-tests
+all: master
 
-install-master: master install-ebin install-bin install-config install-www
+master: $(EBIN)/disco.app $(EOBJECTS)
 
-# see if we can combine all these
-install-ebin:
-	$(INSTALL) -d $(TARGETDIR)/ebin/ddfs $(TARGETDIR)/ebin/mochiweb
-	$(INSTALL) $(TARGET) $(TARGETDIR)/ebin
-	$(INSTALL) $(MOCHI_TARGET) $(TARGETDIR)/ebin/mochiweb
-	$(INSTALL) $(DDFS_TARGET) $(TARGETDIR)/ebin/ddfs
-	$(INSTALL) $(EBIN)/disco.app $(TARGETDIR)/ebin
+clean:
+	- rm -Rf $(EBIN) $(ETESTOBJECTS) $(EPLT)
+	- rm -Rf lib/build lib/disco.egg-info
 
-install-bin:
-	$(INSTALL) -d $(TARGETBIN)
-	$(INSTALL) bin/discocli.py $(TARGETBIN)/disco
-	$(INSTALL) bin/ddfscli.py $(TARGETBIN)/ddfs
+doc:
+	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) html)
 
-install-config:
-	$(INSTALL) -d $(TARGETCFG)
-	$(if $(wildcard $(TARGETCFG)/settings.py),\
-		$(info disco config already exists, skipping),\
-		(TARGETDIR=$(TARGETDIR) \
-		 TARGETSRV=$(TARGETSRV) \
-		 conf/gen.settings.sys-$(UNAME) > $(TARGETCFG)/settings.py || \
-		 rm $(TARGETCFG)/settings.py; \
-                 chmod 644 $(TARGETCFG)/settings.py))
+install: install-core install-master
 
-install-lib:
-	(cd lib; $(PY_INSTALL))
+install-core:
+	(cd lib && $(PY_INSTALL))
 
 install-discodb:
-	(cd contrib/discodb; $(PY_INSTALL))
+	(cd contrib/discodb && $(PY_INSTALL))
 
 install-discodex:
-	(cd contrib/discodex; $(PY_INSTALL))
+	(cd contrib/discodex && $(PY_INSTALL))
 
-install-home:
-	$(INSTALL) -d $(TARGETDIR)
+install-examples: $(TARGETLIB)/examples
 
-install-root:
-	$(INSTALL) -d $(TARGETSRV)/ddfs
+install-master: master \
+		$(ETARGETS) \
+		$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
+		$(TARGETCFG)/settings.py \
+		$(TARGETLIB)/$(EBIN)/disco.app \
+		$(TARGETLIB)/$(WWW) \
+		$(TARGETSRV)/ddfs
 
-install-examples: install-home
-	cp -r examples $(TARGETDIR)
+install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
-install-ext: install-home
-	cp -r ext $(TARGETDIR)
+uninstall:
+	- rm -f  $(TARGETBIN)/disco $(TARGETBIN)/ddfs
+	- rm -Rf $(TARGETCFG) $(TARGETLIB) $(TARGETSRV)
 
-install-tests: install-home install-ext
-	cp -r tests $(TARGETDIR)
+test: master $(ETESTOBJECTS)
+	$(ERL) -noshell -pa $(ETEST) $(EAPPS) -s master_tests main -s init stop
 
-install-www: install-home
-	cp -r $(EWWW) $(TARGETDIR)
+dialyzer: EOPT = -W +debug_info
+dialyzer: $(EPLT)
+	$(DIALYZER) --get_warnings --plt $(EPLT) --src -r $(ESRC)
+
+typer: $(EPLT)
+	$(TYPER) --plt $(EPLT) -r $(ESRC)
 
 $(EBIN):
-	mkdir -p $(EBIN)/ddfs $(EBIN)/mochiweb
+	mkdir $(EAPPS)
 
-$(EBIN)/disco.app: $(ESRC)/disco.app
-	- sed $(SED_ARGS) $< > $@
+$(EBIN)/disco.app: $(ESRC)/disco.app | $(EBIN)
+	- $(RE_VERSION) $< > $@
 
-$(EBIN)/%.beam: $(ESRC)/%.erl
+$(EBIN)/%.beam: $(ESRC)/%.erl | $(EBIN)
 	$(ERLC) $(EOPT) -o $(dir $@) $<
 
 $(ETEST)/%.beam: $(ETEST)/%.erl
-	$(ERLC) $(EOPT) -o $(ETEST) $<
+	$(ERLC) $(EOPT) -o $(dir $@) $<
 
-DIALYZER_PLT = master/.dialyzer_plt
+$(EPLT):
+	$(DIALYZER) --build_plt --output_plt $(EPLT) \
+		    --apps stdlib kernel erts mnesia compiler crypto inets xmerl
 
-$(DIALYZER_PLT):
-	$(DIALYZER) --build_plt --output_plt $(DIALYZER_PLT) -r \
-		$(ERL_LIBDIR)/lib/stdlib*/ebin $(ERL_LIBDIR)/lib/kernel*/ebin \
-		$(ERL_LIBDIR)/lib/erts*/ebin $(ERL_LIBDIR)/lib/mnesia*/ebin \
-		$(ERL_LIBDIR)/lib/compiler*/ebin $(ERL_LIBDIR)/lib/crypto*/ebin \
-		$(ERL_LIBDIR)/lib/inets*/ebin $(ERL_LIBDIR)/lib/xmerl*/ebin
+$(TARGETBIN):
+	$(INSTALL) -d $(TARGETBIN)
 
-.PHONY: dialyzer typer realclean master-tests
+$(TARGETBIN)/%: bin/% | $(TARGETBIN)
+	$(INSTALL_PROGRAM) $< $@
 
-dialyzer: $(DIALYZER_PLT)
-	$(DIALYZER) --get_warnings --plt $(DIALYZER_PLT) -c --src -r $(ESRC)
+$(TARGETCFG):
+	$(INSTALL) -d $(TARGETCFG)
 
-typer:
-	$(TYPER) --plt $(DIALYZER_PLT) -r $(ESRC)
+$(TARGETCFG)/settings.py: | $(TARGETCFG)
+	(TARGETLIB=$(TARGETLIB) TARGETSRV=$(TARGETSRV) \
+	 conf/gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
 
-realclean: clean
-	- rm -f $(DIALYZER_PLT)
+$(TARGETLIB):
+	$(INSTALL) -d $(addprefix $(TARGETLIB)/,$(EAPPS))
 
-master-tests: $(TEST_TARGET) master
-	$(ERL) -noshell -pa $(ETEST) -pa $(EBIN) -pa $(EBIN)/ddfs -pa $(EBIN)/mochiweb -s master_tests main -s init stop
+$(TARGETLIB)/$(EBIN)/%: $(EBIN)/% | $(TARGETLIB)
+	$(INSTALL_DATA) $< $@
+
+$(TARGETLIB)/%: % | $(TARGETLIB)
+	$(INSTALL_TREE) $< $@
+
+$(TARGETSRV)/ddfs:
+	$(INSTALL) -d $(TARGETSRV)/ddfs

@@ -3,13 +3,11 @@
 
 cat << EOF
 # Disco settings
-import os
-
 # --
 # -- You can modify these directories as you wish
 # --
 
-DISCO_HOME = "${TARGETDIR}"
+DISCO_HOME = "${TARGETLIB}"
 
 # Root directory for Disco data.
 DISCO_ROOT = "${TARGETSRV}"
@@ -17,8 +15,6 @@ DISCO_ROOT = "${TARGETSRV}"
 # --
 # -- Variables below this line rarely need to be modified
 # --
-
-DISCO_MASTER_HOME = DISCO_HOME
 
 # Lighttpd for master and nodes runs on this port.
 # disco://host URIs are mapped to http://host:DISCO_PORT.
