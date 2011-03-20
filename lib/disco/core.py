@@ -47,6 +47,9 @@ class Disco(object):
         self.master = master or settings['DISCO_MASTER']
         self.settings = settings
 
+    def __repr__(self):
+        return 'Disco master at %s' % self.master
+
     def request(self, url, data=None, offset=0):
         """
         Requests *url* at the master.
@@ -398,7 +401,8 @@ def classic_iterator(urls,
     from disco.task import TaskInput
     from disco.worker.classic.worker import Worker
     worker = Worker(map_reader=reader, map_input_stream=input_stream)
-    for input in util.inputlist(urls, settings=DiscoSettings(DISCO_MASTER=ddfs)):
+    settings = DiscoSettings(DISCO_MASTER=ddfs) if ddfs else DiscoSettings()
+    for input in util.inputlist(urls, settings=settings):
         notifier(input)
         for record in TaskInput(input, open=worker.opener('map', 'in', params)):
             yield record

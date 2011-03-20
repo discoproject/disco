@@ -29,30 +29,12 @@ Users of Disco typically write jobs in Python,
 which makes it possible to express even complex algorithms or data
 processing tasks often only in tens of lines of code.
 
-For instance, the following fully working example computes word
-frequencies in a large text corpus using 100 CPUs in parallel:
+For instance, the following fully working examples compute word
+frequencies in a large text:
 
-::
+.. literalinclude:: ../examples/util/count_words.py
 
-    from disco.core import Disco, result_iterator
-
-    def fun_map(line, params):
-        for word in line.split():
-            yield word, 1
-
-    def fun_reduce(iter, params):
-        from disco.util import kvgroup
-        for word, counts in kvgroup(sorted(iter)):
-            yield word, sum(counts)
-
-    job = Disco('disco://localhost').new_job(name='wordcount',
-                                             input=['tag://data'],
-                                             map=fun_map,
-                                             reduce=fun_reduce,
-                                             partitions=100)
-
-    for key, value in result_iterator(job.wait()):
-	    print key, value
+.. literalinclude:: ../examples/util/wordcount.py
 
 Disco is designed to integrate easily in larger applications, such as
 Web services, so that computationally demanding tasks can be delegated

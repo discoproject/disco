@@ -94,7 +94,7 @@ class DDFS(Program):
     def default(self, program, *args):
         if args:
             raise Exception("unrecognized command: %s" % ' '.join(args))
-        print "DDFS located at %s" % self.settings['DISCO_MASTER']
+        print self.ddfs
 
     @property
     def ddfs(self):

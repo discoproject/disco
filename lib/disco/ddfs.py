@@ -73,6 +73,9 @@ class DDFS(object):
         self.settings = settings
         self.settings['DISCO_MASTER'] = self.master
 
+    def __repr__(self):
+        return 'DDFS master at %s' % self.master
+
     @classmethod
     def safe_name(cls, name):
         return unsafe_re.sub('_', name)

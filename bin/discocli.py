@@ -94,7 +94,7 @@ class Disco(Program):
     def default(self, program, *args):
         if args:
             raise Exception("unrecognized command: %s" % ' '.join(args))
-        print "Disco master located at %s" % self.settings['DISCO_MASTER']
+        print self.disco
 
     @property
     def disco(self):
@@ -419,6 +419,7 @@ def run(program, jobclass, *inputs):
         return seq[0] if len(seq) == 1 else seq
     input = inputs or [maybe_list(line.split())
                        for line in fileinput.input(inputs)]
+    sys.path.insert(0, '')
     job = reify(jobclass)(name=program.options.name,
                           master=program.disco,
                           settings=program.settings)
@@ -436,9 +437,11 @@ def run(program, jobclass, *inputs):
 def wait(program, jobname):
     """Usage: jobname
 
-    Wait for the named job to complete.
+    Wait for the named job to complete and print the list of results.
     """
-    program.disco.wait(jobname)
+    from disco.util import iterify
+    for result in program.disco.wait(jobname):
+        print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
 
 if __name__ == '__main__':
     Disco(option_parser=DiscoOptionParser()).main()
