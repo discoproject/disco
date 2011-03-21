@@ -167,7 +167,10 @@ def ensure_file(fname, data = None, timeout = 60, mode = 500):
                 os.O_CREAT | os.O_EXCL | os.O_WRONLY, mode)
             if callable(data):
                 data = data()
-            os.write(fd, data)
+            n = os.write(fd, data)
+            if n != len(data):
+                raise DataError("Writing file failed (only wrote %d/%d bytes)."
+                                " Out of disk space?" % (n, len(data)), fname)
             os.close(fd)
             os.rename(fname + ".partial", fname)
             return True
