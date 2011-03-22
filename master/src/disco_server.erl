@@ -5,7 +5,8 @@
 -export([start_link/0, stop/0]).
 -export([update_config_table/2, get_active/1, get_nodeinfo/1,
          new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
-         new_task/2, connection_status/2, manual_blacklist/2]).
+         new_task/2, connection_status/2, manual_blacklist/2,
+         get_worker_jobpack/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
@@ -95,6 +96,11 @@ connection_status(Node, Status) ->
 manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
+% called from remote nodes
+-spec get_worker_jobpack(pid(), nonempty_string()) -> binary().
+get_worker_jobpack(Master, JobName) ->
+    gen_server:call({?MODULE, Master}, {jobpack, JobName}).
+
 %% ===================================================================
 %% gen_server callbacks
 
@@ -138,6 +144,12 @@ handle_call(get_purged, _, S) ->
 
 handle_call(get_num_cores, _, S) ->
     {reply, do_get_num_cores(S), S};
+
+handle_call({jobpack, JobName}, From, State) ->
+    spawn(fun () ->
+                  gen_server:reply(From, jobpack:read(disco:jobhome(JobName)))
+          end),
+    {noreply, State};
 
 handle_call({kill_job, JobName}, _From, S) ->
     {reply, do_kill_job(JobName), S};
