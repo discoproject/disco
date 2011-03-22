@@ -142,12 +142,14 @@ class Worker(dict):
         return jobzip.dumps()
 
     def jobzip(self, job, **jobargs):
+        from clx import __file__ as clxpath
         from disco import __file__ as discopath
         from disco.fileutils import DiscoZipFile
         from disco.util import iskv
         def get(key):
             return self.getitem(key, job, **jobargs)
         jobzip = DiscoZipFile()
+        jobzip.writepy(os.path.dirname(clxpath), 'lib')
         jobzip.writepy(os.path.dirname(discopath), 'lib')
         jobzip.writemodule(job.__module__)
         jobzip.writemodule(self.__module__)
