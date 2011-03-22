@@ -39,6 +39,7 @@ class DataError(DiscoError):
 
     These errors are treated specially by Disco master in that they are assumed to be recoverable.
     If Disco thinks an error is recoverable, it will retry the task on another node.
+    If the same task fails on several different nodes, the master may terminate the job.
     """
     def __init__(self, msg, url, code=None):
         self.msg = msg

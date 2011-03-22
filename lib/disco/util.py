@@ -5,8 +5,10 @@
 This module provides utility functions that are mostly used by Disco
 internally.
 
-The :func:`external` function below comes in handy if you use the Disco
-external interface.
+(*Deprecated in 0.4*)
+:func:`disco.util.data_err`, :func:`disco.util.err`, and :func:`disco.util.msg`
+are now deprecated and will be removed completely in the next release,
+in favor of using normal Python :keyword:`raise` and :keyword:`print` statements.
 """
 import os, sys
 import cPickle, marshal, time, gzip
@@ -229,6 +231,8 @@ def urltoken(url):
 
 def msg(message):
     """
+    (*Deprecated in 0.4* - use :keyword:`print` instead)
+
     Sends the string *message* to the master for logging. The message is
     shown on the web interface. To prevent a rogue job from overwhelming the
     master, the maximum *message* size is set to 255 characters and job is
@@ -237,48 +241,51 @@ def msg(message):
     return Message(message).send()
 
 def err(message):
-    """Raises an exception with the reason *message*. This terminates the job."""
+    """
+    (*Deprecated in 0.4* - raise :class:`disco.error.DiscoError` instead)
+
+    Raises a :class:`disco.error.DiscoError`. This terminates the job.
+    """
     raise DiscoError(message)
 
 def data_err(message, url):
     """
-    Raises a data error with the reason *message*. This signals the master to re-run
-    the task on another node. If the same task raises data error on several
-    different nodes, the master terminates the job. Thus data error should only be
-    raised if it is likely that the occurred error is temporary.
+    (*Deprecated in 0.4* - raise :class:`disco.error.DataError` instead)
 
+    Raises a :class:`disco.error.DataError`.
+    A data error should only be raised if it is likely that the error is transient.
     Typically this function is used by map readers to signal a temporary failure
     in accessing an input file.
     """
     raise DataError(message, url)
 
-def jobname(address):
+def jobname(url):
     """
-    Extracts the job name from an address *addr*.
+    Extracts the job name from *url*.
 
     This function is particularly useful for using the methods in
-    :class:`disco.core.Disco` given only results of a job.
+    :class:`disco.core.Disco` given only the results of a job.
     """
-    scheme, x, path = urlsplit(address)
+    scheme, x, path = urlsplit(url)
     if scheme in ('disco', 'dir', 'http'):
         return path.strip('/').split('/')[-2]
-    raise DiscoError("Cannot parse jobname from %s" % address)
+    raise DiscoError("Cannot parse jobname from %s" % url)
 
 def external(files):
     from disco.worker.classic.external import package
     return package(files)
 
-def parse_dir(dir_url, partition=None):
+def parse_dir(dir, partition=None):
     """
-    Translates a directory URL to a list of normal URLs.
+    Translates a directory URL (``dir://...``) to a list of normal URLs.
 
     This function might be useful for other programs that need to parse
     results returned by :meth:`disco.core.Disco.wait`, for instance.
 
-    :param dir_url: a directory url, such as ``dir://nx02/test_simple@12243344``
+    :param dir: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
     # XXX: guarantee indices are read in the same order (task/labels) (for redundancy)
-    return [url for id, url in sorted(read_index(dir_url)) if partition in (None, id)]
+    return [url for id, url in sorted(read_index(dir)) if partition in (None, id)]
 
 def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
     if proxy:
@@ -286,10 +293,10 @@ def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
         return '%s/disco/node/%s/%s' % (proxy, host, path)
     return url
 
-def read_index(dir_url):
+def read_index(dir):
     from disco.comm import open_url
-    body, size, url = open_url(proxy_url(dir_url))
-    if dir_url.endswith(".gz"):
+    body, size, url = open_url(proxy_url(dir))
+    if dir.endswith(".gz"):
         body = gzip.GzipFile(fileobj=body)
     for line in body:
         yield line.split()
