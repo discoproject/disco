@@ -38,11 +38,11 @@ start_link_remote(Host, NodeMon, Task) ->
     receive
         ok -> ok;
         {'EXIT', _, Reason} ->
-            exit(Reason);
+            exit({error, Reason});
         _ ->
-            exit({error, invalid_reply})
+            exit({error, "Internal server error: invalid_reply"})
     after 60000 ->
-            exit({worker_dies, {"Worker did not start in 60s", []}})
+            exit({error, "Worker did not start in 60s"})
     end,
     wait_for_exit().
 
@@ -51,7 +51,7 @@ wait_until_node_ready(NodeMon) ->
     receive
         node_ready -> ok
     after 30000 ->
-        exit({worker_dies, {"Node unavailable", []}})
+        exit({error, "Node unavailable"})
     end.
 
 wait_for_exit() ->
