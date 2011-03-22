@@ -54,13 +54,18 @@ json_list([X|R], L) ->
 
 -spec unique_key(nonempty_string(), dict()) -> nonempty_string().
 unique_key(Prefix, Dict) ->
-    {MegaSecs, Secs, MicroSecs} = now(),
-    Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
-    case dict:is_key(Key, Dict) of
-        false ->
-            Key;
-        true ->
-            unique_key(Prefix, Dict)
+    C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
+    if C > 0 ->
+        invalid_prefix;
+    true ->
+        {MegaSecs, Secs, MicroSecs} = now(),
+        Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
+        case dict:is_key(Key, Dict) of
+            false ->
+                {ok, Key};
+            true ->
+                unique_key(Prefix, Dict)
+        end
     end.
 
 handle_call(get_jobs, _From, {Events, _MsgBuf} = S) ->
@@ -110,12 +115,16 @@ handle_call({get_map_results, JobName}, _From, {Events, _MsgBuf} = S) ->
             end
     end;
 
-handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0}) ->
-    JobName = unique_key(JobPrefix, Events0),
-    Events = dict:store(JobName, {[], now(), Pid}, Events0),
-    MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
-    spawn(fun() -> job_event_handler(JobName, From) end),
-    {noreply, {Events, MsgBuf}};
+handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0} = S) ->
+    case unique_key(JobPrefix, Events0) of
+        invalid_prefix ->
+            {reply, {error, invalid_prefix}, S};
+        {ok, JobName} ->
+            Events = dict:store(JobName, {[], now(), Pid}, Events0),
+            MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
+            spawn(fun() -> job_event_handler(JobName, From) end),
+            {noreply, {Events, MsgBuf}}
+    end.
 
 handle_call({job_initialized, JobName, JobEventHandler}, _From, S) ->
     ets:insert(event_files, {JobName, JobEventHandler}),

@@ -44,6 +44,14 @@ job_event(JobName, {EventFormat, Args}) ->
 job_event(JobName, Event) ->
     job_event(JobName, {Event, [], {}}).
 
+job_coordinator(Parent, JobPack) ->
+    {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
+    {ok, JobName} = event_server:new_job(Prefix, self()),
+    JobFile = jobpack:save(JobPack, disco:jobhome(JobName)),
+    disco_server:new_job(JobName, self()),
+    Parent ! {job_submitted, JobName},
+    job_coordinator(JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}).
+
 -spec job_coordinator(nonempty_string(), [binary() | jobinfo()]) -> 'ok'.
 job_coordinator(#jobinfo{jobname = JobName} = Job) ->
     job_event(JobName, {"Starting job", [], {job_data, Job}}),
@@ -59,13 +67,6 @@ job_coordinator(#jobinfo{jobname = JobName} = Job) ->
         Error ->
             kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", Error})
     end.
-job_coordinator(Parent, JobPack) ->
-    {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
-    JobName = event_server:new_job(Prefix, self()),
-    JobFile = jobpack:save(JobPack, disco:jobhome(JobName)),
-    _JobPid = disco_server:new_job(JobName, self()),
-    Parent ! {job_submitted, JobName},
-    job_coordinator(JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}).
 
 kill_job(JobName, {EventFormat, Args, Params} = Error) ->
     job_event(JobName, {"ERROR: " ++ EventFormat, Args, Params}),
