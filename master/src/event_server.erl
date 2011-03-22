@@ -310,7 +310,7 @@ job_event_handler(JobName, JobCoordinator) ->
     {ok, _JobHome} = disco:make_dir(disco:jobhome(JobName)),
     {ok, File} = file:open(event_log(JobName), [append, raw]),
     gen_server:call(event_server, {job_initialized, JobName, self()}),
-    gen_server:reply(JobCoordinator, JobName),
+    gen_server:reply(JobCoordinator, {ok, JobName}),
     timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
     job_event_handler_do(File, [], 0).
 
