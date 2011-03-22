@@ -1,6 +1,6 @@
 """
-:mod:`disco.util` --- Helper functions
-======================================
+:mod:`disco.util` -- Helper functions
+=====================================
 
 This module provides utility functions that are mostly used by Disco
 internally.

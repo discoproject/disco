@@ -19,7 +19,7 @@ body {
     padding: 0;
     border: 1px solid #aaa;
 
-    margin: 10px auto;
+    margin: 4px auto;
     min-width: 740px;
     max-width: 1200px;
 }
@@ -514,4 +514,12 @@ ul.search li div.context {
 
 ul.keywordmatches li.goodmatch a {
     font-weight: bold;
+}
+
+/* align the main table of contents */
+.section {
+    float: left;
+    min-width: 240px;
+    min-height: 240px;
+    padding: 4px;
 }

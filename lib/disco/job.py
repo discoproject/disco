@@ -1,6 +1,6 @@
 """
-:mod:`disco.job` --- Disco Jobs
-===============================
+:mod:`disco.job` -- Disco Jobs
+==============================
 
 
 XXX: fix these docs

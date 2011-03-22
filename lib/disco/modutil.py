@@ -1,6 +1,6 @@
 """
-:mod:`disco.modutil` --- Parse and find module dependencies
-===========================================================
+:mod:`disco.modutil` -- Parse and find module dependencies
+==========================================================
 
 *(New in version 0.2.3)*
 

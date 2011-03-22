@@ -1,6 +1,6 @@
 """
-:mod:`disco.ddfs` --- Client interface for Disco Distributed Filesystem
-=======================================================================
+:mod:`disco.ddfs` -- Client interface for Disco Distributed Filesystem
+======================================================================
 
 See also: :ref:`DDFS`.
 

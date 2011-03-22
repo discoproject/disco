@@ -1,5 +1,5 @@
-Disco API Reference
-===================
+:mod:`disco` -- API Reference
+============================
 
 .. toctree::
    :titlesonly:

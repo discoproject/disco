@@ -1,6 +1,6 @@
 """
-:mod:`disco.core` --- Disco Core Library
-========================================
+:mod:`disco.core` -- Disco Core Library
+=======================================
 
 The :mod:`disco.core` module provides a high-level interface for
 communication with the Disco master. It provides functions for submitting

@@ -5,7 +5,7 @@ Background
 ----------
 
 .. toctree::
-   :maxdepth: 1
+   :titlesonly:
 
    intro
    overview
@@ -18,7 +18,7 @@ Getting started
 ---------------
 
 .. toctree::
-   :maxdepth: 1
+   :titlesonly:
 
    start/download
    start/install
@@ -30,36 +30,29 @@ Disco In Depth
 --------------
 
 .. toctree::
-   :maxdepth: 1
+   :titlesonly:
 
    howto/administer
    howto/dataflow
    howto/ddfs
+   howto/oob
+
+Reference
+---------
+
+.. toctree::
+   :titlesonly:
+
+   lib/index
+   man/disco
+   man/ddfs
 
 Batteries Included
 ------------------
 
 .. toctree::
-   :maxdepth: 1
+   :titlesonly:
 
-   contrib/discodex/index
    contrib/discodb/discodb
    contrib/discodb/query
-
-References
-----------
-
-.. toctree::
-   :maxdepth: 1
-
-   lib/index
-   lib/settings
-   man/disco
-   man/ddfs
-
-Indices and tables
-------------------
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   contrib/discodex/index
