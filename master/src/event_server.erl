@@ -124,7 +124,7 @@ handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0} = S) ->
             MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
             spawn(fun() -> job_event_handler(JobName, From) end),
             {noreply, {Events, MsgBuf}}
-    end.
+    end;
 
 handle_call({job_initialized, JobName, JobEventHandler}, _From, S) ->
     ets:insert(event_files, {JobName, JobEventHandler}),

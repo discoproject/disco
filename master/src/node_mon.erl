@@ -44,7 +44,7 @@ spawn_node(Host, IsMaster) ->
 node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
-    start_temp_gc(Node, disco:host(Node)),
+    start_temp_gc(Node),
     disco_server:connection_status(Host, up),
     wait(Node),
     disco_server:connection_status(Host, down).
@@ -85,7 +85,7 @@ slave_env() ->
 slave_start(Host) ->
     error_logger:info_report({"starting node @", Host}),
     slave:start(Host,
-                disco:node_name(),
+                disco:slave_name(),
                 slave_env(),
                 self(),
                 disco:get_setting("DISCO_ERLANG")).
@@ -108,10 +108,8 @@ is_master(Host) ->
             is_master(Host)
     end.
 
--spec start_temp_gc(node(), nonempty_string()) -> pid().
-start_temp_gc(Node, Host) ->
-    DataRoot = disco:get_setting("DISCO_DATA"),
-    GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
+-spec start_temp_gc(node()) -> pid().
+start_temp_gc(Node) ->
     spawn_link(Node, temp_gc, start_link, [whereis(disco_server)]).
 
 -spec start_ddfs_node(node(), {bool(), bool()}) -> pid().

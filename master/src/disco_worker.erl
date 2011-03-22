@@ -1,7 +1,7 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_worker/2]).
+-export([start_link_remote/4]).
 -export([init/1,
          handle_call/3,
          handle_cast/2,
@@ -230,7 +230,7 @@ handle_info({'DOWN', _, _, _, Info}, State) ->
     {stop, {shutdown, {fatal, Info}}, State}.
 
 handle_call(kill_worker, _From, State) ->
-    {stop, {shutdown, {fatal, "Worker killed"}}, State}.
+    {stop, {shutdown, {fatal, "Worker killed"}}, State};
 
 handle_call({work, JobHome}, _From, #state{task = Task, port = none} = State) ->
     Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
@@ -244,7 +244,7 @@ handle_call({work, JobHome}, _From, #state{task = Task, port = none} = State) ->
                use_stdio,
                stderr_to_stdout,
                {env, dict:to_list(JobEnvs)}],
-    {noreply, State#state{port = open_port({spawn, Command}, Options)}};
+    {noreply, State#state{port = open_port({spawn, Command}, Options)}}.
 
 handle_cast(kill_worker, State) ->
     {stop, {shutdown, {fatal, "Worker killed"}}, State}.

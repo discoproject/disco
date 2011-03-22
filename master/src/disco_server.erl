@@ -13,7 +13,7 @@
 
 -type connection_status() :: 'undefined' | 'up' | timer:timestamp().
 
--record(dnode, {name :: nonempty_string(),
+-record(dnode, {host :: nonempty_string(),
                 node_mon :: pid(),
                 manual_blacklist :: bool(),
                 connection_status :: connection_status(),
@@ -204,9 +204,9 @@ allow_task(#dnode{} = N) -> allow_write(N).
 
 -spec update_nodes(gb_tree()) -> 'ok'.
 update_nodes(Nodes) ->
-    WhiteNodes = [{N#dnode.name, N#dnode.slots}
+    WhiteNodes = [{N#dnode.host, N#dnode.slots}
                   || N <- gb_trees:values(Nodes), allow_task(N)],
-    DDFSNodes = [{disco:node(N#dnode.name), allow_write(N), allow_read(N)}
+    DDFSNodes = [{disco:slave_node(N#dnode.host), allow_write(N), allow_read(N)}
                  || N <- gb_trees:values(Nodes)],
     gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
@@ -281,7 +281,7 @@ do_update_config_table(Config, Blacklist, S) ->
             NewNode =
                 case gb_trees:lookup(Host, S#state.nodes) of
                     none ->
-                        #dnode{name = Host,
+                        #dnode{host = Host,
                                node_mon = node_mon:start_link(Host),
                                manual_blacklist = lists:member(Host, Blacklist),
                                connection_status = undefined,
@@ -298,7 +298,7 @@ do_update_config_table(Config, Blacklist, S) ->
         end, gb_trees:empty(), Config),
     lists:foreach(
         fun(OldNode) ->
-            case gb_trees:lookup(OldNode#dnode.name, NewNodes) of
+            case gb_trees:lookup(OldNode#dnode.host, NewNodes) of
                 none ->
                     unlink(OldNode#dnode.node_mon),
                     exit(OldNode#dnode.node_mon, kill);
@@ -315,7 +315,7 @@ schedule_next() ->
 
 -spec do_schedule_next(#state{}) -> #state{}.
 do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
-    Running = [{Y, N} || #dnode{slots = X, num_running = Y, name = N} = Node
+    Running = [{Y, N} || #dnode{slots = X, num_running = Y, host = N} = Node
                              <- gb_trees:values(Nodes), X > Y, allow_task(Node)],
     {_, AvailableNodes} = lists:unzip(lists:keysort(1, Running)),
     if AvailableNodes =/= [] ->
@@ -396,7 +396,7 @@ do_get_active(JobName, #state{workers = Workers}) ->
 
 -spec do_get_nodeinfo(#state{}) -> {'ok', [nodeinfo()]}.
 do_get_nodeinfo(#state{nodes = Nodes}) ->
-    Info = [#nodeinfo{name = N#dnode.name,
+    Info = [#nodeinfo{name = N#dnode.host,
                       slots = N#dnode.slots,
                       num_running = N#dnode.num_running,
                       stats_ok = N#dnode.stats_ok,

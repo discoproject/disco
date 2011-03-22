@@ -2,7 +2,7 @@
 
 -include_lib("kernel/include/file.hrl").
 
--export([start_link/6]).
+-export([start_link/1]).
 
 -define(GC_INTERVAL, 600000).
 
