@@ -259,8 +259,7 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
 start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
                        [T#task.mode, T#task.taskid, Node], []),
-    spawn_link(disco_worker, start_link_remote,
-               [self(), whereis(event_server), Node, NodeMon, T]).
+    spawn_link(disco_worker, start_link_remote, [self(), Node, NodeMon, T]).
 
 process_exit(Pid, Msg, Code, S) ->
     process_exit1(gb_trees:lookup(Pid, S#state.workers), Pid, Msg, Code, S).

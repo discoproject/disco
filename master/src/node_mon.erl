@@ -112,11 +112,7 @@ is_master(Host) ->
 start_temp_gc(Node, Host) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
     GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
-    spawn_link(Node, temp_gc, start_link,
-               [whereis(disco_server),
-                whereis(event_server),
-                whereis(ddfs_master),
-                DataRoot, Host, GCAfter]).
+    spawn_link(Node, temp_gc, start_link, [whereis(disco_server)]).
 
 -spec start_ddfs_node(node(), {bool(), bool()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
