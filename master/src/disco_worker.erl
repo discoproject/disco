@@ -30,8 +30,56 @@
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 
-start_worker(Master, Task) ->
-    gen_server:start(?MODULE, {Master, Task}, [{timeout, 30000}]).
+start_link_remote(Master, Host, NodeMon, Task) ->
+    Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
+    Node  = disco:node(Host),
+    wait_until_node_ready(NodeMon),
+    spawn_link(Node, disco_worker, start_link, [{self(), Master, Task}]),
+    process_flag(trap_exit, true),
+    receive
+        ok -> ok;
+        {'EXIT', _, Reason} ->
+            exit(Reason);
+        _ ->
+            exit({error, invalid_reply})
+    after 60000 ->
+            exit({worker_dies, {"Worker did not start in 60s", []}})
+    end,
+    wait_for_exit().
+
+wait_until_node_ready(NodeMon) ->
+    NodeMon ! {is_ready, self()},
+    receive
+        node_ready -> ok
+    after 30000 ->
+        exit({worker_dies, {"Node unavailable", []}})
+    end.
+
+wait_for_exit() ->
+    receive
+        {'EXIT', _, Reason} ->
+            exit(Reason)
+    end.
+
+start_link({Parent, Master, Task}) ->
+    process_flag(trap_exit, true),
+    Worker = case catch gen_server:start_link(disco_worker, {Master, Task}, []) of
+             {ok, Server} ->
+                 Server;
+             Reason ->
+                 exit({worker_dies, {"Worker initialization failed: ~p",
+                             [Reason]}})
+         end,
+    % NB: start_worker call is known to timeout if the node is really
+    % busy - it should not be a fatal problem
+    case catch gen_server:call(Worker, start_worker, 30000) of
+        ok ->
+            Parent ! ok;
+        Reason1 ->
+            exit({worker_dies, {"Worker startup failed: ~p",
+                [Reason1]}})
+    end,
+    wait_for_exit().
 
 init({Master, Task}) ->
     erlang:monitor(process, Task#task.from),
@@ -168,19 +216,6 @@ handle_event(_EventState, State) ->
 
 handle_info(timeout, State) ->
     {stop, {shutdown, {fatal, "Worker timed out"}}, State};
-handle_info({work, JobHome}, #state{task = Task, port = none} = State) ->
-    Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
-    file:change_mode(Worker, 8#755),
-    Command = "nice -n 19 " ++ Worker,
-    JobEnvs = jobpack:jobenvs(jobpack:read(JobHome)),
-    Options = [{cd, JobHome},
-               {line, 100000},
-               binary,
-               exit_status,
-               use_stdio,
-               stderr_to_stdout,
-               {env, dict:to_list(JobEnvs)}],
-    {noreply, State#state{port = open_port({spawn, Command}, Options)}};
 
 handle_info({_Port, {data, Data}}, #state{event_stream = EventStream} = State) ->
     EventStream1 = event_stream:feed(Data, EventStream),
@@ -196,6 +231,20 @@ handle_info({'DOWN', _, _, _, Info}, State) ->
 
 handle_call(kill_worker, _From, State) ->
     {stop, {shutdown, {fatal, "Worker killed"}}, State}.
+
+handle_call({work, JobHome}, _From, #state{task = Task, port = none} = State) ->
+    Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
+    file:change_mode(Worker, 8#755),
+    Command = "nice -n 19 " ++ Worker,
+    JobEnvs = jobpack:jobenvs(jobpack:read(JobHome)),
+    Options = [{cd, JobHome},
+               {line, 100000},
+               binary,
+               exit_status,
+               use_stdio,
+               stderr_to_stdout,
+               {env, dict:to_list(JobEnvs)}],
+    {noreply, State#state{port = open_port({spawn, Command}, Options)}};
 
 handle_cast(kill_worker, State) ->
     {stop, {shutdown, {fatal, "Worker killed"}}, State}.
