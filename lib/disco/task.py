@@ -194,7 +194,7 @@ class InputIter(object):
 
     def next(self):
         try:
-            self.last, item = next(self.iter)
+            self.last, item = self.iter.next()
             return item
         except DataError:
             self.swap()
@@ -203,7 +203,7 @@ class InputIter(object):
         try:
             def skip(iter, N):
                 return dropwhile(lambda (n, rec): n < N, enumerate(iter))
-            self.iter = skip(self.open(next(self.urls)), self.last + 1)
+            self.iter = skip(self.open(self.urls.next()), self.last + 1)
         except DataError:
             self.swap()
         except StopIteration:
