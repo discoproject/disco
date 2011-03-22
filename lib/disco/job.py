@@ -37,15 +37,14 @@ class JobPack(object):
         +--------------------------------------------------------------------+
     """
     MAGIC = (0xd5c0 << 16) + 0x0001
-    HEADER_FORMAT = "IIIII"
+    HEADER_FORMAT = "!IIIII"
     HEADER_SIZE = 128
     def __init__(self, *fields):
         self.jobdict, self.jobenvs, self.jobhome, self.jobdata = fields
 
     def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
-        from socket import htonl
         from struct import pack
-        toc = pack(format, htonl(magic), *(htonl(o) for o in offsets))
+        toc = pack(format, magic, *(o for o in offsets))
         return toc + '\0' * (size - len(toc))
 
     def contents(self, offset=HEADER_SIZE):
@@ -62,16 +61,12 @@ class JobPack(object):
 
     @classmethod
     def offsets(cls, jobfile, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
-        from socket import ntohl
         from struct import calcsize, unpack
         jobfile.seek(0)
-        header = [ntohl(i) for i in unpack(format, jobfile.read(calcsize(format)))]
-        if header[0] != magic:
-            raise DiscoError("Invalid jobpack magic.")
-        if header[1] != size:
-            raise DiscoError("Invalid jobpack header.")
-        if header[1:] != sorted(header[1:]):
-            raise DiscoError("Invalid jobpack offsets.")
+        header = [i for i in unpack(format, jobfile.read(calcsize(format)))]
+        assert header[0] == magic, "Invalid jobpack magic."
+        assert header[1] == size, "Invalid jobpack header."
+        assert header[1:] == sorted(header[1:]), "Invalid jobpack offsets."
         return header[1:]
 
     @classmethod

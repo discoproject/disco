@@ -154,7 +154,7 @@ class Task(object):
     @classmethod
     def request(cls):
         from disco.events import TaskInfo
-        return cls(**TaskInfo().send())
+        return cls(**dict((str(k), v) for k, v in TaskInfo().send().iteritems()))
 
 class Wait(Exception):
     """File objects can raise this if reading will block."""
