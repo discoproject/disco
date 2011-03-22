@@ -1,7 +1,7 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_link_remote/4]).
+-export([start_link_remote/3, start_link/1]).
 -export([init/1,
          handle_call/3,
          handle_cast/2,
@@ -30,11 +30,10 @@
 -define(ERRLINES_MAX, 100).
 -define(OOB_MAX, 1000).
 
-start_link_remote(Master, Host, NodeMon, Task) ->
-    Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
-    Node  = disco:node(Host),
+start_link_remote(Host, NodeMon, Task) ->
+    Node = disco:slave_node(Host),
     wait_until_node_ready(NodeMon),
-    spawn_link(Node, disco_worker, start_link, [{self(), Master, Task}]),
+    spawn_link(Node, disco_worker, start_link, [{self(), node(), Task}]),
     process_flag(trap_exit, true),
     receive
         ok -> ok;
@@ -63,22 +62,24 @@ wait_for_exit() ->
 
 start_link({Parent, Master, Task}) ->
     process_flag(trap_exit, true),
-    Worker = case catch gen_server:start_link(disco_worker, {Master, Task}, []) of
-             {ok, Server} ->
-                 Server;
-             Reason ->
-                 exit({worker_dies, {"Worker initialization failed: ~p",
-                             [Reason]}})
-         end,
+    _Worker = case catch gen_server:start_link(disco_worker, {Master, Task}, []) of
+                {ok, Server} ->
+                     Server;
+                 Reason ->
+                     Msg = io_lib:fwrite("Worker initialization failed: ~p",
+                                         [Reason]),
+                     exit({error, Msg})
+             end,
+    Parent ! ok,
     % NB: start_worker call is known to timeout if the node is really
     % busy - it should not be a fatal problem
-    case catch gen_server:call(Worker, start_worker, 30000) of
-        ok ->
-            Parent ! ok;
-        Reason1 ->
-            exit({worker_dies, {"Worker startup failed: ~p",
-                [Reason1]}})
-    end,
+    %case catch gen_server:call(Worker, start_worker, 30000) of
+    %    ok ->
+    %        Parent ! ok;
+    %    Reason1 ->
+    %        exit({worker_dies, {"Worker startup failed: ~p",
+    %            [Reason1]}})
+    %end,
     wait_for_exit().
 
 init({Master, Task}) ->
@@ -227,12 +228,9 @@ handle_info({_Port, {exit_status, _Status}}, State) ->
     {stop, {shutdown, {fatal, Reason}}, State};
 
 handle_info({'DOWN', _, _, _, Info}, State) ->
-    {stop, {shutdown, {fatal, Info}}, State}.
+    {stop, {shutdown, {fatal, Info}}, State};
 
-handle_call(kill_worker, _From, State) ->
-    {stop, {shutdown, {fatal, "Worker killed"}}, State};
-
-handle_call({work, JobHome}, _From, #state{task = Task, port = none} = State) ->
+handle_info({work, JobHome}, #state{task = Task, port = none} = State) ->
     Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
     file:change_mode(Worker, 8#755),
     Command = "nice -n 19 " ++ Worker,
@@ -245,6 +243,9 @@ handle_call({work, JobHome}, _From, #state{task = Task, port = none} = State) ->
                stderr_to_stdout,
                {env, dict:to_list(JobEnvs)}],
     {noreply, State#state{port = open_port({spawn, Command}, Options)}}.
+
+handle_call(kill_worker, _From, State) ->
+    {stop, {shutdown, {fatal, "Worker killed"}}, State}.
 
 handle_cast(kill_worker, State) ->
     {stop, {shutdown, {fatal, "Worker killed"}}, State}.
@@ -261,7 +262,8 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 jobhome(JobName) ->
-    disco:jobhome(JobName, disco_node:home()).
+    Home = filename:join(disco:get_setting("DISCO_DATA"), disco:host(node())),
+    disco:jobhome(JobName, Home).
 
 make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
