@@ -214,12 +214,12 @@ class Job(object):
                        'wait')
     from disco.worker.classic.worker import Worker as worker
 
-    def __init__(self, name=None, master=None, worker=None, settings=DiscoSettings()):
+    def __init__(self, name=None, master=None, worker=None, settings=None):
         from disco.core import Disco
         self.name = name or type(self).__name__
         self.disco = master if isinstance(master, Disco) else Disco(master)
         self.worker = worker or self.worker()
-        self.settings = settings
+        self.settings = settings or DiscoSettings()
 
     def __getattr__(self, attr):
         if attr in self.proxy_functions:

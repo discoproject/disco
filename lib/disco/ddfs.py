@@ -8,9 +8,6 @@ See also: :ref:`DDFS`.
 
         Parameters below which are indicated as tags can be specified as
         a `tag://` URL, or the name of the tag.
-
-.. autoclass:: DDFS(master=None, proxy=None, settings=DiscoSettings())
-        :members:
 """
 import os, re, random
 from cStringIO import StringIO
@@ -67,10 +64,10 @@ class DDFS(object):
     :param master: address of the master,
                    for instance ``disco://localhost``.
     """
-    def __init__(self, master=None, proxy=None, settings=DiscoSettings()):
-        self.proxy  = proxy or settings['DISCO_PROXY']
-        self.master = self.proxy or master or settings['DISCO_MASTER']
-        self.settings = settings
+    def __init__(self, master=None, proxy=None, settings=None):
+        self.settings = settings or DiscoSettings()
+        self.proxy  = proxy or self.settings['DISCO_PROXY']
+        self.master = self.proxy or master or self.settings['DISCO_MASTER']
         self.settings['DISCO_MASTER'] = self.master
 
     def __repr__(self):

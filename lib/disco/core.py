@@ -4,23 +4,7 @@
 
 The :mod:`disco.core` module provides a high-level interface for
 communication with the Disco master. It provides functions for submitting
-new jobs, querying status of the system, and getting results of jobs.
-
-The :class:`Disco` object encapsulates connection to the Disco
-master. Once a connection has been established, you can use the
-object to query status of the system, or submit a new job with the
-:meth:`Disco.new_job` method. See the :mod:`disco.func` module for more
-information about constructing Disco jobs.
-
-:meth:`Disco.new_job` is provided with all information needed to run
-a job, which it packages and sends to the master. The method returns
-immediately and returns a :class:`Job` object that corresponds to the
-newly started job.
-
-.. autoclass:: Disco
-        :members:
-.. autofunction:: classic_iterator
-.. autofunction:: result_iterator
+new jobs, querying the status of the system, and getting results of jobs.
 """
 import os, time
 
@@ -39,14 +23,21 @@ class Continue(Exception):
 
 class Disco(object):
     """
-    Opens and encapsulates connection to the Disco master.
+    The :class:`Disco` object provides an interface to the Disco master.
+    It can be used to query the status of the system, or to submit a new job.
+    See the :mod:`disco.job` module for more information about constructing jobs.
 
-    :param master: address of the Disco master,
-                   for instance ``disco://localhost``.
+    :meth:`Disco.new_job` is provided with all information needed to run
+    a job, which it packages and sends to the master. The method returns
+    immediately and returns a :class:`Job` object that corresponds to the
+    newly started job.
+
+    :type  master: url
+    :param master: address of the Disco master, e.g. ``disco://localhost``.
     """
-    def __init__(self, master=None, settings=DiscoSettings()):
-        self.master = master or settings['DISCO_MASTER']
-        self.settings = settings
+    def __init__(self, master=None, settings=None):
+        self.settings = settings or DiscoSettings()
+        self.master = master or self.settings['DISCO_MASTER']
 
     def __repr__(self):
         return 'Disco master at %s' % self.master

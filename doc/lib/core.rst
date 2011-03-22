@@ -1,1 +1,2 @@
 .. automodule:: disco.core
+   :members:
