@@ -167,4 +167,10 @@ def setup(app):
         if signature:
             signature = repr_re.sub(r'\1', signature)
         return signature, return_annotation
+    def skip_member(app, what, name, obj, skip, options):
+        if skip:
+            return True
+        if what != 'module' and type(obj) is type:
+            return True
     app.connect('autodoc-process-signature', process_signature)
+    app.connect('autodoc-skip-member', skip_member)

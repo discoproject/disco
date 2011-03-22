@@ -2,36 +2,12 @@
 :mod:`disco.job` -- Disco Jobs
 ==============================
 
+A typical pattern in Disco scripts is to run a job synchronously,
+that is, to block the script until the job has finished.
+This can be accomplished using the :meth:`Job.wait` method::
 
-XXX: fix these docs
-    :meth:`Disco.new_job` and :meth:`Job.run`
-    accept the same set of keyword arguments as specified below.
-
-    :type  input: list of inputs or list of list of inputs
-    :param input: Each input must be specified in one of the following ways:
-
-                   * ``http://www.example.com/data`` - any HTTP address
-                   * ``disco://cnode03/bigtxt/file_name`` - Disco address. Refers to ``cnode03:/var/disco/bigtxt/file_name``. Currently this is an alias for ``http://cnode03:[DISCO_PORT]/bigtxt/file_name``.
-                   * ``dir://cnode03/jobname/`` - Result directory. This format is used by Disco internally.
-                   * ``/home/bob/bigfile.txt`` - a local file. Note that the file must either exist on all the nodes or you must make sure that the job is run only on the nodes where the file exists. Due to these restrictions, this form has only limited use.
-                   * ``raw://some_string`` - pseudo-address; instead of fetching data from a remote source, use ``some_string`` in the address as data. Useful for specifying dummy inputs for generator maps.
-                   * ``tag://tagname`` - a tag stored in :ref:`DDFS` (*Added in version 0.3*)
-
-                  (*Added in version 0.3.2*)
-                  Tags can be token protected.
-                  For the data in tags to be used as job inputs,
-                  the tags should be resolved into the constituent urls or replica sets,
-                  and provided as the value of the input parameter.
-
-                  (*Added in version 0.2.2*):
-                  An input entry can be a list of inputs:
-                  This lets you specify redundant versions of an input file.
-                  If a list of redundant inputs is specified,
-                  the scheduler chooses the input that is located on the node
-                  with the lowest load at the time of scheduling.
-                  Redundant inputs are tried one by one until the task succeeds.
-                  Redundant inputs require that the *map* function is specified.
-
+        from disco.job import Job
+        results = Job(name).run(**jobargs).wait()
 """
 import os, sys, time
 
@@ -42,21 +18,23 @@ from disco.settings import DiscoSettings
 
 class JobPack(object):
     """
-    +---------------- 4
-    | magic / version |
-    +---------------- 8 -------------- 12 ------------- 16 ------------- 20
-    | jobdict offset  | jobenvs offset | jobhome offset | jobdata offset |
-    +--------------------------------------------------------------------+
-    |                         ...  reserved ...                          |
-    128 -----------------------------------------------------------------+
-    |                               jobdict                              |
-    +--------------------------------------------------------------------+
-    |                               jobenvs                              |
-    +--------------------------------------------------------------------+
-    |                               jobhome                              |
-    +--------------------------------------------------------------------+
-    |                               jobdata                              |
-    +--------------------------------------------------------------------+
+    :class:`JobPack` file format::
+
+        +---------------- 4
+        | magic / version |
+        +---------------- 8 -------------- 12 ------------- 16 ------------- 20
+        | jobdict offset  | jobenvs offset | jobhome offset | jobdata offset |
+        +--------------------------------------------------------------------+
+        |                           ... reserved ...                         |
+        128 -----------------------------------------------------------------+
+        |                               jobdict                              |
+        +--------------------------------------------------------------------+
+        |                               jobenvs                              |
+        +--------------------------------------------------------------------+
+        |                               jobhome                              |
+        +--------------------------------------------------------------------+
+        |                               jobdata                              |
+        +--------------------------------------------------------------------+
     """
     MAGIC = (0xd5c0 << 16) + 0x0001
     HEADER_FORMAT = "IIIII"
@@ -135,11 +113,7 @@ class PackedJobPack(JobPack):
 
 class Job(object):
     """
-    Creates a Disco Job with the given master, name, worker, and settings.
-    Returns the job immediately after the request has been submitted.
-
-    :type  master: :class:`disco.core.Disco`
-    :param master: Identifies the Disco master runs this job.
+    Creates a Disco Job with the given name, master, worker, and settings.
 
     :type  name: string
     :param name: The job name.
@@ -151,26 +125,33 @@ class Job(object):
 
                         Only characters in ``[a-zA-Z0-9_]`` are allowed in the job name.
 
-    :type worker: :class:`disco.worker.Worker`
+    :type  master: url of master or :class:`disco.core.Disco`
+    :param master: Identifies the Disco master runs this job.
+
+    :type  worker: :class:`disco.worker.Worker`
+    :param worker: the worker instance used to create and run the job.
+                   If none is specified, the job creates a worker using
+                   its :attr:`Job.Worker` attribute.
 
     :type settings: :class:`disco.settings.DiscoSettings`
 
     Use :meth:`Job.run` to start the job.
-
-    A typical pattern in Disco scripts is to run a job synchronously,
-    that is, to block the script until the job has finished.
-    This is accomplished as follows::
-
-        from disco.job import Job
-        results = Job(name, ...).run().wait()
-
-    Note that job methods of :class:`disco.core.Disco` objects are directly
-    accessible through the :class:`Job` object, such as :meth:`Job.wait`
-    above.
-
-    A :class:`JobError` is raised if an error occurs while starting the job.
-
-    The following methods from :class:`disco.core.Disco`,
+    """
+    from disco.worker.classic.worker import Worker
+    proxy_functions = ('clean',
+                       'events',
+                       'kill',
+                       'jobinfo',
+                       'jobpack',
+                       'oob_get',
+                       'oob_list',
+                       'profile_stats',
+                       'purge',
+                       'results',
+                       'mapresults',
+                       'wait')
+    """
+    These methods from :class:`disco.core.Disco`,
     which take a jobname as the first argument,
     are also accessible through the :class:`Job` object:
 
@@ -195,30 +176,17 @@ class Job(object):
     A typical case is that you no longer need the results of a job.
     You can delete the unneeded job files as follows::
 
-        from disco.job import Job
+        from disco.core import Disco
         from disco.util import jobname
 
-        Job(master, jobname(results[0])).purge()
+        Disco().purge(jobname(results[0]))
     """
-    proxy_functions = ('clean',
-                       'events',
-                       'kill',
-                       'jobinfo',
-                       'jobpack',
-                       'oob_get',
-                       'oob_list',
-                       'profile_stats',
-                       'purge',
-                       'results',
-                       'mapresults',
-                       'wait')
-    from disco.worker.classic.worker import Worker as worker
 
     def __init__(self, name=None, master=None, worker=None, settings=None):
         from disco.core import Disco
         self.name = name or type(self).__name__
         self.disco = master if isinstance(master, Disco) else Disco(master)
-        self.worker = worker or self.worker()
+        self.worker = worker or self.Worker()
         self.settings = settings or DiscoSettings()
 
     def __getattr__(self, attr):
@@ -228,6 +196,18 @@ class Job(object):
         raise AttributeError("%r has no attribute %r" % (self, attr))
 
     def run(self, **jobargs):
+        """
+        Creates the :class:`JobPack` for the worker using
+        :meth:`disco.worker.Worker.jobdict`,
+        :meth:`disco.worker.Worker.jobdenvs`,
+        :meth:`disco.worker.Worker.jobhome`, and
+        :meth:`disco.worker.Worker.jobdata`.
+
+        Returns the job immediately after the request has been submitted,
+        with a unique name assigned by the master, if the request was successful.
+
+        A :class:`JobError` is raised if an error occurs while starting the job.
+        """
         jobpack = JobPack(self.worker.jobdict(self, **jobargs),
                           self.worker.jobenvs(self, **jobargs),
                           self.worker.jobhome(self, **jobargs),

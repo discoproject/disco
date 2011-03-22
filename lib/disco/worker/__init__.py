@@ -5,9 +5,30 @@
         for record in task.input(open=...):
                 pass
 
-.. autoclass:: Worker
-   :members:
+    :type  input: list of inputs or list of list of inputs
+    :param input: Each input must be specified in one of the following ways:
 
+                   * ``http://www.example.com/data`` - any HTTP address
+                   * ``disco://cnode03/bigtxt/file_name`` - Disco address. Refers to ``cnode03:/var/disco/bigtxt/file_name``. Currently this is an alias for ``http://cnode03:[DISCO_PORT]/bigtxt/file_name``.
+                   * ``dir://cnode03/jobname/`` - Result directory. This format is used by Disco internally.
+                   * ``/home/bob/bigfile.txt`` - a local file. Note that the file must either exist on all the nodes or you must make sure that the job is run only on the nodes where the file exists. Due to these restrictions, this form has only limited use.
+                   * ``raw://some_string`` - pseudo-address; instead of fetching data from a remote source, use ``some_string`` in the address as data. Useful for specifying dummy inputs for generator maps.
+                   * ``tag://tagname`` - a tag stored in :ref:`DDFS` (*Added in version 0.3*)
+
+                  (*Added in version 0.3.2*)
+                  Tags can be token protected.
+                  For the data in tags to be used as job inputs,
+                  the tags should be resolved into the constituent urls or replica sets,
+                  and provided as the value of the input parameter.
+
+                  (*Added in version 0.2.2*):
+                  An input entry can be a list of inputs:
+                  This lets you specify redundant versions of an input file.
+                  If a list of redundant inputs is specified,
+                  the scheduler chooses the input that is located on the node
+                  with the lowest load at the time of scheduling.
+                  Redundant inputs are tried one by one until the task succeeds.
+                  Redundant inputs require that the *map* function is specified.
 """
 import cPickle, os, sys, traceback
 

@@ -158,11 +158,9 @@ class Disco(object):
 
     def new_job(self, name, **kwargs):
         """
-        Submits a new job request to the master using the classic interface.
+        Submits a new job request to the master using :class:`disco.job.Job`::
 
-        This method accepts the same set of keyword args as
-        :meth:`disco.worker.classic.job.Job.run`.
-        Returns a :class:`disco.worker.classic.job.Job`.
+                return Job(name=name, master=self.master).run(**kwargs)
         """
         return Job(name=name, master=self.master).run(**kwargs)
 
@@ -193,6 +191,7 @@ class Disco(object):
         return self.jobpack(name).jobdict
 
     def jobpack(self, name):
+        """Return the :class:`disco.job.JobPack` submitted for the job with name *name*."""
         from cStringIO import StringIO
         from disco.job import JobPack
         return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name=%s' % name)))
