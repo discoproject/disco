@@ -1,5 +1,4 @@
-import sys, time, os, cPickle, struct, zlib
-import errno, fcntl
+import cPickle, errno, struct, os, sys, time, zlib
 from cStringIO import StringIO
 from zipfile import ZipFile, ZIP_DEFLATED
 

@@ -515,10 +515,12 @@ def task_output_stream(stream, partition, url, params):
 map_output_stream = reduce_output_stream = task_output_stream
 
 def disco_output_stream(stream, partition, url, params):
+    """Output stream for Disco's internal compression format."""
     from disco.fileutils import DiscoOutput
     return DiscoOutput(stream)
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
+    """Input stream for Disco's internal compression format."""
     import struct, cStringIO, gzip, cPickle, zlib
     offset = 0
     while True:

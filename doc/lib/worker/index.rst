@@ -1,0 +1,2 @@
+.. automodule:: disco.worker
+   :members:

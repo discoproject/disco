@@ -180,7 +180,7 @@ The dictionary is then encoded by :func:`disco.core.Job`
 using the :mod:`disco.worker.classic.netstring` module.
 The *netstring* format is extremely simple, consisting of consequent
 key-value pairs. An example how to parse parameters in this case can be
-found in the :cfunc:`read_parameters` function in *ext/disco.c*.
+found in the :c:func:`read_parameters` function in *ext/disco.c*.
 
 Usage
 -----
@@ -268,75 +268,75 @@ illustriating usage of the library.
 
 The following functions are available in the library
 
-.. cfunction:: Pvoid_t read_parameters()
+.. c:function:: Pvoid_t read_parameters()
 
    This function must be called before any call to the function
-   :cfunc:`read_kv`. It returns the parameter dictionary
+   :c:func:`read_kv`. It returns the parameter dictionary
    as a Judy array of type *JudySL*. See `JudySL man page <http://judy.sourceforge.net/doc/JudySL_3x.htm>`_ for more information.
 
-.. cfunction:: void die(const char *msg)
+.. c:function:: void die(const char *msg)
 
    .. **
 
    Kills the job with the message *msg*.
 
-.. cfunction:: int read_kv(p_entry **key, p_entry **val)
+.. c:function:: int read_kv(p_entry **key, p_entry **val)
 
    .. ***
 
-   Reads a key-value pair from the standard input. :cfunc:`read_kv`
+   Reads a key-value pair from the standard input. :c:func:`read_kv`
    can re-use *key* and *value* across many calls, so there is no need
    to *free()* them explicitely. If you need to save a key-value pair
-   on some iteration, use :cfunc:`copy_entry` to make a copy of the
+   on some iteration, use :c:func:`copy_entry` to make a copy of the
    desired entry. Naturally you are responsible for freeing any copy that
-   isn't needed anymore, unless you re-use it as a :cfunc:`copy_entry`
+   isn't needed anymore, unless you re-use it as a :c:func:`copy_entry`
    destination. To summarize, you need to call *free()* for entries that
-   won't be re-used in a :cfunc:`copy_entry` or :cfunc:`read_kv` call.
+   won't be re-used in a :c:func:`copy_entry` or :c:func:`read_kv` call.
 
-   Returns key and value strings in :ctype:`p_entry` structs.
+   Returns key and value strings in :c:type:`p_entry` structs.
 
-        .. ctype:: p_entry
+        .. c:type:: p_entry
 
            Container type for a string.
 
-        .. cmember:: p_entry.len
+        .. c:member:: p_entry.len
 
            Length of the string
 
-        .. cmember:: p_entry.sze
+        .. c:member:: p_entry.sze
 
            Size of the allocated buffer. Always holds *len <= sze*.
 
-        .. cmember:: p_entry.data
+        .. c:member:: p_entry.data
 
            Actual string of the size *len*, ending with an additional zero byte.
 
-.. cfunction:: void write_num_prefix(int num)
+.. c:function:: void write_num_prefix(int num)
 
    Writes the *num_pairs* prefix for the result list as defined above. This call
-   must be followed by *num* :cfunc:`write_kv` calls.
+   must be followed by *num* :c:func:`write_kv` calls.
 
-.. cfunction:: void write_kv(const p_entry *key, const p_entry *val)
+.. c:function:: void write_kv(const p_entry *key, const p_entry *val)
 
    .. **
 
    Writes a key-value pair to the standard output. Must be preceded with a
-   :cfunc:`write_num_prefix` call.
+   :c:func:`write_num_prefix` call.
 
 In addition, the library contains the following utility functions:
 
-.. cfunction:: void *dxmalloc(unsigned int size)
+.. c:function:: void *dxmalloc(unsigned int size)
 
    .. **
 
-   Tries to allocate *size* bytes. Exits with :cfunc:`die` if allocation fails.
+   Tries to allocate *size* bytes. Exits with :c:func:`die` if allocation fails.
 
-.. cfunction:: void copy_entry(p_entry **dst, const p_entry *src)
+.. c:function:: void copy_entry(p_entry **dst, const p_entry *src)
 
    .. ***
 
    Copies *src* to *dst*. Grows *dst* if needed, or allocates a new
-   :ctype:`p_entry` if *dst = NULL*.
+   :c:type:`p_entry` if *dst = NULL*.
 """
 import os, time, struct, marshal
 from subprocess import Popen, PIPE

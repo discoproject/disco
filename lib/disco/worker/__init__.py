@@ -1,14 +1,49 @@
 """
-:mod:`disco.worker` -- Python Worker Basics and Interfaces
-==========================================================
+:mod:`disco.worker` -- Python Worker Interface
+==============================================
 
         for record in task.input(open=...):
                 pass
+
+.. autoclass:: Worker
+   :members:
 
 """
 import cPickle, os, sys, traceback
 
 class Worker(dict):
+    """
+    :type  required_files: list of paths or dict
+    :param required_files: additional files that are required by the worker.
+                           Either a list of paths to files to include,
+                           or a dictionary which contains items of the form
+                           ``(filename, filecontents)``.
+                           (*Added in version 0.2.3*)
+
+    :type  required_modules: list of modules or module names
+    :param required_modules: required modules to send to the worker.
+                             Can also be a list of module objects.
+                             (*Changed in version 0.4*):
+
+    :type  scheduler: dict
+    :param scheduler: options for the job scheduler.
+                      The following keys are supported:
+
+                       * *max_cores* - use this many cores at most
+                                       (applies to both map and reduce).
+
+                                       Default is ``2**31``.
+
+                       * *force_local* - always run task on the node where
+                                         input data is located;
+                                         never use HTTP to access data remotely.
+
+                       * *force_remote* - never run task on the node where input
+                                          data is located;
+                                          always use HTTP to access data remotely.
+
+                      (*Added in version 0.2.4*)
+    """
     def __init__(self, **kwargs):
         super(Worker, self).__init__(self.defaults())
         self.update(kwargs)

@@ -1,23 +1,39 @@
 #!/usr/bin/env python
 """
-:mod:`disco.worker.classic` -- Classic Disco Runtime Environment
-================================================================
+:mod:`disco.worker.classic.worker` -- Classic Disco Runtime Environment
+=======================================================================
 
-Disco master runs :mod:`disco.worker.classic` to execute map and reduce functions
-for a Disco job. The module contains several classes and functions that
-are used by Disco internally to connect to input sources, write output
-files etc. However, this page only documents features that may be useful
-for writing new Disco jobs.
+When a Job is constructed using a classic :class:`Worker`,
+Disco runs the :mod:`disco.worker.classic.worker` module for every job task.
+This module reconstructs the :class:`Worker` on the node where it is run,
+in order to execute the functions which were used to create it.
+"""
+import os, sys
 
-As job functions are imported to the :mod:`disco.worker.classic` namespace
-for execution, they can use functions in this module directly without
-importing the module explicitly.
+from disco import events, util, worker
+from disco.worker.classic import external
+from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
 
-Classic Worker Options
-----------------------
+def status(message):
+    return events.Status(message).send()
 
-    .. note:: All arguments that are required are marked as such.
-              All other arguments are optional.
+class Worker(worker.Worker):
+    """
+    The worker may use the following keys,
+    in addition to those inherited from :class:`disco.worker.Worker`.
+
+        .. note:: Arguments that are required are marked as such.
+                  All other arguments are optional.
+
+        .. note:: The classic worker tries to guess which modules are needed automatically,
+                  for all of the functions specified below,
+                  if the *required_modules* parameter is not specified.
+                  It sends any local dependencies
+                  (i.e. modules not included in the Python standard library)
+                  to nodes by default.
+
+                  If guessing fails, or you have other requirements,
+                  see :mod:`disco.modutil` for options.
 
     :type  map: :func:`disco.worker.classic.func.map`
     :param map: a :term:`pure function` that defines the map task.
@@ -26,14 +42,14 @@ Classic Worker Options
     :param map_init: initialization function for the map task.
                      This function is called once before the task starts.
 
-    :type  map_input_stream: list of :func:`disco.worker.classic.func.input_stream`
+    :type  map_input_stream: sequence of :func:`disco.worker.classic.func.input_stream`
     :param map_input_stream: The given functions are chained together and the final resulting
                              :class:`disco.worker.classic.func.InputStream` object is used
                              to iterate over input entries.
 
                              (*Added in version 0.2.4*)
 
-    :type  map_output_stream: list of :func:`disco.worker.classic.func.output_stream`
+    :type  map_output_stream: sequence of :func:`disco.worker.classic.func.output_stream`
     :param map_output_stream: The given functions are chained together and the
                               :meth:`disco.worker.classic.func.OutputStream.add` method of the last
                               returned :class:`disco.worker.classic.func.OutputStream` object is used
@@ -75,13 +91,13 @@ Classic Worker Options
     :param reduce_init: initialization function for the reduce task.
                         This function is called once before the task starts.
 
-    :type  reduce_input_stream: list of :func:`disco.worker.classic.func.output_stream`
+    :type  reduce_input_stream: sequence of :func:`disco.worker.classic.func.output_stream`
     :param reduce_input_stream: The given functions are chained together and the last
                               returned :class:`disco.worker.classic.func.InputStream` object is
                               given to *reduce* as its first argument.
                               (*Added in version 0.2.4*)
 
-    :type  reduce_output_stream: list of :func:`disco.worker.classic.func.output_stream`
+    :type  reduce_output_stream: sequence of :func:`disco.worker.classic.func.output_stream`
     :param reduce_output_stream: The given functions are chained together and the last
                               returned :class:`disco.worker.classic.func.OutputStream` object is
                               given to *reduce* as its second argument.
@@ -114,25 +130,6 @@ Classic Worker Options
     :param merge_partitions: whether or not to merge partitioned inputs during reduce.
 
                              Default is ``False``.
-
-    :type  scheduler: dict
-    :param scheduler: options for the job scheduler.
-                      The following keys are supported:
-
-                       * *max_cores* - use this many cores at most
-                                       (applies to both map and reduce).
-
-                                       Default is ``2**31``.
-
-                       * *force_local* - always run task on the node where
-                                         input data is located;
-                                         never use HTTP to access data remotely.
-
-                       * *force_remote* - never run task on the node where input
-                                          data is located;
-                                          always use HTTP to access data remotely.
-
-                      (*Added in version 0.2.4*)
 
     :type  sort: boolean
     :param sort: flag specifying whether the intermediate results,
@@ -171,42 +168,6 @@ Classic Worker Options
 
                        See :mod:`disco.worker.classic.external`.
 
-    :type  required_files: list of paths or dict
-    :param required_files: additional files that are required by the job.
-                           Either a list of paths to files to include,
-                           or a dictionary which contains items of the form
-                           ``(filename, filecontents)``.
-
-                           You can use this parameter to include custom modules
-                           or shared libraries in the job.
-                           (*Added in version 0.2.3*)
-
-                           .. note::
-
-                                All files will be saved in a flat directory
-                                on the worker.
-                                No subdirectories will be created.
-
-
-                            .. note::
-
-                                ``LD_LIBRARY_PATH`` is set so you can include
-                                a shared library ``foo.so`` in *required_files*
-                                and load it in the job directly as
-                                ``ctypes.cdll.LoadLibrary("foo.so")``.
-                                For an example, see :ref:`discoext`.
-
-    :param required_modules: required modules to send to the worker
-                             (*Changed in version 0.2.3*):
-                             Disco tries to guess which modules are needed
-                             by your job functions automatically.
-                             It sends any local dependencies
-                             (i.e. modules not included in the
-                             Python standard library) to nodes by default.
-
-                             If guessing fails, or you have other requirements,
-                             see :mod:`disco.modutil` for options.
-
 
     :type  status_interval: integer
     :param status_interval: print "K items mapped / reduced"
@@ -227,63 +188,7 @@ Classic Worker Options
                     Retrieve profiling results with :meth:`Disco.profile_stats`.
 
                     Default is ``False``.
-
-.. autoclass:: Params
-        :members:
-
-
-.. _oob:
-
-Out-of-band results
--------------------
-*(new in version 0.2)*
-
-In addition to standard input and output streams, map and reduce tasks can
-output results through an auxiliary channel called *out-of-band results* (OOB).
-In contrast to the standard output stream, which is sequential, OOB results
-can be accessed by unique keys.
-
-Out-of-band results should not be used as a substitute for the normal output
-stream. Each OOB key-value pair is saved to an individual file which waste
-space when values are small and which are inefficient to random-access in bulk.
-Due to these limitations, OOB results are mainly suitable, e.g for outputting
-statistics and other metadata about the actual results.
-
-To prevent rogue tasks from overwhelming nodes with a large number of OOB
-results, each is allowed to output 1000 results (:func:`put` calls) at maximum.
-Hitting this limit is often a sign that you should use the normal output stream
-for you results instead.
-
-You can not use OOB results as a communication channel between concurrent tasks.
-Concurrent tasks need to be independent to preserve desirable fault-tolerance
-and scheduling characteristics of the map/reduce paradigm. However, in the
-reduce phase you can access OOB results produced in the preceding map phase.
-Similarly you can access OOB results produced by other finished jobs, given
-a job name.
-
-You can retrieve OOB results outside tasks using the :meth:`disco.core.Disco.oob_list` and
-:meth:`disco.core.Disco.oob_get` functions.
-
-.. autofunction:: put
-.. autofunction:: get
-
-Utility functions
------------------
-
-.. autofunction:: this_partition
-.. autofunction:: this_host
-.. autofunction:: this_master
-"""
-import os, sys
-
-from disco import events, util, worker
-from disco.worker.classic import external
-from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
-
-def status(message):
-    return events.Status(message).send()
-
-class Worker(worker.Worker):
+    """
     def defaults(self):
         defaults = super(Worker, self).defaults()
         defaults.update({'map_init': init,
@@ -456,16 +361,13 @@ class Params(object):
 
     This example shows a simple way of using :class:`Params`::
 
-        def fun_map(e, params):
+        def map(e, params):
                 params.c += 1
                 if not params.c % 10:
                         return [(params.f(e), params.c)]
                 return [(e, params.c)]
 
-        disco.new_job(name="disco://localhost",
-                      input=["disco://localhost/myjob/file1"],
-                      map=fun_map,
-                      params=Params(c=0, f=lambda x: x + "!"))
+        job.run(map=map, params=Params(c=0, f=lambda x: x + "!"))
 
     You can specify any number of key-value pairs to the :class:`Params`.
     The pairs will be available to task functions through the *params* argument.
@@ -490,12 +392,15 @@ class Params(object):
 from disco.util import msg, err, data_err
 
 def get(*args, **kwargs):
+    """See :meth:`disco.task.Task.get`."""
     return Task.get(*args, **kwargs)
 
 def put(*args, **kwargs):
+    """See :meth:`disco.task.Task.put`."""
     return Task.put(*args, **kwargs)
 
 def this_name():
+    """Returns the jobname for the current task."""
     return Task.jobname
 
 def this_master():
@@ -503,7 +408,7 @@ def this_master():
     return Task.master
 
 def this_host():
-    """Returns hostname of the node that executes the task currently."""
+    """Returns hostname of the node that executes the current task."""
     return Task.host
 
 def this_partition():

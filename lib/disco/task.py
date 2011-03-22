@@ -1,3 +1,9 @@
+"""
+:mod:`disco.task` -- Disco Tasks
+================================
+
+
+"""
 import os, time
 
 from itertools import chain, dropwhile, repeat
@@ -59,6 +65,9 @@ class TaskOutput(object):
         self.file = self.open(self.path)
 
 class Task(object):
+    """
+    Tasks are units of work...
+    """
     def __init__(self,
                  host='',
                  jobname='',

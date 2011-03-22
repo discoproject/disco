@@ -2,11 +2,6 @@
 :mod:`disco.job` --- Disco Jobs
 ===============================
 
-.. autoclass:: Task
-        :members:
-.. autoclass:: Job
-        :members:
-
 
 XXX: fix these docs
     :meth:`Disco.new_job` and :meth:`Job.run`

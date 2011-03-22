@@ -70,6 +70,7 @@ master: $(EBIN)/disco.app $(EOBJECTS)
 clean:
 	- rm -Rf $(EBIN) $(ETESTOBJECTS)
 	- rm -Rf lib/build lib/disco.egg-info
+	- rm -Rf doc/.build
 
 distclean: clean
 	- rm -Rf $(EPLT)

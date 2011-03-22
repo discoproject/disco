@@ -54,7 +54,6 @@ References
 
    lib/index
    lib/settings
-   lib/node/external
    man/disco
    man/ddfs
 

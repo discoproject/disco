@@ -1,6 +1,6 @@
 """
-:mod:`disco.core` --- Client interface for Disco
-================================================
+:mod:`disco.core` --- Disco Core Library
+========================================
 
 The :mod:`disco.core` module provides a high-level interface for
 communication with the Disco master. It provides functions for submitting
@@ -19,6 +19,7 @@ newly started job.
 
 .. autoclass:: Disco
         :members:
+.. autofunction:: classic_iterator
 .. autofunction:: result_iterator
 """
 import os, time
@@ -392,10 +393,13 @@ def classic_iterator(urls,
     """
     An iterator over records as seen by the classic map interface.
 
-    :type  reader: :func:`disco.func.input_stream`
-    :param reader: used to read from a custom :func:`disco.func.output_stream`.
+    :type  reader: :func:`disco.classic.worker.func.input_stream`
+    :param reader: shortcut for the last input stream applied.
 
-    :type  notifier: :func:`disco.func.notifier`
+    :type  input_stream: sequence of :func:`disco.classic.worker.func.input_stream`
+    :param input_stream: used to read from a custom file format.
+
+    :type  notifier: :func:`disco.classic.worker.func.notifier`
     :param notifier: called when the task opens a url.
     """
     from disco.task import TaskInput
@@ -406,7 +410,10 @@ def classic_iterator(urls,
         notifier(input)
         for record in TaskInput(input, open=worker.opener('map', 'in', params)):
             yield record
-result_iterator = classic_iterator
+
+def result_iterator(*args, **kwargs):
+    """Backwards compatible alias for :func:`classic_iterator`"""
+    return classic_iterator(*args, **kwargs)
 
 class Stats(object):
     def __init__(self, prof_data):

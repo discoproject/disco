@@ -4,20 +4,23 @@
 What is Disco?
 ==============
 
-Disco is an implementation of the `Map-Reduce framework
-<http://en.wikipedia.org/wiki/MapReduce>`_ for distributed computing. As
-the original framework, which was publicized by Google, Disco supports
-parallel computations over large data sets on unreliable cluster of
-computers. This makes it a perfect tool for analyzing and processing large
-datasets without having to bother about difficult technical questions
-related to distributed computing, such as communication protocols, load
-balancing, locking, job scheduling or fault tolerance, which are taken
-care by Disco.
+Disco is an implementation of `MapReduce`_ for distributed computing.
+Disco supports parallel computations over large data sets,
+stored on an unreliable cluster of computers,
+as in the original framework created by Google.
+This makes it a perfect tool for analyzing and processing large data sets,
+without having to worry about difficult technicalities related to distribution
+such as communication protocols, load balancing,
+locking, job scheduling, and fault tolerance,
+which are handled by Disco.
 
-Disco, standing on the shoulders of the solid Map-Reduce model, is
-suitable and already used for various data mining tasks, large-scale
-Web analytics, and building probabilistic models and full-text indices,
-to name a few examples.
+Disco can be used for a variety data mining tasks:
+large-scale analytics,
+building probabilistic models, and
+full-text indexing the Web,
+just to name a few examples.
+
+.. _MapReduce: http://en.wikipedia.org/wiki/MapReduce
 
 Batteries included
 ------------------
@@ -26,15 +29,12 @@ The Disco core is written in `Erlang <http://www.erlang.org>`_,
 a functional language that is designed for building robust fault-tolerant
 distributed applications.
 Users of Disco typically write jobs in Python,
-which makes it possible to express even complex algorithms or data
-processing tasks often only in tens of lines of code.
+which makes it possible to express even complex algorithms with very little code.
 
-For instance, the following fully working examples compute word
+For instance, the following fully working example computes word
 frequencies in a large text:
 
 .. literalinclude:: ../examples/util/count_words.py
-
-.. literalinclude:: ../examples/util/wordcount.py
 
 Disco is designed to integrate easily in larger applications, such as
 Web services, so that computationally demanding tasks can be delegated
