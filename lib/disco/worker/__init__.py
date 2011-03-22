@@ -187,10 +187,12 @@ class Worker(dict):
         from disco.events import AnnouncePID, WorkerDone, DataUnavailable, TaskFailed
         from disco.job import JobPack
         from disco.task import Task
+        from disco.fileutils import NonBlockingInput
         from disco.util import MessageWriter
         try:
-            AnnouncePID(str(os.getpid())).send()
+            sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
             sys.stdout = MessageWriter()
+            AnnouncePID(str(os.getpid())).send()
             worker, job = cls.unpack(JobPack.request())
             worker.start(job, Task.request())
             WorkerDone().send()

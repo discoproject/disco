@@ -162,6 +162,35 @@ class DiscoZipFile(ZipFile, object):
         self.buffer.reset()
         return self.buffer.read()
 
+class NonBlockingInput(object):
+    def __init__(self, file, timeout=600):
+        from fcntl import fcntl, F_GETFL, F_SETFL
+        self.fd, self.timeout = file.fileno(), timeout
+        fcntl(self.fd, F_SETFL, fcntl(self.fd, F_GETFL) | os.O_NONBLOCK)
+
+    def readline(self):
+        spent, line = self.select(), os.read(self.fd, 1)
+        while not line.endswith('\n'):
+            spent += self.select(spent)
+            line += os.read(self.fd, 1)
+        return line
+
+    def read(self, bytes=-1):
+        spent = self.select()
+        read = os.read(self.fd, bytes)
+        while bytes > 0 and len(read) < bytes:
+            spent += self.select(spent)
+            read += os.read(self.fd, bytes - len(read))
+        return read
+
+    def select(self, spent=0):
+        from select import select
+        started = time.time()
+        if spent < self.timeout:
+            if any(select([self.fd], [], [], self.timeout - spent)):
+                return time.time() - started
+        raise IOError("Reading timed out after %s seconds" % self.timeout)
+
 class AtomicFile(file):
     def __init__(self, path):
         dir = os.path.dirname(path) or '.'
