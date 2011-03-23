@@ -59,7 +59,17 @@ Glossary
         See http://en.wikipedia.org/wiki/Pure_function for more information.
 
    task
-        A Disco :term:`job` is made of map and reduce *tasks*. A task consists
-        of many map or reduce *instances*.
+        A Disco :term:`job` is made of map and reduce *tasks*.
+        A task is essentially a unit of work, provided to a :term:`worker`.
+
+        See also :class:`disco.task.Task`.
+
+   worker
+        A *worker* is responsible for carrying out a :term:`task`.
+        A Disco :term:`job` specifies the executable that is the worker.
+        Workers are scheduled to run on the nodes,
+        close to the data they are supposed to be processing.
+
+        See :mod:`disco.worker` for more information.
 
 .. _web index: http://en.wikipedia.org/wiki/Index_(search_engine)

@@ -169,7 +169,8 @@ class Master(Server):
     @property
     def env(self):
         env = self.settings.env
-        env.update({'DISCO_MASTER_PID': self.pid_file})
+        env.update({'DISCO_MASTER_PID': self.pid_file,
+                    'DISCO_SETTINGS': ','.join(self.settings.defaults)})
         return env
 
     @property
