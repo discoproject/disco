@@ -174,14 +174,24 @@ handle_info({'EXIT', Pid, {error, _}} = Msg, S) ->
     process_exit(Pid, Msg, S);
 
 handle_info({'EXIT', Pid, Reason}, S) ->
-    error_logger:warning_report({"Worker died unexpectedely", Pid, Reason}),
+    error_logger:warning_report({"Worker died unexpectedly", Pid, Reason}),
     process_exit(Pid, {error, Reason}, S).
+
+%% ===================================================================
+%% gen_server callback stubs
+
+terminate(Reason, _State) ->
+    error_logger:warning_report({"Disco server dies", Reason}).
+
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+%% ===================================================================
+%% exit handlers
 
 process_exit(Pid, {Type, _} = Results, S) ->
     case gb_trees:lookup(Pid, S#state.workers) of
         none ->
-            error_logger:warning_report({"Unknown PID exits", Pid, Results}),
-            {noreply, S};
+            nodemon_exit(Pid, S);
         {_, {Host, Task}} ->
             UWorkers = gb_trees:delete(Pid, S#state.workers),
             Task#task.from ! {Results, Task, Host},
@@ -192,13 +202,22 @@ process_exit(Pid, {Type, _} = Results, S) ->
                                    S#state{workers = UWorkers})}
     end.
 
-%% ===================================================================
-%% gen_server callback stubs
+nodemon_exit(Pid, S) ->
+    Iter = gb_trees:iterator(S#state.nodes),
+    nodemon_exit(Pid, S, gb_trees:next(Iter)).
 
-terminate(Reason, _State) ->
-    error_logger:warning_report({"Disco server dies", Reason}).
+nodemon_exit(Pid, S, {Host, N, _Iter}) when N#dnode.node_mon =:= Pid ->
+    error_logger:warning_report({"Restarting monitor for", Host}),
+    N1 = N#dnode{node_mon = node_mon:start_link(Host)},
+    S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},
+    {noreply, do_connection_status(Host, down, S1)};
 
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
+nodemon_exit(Pid, S, {_Host, _N, Iter}) ->
+    nodemon_exit(Pid, S, gb_trees:next(Iter));
+
+nodemon_exit(Pid, S, none) ->
+    error_logger:warning_report({"Unknown PID exits", Pid}),
+    {noreply, S}.
 
 %% ===================================================================
 %% internal functions
