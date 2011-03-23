@@ -11,12 +11,13 @@ class Settings(dict):
     globals  = globals()
     settings_file_var = None
 
-    def __init__(self, **kwargs):
-        super(Settings, self).__init__(kwargs)
+    def __init__(self, *args, **kwargs):
+        super(Settings, self).__init__(*args, **kwargs)
+        self.settings_file_defs = {}
         if self.settings_file_var:
             settings_file = self[self.settings_file_var]
             if os.path.exists(settings_file):
-                execfile(settings_file, {}, self)
+                execfile(settings_file, {}, self.settings_file_defs)
 
     def __getitem__(self, key):
         """Get `key`: check the instance, then the env, then defaults."""
@@ -24,7 +25,13 @@ class Settings(dict):
             return super(Settings, self).__getitem__(key)
         if key in os.environ:
             return os.environ[key]
+        if key in self.settings_file_defs:
+            return self.settings_file_defs[key]
         return eval(self.defaults[key], self.globals, self)
+
+    def __reduce__(self):
+        return type(self), (dict((k, self[k]) for k in self
+                                 if k in self.defaults),)
 
     def safedir(self, key):
         """Make sure the directory path stored in the setting `key` exists."""
@@ -35,6 +42,4 @@ class Settings(dict):
 
     @property
     def env(self):
-        settings = os.environ.copy()
-        settings.update(dict((k, str(self[k])) for k in self.defaults))
-        return settings
+        return dict((k, str(self[k])) for k in self.defaults)
