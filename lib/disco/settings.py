@@ -212,19 +212,20 @@ class DiscoSettings(Settings):
         'DISCO_MASTER_ROOT':     "os.path.join(DISCO_DATA, '_%s' % DISCO_NAME)",
         'DISCO_MASTER_CONFIG':   "os.path.join(DISCO_ROOT, '%s.config' % DISCO_NAME)",
         'DISCO_NAME':            "'disco_%s' % DISCO_PORT",
-        'DISCO_LIB':             "os.path.join(DISCO_HOME, 'lib')",
         'DISCO_LOG_DIR':         "os.path.join(DISCO_ROOT, 'log')",
         'DISCO_PID_DIR':         "os.path.join(DISCO_ROOT, 'run')",
         'DISCO_PORT':            "8989",
         'DISCO_ROOT':            "os.path.join(DISCO_HOME, 'root')",
-        'DISCO_SETTINGS':        "''",
         'DISCO_SETTINGS_FILE':   "guess_settings()",
         'DISCO_WORKER_MAX_MEM':  "'80%'",
         'DISCO_ULIMIT':          "16000000",
         'DISCO_USER':            "os.getenv('LOGNAME')",
         'DISCO_JOB_OWNER':       "job_owner()",
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
-        'PYTHONPATH':            "DISCO_LIB",
+        'HOME':                  "os.getenv('HOME')",
+        'PATH':                  "os.getenv('PATH')",
+        'PYTHONPATH':            "os.getenv('PYTHONPATH', '')",
+        'TERM':                  "os.getenv('TERM')",
 # GC
         'DISCO_GC_AFTER':        "100 * 365 * 24 * 60 * 60",
 # PROXY
@@ -265,13 +266,6 @@ class DiscoSettings(Settings):
                   'DDFS_ROOT')
 
     settings_file_var = 'DISCO_SETTINGS_FILE'
-
-    @property
-    def env(self):
-        settings = os.environ.copy()
-        settings.update(dict((k, str(self[k])) for k in self.defaults))
-        settings['DISCO_SETTINGS'] = ','.join(self.defaults)
-        return settings
 
     def ensuredirs(self):
         for name in self.must_exist:

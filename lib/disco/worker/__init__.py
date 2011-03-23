@@ -134,7 +134,7 @@ class Worker(dict):
         settings['LC_ALL'] = 'C'
         settings['LD_LIBRARY_PATH'] = 'lib'
         settings['PYTHONPATH'] = ':'.join((settings.get('PYTHONPATH', ''), 'lib'))
-        return dict((k, str(settings[k])) for k in settings.defaults)
+        return settings.env
 
     def jobhome(self, job, **jobargs):
         jobzip = self.jobzip(job, **jobargs)

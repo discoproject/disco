@@ -102,7 +102,7 @@ update_config_table(HostInfo, Blacklist) ->
 
 -spec get_full_config() -> config().
 get_full_config() ->
-    case file:read_file(os:getenv("DISCO_MASTER_CONFIG")) of
+    case file:read_file(disco:get_setting("DISCO_MASTER_CONFIG")) of
         {ok, Json} ->
             ok;
         {error, enoent} ->
