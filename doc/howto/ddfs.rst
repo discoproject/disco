@@ -68,12 +68,22 @@ failures without interruptions. DDFS stores data and metadata on normal
 local filesystems, such as `ext3` or `xfs`, so even under a catastrophic
 failure data is recoverable using standard tools.
 
-Overview
+Concepts
 --------
 
-DDFS operates on two concepts: *blobs* and *tags*. Blobs are arbitrary
-objects (files) that have been pushed to DDFS. They are distributed to
-storage nodes and stored on the local filesystems as is.
+DDFS operates on two concepts: :ref:`blobs` and :ref:`tags`.
+
+.. _blobs:
+
+Blobs
+'''''
+Blobs are arbitrary objects (files) that have been pushed to DDFS.
+They are distributed to storage nodes and stored on their local filesystems.
+
+.. _tags:
+
+Tags
+''''
 
 Tags contain metadata about blobs. Most importantly, a tag contains a
 list of URLs that refer to blobs that have been assigned this tag. Tag
@@ -84,8 +94,8 @@ Next section describes the role of tags and blobs more closely. It
 also shows how they relate to the five main tasks of DDFS, data
 *distribution*, *replication*, *persistence*, *addressing* and *access*.
 
-Concepts
-''''''''
+Overview
+--------
 
 Consider that you have a log file containing data of a single day.
 

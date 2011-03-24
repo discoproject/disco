@@ -4,7 +4,7 @@
 What is Disco?
 ==============
 
-Disco is an implementation of `MapReduce`_ for distributed computing.
+Disco is an implementation of :term:`mapreduce` for distributed computing.
 Disco supports parallel computations over large data sets,
 stored on an unreliable cluster of computers,
 as in the original framework created by Google.
@@ -19,8 +19,6 @@ large-scale analytics,
 building probabilistic models, and
 full-text indexing the Web,
 just to name a few examples.
-
-.. _MapReduce: http://en.wikipedia.org/wiki/MapReduce
 
 Batteries included
 ------------------

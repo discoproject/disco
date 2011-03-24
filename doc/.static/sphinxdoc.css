@@ -76,7 +76,6 @@ tt {
 
 tt.descname {
     background-color: transparent;
-    font-size: 1.2em;
     border: 0;
 }
 
@@ -217,8 +216,7 @@ div.body {
 }
 
 div.bodywrapper {
-    margin: 0 240px 0 0;
-    border-right: 1px solid #ccc;
+    margin: 0 250px 0 0;
 }
 
 div.body a {
@@ -228,10 +226,14 @@ div.body a {
 div.sphinxsidebar {
     margin: 0;
     padding: 0.5em 15px 15px 0;
-    width: 210px;
+    width: 250px;
     float: right;
     text-align: left;
-/*    margin-left: -100%; */
+}
+
+div.sphinxsidebarwrapper {
+    border-left: 1px solid #aaa;
+    padding: 3px;
 }
 
 div.sphinxsidebar h4, div.sphinxsidebar h3 {
@@ -517,9 +519,18 @@ ul.keywordmatches li.goodmatch a {
 }
 
 /* align the main table of contents */
-.section {
+#disco-documentation .section {
     float: left;
     min-width: 240px;
     min-height: 240px;
     padding: 4px;
+}
+
+.deprecated {
+    background-color: #ccc;
+    padding: 2px;
+}
+
+.deprecated .versionmodified {
+    font-weight: bold;
 }

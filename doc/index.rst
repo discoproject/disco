@@ -33,9 +33,13 @@ Disco In Depth
    :titlesonly:
 
    howto/administer
+   howto/contribute
    howto/dataflow
    howto/ddfs
+   howto/jobpack
    howto/oob
+   howto/style
+   howto/worker
 
 Reference
 ---------

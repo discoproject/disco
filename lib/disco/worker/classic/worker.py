@@ -6,7 +6,7 @@
 When a Job is constructed using a classic :class:`Worker`,
 Disco runs the :mod:`disco.worker.classic.worker` module for every job task.
 This module reconstructs the :class:`Worker` on the node where it is run,
-in order to execute the functions which were used to create it.
+in order to execute the :term:`job functions` which were used to create it.
 """
 import os, sys
 
@@ -36,7 +36,7 @@ class Worker(worker.Worker):
                   see :mod:`disco.modutil` for options.
 
     :type  map: :func:`disco.worker.classic.func.map`
-    :param map: a :term:`pure function` that defines the map task.
+    :param map: a function that defines the map task.
 
     :type  map_init: :func:`disco.worker.classic.func.init`
     :param map_init: initialization function for the map task.
@@ -159,8 +159,7 @@ class Worker(worker.Worker):
 
                    A convience class :class:`Params` is provided that
                    provides an easy way to encapsulate a set of parameters.
-                   :class:`Params` allows including
-                   :term:`pure functions <pure function>` in the parameters.
+                   :class:`Params` allows including functions  in the parameters.
 
     :param ext_params: if either map or reduce function is an external program,
                        typically specified using :func:`disco.util.external`,
@@ -354,6 +353,11 @@ class ClassicFile(object):
 
 class Params(object):
     """
+    .. deprecated:: 0.4
+              :class:`Params` objects aren't generally needed,
+              since entire modules are sent with the :class:`Worker`,
+              state can be stored as in normal Python.
+
     Parameter container for map / reduce tasks.
 
     This object provides a convenient way to contain custom parameters,
@@ -374,8 +378,6 @@ class Params(object):
     Each task receives its own copy of the initial params object.
     *key* must be a valid Python identifier.
     *value* can be any Python object.
-    For instance, *value* can be an arbitrary :term:`pure function`,
-    such as *params.f* in the previous example.
     """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)

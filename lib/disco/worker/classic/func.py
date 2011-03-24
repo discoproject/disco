@@ -3,31 +3,8 @@
 :mod:`disco.worker.classic.func` --- Functions for constructing Classic Disco jobs
 ==================================================================================
 
-A Disco job is specified by one or more user-defined :term:`job
-functions`, namely *map*, *reduce*, *combiner* and *partitioner* functions
-(see :class:`disco.core.JobDict` for more information).
-Of these functions, only *map* is required.
-
-.. hint::
-   When writing custom functions, take into account the following
-   features of the disco worker environment:
-
-        - Only the specified function is included in the request.
-          The function can't refer to anything outside of its local scope.
-          It can't call any functions specified elsewhere in your source file.
-          Nor can it refer to any global names, including any imported modules.
-          If you need to use a module, import it within the function body.
-
-          In short, job functions must be :term:`pure <pure function>`.
-
-        - The function should not print anything to stderr.
-          The task uses stderr to signal events to the master.
-          You can raise a :class:`disco.error.DataError`,
-          to abort the task on this node and try again on another node.
-          It is usually best to let the task fail if any exceptions occur:
-          do not catch any exceptions from which you can't recover.
-          When exceptions occur, the disco worker will catch them and
-          signal an appropriate event to the master.
+A Classic Disco job is specified by one or more :term:`job functions`.
+This module defines some default and otherwise useful job functions.
 
 User-defined Functions
 ----------------------
@@ -246,7 +223,8 @@ class OutputStream:
 
     def write(data):
         """
-        *(Deprecated in 0.3)*
+        .. deprecated:: 0.3
+
         Writes `data` to the underlying file object.
         """
 

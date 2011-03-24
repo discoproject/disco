@@ -72,12 +72,12 @@ Possible settings for Disco are as follows:
         :envvar:`DISCO_LOG_DIR`
                 Directory where log-files are created.
                 The same path is used for all nodes in the cluster.
-                Default is obtained using ``os.path.join(DISCO_HOME, 'log')``.
+                Default is obtained using ``os.path.join(DISCO_ROOT, 'log')``.
 
         :envvar:`DISCO_PID_DIR`
                 Directory where pid-files are created.
                 The same path is used for all nodes in the cluster.
-                Default is obtained using ``os.path.join(DISCO_HOME, 'run')``.
+                Default is obtained using ``os.path.join(DISCO_ROOT, 'run')``.
 
         :envvar:`DISCO_PORT`
                 The port the workers use for `HTTP` communication.

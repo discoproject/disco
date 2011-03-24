@@ -1,9 +1,28 @@
+#!/usr/bin/env python
 """
 :mod:`disco.worker` -- Python Worker Interface
 ==============================================
 
-        for record in task.input(open=...):
-                pass
+In Disco, :term:`workers <worker>` do the brunt of the data processing work.
+When a :class:`disco.job.Job` is created, it gets passed a :class:`Worker` instance,
+which is responsible for defining the fields used by the :class:`disco.job.JobPack`.
+In most cases, you don't need to define your own Worker subclass in order to run a job.
+The Worker classes defined in :mod:`disco` will take care of the details
+of creating the fields necessary for the :class:`disco.job.JobPack`,
+and when executed on the nodes,
+will handle the implementation of the :ref:`worker_protocol`.
+
+.. hint:: Workers should not write anything to stderr.
+          The worker uses stderr to communicate with the master.
+          You can raise a :class:`disco.error.DataError`,
+          to abort the worker and try again on another host.
+          It is usually best to let the task fail if any exceptions occur:
+          do not catch any exceptions from which you can't recover.
+          When exceptions occur, the disco worker will catch them and
+          signal an appropriate event to the master.
+
+
+XXX
 
     :type  input: list of inputs or list of list of inputs
     :param input: Each input must be specified in one of the following ways:
@@ -34,6 +53,25 @@ import cPickle, os, sys, traceback
 
 class Worker(dict):
     """
+    A :class:`Worker` is a :class:`dict` subclass,
+    with special methods defined for serializing itself into a :class:`disco.job.JobPack`.
+
+    Workers use the items stored in themselves to control how they process data,
+    or how they create a JobPack.
+
+    There are two responsibilities the Worker has:
+        #. on the client side, create the jobpack
+            including defining the executable that will be run on the nodes
+        #. in Python, the Worker itself is by default used as the executable,
+            in which case, it must also define what to do when it is run
+            responsibilities of the worker on this case include requesting the Task
+            and reporting the output
+
+    the job is sent along with the worker, and items in the worker dict
+        #. jobargs
+        #. job
+        #. worker
+
     :type  required_files: list of paths or dict
     :param required_files: additional files that are required by the worker.
                            Either a list of paths to files to include,
@@ -71,9 +109,15 @@ class Worker(dict):
 
     @property
     def bin(self):
+        """
+        XXX
+        """
         return os.path.join('lib', '%s.py' % self.__module__.replace('.', '/'))
 
     def defaults(self):
+        """
+        XXX
+        """
         return {'map': None,
                 'merge_partitions': False, # XXX: maybe deprecated
                 'reduce': None,
@@ -92,6 +136,9 @@ class Worker(dict):
         return self.get(key)
 
     def jobdict(self, job, **jobargs):
+        """
+        XXX
+        """
         from disco.util import inputlist, ispartitioned, read_index
         def get(key):
             return self.getitem(key, job, **jobargs)
@@ -130,6 +177,9 @@ class Worker(dict):
                 'owner': job.settings['DISCO_JOB_OWNER']}
 
     def jobenvs(self, job, **jobargs):
+        """
+        XXX
+        """
         settings = job.settings
         settings['LC_ALL'] = 'C'
         settings['LD_LIBRARY_PATH'] = 'lib'
@@ -137,11 +187,17 @@ class Worker(dict):
         return settings.env
 
     def jobhome(self, job, **jobargs):
+        """
+        XXX
+        """
         jobzip = self.jobzip(job, **jobargs)
         jobzip.close()
         return jobzip.dumps()
 
     def jobzip(self, job, **jobargs):
+        """
+        XXX
+        """
         from clx import __file__ as clxpath
         from disco import __file__ as discopath
         from disco.fileutils import DiscoZipFile
@@ -164,6 +220,9 @@ class Worker(dict):
         return jobzip
 
     def jobdata(self, job, **jobargs):
+        """
+        XXX
+        """
         return cPickle.dumps((self, job, jobargs), -1)
 
     def start(self, job, task):
@@ -180,6 +239,9 @@ class Worker(dict):
         self.end(task)
 
     def run(self, task):
+        """
+        XXX
+        """
         self[task.mode](task)
 
     def end(self, task):
@@ -206,6 +268,9 @@ class Worker(dict):
 
     @classmethod
     def main(cls):
+        """
+        XXX
+        """
         from disco.error import DataError
         from disco.events import AnnouncePID, WorkerDone, DataUnavailable, TaskFailed
         from disco.job import JobPack
@@ -228,3 +293,6 @@ class Worker(dict):
         except Exception, e:
             TaskFailed(MessageWriter.force_utf8(traceback.format_exc())).send()
             raise
+
+if __name__ == '__main__':
+    Worker.main()
