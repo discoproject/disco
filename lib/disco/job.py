@@ -3,7 +3,7 @@
 ==============================
 
 This module contains the core objects for creating and interacting with Disco jobs.
-Often, :class:`Job` is the only thing you need to import from :mod:`disco`,
+Often, :class:`Job` is the only thing you need
 in order to start running distributed computations with Disco.
 
 :term:`Jobs <job>` in Disco are used to encapsulate and schedule computation pipelines.

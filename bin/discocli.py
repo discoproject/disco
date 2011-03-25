@@ -318,7 +318,7 @@ def jobdict(program, jobname):
     Print the jobdict for the named job.
     """
     print jobname
-    for key, value in program.disco.jobdict(jobname).iteritems():
+    for key, value in program.disco.jobpack(jobname).jobdict.iteritems():
         print "\t%s\t%s" % (key, value)
 
 @Disco.command

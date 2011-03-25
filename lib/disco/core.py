@@ -172,9 +172,6 @@ class Disco(object):
         """Deletes all metadata and data related to the job."""
         self.request('/disco/ctrl/purge_job', '"%s"' % jobname)
 
-    def jobdict(self, jobname):
-        return self.jobpack(jobname).jobdict
-
     def jobpack(self, jobname):
         """Return the :class:`disco.job.JobPack` submitted for the job."""
         from cStringIO import StringIO
