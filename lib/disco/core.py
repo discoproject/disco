@@ -25,15 +25,12 @@ class Disco(object):
     """
     The :class:`Disco` object provides an interface to the Disco master.
     It can be used to query the status of the system, or to submit a new job.
-    See the :mod:`disco.job` module for more information about constructing jobs.
-
-    :meth:`Disco.new_job` is provided with all information needed to run
-    a job, which it packages and sends to the master. The method returns
-    immediately and returns a :class:`Job` object that corresponds to the
-    newly started job.
 
     :type  master: url
     :param master: address of the Disco master, e.g. ``disco://localhost``.
+
+    .. seealso:: :meth:`Disco.new_job` and :mod:`disco.job`
+       for more on creating jobs.
     """
     def __init__(self, master=None, settings=None):
         self.settings = settings or DiscoSettings()
@@ -43,15 +40,6 @@ class Disco(object):
         return 'Disco master at %s' % self.master
 
     def request(self, url, data=None, offset=0):
-        """
-        Requests *url* at the master.
-
-        If a string *data* is specified, a POST request
-        is made with *data* as the request payload.
-
-        A string is returned that contains the reply for the request.
-        This method is mostly used by other methods in this class internally.
-        """
         try:
             return download('%s%s' % (self.master, url),
                             data=data,
@@ -91,7 +79,7 @@ class Disco(object):
         """
         Blacklists *node* so that tasks are no longer run on it.
 
-        (*Added in version 0.2.4*)
+        .. versionadded:: 0.2.4
         """
         self.request('/disco/ctrl/blacklist', '"%s"' % node)
 
@@ -99,116 +87,114 @@ class Disco(object):
         """
         Whitelists *node* so that the master may submit tasks to it.
 
-        (*Added in version 0.2.4*)
+        .. versionadded:: 0.2.4
         """
         self.request('/disco/ctrl/whitelist', '"%s"' % node)
 
-    def oob_get(self, name, key):
+    def oob_get(self, jobname, key):
         """
-        Returns an out-of-band value assigned to *key* for the job *name*.
+        Returns an out-of-band value assigned to *key* for the job.
 
-        See :mod:`disco.worker.classic.worker` for more information on using OOB.
+        OOB data can be stored and retrieved for job tasks using
+        :meth:`disco.task.Task.get` and :meth:`disco.task.Task.put`.
         """
         try:
-            return util.load_oob(self.master, name, key)
+            return util.load_oob(self.master, jobname, key)
         except CommError, e:
             if e.code == 404:
-                raise DiscoError("Unknown key or job name")
+                raise DiscoError("Unknown key or jobname")
             raise
 
-    def oob_list(self, name):
+    def oob_list(self, jobname):
         """
-        Returns all out-of-band keys for the job *name*.
+        Returns all out-of-band keys for the job.
 
-        OOB data is stored by the tasks of job *name*,
-        using the :func:`disco_worker.put` function.
+        .. seealso:: :ref:`oob`
         """
-        urls = self.ddfs.get(self.ddfs.job_oob(name))['urls']
+        urls = self.ddfs.get(self.ddfs.job_oob(jobname))['urls']
         return list(set(self.ddfs.blob_name(replicas[0])
                         for replicas in urls))
 
-    def profile_stats(self, name, mode=''):
+    def profile_stats(self, jobname, mode=''):
         """
-        Returns results of profiling of the given job *name*.
+        Returns results of job profiling.
+        :ref:`jobdict` must have had the ``profile`` flag enabled.
 
-        The job must have been run with the ``profile`` flag enabled.
-
-        You can restrict results specifically to the map or reduce task
-        by setting *mode* either to ``"map"`` or ``"reduce"``. By default
-        results include both the map and the reduce phases. Results are
-        accumulated from all nodes.
+        :type  mode: 'map' or 'reduce' or ''
+        :param mode: restricts results to the map or reduce phase, or not.
 
         The function returns a `pstats.Stats object <http://docs.python.org/library/profile.html#the-stats-class>`_.
         You can print out results as follows::
 
                 job.profile_stats().print_stats()
 
-        (*Added in version 0.2.1*)
+        .. versionadded:: 0.2.1
         """
         prefix = 'profile-%s' % mode
-        f = [s for s in self.oob_list(name) if s.startswith(prefix)]
+        f = [s for s in self.oob_list(jobname) if s.startswith(prefix)]
         if not f:
-            raise JobError("No profile data", self.master, name)
+            raise JobError("No profile data", self.master, jobname)
 
         import pstats
-        stats = pstats.Stats(Stats(self.oob_get(name, f[0])))
+        stats = pstats.Stats(Stats(self.oob_get(jobname, f[0])))
         for s in f[1:]:
-            stats.add(Stats(self.oob_get(name, s)))
+            stats.add(Stats(self.oob_get(jobname, s)))
         return stats
 
-    def new_job(self, name, **kwargs):
+    def new_job(self, name, **jobargs):
         """
         Submits a new job request to the master using :class:`disco.job.Job`::
 
-                return Job(name=name, master=self.master).run(**kwargs)
+                return Job(name=name, master=self.master).run(**jobargs)
         """
-        return Job(name=name, master=self.master).run(**kwargs)
+        return Job(name=name, master=self.master).run(**jobargs)
 
-    def kill(self, name):
-        """Kills the job *name*."""
-        self.request('/disco/ctrl/kill_job', '"%s"' % name)
+    def kill(self, jobname):
+        """Kills the job."""
+        self.request('/disco/ctrl/kill_job', jobname)
 
-    def clean(self, name):
+    def clean(self, jobname):
         """
-        Cleans records of the job *name*.
+        Deletes job metadata.
 
-        Note that after the job records have been cleaned,
-        there is no way to obtain addresses to the result files from the master.
-        However, no data is actually deleted by :meth:`Disco.clean`,
-        in contrast to :meth:`Disco.purge`.
+        .. deprecated:: 0.4
+                Use :meth:`Disco.purge` to delete job results,
+                deleting job metadata only is strongly discouraged.
 
-        If you won't need the results, use :meth:`Disco.purge`.
-
-        .. todo:: deprecate cleaning
+        .. note:: After the job has been cleaned,
+                  there is no way to obtain the result urls from the master.
+                  However, no data is actually deleted by :meth:`Disco.clean`,
+                  in contrast to :meth:`Disco.purge`.
         """
-        self.request('/disco/ctrl/clean_job', '"%s"' % name)
+        self.request('/disco/ctrl/clean_job', '"%s"' % jobname)
 
-    def purge(self, name):
-        """Deletes all records and files related to the job *name*."""
-        self.request('/disco/ctrl/purge_job', '"%s"' % name)
+    def purge(self, jobname):
+        """Deletes all metadata and data related to the job."""
+        self.request('/disco/ctrl/purge_job', '"%s"' % jobname)
 
-    def jobdict(self, name):
-        return self.jobpack(name).jobdict
+    def jobdict(self, jobname):
+        return self.jobpack(jobname).jobdict
 
-    def jobpack(self, name):
-        """Return the :class:`disco.job.JobPack` submitted for the job with name *name*."""
+    def jobpack(self, jobname):
+        """Return the :class:`disco.job.JobPack` submitted for the job."""
         from cStringIO import StringIO
         from disco.job import JobPack
-        return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name=%s' % name)))
+        return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name=%s' % jobname)))
 
-    def events(self, name, offset=0):
+    def events(self, jobname, offset=0):
         """
         Returns an iterator that iterates over job events, ordered by time.
+        It is safe to call this function while the job is running,
+        thus it provides an efficient way to monitor job events continuously.
+        The iterator yields tuples ``offset, event``.
 
-        It is safe to call this function while the job is running.
+        :type  offset: int
+        :param offset: skip events that occurred before this *offset*
 
-        The iterator returns tuples ``(offset, event)``. You can pass an *offset* value
-        to this function, to make the iterator skip over the events before the specified
-        *offset*. This provides an efficient way to monitor job events continuously.
-        See ``DISCO_EVENTS`` in :mod:`disco.settings` for more information on how to enable
-        the console output of job events.
+        .. versionadded:: 0.2.3
 
-        (*Added in version 0.2.3*)
+        .. seealso:: :envvar:`DISCO_EVENTS`
+           for information on how to enable the console output of job events.
         """
         def event_iter(events):
             offs = offset
@@ -226,133 +212,136 @@ class Disco(object):
                     if i == len(lines) - 1 and events.endswith('\n'):
                        offs -= 1
                     yield offs, event
-        return event_iter(self.rawevents(name, offset=offset))
+        return event_iter(self.rawevents(jobname, offset=offset))
 
-    def rawevents(self, name, offset=0):
-        return self.request("/disco/ctrl/rawevents?name=%s" % name,
+    def rawevents(self, jobname, offset=0):
+        return self.request("/disco/ctrl/rawevents?name=%s" % jobname,
                             offset=offset)
 
-    def mapresults(self, name):
+    def mapresults(self, jobname):
         return json.loads(
-            self.request('/disco/ctrl/get_mapresults?name=%s' % name))
+            self.request('/disco/ctrl/get_mapresults?name=%s' % jobname))
 
     def results(self, jobspec, timeout=2000):
         """
         Returns a list of results for a single job or for many
         concurrently running jobs, depending on the type of *jobspec*.
 
-        If *jobspec* is a string (job name) or the function is called through the
-        job object (``job.results()``), this function returns a list of results for
-        the job if the results become available in *timeout* milliseconds. If not,
-        returns an empty list.
+        :type  jobspec: :class:`disco.job.Job`, string, or list
+        :param jobspec: If a job or job name is provided,
+                        return a tuple which looks like::
 
-        (*Added in version 0.2.1*)
-        If *jobspec* is a list of jobs, the function waits at most
-        for *timeout* milliseconds for at least one on the jobs to finish. In
-        this mode, *jobspec* can be a list of strings (job names), a list of job
-        objects, or a list of result entries as returned by this function. Two
-        lists are returned: a list of finished jobs and a list of still active jobs.
-        Both the lists contain elements of the following type::
+                                status, results
 
-                ["job name", ["status", [results]]]
+                        If a list is provided,
+                        return two lists: inactive jobs and active jobs.
+                        Both the lists contain elements of the following type::
 
-        where status is either ``unknown_job``, ``dead``, ``active`` or ``ready``.
+                                jobname, (status, results)
 
-        You can use the latter mode as an efficient way to wait for several jobs
-        to finish. Consider the following example that prints out results of jobs
-        as soon as they finish. Here ``jobs`` is initially a list of jobs,
-        produced by several calls to :meth:`Disco.new_job`::
+                        where status is one of:
+                        ``"unknown_job"``,
+                        ``"dead"``,
+                        ``"active"``, or
+                        ``"ready"``.
 
-                while jobs:
-                 ready, jobs = disco.results(jobs)
-                  for name, results in ready:
-                   for k, v in result_iterator(results[1]):
-                    print k, v
-                   disco.purge(name)
+        :type  timeout: int
+        :param timeout: wait at most this many milliseconds,
+                        for at least one on the jobs to finish.
 
-        Note how the list of active jobs, ``jobs``, returned by :meth:`Disco.results`
-        can be used as the input to the function itself.
+        Using a list of jobs is a more efficient way to wait
+        for multiple jobs to finish.
+        Consider the following example that prints out results
+        as soon as the jobs (initially ``active``) finish::
+
+                while active:
+                  inactive, active = disco.results(jobs)
+                  for jobname, (status, results) in inactive:
+                    if status == 'ready':
+                      for k, v in result_iterator(results):
+                        print k, v
+                      disco.purge(jobname)
+
+        Note how the list of active jobs, ``active``,
+        returned by :meth:`Disco.results`,
+        can be used as the input to this function as well.
         """
         def jobname(job):
-            if isinstance(job, basestring):
+            if isinstance(job, Job):
+                return job.name
+            elif isinstance(job, basestring):
                 return job
-            elif isinstance(job, list):
-                return job[0]
-            return job.name
+            return job[0]
         jobnames = [jobname(job) for job in util.iterify(jobspec)]
-        data = json.dumps([timeout, jobnames])
-        results = json.loads(self.request('/disco/ctrl/get_results', data))
-
-        if isinstance(jobspec, basestring):
-            return results[0][1]
-
+        results = json.loads(self.request('/disco/ctrl/get_results',
+                                          json.dumps([timeout, jobnames])))
         others, active = [], []
-        for result in results:
-            if result[1][0] == 'active':
-                active.append(result)
+        for jobname, (status, result) in results:
+            if isinstance(jobspec, (Job, basestring)):
+                return status, result
+            elif status == 'active':
+                active.append((jobname, (status, result)))
             else:
-                others.append(result)
+                others.append((jobname, (status, result)))
         return others, active
 
-    def jobinfo(self, name):
-        """Returns a dictionary containing information about the job *name*."""
-        return json.loads(self.request('/disco/ctrl/jobinfo?name=%s' % name))
+    def jobinfo(self, jobname):
+        """Returns a dict containing information about the job."""
+        return json.loads(self.request('/disco/ctrl/jobinfo?name=%s' % jobname))
 
-    def check_results(self, name, start_time, timeout, poll_interval):
+    def check_results(self, jobname, start_time, timeout, poll_interval):
         try:
-            status, results = self.results(name, timeout=poll_interval)
+            status, results = self.results(jobname, timeout=poll_interval)
         except CommError, e:
             status = 'active'
         if status == 'ready':
             return results
         if status != 'active':
-            raise JobError("Job status %s" % status, self.master, name)
+            raise JobError("Job status %s" % status, self.master, jobname)
         if timeout and time.time() - start_time > timeout:
-            raise JobError("Timeout", self.master, name)
+            raise JobError("Timeout", self.master, jobname)
         raise Continue()
 
-    def wait(self, name, poll_interval=2, timeout=None, clean=False, show=None):
+    def wait(self, jobname, poll_interval=2, timeout=None, clean=False, show=None):
         """
-        Block until the job *name* has finished. Returns a list URLs to the
-        results files which is typically processed with :func:`result_iterator`.
+        Block until the job has finished.
+        Returns a list of the result urls.
 
-        :meth:`Disco.wait` polls the server for the job status every
-        *poll_interval* seconds. It raises a :class:`disco.JobError` if the
-        job hasn't finished in *timeout* seconds, if specified.
+        :type  poll_interval: int
+        :param poll_interval: the number of seconds between job status requests.
 
-        :param clean: if set to `True`, calls :meth:`Disco.clean`
-                      when the job has finished.
+        :type  timeout: int or None
+        :param timeout: if specified, the number of seconds before returning or
+                        raising a :class:`disco.JobError`.
 
-                      Note that this only removes records from the master,
-                      but not the actual result files.
-                      Once you are done with the results, call::
+        :type  clean: bool
+        :param clean: if `True`,
+                      call :meth:`Disco.clean` when the job has finished.
 
-                        disco.purge(disco.util.jobname(results[0]))
+                      .. deprecated:: 0.4
 
-                      to delete the actual result files.
-
+        :type  show: bool or string
         :param show: enables console output of job events.
-                     You can control this parameter also using the environment
-                     variable ``DISCO_EVENTS``, which provides the default.
-                     See ``DISCO_EVENTS`` in :mod:`disco.settings`.
-                     (*Added in version 0.2.3*)
+                     The default is provided by :envvar:`DISCO_EVENTS`.
+
+                     .. versionadded:: 0.2.3
         """
         if show is None:
             show = self.settings['DISCO_EVENTS']
-        event_monitor = EventMonitor(Job(name=name, master=self.master),
+        event_monitor = EventMonitor(Job(name=jobname, master=self.master),
                                      format=show,
                                      poll_interval=poll_interval)
         start_time    = time.time()
         while True:
             event_monitor.refresh()
             try:
-                return self.check_results(name, start_time,
+                return self.check_results(jobname, start_time,
                                           timeout, poll_interval * 1000)
             except Continue:
                 continue
             finally:
                 if clean:
-                    self.clean(name)
+                    self.clean(jobname)
                 event_monitor.refresh()
 
     def result_iterator(self, *args, **kwargs):

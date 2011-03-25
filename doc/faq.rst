@@ -216,7 +216,7 @@ every call to the map function.
 How to print messages to the Web interface?
 '''''''''''''''''''''''''''''''''''''''''''
 
-Use a normal :keyword:`print` statement. Here's an example::
+Use a normal **print** statement. Here's an example::
 
         from disco.core import Disco, Params
 
