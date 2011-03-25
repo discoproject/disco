@@ -225,26 +225,26 @@ class Worker(dict):
         """
         return cPickle.dumps((self, job, jobargs), -1)
 
-    def start(self, job, task):
+    def start(self, task, job, **jobargs):
         from disco.sysutil import set_mem_limit
         set_mem_limit(job.settings['DISCO_WORKER_MAX_MEM'])
-        if self['profile']:
+        if self.getitem('profile', job, **jobargs):
             from cProfile import runctx
             name = 'profile-%s' % task.uid
             path = task.path(name)
-            runctx('self.run(task)', globals(), locals(), path)
+            runctx('self.run(task, job, **jobargs)', globals(), locals(), path)
             task.put(name, open(path).read())
         else:
-            self.run(task)
-        self.end(task)
+            self.run(task, job, **jobargs)
+        self.end(task, job, **jobargs)
 
-    def run(self, task):
+    def run(self, task, job, **jobargs):
         """
         XXX
         """
-        self[task.mode](task)
+        self[task.mode](task, job, **jobargs)
 
-    def end(self, task):
+    def end(self, task, job, **jobargs):
         from disco.events import Status
         if not self['save'] or (task.mode == 'map' and self['reduce']):
             task.send()
@@ -261,10 +261,7 @@ class Worker(dict):
             sys.modules['__main__'].__dict__.update(__disco__.__dict__)
         except ImportError:
             pass
-        worker, job, jobargs = cPickle.loads(jobpack.jobdata)
-        for key in worker:
-            worker[key] = worker.getitem(key, job, **jobargs)
-        return worker, job
+        return cPickle.loads(jobpack.jobdata)
 
     @classmethod
     def main(cls):
@@ -281,8 +278,8 @@ class Worker(dict):
             sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
             sys.stdout = MessageWriter()
             AnnouncePID(str(os.getpid())).send()
-            worker, job = cls.unpack(JobPack.request())
-            worker.start(job, Task.request())
+            worker, job, jobargs = cls.unpack(JobPack.request())
+            worker.start(Task.request(), job, **jobargs)
             WorkerDone().send()
         except (DataError, EnvironmentError, MemoryError), e:
             # check the number of open file descriptors (under proc), warn if close to max

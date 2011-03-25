@@ -227,9 +227,11 @@ class Worker(worker.Worker):
                     jobzip.writebytes(os.path.join('ext.%s' % func, path), bytes)
         return jobzip
 
-    def run(self, task):
+    def run(self, task, job, **jobargs):
         global Task
         Task = task
+        for key in self:
+            self[key] = self.getitem(key, job, **jobargs)
         assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
 
         def open_hook(file, size, url):
@@ -384,8 +386,8 @@ class Params(object):
 
     def __getstate__(self):
         return dict((k, util.pack(v))
-            for k, v in self.__dict__.iteritems()
-                if not k.startswith('_'))
+                    for k, v in self.__dict__.iteritems()
+                    if not k.startswith('_'))
 
     def __setstate__(self, state):
         for k, v in state.iteritems():
