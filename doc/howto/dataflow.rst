@@ -4,7 +4,7 @@ Data Flow in Disco Jobs
 =======================
 
 Disco allows the chaining together of jobs containing
-:func:`disco.func.map` and/or :func:`disco.func.reduce` tasks.
+:term:`map` and/or :term:`reduce` phases.
 `Map` and `Reduce` phases each have their own concepts of data flow.
 Through combinations of chained jobs, Disco supports a remarkable
 variety of data flows.
@@ -19,7 +19,8 @@ which contain the URLs of each individual output partition:
 In the diagrams below, it should be clear when Disco is relying on
 either reading partitioned input or writing partitioned output.
 
-The overall data flow in a Disco job is controlled by four :class:`disco.core.JobDict` parameters.
+The overall data flow in a classic Disco job is controlled by four
+ :class:`disco.worker.classic.worker.Worker` parameters.
 The presence of ``map`` and ``reduce``, determine the overall structure of the job
 (i.e. whether its `mapreduce`, `map-only`, or `reduce-only`).
 The ``partitions`` parameter determines whether or not the map output is partitioned,
@@ -31,15 +32,13 @@ Map Flows
 
 The two basic modes of operation for the map phase correspond directly
 to writing either partitioned or non-partitioned output.
-   
+
 .. _partitioned_map_flow:
 
 Partitioned Map
 '''''''''''''''
 
-For partitioned map, the :func:`disco.func.partition` function is called
-for every ``(key, value)`` pair emitted by :func:`disco.func.map`.
-The partition function determines which partition the pair will be written to:
+For partitioned map, each output is written to one of the partitions:
 
 .. figure:: ../images/dataflow/partitioned_map_flow.png
 
@@ -107,7 +106,7 @@ as there is a choice to be made whether or not to merge the partitions,
 so that all results are handled by a single reduce:
 
 .. _merge_partitioned_reduce_flow:
-   
+
 Merge Partitioned Reduce
 ''''''''''''''''''''''''
 
@@ -115,5 +114,3 @@ Merge Partitioned Reduce
 
 Or to use the normal, distributed reduce,
 in which there are ``N`` reduces for ``N`` partitions:
-
-   

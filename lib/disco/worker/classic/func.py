@@ -4,50 +4,8 @@
 ==================================================================================
 
 A Classic Disco job is specified by one or more :term:`job functions`.
-This module defines some default and otherwise useful job functions.
-
-User-defined Functions
-----------------------
-
-The following types of functions can be provided by the user:
-
-.. autofunction:: map
-.. autofunction:: partition
-.. autofunction:: combiner
-.. autofunction:: reduce
-.. autofunction:: reduce2
-.. autofunction:: init
-.. autofunction:: input_stream
-.. autofunction:: output_stream
-
-
-Interfaces
-----------
-
-.. autoclass:: InputStream
-    :members: __iter__, read
-.. autoclass:: OutputStream
-    :members:
-
-Default/Utility Functions
--------------------------
-
-These functions are provided by Disco to help :class:`disco.core.Job` creation:
-
-.. autofunction:: default_partition
-.. autofunction:: make_range_partition
-.. autofunction:: nop_map
-.. autofunction:: nop_reduce
-.. autofunction:: sum_combiner
-.. autofunction:: sum_reduce
-.. autofunction:: gzip_reader
-.. autofunction:: gzip_line_reader
-.. autofunction:: chain_reader
-.. autofunction:: re_reader
-.. autofunction:: map_input_stream
-.. autofunction:: map_output_stream
-.. autofunction:: reduce_input_stream
-.. autofunction:: reduce_output_stream
+This module defines the interfaces for the job functions,
+some default values, as well as otherwise useful functions.
 """
 import re, cPickle
 from disco.error import DataError
@@ -62,11 +20,8 @@ def map(entry, params):
     """
     Returns an iterable of (key, value) pairs given an *entry*.
 
-    :param entry:  entry from the input stream
-    :type params:  :class:`disco.core.Params`
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
-                   Used to maintain state between calls to the map function.
+    :param entry: entry coming from the input stream
+    :param params: used to maintain state between calls to the map function.
 
     For instance::
 
@@ -86,9 +41,7 @@ def partition(key, nr_partitions, params):
 
     :param key: is a key object emitted by a task function
     :param nr_partitions: the number of partitions
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
-
+    :param params: the object specified by the *params* parameter
     """
 
 def combiner(key, value, buffer, done, params):
@@ -103,8 +56,7 @@ def combiner(key, value, buffer, done, params):
                    to prevent it from consuming too much memory, by calling
                    ``buffer.clear()`` after each block of results.
     :param done: flag indicating if this is the last call with a given *buffer*
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
+    :param params: the object specified by the *params* parameter
 
     This function receives all output from the
     :func:`map` before it is saved to intermediate results.
@@ -123,8 +75,7 @@ def reduce(input_stream, output_stream, params):
         to iterate through input entries.
     :param output_stream: :class:`OutputStream` object that is used
         to output results.
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
+    :param params: the object specified by the *params* parameter
 
     For instance::
 
@@ -164,8 +115,6 @@ def init(input_iter, params):
     Perform some task initialization.
 
     :param input_iter: an iterator returned by a :func:`reader`
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
 
     Typically this function is used to initialize some modules in the worker
     environment (e.g. ``ctypes.cdll.LoadLibrary()``), to initialize some
@@ -192,8 +141,6 @@ def output_stream(stream, partition, url, params):
     :param stream: :class:`OutputStream` object
     :param partition: partition id
     :param url: url of the input
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
 
     Returns a pair (:class:`OutputStream`, url) that is
     passed to the next *output_stream* function in the chain. The
@@ -395,8 +342,7 @@ def make_range_partition(min_val, max_val):
     Returns a new partitioning function that partitions keys in the range
     *[min_val:max_val]* into equal sized partitions.
 
-    The number of partitions is defined by *partitions*
-    in :class:`disco.core.JobDict`.
+    The number of partitions is defined by the *partitions* parameter
     """
     r = max_val - min_val
     f = "lambda k, n, p: int(round(float(int(k) - %d) / %d * (n - 1)))" %\

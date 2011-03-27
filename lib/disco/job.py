@@ -22,7 +22,7 @@ This can be accomplished using the :meth:`Job.wait` method::
 import os, sys, time
 
 from disco import func, json
-from disco.error import DiscoError
+from disco.error import JobError
 from disco.util import hexhash, isiterable, netloc, load_oob, save_oob
 from disco.settings import DiscoSettings
 
@@ -32,17 +32,14 @@ class Job(object):
     Use :meth:`Job.run` to start the job.
 
     :type  name: string
-    :param name: The job name.
+    :param name: the job name.
                  When you create a handle for an existing job, the name is used as given.
-                 When you create a new job, the name given is used by Disco as a
-                 prefix to construct a unique name, which is then stored in the instance.
-
-                 .. note::
-
-                        Only characters in ``[a-zA-Z0-9_]`` are allowed in the job name.
+                 When you create a new job, the name given is used as the
+                 :attr:`jobdict.prefix` to construct a unique name,
+                 which is then stored in the instance.
 
     :type  master: url of master or :class:`disco.core.Disco`
-    :param master: Identifies the Disco master runs this job.
+    :param master: the Disco master to use for submitting or querying the job.
 
     :type  worker: :class:`disco.worker.Worker`
     :param worker: the worker instance used to create and run the job.
@@ -56,15 +53,6 @@ class Job(object):
                 Defaults to :class:`disco.worker.classic.worker.Worker`.
                 If no `worker` parameter is specified,
                 :attr:`Worker` is called with no arguments to construct the :attr:`worker`.
-
-    If the :attr:`worker` is an instance of :class:`disco.worker.Worker`,
-    users can subclass :class:`Job` as a convenient way to specify items
-    in the :attr:`worker` dict.
-    See :class:`disco.worker.Worker` for more information on how this works.
-
-    For example, here's a simple distributed grep from the Disco ``examples/`` directory:
-
-    .. literalinclude:: ../../examples/util/grep.py
     """
     from disco.worker.classic.worker import Worker
     proxy_functions = ('clean',
@@ -120,19 +108,16 @@ class Job(object):
         :meth:`disco.worker.Worker.jobdict`,
         :meth:`disco.worker.Worker.jobenvs`,
         :meth:`disco.worker.Worker.jobhome`, and
-        :meth:`disco.worker.Worker.jobdata`.
-
-        Returns the job immediately after the request has been submitted,
-        with a unique name assigned by the master, if the request was successful.
-
-        A :class:`JobError` is raised if an error occurs while starting the job.
+        :meth:`disco.worker.Worker.jobdata`,
+        and attempts to submit it.
 
         :type  jobargs: dict
         :param jobargs: runtime parameters for the job.
-                        Passed to the worker methods above so that they can be
-                        used for constructing the :class:`JobPack` fields.
-                        See :class:`disco.worker.Worker` for an explanation
-                        of how the builtin workers use these runtime arguments.
+                        Passed to the :class:`disco.worker.Worker`
+                        methods listed above, along with the job itself.
+
+        :raises: :class:`disco.error.JobError` if the submission fails.
+        :return: the :class:`Job`, with a unique name assigned by the master.
         """
         jobpack = JobPack(self.worker.jobdict(self, **jobargs),
                           self.worker.jobenvs(self, **jobargs),
@@ -141,12 +126,16 @@ class Job(object):
         status, response = json.loads(self.disco.request('/disco/job/new',
                                                          jobpack.dumps()))
         if status != 'ok':
-            raise DiscoError("Failed to start job. Server replied: %s" % response)
+            raise JobError("Failed to start job. Server replied: %s" % response)
         self.name = response
         return self
 
 class JobPack(object):
     """
+    This class implements :ref:`jobpack` in Python.
+    The attributes correspond to the fields in the :term:`job pack` file.
+    Use :meth:`dumps` to serialize the :class:`JobPack` for sending to the master.
+
     .. attribute:: jobdict
 
                    The dictionary of job parameters for the :term:`master`.
@@ -173,14 +162,15 @@ class JobPack(object):
                    uses for serializing itself.
 
                    See also :ref:`jobdata`.
-
-    See also :ref:`jobpack`.
     """
     MAGIC = (0xd5c0 << 16) + 0x0001
     HEADER_FORMAT = "!IIIII"
     HEADER_SIZE = 128
-    def __init__(self, *fields):
-        self.jobdict, self.jobenvs, self.jobhome, self.jobdata = fields
+    def __init__(self, jobdict, jobenvs, jobhome, jobdata):
+        self.jobdict = jobdict
+        self.jobenvs = jobenvs
+        self.jobhome = jobhome
+        self.jobdata = jobdata
 
     def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
         from struct import pack
@@ -196,6 +186,12 @@ class JobPack(object):
             offset += len(field)
 
     def dumps(self):
+        """
+        Return the serialized :class:`JobPack`.
+
+        Essentially encodes the :attr:`jobdict` and :attr:`jobenvs` dictionaries,
+        and prepends a valid header.
+        """
         offsets, fields = zip(*self.contents())
         return self.header(offsets) + ''.join(fields)
 
@@ -211,10 +207,12 @@ class JobPack(object):
 
     @classmethod
     def load(cls, jobfile):
+        """Load a :class:`JobPack` from a file."""
         return PackedJobPack(jobfile)
 
     @classmethod
     def request(cls):
+        """Get the location of :ref:`jobpack` file from the master, and :meth:`load` it."""
         from disco.events import JobFile
         return cls.load(open(JobFile().send()))
 

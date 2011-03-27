@@ -12,96 +12,104 @@ of creating the fields necessary for the :class:`disco.job.JobPack`,
 and when executed on the nodes,
 will handle the implementation of the :ref:`worker_protocol`.
 
-.. hint:: Workers should not write anything to stderr.
-          The worker uses stderr to communicate with the master.
-          You can raise a :class:`disco.error.DataError`,
-          to abort the worker and try again on another host.
-          It is usually best to let the task fail if any exceptions occur:
-          do not catch any exceptions from which you can't recover.
-          When exceptions occur, the disco worker will catch them and
-          signal an appropriate event to the master.
+There is perhaps a subtle, but important, distinction between
+a :term:`worker` and a :class:`Worker`.
+The former refers to any binary that gets executed on the nodes,
+specified by :attr:`jobdict.worker`.
+The latter is a Python class,
+which handles details of submitting the job on the client side,
+as well as controlling the execution of user-defined code on the nodes.
+A :class:`Worker` can be subclassed trivially to create a new :term:`worker`,
+without having to worry about fulfilling many of the requirements
+for a well-behaving worker.
+In short,
+a :class:`Worker` provides Python library support for a Disco :term:`worker`.
+Those wishing to write a worker in a language besides Python may make use of
+the Worker class for submitting jobs to the master,
+but generally need to handle the :ref:`worker_protocol`
+in the language used for the worker executable.
 
+The following steps illustrate the sequence of events for running a :term:`job`
+using a standard :class:`Worker`:
 
-XXX
-
-    :type  input: list of inputs or list of list of inputs
-    :param input: Each input must be specified in one of the following ways:
-
-                   * ``http://www.example.com/data`` - any HTTP address
-                   * ``disco://cnode03/bigtxt/file_name`` - Disco address. Refers to ``cnode03:/var/disco/bigtxt/file_name``. Currently this is an alias for ``http://cnode03:[DISCO_PORT]/bigtxt/file_name``.
-                   * ``dir://cnode03/jobname/`` - Result directory. This format is used by Disco internally.
-                   * ``/home/bob/bigfile.txt`` - a local file. Note that the file must either exist on all the nodes or you must make sure that the job is run only on the nodes where the file exists. Due to these restrictions, this form has only limited use.
-                   * ``raw://some_string`` - pseudo-address; instead of fetching data from a remote source, use ``some_string`` in the address as data. Useful for specifying dummy inputs for generator maps.
-                   * ``tag://tagname`` - a tag stored in :ref:`DDFS` (*Added in version 0.3*)
-
-                  (*Added in version 0.3.2*)
-                  Tags can be token protected.
-                  For the data in tags to be used as job inputs,
-                  the tags should be resolved into the constituent urls or replica sets,
-                  and provided as the value of the input parameter.
-
-                  (*Added in version 0.2.2*):
-                  An input entry can be a list of inputs:
-                  This lets you specify redundant versions of an input file.
-                  If a list of redundant inputs is specified,
-                  the scheduler chooses the input that is located on the node
-                  with the lowest load at the time of scheduling.
-                  Redundant inputs are tried one by one until the task succeeds.
-                  Redundant inputs require that the *map* function is specified.
+#. (client) instantiate a :class:`disco.job.Job`
+        #. if a worker is supplied, use that worker
+        #. otherwise, create a worker using :attr:`disco.job.Job.Worker`
+           (the default is :class:`disco.worker.classic.worker.Worker`)
+#. (client) call :meth:`disco.job.Job.run`
+        #. create a :class:`disco.job.JobPack` using:
+           :meth:`Worker.jobdict`,
+           :meth:`Worker.jobenvs`,
+           :meth:`Worker.jobhome`,
+           :meth:`Worker.jobdata`
+        #. submit the :class:`disco.job.JobPack` to the master
+#. (node) master unpacks the :term:`job home`
+#. (node) master executes the :attr:`jobdict.worker` with
+   current working directory set to the :term:`job home` and
+   environment variables set from :ref:`jobenvs`
+#. (node) worker requests the :class:`disco.task.Task` from the master
+#. (node) worker runs the :term:`task` and reports the output to the master
 """
 import cPickle, os, sys, traceback
 
 class Worker(dict):
     """
     A :class:`Worker` is a :class:`dict` subclass,
-    with special methods defined for serializing itself into a :class:`disco.job.JobPack`.
+    with special methods defined for serializing itself,
+    and possibly reinstantiating itself on the nodes where :term:`tasks <task>` are run.
 
-    Workers use the items stored in themselves to control how they process data,
-    or how they create a JobPack.
+    The :class:`Worker` base class makes use of the following parameters:
 
-    There are two responsibilities the Worker has:
-        #. on the client side, create the jobpack
-            including defining the executable that will be run on the nodes
-        #. in Python, the Worker itself is by default used as the executable,
-            in which case, it must also define what to do when it is run
-            responsibilities of the worker on this case include requesting the Task
-            and reporting the output
+    :type  input: list of urls or list of list of urls
+    :param input: used to set :attr:`jobdict.input`.
+                  Disco natively handles the following url schemes:
 
-    the job is sent along with the worker, and items in the worker dict
-        #. jobargs
-        #. job
-        #. worker
+                  * ``http://...`` - any HTTP address
+                  * ``file://...`` or no scheme - a local file.
+                    The file must exist on all nodes where the tasks are run.
+                    Due to these restrictions, this form has only limited use.
+                  * ``tag://...`` - a tag stored in :ref:`DDFS`
+                  * ``raw://...`` - pseudo-address: use the address itself as data.
+                  * ``dir://...`` - used by Disco internally.
+                  * ``disco://...`` - used by Disco internally.
+
+                  .. seealso:: :mod:`disco.schemes`.
+
+    :type  map: function or None
+    :param map: called when the :class:`Worker` is :meth:`run` with a
+                :class:`disco.task.Task` in mode *map*.
+                Also used to determine the value of :attr:`jobdict.map?`.
+
+    :type  reduce: function or None
+    :param reduce: called when the :class:`Worker` is :meth:`run` with a
+                :class:`disco.task.Task` in mode *reduce*.
+                Also used to determine the value of :attr:`jobdict.reduce?`.
 
     :type  required_files: list of paths or dict
     :param required_files: additional files that are required by the worker.
                            Either a list of paths to files to include,
                            or a dictionary which contains items of the form
                            ``(filename, filecontents)``.
-                           (*Added in version 0.2.3*)
+
+                           .. versionchanged:: 0.4
+                              The worker includes *required_files* in :meth:`jobhome`,
+                              so they are available relative to the working directory
+                              of the worker.
 
     :type  required_modules: list of modules or module names
-    :param required_modules: required modules to send to the worker.
-                             Can also be a list of module objects.
-                             (*Changed in version 0.4*):
+    :param required_modules: required modules to send with the worker.
+
+                             .. versionchanged:: 0.4
+                                Can also be a list of module objects.
+
+    :type  save: bool
+    :param save: whether or not to save the output to :ref:`DDFS`.
 
     :type  scheduler: dict
-    :param scheduler: options for the job scheduler.
-                      The following keys are supported:
+    :param scheduler: directly sets :attr:`jobdict.scheduler`.
 
-                       * *max_cores* - use this many cores at most
-                                       (applies to both map and reduce).
-
-                                       Default is ``2**31``.
-
-                       * *force_local* - always run task on the node where
-                                         input data is located;
-                                         never use HTTP to access data remotely.
-
-                       * *force_remote* - never run task on the node where input
-                                          data is located;
-                                          always use HTTP to access data remotely.
-
-                      (*Added in version 0.2.4*)
+    :type  profile: bool
+    :param profile: directly sets :attr:`jobdict.profile?`.
     """
     def __init__(self, **kwargs):
         super(Worker, self).__init__(self.defaults())
@@ -110,15 +118,17 @@ class Worker(dict):
     @property
     def bin(self):
         """
-        XXX
+        The path to the :term:`worker` binary, relative to the :term:`job home`.
+        Used to set :attr:`jobdict.worker` in :meth:`jobdict`.
         """
         return os.path.join('lib', '%s.py' % self.__module__.replace('.', '/'))
 
     def defaults(self):
         """
-        XXX
+        :return: dict of default values for the :class:`Worker`.
         """
-        return {'map': None,
+        return {'input': (),
+                'map': None,
                 'merge_partitions': False, # XXX: maybe deprecated
                 'reduce': None,
                 'required_files': {},
@@ -137,14 +147,14 @@ class Worker(dict):
 
     def jobdict(self, job, **jobargs):
         """
-        XXX
+        :return: the :ref:`jobdict`.
         """
         from disco.util import inputlist, ispartitioned, read_index
         def get(key):
             return self.getitem(key, job, **jobargs)
         has_map = bool(get('map'))
         has_reduce = bool(get('reduce'))
-        input = inputlist(get('input') or (),
+        input = inputlist(get('input'),
                           partition=None if has_map else False,
                           settings=job.settings)
 
@@ -178,7 +188,7 @@ class Worker(dict):
 
     def jobenvs(self, job, **jobargs):
         """
-        XXX
+        :return: :ref:`jobenvs` dict.
         """
         settings = job.settings
         settings['LC_ALL'] = 'C'
@@ -188,7 +198,9 @@ class Worker(dict):
 
     def jobhome(self, job, **jobargs):
         """
-        XXX
+        :return: :ref:`jobhome` (serialized).
+
+        Calls :meth:`jobzip` to create the :class:`disco.fileutils.DiscoZipFile`.
         """
         jobzip = self.jobzip(job, **jobargs)
         jobzip.close()
@@ -196,7 +208,9 @@ class Worker(dict):
 
     def jobzip(self, job, **jobargs):
         """
-        XXX
+        A hook provided by the :class:`Worker` for creating the :term:`job home` zip.
+
+        :return: a :class:`disco.fileutils.DiscoZipFile`.
         """
         from clx import __file__ as clxpath
         from disco import __file__ as discopath
@@ -221,7 +235,7 @@ class Worker(dict):
 
     def jobdata(self, job, **jobargs):
         """
-        XXX
+        :return: :ref:`jobdata` needed for instantiating the :class:`Worker` on the node.
         """
         return cPickle.dumps((self, job, jobargs), -1)
 
@@ -240,7 +254,7 @@ class Worker(dict):
 
     def run(self, task, job, **jobargs):
         """
-        XXX
+        Called to do the actual work of processing the :class:`disco.task.Task`.
         """
         self[task.mode](task, job, **jobargs)
 
@@ -266,7 +280,16 @@ class Worker(dict):
     @classmethod
     def main(cls):
         """
-        XXX
+        The main method used to bootstrap the :class:`Worker` when it is being executed.
+
+        It is enough for the module to define::
+
+                if __name__ == '__main__':
+                    Worker.main()
+
+        .. note:: It is critical that subclasses check if they are executing
+                  in the ``__main__`` module, before running :meth:`main`,
+                  as the worker module is also generally imported on the client side.
         """
         from disco.error import DataError
         from disco.events import AnnouncePID, WorkerDone, DataUnavailable, TaskFailed

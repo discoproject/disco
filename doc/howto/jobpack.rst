@@ -1,53 +1,119 @@
 .. _jobpack:
 
-The :term:`Job Pack <job pack>`
-===============================
+The Job Pack
+============
 
-The *job pack* contains all the information needed for creating a running a Disco :term:`job`.
+The :term:`job pack` contains all the information needed for creating a running a Disco :term:`job`.
 
 File format::
 
         +---------------- 4
         | magic / version |
-        +---------------- 8 -------------- 12 ------------- 16 ------------- 20
+        |---------------- 8 -------------- 12 ------------- 16 ------------- 20
         | jobdict offset  | jobenvs offset | jobhome offset | jobdata offset |
-        +--------------------------------------------------------------------+
+        |------------------------------------------------------------------ 128
         |                           ... reserved ...                         |
-        128 -----------------------------------------------------------------+
+        |--------------------------------------------------------------------|
         |                               jobdict                              |
-        +--------------------------------------------------------------------+
+        |--------------------------------------------------------------------|
         |                               jobenvs                              |
-        +--------------------------------------------------------------------+
+        |--------------------------------------------------------------------|
         |                               jobhome                              |
-        +--------------------------------------------------------------------+
+        |--------------------------------------------------------------------|
         |                               jobdata                              |
         +--------------------------------------------------------------------+
 
-
 .. _jobdict:
 
-The :term:`Job Dict <job dict>`
--------------------------------
+The Job Dict
+------------
 
-fields in the job dict
+The :term:`job dict` is a :term:`JSON` dictionary.
+
+    .. attribute:: jobdict.input
+
+       A list of urls or a list of lists of urls.
+       Each url is a string.
+
+       .. note::
+              An inner list of urls gives replica urls for the same data.
+              This lets you specify redundant versions of an input file.
+              If a list of redundant inputs is specified,
+              the scheduler chooses the input that is located on the node
+              with the lowest load at the time of scheduling.
+              Redundant inputs are tried one by one until the task succeeds.
+              Redundant inputs require that :attr:`map?` is specified.
+
+    .. attribute:: jobdict.worker
+
+       The path to the :term:`worker` binary, relative to the :term:`job home`.
+       The master will execute this binary after it unpacks it from :ref:`jobhome`.
+
+    .. attribute:: jobdict.map?
+
+       Boolean telling whether or not this job should have a :term:`map` phase.
+
+    .. attribute:: jobdict.reduce?
+
+       Boolean telling whether or not this job should have a :term:`reduce` phase.
+
+    .. attribute:: jobdict.profile?
+
+       Boolean telling whether or not this job should be profiled.
+       Currently the master ignores this parameter,
+       but it will be used by any Python :class:`disco.worker.Worker`.
+
+    .. attribute:: jobdict.nr_reduces
+
+       Non-negative integer telling the master how many reduces to run.
+
+       .. warning:: This attribute will soon be removed,
+                    as the number of reduces can be inferred in all cases.
+
+    .. attribute:: jobdict.prefix
+
+       String giving the prefix the master should use for assigning a unique job name.
+
+       .. note:: Only characters in ``[a-zA-Z0-9_]`` are allowed in the prefix.
+
+    .. attribute:: jobdict.scheduler
+
+       Dictionary of options for the job scheduler.
+       Currently supports the following keys:
+
+                  * *max_cores* - use at most this many cores (applies to both map and reduce).
+                    Default is ``2**31``.
+                  * *force_local* - always run task on the node where input data is located;
+                    never use HTTP to access data remotely.
+                  * *force_remote* - never run task on the node where input data is located;
+                    always use HTTP to access data remotely.
+
+       .. versionadded:: 0.2.4
+
+    .. attribute:: jobdict.owner
+
+       String name of the owner of the :term:`job`.
 
 .. _jobenvs:
 
 Job Environment Variables
 -------------------------
 
-env vars
+A :term:`JSON` dictionary of environment variables (string keys and values).
+The master will set these before running the :attr:`jobdict.worker`.
 
 .. _jobhome:
 
-The :term:`Job Home <job home>`
--------------------------------
+The Job Home
+------------
 
-the job home
+The :term:`job home` serialized into :term:`ZIP` format.
+The master will unzip this before running the :attr:`jobdict.worker`.
+The :term:`worker` can assume that it runs in the environment (working directory) kept here.
 
 .. _jobdata:
 
 Additional Job Data
 -------------------
 
-XXX
+Arbitrary data included in the :term:`job pack` to be used by the :term:`worker`.

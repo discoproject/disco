@@ -81,6 +81,11 @@ Glossary
 
         See also :ref:`jobpack` and :class:`disco.job.JobPack`.
 
+   JSON
+        JavaScript Object Notation.
+
+        See `Introducing JSON <http://www.json.org>`_.
+
    mapreduce
         A paradigm and associated framework for distributed computing,
         which decouples application code from the core challenges of
@@ -126,3 +131,8 @@ Glossary
         close to the data they are supposed to be processing.
 
         See also :mod:`disco.worker`.
+
+   ZIP
+        Archive/compression format, used e.g. for the :term:`job home`.
+
+        See `ZIP <http://en.wikipedia.org/wiki/ZIP_(file_format)>`_.
