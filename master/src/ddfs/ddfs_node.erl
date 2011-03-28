@@ -79,7 +79,54 @@ handle_call(get_tags, _, #state{tags = Tags} = S) ->
 handle_call(get_vols, _, #state{vols = Vols, root = Root} = S) ->
     {reply, {Vols, Root}, S};
 
-handle_call(get_blob, {Pid, _Ref} = From, #state{getq = Q} = S) ->
+handle_call(get_blob, From, S) ->
+    do_get_blob(From, S);
+
+handle_call(get_diskspace, _From, S) ->
+    {reply, do_get_diskspace(S), S};
+
+handle_call({put_blob, BlobName}, From, S) ->
+    do_put_blob(BlobName, From, S);
+
+handle_call({get_tag_timestamp, TagName}, _From, S) ->
+    {reply, do_get_tag_timestamp(TagName, S), S};
+
+handle_call({get_tag_data, Tag, {_Time, VolName}}, From, State) ->
+    spawn(fun() -> do_get_tag_data(Tag, VolName, From, State) end),
+    {noreply, State};
+
+handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
+    {reply, do_put_tag_data(Tag, Data, S), S};
+
+handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
+    {Reply, S1} = do_put_tag_commit(Tag, TagVol, S),
+    {reply, Reply, S1}.
+
+handle_cast({update_vols, NewVols}, #state{vols = Vols} = S) ->
+    {noreply, S#state{vols = lists:ukeymerge(2, NewVols, Vols)}};
+
+handle_cast({update_tags, Tags}, S) ->
+    {noreply, S#state{tags = Tags}}.
+
+handle_info({'DOWN', _, _, Pid, _}, #state{putq = PutQ, getq = GetQ} = S) ->
+    % We don't know if Pid refers to a put or get request.
+    % We can safely try to remove it from both the queues: it can exist in
+    % one of the queues at most.
+    {_, NewPutQ} = http_queue:remove(Pid, PutQ),
+    {_, NewGetQ} = http_queue:remove(Pid, GetQ),
+    {noreply, S#state{putq = NewPutQ, getq = NewGetQ}}.
+
+% callback stubs
+terminate(_Reason, _State) ->
+    {}.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+%% ===================================================================
+%% internal functions
+
+do_get_blob({Pid, _Ref} = From, #state{getq = Q} = S) ->
     Reply = fun() -> gen_server:reply(From, ok) end,
     case http_queue:add({Pid, Reply}, Q) of
         full ->
@@ -87,14 +134,14 @@ handle_call(get_blob, {Pid, _Ref} = From, #state{getq = Q} = S) ->
         {_, NewQ} ->
             erlang:monitor(process, Pid),
             {noreply, S#state{getq = NewQ}}
-    end;
+    end.
 
-handle_call(get_diskspace, _From, #state{vols = Vols} = S) ->
-    {reply, lists:foldl(fun ({{Free, Used}, _VolName}, {TotalFree, TotalUsed}) ->
-                                {TotalFree + Free, TotalUsed + Used}
-                        end, {0, 0}, Vols), S};
+do_get_diskspace(#state{vols = Vols}) ->
+    lists:foldl(fun ({{Free, Used}, _VolName}, {TotalFree, TotalUsed}) ->
+                        {TotalFree + Free, TotalUsed + Used}
+                end, {0, 0}, Vols).
 
-handle_call({put_blob, BlobName}, {Pid, _Ref} = From, #state{putq = Q} = S) ->
+do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
     Reply = fun() ->
                     {_Space, VolName} = choose_vol(S#state.vols),
                     {ok, Local, Url} = ddfs_util:hashdir(list_to_binary(BlobName),
@@ -115,23 +162,32 @@ handle_call({put_blob, BlobName}, {Pid, _Ref} = From, #state{putq = Q} = S) ->
         {_, NewQ} ->
             erlang:monitor(process, Pid),
             {noreply, S#state{putq = NewQ}}
-    end;
+    end.
 
-handle_call({get_tag_timestamp, TagName}, _From, S) ->
+do_get_tag_timestamp(TagName, S) ->
     case gb_trees:lookup(TagName, S#state.tags) of
         none ->
-            {reply, notfound, S};
+            notfound;
         {value, {_Time, _VolName} = TagNfo} ->
-            {reply, {ok, TagNfo}, S}
-    end;
+            {ok, TagNfo}
+    end.
 
-handle_call({get_tag_data, TagName, TagNfo}, From, S) ->
-    spawn(fun() ->
-        read_tag(TagName, S#state.nodename, S#state.root, TagNfo, From)
-    end),
-    {noreply, S};
+do_get_tag_data(Tag, VolName, From, S) ->
+    {ok, TagDir, _Url} = ddfs_util:hashdir(Tag,
+                                           disco:host(node()),
+                                           "tag",
+                                           S#state.root,
+                                           VolName),
+    TagPath = filename:join(TagDir, binary_to_list(Tag)),
+    case prim_file:read_file(TagPath) of
+        {ok, Binary} ->
+            gen_server:reply(From, {ok, Binary});
+        {error, Reason} ->
+            error_logger:warning_report({"Read failed", TagPath, Reason}),
+            gen_server:reply(From, {error, read_failed})
+    end.
 
-handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
+do_put_tag_data(Tag, Data, S) ->
     {_Space, VolName} = choose_vol(S#state.vols),
     {ok, Local, _} = ddfs_util:hashdir(Tag,
                                        S#state.nodename,
@@ -141,17 +197,17 @@ handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
     case ddfs_util:ensure_dir(Local) of
         ok ->
             Filename = filename:join(Local, ["!partial.", binary_to_list(Tag)]),
-            {reply, case prim_file:write_file(Filename, Data) of
-                        ok ->
-                            {ok, VolName};
-                        {error, _} = E ->
-                            E
-                    end, S};
+            case prim_file:write_file(Filename, Data) of
+                ok ->
+                    {ok, VolName};
+                {error, _} = E ->
+                    E
+            end;
         E ->
-            {reply, E, S}
-    end;
+            E
+    end.
 
-handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
+do_put_tag_commit(Tag, TagVol, S) ->
     {value, {_, VolName}} = lists:keysearch(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag,
                                          S#state.nodename,
@@ -165,44 +221,12 @@ handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
     Dst = filename:join(Local,  TagL),
     case ddfs_util:safe_rename(Src, Dst) of
         ok ->
-            {reply,
-             {ok, Url},
+            {{ok, Url},
              S#state{tags = gb_trees:enter(TagName,
                                            {Time, VolName},
                                            S#state.tags)}};
         {error, _} = E ->
-            {reply, E, S}
-    end.
-
-handle_cast({update_vols, NewVols}, #state{vols = Vols} = S) ->
-    {noreply, S#state{vols = lists:ukeymerge(2, NewVols, Vols)}};
-
-handle_cast({update_tags, Tags}, S) ->
-    {noreply, S#state{tags = Tags}}.
-
-handle_info({'DOWN', _, _, Pid, _}, #state{putq = PutQ, getq = GetQ} = S) ->
-    % We don't know if Pid refers to a put or get request.
-    % We can safely try to remove it both the queues: It can exist in
-    % one of the queues at most.
-    {_, NewPutQ} = http_queue:remove(Pid, PutQ),
-    {_, NewGetQ} = http_queue:remove(Pid, GetQ),
-    {noreply, S#state{putq = NewPutQ, getq = NewGetQ}}.
-
-% callback stubs
-terminate(_Reason, _State) -> {}.
-
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
--spec read_tag(binary(), nonempty_string(), nonempty_string(),
-               {_, nonempty_string()}, {pid(), reference()}) -> _.
-read_tag(Tag, NodeName, Root, {_, VolName}, From) ->
-    {ok, D, _} = ddfs_util:hashdir(Tag, NodeName, "tag", Root, VolName),
-    case prim_file:read_file(filename:join(D, binary_to_list(Tag))) of
-        {ok, Bin} ->
-            gen_server:reply(From, {ok, Bin});
-        E ->
-            error_logger:warning_report({"Read failed", Tag, D, E}),
-            gen_server:reply(From, {error, read_failed})
+            {E, S}
     end.
 
 -spec init_vols(nonempty_string(), [nonempty_string(),...]) ->
