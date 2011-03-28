@@ -32,10 +32,7 @@ tags(Host, Prefix) ->
     'invalid_name' | {'missing', _} | 'unknown_attribute'
     | {'ok', binary()} | {'error', _}.
 get_tag(Host, Tag, Attrib, Token) ->
-    validate(Tag, fun() ->
-        gen_server:call(Host, {tag, {get, Attrib, Token}, list_to_binary(Tag)},
-                        ?NODEOP_TIMEOUT)
-    end).
+    tagop(Host, Tag, {get, Attrib, Token}, ?NODEOP_TIMEOUT).
 
 -spec update_tag(node(), string(), [[binary()]], ddfs_tag:token()) -> _.
 update_tag(Host, Tag, Urls, Token) ->
@@ -74,10 +71,12 @@ delete(Host, Tag, Token) ->
             | {'update', _, _, _}
             | {'put', _, _, _}) -> _.
 tagop(Host, Tag, Op) ->
-   validate(Tag, fun() ->
-                     gen_server:call(Host,
-                                     {tag, Op, list_to_binary(Tag)}, ?TAG_UPDATE_TIMEOUT)
-                 end).
+    tagop(Host, Tag, Op, ?TAG_UPDATE_TIMEOUT).
+tagop(Host, Tag, Op, Timeout) ->
+    validate(Tag, fun() ->
+                      gen_server:call(Host,
+                                      {tag, Op, list_to_binary(Tag)}, Timeout)
+                  end).
 
 -spec validate(string(), fun(()-> T)) -> T.
 validate(Name, Fun) ->
