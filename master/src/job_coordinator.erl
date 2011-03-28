@@ -231,9 +231,14 @@ reduce_input(Inputs, NRed) ->
                                  preferred_host(Input)
                          end || Input <- Inputs]),
     NHosts = length(Hosts),
-    HostsD = dict:from_list(disco:enum(Hosts)),
-    [{TaskID, [{Inputs, dict:find(TaskID rem NHosts, HostsD)}]}
-     || TaskID <- lists:seq(0, NRed - 1)].
+    case NHosts of
+        0 ->
+            [];
+        _ ->
+            HostsD = dict:from_list(disco:enum(Hosts)),
+            [{TaskID, [{Inputs, dict:find(TaskID rem NHosts, HostsD)}]}
+             || TaskID <- lists:seq(0, NRed - 1)]
+    end.
 
 reduce(Inputs, #jobinfo{reduce = false}) ->
     Inputs;
