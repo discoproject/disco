@@ -75,14 +75,9 @@ delete(Host, Tag, Token) ->
             | {'put', _, _, _}) -> _.
 tagop(Host, Tag, Op) ->
    validate(Tag, fun() ->
-        case gen_server:call(Host,
-                {tag, Op, list_to_binary(Tag)}, ?TAG_UPDATE_TIMEOUT) of
-            {ok, Ret} ->
-                {ok, Ret};
-            E ->
-                E
-        end
-    end).
+                     gen_server:call(Host,
+                                     {tag, Op, list_to_binary(Tag)}, ?TAG_UPDATE_TIMEOUT)
+                 end).
 
 -spec validate(string(), fun(()-> T)) -> T.
 validate(Name, Fun) ->
