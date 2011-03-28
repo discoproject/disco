@@ -26,7 +26,7 @@ tagcontent() ->
                                   user_attr()). % user
 
 tag_encode_decode(T) ->
-    Encoded = ddfs_tag_util:encode_tagcontent_secure(T, write),
+    Encoded = ddfs_tag_util:encode_tagcontent(T),
     {ok, Decoded} = ddfs_tag_util:decode_tagcontent(Encoded),
     case T == Decoded of
         true -> ok;
@@ -41,16 +41,11 @@ encode_decode_check() ->
 % Ensure that tag date returned as a result of API calls contain the
 % appropriate tokens.
 
-read_token_check(T) ->
-    D = ddfs_tag_util:encode_tagcontent_secure(T, read),
+token_check(T) ->
+    D = ddfs_tag_util:encode_tagcontent_secure(T),
     {struct, J} = mochijson2:decode(D),
-    (false =/= lists:keysearch(<<"read-token">>, 1, J))
+    (false =:= lists:keysearch(<<"read-token">>, 1, J))
         and (false =:= lists:keysearch(<<"write-token">>, 1, J)).
-write_token_check(T) ->
-    D = ddfs_tag_util:encode_tagcontent_secure(T, write),
-    {struct, J} = mochijson2:decode(D),
-    (false =/= lists:keysearch(<<"read-token">>, 1, J))
-        and (false =/= lists:keysearch(<<"write-token">>, 1, J)).
 
 api_token_test() ->
     % This does not really need to be a FORALL, just a single instance
@@ -59,8 +54,7 @@ api_token_test() ->
     % (i) eunit and triq both define LET
     % (ii) there is no simple api to get a single value from a triq
     %      generator for an eunit test.
-    ?FORALL(T, tagcontent(),
-            read_token_check(T) and write_token_check(T)).
+    ?FORALL(T, tagcontent(), token_check(T)).
 
 prop_test() ->
     io:fwrite("[api_token_test]~n", []),
