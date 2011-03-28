@@ -33,6 +33,7 @@ Disco In Depth
    :titlesonly:
 
    howto/administer
+   howto/chunk
    howto/contribute
    howto/dataflow
    howto/ddfs

@@ -20,7 +20,7 @@ In the diagrams below, it should be clear when Disco is relying on
 either reading partitioned input or writing partitioned output.
 
 The overall data flow in a classic Disco job is controlled by four
- :class:`disco.worker.classic.worker.Worker` parameters.
+:class:`disco.worker.classic.worker.Worker` parameters.
 The presence of ``map`` and ``reduce``, determine the overall structure of the job
 (i.e. whether its `mapreduce`, `map-only`, or `reduce-only`).
 The ``partitions`` parameter determines whether or not the map output is partitioned,

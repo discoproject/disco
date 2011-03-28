@@ -134,6 +134,10 @@ def input_stream(stream, size, url, params):
     to iterate through input entries.
 
     Using an :func:`input_stream` allows you to customize how input urls are opened.
+
+    Input streams are used for specifying the *map_input_stream*, *map_reader*,
+    *reduce_input_stream*, and *reduce_reader* parameters for the
+    :class:`disco.worker.classic.worker.Worker`.
     """
 
 def output_stream(stream, partition, url, params):

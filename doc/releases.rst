@@ -332,7 +332,7 @@ New features
 
  - :ref:`oob`: A mechanism to produce auxiliary results in map/reduce tasks.
  - Map writers, reduce readers and writers (see :meth:`disco.core.Disco.new_job`): Support for custom result formats and internal protocols.
- - Support for arbitrary output types: :ref:`outputtypes`.
+ - Support for arbitrary output types.
  - Custom task initialization functions: See *map_init* and *reduce_init* in :meth:`disco.core.Disco.new_job`.
  - Jobs without inputs i.e. generator maps: See the `raw://` protocol in :meth:`disco.core.Disco.new_job`.
  - Reduces without maps for efficient join and merge operations: See :ref:`reduceonly`.
