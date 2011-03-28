@@ -91,5 +91,3 @@ validate(Name, Fun) ->
                     Ret
             end
     end.
-
-

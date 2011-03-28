@@ -218,4 +218,3 @@ tag_update(Fun, Req) ->
 parse_exclude(false) -> [];
 parse_exclude({value, {_, ExcStr}}) ->
     [disco:slave_safe(Host) || Host <- string:tokens(ExcStr, ",")].
-

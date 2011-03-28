@@ -98,7 +98,7 @@ getop("jobevents", {Query, Name}) ->
 getop("nodeinfo", _Query) ->
     {ok, Active} = disco_server:get_active(all),
     {ok, DiscoNodes} = disco_server:get_nodeinfo(all),
-    {ok, DDFSNodes} = gen_server:call(ddfs_master, {get_nodeinfo, all}),
+    {ok, DDFSNodes} = ddfs_master:get_nodeinfo(all),
     ActiveNodeInfo = lists:foldl(fun ({Host, #task{jobname = JobName}}, Dict) ->
                                          dict:append(Host,
                                                      list_to_binary(JobName),

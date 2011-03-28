@@ -321,7 +321,7 @@ send_replies(ReplyToList, Message) ->
 -spec get_tagdata(tagname()) -> {'missing', 'notfound'} | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.
 get_tagdata(TagName) ->
-    {ok, ReadableNodes, RBSize} = gen_server:call(ddfs_master, get_read_nodes),
+    {ok, ReadableNodes, RBSize} = ddfs_master:get_read_nodes(),
     TagMinK = get(min_tagk),
     case RBSize >= TagMinK of
         true ->
@@ -495,7 +495,7 @@ put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
 put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
-    {ok, Nodes} = gen_server:call(ddfs_master, {choose_write_nodes, K0, Exclude}),
+    {ok, Nodes} = ddfs_master:choose_write_nodes(K0, Exclude),
     if
         Nodes =:= [], length(OkNodes) < TagMinK ->
             {error, replication_failed};
@@ -542,16 +542,16 @@ do_delete(ReplyTo, S) ->
 -spec is_tag_deleted(tagname()) -> _.
 is_tag_deleted(<<"+deleted">>) -> false;
 is_tag_deleted(Tag) ->
-    Msg = {tag, {has_tagname, Tag}, <<"+deleted">>},
-    gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
+    deleted_op({has_tagname, Tag}, ?NODEOP_TIMEOUT).
 
 -spec add_to_deleted(tagname()) -> _.
 add_to_deleted(Tag) ->
     Urls = [[<<"tag://", Tag/binary>>]],
-    Msg = {tag, {update, Urls, internal, [nodup]}, <<"+deleted">>},
-    gen_server:call(ddfs_master, Msg, ?TAG_UPDATE_TIMEOUT).
+    deleted_op({update, Urls, internal, [nodup]}, ?TAG_UPDATE_TIMEOUT).
 
 -spec remove_from_deleted(tagname()) -> _.
 remove_from_deleted(Tag) ->
-    Msg = {tag, {delete_tagname, Tag}, <<"+deleted">>},
-    gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
+    deleted_op({delete_tagname, Tag}, ?NODEOP_TIMEOUT).
+
+deleted_op(Op, Timeout) ->
+    ddfs_master:tag_operation(Op, <<"+deleted">>, Timeout).

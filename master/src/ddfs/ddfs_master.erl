@@ -3,6 +3,14 @@
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0]).
+-export([get_tags/1,
+         get_nodeinfo/1,
+         get_read_nodes/0,
+         choose_write_nodes/2,
+         new_blob/3,
+         tag_operation/2, tag_operation/3,
+         update_nodes/1
+        ]).
 -export([init/1,
          handle_call/3,
          handle_cast/2,
@@ -25,12 +33,41 @@
 
 start_link() ->
     error_logger:info_report([{"DDFS master starts"}]),
-    case gen_server:start_link({local, ddfs_master}, ddfs_master, [], []) of
+    case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
 stop() -> not_implemented.
+
+tag_operation(Op, Tag) ->
+    gen_server:call(?MODULE, {tag, Op, Tag}).
+tag_operation(Op, Tag, Timeout) ->
+    gen_server:call(?MODULE, {tag, Op, Tag}, Timeout).
+
+get_nodeinfo(Mode) ->
+    gen_server:call(?MODULE, {get_nodeinfo, Mode}).
+
+get_read_nodes() ->
+    gen_server:call(?MODULE, get_read_nodes).
+
+choose_write_nodes(K, Exclude) ->
+    gen_server:call(?MODULE, {choose_write_nodes, K, Exclude}).
+
+get_tags(Mode) ->
+    gen_server:call(?MODULE, {get_tags, Mode}).
+
+new_blob(Obj, K, Exclude) ->
+    gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
+
+update_nodes(DDFSNodes) ->
+    gen_server:cast(?MODULE, {update_nodes, DDFSNodes}).
+
+update_nodestats(NewNodes) ->
+    gen_server:cast(?MODULE, {update_nodestats, NewNodes}).
+
+update_tag_cache(TagCache) ->
+    gen_server:cast(?MODULE, {update_tag_cache, TagCache}).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -70,8 +107,8 @@ handle_call({tag, M, Tag}, From, S) ->
 
 handle_call({get_tags, Mode}, From, #state{nodes = Nodes} = S) ->
     spawn(fun() ->
-        gen_server:reply(From, get_tags(Mode, [N || {N, _} <- Nodes]))
-    end),
+              gen_server:reply(From, do_get_tags(Mode, [N || {N, _} <- Nodes]))
+          end),
     {noreply, S}.
 
 handle_cast({update_tag_cache, TagCache}, S) ->
@@ -161,7 +198,7 @@ do_update_nodes(NewNodes, #state{nodes = Nodes, tags = Tags} = S) ->
         UpdatedNodes =/= Nodes ->
             [gen_server:cast(Pid, {die, none}) || Pid <- gb_trees:values(Tags)],
             spawn(fun() ->
-                          {ReadableNodes, RBSize} =
+                          {ok, ReadableNodes, RBSize} =
                               do_get_readable_nodes(UpdatedNodes, ReadBlacklist),
                           refresh_tag_cache(ReadableNodes, RBSize)
                   end),
@@ -188,19 +225,17 @@ do_tag_exit(Pid, S) ->
     NewTags = [X || {_, V} = X <- gb_trees:to_list(S#state.tags), V =/= Pid],
     S#state{tags = gb_trees:from_orddict(NewTags)}.
 
--spec get_tags('all' | 'filter', [node()]) -> {[node()], [node()], [binary()]};
-              ('safe', [node()]) -> {'ok', [binary()]} | 'too_many_failed_nodes'.
-get_tags(all, Nodes) ->
+-spec do_get_tags('all' | 'filter', [node()]) -> {[node()], [node()], [binary()]};
+                 ('safe', [node()]) -> {'ok', [binary()]} | 'too_many_failed_nodes'.
+do_get_tags(all, Nodes) ->
     {Replies, Failed} =
         gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
     {OkNodes, Tags} = lists:unzip(Replies),
     {OkNodes, Failed, lists:usort(lists:flatten(Tags))};
 
-get_tags(filter, Nodes) ->
-    {OkNodes, Failed, Tags} = get_tags(all, Nodes),
-    case gen_server:call(ddfs_master,
-                         {tag, get_tagnames, <<"+deleted">>}, ?NODEOP_TIMEOUT)
-    of
+do_get_tags(filter, Nodes) ->
+    {OkNodes, Failed, Tags} = do_get_tags(all, Nodes),
+    case tag_operation(get_tagnames, <<"+deleted">>, ?NODEOP_TIMEOUT) of
         {ok, Deleted} ->
             TagSet = gb_sets:from_ordset(Tags),
             DelSet = gb_sets:insert(<<"+deleted">>, Deleted),
@@ -210,9 +245,9 @@ get_tags(filter, Nodes) ->
             E
     end;
 
-get_tags(safe, Nodes) ->
+do_get_tags(safe, Nodes) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
-    case get_tags(filter, Nodes) of
+    case do_get_tags(filter, Nodes) of
         {_OkNodes, Failed, Tags} when length(Failed) < TagMinK ->
             {ok, Tags};
         _ ->
@@ -221,20 +256,18 @@ get_tags(safe, Nodes) ->
 
 -spec monitor_diskspace() -> no_return().
 monitor_diskspace() ->
-    {ok, ReadableNodes, _RBSize} = gen_server:call(ddfs_master, get_read_nodes),
+    {ok, ReadableNodes, _RBSize} = get_read_nodes(),
     {Space, _F} = gen_server:multi_call(ReadableNodes,
                                         ddfs_node,
                                         get_diskspace,
                                         ?NODE_TIMEOUT),
-    gen_server:cast(ddfs_master,
-                    {update_nodestats,
-                     gb_trees:from_orddict(lists:keysort(1, Space))}),
+    update_nodestats(gb_trees:from_orddict(lists:keysort(1, Space))),
     timer:sleep(?DISKSPACE_INTERVAL),
     monitor_diskspace().
 
 -spec refresh_tag_cache_proc() -> no_return().
 refresh_tag_cache_proc() ->
-    {ok, ReadableNodes, RBSize} = gen_server:call(ddfs_master, get_read_nodes),
+    {ok, ReadableNodes, RBSize} = get_read_nodes(),
     refresh_tag_cache(ReadableNodes, RBSize),
     timer:sleep(?TAG_CACHE_INTERVAL),
     refresh_tag_cache_proc().
@@ -246,8 +279,6 @@ refresh_tag_cache(Nodes, BLSize) ->
         gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
     if Nodes =/= [], length(Failed) + BLSize < TagMinK ->
             {_OkNodes, Tags} = lists:unzip(Replies),
-            gen_server:cast(ddfs_master,
-                            {update_tag_cache,
-                             gb_sets:from_list(lists:flatten(Tags))});
+            update_tag_cache(gb_sets:from_list(lists:flatten(Tags)));
        true -> ok
     end.
