@@ -147,7 +147,7 @@ class Worker(dict):
 
     def jobdict(self, job, **jobargs):
         """
-        :return: the :ref:`jobdict`.
+        :return: the :term:`job dict`.
         """
         from disco.util import inputlist, ispartitioned, read_index
         def get(key):
@@ -198,7 +198,7 @@ class Worker(dict):
 
     def jobhome(self, job, **jobargs):
         """
-        :return: :ref:`jobhome` (serialized).
+        :return: the :term:`job home` (serialized).
 
         Calls :meth:`jobzip` to create the :class:`disco.fileutils.DiscoZipFile`.
         """

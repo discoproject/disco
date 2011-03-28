@@ -5,6 +5,8 @@ The Job Pack
 
 The :term:`job pack` contains all the information needed for creating a running a Disco :term:`job`.
 
+.. seealso:: The Python :class:`disco.job.JobPack` class.
+
 File format::
 
         +---------------- 4

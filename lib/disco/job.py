@@ -7,7 +7,7 @@ Often, :class:`Job` is the only thing you need
 in order to start running distributed computations with Disco.
 
 :term:`Jobs <job>` in Disco are used to encapsulate and schedule computation pipelines.
-A job specifies a :term:`worker`, the worker environment, a list of initial inputs,
+A job specifies a :term:`worker`, the worker environment, a list of inputs,
 and some additional information about how to run the job.
 For a full explanation of how the job is specified to the Disco :term:`master`,
 see :ref:`jobpack`.
