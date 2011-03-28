@@ -2,8 +2,13 @@
 -module(ddfs_master).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2,
-        handle_info/2, terminate/2, code_change/3]).
+-export([start_link/0, stop/0]).
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
 
 -define(WEB_PORT, 8011).
 
@@ -15,6 +20,9 @@
                 write_blacklist :: [node()],
                 read_blacklist :: [node()]}).
 
+%% ===================================================================
+%% API functions
+
 start_link() ->
     error_logger:info_report([{"DDFS master starts"}]),
     case gen_server:start_link({local, ddfs_master}, ddfs_master, [], []) of
@@ -23,6 +31,9 @@ start_link() ->
     end.
 
 stop() -> not_implemented.
+
+%% ===================================================================
+%% gen_server callbacks
 
 init(_Args) ->
     spawn_link(fun() -> monitor_diskspace() end),
@@ -34,12 +45,6 @@ init(_Args) ->
                 nodes = [],
                 write_blacklist = [],
                 read_blacklist = []}}.
-
-get_readable_nodes(Nodes, ReadBlacklist) ->
-    NodeSet = gb_sets:from_ordset(lists:sort([Node || {Node, _} <- Nodes])),
-    BlackSet = gb_sets:from_ordset(ReadBlacklist),
-    ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
-    {gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -149,24 +154,36 @@ handle_info({'DOWN', _, _, Pid, _}, S) ->
     {noreply, S#state{tags = gb_trees:from_orddict(
         [X || {_, V} = X <- gb_trees:to_list(S#state.tags), V =/= Pid])}}.
 
-% callback stubs
+%% ===================================================================
+%% gen_server callback stubs
+
 terminate(Reason, _State) ->
     error_logger:warning_report({"DDFS master dies", Reason}).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
+%% ===================================================================
+%% internal functions
+
+get_readable_nodes(Nodes, ReadBlacklist) ->
+    NodeSet = gb_sets:from_ordset(lists:sort([Node || {Node, _} <- Nodes])),
+    BlackSet = gb_sets:from_ordset(ReadBlacklist),
+    ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
+    {gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
+
 -spec get_tags('all' | 'filter', [node()]) -> {[node()], [node()], [binary()]};
               ('safe', [node()]) -> {'ok', [binary()]} | 'too_many_failed_nodes'.
 get_tags(all, Nodes) ->
-    {Replies, Failed} = gen_server:multi_call(Nodes,
-        ddfs_node, get_tags, ?NODE_TIMEOUT),
+    {Replies, Failed} =
+        gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
     {OkNodes, Tags} = lists:unzip(Replies),
     {OkNodes, Failed, lists:usort(lists:flatten(Tags))};
 
 get_tags(filter, Nodes) ->
     {OkNodes, Failed, Tags} = get_tags(all, Nodes),
     case gen_server:call(ddfs_master,
-            {tag, get_tagnames, <<"+deleted">>}, ?NODEOP_TIMEOUT) of
+                         {tag, get_tagnames, <<"+deleted">>}, ?NODEOP_TIMEOUT)
+    of
         {ok, Deleted} ->
             TagSet = gb_sets:from_ordset(Tags),
             DelSet = gb_sets:insert(<<"+deleted">>, Deleted),
