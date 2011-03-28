@@ -4,17 +4,11 @@
  */
 
 body {
-    /*
-    font-family: 'Lucida Grande', 'Lucida Sans Unicode', 'Geneva', 'Verdana', sans-serif;
-    line-height: 150%;
-    */
-    font-family: Arial, "Bitstream Vera Sans", sans-serif;
+    font-family: 'Lucida Grande', 'Bitstream Vera Sans', sans-serif;
     font-size: 90%;
-    line-height: 1.6em;
+    line-height: 150%;
     letter-spacing: -0.01em;
     text-align: center;
-    background-color: #eee; 
-    /* background-color: #BFD1D4; */
     color: black;
     padding: 0px;
     margin: 0px;
@@ -145,7 +139,6 @@ pre {
 
 pre a {
     color: inherit;
-    text-decoration: underline; 
 }
 
 .first {
@@ -214,10 +207,6 @@ div.body {
 
 div.bodywrapper {
     margin: 0 250px 0 0;
-}
-
-div.body a {
-/*   text-decoration: underline; */
 }
 
 div.sphinxsidebar {
@@ -330,7 +319,6 @@ div.footer {
 
 div.footer a {
     color: #86989B;
-    text-decoration: underline;
 }
 
 div.pagination {
@@ -422,7 +410,6 @@ a.headerlink {
     font-size: 1em;
     margin-left: 6px;
     padding: 0 4px 0 4px;
-    text-decoration: none;
     border-bottom: 0px solid #000;
     visibility: hidden;
 }
