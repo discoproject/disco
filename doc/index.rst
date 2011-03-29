@@ -31,16 +31,9 @@ Disco In Depth
 
 .. toctree::
    :titlesonly:
+   :glob:
 
-   howto/administer
-   howto/chunk
-   howto/contribute
-   howto/dataflow
-   howto/ddfs
-   howto/jobpack
-   howto/oob
-   howto/style
-   howto/worker
+   howto/*
 
 Reference
 ---------

@@ -1,3 +1,6 @@
+
+.. _discodb:
+
 :mod:`discodb` -- An efficient, immutable, persistent mapping object
 ====================================================================
 
