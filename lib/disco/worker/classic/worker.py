@@ -234,7 +234,8 @@ class Worker(worker.Worker):
         assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
 
         def open_hook(file, size, url):
-            status("Input is %s" % (util.format_size(size)))
+            if size is not None:
+                status("Input is %s" % (util.format_size(size)))
             return file
         self.open_hook = open_hook
 

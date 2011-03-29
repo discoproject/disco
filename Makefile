@@ -34,7 +34,7 @@ EOPT       = -W
 DIALYZER   = dialyzer
 TYPER      = typer
 PYTHON     = python
-PY_INSTALL = $(PYTHON) setup.py install --root=$(DESTDIR) --prefix=$(prefix)
+PY_INSTALL = $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix)
 RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
 
 WWW   = master/www

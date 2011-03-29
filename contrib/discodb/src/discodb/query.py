@@ -82,7 +82,8 @@ class Q(object):
         return hash(self.clauses)
 
     def __str__(self):
-        return ' & '.join('(%s)' % c for c in self.clauses)
+        format = '(%s)' if len(self.clauses) > 1 else '%s'
+        return ' & '.join(format % c for c in self.clauses)
 
     def expand(self, discodb):
         from itertools import product
