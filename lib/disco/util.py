@@ -192,17 +192,19 @@ def schemesplit(url):
 def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
     locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
-    if scheme == 'disco':
+    disco_port = str(settings['DISCO_PORT'])
+    host, port = netloc.parse(locstr)
+    if scheme == 'disco' or port == disco_port:
         prefix, fname = path.split('/', 1)
-        if locstr == localhost:
+        if localhost == True or locstr == localhost:
             scheme = 'file'
             if prefix == 'ddfs':
                 path = os.path.join(settings['DDFS_ROOT'], fname)
-            else:
+            if prefix == 'disco':
                 path = os.path.join(settings['DISCO_DATA'], fname)
-        else:
+        elif scheme == 'disco':
             scheme = 'http'
-            locstr = '%s:%s' % (locstr, settings['DISCO_PORT'])
+            locstr = '%s:%s' % (host, disco_port)
     if scheme == 'tag':
         if not path:
             path, locstr = locstr, ''

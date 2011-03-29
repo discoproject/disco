@@ -410,8 +410,7 @@ def gzip_line_reader(fd, size, url, params):
     except Exception, e:
         print e
 
-
-def map_input_stream(stream, size, url, params):
+def task_input_stream(stream, size, url, params):
     """
     An :func:`input_stream` which looks at the scheme of ``url``
     and tries to import a function named ``input_stream``
@@ -426,8 +425,7 @@ def map_input_stream(stream, size, url, params):
     mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
     globalize(mod.input_stream, globals())
     return mod.input_stream(stream, size, url, params)
-
-reduce_input_stream = map_input_stream
+map_input_stream = reduce_input_stream = task_input_stream
 
 def string_input_stream(string, size, url, params):
     from cStringIO import StringIO
@@ -546,7 +544,8 @@ def unix_sort(filename, sort_buffer_size='10%'):
         raise DataError("Sorting %s failed: %s" % (filename, e), filename)
 
 chain_reader = disco_input_stream
-chain_stream = (map_input_stream, chain_reader)
-default_stream = (map_input_stream, )
-gzip_stream = (map_input_stream, gzip_reader)
-gzip_line_stream = (map_input_stream, gzip_line_reader)
+chain_stream = (task_input_stream, chain_reader)
+default_stream = (task_input_stream, )
+discodb_stream = (task_output_stream, discodb_output)
+gzip_stream = (task_input_stream, gzip_reader)
+gzip_line_stream = (task_input_stream, gzip_line_reader)
