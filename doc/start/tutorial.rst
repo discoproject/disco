@@ -159,15 +159,17 @@ As you saw, creating a new Disco job is pretty straightforward.
 You could extend this simple example in any number of ways.
 For instance, by using the params object to include a list of stop words.
 
+You could follow the :ref:`discodb_tutorial`,
+to learn more about using :ref:`discodb <discodb>` with Disco.
+
 You could try using :func:`disco.worker.classic.func.sum_combiner`,
 to make the job more efficient.
 
 You can also experiment with custom partitioning and reader functions.
 They are written in the same way as map and reduce functions.
 Just see some examples in the :mod:`disco.worker.classic.func` module.
-After that, you could try to chain many map/reduce jobs together,
-so that output of the previous job becomes input for the next one -
-in that case you will need to use :func:`disco.worker.classic.func.chain_reader`.
+After that, you could try :ref:`chaining jobs together <chaining>`,
+so that output of the previous job becomes input for the next one.
 
 The best way to learn is to pick a problem or algorithm that you know
 well, and implement it with Disco. After all, Disco was designed to

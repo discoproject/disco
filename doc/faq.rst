@@ -104,6 +104,8 @@ I have one big data file, how do I run maps on it in parallel?
 
 See :ref:`chunking`.
 
+.. _chaining:
+
 How do I pass the output of one map-reduce phase to another?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 

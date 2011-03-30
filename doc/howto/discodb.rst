@@ -1,3 +1,6 @@
+
+.. _discodb_tutorial:
+
 ================
 DiscoDB Tutorial
 ================
