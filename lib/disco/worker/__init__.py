@@ -29,6 +29,10 @@ the Worker class for submitting jobs to the master,
 but generally need to handle the :ref:`worker_protocol`
 in the language used for the worker executable.
 
+The :class:`Classic Worker <disco.worker.classic.worker.Worker>`
+is a subclass of :class:`Worker`,
+which implements the classic Disco :term:`mapreduce` interface.
+
 The following steps illustrate the sequence of events for running a :term:`job`
 using a standard :class:`Worker`:
 

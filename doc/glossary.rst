@@ -104,6 +104,12 @@ Glossary
    persistent
         See `persistent data structure <http://en.wikipedia.org/wiki/Persistent_data_structure>`_.
 
+   pid
+        A process identifier.
+        In Disco this usually refers to the :term:`worker` *pid*.
+
+        See `process identifier <http://en.wikipedia.org/wiki/Process_identifier>`_.
+
    reduce
         The last phase of a :term:`job`,
         in which non-local computation is usually performed.
@@ -112,6 +118,24 @@ Glossary
         which usually has access to all values for a given key
         produced by the :term:`map` phase.
         Grouping data for reduce is achieved via :term:`partitioning`.
+
+   stdin
+        The standard input file descriptor.
+        The :term:`master` responds to the :term:`worker` over *stdin*.
+
+        See `standard streams <http://en.wikipedia.org/wiki/Standard_streams>`_.
+
+   stdout
+        The standard output file descriptor.
+        Initially redirected to :term:`stderr` for a Disco :term:`worker`.
+
+        See `standard streams <http://en.wikipedia.org/wiki/Standard_streams>`_.
+
+   stderr
+        The standard error file descriptor.
+        The :term:`worker` sends messages to the :term:`master` over *stderr*.
+
+        See `standard streams <http://en.wikipedia.org/wiki/Standard_streams>`_.
 
    tag
         A labelled collection of data in :term:`DDFS`.
@@ -130,7 +154,9 @@ Glossary
         Workers are scheduled to run on the nodes,
         close to the data they are supposed to be processing.
 
-        See also :mod:`disco.worker`.
+        .. seealso::
+           :mod:`The Python Worker module<disco.worker>`, and
+           :ref:`worker_protocol`.
 
    ZIP
         Archive/compression format, used e.g. for the :term:`job home`.

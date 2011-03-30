@@ -9,7 +9,7 @@ This tutorial is a guide to using :class:`DiscoDBs <discodb.DiscoDB>` in Disco.
 Create a DiscoDB
 ================
 
-First, let's modify the word count example to write its output to a
+First, let's modify the :ref:`word count example <tutorial>` to write its output to a
 :class:`DiscoDB <discodb.DiscoDB>`:
 
 .. literalinclude:: ../../examples/util/wordcount_ddb.py

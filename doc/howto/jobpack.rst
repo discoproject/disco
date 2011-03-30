@@ -5,6 +5,10 @@ The Job Pack
 
 The :term:`job pack` contains all the information needed for creating a running a Disco :term:`job`.
 
+The first time any :term:`task` of a job executes on a Disco node,
+the job pack for the job is retrieved from the master,
+and :ref:`jobhome` is unzipped into a job-specific directory.
+
 .. seealso:: The Python :class:`disco.job.JobPack` class.
 
 File format::
@@ -112,6 +116,15 @@ The Job Home
 The :term:`job home` serialized into :term:`ZIP` format.
 The master will unzip this before running the :attr:`jobdict.worker`.
 The :term:`worker` can assume that it runs in the environment (working directory) kept here.
+
+.. note:: The .disco subdirectory of the *job home* is reserved by Disco.
+
+The job home is shared by all tasks of the same job on the same node.
+That is, if the job requires two map task and two reduce task
+executions on a particular node, then the job home will be unpacked
+only once on that node, but the worker executable will be executed
+four times in the job home directory.
+Thus, the worker should take care to use unique filenames as needed.
 
 .. _jobdata:
 
