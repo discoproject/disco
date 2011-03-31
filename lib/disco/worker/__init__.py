@@ -246,6 +246,7 @@ class Worker(dict):
     def start(self, task, job, **jobargs):
         from disco.sysutil import set_mem_limit
         set_mem_limit(job.settings['DISCO_WORKER_MAX_MEM'])
+        task.makedirs()
         if self.getitem('profile', job, **jobargs):
             from cProfile import runctx
             name = 'profile-%s' % task.uid
@@ -260,7 +261,7 @@ class Worker(dict):
         """
         Called to do the actual work of processing the :class:`disco.task.Task`.
         """
-        self[task.mode](task, job, **jobargs)
+        self.getitem(task.mode, job, **jobargs)(task, job, **jobargs)
 
     def end(self, task, job, **jobargs):
         from disco.events import Status
