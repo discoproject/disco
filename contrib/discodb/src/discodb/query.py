@@ -2,6 +2,7 @@
 :mod:`discodb.query` -- Supporting objects for the DiscoDB query interface
 ==========================================================================
 
+>>> from .discodb import Q
 >>> Q.parse('~(B | C)') == Q.parse('~B & ~C')
 True
 >>> Q.parse('(A & B) | C') == Q.parse('(A | C) & (B | C)')
@@ -27,15 +28,15 @@ True
 ['F', 'G']
 
 >>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('A')))
-[('(A)', ['B', 'C'])]
+[('A', ['B', 'C'])]
 >>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('*A')))
-[('(B)', ['D']), ('(C)', ['E'])]
+[('B', ['D']), ('C', ['E'])]
 >>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('A | B')))
-[('(A | B)', ['B', 'C', 'D'])]
+[('A | B', ['B', 'C', 'D'])]
 >>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('*A | B')))
-[('(B)', ['D']), ('(C | B)', ['D', 'E'])]
+[('B', ['D']), ('C | B', ['D', 'E'])]
 >>> sorted((str(k), sorted(vs)) for k, vs in discodb.metaquery(Q.parse('**A | *B')))
-[('(D)', ['F']), ('(E | D)', ['F', 'G'])]
+[('D', ['F']), ('E | D', ['F', 'G'])]
 """
 from operator import __and__, __or__
 

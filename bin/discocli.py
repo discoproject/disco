@@ -366,7 +366,7 @@ def oob(program, jobname):
     Print the oob keys for the named job.
     """
     from disco.core import Job
-    for key in Job(program.disco, jobname).oob_list():
+    for key in Job(name=jobname, master=program.disco).oob_list():
         print key
 
 @oob.subcommand
@@ -376,7 +376,7 @@ def get(program, key, jobname):
     Print the oob value for the given key and jobname.
     """
     from disco.core import Job
-    print Job(program.disco, jobname).oob_get(key)
+    print Job(name=jobname, master=program.disco).oob_get(key)
 
 @Disco.command
 def pstats(program, jobname):

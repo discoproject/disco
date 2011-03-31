@@ -124,9 +124,9 @@ class Disco(object):
         :param mode: restricts results to the map or reduce phase, or not.
 
         The function returns a `pstats.Stats object <http://docs.python.org/library/profile.html#the-stats-class>`_.
-        You can print out results as follows::
+        For instance, you can print out results as follows::
 
-                job.profile_stats().print_stats()
+                job.profile_stats().sort_stats('cumulative').print_stats()
 
         .. versionadded:: 0.2.1
         """

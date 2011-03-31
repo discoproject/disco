@@ -53,7 +53,7 @@ ETESTOBJECTS = $(ETESTSOURCES:.erl=.beam)
 
 EPLT  = .dialyzer_plt
 
-.PHONY: all master clean distclean doc
+.PHONY: all master clean distclean doc docclean doctest
 .PHONY: install \
 	install-master \
 	install-core \
@@ -77,6 +77,12 @@ distclean: clean
 
 doc:
 	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) html)
+
+docclean:
+	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) clean)
+
+doctest:
+	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) doctest)
 
 install: install-core install-master
 
