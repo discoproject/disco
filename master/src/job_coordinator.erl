@@ -48,7 +48,7 @@ job_coordinator(Parent, JobPack) ->
     {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
     {ok, JobName} = event_server:new_job(Prefix, self()),
     JobFile = jobpack:save(JobPack, disco:jobhome(JobName)),
-    disco_server:new_job(JobName, self(), 30000),
+    ok = disco_server:new_job(JobName, self(), 30000),
     Parent ! {job_submitted, JobName},
     job_coordinator(JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}).
 
