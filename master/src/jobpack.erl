@@ -6,6 +6,7 @@
          extracted/1,
          read/1,
          save/2,
+         copy/2,
          jobinfo/1,
          jobenvs/1]).
 
@@ -13,7 +14,7 @@
 
 -define(MAGIC, 16#d5c0).
 -define(VERSION, 16#0001).
-
+-define(COPY_BUFFER_SIZE, 1048576).
 
 dict({struct, List}) ->
     dict:from_list(List).
@@ -63,9 +64,7 @@ read(JobHome) ->
     end.
 
 save(JobPack, JobHome) ->
-    {MegaSecs, Secs, MicroSecs} = now(),
-    TmpFile = filename:join(JobHome, disco:format("jobfile@~.16b:~.16b:~.16b",
-                                                  [MegaSecs, Secs, MicroSecs])),
+    TmpFile = tempname(JobHome),
     JobFile = jobfile(JobHome),
     case prim_file:write_file(TmpFile, JobPack) of
         ok ->
@@ -78,6 +77,27 @@ save(JobPack, JobHome) ->
         {error, Reason} ->
             throw({"Couldn't save jobpack", TmpFile, Reason})
     end.
+
+copy({Src, Size}, JobHome) ->
+    TmpFile = tempname(JobHome),
+    JobFile = jobfile(JobHome),
+    {ok, Dst} = prim_file:open(TmpFile, [raw, binary, write]),
+    ok = copy(Src, Dst, Size),
+    ok = prim_file:close(Dst),
+    file:close(Src),
+    ok = prim_file:rename(TmpFile, JobFile),
+    {ok, JobFile}.
+
+copy(_Src, _Dst, 0) -> ok;
+copy(Src, Dst, Left) ->
+    {ok, Buf} = file:read(Src, ?COPY_BUFFER_SIZE),
+    ok = prim_file:write(Dst, Buf),
+    copy(Src, Dst, Left - size(Buf)).
+
+tempname(JobHome) ->
+    {MegaSecs, Secs, MicroSecs} = now(),
+    filename:join(JobHome, disco:format("jobfile@~.16b:~.16b:~.16b",
+                                        [MegaSecs, Secs, MicroSecs])).
 
 jobinfo(JobPack) when is_binary(JobPack) ->
     jobinfo(jobdict(JobPack));

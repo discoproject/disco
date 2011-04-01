@@ -275,10 +275,10 @@ make_jobhome(JobName, Master) ->
                     true ->
                         jobpack:read(JobHome);
                     false ->
-                        JobPack0 =
+                        {ok, JobPackSrc} =
                             disco_server:get_worker_jobpack(Master, JobName),
-                        jobpack:save(JobPack0, JobHome),
-                        JobPack0
+                        {ok, _JobFile} = jobpack:copy(JobPackSrc, JobHome),
+                        jobpack:read(JobHome)
                 end,
             jobpack:extract(JobPack, JobHome)
     end.
