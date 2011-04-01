@@ -237,10 +237,10 @@ class Disco(object):
                                 jobname, (status, results)
 
                         where status is one of:
-                        ``"unknown_job"``,
-                        ``"dead"``,
-                        ``"active"``, or
-                        ``"ready"``.
+                        ``'unknown job'``,
+                        ``'dead'``,
+                        ``'active'``, or
+                        ``'ready'``.
 
         :type  timeout: int
         :param timeout: wait at most this many milliseconds,
