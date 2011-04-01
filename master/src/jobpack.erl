@@ -42,9 +42,9 @@ exists(JobHome) ->
 
 extract(JobPack, JobHome) ->
     JobZip = jobzip(JobPack),
-    case zip:extract(JobZip, [{cwd, JobHome}]) of
+    case discozip:extract(JobZip, [{cwd, JobHome}]) of
         {ok, Files} ->
-            prim_file:write_file(filename:join(JobHome, ".jobhome"), <<"">>),
+            ok = prim_file:write_file(filename:join(JobHome, ".jobhome"), <<"">>),
             Files;
         {error, Reason} ->
             throw({"Couldn't extract jobhome", JobHome, Reason})

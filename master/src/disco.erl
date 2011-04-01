@@ -24,7 +24,10 @@
          format_time/1,
          format_time/4,
          format_time_since/1,
-         make_dir/1]).
+         make_dir/1,
+         ensure_dir/1]).
+
+-include_lib("kernel/include/file.hrl").
 
 -define(MILLISECOND, 1000).
 -define(SECOND, (1000 * ?MILLISECOND)).
@@ -148,9 +151,9 @@ format_time_since(Time) ->
     format_time(timer:now_diff(now(), Time)).
 
 make_dir(Dir) ->
-    case filelib:ensure_dir(Dir) of
+    case ensure_dir(Dir) of
         ok ->
-            case file:make_dir(Dir) of
+            case prim_file:make_dir(Dir) of
                 ok ->
                     {ok, Dir};
                 {error, eexist} ->
@@ -160,4 +163,36 @@ make_dir(Dir) ->
             end;
         {error, Reason} ->
             {error, Reason}
+    end.
+
+% based on ensure_dir() in /usr/lib/erlang/lib/stdlib-1.17/src/filelib.erl
+
+ensure_dir("/") ->
+    ok;
+ensure_dir(F) ->
+    Dir = filename:dirname(F),
+    case do_is_dir(Dir) of
+        true ->
+            ok;
+        false ->
+            ensure_dir(Dir),
+            case prim_file:make_dir(Dir) of
+                {error,eexist}=EExist ->
+                    case do_is_dir(Dir) of
+                        true ->
+                            ok;
+                        false ->
+                            EExist
+                    end;
+                Err ->
+                    Err
+            end
+    end.
+
+do_is_dir(Dir) ->
+    case prim_file:read_file_info(Dir) of
+        {ok, #file_info{type=directory}} ->
+            true;
+        _ ->
+            false
     end.

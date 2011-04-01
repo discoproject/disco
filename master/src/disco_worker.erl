@@ -9,6 +9,7 @@
          terminate/2,
          code_change/3]).
 
+-include_lib("kernel/include/file.hrl").
 -include("disco.hrl").
 
 -record(state, {master :: node(),
@@ -221,7 +222,7 @@ handle_cast(kill_worker, State) ->
 handle_cast(work, #state{task = Task, port = none} = State) ->
     JobHome = jobhome(Task#task.jobname),
     Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
-    file:change_mode(Worker, 8#755),
+    ok = prim_file:write_file_info(Worker, #file_info{mode = 8#755}),
     Command = "nice -n 19 " ++ Worker,
     JobEnvs = jobpack:jobenvs(jobpack:read(JobHome)),
     Options = [{cd, JobHome},
@@ -332,7 +333,7 @@ add_output([Tag, <<"tag">>], S) ->
 add_output(RL, #state{task = Task, output_file = none} = S) ->
     ResultsFileName = results_filename(Task),
     Path = filename:join(jobhome(Task#task.jobname), ResultsFileName),
-    ok = filelib:ensure_dir(Path),
+    ok = disco:ensure_dir(Path),
     {ok, ResultsFile} = prim_file:open(Path, [write, raw]),
     add_output(RL, S#state{output_filename = ResultsFileName,
                            output_file = ResultsFile});
