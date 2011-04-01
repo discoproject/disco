@@ -276,7 +276,7 @@ class ReplicaIter(object):
         return self
 
     def next(self):
-        urls = set(input(self.id) if self.id else self.urls) - self.used
+        urls = set(input(self.id) if self.id != None else self.urls) - self.used
         for url in urls:
             self.used.add(url)
             return url
