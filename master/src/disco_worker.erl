@@ -25,6 +25,7 @@
                 output_filename :: 'none' | string(),
                 output_file :: 'none' | file:io_device()}).
 
+-define(JOBHOME_TIMEOUT, 5 * 60 * 1000).
 -define(RATE_WINDOW, 100000). % 100ms
 -define(RATE_LIMIT, 25).
 -define(ERRLINES_MAX, 100).
@@ -62,32 +63,13 @@ wait_for_exit() ->
 
 start_link({Parent, Master, Task}) ->
     process_flag(trap_exit, true),
-    _Worker = case catch gen_server:start_link(disco_worker, {Master, Task}, []) of
-                {ok, Server} ->
-                     Server;
-                 Reason ->
-                     Msg = io_lib:fwrite("Worker initialization failed: ~p",
-                                         [Reason]),
-                     exit({error, Msg})
-             end,
+    {ok, Server} = gen_server:start_link(disco_worker, {Master, Task}, []),
+    gen_server:cast(Server, start),
     Parent ! ok,
-    % NB: start_worker call is known to timeout if the node is really
-    % busy - it should not be a fatal problem
-    %case catch gen_server:call(Worker, start_worker, 30000) of
-    %    ok ->
-    %        Parent ! ok;
-    %    Reason1 ->
-    %        exit({worker_dies, {"Worker startup failed: ~p",
-    %            [Reason1]}})
-    %end,
     wait_for_exit().
 
 init({Master, Task}) ->
     erlang:monitor(process, Task#task.from),
-    WorkerPid = self(),
-    spawn(fun () ->
-                  WorkerPid ! {work, make_jobhome(Task#task.jobname, Master)}
-          end),
     {ok,
      #state{master = Master,
             task = Task,
@@ -228,9 +210,16 @@ handle_info({_Port, {exit_status, _Status}}, State) ->
     {stop, {shutdown, {fatal, Reason}}, State};
 
 handle_info({'DOWN', _, _, _, Info}, State) ->
-    {stop, {shutdown, {fatal, Info}}, State};
+    {stop, {shutdown, {fatal, Info}}, State}.
 
-handle_info({work, JobHome}, #state{task = Task, port = none} = State) ->
+handle_call(kill_worker, _From, State) ->
+    {stop, {shutdown, {fatal, "Worker killed"}}, State}.
+
+handle_cast(kill_worker, State) ->
+    {stop, {shutdown, {fatal, "Worker killed"}}, State};
+
+handle_cast(work, #state{task = Task, port = none} = State) ->
+    JobHome = jobhome(Task#task.jobname),
     Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
     file:change_mode(Worker, 8#755),
     Command = "nice -n 19 " ++ Worker,
@@ -242,13 +231,21 @@ handle_info({work, JobHome}, #state{task = Task, port = none} = State) ->
                use_stdio,
                stderr_to_stdout,
                {env, dict:to_list(JobEnvs)}],
-    {noreply, State#state{port = open_port({spawn, Command}, Options)}}.
+    {noreply, State#state{port = open_port({spawn, Command}, Options)}};
 
-handle_call(kill_worker, _From, State) ->
-    {stop, {shutdown, {fatal, "Worker killed"}}, State}.
-
-handle_cast(kill_worker, State) ->
-    {stop, {shutdown, {fatal, "Worker killed"}}, State}.
+handle_cast(start, #state{task = Task, master = Master} = State) ->
+    JobName = Task#task.jobname,
+    Fun = fun() -> make_jobhome(JobName, Master) end,
+    case catch gen_server:call(lock_server,
+                               {wait, JobName, Fun}, ?JOBHOME_TIMEOUT) of
+        ok ->
+            gen_server:cast(self(), work),
+            {noreply, State};
+        {error, killed} ->
+            {stop, {shutdown, {error, "Job pack extraction timeout"}}, State};
+        {'EXIT', {timeout, _}} ->
+            {stop, {shutdown, {error, "Job initialization timeout"}}, State}
+    end.
 
 terminate(_Reason, #state{child_pid = Pid}) when Pid =/= none ->
     % Kill child processes of the worker process
@@ -269,34 +266,20 @@ make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
     case jobpack:extracted(JobHome) of
         true ->
-            JobHome;
+            ok;
         false ->
-            make_jobhome(JobName, JobHome, Master)
-    end.
-make_jobhome(JobName, JobHome, Master) ->
-    JobAtom = list_to_atom(disco:hexhash(JobName)),
-    case catch register(JobAtom, self()) of
-        true ->
             disco:make_dir(JobHome),
-            JobPack = disco_server:get_worker_jobpack(Master, JobName),
-            jobpack:save(JobPack, JobHome),
-            jobpack:extract(JobPack, JobHome),
-            JobHome;
-        _Else ->
-            wait_for_jobhome(JobAtom, JobName, Master)
-    end.
-
-wait_for_jobhome(JobAtom, JobName, Master) ->
-    case whereis(JobAtom) of
-        undefined ->
-            make_jobhome(JobName, Master);
-        JobProc ->
-            process_flag(trap_exit, true),
-            link(JobProc),
-            receive
-                _Any ->
-                    make_jobhome(JobName, Master)
-            end
+            JobPack =
+                case jobpack:exists(JobHome) of
+                    true ->
+                        jobpack:read(JobHome);
+                    false ->
+                        JobPack0 =
+                            disco_server:get_worker_jobpack(Master, JobName),
+                        jobpack:save(JobPack0, JobHome),
+                        JobPack0
+                end,
+            jobpack:extract(JobPack, JobHome)
     end.
 
 input(Task) ->

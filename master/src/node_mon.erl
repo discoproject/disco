@@ -45,6 +45,7 @@ node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
     start_temp_gc(Node),
+    start_lock_server(Node),
     disco_server:connection_status(Host, up),
     wait(Node),
     disco_server:connection_status(Host, down).
@@ -111,6 +112,10 @@ is_master(Host) ->
 -spec start_temp_gc(node()) -> pid().
 start_temp_gc(Node) ->
     spawn_link(Node, temp_gc, start_link, [whereis(disco_server)]).
+
+-spec start_lock_server(node()) -> pid().
+start_lock_server(Node) ->
+    spawn_link(Node, lock_server, start_link, []).
 
 -spec start_ddfs_node(node(), {bool(), bool()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
