@@ -15,25 +15,19 @@ class JobError(DiscoError):
     An error that occurs when an invalid job request is made.
     Instances of this error have the following attributes:
 
-    .. attribute:: error
+    .. attribute:: job
 
-        Error message.
+        The :class:`disco.job.Job` for which the request failed.
 
-    .. attribute:: name
+    .. attribute:: message
 
-        Name of the job.
-
-    .. attribute:: master
-
-        Address of the Disco master that produced the error.
+        The error message.
     """
-    def __init__(self, error, master=None, jobname=None):
-        self.error   = error
-        self.master  = master
-        self.jobname = jobname
+    def __init__(self, job, message):
+        self.job, self.message = job, message
 
     def __str__(self):
-        return "Job %s/%s failed: %s" % (self.master, self.jobname, self.error)
+        return "Job %s failed: %s" % (self.job.name, self.message)
 
 class DataError(DiscoError):
     """

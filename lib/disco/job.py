@@ -126,7 +126,7 @@ class Job(object):
         status, response = json.loads(self.disco.request('/disco/job/new',
                                                          jobpack.dumps()))
         if status != 'ok':
-            raise JobError("Failed to start job. Server replied: %s" % response)
+            raise JobError(self, "Failed to start job. Server replied: %s" % response)
         self.name = response
         return self
 

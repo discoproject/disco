@@ -133,7 +133,7 @@ class Disco(object):
         prefix = 'profile-%s' % mode
         f = [s for s in self.oob_list(jobname) if s.startswith(prefix)]
         if not f:
-            raise JobError("No profile data", self.master, jobname)
+            raise JobError(Job(name=jobname, master=self), "No profile data")
 
         import pstats
         stats = pstats.Stats(Stats(self.oob_get(jobname, f[0])))
@@ -294,9 +294,9 @@ class Disco(object):
         if status == 'ready':
             return results
         if status != 'active':
-            raise JobError("Job status %s" % status, self.master, jobname)
+            raise JobError(Job(name=jobname, master=self), "Status %s" % status)
         if timeout and time.time() - start_time > timeout:
-            raise JobError("Timeout", self.master, jobname)
+            raise JobError(Job(name=jobname, master=self), "Timeout")
         raise Continue()
 
     def wait(self, jobname, poll_interval=2, timeout=None, clean=False, show=None):
