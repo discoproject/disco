@@ -7,9 +7,9 @@
          read/1,
          save/2,
          copy/2,
-         jobinfo/1,
-         jobenvs/1]).
+         jobinfo/1]).
 
+-include_lib("kernel/include/file.hrl").
 -include("disco.hrl").
 
 -define(MAGIC, 16#d5c0).
@@ -46,6 +46,7 @@ extract(JobPack, JobHome) ->
     case discozip:extract(JobZip, [{cwd, JobHome}]) of
         {ok, Files} ->
             ok = prim_file:write_file(filename:join(JobHome, ".jobhome"), <<"">>),
+            ok = ensure_executable_worker(JobPack, JobHome),
             Files;
         {error, Reason} ->
             throw({"Couldn't extract jobhome", JobHome, Reason})
@@ -53,6 +54,11 @@ extract(JobPack, JobHome) ->
 
 extracted(JobHome) ->
     filelib:is_file(filename:join(JobHome, ".jobhome")).
+
+ensure_executable_worker(JobPack, JobHome) ->
+    Worker = find(<<"worker">>, jobdict(JobPack)),
+    Path = filename:join(JobHome, binary_to_list(Worker)),
+    prim_file:write_file_info(Path, #file_info{mode = 8#755}).
 
 read(JobHome) ->
     JobFile = jobfile(JobHome),
@@ -99,12 +105,12 @@ tempname(JobHome) ->
     filename:join(JobHome, disco:format("jobfile@~.16b:~.16b:~.16b",
                                         [MegaSecs, Secs, MicroSecs])).
 
-jobinfo(JobPack) when is_binary(JobPack) ->
-    jobinfo(jobdict(JobPack));
-jobinfo(JobDict) ->
+jobinfo(JobPack) ->
+    JobDict = jobdict(JobPack),
     Scheduler = dict(find(<<"scheduler">>, JobDict)),
     {validate_prefix(find(<<"prefix">>, JobDict)),
-     #jobinfo{inputs = find(<<"input">>, JobDict),
+     #jobinfo{jobenvs = jobenvs(JobPack),
+              inputs = find(<<"input">>, JobDict),
               worker = find(<<"worker">>, JobDict),
               owner = find(<<"owner">>, JobDict),
               map = find(<<"map?">>, JobDict, false),
@@ -131,7 +137,8 @@ jobenvs(<<?MAGIC:16/big,
          _/binary>> = JobPack) ->
     JobEnvsLength = JobHomeOffset - JobEnvsOffset,
     <<_:JobEnvsOffset/bytes, JobEnvs:JobEnvsLength/bytes, _/binary>> = JobPack,
-    dict(mochijson2:decode(JobEnvs)).
+    {struct, Envs} = mochijson2:decode(JobEnvs),
+    Envs.
 
 jobzip(<<?MAGIC:16/big,
         _Version:16/big,

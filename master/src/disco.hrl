@@ -1,6 +1,7 @@
 
 -record(jobinfo, {jobname :: nonempty_string(),
                   jobfile :: nonempty_string(),
+                  jobenvs :: [{nonempty_string(), string()}],
                   force_local :: bool(),
                   force_remote :: bool(),
                   owner :: binary(),
@@ -28,6 +29,7 @@
                from :: pid(),
                input :: [{binary(), nonempty_string()}],
                worker :: worker,
+               jobenvs :: [{nonempty_string(), string()}],
                jobname :: nonempty_string(),
                mode :: nonempty_string(), %"map" | "reduce"
                taskid :: non_neg_integer(),

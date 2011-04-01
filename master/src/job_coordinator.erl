@@ -97,6 +97,7 @@ work([{TaskID, Input}|Inputs], Mode, N, Job, Res) when N < Job#jobinfo.max_cores
                  force_local = Job#jobinfo.force_local,
                  force_remote = Job#jobinfo.force_remote,
                  jobname = Job#jobinfo.jobname,
+                 jobenvs = Job#jobinfo.jobenvs,
                  taskid = TaskID,
                  mode = Mode,
                  input = Input,
