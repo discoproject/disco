@@ -40,8 +40,9 @@ and make sure they contain what you think they do::
 .. note::
    Chunks are stored in Disco's internal compressed format,
    thus we use ``ddfs xcat`` instead of ``ddfs cat`` to view them.
-   ``ddfs xcat`` applies some :func:`disco.func.input_stream`\'s
-   (by default, :func:`disco.func.chain_reader`),
+   ``ddfs xcat`` applies some
+   :func:`~disco.worker.classic.func.input_stream`\'s
+   (by default, :func:`~disco.worker.classic.func.chain_reader`),
    whereas ``ddfs cat`` just dumps the raw bytes contained in the blobs.
 
 If you used the file provided above,
@@ -61,8 +62,8 @@ You can try with a larger file to see that chunks are created as needed.
 2. Write job functions
 ----------------------
 
-Next we need to write map and reduce functions to count words.
-Start your favorite text editor and open a file called, say, ``count_words.py``.
+Next we need to write :term:`map` and :term:`reduce` functions to count words.
+Start your favorite text editor and create a file called ``count_words.py``.
 First, let's write our map function::
 
         def fun_map(line, params):
@@ -74,7 +75,8 @@ The map function takes two parameters, here they are called *line* and *params*.
 The first parameter contains an input entry, which is by default a line of text.
 An input entry can be anything though,
 since you can define a custom function that parses an input stream
-(see the parameter *map_reader* in :func:`disco.worker.classic.worker.Worker` for more information).
+(see the parameter *map_reader* in the
+:func:`Classic Worker <disco.worker.classic.worker.Worker>`).
 The second parameter, *params*, can be any object that you specify,
 in case that you need some additional input for your functions.
 
@@ -95,7 +97,7 @@ which belong to this reduce instance (see :term:`partitioning`).
 
 In this case, words are randomly assigned to different reduce instances.
 Again, this is something that can be changed
-(see :func:`disco.worker.classic.func.partition` for more information).
+(see :func:`~disco.worker.classic.func.partition` for more information).
 However, as long as all occurrences of the same word go to the same reduce,
 we can be sure that the final counts are correct.
 
@@ -115,16 +117,16 @@ but only three of them are required for a simple job like ours.
 
 In addition to starting the job, we want to print out the results as well.
 First, however, we have to wait until the job has finished.
-This is done with the :meth:`disco.core.Disco.wait` call,
+This is done with the :meth:`~disco.core.Disco.wait` call,
 which returns results of the job once has it has finished.
-For convenience, the :meth:`disco.core.Disco.wait` method,
+For convenience, the :meth:`~disco.core.Disco.wait` method,
 as well as other methods related to a job,
-can be called through the :class:`disco.job.Job` object.
+can be called through the :class:`~disco.job.Job` object.
 
-A function called :func:`disco.core.result_iterator` takes
+A function called :func:`~disco.core.result_iterator` takes
 a list of addresses to the result files, that is returned by
-:meth:`disco.core.Disco.wait`, and iterates through all key-value pairs
-in the results.
+:meth:`~disco.core.Disco.wait`,
+and iterates through all key-value pairs in the results.
 
 The following example from ``examples/util/count_words.py`` runs the job,
 and prints out the results:
@@ -144,8 +146,7 @@ While the job is running, you can point your web
 browser at ``http://localhost:8989`` (or some other port where you run the
 Disco master) which lets you follow the progress of your job in real-time.
 
-You can also set the environment variable ``DISCO_EVENTS=1`` to see job
-events on your console instead of the web UI::
+You can also set :envvar:`DISCO_EVENTS` to see job events from your console::
 
        DISCO_EVENTS=1 python count_words.py
 
@@ -166,7 +167,7 @@ and add ``map_reader = disco.worker.classic.func.chain_reader``.
 You could follow the :ref:`discodb_tutorial`,
 to learn more about using :ref:`discodb <discodb>` with Disco.
 
-You could try using :func:`disco.worker.classic.func.sum_combiner`,
+You could try using :func:`~disco.worker.classic.func.sum_combiner`,
 to make the job more efficient.
 
 You can also experiment with custom partitioning and reader functions.

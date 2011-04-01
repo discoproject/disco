@@ -15,6 +15,9 @@ Glossary
    DDFS
         See :ref:`DDFS`.
 
+   Erlang
+        See `Erlang <http://en.wikipedia.org/wiki/Erlang_(programming_language)>`_.
+
    ichunk
         An :term:`immutable` piece of a distributed :term:`index`, stored in a file.
 
@@ -118,6 +121,18 @@ Glossary
         which usually has access to all values for a given key
         produced by the :term:`map` phase.
         Grouping data for reduce is achieved via :term:`partitioning`.
+
+   SSH
+        Network protocol used by :term:`Erlang` to start :term:`slaves <slave>`.
+
+        See `SSH <http://en.wikipedia.org/wiki/Secure_Shell>`_.
+
+   slave
+        The process started by the :term:`Erlang` `slave module`_.
+
+        .. _slave module: http://www.erlang.org/doc/man/slave.html
+
+        See also :ref:`overview`.
 
    stdin
         The standard input file descriptor.

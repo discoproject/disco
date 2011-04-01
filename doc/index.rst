@@ -22,6 +22,7 @@ Getting started
 
    start/download
    start/install
+   start/install_sys
    start/tutorial
    start/troubleshoot
    start/getinvolved
