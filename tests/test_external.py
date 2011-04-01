@@ -14,7 +14,7 @@ class ExternalTestCase(DiscoJobTestFixture, DiscoTestCase):
         if uname()[0] == 'Darwin':
             self.skipTest('Cannot build static test_external on OS X')
         else:
-            home = self.disco_settings['DISCO_HOME']
+            home = self.settings['DISCO_HOME']
             check_call(['gcc', '-g', '-O3', '-static', '-Wall',
                         '-I', path.join(home, 'ext'),
                         '-o', path.join(home, 'tests', 'test_external'),

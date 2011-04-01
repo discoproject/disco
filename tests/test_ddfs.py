@@ -7,9 +7,6 @@ from cStringIO import StringIO
 class DDFSUpdateTestCase(DiscoTestCase):
     data = StringIO('blobdata')
 
-    def setUp(self):
-        self.ddfs = DDFS(self.disco_master_url)
-
     def blobnames(self, tag):
         return list(reversed(list(DDFS.blob_name(repl[0])
                                   for repl in self.ddfs.blobs(tag))))
@@ -30,7 +27,7 @@ class DDFSUpdateTestCase(DiscoTestCase):
 
     def test_random(self):
         import random
-        keys = [str(random.randint(1, 100)) for i in range(1000)]
+        keys = [str(random.randint(1, 100)) for i in range(100)]
         ukeys = []
         for key in keys:
             self.ddfs.push('disco:test:blobs', [(self.data, key)], update=True)
@@ -62,9 +59,6 @@ class DDFSUpdateTestCase(DiscoTestCase):
         self.ddfs.delete('disco:test:blobs')
 
 class DDFSWriteTestCase(DiscoTestCase):
-    def setUp(self):
-        self.ddfs = DDFS(self.disco_master_url)
-
     def test_chunk(self):
         from disco.core import classic_iterator
         url = 'http://discoproject.org/media/text/chekhov.txt'
@@ -116,7 +110,6 @@ class DDFSWriteTestCase(DiscoTestCase):
 
 class DDFSReadTestCase(DiscoTestCase):
     def setUp(self):
-        self.ddfs = DDFS(self.disco_master_url)
         self.ddfs.push('disco:test:blobs', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.push('disco:test:blobs', [(StringIO('datablob2'), 'blobdata2')])
         self.ddfs.push('disco:test:emptyblob', [(StringIO(''), 'empty')])
@@ -176,7 +169,6 @@ class DDFSReadTestCase(DiscoTestCase):
 
 class DDFSAttrTestCase(DiscoTestCase):
     def setUp(self):
-        self.ddfs = DDFS(self.disco_master_url)
         self.ddfs.push('disco:test:attrs', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.setattr('disco:test:attrs', 'a1', 'v1')
         self.ddfs.setattr('disco:test:attrs', 'a2', 'v2')
@@ -222,7 +214,6 @@ class DDFSAttrTestCase(DiscoTestCase):
 
 class DDFSAuthTestCase(DiscoTestCase):
     def setUp(self):
-        self.ddfs = DDFS(self.disco_master_url)
         self.ddfs.push('disco:test:authrd', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.push('disco:test:authwr', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.setattr('disco:test:authrd', 'a', 'v')

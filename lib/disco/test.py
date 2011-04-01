@@ -13,6 +13,7 @@ except ImportError:
 
 import disco
 from disco.core import Disco, result_iterator
+from disco.ddfs import DDFS
 from disco.settings import DiscoSettings
 from disco.util import iterify
 
@@ -76,15 +77,15 @@ class InterruptTest(KeyboardInterrupt, SkipTest):
             raise self
 
 class DiscoTestCase(TestCase):
-    disco_settings = DiscoSettings()
+    settings = DiscoSettings()
 
     @property
-    def disco_master_url(self):
-        return self.disco_settings['DISCO_MASTER']
+    def ddfs(self):
+        return DDFS(settings=self.settings)
 
     @property
     def disco(self):
-        return Disco(self.disco_master_url)
+        return Disco(settings=self.settings)
 
     def assertCommErrorCode(self, code, callable):
         from disco.error import CommError
@@ -143,12 +144,12 @@ class DiscoJobTestFixture(object):
 
     @property
     def test_server_address(self):
-        return (str(self.disco_settings['DISCO_TEST_HOST']),
-                int(self.disco_settings['DISCO_TEST_PORT']))
+        return (str(self.settings['DISCO_TEST_HOST']),
+                int(self.settings['DISCO_TEST_PORT']))
 
     @property
     def profile(self):
-        return bool(self.disco_settings['DISCO_TEST_PROFILE'])
+        return bool(self.settings['DISCO_TEST_PROFILE'])
 
     @property
     def results(self):
@@ -177,7 +178,7 @@ class DiscoJobTestFixture(object):
 
     def tearDown(self):
         self.test_server.stop()
-        if self.disco_settings['DISCO_TEST_PURGE']:
+        if self.settings['DISCO_TEST_PURGE']:
             self.job.purge()
 
     def runTest(self):
@@ -200,7 +201,7 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
         return disco.func.chain_reader
 
     def profile(self, m):
-        return bool(self.disco_settings['DISCO_TEST_PROFILE'])
+        return bool(self.settings['DISCO_TEST_PROFILE'])
 
     def results(self, m):
         return result_iterator(self.jobs[m].wait(),
@@ -245,7 +246,7 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
     def tearDown(self):
         for m in xrange(self.njobs):
             self.test_servers[m].stop()
-            if self.disco_settings['DISCO_TEST_PURGE']:
+            if self.settings['DISCO_TEST_PURGE']:
                 self.jobs[m].purge()
 
     def runTest(self):
@@ -256,21 +257,21 @@ class DiscoMultiJobTestFixture(DiscoJobTestFixture):
                 self.assertEquals(result, answer)
 
 class DiscoTestLoader(TestLoader):
-    def __init__(self, disco_settings):
+    def __init__(self, settings):
         super(DiscoTestLoader, self).__init__()
-        self.disco_settings = disco_settings
+        self.settings = settings
 
     def loadTestsFromTestCase(self, testCaseClass):
         if issubclass(testCaseClass, DiscoTestCase):
-            testCaseClass.disco_settings = self.disco_settings
+            testCaseClass.settings = self.settings
         return super(DiscoTestLoader, self).loadTestsFromTestCase(testCaseClass)
 
 class DiscoTestRunner(TextTestRunner):
-    def __init__(self, disco_settings):
+    def __init__(self, settings):
         debug_levels = {'off': 0, 'log': 1, 'trace': 2}
-        super(DiscoTestRunner, self).__init__(verbosity=debug_levels[disco_settings['DISCO_DEBUG']])
-        self.disco_settings = disco_settings
+        super(DiscoTestRunner, self).__init__(verbosity=debug_levels[settings['DISCO_DEBUG']])
+        self.settings = settings
 
     def run(self, *names):
-        suite = DiscoTestLoader(self.disco_settings).loadTestsFromNames(names)
+        suite = DiscoTestLoader(self.settings).loadTestsFromNames(names)
         return super(DiscoTestRunner, self).run(suite)

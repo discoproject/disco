@@ -24,9 +24,9 @@ class UtilTestCase(DiscoTestCase):
         self.assertEquals(function.func_code, unpack(pack(function)).func_code)
 
     def test_urlsplit(self):
-        port = self.disco_settings['DISCO_PORT']
-        ddfs = self.disco_settings['DDFS_ROOT']
-        data = self.disco_settings['DISCO_DATA']
+        port = self.settings['DISCO_PORT']
+        ddfs = self.settings['DDFS_ROOT']
+        data = self.settings['DISCO_DATA']
         self.assertEquals(urlsplit('http://host/path'),
                           ('http', ('host', ''), 'path'))
         self.assertEquals(urlsplit('http://host:port/path'),

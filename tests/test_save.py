@@ -1,6 +1,7 @@
 from disco.test import DiscoJobTestFixture, DiscoMultiJobTestFixture
 from disco.test import DiscoTestCase
 from disco.func import chain_reader
+
 from disco.ddfs import DDFS
 
 class SaveOnlyMapTestCase(DiscoJobTestFixture, DiscoTestCase):
@@ -21,14 +22,14 @@ class SaveOnlyMapTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     def runTest(self):
         results = sorted(list(self.results))
-        ddfs = DDFS(self.disco_master_url)
+        ddfs = self.ddfs
         tag = self.disco.results(self.job.name)[1][0]
         self.assertEquals(len(list(ddfs.blobs(tag))), len(self.inputs))
         self.assertEquals(self.answers, results)
 
     def tearDown(self):
         super(SaveOnlyMapTestCase, self).tearDown()
-        DDFS(self.disco_master_url).delete(DDFS.job_tag(self.job.name))
+        self.ddfs.delete(DDFS.job_tag(self.job.name))
 
 class SaveTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
     njobs = 2
@@ -71,5 +72,5 @@ class SaveTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
 
     def tearDown(self):
         super(SaveTestCase, self).tearDown()
-        DDFS(self.disco_master_url).delete(DDFS.job_tag(self.job_1.name))
-        DDFS(self.disco_master_url).delete(DDFS.job_tag(self.job_2.name))
+        self.ddfs.delete(DDFS.job_tag(self.job_1.name))
+        self.ddfs.delete(DDFS.job_tag(self.job_2.name))

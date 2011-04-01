@@ -1,7 +1,5 @@
 from disco.test import DiscoJobTestFixture, DiscoTestCase
 
-from disco.ddfs import DDFS
-
 from cStringIO import StringIO
 
 class AuthJobTestCase(DiscoJobTestFixture, DiscoTestCase):
@@ -17,7 +15,6 @@ class AuthJobTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     def setUp(self):
         tag = 'disco:test:authjob'
-        self.ddfs = DDFS(self.disco_master_url)
         pushed = self.ddfs.push(tag, [(StringIO('blobdata'), 'blob')])
         self.ddfs.setattr(tag, 'ddfs:read-token', 'r')
         self.input = ['tag://u:r@/' + tag]
