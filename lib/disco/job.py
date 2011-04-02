@@ -21,7 +21,7 @@ This can be accomplished using the :meth:`Job.wait` method::
 """
 import os, sys, time
 
-from disco import func, json
+from disco import func, json, util
 from disco.error import JobError
 from disco.util import hexhash, isiterable, netloc, load_oob, save_oob
 from disco.settings import DiscoSettings
@@ -129,6 +129,39 @@ class Job(object):
             raise JobError(self, "Failed to start job. Server replied: %s" % response)
         self.name = response
         return self
+
+class JobChain(dict):
+    def run(self, interval=1):
+        while sum(self.walk()) < len(self):
+            time.sleep(interval)
+        return self
+
+    def walk(self):
+        for job in self:
+            status, results = job.results()
+            if status == 'unknown job':
+                input = util.chainify(self.inputs(job))
+                if not any(i is None for i in input):
+                    job.run(input=input)
+            elif status == 'active':
+                pass
+            elif status == 'ready':
+                yield 1
+            else:
+                raise JobError(job, "Status %s" % status)
+
+    def inputs(self, job):
+        for input in util.iterify(self[job]):
+            if isinstance(input, Job):
+                status, results = input.results()
+                if status in ('unknown job', 'active'):
+                    yield [None]
+                elif status == 'ready':
+                    yield results
+                else:
+                    raise JobError(input, "Status %s" % status)
+            else:
+                yield [input]
 
 class JobPack(object):
     """
