@@ -8,26 +8,18 @@ class SimpleTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        yield '=' + e, e
+        yield int(e), e.strip()
 
     @staticmethod
     def reduce(iter, out, params):
-        s = 1
-        for k, v in iter:
-            assert k == '=' + v, "Corrupted key!"
-            s *= int(v)
-        out.add('result', s)
+        for k, v in sorted(iter):
+            out.add(k, v)
 
     @property
     def answers(self):
-        yield ('result',
-               102838057849351261119838300575805205791938675762040158350002406688858214958513887550465113168573010369619140625)
+        return ((i, str(i)) for i in self.inputs for x in xrange(10))
 
 class SimplerTestCase(SimpleTestCase):
     @staticmethod
     def reduce(iter, params):
-        s = 1
-        for k, v in iter:
-            assert k == '=' + v, "Corrupted key!"
-            s *= int(v)
-        yield 'result', s
+        return sorted(iter)
