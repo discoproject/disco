@@ -26,8 +26,7 @@ spawn_node(Host, IsMaster) ->
             % normal remote ddfs_node, both put and get enabled
             node_monitor(Host, Node, {true, true});
         {_, {error, {already_running, Node}}} ->
-            % normal remote ddfs_node, both put and get enabled
-            node_monitor(Host, Node, {true, true});
+            node_monitor(Host, Node, {not(IsMaster), true});
         {_, {error, timeout}} ->
             error_logger:info_report({"Connection timed out to", Host}),
             disco_server:connection_status(Host, down);

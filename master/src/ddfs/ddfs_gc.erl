@@ -122,7 +122,7 @@ start_gc_nodes([Node|T]) ->
 -spec process_tags() -> {[binary()], non_neg_integer(), non_neg_integer()}.
 process_tags() ->
     error_logger:info_report({"GC: Process tags"}),
-    {OkNodes, Failed, Tags} = gen_server:call(ddfs_master, {get_tags, all}),
+    {OkNodes, Failed, Tags} = ddfs_master:get_tags(all),
     start_gc_nodes(OkNodes),
     [process_tag(Tag) || Tag <- Tags],
     {Tags, length(OkNodes), length(Failed)}.
@@ -130,7 +130,7 @@ process_tags() ->
 -spec process_tag(binary()) -> 'ok'.
 process_tag(Tag) ->
     error_logger:info_report({"process tag", Tag}),
-    case catch gen_server:call(ddfs_master, {tag, gc_get, Tag}, 30000) of
+    case catch ddfs_master:tag_operation(gc_get, Tag, 30000) of
         {{missing, deleted}, false} ->
             error_logger:info_report({"deleted", Tag}),
             ok;
@@ -158,15 +158,19 @@ process_tag(Tag, TagId, TagUrls, TagReplicas) ->
         {fixed, NewUrls} ->
             % Run call in a separate process so post-timeout replies
             % won't pollute the gc process' inbox.
-            spawn(fun() -> gen_server:call(ddfs_master,
-                    {tag, {put, urls, NewUrls, internal}, Tag}) end);
+            spawn(fun() ->
+                      Op = {put, urls, NewUrls, internal},
+                      ddfs_master:tag_operation(Op, Tag)
+                  end);
         %%%
         %%% O5) Re-replicate tags that don't have enough replicas
         %%%
         _ when length(OkReplicas) < TagK ->
             error_logger:info_report({"GC: Re-replicating tag", Tag}),
-            spawn(fun() -> gen_server:call(ddfs_master,
-                {tag, {put, urls, TagUrls, internal}, Tag}) end);
+            spawn(fun() ->
+                      Op = {put, urls, TagUrls, internal},
+                      ddfs_master:tag_operation(Op, Tag)
+                  end);
         _ ->
             ok
     end,
@@ -277,7 +281,7 @@ rereplicate(Blob, OkNodes) ->
     case ets:lookup(obj_cache, {Blob, fixed}) of
         [{_, Url}] -> {ok, Url};
         [] ->
-            case gen_server:call(ddfs_master, {new_blob, Blob, 1, OkNodes}) of
+            case ddfs_master:new_blob(Blob, 1, OkNodes) of
                 {ok, [PutUrl]} ->
                     SrcNode = ddfs_util:choose_random(OkNodes),
                     [{_, Pid}] = ets:lookup(gc_nodes, SrcNode),
@@ -318,8 +322,8 @@ touch_wait({Obj, _} = Key) ->
 orphan_server(NumNodes) ->
     Objs = ets:new(noname, [set, private]),
     ets:foldl(fun({{Obj, _}, _}, _) ->
-        ets:insert(Objs, {Obj, true})
-    end, nil, obj_cache),
+                  ets:insert(Objs, {Obj, true})
+              end, nil, obj_cache),
     ets:delete(obj_cache),
     orphan_server(Objs, NumNodes),
     ets:delete(Objs).
@@ -367,13 +371,14 @@ process_deleted(Tags, Ages) ->
     Now = now(),
 
     % Let's start with the current list of deleted tags
-    {ok, Deleted} = gen_server:call(ddfs_master,
-        {tag, get_tagnames, <<"+deleted">>}, ?NODEOP_TIMEOUT),
+    {ok, Deleted} = ddfs_master:tag_operation(get_tagnames,
+                                              <<"+deleted">>,
+                                              ?NODEOP_TIMEOUT),
 
     % Update the time of death for newly deleted tags
     gb_sets:fold(fun(Tag, none) ->
-        ets:insert_new(Ages, {Tag, Now}), none
-    end, none, Deleted),
+                     ets:insert_new(Ages, {Tag, Now}), none
+                 end, none, Deleted),
     % Remove those tags from the candidate set which still have
     % active copies around.
     DelSet = gb_sets:subtract(Deleted, gb_sets:from_ordset(Tags)),
@@ -387,8 +392,9 @@ process_deleted(Tags, Ages) ->
             true when Diff > ?DELETED_TAG_EXPIRES ->
                 % Tag ready to be removed from +deleted
                 error_logger:info_report({"REMOVE DELETED", Tag}),
-                gen_server:call(ddfs_master, {tag, {delete_tagname, Tag},
-                    <<"+deleted">>}, ?TAG_UPDATE_TIMEOUT);
+                ddfs_master:tag_operation({delete_tagname, Tag},
+                                          <<"+deleted">>,
+                                          ?TAG_UPDATE_TIMEOUT);
             true ->
                 ok
                 % Tag hasn't been dead long enough to
