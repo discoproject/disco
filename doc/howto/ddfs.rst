@@ -11,11 +11,11 @@ Introduction
 
 Disco Distributed Filesystem (DDFS) provides a distributed storage layer
 for Disco. DDFS is designed specifically to support use cases that are
-typical for Disco and Map/Reduce in general: Storage and processing
+typical for Disco and :term:`mapreduce` in general: Storage and processing
 of massive amounts of immutable data. This makes it very suitable for
-storing, for instance, log data, large binary objects (photos, videos,
-discodb indices), or incrementally collected raw data such as web
-crawls.
+storing, for instance: log data, large binary objects (photos, videos,
+:ref:`discodb <discodb>` indices),
+or incrementally collected raw data such as web crawls.
 
 In this sense, DDFS is complementary to traditional relational databases
 or distributed key-value stores, which often have difficulties in scaling
@@ -31,20 +31,23 @@ open-source projects such as `Hadoop Distributed Filesystem (HDFS)
 DDFS is a low-level component in the Disco stack, taking care of data
 *distribution*, *replication*, *persistence*, *addressing* and *access*.
 It does not provide a sophisticated query facility in itself but it is
-**tightly integrated** with Disco jobs and the Discodex indexing component,
-which can be used to build application-specific query interfaces. Disco
-can store results of Map/Reduce jobs to DDFS, providing persistence and
-easy access for processed data.
+**tightly integrated** with Disco :term:`jobs <job>`,
+and used by :ref:`Discodex`,
+which can be used to build application-specific query interfaces.
+Disco can store job results to DDFS,
+providing persistence for and easy access to processed data.
 
 DDFS is a **tag-based** filesystem: Instead of having to organize data
 to directory hierarchies, you can tag sets of objects with arbitrary
-names and retrieve them later based on the given tags. For instance,
-tags can be used to timestamp different versions of data, or denote the
-source or owner of data. Tags can contain links to other tags, which
-form a network or a directed **graph of metadata**. This provides a
-flexible way to **manage terabytes** of data assets. DDFS also provides
-a mechanism to store arbitrary attributes with the tags, for instance,
-to denote data type.
+names and retrieve them later based on the given :term:`tags <tag>`.
+For instance,
+tags can be used to timestamp different versions of data,
+or denote the source or owner of data.
+Tags can contain links to other tags,
+which form a network or a directed **graph of metadata**.
+This provides a flexible way to **manage terabytes** of data assets.
+DDFS also provides a mechanism to store arbitrary attributes with the tags,
+for instance, to denote data type.
 
 DDFS is **schema-free**, so you can use it to store arbitrary,
 non-normalized data. However, it is not suitable for storing data items
@@ -68,12 +71,22 @@ failures without interruptions. DDFS stores data and metadata on normal
 local filesystems, such as `ext3` or `xfs`, so even under a catastrophic
 failure data is recoverable using standard tools.
 
-Overview
+Concepts
 --------
 
-DDFS operates on two concepts: *blobs* and *tags*. Blobs are arbitrary
-objects (files) that have been pushed to DDFS. They are distributed to
-storage nodes and stored on the local filesystems as is.
+DDFS operates on two concepts: :ref:`blobs` and :ref:`tags`.
+
+.. _blobs:
+
+Blobs
+'''''
+Blobs are arbitrary objects (files) that have been pushed to DDFS.
+They are distributed to storage nodes and stored on their local filesystems.
+
+.. _tags:
+
+Tags
+''''
 
 Tags contain metadata about blobs. Most importantly, a tag contains a
 list of URLs that refer to blobs that have been assigned this tag. Tag
@@ -84,8 +97,8 @@ Next section describes the role of tags and blobs more closely. It
 also shows how they relate to the five main tasks of DDFS, data
 *distribution*, *replication*, *persistence*, *addressing* and *access*.
 
-Concepts
-''''''''
+Overview
+--------
 
 Consider that you have a log file containing data of a single day.
 
@@ -172,8 +185,9 @@ with respect to data persistence. It mainly acts as a lock server, ensuring
 atomicity of metadata operations.
 
 Each storage node contains a number of disks or volumes (`vol0..volN`),
-assigned to DDFS by mounting them under ``$DDFS_ROOT/vol0`` ...
-``$DDFS_ROOT/volN``. On each volume, DDFS creates two directories,
+assigned to DDFS by mounting them under ``DDFS_ROOT/vol0`` ...
+``DDFS_ROOT/volN`` (see :envvar:`DDFS_ROOT`).
+On each volume, DDFS creates two directories,
 ``tag`` and ``blob``, for storing tags and blobs, respectively. DDFS
 monitors available disk space on each volume on regular intervals for
 load balancing. New blobs are stored to the least loaded volumes.

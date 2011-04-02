@@ -22,6 +22,7 @@ Getting started
 
    start/download
    start/install
+   start/install_sys
    start/tutorial
    start/troubleshoot
    start/getinvolved
@@ -31,11 +32,9 @@ Disco In Depth
 
 .. toctree::
    :titlesonly:
+   :glob:
 
-   howto/administer
-   howto/dataflow
-   howto/ddfs
-   howto/oob
+   howto/*
 
 Reference
 ---------

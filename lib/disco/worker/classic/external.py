@@ -4,14 +4,17 @@
 :mod:`disco.worker.classic.external` - Classic Disco External Interface
 =======================================================================
 
-Disco provides an external interface for specifying map and reduce
+.. deprecated:: 0.4
+   Consider using :ref:`worker_protocol` for programs written in languages besides Python.
+
+An external interface for specifying map and reduce
 functions as external programs, instead of Python functions. This feature
 is useful if you have already an existing program or a library which could be
 useful for a Disco job, or your map / reduce :term:`task` is severely CPU
 or memory-bound and implementing it, say, in C, would remedy the problem.
 
-Note that currently the external interface is not suitable for speeding up
-jobs that are mostly IO bound, or slowed down due to the overhead caused
+Note that this external interface is not suitable for speeding up
+jobs that are mostly IO bound, or slowed down due to overhead caused
 by Disco. Actually, since the external interface uses the standard input
 and output for communicating with the process, the overhead caused by
 Disco is likely to increase when using the external interface. However,
@@ -121,12 +124,11 @@ output list is defined as follows::
 where *num-pairs* is a 32-bit integer, which may be zero. It is followed by
 exactly *num-pairs* consequent key-value pairs as defined above.
 
-Inputs for the external map are read using the provided *map_reader*. The
-map reader may produce each input entry as a single string (like the
-default :func:`disco.func.map_line_reader` does) that is used as the value
-in a key-value pair where the key is an empty string. Alternatively,
-the reader may return a pair of strings as a tuple, in which case both
-the key and the value are specified.
+Inputs for the external map are read using the *map_reader*.
+The map reader may produce each input entry as a single string that
+is used as the in a key-value pair where the key is an empty string.
+Alternatively, the reader may return a pair of strings as a tuple,
+in which case both the key and the value are specified.
 
 The map finishes when the result list for the final key-value pair
 is received.
@@ -441,7 +443,7 @@ def package(files):
                                                    "/home/john/cmap.conf"]))
 
     All files listed in *files* are copied to the same directory so any file
-    hierarchy is lost between the files. For more information, see :ref:`discoext`.
+    hierarchy is lost between the files.
     """
     msg = dict((os.path.basename(f), open(f).read()) for f in files[1:])
     msg['op'] = open(files[0]).read()

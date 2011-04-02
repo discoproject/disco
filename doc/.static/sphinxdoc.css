@@ -4,24 +4,15 @@
  */
 
 body {
-    /*
-    font-family: 'Lucida Grande', 'Lucida Sans Unicode', 'Geneva', 'Verdana', sans-serif;
-    line-height: 150%;
-    */
-    font-family: Arial, "Bitstream Vera Sans", sans-serif;
+    font-family: 'Lucida Grande', 'Bitstream Vera Sans', sans-serif;
     font-size: 90%;
-    line-height: 1.6em;
+    line-height: 150%;
     letter-spacing: -0.01em;
     text-align: center;
-    background-color: #eee; 
-    /* background-color: #BFD1D4; */
     color: black;
-    padding: 0;
-    border: 1px solid #aaa;
-
-    margin: 4px auto;
-    min-width: 740px;
-    max-width: 1200px;
+    padding: 0px;
+    margin: 0px;
+    width: 100%;
 }
 
 a {
@@ -76,7 +67,6 @@ tt {
 
 tt.descname {
     background-color: transparent;
-    font-size: 1.2em;
     border: 0;
 }
 
@@ -149,7 +139,6 @@ pre {
 
 pre a {
     color: inherit;
-    text-decoration: underline; 
 }
 
 .first {
@@ -217,21 +206,20 @@ div.body {
 }
 
 div.bodywrapper {
-    margin: 0 240px 0 0;
-    border-right: 1px solid #ccc;
-}
-
-div.body a {
-/*   text-decoration: underline; */
+    margin: 0 250px 0 0;
 }
 
 div.sphinxsidebar {
     margin: 0;
     padding: 0.5em 15px 15px 0;
-    width: 210px;
+    width: 250px;
     float: right;
     text-align: left;
-/*    margin-left: -100%; */
+}
+
+div.sphinxsidebarwrapper {
+    border-left: 1px solid #aaa;
+    padding: 3px;
 }
 
 div.sphinxsidebar h4, div.sphinxsidebar h3 {
@@ -331,7 +319,6 @@ div.footer {
 
 div.footer a {
     color: #86989B;
-    text-decoration: underline;
 }
 
 div.pagination {
@@ -423,7 +410,6 @@ a.headerlink {
     font-size: 1em;
     margin-left: 6px;
     padding: 0 4px 0 4px;
-    text-decoration: none;
     border-bottom: 0px solid #000;
     visibility: hidden;
 }
@@ -517,9 +503,18 @@ ul.keywordmatches li.goodmatch a {
 }
 
 /* align the main table of contents */
-.section {
+#disco-documentation .section {
     float: left;
     min-width: 240px;
     min-height: 240px;
     padding: 4px;
+}
+
+.deprecated {
+    background-color: #ccc;
+    padding: 2px;
+}
+
+.deprecated .versionmodified {
+    font-weight: bold;
 }

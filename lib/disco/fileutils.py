@@ -221,30 +221,6 @@ def ensure_path(path):
         if x.errno != errno.EEXIST:
             raise
 
-def ensure_file(fname, data = None, timeout = 60, mode = 500):
-    while timeout > 0:
-        if os.path.exists(fname):
-            return False
-        try:
-            fd = os.open(fname + ".partial",
-                os.O_CREAT | os.O_EXCL | os.O_WRONLY, mode)
-            if callable(data):
-                data = data()
-            n = os.write(fd, data)
-            if n != len(data):
-                raise DataError("Writing file failed (only wrote %d/%d bytes)."
-                                " Out of disk space?" % (n, len(data)), fname)
-            os.close(fd)
-            os.rename(fname + ".partial", fname)
-            return True
-        except OSError, x:
-            if x.errno == errno.EEXIST:
-                time.sleep(1)
-                timeout -= 1
-            else:
-                raise DataError("Writing external file failed", fname)
-    raise DataError("Timeout in writing external file", fname)
-
 def ensure_free_space(fname):
     s = os.statvfs(fname)
     free = s.f_bsize * s.f_bavail

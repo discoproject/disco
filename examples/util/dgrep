@@ -4,5 +4,6 @@
 
 bin=`dirname $0`
 job=`PYTHONPATH=$bin disco run grep.Grep --param pattern "$@"` && \
-DISCO_EVENTS= disco wait $job && \
+DISCO_EVENTS= \
+disco wait $job > /dev/null && \
 disco results $job | xargs ddfs xcat

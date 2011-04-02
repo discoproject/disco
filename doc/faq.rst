@@ -2,7 +2,8 @@
 Disco FAQ
 =========
 
-.. contents::
+.. contents:: **Common Questions**
+   :local:
 
 I tried to install Disco but it doesn't work. Why?
 ''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -30,90 +31,50 @@ For example, see the `Bash Reference Manual`_.
 
 .. _profiling:
 
-How to profile programs in Disco?
-'''''''''''''''''''''''''''''''''
-*New in Disco 0.2.1*
+How do I profile programs in Disco?
+'''''''''''''''''''''''''''''''''''
 
-Disco can use the Python's standard `Profile module
-<http://docs.python.org/library/profile.html>`_ to profile map and reduce
-tasks. Enable profiling by setting ``profile = True`` in :meth:`disco.core.Disco.new_job`.
-Once the job has finished, you can retrieve the results of profiling with the
-:meth:`disco.core.Disco.profile_stats` function.
+Disco can use the
+`Profile module <http://docs.python.org/library/profile.html>`_
+to profile map and reduce tasks written in Python.
+Enable profiling by setting ``profile = True`` in your :class:`disco.job.Job`.
 
-Here's a simple example::
+Here's a simple example:
 
-        from disco.core import Disco, Params
+       .. literalinclude:: ../examples/faq/profile.py
 
-        def fun_map(e, params):
-                return [(e, 1)]
-
-        job = Disco("disco://localhost").new_job(
-                      name = "params_test",
-                      input = ["disco://localhost/myjob/file1"],
-                      map = fun_map,
-                      profile = True)
-        results = job.wait()
-
-        # retrieve results of profiling
-        stats = job.profile_stats()
-        # sort results by descending cumulative time
-        stats.sort_stats('cumulative')
-        # print out results
-        stats.print_stats()
-
-See also the next question.
+.. seealso:: :meth:`disco.core.Disco.profile_stats`
+   for accessing profiling results from Python.
 
 .. _debugging:
 
-How to debug programs in Disco?
-'''''''''''''''''''''''''''''''
+How do I debug programs in Disco?
+'''''''''''''''''''''''''''''''''
 
 Set up a single node Disco cluster locally on your laptop or desktop. It makes
 debugging a Disco job almost as easy as debugging any Python script.
-
-.. _outputtypes:
-
-How can I output arbitrary Python objects in map and reduce, not only strings?
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-*New in Disco 0.2*
-
-To pass arbitrary Python objects between map and reduce,
-set *map_writer* to
-:func:`disco.func.object_writer` and *reduce_reader* to
-:func:`disco.func.object_reader` in :meth:`disco.core.Disco.new_job`.
-
-If you want to output arbitrary objects in your reduce function, set also
-*reduce_writer* to :func:`disco.func.object_writer`. If you want to use
-:func:`disco.core.result_iterator` to read results, set its *reader* parameter
-to :func:`disco.func.object_reader`.
 
 .. _reduceonly:
 
 Do I always have to provide a function for map and reduce?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-*Updated for Disco 0.2 which supports the reduce-only case*
 
-You have to specify either map or reduce or both. Many simple tasks can be
-solved with a single map function, without reduce.
+No, you may specify either :term:`map` or :term:`reduce` or both.
+Many simple tasks can be solved with a single map function, without reduce.
 
-It is somewhat less typical to specify only the reduce function. This case
-mainly arises when you want to merge results from many independent map jobs,
+It is somewhat less typical to specify only the reduce function.
+This case arises when you want to merge results from independent map jobs,
 or you want to join several input files without going through the map phase.
-
-You can of course run many independent reduce-jobs
-for different sets of input files, if your input files belong to different
-"partitions". In this case you probably want to set *reduce_reader* in
-:meth:`disco.core.Disco.new_job` to match with the format of your input files.
 
 See also: :ref:`dataflow`
 
-How many maps can I have? Does higher number of maps lead to better performance?
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+How many maps can I have? Does a higher number of maps lead to better performance?
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 In theory there is no restriction. In practice, the number is of course
 limited by the available disk space (for input files) and the amount of
 RAM that is required by the Disco master. Disco includes a test case,
-in ``test/test_50k.py`` that starts 50,000 map tasks in parallel. You
+in ``tests/test_50k.py`` that starts 50,000 map tasks in parallel. You
 should be able to add a few zeroes there without any trouble. If you
 perform any stress tests of your own, let us know about your findings!
 
@@ -126,8 +87,9 @@ running in the system at the same time and your input is split to at
 least 50,000 separate files.
 
 The number of maps can never exceed the number of input files as Disco
-can't order many maps to process a single input file. In other words,
-to run *K* maps in parallel you need at least *K* input files.
+can't order many maps to process a single input file.
+In other words, to run *K* maps in parallel you need at least *K* input files.
+See :ref:`chunking` for more on splitting data stored in :ref:`DDFS`.
 
 In general, the question about the expected speedup when increasing
 parallelism is a rather complicated one and it depends heavily on the task
@@ -137,117 +99,52 @@ so light that the execution time is dominated by the overhead caused
 by Disco, you can expect to gain some speedup by adding more maps until
 the number of maps equals to the number of available CPUs.
 
+I have one big data file, how do I run maps on it in parallel?
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+See :ref:`chunking`.
+
+.. _chaining:
+
 How do I pass the output of one map-reduce phase to another?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-Many algorithms can be implemented cleanly as a sequence of consequent
-map-reduce jobs. Chaining jobs together is also efficient, as the job's
-results are readily distributed and stored in the Disco's internal format.
+Many algorithms can be implemented cleanly as a sequence of :term:`mapreduce`
+:term:`jobs <job>`.
+Chaining jobs together is also efficient, as the job's
+results are readily distributed and stored in Disco's internal format.
 
 Here's an example that runs ten jobs in a sequence, using outputs from
-the previous job as the input for the next one. The job increments each
-value in the input by one::
+the previous job as the input for the next one.
+The code can also be found in ``examples/faq/chain.py``.
+The job increments each value in the input by one:
 
-        from disco.core import Disco, result_iterator
-        from disco.func import chain_reader
-        import sys
-
-        def init_map(line, params):
-                return [(int(line) + 1, "")]
-
-        def iter_map(e, params):
-                key, value = e
-                return [(int(key) + 1, "")]
-
-        disco = Disco("disco://localhost")
-        results = disco.new_job(name = "inc_init",
-                                input = sys.argv[2:],
-                                map = init_map).wait()
-
-        for i in range(9):
-                results = disco.new_job(name =  "inc_%d" % i,
-                                        input = results,
-                                        map = iter_map,
-                                        map_reader = chain_reader).wait()
-
-        for key, value in result_iterator(results):
-                print key
+      .. literalinclude:: ../examples/faq/chain.py
 
 Assuming that the input files consists of zeroes, this example will
 produce a sequence of tens as the result.
 
-Note the following things in the example: You probably need two
-separate map functions, like *init_map* and *iter_map* above. The
-former handles the initial input from the original input files and the
-latter map handles input from the previous map function. When using
-:func:`disco.func.chain_reader` as the map reader, which reads results
-of a previous job as the input, the input entry for the map function
-is naturally a key-value pair whereas in the default case it is a line
-of text.
 
-Note that the job name includes a counter variable. This ensures that
-each job name is unique, as required by Disco.
+How do I print messages to the Web interface from Python?
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-
-How to maintain state across many map / reduce calls?
-'''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-Use the parameters object :class:`disco.core.Params` as the closure for
-your functions. Here's an example::
-
-        from disco.core import Disco, Params
-
-        def fun_map(e, params):
-                params.c += 1
-                if not params.c % 10:
-                        return [(e, "good")]
-                else:
-                        return [(e, "not good")]
-
-        Disco("disco://localhost").new_job(
-                      name = "params_test",
-                      input = ["disco://localhost/myjob/file1"],
-                      map = fun_map,
-                      params = Params(c = 0))
-
-In this case *params.c* is a counter variable that is incremented in
-every call to the map function.
-
-How to print messages to the Web interface?
-'''''''''''''''''''''''''''''''''''''''''''
-
-Use a normal :keyword:`print` statement. Here's an example::
-
-        from disco.core import Disco, Params
-
-        def fun_map(e, params):
-                params.c += 1
-                if not c % 100000:
-                        print "Now processing %dth entry" % params.c
-                yield e, 1
-
-        Disco('disco://localhost').new_job(
-                  name='log_test',
-                  input=['disco://localhost/myjob/file1'],
-                  map=fun_map,
-                  params=Params(c=0))
-
-Internally, Disco wraps everything written to ``sys.stdout``
-with appropriate markup for the Erlang worker process,
-which it communicates with via ``sys.stderr``.
+Use a normal Python **print** statement.
 
 .. note:: This is meant for simple debugging,
           you cannot print messages too often, or Disco will kill your job.
           The master limits the rate of messages coming from workers,
           to prevent it from being overwhelmed.
 
+Internally, Disco wraps everything written to ``sys.stdout``
+with appropriate markup for the Erlang worker process,
+which it communicates with via ``sys.stderr``.
+See also :ref:`worker_protocol`.
+
 
 My input files are stored in CSV / XML / XYZ format. What is the easiest to use them in Disco?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-If the format is textual, it may be possible to define a regular
-expression that can be used to extract input entries from the files. See
-:func:`disco.func.re_reader` for more information.
+See :func:`disco.worker.classic.func.input_stream`.
 
 Why not `Hadoop <http://hadoop.apache.org>`_?
 '''''''''''''''''''''''''''''''''''''''''''''
@@ -280,7 +177,7 @@ How do I use Disco on Amazon EC2?
 
 In general, you can use the EC2 cluster as any other Disco cluster.
 However, if you want to access result files from your local machine,
-you need to set the :envvar:`DISCO_PROXY` setting (see :mod:`disco.settings`).
+you need to set the :envvar:`DISCO_PROXY` setting.
 This configures the master node as a proxy,
 since the computation nodes on EC2 are not directly accessible.
 

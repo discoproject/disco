@@ -3,10 +3,21 @@
 :mod:`disco.worker.classic.worker` -- Classic Disco Runtime Environment
 =======================================================================
 
-When a Job is constructed using a classic :class:`Worker`,
+When a Job is constructed using the classic :class:`Worker` defined in this module,
 Disco runs the :mod:`disco.worker.classic.worker` module for every job task.
 This module reconstructs the :class:`Worker` on the node where it is run,
-in order to execute the functions which were used to create it.
+in order to execute the :term:`job functions` which were used to create it.
+
+Classic Workers resolve parameters in the following order:
+        #. jobargs (parameters passed in during :meth:`disco.job.Job.run`)
+        #. job (attributes of the :class:`disco.job.Job`)
+        #. worker (items in the :class:`Worker` dict itself)
+
+Thus, users can subclass :class:`Job` as a convenient way to specify fixed parameters.
+For example, here's a simple distributed grep from the Disco ``examples/`` directory:
+
+    .. literalinclude:: ../../../examples/util/grep.py
+
 """
 import os, sys
 
@@ -19,14 +30,11 @@ def status(message):
 
 class Worker(worker.Worker):
     """
-    The worker may use the following keys,
-    in addition to those inherited from :class:`disco.worker.Worker`.
-
-        .. note:: Arguments that are required are marked as such.
-                  All other arguments are optional.
+    A :class:`disco.worker.Worker`, which additionally supports the following parameters,
+    to maintain the **Classic Disco Interface**:
 
         .. note:: The classic worker tries to guess which modules are needed automatically,
-                  for all of the functions specified below,
+                  for all of the :term:`job functions` specified below,
                   if the *required_modules* parameter is not specified.
                   It sends any local dependencies
                   (i.e. modules not included in the Python standard library)
@@ -36,7 +44,7 @@ class Worker(worker.Worker):
                   see :mod:`disco.modutil` for options.
 
     :type  map: :func:`disco.worker.classic.func.map`
-    :param map: a :term:`pure function` that defines the map task.
+    :param map: a function that defines the map task.
 
     :type  map_init: :func:`disco.worker.classic.func.init`
     :param map_init: initialization function for the map task.
@@ -47,45 +55,42 @@ class Worker(worker.Worker):
                              :class:`disco.worker.classic.func.InputStream` object is used
                              to iterate over input entries.
 
-                             (*Added in version 0.2.4*)
+                             .. versionadded:: 0.2.4
 
     :type  map_output_stream: sequence of :func:`disco.worker.classic.func.output_stream`
     :param map_output_stream: The given functions are chained together and the
                               :meth:`disco.worker.classic.func.OutputStream.add` method of the last
                               returned :class:`disco.worker.classic.func.OutputStream` object is used
                               to serialize key, value pairs output by the map.
-                              (*Added in version 0.2.4*)
+
+                              .. versionadded:: 0.2.4
 
     :type  map_reader: ``None`` or :func:`disco.worker.classic.func.input_stream`
     :param map_reader: Convenience function to define the last :func:`disco.worker.classic.func.input_stream`
                        function in the *map_input_stream* chain.
 
-                       Disco worker provides a convenience function
-                       :func:`disco.worker.classic.func.re_reader` that can be used to create
-                       a reader using regular expressions.
-
                        If you want to use outputs of an earlier job as inputs,
                        use :func:`disco.worker.classic.func.chain_reader` as the *map_reader*.
 
-                       Default is ``None``.
+                       .. versionchanged:: 0.3.1
+                          The default is ``None``.
 
-                       (*Changed after version 0.3.1*)
-                       The default map_reader became ``None``.
-                       See the note in :func:`disco.worker.classic.func.map_line_reader`
-                       for information on how this might affect older jobs.
+    :type  combiner: :func:`disco.worker.classic.func.combiner`
+    :param combiner: called after the partitioning function, for each partition.
 
     :type  reduce: :func:`disco.worker.classic.func.reduce`
     :param reduce: If no reduce function is specified, the job will quit after
                    the map phase has finished.
 
-                   *Added in version 0.3.1*:
-                   Reduce supports now an alternative signature,
-                   :func:`disco.worker.classic.func.reduce2` which uses an iterator instead
-                   of ``out.add()`` to output results.
+                   .. versionadded:: 0.3.1
+                      Reduce now supports an alternative signature,
+                      :func:`disco.worker.classic.func.reduce2`,
+                      which uses an iterator instead
+                      of ``out.add()`` to output results.
 
-                   *Changed in version 0.2*:
-                   It is possible to define only *reduce* without *map*.
-                   For more information, see the FAQ entry :ref:`reduceonly`.
+                   .. versionchanged:: 0.2
+                      It is possible to define only *reduce* without *map*.
+                      See also :ref:`reduceonly`.
 
     :type  reduce_init: :func:`disco.worker.classic.func.init`
     :param reduce_init: initialization function for the reduce task.
@@ -95,26 +100,31 @@ class Worker(worker.Worker):
     :param reduce_input_stream: The given functions are chained together and the last
                               returned :class:`disco.worker.classic.func.InputStream` object is
                               given to *reduce* as its first argument.
-                              (*Added in version 0.2.4*)
+
+                              .. versionadded:: 0.2.4
 
     :type  reduce_output_stream: sequence of :func:`disco.worker.classic.func.output_stream`
     :param reduce_output_stream: The given functions are chained together and the last
                               returned :class:`disco.worker.classic.func.OutputStream` object is
                               given to *reduce* as its second argument.
-                              (*Added in version 0.2.4*)
+
+                              .. versionadded:: 0.2.4
 
     :type  reduce_reader: :func:`disco.worker.classic.func.input_stream`
-    :param reduce_reader: Convenience function to define the last func:`disco.worker.classic.func.input_stream`
+    :param reduce_reader: Convenience function to define the last :func:`disco.worker.classic.func.input_stream`
                           if *map* is specified.
                           If *map* is not specified,
                           you can read arbitrary inputs with this function,
                           similar to *map_reader*.
-                          (*Added in version 0.2*)
 
                           Default is :func:`disco.worker.classic.func.chain_reader`.
 
-    :type  combiner: :func:`disco.worker.classic.func.combiner`
-    :param combiner: called after the partitioning function, for each partition.
+                          .. versionadded:: 0.2
+
+    :type  merge_partitions: bool
+    :param merge_partitions: whether or not to merge partitioned inputs during reduce.
+
+                             Default is ``False``.
 
     :type  partition: :func:`disco.worker.classic.func.partition`
     :param partition: decides how the map output is distributed to reduce.
@@ -125,11 +135,6 @@ class Worker(worker.Worker):
     :param partitions: number of partitions, if any.
 
                        Default is ``1``.
-
-    :type  merge_partitions: bool
-    :param merge_partitions: whether or not to merge partitioned inputs during reduce.
-
-                             Default is ``False``.
 
     :type  sort: boolean
     :param sort: flag specifying whether the intermediate results,
@@ -159,8 +164,7 @@ class Worker(worker.Worker):
 
                    A convience class :class:`Params` is provided that
                    provides an easy way to encapsulate a set of parameters.
-                   :class:`Params` allows including
-                   :term:`pure functions <pure function>` in the parameters.
+                   :class:`Params` allows including functions  in the parameters.
 
     :param ext_params: if either map or reduce function is an external program,
                        typically specified using :func:`disco.util.external`,
@@ -169,7 +173,7 @@ class Worker(worker.Worker):
                        See :mod:`disco.worker.classic.external`.
 
 
-    :type  status_interval: integer
+    :type  status_interval: int
     :param status_interval: print "K items mapped / reduced"
                             for every Nth item.
                             Setting the value to 0 disables messages.
@@ -182,12 +186,6 @@ class Worker(worker.Worker):
                             you don't have that many data items.
 
                             Default is ``100000``.
-
-    :type  profile: boolean
-    :param profile: enable tasks profiling.
-                    Retrieve profiling results with :meth:`Disco.profile_stats`.
-
-                    Default is ``False``.
     """
     def defaults(self):
         defaults = super(Worker, self).defaults()
@@ -228,13 +226,16 @@ class Worker(worker.Worker):
                     jobzip.writebytes(os.path.join('ext.%s' % func, path), bytes)
         return jobzip
 
-    def run(self, task):
+    def run(self, task, job, **jobargs):
         global Task
         Task = task
+        for key in self:
+            self[key] = self.getitem(key, job, **jobargs)
         assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
 
         def open_hook(file, size, url):
-            status("Input is %s" % (util.format_size(size)))
+            if size is not None:
+                status("Input is %s" % (util.format_size(size)))
             return file
         self.open_hook = open_hook
 
@@ -354,36 +355,29 @@ class ClassicFile(object):
 
 class Params(object):
     """
-    Parameter container for map / reduce tasks.
+    .. deprecated:: 0.4
+              :class:`Params` objects aren't generally needed,
+              since entire modules are sent with the :class:`Worker`,
+              state can be stored as in normal Python.
 
-    This object provides a convenient way to contain custom parameters,
+    Classic parameter container for map / reduce tasks.
+
+    This object provides a way to contain custom parameters,
     or state, in your tasks.
 
-    This example shows a simple way of using :class:`Params`::
-
-        def map(e, params):
-                params.c += 1
-                if not params.c % 10:
-                        return [(params.f(e), params.c)]
-                return [(e, params.c)]
-
-        job.run(map=map, params=Params(c=0, f=lambda x: x + "!"))
-
-    You can specify any number of key-value pairs to the :class:`Params`.
+    You can specify any number of ``key, value`` pairs to the :class:`Params`.
     The pairs will be available to task functions through the *params* argument.
     Each task receives its own copy of the initial params object.
     *key* must be a valid Python identifier.
     *value* can be any Python object.
-    For instance, *value* can be an arbitrary :term:`pure function`,
-    such as *params.f* in the previous example.
     """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
     def __getstate__(self):
         return dict((k, util.pack(v))
-            for k, v in self.__dict__.iteritems()
-                if not k.startswith('_'))
+                    for k, v in self.__dict__.iteritems()
+                    if not k.startswith('_'))
 
     def __setstate__(self, state):
         for k, v in state.iteritems():
