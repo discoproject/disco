@@ -39,7 +39,7 @@ def inputs(done=False, exclude=()):
 
 def output(task, partition=None, type='disco'):
     if partition is None:
-        return task.path(task.uid), type, 'None'
+        return task.path(task.uid), type, '0'
     elif not isinstance(partition, basestring):
         raise ValueError("Partition label must be a string or None")
     return task.path('%s-%s' % (task.mode, partition)), 'part', partition
