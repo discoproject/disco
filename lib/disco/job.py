@@ -131,9 +131,9 @@ class Job(object):
         return self
 
 class JobChain(dict):
-    def run(self, interval=1):
+    def wait(self, poll_interval=1):
         while sum(self.walk()) < len(self):
-            time.sleep(interval)
+            time.sleep(poll_interval)
         return self
 
     def walk(self):
@@ -162,6 +162,10 @@ class JobChain(dict):
                     raise JobError(input, "Status %s" % status)
             else:
                 yield [input]
+
+    def purge(self):
+        for job in self:
+            job.purge()
 
 class JobPack(object):
     """

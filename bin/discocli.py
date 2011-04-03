@@ -276,12 +276,12 @@ def test(program, *tests):
     Test names is an optional list of names of modules in the ``$DISCO_HOME/tests`` directory (e.g. ``test_simple``).
     Test names may also include the names of specific test cases (e.g. ``test_sort.MemorySortTestCase``).
     """
-    from disco.test import DiscoTestRunner
+    from disco.test import TestRunner
     if not tests:
         tests = list(program.tests)
     os.environ.update(program.settings.env)
     sys.path.insert(0, program.tests_path)
-    DiscoTestRunner(program.settings).run(*tests)
+    TestRunner(program.settings).run(*tests)
 
 @Disco.command
 def config(program):
