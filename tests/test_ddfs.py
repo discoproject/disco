@@ -1,13 +1,12 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
-
-from disco.ddfs import DDFS
+from disco.test import TestCase
 
 from cStringIO import StringIO
 
-class DDFSUpdateTestCase(DiscoTestCase):
+class DDFSUpdateTestCase(TestCase):
     data = StringIO('blobdata')
 
     def blobnames(self, tag):
+        from disco.ddfs import DDFS
         return list(reversed(list(DDFS.blob_name(repl[0])
                                   for repl in self.ddfs.blobs(tag))))
 
@@ -58,7 +57,7 @@ class DDFSUpdateTestCase(DiscoTestCase):
     def tearDown(self):
         self.ddfs.delete('disco:test:blobs')
 
-class DDFSWriteTestCase(DiscoTestCase):
+class DDFSWriteTestCase(TestCase):
     def test_chunk(self):
         from disco.core import classic_iterator
         url = 'http://discoproject.org/media/text/chekhov.txt'
@@ -108,7 +107,7 @@ class DDFSWriteTestCase(DiscoTestCase):
         self.ddfs.delete('disco:test:blobs')
         self.ddfs.delete('disco:test:blobs2')
 
-class DDFSReadTestCase(DiscoTestCase):
+class DDFSReadTestCase(TestCase):
     def setUp(self):
         self.ddfs.push('disco:test:blobs', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.push('disco:test:blobs', [(StringIO('datablob2'), 'blobdata2')])
@@ -167,7 +166,7 @@ class DDFSReadTestCase(DiscoTestCase):
         self.ddfs.delete('disco:test:metatag')
 
 
-class DDFSAttrTestCase(DiscoTestCase):
+class DDFSAttrTestCase(TestCase):
     def setUp(self):
         self.ddfs.push('disco:test:attrs', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.setattr('disco:test:attrs', 'a1', 'v1')
@@ -212,7 +211,7 @@ class DDFSAttrTestCase(DiscoTestCase):
     def tearDown(self):
         self.ddfs.delete('disco:test:attrs')
 
-class DDFSAuthTestCase(DiscoTestCase):
+class DDFSAuthTestCase(TestCase):
     def setUp(self):
         self.ddfs.push('disco:test:authrd', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.push('disco:test:authwr', [(StringIO('datablob'), 'blobdata')])
