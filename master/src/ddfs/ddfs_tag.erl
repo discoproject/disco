@@ -387,7 +387,7 @@ jsonbin(X) ->
     iolist_to_binary(mochijson2:encode(X)).
 
 -spec do_get({tokentype(), token()}, attrib() | all, tagcontent()) ->
-             binary() | {'error','unauthorized' | 'unknown_attribute'}.
+             {'ok', binary()} | {'error','unauthorized' | 'unknown_attribute'}.
 do_get(_TokenInfo, all, D) ->
     {ok, ddfs_tag_util:encode_tagcontent_secure(D)};
 

@@ -128,6 +128,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% ===================================================================
 %% internal functions
 
+-spec do_get_blob({pid(), _}, #state{}) ->
+                 {'reply', 'full', #state{}} | {'noreply', #state{}}.
 do_get_blob({Pid, _Ref} = From, #state{getq = Q} = S) ->
     Reply = fun() -> gen_server:reply(From, ok) end,
     case http_queue:add({Pid, Reply}, Q) of
@@ -138,11 +140,14 @@ do_get_blob({Pid, _Ref} = From, #state{getq = Q} = S) ->
             {noreply, S#state{getq = NewQ}}
     end.
 
+-spec do_get_diskspace(#state{}) -> diskinfo().
 do_get_diskspace(#state{vols = Vols}) ->
     lists:foldl(fun ({{Free, Used}, _VolName}, {TotalFree, TotalUsed}) ->
                         {TotalFree + Free, TotalUsed + Used}
                 end, {0, 0}, Vols).
 
+-spec do_put_blob(nonempty_string(), {pid(), _}, #state{}) ->
+                 {'reply', 'full', #state{}} | {'noreply', #state{}}.
 do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
     Reply = fun() ->
                     {_Space, VolName} = choose_vol(S#state.vols),
@@ -166,6 +171,8 @@ do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
             {noreply, S#state{putq = NewQ}}
     end.
 
+-spec do_get_tag_timestamp(binary(), #state{}) ->
+                          'notfound' | {'ok', {timer:timestamp(), binary()}}.
 do_get_tag_timestamp(TagName, S) ->
     case gb_trees:lookup(TagName, S#state.tags) of
         none ->
@@ -174,6 +181,7 @@ do_get_tag_timestamp(TagName, S) ->
             {ok, TagNfo}
     end.
 
+-spec do_get_tag_data(binary(), nonempty_string(), {pid(), _}, #state{}) -> 'ok'.
 do_get_tag_data(Tag, VolName, From, S) ->
     {ok, TagDir, _Url} = ddfs_util:hashdir(Tag,
                                            disco:host(node()),
@@ -189,6 +197,7 @@ do_get_tag_data(Tag, VolName, From, S) ->
             gen_server:reply(From, {error, read_failed})
     end.
 
+-spec do_put_tag_data(binary(), binary(), #state{}) -> {'ok', binary()} | {'error', _}.
 do_put_tag_data(Tag, Data, S) ->
     {_Space, VolName} = choose_vol(S#state.vols),
     {ok, Local, _} = ddfs_util:hashdir(Tag,
@@ -209,6 +218,8 @@ do_put_tag_data(Tag, Data, S) ->
             E
     end.
 
+-spec do_put_tag_commit(binary(), [{node(), binary()}], #state{}) ->
+                       {{'ok', binary()} | {'error', _}, #state{}}.
 do_put_tag_commit(Tag, TagVol, S) ->
     {value, {_, VolName}} = lists:keysearch(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag,

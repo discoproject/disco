@@ -57,6 +57,7 @@ timestamp() -> timestamp(now()).
 timestamp({X0, X1, X2}) ->
     lists:flatten([to_hex(X0), $-, to_hex(X1), $-, to_hex(X2)]).
 
+-spec timestamp_to_time(nonempty_string()) -> timer:timestamp().
 timestamp_to_time(T) ->
     list_to_tuple([erlang:list_to_integer(X, 16) ||
         X <- string:tokens(lists:flatten(T), "-")]).
