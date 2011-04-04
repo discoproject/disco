@@ -1,17 +1,15 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
+from disco.test import TestCase, TestJob
 
-class LocalhostTestCase(DiscoJobTestFixture, DiscoTestCase):
-    @property
-    def inputs(self):
-        return range(self.num_workers * 2)
-
-    def getdata(self, path):
-        return path
-
+class LocalhostJob(TestJob):
     @staticmethod
     def map(e, params):
+        import time
         time.sleep(0.5)
-        return [(int(e), '')]
+        yield int(e), ''
+
+class LocalhostTestCase(TestCase):
+    def serve(self, path):
+        return path
 
     def setUp(self):
         self.config = self.disco.config
@@ -20,8 +18,9 @@ class LocalhostTestCase(DiscoJobTestFixture, DiscoTestCase):
         super(LocalhostTestCase, self).setUp()
 
     def runTest(self):
-        self.assertEquals(sum(xrange(self.num_workers * 2)),
-                  sum(int(k) for k, v in self.results))
+        X = xrange(self.num_workers * 2)
+        self.job = LocalhostJob().run(input=self.test_server.urls(X))
+        self.assertEqual(sum(k for k, v in self.results(self.job)), sum(X))
 
     def tearDown(self):
         super(LocalhostTestCase, self).tearDown()
