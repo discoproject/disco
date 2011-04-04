@@ -1,7 +1,7 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.core import Params
-
 from datetime import datetime
+
+from disco.test import TestCase, TestJob
+from disco.worker.classic.worker import Params
 
 def fun1(a, b):
     return a + b
@@ -11,24 +11,25 @@ def fun2(x):
         return 1
     return 0
 
-class ParamsTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = range(10)
+class ParamsJob(TestJob):
     params = Params(x=5, f1=fun1, f2=fun2, now=datetime.now())
-    sort   = False
-
-    def getdata(self, path):
-        return '\n'.join([path] * 10)
+    sort = False
 
     @staticmethod
     def map(e, params):
-        return [(e, params.f1(int(e), params.x))]
+        yield e, params.f1(int(e), params.x)
 
     @staticmethod
-    def reduce(iter, out, params):
+    def reduce(iter, params):
         for k, v in iter:
-            out.add(k, params.f2(int(v)))
+            yield k, params.f2(int(v))
+
+class ParamsTestCase(TestCase):
+    def serve(self, path):
+        return '\n'.join([path] * 10)
 
     def runTest(self):
-        for k, v in self.results:
+        self.job = ParamsJob().run(input=self.test_server.urls(range(10)))
+        for k, v in self.results(self.job):
             self.assertEquals(fun2(int(k) + 5), int(v))
 
