@@ -1,10 +1,10 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.events import Event, Message, AnnouncePID, DataUnavailable, Output, EventRecord
-from disco.error import JobError
-
 from datetime import datetime
 
-class EventFormatTestCase(DiscoTestCase):
+from disco.events import Event, Message, AnnouncePID, DataUnavailable, Output, EventRecord
+from disco.error import JobError
+from disco.test import TestCase, TestJob
+
+class EventFormatTestCase(TestCase):
     def test_event(self):
         event_record = EventRecord(str(Event('message', tags=['mem', 'cpu'])))
         self.assertEquals('EV', event_record.type)
@@ -44,84 +44,52 @@ class EventFormatTestCase(DiscoTestCase):
         self.assertRaises(TypeError, EventRecord(str(Event('', tags=['bad-']))))
         self.assertRaises(TypeError, EventRecord(str(Event('', tags=['bad ']))))
 
-class SingleLineMessageTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = [1]
-
-    def getdata(self, path):
+class JobEventTestCase(TestCase):
+    def serve(self, path):
         return 'data\n' * 10
 
-    @staticmethod
-    def map(e, params):
-        import sys
-        sys.stderr.write('**<MSG> Single line message\n')
-        return []
+    def new_job(self, **kwargs):
+        return TestJob().run(input=self.test_server.urls([1]), **kwargs)
 
-    @property
-    def answers(self):
-        return []
-
-class BinaryMessageTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = [1]
-
-    def getdata(self, path):
-        return 'data\n' * 10
-
-    @staticmethod
-    def map(e, params):
-        print '\x00\x001\xc9D\x8b-\xa0\x99 \x00\xba\xc0\xe5`\x00H\x89\xdeH\x8b=\x81\x99 \x00\xe8\x04\xeb\xff\xff\x85\xc0\x0f\x88l'
-        return []
-
-    @property
-    def answers(self):
-        return []
-
-class SingleLineErrorTestCase(SingleLineMessageTestCase):
-    @staticmethod
-    def map(e, params):
-        import sys
-        sys.stderr.write('**<ERR> Single line error!\n')
-        return []
-
-    def runTest(self):
+    def test_single_line_error(self):
+        def map(e, params):
+            import sys
+            sys.stderr.write('**<ERR> Single line error!\n')
+        self.job = self.new_job(map=map)
         self.assertRaises(JobError, self.job.wait)
 
-class UTF8MessageTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = [1]
+    def test_single_line_message(self):
+        def map(e, params):
+            import sys
+            sys.stderr.write('**<MSG> Single line message\n')
+            return []
+        self.job = self.new_job(map=map)
+        self.assertResults(self.job, [])
 
-    def getdata(self, path):
-        return 'data\n' * 10
+    def test_binary_message(self):
+        def map(e, params):
+            print '\x00\x001\xc9D\x8b-\xa0\x99 \x00\xba\xc0\xe5`\x00H\x89'
+            '\xdeH\x8b=\x81\x99 \x00\xe8\x04\xeb\xff\xff\x85\xc0\x0f\x88l'
+            return []
+        self.job = self.new_job(map=map)
+        self.assertResults(self.job, [])
 
-    @staticmethod
-    def map(e, params):
-        print u'\xc4\xe4rett\xf6myys'
-        return []
+    def test_utf8_message(self):
+        def has_valid_event(events):
+            msg = u'\xc4\xe4rett\xf6myys'
+            for n, e in events:
+                if msg in e[2]:
+                    return True
+        def map(e, params):
+            print u'\xc4\xe4rett\xf6myys'
+            return []
+        self.job = self.new_job(map=map)
+        self.assertResults(self.job, [])
+        self.assertTrue(has_valid_event(self.job.events()))
 
-    @property
-    def answers(self):
-        return []
-
-    def has_valid_event(self, events):
-        msg = u'\xc4\xe4rett\xf6myys'
-        for n, e in events:
-            if msg in e[2]:
-                return True
-        return False
-
-    def runTest(self):
-        self.job.wait()
-        self.assertTrue(self.has_valid_event(self.job.events()))
-
-class NonUTF8MessageTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = [1]
-
-    def getdata(self, path):
-        return 'data\n' * 10
-
-    @staticmethod
-    def map(e, params):
-        print u'\xc4\xe4rett\xf6myys'.encode('latin-1')
-        return []
-
-    @property
-    def answers(self):
-        return []
+    def test_non_utf8_message(self):
+        def map(e, params):
+            print u'\xc4\xe4rett\xf6myys'.encode('latin-1')
+            return []
+        self.job = self.new_job(map=map)
+        self.assertResults(self.job, [])
