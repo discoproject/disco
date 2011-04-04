@@ -1,6 +1,7 @@
 -module(ddfs).
 
 -include("config.hrl").
+-include("ddfs_tag.hrl").
 
 -export([new_blob/4, tags/2, get_tag/4, update_tag/4, update_tag/5,
          update_tag_delayed/4, update_tag_delayed/5,
@@ -28,39 +29,39 @@ tags(Host, Prefix) ->
         E -> E
     end.
 
--spec get_tag(node(), string(), atom() | string(), ddfs_tag:token() | 'internal') ->
+-spec get_tag(node(), string(), atom() | string(), token() | 'internal') ->
     'invalid_name' | {'missing', _} | 'unknown_attribute'
     | {'ok', binary()} | {'error', _}.
 get_tag(Host, Tag, Attrib, Token) ->
     tagop(Host, Tag, {get, Attrib, Token}, ?NODEOP_TIMEOUT).
 
--spec update_tag(node(), string(), [[binary()]], ddfs_tag:token()) -> _.
+-spec update_tag(node(), string(), [[binary()]], token()) -> _.
 update_tag(Host, Tag, Urls, Token) ->
     update_tag(Host, Tag, Urls, Token, []).
 
--spec update_tag(node(), string(), [[binary()]], ddfs_tag:token(), [term()]) -> _.
+-spec update_tag(node(), string(), [[binary()]], token(), [term()]) -> _.
 update_tag(Host, Tag, Urls, Token, Opt) ->
     tagop(Host, Tag, {update, Urls, Token, Opt}).
 
--spec update_tag_delayed(node(), string(), [[binary()]], ddfs_tag:token()) -> _.
+-spec update_tag_delayed(node(), string(), [[binary()]], token()) -> _.
 update_tag_delayed(Host, Tag, Urls, Token) ->
     update_tag_delayed(Host, Tag, Urls, Token, []).
 
 -spec update_tag_delayed(node(), string(), [[binary()]],
-                         ddfs_tag:token(), [term()]) -> _.
+                         token(), [term()]) -> _.
 update_tag_delayed(Host, Tag, Urls, Token, Opt) ->
     tagop(Host, Tag, {delayed_update, Urls, Token, Opt}).
 
 -spec replace_tag(node(), string(),
-                  ddfs_tag:attrib(), [binary()] | [[binary()]], ddfs_tag:token()) -> _.
+                  attrib(), [binary()] | [[binary()]], token()) -> _.
 replace_tag(Host, Tag, Field, Value, Token) ->
     tagop(Host, Tag, {put, Field, Value, Token}).
 
--spec delete_attrib(node(), string(), ddfs_tag:attrib(), ddfs_tag:token()) -> _.
+-spec delete_attrib(node(), string(), attrib(), token()) -> _.
 delete_attrib(Host, Tag, Field, Token) ->
     tagop(Host, Tag, {delete_attrib, Field, Token}).
 
--spec delete(node(), string(), ddfs_tag:token() | 'internal') -> _.
+-spec delete(node(), string(), token() | 'internal') -> _.
 delete(Host, Tag, Token) ->
     tagop(Host, Tag, {delete, Token}).
 

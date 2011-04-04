@@ -7,6 +7,7 @@
             active :: [T]}).
 
 -type q() :: #q{}.
+-export_type([q/0]).
 
 -spec new(non_neg_integer(), non_neg_integer()) -> #q{}.
 new(MaxActive, MaxWaiting) ->

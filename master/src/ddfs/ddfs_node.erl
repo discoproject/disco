@@ -8,6 +8,8 @@
 
 % Diskinfo is {FreeSpace, UsedSpace}.
 -type diskinfo() :: {non_neg_integer(), non_neg_integer()}.
+-export_type([diskinfo/0]).
+
 -record(state, {nodename :: string(),
                 root :: nonempty_string(),
                 vols :: [{diskinfo(), nonempty_string()},...],
