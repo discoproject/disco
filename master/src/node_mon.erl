@@ -14,6 +14,7 @@ spawn_node(Host) ->
     process_flag(trap_exit, true),
     spawn_node(Host, is_master(Host)).
 
+-spec spawn_node(nonempty_string(), bool()) -> no_return().
 spawn_node(Host, IsMaster) ->
     case {IsMaster, catch slave_start(Host)} of
         {true, {ok, Node}} ->

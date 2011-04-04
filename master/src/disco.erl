@@ -53,7 +53,7 @@ has_setting(SettingName) ->
         _Val  -> true
     end.
 
--spec settings() -> [string()].
+-spec settings() -> [nonempty_string()].
 settings() ->
     lists:filter(fun has_setting/1,
                  string:tokens(get_setting("DISCO_SETTINGS"), ",")).
@@ -66,14 +66,15 @@ host(Node) ->
 name(Node) ->
     string:sub_word(atom_to_list(Node), 1, $@).
 
--spec master_name() -> string().
+-spec master_name() -> nonempty_string().
 master_name() ->
     get_setting("DISCO_NAME") ++ "_master".
 
+-spec master_node(string()) -> atom().
 master_node(Host) ->
     list_to_atom(master_name() ++ "@" ++ Host).
 
--spec slave_name() -> string().
+-spec slave_name() -> nonempty_string().
 slave_name() ->
     get_setting("DISCO_NAME") ++ "_slave".
 
@@ -94,6 +95,7 @@ slave_safe(Host) ->
 oob_name(JobName) ->
     lists:flatten(["disco:job:oob:", JobName]).
 
+-spec hexhash(nonempty_string() | binary()) -> nonempty_string().
 hexhash(Path) when is_list(Path) ->
     hexhash(list_to_binary(Path));
 hexhash(Path) ->
