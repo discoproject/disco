@@ -151,7 +151,7 @@ class Disco(object):
 
     def kill(self, jobname):
         """Kills the job."""
-        self.request('/disco/ctrl/kill_job', jobname)
+        self.request('/disco/ctrl/kill_job', '"%s"' % jobname)
 
     def clean(self, jobname):
         """
