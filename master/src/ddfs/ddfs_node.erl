@@ -207,7 +207,8 @@ do_put_tag_data(Tag, Data, S) ->
                                        VolName),
     case ddfs_util:ensure_dir(Local) of
         ok ->
-            Filename = filename:join(Local, ["!partial.", binary_to_list(Tag)]),
+            Partial = lists:flatten(["!partial.", binary_to_list(Tag)]),
+            Filename = filename:join(Local, Partial),
             case prim_file:write_file(Filename, Data) of
                 ok ->
                     {ok, VolName};
@@ -230,7 +231,7 @@ do_put_tag_commit(Tag, TagVol, S) ->
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
 
     TagL = binary_to_list(Tag),
-    Src = filename:join(Local, ["!partial.", TagL]),
+    Src = filename:join(Local, lists:flatten(["!partial.", TagL])),
     Dst = filename:join(Local,  TagL),
     case ddfs_util:safe_rename(Src, Dst) of
         ok ->

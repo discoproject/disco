@@ -67,7 +67,8 @@ receive_blob(Req, {Path, Fname}, Url) ->
     case prim_file:read_file_info(Dir) of
         {error, enoent} ->
             Tstamp = ddfs_util:timestamp(),
-            Dst = filename:join(Path, ["!partial-", Tstamp, ".", Fname]),
+            Partial = lists:flatten(["!partial-", Tstamp, ".", Fname]),
+            Dst = filename:join(Path, Partial),
             case file:open(Dst, [write, raw, binary]) of
                 {ok, IO} -> receive_blob(Req, IO, Dst, Url);
                 Error -> error_reply(Req, "Opening file failed", Dst, Error)
