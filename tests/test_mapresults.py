@@ -1,43 +1,27 @@
-from disco.test import DiscoMultiJobTestFixture, DiscoTestCase
-from disco.error import JobError
+from disco.core import result_iterator
+from disco.test import TestCase, TestJob
 
-class MapResultsTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
-    njobs = 2
-    inputs_1 = ['huey', 'dewey', 'louie']
-    partitions_1 = 3
-
-    def getdata(self, path):
-        return path + "\n"
-
-    @property
-    def input_2(self):
-        try:
-            self.job_1.wait()
-        except JobError:
-            return self.job_1.mapresults()
+class MapResultsJob(TestJob):
+    partitions = 3
 
     @staticmethod
-    def map_1(e, params):
-        if type(e) == tuple:
-            e = e[0]
-        yield (e.strip() + "!", '')
+    def map(e, params):
+        yield e + '!', ''
 
     @staticmethod
-    def reduce_1(iter, out, params):
-        raise Exception("This is supposed to fail")
-
-    @staticmethod
-    def reduce_2(iter, out, params):
+    def reduce(iter, params):
         for k, v in iter:
-            out.add(k + "?", v)
+            yield k + '?', v
 
-    @property
-    def answers(self):
-        return [('dewey!?', ''), ('huey!?', ''), ('louie!?', '')]
 
+class MapResultsTestCase(TestCase):
     def runTest(self):
-        self.assertEquals(self.answers, sorted(list(self.results_2)))
-
+        ducks = ['huey', 'dewey', 'louie']
+        self.job = MapResultsJob().run(input=['raw://%s' % d for d in ducks])
+        self.assertAllEqual(sorted(result_iterator(self.job.results())),
+                            sorted(('%s!?' % d, '') for d in ducks))
+        self.assertAllEqual(sorted(result_iterator(self.job.mapresults())),
+                            sorted(('%s!' % d, '') for d in ducks))
 
 
 
