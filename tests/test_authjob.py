@@ -1,25 +1,22 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
+from disco.test import TestCase, TestJob
 
-from cStringIO import StringIO
-
-class AuthJobTestCase(DiscoJobTestFixture, DiscoTestCase):
-    input = []
-
+class AuthJob(TestJob):
     @staticmethod
     def map(e, params):
-        return [(e.strip(), '')]
+        yield e.strip(), ''
 
-    @property
-    def answers(self):
-        return [('blobdata', '')]
-
+class AuthTestCase(TestCase):
     def setUp(self):
-        tag = 'disco:test:authjob'
-        pushed = self.ddfs.push(tag, [(StringIO('blobdata'), 'blob')])
-        self.ddfs.setattr(tag, 'ddfs:read-token', 'r')
-        self.input = ['tag://u:r@/' + tag]
-        super(AuthJobTestCase, self).setUp()
+        super(AuthTestCase, self).setUp()
+        from cStringIO import StringIO
+        self.tag = 'disco:test:authjob'
+        self.ddfs.push(self.tag, [(StringIO('blobdata'), 'blob')])
+
+    def runTest(self):
+        self.ddfs.setattr(self.tag, 'ddfs:read-token', 'r')
+        self.job = AuthJob().run(input=['tag://user:r@/%s' % self.tag])
+        self.assertResults(self.job, [('blobdata', '')])
 
     def tearDown(self):
-        super(AuthJobTestCase, self).tearDown()
-        self.ddfs.delete('disco:test:authjob')
+        super(AuthTestCase, self).tearDown()
+        self.ddfs.delete(self.tag)
