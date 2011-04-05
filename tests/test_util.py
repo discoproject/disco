@@ -1,15 +1,15 @@
-from disco.test import DiscoTestCase
-from disco.util import flatten, iterify, pack, unpack, urlsplit
-
 import os
 from datetime import datetime
+
+from disco.test import TestCase
+from disco.util import flatten, iterify, pack, unpack, urlsplit
 
 def function(x):
     return x + 0
 
 sequence = 0, [1, [2, 3], [[4, [5, [6]]]]]
 
-class UtilTestCase(DiscoTestCase):
+class UtilTestCase(TestCase):
     def test_flatten(self):
         self.assertEquals(range(7), list(flatten(sequence)))
 

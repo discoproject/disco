@@ -204,7 +204,7 @@ def urlsplit(url, localhost=None, settings=DiscoSettings()):
                 scheme = 'file'
                 if prefix == 'ddfs':
                     path = os.path.join(settings['DDFS_ROOT'], fname)
-                if prefix == 'disco':
+                else:
                     path = os.path.join(settings['DISCO_DATA'], fname)
             elif scheme == 'disco':
                 scheme = 'http'
