@@ -50,7 +50,6 @@ class OOBTestCase(TestCase):
                           sorted(list(string.ascii_lowercase) +
                                  ['reduce:%s' % i for i in xrange(a.partitions)]))
 
-class LargeOOBTestCase(TestCase):
     def test_large(self):
         self.job = LargeOOBJob().run(input=['raw://%d' % i
                                             for i in range(self.num_workers)])
@@ -60,5 +59,3 @@ class LargeOOBTestCase(TestCase):
                           sorted(('%d-%d' % (i, j), 'val:%d-%d' % (i, j))
                                  for i in range(self.num_workers)
                                  for j in range(10)))
-
-
