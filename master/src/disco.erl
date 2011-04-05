@@ -34,7 +34,7 @@
 -define(MINUTE, (60 * ?SECOND)).
 -define(HOUR, (60 * ?MINUTE)).
 
--spec get_setting(string()) -> string().
+-spec get_setting(nonempty_string()) -> nonempty_string().
 get_setting(SettingName) ->
     case os:getenv(SettingName) of
         false ->
@@ -45,7 +45,7 @@ get_setting(SettingName) ->
             Val
     end.
 
--spec has_setting(string()) -> bool().
+-spec has_setting(nonempty_string()) -> bool().
 has_setting(SettingName) ->
     case os:getenv(SettingName) of
         false -> false;
@@ -90,7 +90,7 @@ slave_safe(Host) ->
             Node
     end.
 
--spec oob_name(string()) -> string().
+-spec oob_name(nonempty_string()) -> nonempty_string().
 oob_name(JobName) ->
     lists:flatten(["disco:job:oob:", JobName]).
 
@@ -100,23 +100,30 @@ hexhash(Path) ->
     <<Hash:8, _/binary>> = erlang:md5(Path),
     lists:flatten(io_lib:format("~2.16.0b", [Hash])).
 
+-spec jobhome(nonempty_string()) -> nonempty_string().
 jobhome(JobName) ->
     jobhome(JobName, get_setting("DISCO_MASTER_ROOT")).
 
+-spec jobhome(nonempty_string(), nonempty_string()) -> nonempty_string().
 jobhome(JobName, Root) ->
     filename:join([Root, hexhash(JobName), JobName]).
 
+-spec joburl(nonempty_string(), nonempty_string()) -> nonempty_string().
 joburl(Host, JobName) ->
     filename:join(["disco", Host, hexhash(JobName), JobName]).
 
+-spec data_root(node() | nonempty_string()) -> nonempty_string().
 data_root(Node) when is_atom(Node) ->
     data_root(host(Node));
 data_root(Host) ->
     filename:join(get_setting("DISCO_DATA"), Host).
 
+-spec data_path(node() | nonempty_string(), nonempty_string()) ->
+                       nonempty_string().
 data_path(NodeOrHost, Path) ->
     filename:join(data_root(NodeOrHost), Path).
 
+-spec debug_flags(nonempty_string()) -> [term()].
 debug_flags(Server) ->
     case os:getenv("DISCO_DEBUG") of
         "trace" ->
@@ -126,30 +133,38 @@ debug_flags(Server) ->
         _ -> []
     end.
 
+-spec disco_url_path(file:filename()) -> [nonempty_string()].
 disco_url_path(Url) ->
     {match, [Path]} = re:run(Url,
                              ".*?://.*?/disco/(.*)",
                              [{capture, all_but_first, list}]),
     Path.
 
+-spec enum([term()]) -> [{non_neg_integer(), term()}].
 enum(List) ->
     lists:zip(lists:seq(0, length(List) - 1), List).
 
+-spec format(nonempty_string(), [term()]) -> nonempty_string().
 format(Format, Args) ->
     lists:flatten(io_lib:format(Format, Args)).
 
+-spec format_time(integer()) -> nonempty_string().
 format_time(Ms) when is_integer(Ms) ->
     format_time((Ms rem ?SECOND) div ?MILLISECOND,
                 (Ms rem ?MINUTE) div ?SECOND,
                 (Ms rem ?HOUR) div ?MINUTE,
                 (Ms div ?HOUR)).
 
+-spec format_time(integer(), integer(), integer(), integer()) ->
+                         nonempty_string().
 format_time(Ms, Second, Minute, Hour) ->
     format("~B:~2.10.0B:~2.10.0B.~3.10.0B", [Hour, Minute, Second, Ms]).
 
+-spec format_time_since(disco_util:timestamp()) -> nonempty_string().
 format_time_since(Time) ->
     format_time(timer:now_diff(now(), Time)).
 
+-spec make_dir(file:filename()) -> {'ok', file:filename()} | {'error', _}.
 make_dir(Dir) ->
     case ensure_dir(Dir) of
         ok ->

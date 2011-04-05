@@ -23,13 +23,13 @@
                    stats_crashed :: non_neg_integer()}).
 -type nodeinfo() :: #nodeinfo{}.
 
--record(task, {chosen_input :: binary(),
+-record(task, {chosen_input :: binary() | [binary()],
                force_local :: bool(),
                force_remote :: bool(),
                from :: pid(),
                input :: [{binary(), nonempty_string()}],
-               worker :: worker,
                jobenvs :: [{nonempty_string(), string()}],
+               worker :: binary(),
                jobname :: nonempty_string(),
                mode :: nonempty_string(), %"map" | "reduce"
                taskid :: non_neg_integer(),
