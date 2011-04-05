@@ -1,49 +1,31 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
+from disco.test import TestCase, TestJob
 from disco.error import JobError
+from disco.events import Status
 
-class RateLimitTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = [1]
-
-    def getdata(self, path):
-        return 'badger\n' * 1000
-
+class PrintJob(TestJob):
     @staticmethod
     def map(e, params):
-        msg(e)
+        print e
         return []
 
-    def runTest(self):
-        self.assertRaises(JobError, self.job.wait)
-        self.assertEquals(self.job.jobinfo()['active'], 'dead')
-
-class InternalRateLimitTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = [1]
-
-    def getdata(self, path):
-        return 'badger\n' * 1000
-
+class StatusJob(TestJob):
     @staticmethod
     def map(e, params):
-        from disco.events import Status
         Status("Internal msg").send()
         return []
 
-    def runTest(self):
+class RateLimitTestCase(TestCase):
+    inputs = [1]
+
+    def serve(self, path):
+        return 'badger\n' * 1000
+
+    def test_print(self):
+        self.job = PrintJob().run(input=self.test_server.urls([1]))
+        self.assertRaises(JobError, self.job.wait)
+        self.assertEquals(self.job.jobinfo()['active'], 'dead')
+
+    def test_status(self):
+        self.job = StatusJob().run(input=self.test_server.urls([1]))
         self.job.wait()
         self.assertEquals(self.job.jobinfo()['active'], 'ready')
-
-class AnotherRateLimitTestCase(RateLimitTestCase):
-    @staticmethod
-    def map(e, params):
-        return []
-
-    def runTest(self):
-        self.job.wait()
-        self.assertEquals(self.job.jobinfo()['active'], 'ready')
-
-class YetAnotherRateLimitTestCase(RateLimitTestCase):
-    @staticmethod
-    def map(e, params):
-        for i in xrange(100000):
-            print 'foobar'
-        return []
