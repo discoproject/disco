@@ -1,27 +1,27 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase, FailedReply
+from disco.test import TestCase, TestJob, FailedReply
 from disco.core import result_iterator
 
-class RedundantTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = ['1', ['2_fail', '2_still_fail', '200'], '3', ['4_fail', '400']]
+class RedundantJob(TestJob):
+    @staticmethod
+    def map(e, params):
+        yield int(e), ''
 
-    def getdata(self, path):
+    @staticmethod
+    def reduce(iter, params):
+        yield sum(k for k, v in iter), ''
+
+class RedundantTestCase(TestCase):
+    def serve(self, path):
         if 'fail' in path:
             raise FailedReply()
         return '%s\n' % (int(path) * 10)
 
-    @staticmethod
-    def map(e, params):
-        yield e, ''
+    def runTest(self):
+        input = ['1', ['2_fail', '2_still_fail', '200'], '3', ['4_fail', '400']]
+        self.job = RedundantJob().run(input=self.test_server.urls(input))
+        self.assertResults(self.job, [(6040, '')])
 
-    @staticmethod
-    def reduce(iter, out, params):
-        out.add(sum(int(k) for k, v in iter), '')
-
-    @property
-    def answers(self):
-        yield 6040, ''
-
-class RedundantOutputTestCase(DiscoTestCase):
+class RedundantOutputTestCase(TestCase):
     # This is a tricky test case now that comm.py tries really
     # hard to access the url, which in this case doesn't exist
     # (http://nonode). The test could take almost 10 minutes.
@@ -34,13 +34,13 @@ class RedundantOutputTestCase(DiscoTestCase):
                                        reader=scheme_raw.input_stream))
         self.assertEquals(results, ['hello'])
     """
-
     def test_corrupt(self):
         def corrupt_reader(fd, size, url, params):
             yield 'hello'
             if 'corrupt' in url:
                 raise Exception("Corrupt!")
             yield 'there'
-        results = list(result_iterator([['raw://corrupt'] * 9 + ['raw://decent']],
-                                       reader=corrupt_reader))
-        self.assertEquals(results, ['hello', 'there'])
+        self.assertAllEqual(result_iterator([['raw://corrupt'] * 9 +
+                                             ['raw://decent']],
+                                            reader=corrupt_reader),
+                            ['hello', 'there'])
