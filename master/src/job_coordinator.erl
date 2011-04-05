@@ -24,8 +24,8 @@ new(JobPack) ->
                        ok ->
                            ok;
                        Error ->
-                           error_logger:error_report(Error),
-                           exit(Error)
+                           exit(disco:format("Job submission failed: ~W",
+                                             [Error, 9]))
                    end
                end),
     receive
