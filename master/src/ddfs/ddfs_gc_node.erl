@@ -72,7 +72,9 @@ handle_file("!trash" ++ _, _, _, _, _) ->
 handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     [_, Obj] = string:tokens(File, "."),
     {_, Time} = ddfs_util:unpack_objname(Obj),
-    delete_if_expired(filename:join(Dir, File), Now, Time, ?PARTIAL_EXPIRES);
+    Diff = timer:now_diff(Now, Time) / 1000,
+    Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
+    delete_if_expired(filename:join(Dir, File), Diff, ?PARTIAL_EXPIRES, Paranoid);
 handle_file(Obj, _, VolName, Ets, _) ->
     % We could check a checksum of Obj here
     ets:insert(Ets, {list_to_binary(Obj), VolName, false}).
