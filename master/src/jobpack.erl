@@ -16,9 +16,11 @@
 -define(VERSION, 16#0001).
 -define(COPY_BUFFER_SIZE, 1048576).
 
+-spec dict({'struct', [{term(), term()}]}) -> dict().
 dict({struct, List}) ->
     dict:from_list(List).
 
+-spec find(binary(), dict()) -> term().
 find(Key, Dict) ->
     case catch dict:find(Key, Dict) of
         {ok, Field} ->
@@ -27,6 +29,7 @@ find(Key, Dict) ->
             throw(disco:format("jobpack missing key '~s'", [Key]))
     end.
 
+-spec find(binary(), dict(), term()) -> term().
 find(Key, Dict, Default) ->
     case catch dict:find(Key, Dict) of
         {ok, Field} ->
@@ -35,12 +38,15 @@ find(Key, Dict, Default) ->
             Default
     end.
 
+-spec jobfile(nonempty_string()) -> nonempty_string().
 jobfile(JobHome) ->
     filename:join(JobHome, "jobfile").
 
+-spec exists(nonempty_string()) -> bool().
 exists(JobHome) ->
     filelib:is_file(jobfile(JobHome)).
 
+-spec extract(binary(), nonempty_string()) -> 'ok'.
 extract(JobPack, JobHome) ->
     JobZip = jobzip(JobPack),
     case discozip:extract(JobZip, [{cwd, JobHome}]) of
@@ -52,6 +58,7 @@ extract(JobPack, JobHome) ->
             throw({"Couldn't extract jobhome", JobHome, Reason})
     end.
 
+-spec extracted(nonempty_string()) -> bool().
 extracted(JobHome) ->
     filelib:is_file(filename:join(JobHome, ".jobhome")).
 
@@ -60,6 +67,7 @@ ensure_executable_worker(JobPack, JobHome) ->
     Path = filename:join(JobHome, binary_to_list(Worker)),
     prim_file:write_file_info(Path, #file_info{mode = 8#755}).
 
+-spec read(nonempty_string()) -> binary().
 read(JobHome) ->
     JobFile = jobfile(JobHome),
     case prim_file:read_file(JobFile) of
@@ -69,6 +77,7 @@ read(JobHome) ->
             throw({"Couldn't read jobfile", JobFile, Reason})
     end.
 
+-spec save(binary(), nonempty_string()) -> nonempty_string().
 save(JobPack, JobHome) ->
     TmpFile = tempname(JobHome),
     JobFile = jobfile(JobHome),
@@ -105,6 +114,7 @@ tempname(JobHome) ->
     filename:join(JobHome, disco:format("jobfile@~.16b:~.16b:~.16b",
                                         [MegaSecs, Secs, MicroSecs])).
 
+-spec jobinfo(binary()) -> {nonempty_string(), jobinfo()}.
 jobinfo(JobPack) ->
     JobDict = jobdict(JobPack),
     Scheduler = dict(find(<<"scheduler">>, JobDict)),
@@ -120,6 +130,7 @@ jobinfo(JobPack) ->
               force_local = find(<<"force_local">>, Scheduler, false),
               force_remote = find(<<"force_remote">>, Scheduler, false)}}.
 
+-spec jobdict(binary()) -> dict().
 jobdict(<<?MAGIC:16/big,
          _Version:16/big,
          JobDictOffset:32/big,
@@ -129,6 +140,7 @@ jobdict(<<?MAGIC:16/big,
     <<_:JobDictOffset/bytes, JobDict:JobDictLength/bytes, _/binary>> = JobPack,
     dict(mochijson2:decode(JobDict)).
 
+-spec jobenvs(binary()) -> dict().
 jobenvs(<<?MAGIC:16/big,
          _Version:16/big,
          _JobDictOffset:32/big,
@@ -140,6 +152,7 @@ jobenvs(<<?MAGIC:16/big,
     {struct, Envs} = mochijson2:decode(JobEnvs),
     Envs.
 
+-spec jobzip(binary()) -> binary().
 jobzip(<<?MAGIC:16/big,
         _Version:16/big,
         _JobDictOffset:32/big,
@@ -151,6 +164,7 @@ jobzip(<<?MAGIC:16/big,
     <<_:JobHomeOffset/bytes, JobZip:JobHomeLength/bytes, _/binary>> = JobPack,
     JobZip.
 
+-spec validate_prefix(binary() | list()) -> nonempty_string().
 validate_prefix(Prefix) when is_binary(Prefix)->
     validate_prefix(binary_to_list(Prefix));
 validate_prefix(Prefix) ->
