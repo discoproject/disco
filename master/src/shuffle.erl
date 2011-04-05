@@ -1,6 +1,8 @@
 -module(shuffle).
 -export([combine_tasks/3, combine_tasks_node/4, process_url/3]).
 
+-spec combine_tasks(nonempty_string(), nonempty_string(),
+                    [{node(), binary()}]) -> {'ok', [binary()]}.
 combine_tasks(JobName, Mode, DirUrls) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
     NodeGroups = disco_util:groupby(1, lists:keysort(1, DirUrls)),

@@ -44,6 +44,7 @@ job_event(JobName, {EventFormat, Args}) ->
 job_event(JobName, Event) ->
     job_event(JobName, {Event, [], {}}).
 
+-spec job_coordinator(pid(), binary()) -> 'ok'.
 job_coordinator(Parent, JobPack) ->
     {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
     {ok, JobName} = event_server:new_job(Prefix, self()),
@@ -52,7 +53,7 @@ job_coordinator(Parent, JobPack) ->
     Parent ! {job_submitted, JobName},
     job_coordinator(JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}).
 
--spec job_coordinator(nonempty_string(), [binary() | jobinfo()]) -> 'ok'.
+-spec job_coordinator(jobinfo()) -> 'ok'.
 job_coordinator(#jobinfo{jobname = JobName} = Job) ->
     job_event(JobName, {"Starting job", [], {job_data, Job}}),
     Started = now(),
@@ -213,6 +214,7 @@ map(Inputs, #jobinfo{map = false}) ->
 map(Inputs, Job) ->
     run_phase(map_input(Inputs), "map", Job).
 
+-spec shuffle(nonempty_string(), nonempty_string(), [{node(), binary()}]) -> {'ok', [binary()]}.
 shuffle(_JobName, _Mode, []) ->
     {ok, []};
 shuffle(JobName, Mode, DirUrls) ->

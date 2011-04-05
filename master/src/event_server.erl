@@ -25,9 +25,11 @@
 
 -include("disco.hrl").
 
+-spec new_job(nonempty_string(), pid()) -> {'ok', nonempty_string()}.
 new_job(Prefix, JobCoordinator) ->
     gen_server:call(?MODULE, {new_job, Prefix, JobCoordinator}, 10000).
 
+-spec end_job(nonempty_string()) -> 'ok'.
 end_job(JobName) ->
     gen_server:cast(?MODULE, {job_done, JobName}).
 
