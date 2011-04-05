@@ -69,11 +69,11 @@ combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     JobLink = disco:jobhome(JobName, filename:join([Host, "disco", Host])),
     ResultsLink = filename:join(JobLink, ".disco"),
 
-    PartDir = ["partitions-", ddfs_util:timestamp()],
+    PartDir = lists:flatten(["partitions-", ddfs_util:timestamp()]),
     PartPath = filename:join(ResultsHome, PartDir),
     PartUrl = ["disco://", ResultsLink, "/", PartDir],
 
-    IndexFile = [Mode, "-index.txt.gz"],
+    IndexFile = lists:flatten([Mode, "-index.txt.gz"]),
     IndexPath = filename:join(ResultsHome, IndexFile),
     IndexUrl = ["dir://", ResultsLink, "/", IndexFile],
 
