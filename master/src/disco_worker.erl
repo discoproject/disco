@@ -16,7 +16,7 @@
 
 -record(state, {master :: node(),
                 task :: task(),
-                port :: port(),
+                port :: none | port(),
                 worker_send :: pid(),
                 error_output :: boolean(),
                 buffer :: binary(),
