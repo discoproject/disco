@@ -1,10 +1,16 @@
 import thread
-from disco.test import DiscoJobTestFixture, DiscoTestCase, FailedReply
 
-class TempFailTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = range(50)
+from disco.test import TestCase, TestJob, FailedReply
 
-    def getdata(self, path):
+class TempFailJob(TestJob):
+    @staticmethod
+    def map(e, params):
+        yield int(e) * 10, ''
+
+class TempFailTestCase(TestCase):
+    input = range(50)
+
+    def serve(self, path):
         self.lock.acquire()
         if path in self.fail:
             self.fail.remove(path)
@@ -16,14 +22,9 @@ class TempFailTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     def setUp(self):
         self.lock = thread.allocate_lock()
-        self.fail = map(str, TempFailTestCase.inputs[::2])
+        self.fail = map(str, self.input[::2])
         super(TempFailTestCase, self).setUp()
 
-    @staticmethod
-    def map(e, params):
-        return [(int(e) * 10, '')]
-
     def runTest(self):
-        if len(self.nodes) > 1:
-            return self.assertEquals(sum(int(k) for k, v in self.results), 122500)
-        self.skipTest("Cannot test temporary node failure with < 2 nodes")
+        self.job = TempFailJob().run(input=self.test_server.urls(self.input))
+        self.assertEquals(sum(k for k, v in self.results(self.job)), 122500)
