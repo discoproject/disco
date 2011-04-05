@@ -1,10 +1,13 @@
 -module(worker_protocol).
--export([parse/1, parse/2, test/0]).
+-export([init/0, parse/1, parse/2, test/0]).
 
 -define(MAX_MESSAGE_LENGTH, 100 * 1024 * 1024).
 
+init() ->
+    new_message.
+
 parse(Buffer) ->
-    parse(Buffer, new_message).
+    parse(Buffer, init()).
 
 parse(Buffer, new_message) ->
     case head(Buffer) of
@@ -45,7 +48,7 @@ parse(Buffer, {parse_body, Type, LengthStr, Total}) ->
     BodyLen = Total - HeadLen - 1,
     case Buffer of
         <<_:HeadLen/binary, Body:BodyLen/binary, $\n, Rest/binary>> ->
-            {ok, Rest, {Type, Body}};
+            {ok, {Type, Body}, Rest, new_message};
         _ ->
             {error, invalid_body}
     end.
@@ -64,7 +67,7 @@ head(Buffer) when size(Buffer) >= 10 -> head_missing;
 head(_) -> more_data.
 
 test() ->
-    {cont, <<>>, new_message} = parse(<<>>),
+    new_message = init(),
     {cont, _, {parse_length, <<"FOO">>}} = parse(<<"FOO 1">>),
     {cont, _, {parse_body, <<"FOO">>, <<"3">>, 10}} = parse(<<"FOO 3 bar">>),
 
@@ -74,11 +77,11 @@ test() ->
     {error, message_too_big} = parse(<<"FOO 1000000000 ">>),
     {error, invalid_body} = parse(<<"FOO 3 bar ">>),
 
-    {ok, <<>>, {<<"FOO">>, <<"bar">>}} = parse(<<"FOO 3 bar\n">>),
-    {ok, <<>>, {<<"FOO">>, <<>>}} = parse(<<"FOO 0 \n">>),
+    {ok, {<<"FOO">>, <<"bar">>}, <<>>, new_message} = parse(<<"FOO 3 bar\n">>),
+    {ok, {<<"FOO">>, <<>>}, <<>>, new_message} = parse(<<"FOO 0 \n">>),
 
     Buffer = <<"ABC 3 abc\nDEFG 2 ab\nHIJKL 1 a\ntail">>,
-    {ok, Rest0, {<<"ABC">>, <<"abc">>}} = parse(Buffer),
-    {ok, Rest1, {<<"DEFG">>, <<"ab">>}} = parse(Rest0),
-    {ok, <<"tail">>, {<<"HIJKL">>, <<"a">>}} = parse(Rest1),
+    {ok, {<<"ABC">>, <<"abc">>}, Rest0, _} = parse(Buffer),
+    {ok, {<<"DEFG">>, <<"ab">>}, Rest1, _} = parse(Rest0),
+    {ok, {<<"HIJKL">>, <<"a">>}, <<"tail">>, _} = parse(Rest1),
     ok.

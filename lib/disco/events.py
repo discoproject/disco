@@ -18,21 +18,28 @@ class Event(object):
     def timestamp(self):
         return self.time.strftime(self.timestamp_format)
 
+    # TODO! Optimize read_head()!
+    def read_head(self):
+        head = ""
+        while True:
+            r = sys.stdin.read(1)
+            if r == ' ':
+                return head
+            else:
+                head += r
+
     def send(self):
         sys.stderr.write('%s' % self)
-        status, bytes = sys.stdin.readline().split()
+        status = self.read_head()
+        bytes = self.read_head()
         body = loads(sys.stdin.read(int(bytes) + 1)[:-1])
         if status == 'ERROR':
             raise ValueError(body)
         return body
 
     def __str__(self):
-        tags = ' '.join(tag for tag in self.tags if self.tag_re.match(tag))
-        return '**<%s:%s> %s %s\n%s\n<>**\n' % (self.type,
-                                                self.version,
-                                                self.timestamp,
-                                                tags,
-                                                dumps(self.payload))
+        body = dumps(self.payload)
+        return '%s %d %s\n' % (self.type, len(body), body)
 
 class Status(Event):
     type = 'STA'
