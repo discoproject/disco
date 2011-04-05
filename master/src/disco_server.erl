@@ -179,7 +179,7 @@ handle_info({'EXIT', Pid, {shutdown, Results}}, S) ->
 handle_info({'EXIT', Pid, noconnection}, S) ->
     process_exit(Pid, {error, "Connection lost to the node (network busy?)"}, S);
 
-handle_info({'EXIT', Pid, {error, _}} = Msg, S) ->
+handle_info({'EXIT', Pid, {error, _} = Msg}, S) ->
     process_exit(Pid, Msg, S);
 
 handle_info({'EXIT', Pid, Reason}, S) ->
