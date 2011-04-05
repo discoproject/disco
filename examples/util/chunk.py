@@ -14,7 +14,6 @@ from disco.job import Job
 class LineChunker(Job):
     params = {}
 
-    @staticmethod
     def _map_input_stream(fd, size, url, params):
         from disco.ddfs import DDFS
         tag = params.get('tag', 'disco:chunks:%s' % Task.jobname)
@@ -27,7 +26,6 @@ class LineChunker(Job):
         yield entry
 
 class GzipLineChunker(LineChunker):
-    @staticmethod
     def _map_input_stream(fd, size, url, params):
         from disco.ddfs import DDFS
         from disco.func import gzip_line_reader
