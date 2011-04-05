@@ -1,5 +1,4 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.core import result_iterator
+from disco.test import TestCase, TestJob
 from disco.func import map_input_stream, reduce_output_stream, disco_output_stream
 
 def map_input_stream1(stream, size, url, params):
@@ -8,15 +7,11 @@ def map_input_stream1(stream, size, url, params):
 def map_input_stream2(stream, size, url, params):
     return cStringIO.StringIO('b' + stream.read())
 
-class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = ['apple', 'orange', 'pear']
+class StreamsJob(TestJob):
     map_input_stream = [map_input_stream,
                         map_input_stream1,
                         map_input_stream2]
     reduce_output_stream = [reduce_output_stream, disco_output_stream]
-
-    def getdata(self, path):
-        return path
 
     @staticmethod
     def map_reader(stream, size, url):
@@ -24,14 +19,18 @@ class StreamsTestCase(DiscoJobTestFixture, DiscoTestCase):
 
     @staticmethod
     def map(e, params):
-        return [(e, '')]
+        yield e, ''
 
     @staticmethod
     def reduce(iter, params):
         for k, v in sorted(iter):
             yield 'red:' + k, v
 
-    @property
-    def answers(self):
-        for i in self.inputs:
-            yield 'red:ba%s' % i, ''
+class StreamsTestCase(TestCase):
+    def serve(self, path):
+        return path
+
+    def runTest(self):
+        input = ['apple', 'orange', 'pear']
+        self.job = StreamsJob().run(input=self.test_server.urls(input))
+        self.assertResults(self.job, (('red:ba%s' % i, '') for i in input))

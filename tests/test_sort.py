@@ -24,4 +24,3 @@ class SortTestCase(TestCase):
     def runTest(self):
         self.job = SortJob().run(input=self.test_server.urls([''] * 100))
         self.assertResults(self.job, sorted((c, 1000) for c in alphanum))
-
