@@ -1,31 +1,29 @@
-from disco.test import DiscoMultiJobTestFixture, DiscoTestCase
-from disco.core import JobError
+from disco.error import JobError
+from disco.job import JobChain
+from disco.test import TestCase, TestJob
 
-class WaitManyTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
-    njobs  = 3
-    inputs_1 = inputs_2 = inputs_3 = [''] * 5
-
-    def getdata(self, path):
-        return 'foo'
-
+class WaitJob1(TestJob):
     @staticmethod
-    def map_1(e, params):
+    def map(e, params):
         time.sleep(.1)
         return []
 
+class WaitJob2(TestJob):
     @staticmethod
-    def map_2(e, params):
-        time.sleep(.2)
-        return []
+    def map(e, params):
+        raise ValueError("This job is supposed to fail.")
 
-    @staticmethod
-    def map_3(e, params):
-        err('this job is supposed to fail')
+class WaitManyTestCase(TestCase):
+    def serve(self, path):
+        return 'foo'
 
     def runTest(self):
-        res, jobs = [], self.jobs
-        while jobs:
-            ready, jobs = self.disco.results(jobs)
-            res += ready
-        self.assertRaises(JobError, self.job_3.wait)
-        self.assertEquals(len(res), 3)
+        input = self.test_server.urls([''] * 5)
+        a, b, c = WaitJob1(), WaitJob1(), WaitJob2()
+        self.job = JobChain({a: input,
+                             b: input,
+                             c: input})
+        self.assertRaises(JobError, self.job.wait)
+        valid = JobChain({a: input, b:input})
+        self.assertEquals(valid.wait(), valid)
+
