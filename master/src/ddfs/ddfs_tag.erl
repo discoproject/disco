@@ -8,7 +8,7 @@
 -export([start/2, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
--type replica() :: {timer:timestamp(), nonempty_string()}.
+-type replica() :: {ddfs_util:timestamp(), nonempty_string()}.
 -type replyto() :: {pid(), reference()}.
 
 -record(state, {tag :: tagname(),

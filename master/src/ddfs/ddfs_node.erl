@@ -172,7 +172,7 @@ do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
     end.
 
 -spec do_get_tag_timestamp(binary(), #state{}) ->
-                          'notfound' | {'ok', {timer:timestamp(), binary()}}.
+                          'notfound' | {'ok', {ddfs_util:timestamp(), binary()}}.
 do_get_tag_timestamp(TagName, S) ->
     case gb_trees:lookup(TagName, S#state.tags) of
         none ->
