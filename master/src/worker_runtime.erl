@@ -87,14 +87,23 @@ do_handle({<<"ERR">>, Msg}, _S) ->
     {stop, {fatal, Msg}};
 
 do_handle({<<"OUT">>, Results}, S) ->
-    S1 = add_output(Results, S),
-    {ok, {"OK", <<"ok">>}, S1};
+    case add_output(Results, S) of
+        {ok, S1} ->
+            {ok, {"OK", <<"ok">>}, S1};
+        {error, Reason} ->
+            {stop, {error, Reason}}
+    end;
 
 do_handle({<<"END">>, _Body}, #state{task = Task, master = Master} = S) ->
-    ok = close_output(S),
-    Msg = ["Task finished in ", disco:format_time_since(S#state.start_time)],
-    disco_worker:event({<<"DONE">>, Msg}, Task, Master),
-    {stop, {done, results(S)}};
+    case close_output(S) of
+        ok ->
+            Time = disco:format_time_since(S#state.start_time),
+            Msg = ["Task finished in ", Time],
+            disco_worker:event({<<"DONE">>, Msg}, Task, Master),
+            {stop, {done, results(S)}};
+        {error, Reason} ->
+            {stop, {error, Reason}}
+    end;
 
 do_handle({Type, Body}, _S) ->
     {error, {fatal, ["Unknown message: type '", Type, "', body:\n", Body]}}.
@@ -124,24 +133,32 @@ results(#state{task = Task,
                persisted_outputs = Outputs}) ->
     {local_results(Task, FileName), Outputs}.
 
--spec add_output(list(), #state{}) -> #state{}.
+-spec add_output(list(), #state{}) -> {ok, #state{}} | {error, string()}.
 add_output([Tag, <<"tag">>], S) ->
     Result = list_to_binary(io_lib:format("tag://~s", [Tag])),
     Outputs = [Result | S#state.persisted_outputs],
-    S#state{persisted_outputs = Outputs};
+    {ok, S#state{persisted_outputs = Outputs}};
 
 add_output(RL, #state{task = Task, output_file = none} = S) ->
     ResultsFileName = results_filename(Task),
     Home = disco_worker:jobhome(Task#task.jobname),
     Path = filename:join(Home, ResultsFileName),
     ok = disco:ensure_dir(Path),
-    {ok, ResultsFile} = prim_file:open(Path, [write, raw]),
-    add_output(RL, S#state{output_filename = ResultsFileName,
-                           output_file = ResultsFile});
+    case prim_file:open(Path, [write, raw]) of
+        {ok, ResultsFile} ->
+            add_output(RL, S#state{output_filename = ResultsFileName,
+                                   output_file = ResultsFile});
+        {error, Reason} ->
+            {error, ioerror(["Opening index file at ", Path, " failed"], Reason)}
+    end;
 
 add_output(RL, #state{output_file = RF} = S) ->
-    ok = prim_file:write(RF, format_output_line(S, RL)),
-    S.
+    case prim_file:write(RF, format_output_line(S, RL)) of
+        ok ->
+            {ok, S};
+        {error, Reason} ->
+            {error, ioerror("Writing to index file failed", Reason)}
+    end.
 
 results_filename(Task) ->
     TimeStamp = timer:now_diff(now(), {0,0,0}),
@@ -160,7 +177,16 @@ format_output_line(#state{task = Task}, [LocalFile, Type, Label]) ->
                                                binary_to_list(LocalFile))]).
 
 
--spec close_output(#state{}) -> 'ok'.
+-spec close_output(#state{}) -> 'ok' | {error, string()}.
 close_output(#state{output_file = none}) -> ok;
 close_output(#state{output_file = File}) ->
-    ok = prim_file:close(File).
+    case {prim_file:sync(File), prim_file:close(File)} of
+        {ok, ok} ->
+            ok;
+        {R1, R2} ->
+            {error, Reason} = lists:max([R1, R2]),
+            ioerror("Closing index file failed", Reason)
+    end.
+
+ioerror(Msg, Reason) ->
+    [Msg, ": ", atom_to_list(Reason)].
