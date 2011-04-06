@@ -52,11 +52,16 @@ def walk(commands):
             yield ('%s %s' % (name, subname)), subcommand
 
 def search(receiver, commands):
+    path, args = [], []
     for n, command in enumerate(commands):
+        if command.startswith('-'):
+            args.append(command)
+            continue
         if command not in receiver.commands:
-            return receiver, commands[:n], commands[n:]
+            return receiver, path, args + commands[n:]
+        path.append(command)
         receiver = receiver.commands[command]
-    return receiver, [], []
+    return receiver, path, args
 
 usage_re = re.compile(r'^\s*:?usage: *(?P<usage>.+)$', re.I | re.M)
 def usage(command):
