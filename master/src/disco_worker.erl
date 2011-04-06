@@ -245,7 +245,7 @@ exit_on_error(Type, #state{buffer = <<>>} = S) ->
 
 exit_on_error(Type, #state{buffer = Buffer} = S)
               when size(Buffer) > ?MAX_ERROR_BUFFER_SIZE ->
-    <<Buffer1:(?MAX_ERROR_BUFFER_SIZE)/binary, _/binary>> = Buffer,
+    <<Buffer1:(?MAX_ERROR_BUFFER_SIZE - 3)/binary, _/binary>> = Buffer,
     exit_on_error(Type, S#state{buffer = <<Buffer1/binary, "...">>});
 
 exit_on_error(Type, #state{buffer = Buffer} = S) ->
