@@ -138,6 +138,24 @@ def cat(program, *urls):
         sys.stdout.write(curl(replicas))
 
 @DDFS.command
+def chtok(program, tag, token):
+    """Usage: tag token
+
+    Change the read/write tokens for a tag.
+    """
+    if program.options.read:
+        program.ddfs.setattr(tag, 'ddfs:read-token', token)
+    if program.options.write:
+        program.ddfs.setattr(tag, 'ddfs:write-token', token)
+
+chtok.add_option('-r', '--read',
+                 action='store_true',
+                 help='change the read token')
+chtok.add_option('-w', '--write',
+                 action='store_true',
+                 help='change the write token')
+
+@DDFS.command
 def chunk(program, tag, *urls):
     """Usage: tag [url ...]
 
@@ -345,14 +363,6 @@ put.add_option('-f', '--files',
                help='read urls from the files')
 
 @DDFS.command
-def readtoken(program, tag, tok):
-    """Usage: tag token
-
-    Set the read token of a tag.
-    """
-    program.ddfs.setattr(tag, 'ddfs:read-token', tok)
-
-@DDFS.command
 def rm(program, *tags):
     """Usage: [-i] [-p] [tag ...]
 
@@ -410,14 +420,6 @@ def urls(program, *tags):
     for tag in program.prefix_mode(*tags):
         for replicas in program.ddfs.urls(tag):
             print '\t'.join(replicas)
-
-@DDFS.command
-def writetoken(program, tag, tok):
-    """Usage: tag token
-
-    Set the write token of a tag.
-    """
-    program.ddfs.setattr(tag, 'ddfs:write-token', tok)
 
 @DDFS.command
 def xcat(program, *urls):

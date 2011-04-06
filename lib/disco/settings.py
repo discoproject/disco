@@ -197,12 +197,12 @@ Settings used by DDFS:
         .. envvar:: DDFS_READ_TOKEN
 
                 The default read authorization token to use.
-                Default is ``None``.
+                Default is ``''``.
 
         .. envvar:: DDFS_WRITE_TOKEN
 
                 The default write authorization token to use.
-                Default is ``None``.
+                Default is ``''``.
 
         .. envvar:: DDFS_PARANOID_DELETE
 
