@@ -39,43 +39,14 @@ from clx import OptionParser, Program
 class DDFSOptionParser(OptionParser):
     def __init__(self, **kwargs):
         OptionParser.__init__(self, **kwargs)
-        self.add_option('-E', '--exclude',
-                        help='exclude match')
-        self.add_option('-I', '--include',
-                        help='include match')
-        self.add_option('-f', '--files',
-                        action='store_true',
-                        help='file mode for commands that take it')
         self.add_option('-i', '--ignore-missing',
                         action='store_true',
                         help='ignore missing tags')
-        self.add_option('-n', '--replicas',
-                        help='number of replicas to create when pushing')
         self.add_option('-p', '--prefix',
                         action='store_true',
                         help='prefix mode for commands that take it')
-        self.add_option('-R', '--reader',
-                        help='input reader to import and use')
-        self.add_option('-r', '--recursive',
-                        action='store_true',
-                        help='recursively perform operations')
-        self.add_option('-T', '--stream',
-                        default='disco.func.default_stream',
-                        help='input stream to import and use')
         self.add_option('-t', '--token',
-                        help='authorization token for the command')
-        self.add_option('-u', '--update',
-                        action='store_true',
-                        help='whether to perform an update or an append')
-        self.add_option('-w', '--warn-missing',
-                        action='store_true',
-                        help='warn about missing tags')
-        self.add_option('-x', '--tarballs',
-                        action='store_true',
-                        help='extract files as tarballs when pushing')
-        self.add_option('-z', '--compress',
-                        action='store_true',
-                        help='compress tar blobs when pushing')
+                        help='authorization token to use')
 
 class DDFS(Program):
     @property
@@ -86,9 +57,7 @@ class DDFS(Program):
     def blobs(self, *tags):
         ignore_missing = self.options.ignore_missing
         for tag in self.prefix_mode(*tags):
-            for replicas in self.ddfs.blobs(tag,
-                                            ignore_missing=ignore_missing,
-                                            token=self.options.token):
+            for replicas in self.ddfs.blobs(tag, ignore_missing=ignore_missing):
                 yield replicas
 
     def default(self, program, *args):
@@ -99,7 +68,10 @@ class DDFS(Program):
     @property
     def ddfs(self):
         from disco.ddfs import DDFS
-        return DDFS(master=self.settings['DISCO_MASTER'])
+        settings, token = self.settings, self.options.token
+        if token is not None:
+            settings['DDFS_READ_TOKEN'] = settings['DDFS_WRITE_TOKEN'] = token
+        return DDFS(settings=settings)
 
     def file_mode(self, *urls):
         if self.options.files:
@@ -119,18 +91,18 @@ class DDFS(Program):
         return partition(urls, istag)
 
 @DDFS.command
-def attrs(program, tag):
-    """Usage: [-t token] tag
+def attrs(program, *tags):
+    """Usage: [-p] [tag ...]
 
-    List the attributes of a tag.
+    Get the attributes of a tag.
     """
-    d = program.ddfs.attrs(tag, token=program.options.token)
-    for k,v in d.iteritems():
-        print ("%s: %s" % (k, v))
+    for tag in program.prefix_mode(*tags):
+        for k, v in program.ddfs.attrs(tag).items():
+            print '\t'.join((tag, k, v))
 
 @DDFS.command
 def blobs(program, *tags):
-    """Usage: [-i] [-p] [-t token] [tag ...]
+    """Usage: [-i] [-p] [tag ...]
 
     List all blobs reachable from tag[s].
     """
@@ -139,7 +111,7 @@ def blobs(program, *tags):
 
 @DDFS.command
 def cat(program, *urls):
-    """Usage: [-i] [-p] [-t token] [url ...]
+    """Usage: [-i] [-p] [url ...]
 
     Concatenate the contents of all url[s] and print to stdout.
     If any of the url[s] are tags,
@@ -167,7 +139,7 @@ def cat(program, *urls):
 
 @DDFS.command
 def chunk(program, tag, *urls):
-    """Usage: [-n replicas] [-T stream] [-R reader] [-t token] [-u] tag [url ...]
+    """Usage: tag [url ...]
 
     Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
     """
@@ -185,24 +157,32 @@ def chunk(program, tag, *urls):
     for replicas in blobs:
         print 'created: %s' % '\t'.join(replicas)
 
+chunk.add_option('-n', '--replicas',
+                 help='number of replicas to create')
+chunk.add_option('-R', '--reader',
+                 help='input reader to import and use')
+chunk.add_option('-T', '--stream',
+                 default='disco.func.default_stream',
+                 help='input stream to import and use')
+chunk.add_option('-u', '--update',
+                 action='store_true',
+                 help='whether to perform an update or an append')
+
 @DDFS.command
 def cp(program, source_tag, target_tag):
-    """Usage: [-t token] source_tag target_tag
+    """Usage: source_tag target_tag
 
     Copies one tag to another, overwriting it if it exists.
     """
-    token = program.options.token
-    program.ddfs.put(target_tag,
-                     program.ddfs.get(source_tag, token=token)['urls'],
-                     token=token)
+    program.ddfs.put(target_tag, program.ddfs.get(source_tag)['urls'])
 
 @DDFS.command
 def delattr(program, tag, attr):
-    """Usage: [-t token] tag attr
+    """Usage: tag attr
 
     Delete an attribute of a tag.
     """
-    program.ddfs.delattr(tag, attr, token=program.options.token)
+    program.ddfs.delattr(tag, attr)
 
 def df(program, *args):
     """Usage: <undefined>
@@ -232,7 +212,7 @@ def exists(program, tag):
 
 @DDFS.command
 def find(program, *tags):
-    """Usage: [-i|-w] [-p] [-t token] [tag ...]
+    """Usage: [-i] [-p] [tag ...]
 
     Walk the tag hierarchy starting at tag[s].
     Prints each path as it is encountered.
@@ -243,13 +223,12 @@ def find(program, *tags):
     """
     ignore_missing = program.options.ignore_missing
     warn_missing   = program.options.warn_missing
-    token          = program.options.token
 
     if warn_missing:
         ignore_missing = True
 
     for tag in program.prefix_mode(*tags):
-        found = program.ddfs.walk(tag, ignore_missing=ignore_missing, token=token)
+        found = program.ddfs.walk(tag, ignore_missing=ignore_missing)
         for tagpath, subtags, blobs in found:
             if subtags == blobs == None:
                 print "Tag not found: %s" % "\t".join(tagpath)
@@ -258,21 +237,25 @@ def find(program, *tags):
             else:
                 print '\t'.join(tagpath)
 
+find.add_option('-w', '--warn-missing',
+                action='store_true',
+                help='warn about missing tags')
+
 @DDFS.command
 def get(program, tag):
-    """Usage: [-t token] tag
+    """Usage: tag
 
     Gets the contents of the tag.
     """
-    print program.ddfs.get(tag, token=program.options.token)
+    print program.ddfs.get(tag)
 
 @DDFS.command
 def getattr(program, tag, attr):
-    """Usage: [-t token] tag attr
+    """Usage: tag attr
 
     Get an attribute of a tag.
     """
-    print program.ddfs.getattr(tag, attr, token=program.options.token)
+    print program.ddfs.getattr(tag, attr)
 
 def grep(program, *args):
     """Usage: <undefined>
@@ -283,11 +266,9 @@ def grep(program, *args):
 
 @DDFS.command
 def ls(program, *prefixes):
-    """Usage: [-i] [-r] [-t token] [prefix ...]
+    """Usage: [-i] [prefix ...]
 
     List all tags starting with prefix[es].
-
-        -r      lists the blobs reachable from each tag.
     """
     from disco.error import CommError
 
@@ -301,29 +282,18 @@ def ls(program, *prefixes):
                     print e
                 print
 
+ls.add_option('-r', '--recursive',
+              action='store_true',
+              help='lists the blobs reachable from each tag')
+
 @DDFS.command
 def push(program, tag, *files):
-    """Usage: [-I I] [-E E] [-n N] [-r] [-t token] [-x] tag [file ...]
+    """Usage: tag [file ...]
 
     Push file[s] to DDFS and tag them with the given tag.
-
-        -I I    include tar blobs that contain I.
-
-        -E E    exclude tar blobs that contain E.
-
-        -n N    creates N replicas instead of the default.
-
-        -r      recursively push directories.
-
-        -t T    uses write token T
-
-        -x      extract files as tarballs.
-
-        -z      compress tar blobs.
     """
     replicas = program.options.replicas
     tarballs = program.options.tarballs
-    token    = program.options.token
 
     blobs = [] if tarballs else [file for file in files
                                  if os.path.isfile(file)]
@@ -343,95 +313,115 @@ def push(program, tag, *files):
             else:
                 print "%s is a directory (not pushing)." % file
     print "pushing..."
-    program.ddfs.push(tag, blobs, replicas=replicas, token=token)
+    program.ddfs.push(tag, blobs, replicas=replicas)
+
+push.add_option('-E', '--exclude',
+                help='exclude tar blobs that contain string')
+push.add_option('-I', '--include',
+                help='include tar blobs that contain string')
+push.add_option('-n', '--replicas',
+                help='number of replicas to create')
+push.add_option('-r', '--recursive',
+                action='store_true',
+                help='recursively push directories')
+push.add_option('-x', '--tarballs',
+                action='store_true',
+                help='extract files as tarballs')
+push.add_option('-z', '--compress',
+                action='store_true',
+                help='compress tar blobs when pushing')
 
 @DDFS.command
 def put(program, tag, *urls):
-    """Usage: [-f] [-t token] tag [url ...]
+    """Usage: tag [url ...]
 
     Put the urls[s] to the given tag.
     Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.put(tag,
-                     [url.split() for url in program.file_mode(*urls)],
-                     token=program.options.token)
+    program.ddfs.put(tag, [url.split() for url in program.file_mode(*urls)])
+
+put.add_option('-f', '--files',
+               action='store_true',
+               help='read urls from the files')
 
 @DDFS.command
 def readtoken(program, tag, tok):
-    """Usage: [-t token] tag token
+    """Usage: tag token
 
     Set the read token of a tag.
     """
-    program.ddfs.setattr(tag, 'ddfs:read-token', tok, token=program.options.token)
+    program.ddfs.setattr(tag, 'ddfs:read-token', tok)
 
 @DDFS.command
 def rm(program, *tags):
-    """Usage: [-i] [-r] [-p] [-t token] [tag ...]
+    """Usage: [-i] [-p] [tag ...]
 
     Remove the tag[s].
     """
     for tag in program.prefix_mode(*tags):
-        print program.ddfs.delete(tag, token=program.options.token)
+        print program.ddfs.delete(tag)
 
 @DDFS.command
 def setattr(program, tag, attr, val):
-    """Usage: [-t token] tag attr val
+    """Usage: tag attr val
 
     Set the value of an attribute of a tag.
     """
-    program.ddfs.setattr(tag, attr, val, token=program.options.token)
+    program.ddfs.setattr(tag, attr, val)
 
 @DDFS.command
 def stat(program, *tags):
-    """Usage: [-t token] [tag ...]
+    """Usage: [-p] [tag ...]
 
     Display information about the tag[s].
     """
-    for tag in tags:
-        tag = program.ddfs.get(tag, token=program.options.token)
+    for tag in program.prefix_mode(*tags):
+        tag = program.ddfs.get(tag)
         print '\t'.join('%s' % tag[key] for key in tag.keys() if key != 'urls')
 
 @DDFS.command
 def tag(program, tag, *urls):
-    """Usage: [-f] [-t token] tag [url ...]
+    """Usage: tag [url ...]
 
     Tags the urls[s] with the given tag.
     Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.tag(tag,
-                     [url.split() for url in program.file_mode(*urls)],
-                     token=program.options.token)
+    program.ddfs.tag(tag, [url.split() for url in program.file_mode(*urls)])
+
+tag.add_option('-f', '--files',
+               action='store_true',
+               help='read urls from the files')
 
 @DDFS.command
 def touch(program, *tags):
-    """Usage: [-t token] [tag ...]
+    """Usage: [tag ...]
 
     Creates the tag[s] if they do not exist.
     """
     for tag in tags:
-        program.ddfs.tag(tag, [], token=program.options.token)
+        program.ddfs.tag(tag, [])
 
 @DDFS.command
 def urls(program, *tags):
-    """Usage: [-p] [-t token] [tag ...]
+    """Usage: [-p] [tag ...]
 
     List the urls pointed to by the tag[s].
     """
     for tag in program.prefix_mode(*tags):
-        for replicas in program.ddfs.urls(tag, token=program.options.token):
+        for replicas in program.ddfs.urls(tag):
             print '\t'.join(replicas)
 
 @DDFS.command
 def writetoken(program, tag, tok):
-    """Usage: [-t token] tag token
+    """Usage: tag token
 
     Set the write token of a tag.
     """
-    program.ddfs.setattr(tag, 'ddfs:write-token', tok, token=program.options.token)
+    program.ddfs.setattr(tag, 'ddfs:write-token', tok)
 
 @DDFS.command
 def xcat(program, *urls):
-    """Usage: [-i] [-p] [-T stream] [-R reader] [-t token] [urls ...]
+    """Usage: [-i] [-p] [urls ...]
 
     Concatenate the extracted results stored in url[s] and print to stdout.
     If any of the url[s] are tags,
@@ -449,6 +439,12 @@ def xcat(program, *urls):
                                    input_stream=stream,
                                    reader=reader):
         print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()
+
+xcat.add_option('-R', '--reader',
+                help='input reader to import and use')
+xcat.add_option('-T', '--stream',
+                default='disco.func.default_stream',
+                help='input stream to import and use')
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()
