@@ -93,9 +93,7 @@ class Program(clx.Program):
 
     @property
     def master(self):
-        master = Master(self.settings)
-        self.settings.ensuredirs()
-        return master
+        return Master(self.settings)
 
     @property
     def settings_class(self):

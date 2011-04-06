@@ -61,6 +61,7 @@ def nodaemon(program):
     The Erlang shell is opened and log messages are printed to stdout.
     Note: quitting the shell will stop the master.
     """
+    program.settings.ensuredirs()
     for message in program.master.nodaemon():
         print message
 
@@ -69,6 +70,7 @@ def restart(program):
     """
     Restart the master.
     """
+    program.settings.ensuredirs()
     for message in program.master.restart():
         print message
 
@@ -77,6 +79,7 @@ def start(program):
     """
     Start the master.
     """
+    program.settings.ensuredirs()
     for message in program.master.start():
         print message
 
