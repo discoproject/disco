@@ -68,6 +68,24 @@ class Program(clx.Program):
             return fileinput.input(urls)
         return urls
 
+    @classmethod
+    def job_command(self, function):
+        def job_function(program, *jobnames):
+            return function(program,
+                            *(program.job_history(j) for j in jobnames))
+        job_function.__doc__ = function.__doc__
+        return self.command(function.__name__)(job_function)
+
+    def job_history(self, jobname):
+        if jobname == '@':
+            for offset, status, job in self.disco.joblist():
+                return job
+        elif jobname.startswith('@?'):
+            for offset, status, job in self.disco.joblist():
+                if jobname[2:] in job:
+                    return job
+        return jobname
+
     def prefix_mode(self, *tags):
         from itertools import chain
         if self.options.prefix_mode:

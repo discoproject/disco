@@ -138,7 +138,7 @@ def deref(program, *urls):
 
 OptionParser.add_file_mode(deref)
 
-@Disco.command
+@Disco.job_command
 def events(program, jobname):
     """Usage: jobname
 
@@ -150,7 +150,7 @@ events.add_option('-o', '--offset',
                   default=0,
                   help='offset to use in requests to disco master')
 
-@Disco.command
+@Disco.job_command
 def jobdict(program, jobname):
     """Usage: jobname
 
@@ -172,7 +172,7 @@ jobs.add_option('-S', '--status',
                 action='store_true',
                 help='show job status when printing jobs')
 
-@Disco.command
+@Disco.job_command
 def kill(program, *jobnames):
     """Usage: jobname ...
 
@@ -181,7 +181,7 @@ def kill(program, *jobnames):
     for jobname in jobnames:
         program.disco.kill(jobname)
 
-@Disco.command
+@Disco.job_command
 def mapresults(program, jobname):
     """Usage: jobname
 
@@ -201,7 +201,7 @@ def nodeinfo(program):
     for item in program.disco.nodeinfo().iteritems():
         print '%s\t%s' % item
 
-@Disco.command
+@Disco.job_command
 def oob(program, jobname):
     """Usage: jobname
 
@@ -218,9 +218,9 @@ def get(program, key, jobname):
     Print the oob value for the given key and jobname.
     """
     from disco.core import Job
-    print Job(name=jobname, master=program.disco).oob_get(key)
+    print Job(name=program.job_history(jobname), master=program.disco).oob_get(key)
 
-@Disco.command
+@Disco.job_command
 def pstats(program, jobname):
     """Usage: jobname
 
@@ -235,7 +235,7 @@ pstats.add_option('-k', '--sort-stats',
                   default=[],
                   help='keys to use for sorting profiling statistics')
 
-@Disco.command
+@Disco.job_command
 def purge(program, *jobnames):
     """Usage: jobname ...
 
@@ -244,7 +244,7 @@ def purge(program, *jobnames):
     for jobname in jobnames:
         program.disco.purge(jobname)
 
-@Disco.command
+@Disco.job_command
 def results(program, jobname):
     """Usage: jobname
 
@@ -312,7 +312,7 @@ run.add_option('--status_interval',
                 type='int',
                 help='how often to report status in job')
 
-@Disco.command
+@Disco.job_command
 def wait(program, jobname):
     """Usage: jobname
 
