@@ -225,10 +225,20 @@ class DDFSAuthTestCase(DiscoTestCase):
         self.ddfs = DDFS(self.disco_master_url)
         self.ddfs.push('disco:test:authrd', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.push('disco:test:authwr', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:authempty', [(StringIO('datablob'), 'blobdata')])
         self.ddfs.setattr('disco:test:authrd', 'a', 'v')
         self.ddfs.setattr('disco:test:authwr', 'a', 'v')
         self.ddfs.setattr('disco:test:authrd', 'ddfs:read-token', 'rdr')
         self.ddfs.setattr('disco:test:authwr', 'ddfs:write-token', 'wtr')
+        self.ddfs.setattr('disco:test:authempty', 'a', 'v')
+        self.ddfs.setattr('disco:test:authempty', 'ddfs:read-token', '')
+        self.ddfs.setattr('disco:test:authempty', 'ddfs:write-token', '')
+
+    def test_empty(self):
+        self.assertEquals(self.ddfs.getattr('disco:test:authempty', 'a', token=''), 'v')
+        self.ddfs.setattr('disco:test:authempty', 'a2', 'v2', token='')
+        self.assertEquals(self.ddfs.getattr('disco:test:authempty', 'a2', token=''), 'v2')
+        self.ddfs.delattr('disco:test:authempty', 'a2', token='')
 
     def test_write_noread(self):
         self.assertEquals(self.ddfs.getattr('disco:test:authwr', 'a'), 'v')
@@ -288,6 +298,7 @@ class DDFSAuthTestCase(DiscoTestCase):
     def tearDown(self):
         self.ddfs.delete('disco:test:authrd')
         self.ddfs.delete('disco:test:authwr', token='wtr')
+        self.ddfs.delete('disco:test:authempty', token='')
         self.ddfs.delete('disco:test:atomic1', token='secret1')
         self.ddfs.delete('disco:test:atomic2', token='secret2')
         self.ddfs.delete('disco:test:notoken')
