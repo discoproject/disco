@@ -35,8 +35,7 @@ handle({Type, Body}, S) ->
            Ret
     end.
 
-do_handle({<<"PID">>, StrPid}, S) ->
-    Pid = list_to_integer(binary_to_list(StrPid)),
+do_handle({<<"PID">>, Pid}, S) ->
     {ok, {"OK", <<"ok">>}, S#state{child_pid = Pid}};
 
 do_handle({<<"VSN">>, <<"1.0">>}, S) ->
