@@ -25,133 +25,17 @@ The new startup script makes it even easier to get up and running with a Disco c
 Run :command:`disco help` for information on using the command line utility.
 
 See also: :mod:`disco.settings`
-
 """
 
-import os, sys
-import fileinput
+import fileinput, os, sys
 
 if '.disco-home' in os.listdir('.'):
     sys.path.append('lib')
 
-from clx import OptionParser, Program
-from clx.server import Server
-
-class DiscoOptionParser(OptionParser):
-    def __init__(self, **kwargs):
-        OptionParser.__init__(self, **kwargs)
-        self.jobargs = {}
-
-def update_jobargs(option, name, val, parser):
-    parser.jobargs[name.strip('-')] = True if val is None else val
+from disco.cli import OptionParser, Program
 
 class Disco(Program):
-    def default(self, program, *args):
-        if args:
-            raise Exception("unrecognized command: %s" % ' '.join(args))
-        print self.disco
-
-    @property
-    def disco(self):
-        from disco.core import Disco
-        return Disco(self.settings['DISCO_MASTER'])
-
-    @property
-    def master(self):
-        master = Master(self.settings)
-        self.settings.ensuredirs()
-        return master
-
-    @property
-    def settings_class(self):
-        from disco.settings import DiscoSettings
-        return DiscoSettings
-
-    @property
-    def tests(self):
-        for name in os.listdir(self.tests_path):
-            if name.startswith('test_'):
-                test, ext = os.path.splitext(name)
-                if ext == '.py':
-                    yield test
-
-    @property
-    def tests_path(self):
-        return os.path.join(self.settings['DISCO_HOME'], 'tests')
-
-class Master(Server):
-    def __init__(self, settings):
-        super(Master, self).__init__(settings)
-        self.setid()
-
-    @property
-    def args(self):
-        return self.basic_args + ['-detached',
-                                  '-heart',
-                                  '-kernel', 'error_logger', '{file, "%s"}' % self.log_file]
-    @property
-    def basic_args(self):
-        settings = self.settings
-        ebin = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'ebin', d)
-        return settings['DISCO_ERLANG'].split() + \
-               ['+K', 'true',
-                '+P', '10000000',
-                '-rsh', 'ssh',
-                '-connect_all', 'false',
-                '-sname', self.name,
-                '-pa', ebin(''),
-                '-pa', ebin('mochiweb'),
-                '-pa', ebin('ddfs'),
-                '-eval', 'application:start(disco)']
-
-    @property
-    def host(self):
-        from socket import gethostname
-        return gethostname()
-
-    @property
-    def port(self):
-        return self.settings['DISCO_PORT']
-
-    @property
-    def log_dir(self):
-        return self.settings['DISCO_LOG_DIR']
-
-    @property
-    def pid_dir(self):
-        return self.settings['DISCO_PID_DIR']
-
-    @property
-    def env(self):
-        env = self.settings.env
-        env.update({'DISCO_MASTER_PID': self.pid_file,
-                    'DISCO_SETTINGS': ','.join(self.settings.defaults)})
-        return env
-
-    @property
-    def name(self):
-        return '%s_master' % self.settings['DISCO_NAME']
-
-    @property
-    def nodename(self):
-        return '%s@%s' % (self.name, self.host.split('.', 1)[0])
-
-    def nodaemon(self):
-        return ('' for x in self.start(*self.basic_args))
-
-    def setid(self):
-        user = self.settings['DISCO_USER']
-        if user != os.getenv('LOGNAME'):
-            if os.getuid() != 0:
-                raise Exception("Only root can change DISCO_USER")
-            try:
-                import pwd
-                uid, gid, x, home = pwd.getpwnam(user)[2:6]
-                os.setgid(gid)
-                os.setuid(uid)
-                os.environ['HOME'] = home
-            except Exception, x:
-                raise Exception("Could not switch to the user '%s'" % user)
+    pass
 
 @Disco.command
 def debug(program, host=''):
@@ -161,7 +45,7 @@ def debug(program, host=''):
     Host is only necessary when master is running on a remote machine.
     """
     from subprocess import Popen
-    master = Master(program.settings)
+    master = program.master
     nodename = '%s@%s' % (master.name, host) if host else master.nodename
     args = program.settings['DISCO_ERLANG'].split() + \
            ['-remsh', nodename,
@@ -239,15 +123,17 @@ def config(program):
         print "\t".join(config)
 
 @Disco.command
-def deref(program, *files):
-    """Usage: [file ...]
+def deref(program, *urls):
+    """Usage: [url ...]
 
-    Dereference the dir:// urls in file[s] or stdin and print them to stdout.
+    Dereference the dir:// urls and print them to stdout.
     """
     from disco.util import parse_dir
-    for line in fileinput.input(files):
+    for line in program.file_mode(*urls):
         for url in parse_dir(line.strip()):
             print url
+
+OptionParser.add_file_mode(deref)
 
 @Disco.command
 def events(program, jobname):
@@ -391,15 +277,15 @@ run.add_option('-n', '--name',
                 help='prefix to use for submitting a job')
 run.add_option('--save',
                 action='callback',
-                callback=update_jobargs,
+                callback=OptionParser.update_jobargs,
                 help='save results to DDFS')
 run.add_option('--sort',
                 action='callback',
-                callback=update_jobargs,
+                callback=OptionParser.update_jobargs,
                 help='sort input to reduce')
 run.add_option('--profile',
                 action='callback',
-                callback=update_jobargs,
+                callback=OptionParser.update_jobargs,
                 help='enable job profiling')
 run.add_option('--param',
                 action='append',
@@ -409,17 +295,17 @@ run.add_option('--param',
                 help='add a job parameter')
 run.add_option('--partitions',
                 action='callback',
-                callback=update_jobargs,
+                callback=OptionParser.update_jobargs,
                 type='int',
                 help='enable job profiling')
 run.add_option('--sched_max_cores',
                 action='callback',
-                callback=update_jobargs,
+                callback=OptionParser.update_jobargs,
                 type='int',
                 help='enable job profiling')
 run.add_option('--status_interval',
                 action='callback',
-                callback=update_jobargs,
+                callback=OptionParser.update_jobargs,
                 type='int',
                 help='how often to report status in job')
 
@@ -434,7 +320,7 @@ def wait(program, jobname):
         print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
 
 if __name__ == '__main__':
-    Disco(option_parser=DiscoOptionParser()).main()
+    Disco(option_parser=OptionParser()).main()
 
     # Workaround for "disco test" in Python2.5 which doesn't shutdown the
     # test_server thread properly.
