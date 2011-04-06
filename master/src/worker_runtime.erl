@@ -41,7 +41,7 @@ do_handle({<<"PID">>, Pid}, S) ->
 do_handle({<<"VSN">>, <<"1.0">>}, S) ->
     {ok, {"OK", <<"ok">>}, S};
 do_handle({<<"VSN">>, Ver}, _S) ->
-    {error, {fatal, ["Invalid worker version: ", Ver]}};
+    {error, {fatal, ["Invalid worker version: ", io_lib:format("~p", [Ver])]}};
 
 do_handle({<<"JOB">>, _Body}, #state{task = Task} = S) ->
     JobHome = disco_worker:jobhome(Task#task.jobname),
@@ -105,7 +105,7 @@ do_handle({<<"END">>, _Body}, #state{task = Task, master = Master} = S) ->
     end;
 
 do_handle({Type, Body}, _S) ->
-    {error, {fatal, ["Unknown message: type '", Type, "', body:\n", Body]}}.
+    {error, {fatal, ["Unknown message type:", Type]}}.
 
 input(Task) ->
     case Task#task.chosen_input of
