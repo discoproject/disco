@@ -17,6 +17,7 @@
 -record(state, {master :: node(),
                 task :: task(),
                 port :: port(),
+                worker_send :: pid(),
                 error_output :: boolean(),
                 buffer :: binary(),
                 parser,
@@ -109,7 +110,8 @@ handle_cast(work, #state{task = Task, port = none} = State) ->
                stderr_to_stdout,
                {env, Task#task.jobenvs}],
     Port = open_port({spawn, Command}, Options),
-    {noreply, State#state{port = Port}, ?PID_TIMEOUT}.
+    SendPid = spawn_link(fun() -> worker_send(Port) end),
+    {noreply, State#state{port = Port, worker_send = SendPid}, ?PID_TIMEOUT}.
 
 handle_info({_Port, {data, Data}},
             #state{error_output = true, buffer = Buffer} = State)
@@ -175,7 +177,7 @@ update(S) ->
                 {ok, Reply, RState} ->
                     case worker_throttle:handle(S#state.throttle) of
                         {ok, Delay, TState} ->
-                            ok = worker_send(Reply, Delay, S1),
+                            S#state.worker_send ! {Reply, Delay},
                             update(S1#state{parser = PState,
                                             runtime = RState,
                                             throttle = TState});
@@ -199,12 +201,17 @@ update(S) ->
             handle_info({none, {data, <<>>}}, S#state{error_output = true})
     end.
 
-worker_send({MsgName, Payload}, Delay, #state{port = Port}) ->
-    Msg = list_to_binary(MsgName),
-    Data = list_to_binary(mochijson2:encode(Payload)),
-    Length = list_to_binary(integer_to_list(size(Data))),
-    port_command(Port, <<Msg/binary, " ", Length/binary, " ", Data/binary, "\n">>),
-    ok.
+worker_send(Port) ->
+    receive
+        {{MsgName, Payload}, Delay} ->
+            timer:sleep(Delay),
+            Type = list_to_binary(MsgName),
+            Body = list_to_binary(mochijson2:encode(Payload)),
+            Length = list_to_binary(integer_to_list(size(Body))),
+            Msg = <<Type/binary, " ", Length/binary, " ", Body/binary, "\n">>,
+            port_command(Port, Msg),
+            worker_send(Port)
+    end.
 
 make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
