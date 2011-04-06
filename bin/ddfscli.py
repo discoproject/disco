@@ -282,15 +282,6 @@ def grep(program, *args):
     raise NotImplementedError("Distributed grep not yet implemented.")
 
 @DDFS.command
-def help(program, *args):
-    """Usage: [command]
-
-    Print program or command help.
-    """
-    command, leftover = program.search(args)
-    print command
-
-@DDFS.command
 def ls(program, *prefixes):
     """Usage: [-i] [-r] [-t token] [prefix ...]
 

@@ -40,55 +40,10 @@ from clx.server import Server
 class DiscoOptionParser(OptionParser):
     def __init__(self, **kwargs):
         OptionParser.__init__(self, **kwargs)
-        self.add_option('-k', '--sort-stats',
-                        action='append',
-                        default=[],
-                        help='keys to use for sorting profiling statistics')
-        self.add_option('-o', '--offset',
-                        default=0,
-                        help='offset to use in requests to disco master')
-        self.add_option('-S', '--status',
-                        action='store_true',
-                        help='show job status when printing jobs')
-        self.add_option('-n', '--name',
-                        help='prefix to use for submitting a job')
-        self.add_option('--save',
-                        action='callback',
-                        callback=self.update_jobargs,
-                        help='save results to DDFS')
-        self.add_option('--sort',
-                        action='callback',
-                        callback=self.update_jobargs,
-                        help='sort input to reduce')
-        self.add_option('--profile',
-                        action='callback',
-                        callback=self.update_jobargs,
-                        help='enable job profiling')
-        self.add_option('--param',
-                        action='append',
-                        default=[],
-                        dest='params',
-                        nargs=2,
-                        help='add a job parameter')
-        self.add_option('--partitions',
-                        action='callback',
-                        callback=self.update_jobargs,
-                        type='int',
-                        help='enable job profiling')
-        self.add_option('--sched_max_cores',
-                        action='callback',
-                        callback=self.update_jobargs,
-                        type='int',
-                        help='enable job profiling')
-        self.add_option('--status_interval',
-                        action='callback',
-                        callback=self.update_jobargs,
-                        type='int',
-                        help='how often to report status in job')
         self.jobargs = {}
 
-    def update_jobargs(self, option, name, val, parser):
-        self.jobargs[name.strip('-')] = True if val is None else val
+def update_jobargs(option, name, val, parser):
+    parser.jobargs[name.strip('-')] = True if val is None else val
 
 class Disco(Program):
     def default(self, program, *args):
@@ -216,15 +171,6 @@ def debug(program, host=''):
     print "closing remote shell to %s (%s)" % (host, nodename)
 
 @Disco.command
-def help(program, *args):
-    """Usage: [command]
-
-    Print program or command help.
-    """
-    command, leftover = program.search(args)
-    print command
-
-@Disco.command
 def nodaemon(program):
     """
     Start the master in the current process.
@@ -285,7 +231,7 @@ def test(program, *tests):
 
 @Disco.command
 def config(program):
-    """Usage:
+    """
 
     Print the disco master configuration.
     """
@@ -305,11 +251,15 @@ def deref(program, *files):
 
 @Disco.command
 def events(program, jobname):
-    """Usage: [-o offset] jobname
+    """Usage: jobname
 
     Print the events for the named job.
     """
     print program.disco.rawevents(jobname, offset=int(program.options.offset))
+
+events.add_option('-o', '--offset',
+                  default=0,
+                  help='offset to use in requests to disco master')
 
 @Disco.command
 def jobdict(program, jobname):
@@ -323,12 +273,15 @@ def jobdict(program, jobname):
 
 @Disco.command
 def jobs(program):
-    """Usage: [-S]
-
+    """
     Print a list of disco jobs and optionally their statuses.
     """
     for offset, status, job in program.disco.joblist():
         print "%s\t%s" % (job, status) if program.options.status else job
+
+jobs.add_option('-S', '--status',
+                action='store_true',
+                help='show job status when printing jobs')
 
 @Disco.command
 def kill(program, *jobnames):
@@ -380,13 +333,18 @@ def get(program, key, jobname):
 
 @Disco.command
 def pstats(program, jobname):
-    """Usage: jobname [-k sort-key]
+    """Usage: jobname
 
     Print the profiling statistics for the named job.
     Assumes the job was run with profile flag enabled.
     """
     sort_stats = program.options.sort_stats or ['cumulative']
     program.disco.profile_stats(jobname).sort_stats(*sort_stats).print_stats()
+
+pstats.add_option('-k', '--sort-stats',
+                  action='append',
+                  default=[],
+                  help='keys to use for sorting profiling statistics')
 
 @Disco.command
 def purge(program, *jobnames):
@@ -410,7 +368,7 @@ def results(program, jobname):
 
 @Disco.command
 def run(program, jobclass, *inputs):
-    """Usage: jobclass [-n name] [--save] [--sort] [--profile] [--partitions P] [--sched_max_cores C] [--status_interval I] [input ...]
+    """Usage: jobclass [input ...]
 
     Create an instance of jobclass and run it.
     Input urls are specified as arguments or read from stdin.
@@ -428,6 +386,42 @@ def run(program, jobclass, *inputs):
             params=dict(program.options.params),
             **program.option_parser.jobargs)
     print job.name
+
+run.add_option('-n', '--name',
+                help='prefix to use for submitting a job')
+run.add_option('--save',
+                action='callback',
+                callback=update_jobargs,
+                help='save results to DDFS')
+run.add_option('--sort',
+                action='callback',
+                callback=update_jobargs,
+                help='sort input to reduce')
+run.add_option('--profile',
+                action='callback',
+                callback=update_jobargs,
+                help='enable job profiling')
+run.add_option('--param',
+                action='append',
+                default=[],
+                dest='params',
+                nargs=2,
+                help='add a job parameter')
+run.add_option('--partitions',
+                action='callback',
+                callback=update_jobargs,
+                type='int',
+                help='enable job profiling')
+run.add_option('--sched_max_cores',
+                action='callback',
+                callback=update_jobargs,
+                type='int',
+                help='enable job profiling')
+run.add_option('--status_interval',
+                action='callback',
+                callback=update_jobargs,
+                type='int',
+                help='how often to report status in job')
 
 @Disco.command
 def wait(program, jobname):
