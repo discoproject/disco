@@ -36,9 +36,7 @@ spawn_node(Host, IsMaster) ->
                 {"Spawning node @", Host, "failed for unknown reason", Error}),
             disco_server:connection_status(Host, down)
     end,
-    flush(),
-    timer:sleep(?RESTART_DELAY),
-    spawn_node(Host, IsMaster).
+    timer:sleep(?RESTART_DELAY).
 
 -spec node_monitor(nonempty_string(), node(), {bool(), bool()}) -> _.
 node_monitor(Host, Node, WebConfig) ->
@@ -65,13 +63,6 @@ wait(Node) ->
             error_logger:info_report({"Node", Node, "down"});
         E ->
             error_logger:info_report({"Erroneous message (node_mon)", E})
-    end.
-
-flush() ->
-    receive
-        _ -> flush()
-    after
-        0 -> true
     end.
 
 slave_env() ->
