@@ -39,14 +39,29 @@ from clx import OptionParser, Program
 class DDFSOptionParser(OptionParser):
     def __init__(self, **kwargs):
         OptionParser.__init__(self, **kwargs)
-        self.add_option('-i', '--ignore-missing',
-                        action='store_true',
-                        help='ignore missing tags')
-        self.add_option('-p', '--prefix',
-                        action='store_true',
-                        help='prefix mode for commands that take it')
         self.add_option('-t', '--token',
                         help='authorization token to use')
+
+def add_classic_reads(command):
+    command.add_option('-R', '--reader',
+                       help='input reader to import and use')
+    command.add_option('-T', '--stream',
+                       default='disco.func.default_stream',
+                       help='input stream to import and use')
+
+def add_ignore_missing(command):
+    command.add_option('-i', '--ignore-missing',
+                       action='store_true',
+                       help='ignore missing tags')
+
+def add_prefix_mode(command):
+    command.add_option('-p', '--prefix-mode',
+                       action='store_true',
+                       help='tags are interpreted as prefixes instead of names')
+
+def add_program_blobs(command):
+    add_ignore_missing(command)
+    add_prefix_mode(command)
 
 class DDFS(Program):
     @property
@@ -79,7 +94,7 @@ class DDFS(Program):
         return urls
 
     def prefix_mode(self, *tags):
-        if self.options.prefix:
+        if self.options.prefix_mode:
             return chain(match
                          for tag in tags
                          for match in self.ddfs.list(tag))
@@ -91,27 +106,28 @@ class DDFS(Program):
         return partition(urls, istag)
 
 @DDFS.command
-def attrs(program, *tags):
-    """Usage: [-p] [tag ...]
+def attrs(program, tag):
+    """Usage: tag
 
     Get the attributes of a tag.
     """
-    for tag in program.prefix_mode(*tags):
-        for k, v in program.ddfs.attrs(tag).items():
-            print '\t'.join((tag, k, v))
+    for k, v in program.ddfs.attrs(tag).items():
+        print '%s\t%s' % (k, v)
 
 @DDFS.command
 def blobs(program, *tags):
-    """Usage: [-i] [-p] [tag ...]
+    """Usage: [tag ...]
 
     List all blobs reachable from tag[s].
     """
     for replicas in program.blobs(*tags):
         print '\t'.join(replicas)
 
+add_program_blobs(blobs)
+
 @DDFS.command
 def cat(program, *urls):
-    """Usage: [-i] [-p] [url ...]
+    """Usage: [url ...]
 
     Concatenate the contents of all url[s] and print to stdout.
     If any of the url[s] are tags,
@@ -136,6 +152,8 @@ def cat(program, *urls):
     for replicas in chain(([url] for url in urls),
                           program.blobs(*tags)):
         sys.stdout.write(curl(replicas))
+
+add_program_blobs(cat)
 
 @DDFS.command
 def chtok(program, tag, token):
@@ -175,13 +193,10 @@ def chunk(program, tag, *urls):
     for replicas in blobs:
         print 'created: %s' % '\t'.join(replicas)
 
+add_classic_reads(chunk)
+add_program_blobs(chunk)
 chunk.add_option('-n', '--replicas',
                  help='number of replicas to create')
-chunk.add_option('-R', '--reader',
-                 help='input reader to import and use')
-chunk.add_option('-T', '--stream',
-                 default='disco.func.default_stream',
-                 help='input stream to import and use')
 chunk.add_option('-u', '--update',
                  action='store_true',
                  help='whether to perform an update or an append')
@@ -230,7 +245,7 @@ def exists(program, tag):
 
 @DDFS.command
 def find(program, *tags):
-    """Usage: [-i] [-p] [tag ...]
+    """Usage: [tag ...]
 
     Walk the tag hierarchy starting at tag[s].
     Prints each path as it is encountered.
@@ -255,9 +270,11 @@ def find(program, *tags):
             else:
                 print '\t'.join(tagpath)
 
+add_ignore_missing(find)
 find.add_option('-w', '--warn-missing',
                 action='store_true',
                 help='warn about missing tags')
+add_prefix_mode(find)
 
 @DDFS.command
 def get(program, tag):
@@ -284,7 +301,7 @@ def grep(program, *args):
 
 @DDFS.command
 def ls(program, *prefixes):
-    """Usage: [-i] [prefix ...]
+    """Usage: [prefix ...]
 
     List all tags starting with prefix[es].
     """
@@ -300,6 +317,7 @@ def ls(program, *prefixes):
                     print e
                 print
 
+add_program_blobs(ls)
 ls.add_option('-r', '--recursive',
               action='store_true',
               help='lists the blobs reachable from each tag')
@@ -364,12 +382,14 @@ put.add_option('-f', '--files',
 
 @DDFS.command
 def rm(program, *tags):
-    """Usage: [-i] [-p] [tag ...]
+    """Usage: [tag ...]
 
     Remove the tag[s].
     """
     for tag in program.prefix_mode(*tags):
         print program.ddfs.delete(tag)
+
+add_prefix_mode(rm)
 
 @DDFS.command
 def setattr(program, tag, attr, val):
@@ -381,13 +401,15 @@ def setattr(program, tag, attr, val):
 
 @DDFS.command
 def stat(program, *tags):
-    """Usage: [-p] [tag ...]
+    """Usage: [tag ...]
 
     Display information about the tag[s].
     """
     for tag in program.prefix_mode(*tags):
         tag = program.ddfs.get(tag)
         print '\t'.join('%s' % tag[key] for key in tag.keys() if key != 'urls')
+
+add_prefix_mode(stat)
 
 @DDFS.command
 def tag(program, tag, *urls):
@@ -413,7 +435,7 @@ def touch(program, *tags):
 
 @DDFS.command
 def urls(program, *tags):
-    """Usage: [-p] [tag ...]
+    """Usage: [tag ...]
 
     List the urls pointed to by the tag[s].
     """
@@ -421,9 +443,11 @@ def urls(program, *tags):
         for replicas in program.ddfs.urls(tag):
             print '\t'.join(replicas)
 
+add_prefix_mode(urls)
+
 @DDFS.command
 def xcat(program, *urls):
-    """Usage: [-i] [-p] [urls ...]
+    """Usage: [urls ...]
 
     Concatenate the extracted results stored in url[s] and print to stdout.
     If any of the url[s] are tags,
@@ -442,11 +466,8 @@ def xcat(program, *urls):
                                    reader=reader):
         print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()
 
-xcat.add_option('-R', '--reader',
-                help='input reader to import and use')
-xcat.add_option('-T', '--stream',
-                default='disco.func.default_stream',
-                help='input stream to import and use')
+add_classic_reads(xcat)
+add_program_blobs(xcat)
 
 if __name__ == '__main__':
     DDFS(option_parser=DDFSOptionParser()).main()
