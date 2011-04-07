@@ -215,7 +215,7 @@ class Worker(dict):
         try:
             sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
             sys.stdout = MessageWriter()
-            AnnouncePID(str(os.getpid())).send()
+            AnnouncePID(os.getpid()).send()
             worker, job = cls.unpack(JobPack.request())
             worker.start(job, Task.request())
             WorkerDone().send()
