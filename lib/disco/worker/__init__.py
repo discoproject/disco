@@ -62,32 +62,17 @@ class Worker(dict):
     with special methods defined for serializing itself,
     and possibly reinstantiating itself on the nodes where :term:`tasks <task>` are run.
 
-    The :class:`Worker` base class makes use of the following parameters:
-
-    :type  input: list of urls or list of list of urls
-    :param input: used to set :attr:`jobdict.input`.
-                  Disco natively handles the following url schemes:
-
-                  * ``http://...`` - any HTTP address
-                  * ``file://...`` or no scheme - a local file.
-                    The file must exist on all nodes where the tasks are run.
-                    Due to these restrictions, this form has only limited use.
-                  * ``tag://...`` - a tag stored in :ref:`DDFS`
-                  * ``raw://...`` - pseudo-address: use the address itself as data.
-                  * ``dir://...`` - used by Disco internally.
-                  * ``disco://...`` - used by Disco internally.
-
-                  .. seealso:: :mod:`disco.schemes`.
+    The :class:`Worker` base class defines the following parameters:
 
     :type  map: function or None
     :param map: called when the :class:`Worker` is :meth:`run` with a
                 :class:`disco.task.Task` in mode *map*.
-                Also used to determine the value of :attr:`jobdict.map?`.
+                Also used by :meth:`jobdict` to set :attr:`jobdict.map?`.
 
     :type  reduce: function or None
     :param reduce: called when the :class:`Worker` is :meth:`run` with a
-                :class:`disco.task.Task` in mode *reduce*.
-                Also used to determine the value of :attr:`jobdict.reduce?`.
+                   :class:`disco.task.Task` in mode *reduce*.
+                   Also used by :meth:`jobdict` to set :attr:`jobdict.reduce?`.
 
     :type  required_files: list of paths or dict
     :param required_files: additional files that are required by the worker.
@@ -96,7 +81,7 @@ class Worker(dict):
                            ``(filename, filecontents)``.
 
                            .. versionchanged:: 0.4
-                              The worker includes *required_files* in :meth:`jobhome`,
+                              The worker includes *required_files* in :meth:`jobzip`,
                               so they are available relative to the working directory
                               of the worker.
 
@@ -109,11 +94,9 @@ class Worker(dict):
     :type  save: bool
     :param save: whether or not to save the output to :ref:`DDFS`.
 
-    :type  scheduler: dict
-    :param scheduler: directly sets :attr:`jobdict.scheduler`.
-
     :type  profile: bool
-    :param profile: directly sets :attr:`jobdict.profile?`.
+    :param profile: determines whether :meth:`run` will be profiled.
+                    Also, used by :meth:`jobdict` to set :attr:`jobdict.profile?`.
     """
     def __init__(self, **kwargs):
         super(Worker, self).__init__(self.defaults())
@@ -131,34 +114,71 @@ class Worker(dict):
         """
         :return: dict of default values for the :class:`Worker`.
         """
-        return {'input': (),
-                'map': None,
+        return {'map': None,
                 'merge_partitions': False, # XXX: maybe deprecated
                 'reduce': None,
                 'required_files': {},
                 'required_modules': None,
                 'save': False,
-                'scheduler': {},
                 'partitions': 1,  # move to classic once partitions are dynamic
                 'profile': False}
 
-    def getitem(self, key, job, **jobargs):
+    def getitem(self, key, job, jobargs, default=None):
+        """
+        Resolves ``key`` in the following order:
+                #. ``jobargs`` (parameters passed in during :meth:`disco.job.Job.run`)
+                #. ``job`` (attributes of the :class:`disco.job.Job`)
+                #. ``self`` (items in the :class:`Worker` dict itself)
+                #. ``default``
+        """
         if key in jobargs:
             return jobargs[key]
         elif hasattr(job, key):
             return getattr(job, key)
-        return self.get(key)
+        return self.get(key, default)
 
     def jobdict(self, job, **jobargs):
         """
+        Creates :ref:`jobdict` for the :class:`Worker`.
+
+        Makes use of the following parameters,
+        in addition to those defined by the :class:`Worker` itself:
+
+        :type  input: list of urls or list of list of urls
+        :param input: used to set :attr:`jobdict.input`.
+                Disco natively handles the following url schemes:
+
+                * ``http://...`` - any HTTP address
+                * ``file://...`` or no scheme - a local file.
+                    The file must exist on all nodes where the tasks are run.
+                    Due to these restrictions, this form has only limited use.
+                * ``tag://...`` - a tag stored in :ref:`DDFS`
+                * ``raw://...`` - pseudo-address: use the address itself as data.
+                * ``dir://...`` - used by Disco internally.
+                * ``disco://...`` - used by Disco internally.
+
+                .. seealso:: :mod:`disco.schemes`.
+
+        :type  name: string
+        :param name: directly sets :attr:`jobdict.prefix`.
+
+        :type  owner: string
+        :param owner: directly sets :attr:`jobdict.owner`.
+                      If not specified, uses :envvar:`DISCO_JOB_OWNER`.
+
+        :type  scheduler: dict
+        :param scheduler: directly sets :attr:`jobdict.scheduler`.
+
+        Uses :meth:`getitem` to resolve the values of parameters.
+
         :return: the :term:`job dict`.
         """
         from disco.util import inputlist, ispartitioned, read_index
-        def get(key):
-            return self.getitem(key, job, **jobargs)
+        def get(key, default=None):
+            return self.getitem(key, job, jobargs, default)
         has_map = bool(get('map'))
         has_reduce = bool(get('reduce'))
-        input = inputlist(get('input'),
+        input = inputlist(get('input', []),
                           partition=None if has_map else False,
                           settings=job.settings)
 
@@ -186,9 +206,9 @@ class Worker(dict):
                 'reduce?': has_reduce,
                 'profile?': get('profile'),
                 'nr_reduces': nr_reduces,
-                'prefix': job.name,
-                'scheduler': get('scheduler'),
-                'owner': job.settings['DISCO_JOB_OWNER']}
+                'prefix': get('name'),
+                'scheduler': get('scheduler', {}),
+                'owner': get('owner', job.settings['DISCO_JOB_OWNER'])}
 
     def jobenvs(self, job, **jobargs):
         """
@@ -221,7 +241,7 @@ class Worker(dict):
         from disco.fileutils import DiscoZipFile
         from disco.util import iskv
         def get(key):
-            return self.getitem(key, job, **jobargs)
+            return self.getitem(key, job, jobargs)
         jobzip = DiscoZipFile()
         jobzip.writepy(os.path.dirname(clxpath), 'lib')
         jobzip.writepy(os.path.dirname(discopath), 'lib')
@@ -247,7 +267,7 @@ class Worker(dict):
         from disco.sysutil import set_mem_limit
         set_mem_limit(job.settings['DISCO_WORKER_MAX_MEM'])
         task.makedirs()
-        if self.getitem('profile', job, **jobargs):
+        if self.getitem('profile', job, jobargs):
             from cProfile import runctx
             name = 'profile-%s' % task.uid
             path = task.path(name)
@@ -261,7 +281,7 @@ class Worker(dict):
         """
         Called to do the actual work of processing the :class:`disco.task.Task`.
         """
-        self.getitem(task.mode, job, **jobargs)(task, job, **jobargs)
+        self.getitem(task.mode, job, jobargs)(task, job, **jobargs)
 
     def end(self, task, job, **jobargs):
         from disco.events import Status

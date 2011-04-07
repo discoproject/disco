@@ -8,10 +8,7 @@ Disco runs the :mod:`disco.worker.classic.worker` module for every job task.
 This module reconstructs the :class:`Worker` on the node where it is run,
 in order to execute the :term:`job functions` which were used to create it.
 
-Classic Workers resolve parameters in the following order:
-        #. jobargs (parameters passed in during :meth:`disco.job.Job.run`)
-        #. job (attributes of the :class:`disco.job.Job`)
-        #. worker (items in the :class:`Worker` dict itself)
+Classic Workers resolve all parameters using :meth:`~disco.worker.Worker.getitem`.
 
 Thus, users can subclass :class:`Job` as a convenient way to specify fixed parameters.
 For example, here's a simple distributed grep from the Disco ``examples/`` directory:
@@ -212,7 +209,7 @@ class Worker(worker.Worker):
     def jobzip(self, job, **jobargs):
         from disco.modutil import find_modules
         def get(key):
-            return self.getitem(key, job, **jobargs)
+            return self.getitem(key, job, jobargs)
         if get('required_modules') is None:
             self['required_modules'] = find_modules([obj
                                                      for key in self
@@ -230,7 +227,7 @@ class Worker(worker.Worker):
         global Task
         Task = task
         for key in self:
-            self[key] = self.getitem(key, job, **jobargs)
+            self[key] = self.getitem(key, job, jobargs)
         assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
 
         def open_hook(file, size, url):
