@@ -29,48 +29,48 @@ tags(Host, Prefix) ->
         E -> E
     end.
 
--spec get_tag(node(), string(), atom() | string(), token() | 'internal') ->
+-spec get_tag(node(), nonempty_string(), atom() | string(), token() | 'internal') ->
     'invalid_name' | {'missing', _} | 'unknown_attribute'
     | {'ok', binary()} | {'error', _}.
 get_tag(Host, Tag, Attrib, Token) ->
     tagop(Host, Tag, {get, Attrib, Token}, ?NODEOP_TIMEOUT).
 
--spec update_tag(node(), string(), [[binary()]], token()) -> _.
+-spec update_tag(node(), nonempty_string(), [[binary()]], token()) -> _.
 update_tag(Host, Tag, Urls, Token) ->
     update_tag(Host, Tag, Urls, Token, []).
 
--spec update_tag(node(), string(), [[binary()]], token(), [term()]) -> _.
+-spec update_tag(node(), nonempty_string(), [[binary()]], token(), [term()]) -> _.
 update_tag(Host, Tag, Urls, Token, Opt) ->
     tagop(Host, Tag, {update, Urls, Token, Opt}).
 
--spec update_tag_delayed(node(), string(), [[binary()]], token()) -> _.
+-spec update_tag_delayed(node(), nonempty_string(), [[binary()]], token()) -> _.
 update_tag_delayed(Host, Tag, Urls, Token) ->
     update_tag_delayed(Host, Tag, Urls, Token, []).
 
--spec update_tag_delayed(node(), string(), [[binary()]],
+-spec update_tag_delayed(node(), nonempty_string(), [[binary()]],
                          token(), [term()]) -> _.
 update_tag_delayed(Host, Tag, Urls, Token, Opt) ->
     tagop(Host, Tag, {delayed_update, Urls, Token, Opt}).
 
--spec replace_tag(node(), string(),
+-spec replace_tag(node(), nonempty_string(),
                   attrib(), [binary()] | [[binary()]], token()) -> _.
 replace_tag(Host, Tag, Field, Value, Token) ->
     tagop(Host, Tag, {put, Field, Value, Token}).
 
--spec delete_attrib(node(), string(), attrib(), token()) -> _.
+-spec delete_attrib(node(), nonempty_string(), attrib(), token()) -> _.
 delete_attrib(Host, Tag, Field, Token) ->
     tagop(Host, Tag, {delete_attrib, Field, Token}).
 
--spec delete(node(), string(), token() | 'internal') -> _.
+-spec delete(node(), nonempty_string(), token() | 'internal') -> term().
 delete(Host, Tag, Token) ->
     tagop(Host, Tag, {delete, Token}).
 
--spec tagop(node(), string(),
+-spec tagop(node(), nonempty_string(),
             {'delete', _}
             | {'delete_attrib', _, _}
             | {'delayed_update', _, _, _}
             | {'update', _, _, _}
-            | {'put', _, _, _}) -> _.
+            | {'put', _, _, _}) -> term().
 tagop(Host, Tag, Op) ->
     tagop(Host, Tag, Op, ?TAG_UPDATE_TIMEOUT).
 tagop(Host, Tag, Op, Timeout) ->
@@ -79,7 +79,7 @@ tagop(Host, Tag, Op, Timeout) ->
                                       {tag, Op, list_to_binary(Tag)}, Timeout)
                   end).
 
--spec validate(string(), fun(()-> T)) -> T.
+-spec validate(nonempty_string(), fun(()-> T)) -> T.
 validate(Name, Fun) ->
     case ddfs_util:is_valid_name(Name) of
         false ->

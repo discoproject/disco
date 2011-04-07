@@ -7,7 +7,7 @@
 -export([op/3]).
 
 -spec parse_tag_attribute(string(), atom()) ->
-    {string(), attrib() | 'all' | 'unknown_attribute'}.
+    {nonempty_string(), attrib() | 'all' | 'unknown_attribute'}.
 parse_tag_attribute(TagAttrib, DefaultAttrib) ->
     case mochiweb_util:path_split(TagAttrib) of
         {T, ""} -> {T, DefaultAttrib};

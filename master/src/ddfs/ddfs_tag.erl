@@ -383,6 +383,7 @@ do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
             S
     end.
 
+-spec jsonbin(_) -> binary().
 jsonbin(X) ->
     iolist_to_binary(mochijson2:encode(X)).
 

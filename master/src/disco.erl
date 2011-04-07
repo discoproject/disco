@@ -34,7 +34,7 @@
 -define(MINUTE, (60 * ?SECOND)).
 -define(HOUR, (60 * ?MINUTE)).
 
--spec get_setting(nonempty_string()) -> nonempty_string().
+-spec get_setting(nonempty_string()) -> string().
 get_setting(SettingName) ->
     case os:getenv(SettingName) of
         false ->
