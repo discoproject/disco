@@ -96,7 +96,6 @@ class Worker(dict):
 
     :type  profile: bool
     :param profile: determines whether :meth:`run` will be profiled.
-                    Also, used by :meth:`jobdict` to set :attr:`jobdict.profile?`.
     """
     def __init__(self, **kwargs):
         super(Worker, self).__init__(self.defaults())
@@ -204,7 +203,6 @@ class Worker(dict):
                 'worker': self.bin,
                 'map?': has_map,
                 'reduce?': has_reduce,
-                'profile?': get('profile'),
                 'nr_reduces': nr_reduces,
                 'prefix': get('name'),
                 'scheduler': get('scheduler', {}),

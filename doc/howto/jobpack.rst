@@ -63,12 +63,6 @@ The :term:`job dict` is a :term:`JSON` dictionary.
 
        Boolean telling whether or not this job should have a :term:`reduce` phase.
 
-    .. attribute:: jobdict.profile?
-
-       Boolean telling whether or not this job should be profiled.
-       Currently the master ignores this parameter,
-       but it will be used by any Python :class:`disco.worker.Worker`.
-
     .. attribute:: jobdict.nr_reduces
 
        Non-negative integer telling the master how many reduces to run.
