@@ -4,6 +4,7 @@
 -include("disco.hrl").
 
 -record(state, {task :: task(),
+                inputs,
                 master :: node(),
                 start_time :: timer:timestamp(),
                 child_pid :: 'none' | non_neg_integer(),
@@ -13,6 +14,7 @@
 
 init(Task, Master) ->
     #state{task = Task,
+           inputs = worker_inputs:init(Task#task.chosen_input),
            start_time = now(),
            master = Master,
            child_pid = none,
@@ -67,16 +69,27 @@ do_handle({<<"STA">>, Msg}, #state{task = Task, master = Master} = S) ->
     disco_worker:event({<<"STA">>, Msg}, Task, Master),
     {ok, {"OK", <<"ok">>}, S};
 
-do_handle({<<"INP">>, <<>>}, #state{task = Task} = S) ->
-    Inputs = [[Id, Status, Urls] || {Id, Status, Urls} <- input(Task)],
-    {ok, {"INP", [<<"done">>, Inputs]}, S};
+do_handle({<<"INP">>, <<>>}, #state{inputs = Inputs} = S) ->
+    {ok, input_reply(worker_inputs:aa(Inputs)), S};
 
-do_handle({<<"INP">>, Id}, #state{task = Task} = S) ->
-    case lists:keyfind(Id, 1, input(Task)) of
-        {Id, Status, Urls} ->
-            {ok, {"INP", [Status, Urls]}, S};
-        false ->
-            {ok, {"ERROR", [<<"No such input">>, Id]}, S}
+do_handle({<<"INP">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
+    {ok, input_reply(worker_inputs:include(Iids, Inputs)), S};
+
+do_handle({<<"INP">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
+    {ok, input_reply(worker_inputs:exclude(Iids, Inputs)), S};
+
+do_handle({<<"INP">>, _}, _S) ->
+    {stop, {fatal, "Invalid INP request"}};
+
+do_handle({<<"EREP">>, [Iid, Rids]}, #state{inputs = Inputs} = S) ->
+    Inputs1 = worker_inputs:fail(Iid, Rids, Inputs),
+    {_, Replicas} = worker_inputs:include([Iid], Inputs1),
+    R = gb_sets:from_list(Rids),
+    case [E || [Rid, _Url] = E <- Replicas, not gb_sets:is_member(Rid, R)] of
+        [] ->
+            {ok, {"FAIL", <<>>}, S#state{inputs = Inputs1}};
+        Valid ->
+            {ok, {"RETRY", Valid}, S#state{inputs = Inputs1}}
     end;
 
 do_handle({<<"DAT">>, Msg}, _S) ->
@@ -104,16 +117,11 @@ do_handle({<<"END">>, _Body}, #state{task = Task, master = Master} = S) ->
             {stop, {error, Reason}}
     end;
 
-do_handle({Type, Body}, _S) ->
+do_handle({Type, _Body}, _S) ->
     {error, {fatal, ["Unknown message type:", Type]}}.
 
-input(Task) ->
-    case Task#task.chosen_input of
-        Binary when is_binary(Binary) ->
-            [{1, <<"ok">>, [Binary]}];
-        List when is_list(List) ->
-            [{I, <<"ok">>, lists:flatten([Url])} || {I, Url} <- disco:enum(List)]
-    end.
+input_reply(Inputs) ->
+    {"INP", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
 
 url_path(Task, Host, LocalFile) ->
     LocationPrefix = disco:joburl(Host, Task#task.jobname),
