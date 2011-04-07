@@ -151,13 +151,87 @@ events.add_option('-o', '--offset',
                   help='offset to use in requests to disco master')
 
 @Disco.command
-def job(program, *file):
-    """Usage: [file]
+def job(program, worker, *inputs):
+    """Usage: worker [input ...]
 
-    Submit a jobpack to the master.
-    Reads the jobpack from file or stdin.
+    Create a jobpack and submit it to the master.
+    Worker is automatically added to the jobhome.
+    Input urls are specified as arguments or read from stdin.
     """
-    print program.disco.submit(''.join(fileinput.input(file)))
+    from disco.fileutils import DiscoZipFile
+    from disco.job import JobPack
+    def jobzip(*paths):
+        jobzip = DiscoZipFile()
+        for path in paths:
+            jobzip.writepath(path)
+        jobzip.close()
+        return jobzip
+    def jobdata(data):
+        if data.startswith('@'):
+            return open(data[1:]).read()
+        return data
+    jobdict = {'input': program.job_input(*inputs),
+               'worker': worker,
+               'map?': program.options.has_map,
+               'reduce?': program.options.has_reduce,
+               'nr_reduces': program.options.nr_reduces,
+               'prefix': program.options.prefix,
+               'scheduler': dict((k, eval(v)) for k, v in program.options.scheduler),
+               'owner': program.options.owner or program.settings['DISCO_JOB_OWNER']}
+    jobenvs = dict(program.options.env)
+    jobzip  = jobzip(worker, *program.options.files)
+    jobdata = jobdata(program.options.data)
+    jobpack = JobPack(jobdict, jobenvs, jobzip.dumps(), jobdata)
+    if program.options.verbose:
+        print "jobdict:"
+        print "\n".join("\t%s\t%s" % item for item in jobdict.items())
+        print "jobenvs:"
+        print "\n".join("\t%s\t%s" % item for item in jobenvs.items())
+        print "jobzip:"
+        print "\n".join("\t%s" % name for name in jobzip.namelist())
+        print "jobdata:"
+        print "\n".join("\t%s" % line for line in jobdata.splitlines())
+    if program.options.dump_jobpack:
+        print jobpack.dumps()
+    else:
+        print program.disco.submit(jobpack.dumps())
+
+job.add_option('-m', '--has-map',
+               action='store_true',
+               help='sets the map phase flag of the jobdict')
+job.add_option('-r', '--has-reduce',
+               action='store_true',
+               help='sets the reduce phase flag of the jobdict')
+job.add_option('-n', '--nr-reduces',
+               default=1,
+               type='int',
+               help='number of reduces in the reduce phase')
+job.add_option('-o', '--owner',
+               help='owner of the job')
+job.add_option('-p', '--prefix',
+               default='job',
+               help='prefix to use when naming the job')
+job.add_option('-S', '--scheduler',
+               action='append',
+               default=[],
+               nargs=2,
+               help='add a param to the scheduler field of the jobdict')
+job.add_option('-e', '--env',
+               action='append',
+               default=[],
+               nargs=2,
+               help='add a variable to jobenvs')
+job.add_option('-f', '--file',
+               action='append',
+               default=[],
+               dest='files',
+               help='path to add to the jobhome (recursively adds directories)')
+job.add_option('-d', '--data',
+               default='',
+               help='additional binary jobdata, read from a file if it starts with "@"')
+job.add_option('-D', '--dump-jobpack',
+               action='store_true',
+               help='dump the jobpack without submitting it to the master')
 
 @Disco.job_command
 def jobdict(program, jobname):
@@ -228,66 +302,6 @@ def get(program, key, jobname):
     """
     from disco.job import Job
     print Job(name=program.job_history(jobname), master=program.disco).oob_get(key)
-
-@Disco.command
-def pack(program, *inputs):
-    """Usage: [input ...]
-
-    Create a jobpack.
-    Input urls are specified as arguments or read from stdin.
-    """
-    from disco.fileutils import DiscoZipFile
-    from disco.job import JobPack
-    def require(option):
-        raise ValueError("'--%s' option is required" % option)
-    jobdict = {'input': program.job_input(*inputs),
-               'worker': program.options.worker or require('worker'),
-               'map?': program.options.has_map,
-               'reduce?': program.options.has_reduce,
-               'nr_reduces': program.options.nr_reduces,
-               'prefix': program.options.prefix,
-               'scheduler': dict(program.options.scheduler),
-               'owner': program.options.owner or program.settings['DISCO_JOB_OWNER']}
-    jobzip = DiscoZipFile()
-    jobzip.writepath(program.options.home or require('home'))
-    jobzip.close()
-    print JobPack(jobdict,
-                  dict(program.options.env),
-                  jobzip.dumps(),
-                  program.options.data).dumps()
-
-pack.add_option('-m', '--has-map',
-                action='store_true',
-                help='sets the map phase flag of the jobdict')
-pack.add_option('-r', '--has-reduce',
-                action='store_true',
-                help='sets the reduce phase flag of the jobdict')
-pack.add_option('-n', '--nr-reduces',
-                default=1,
-                type='int',
-                help='number of reduces in the reduce phase')
-pack.add_option('-o', '--owner',
-                help='owner of the job')
-pack.add_option('-p', '--prefix',
-                default='job',
-                help='prefix to use when naming the job')
-pack.add_option('-w', '--worker',
-                help='path of the worker binary, relative to home')
-pack.add_option('-S', '--scheduler',
-                action='append',
-                default=[],
-                nargs=2,
-                help='add a param to the scheduler field of the jobdict')
-pack.add_option('-e', '--env',
-                action='append',
-                default=[],
-                nargs=2,
-                help='add a variable to jobenvs')
-pack.add_option('-H', '--home',
-                help='path to the jobhome')
-pack.add_option('-d', '--data',
-                default='',
-                help='additional jobdata')
 
 @Disco.job_command
 def pstats(program, jobname):
@@ -376,6 +390,15 @@ run.add_option('--status_interval',
                 callback=OptionParser.update_jobargs,
                 type='int',
                 help='how often to report status in job')
+
+@Disco.command
+def submit(program, *file):
+    """Usage: [file]
+
+    Submit a jobpack to the master.
+    Reads the jobpack from file or stdin.
+    """
+    print program.disco.submit(''.join(fileinput.input(file)))
 
 @Disco.job_command
 def wait(program, jobname):
