@@ -32,6 +32,7 @@ handle({Type, Body}, S) ->
             {error, {fatal,
                      ["Corrupted message: type '", Type, "', body:\n", Body]}};
         Json ->
+           %error_logger:info_report({"worker: handling", Type, Json}),
            Ret = do_handle({Type, Json}, S),
            %error_logger:info_report({"Return", Ret}),
            Ret
@@ -70,7 +71,7 @@ do_handle({<<"STA">>, Msg}, #state{task = Task, master = Master} = S) ->
     {ok, {"OK", <<"ok">>}, S};
 
 do_handle({<<"INP">>, <<>>}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:aa(Inputs)), S};
+    {ok, input_reply(worker_inputs:all(Inputs)), S};
 
 do_handle({<<"INP">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
     {ok, input_reply(worker_inputs:include(Iids, Inputs)), S};
