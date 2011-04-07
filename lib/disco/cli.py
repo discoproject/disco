@@ -86,6 +86,12 @@ class Program(clx.Program):
                     return job
         return jobname
 
+    def job_input(self, *inputs):
+        def maybe_list(seq):
+            return seq[0] if len(seq) == 1 else seq
+        return inputs or [maybe_list(line.split())
+                          for line in fileinput.input(inputs)]
+
     def prefix_mode(self, *tags):
         from itertools import chain
         if self.options.prefix_mode:

@@ -123,11 +123,7 @@ class Job(object):
                           self.worker.jobenvs(self, **jobargs),
                           self.worker.jobhome(self, **jobargs),
                           self.worker.jobdata(self, **jobargs))
-        status, response = json.loads(self.disco.request('/disco/job/new',
-                                                         jobpack.dumps()))
-        if status != 'ok':
-            raise JobError(self, "Failed to start job. Server replied: %s" % response)
-        self.name = response
+        self.name = self.disco.submit(jobpack.dumps())
         return self
 
 class JobChain(dict):
