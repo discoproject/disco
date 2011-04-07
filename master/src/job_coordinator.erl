@@ -24,7 +24,7 @@ new(JobPack) ->
                        ok ->
                            ok;
                        Error ->
-                           error_logger:error_report(Error),
+                           error_logger:error_report({"Job failed to start", Error}),
                            exit(Error)
                    end
                end),
@@ -63,9 +63,11 @@ job_coordinator(#jobinfo{jobname = JobName} = Job) ->
                                 {ready, Results}}),
             event_server:end_job(JobName);
         {error, Error} ->
-            kill_job(JobName, Error);
+            kill_job(JobName, {"Job failed: ~p", [Error]});
+        {error, Error, Params} ->
+            kill_job(JobName, {"Job failed: ~p", [Error], Params});
         Error ->
-            kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", Error})
+            kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", [Error]})
     end.
 
 kill_job(JobName, {EventFormat, Args, Params} = Error) ->
@@ -145,9 +147,8 @@ wait_workers(N, Results, Mode) ->
             handle_data_error(Task, Host),
             {N, Results};
         {{fatal, Error}, Task, Host} ->
-            throw({error, {"Worker at '~s' died: ~s",
-                           [Host, Error],
-                           {task_failed, Task#task.mode}}})
+            throw({error, disco:format("Worker at '~s' died: ~s", [Host, Error]),
+                   {task_failed, Task#task.mode}})
     end.
 
 -spec submit_task(task()) -> _.
@@ -156,9 +157,8 @@ submit_task(Task) ->
         ok ->
             ok;
         _ ->
-            throw({error,
-                   "~s:~B scheduling failed. Try again later.",
-                   [Task#task.mode, Task#task.taskid]})
+            throw({error, disco:format("~s:~B scheduling failed. Try again later.",
+                                       [Task#task.mode, Task#task.taskid])})
     end.
 
 % data_error signals that a task failed on an error that is not likely
