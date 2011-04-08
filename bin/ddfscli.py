@@ -69,6 +69,7 @@ def cat(program, *urls):
     from itertools import chain
     from subprocess import call
     from disco.comm import download
+    from disco.util import deref
 
     ignore_missing = program.options.ignore_missing
     tags, urls     = program.separate_tags(*urls)
@@ -83,7 +84,7 @@ def cat(program, *urls):
             raise Exception("Failed downloading all replicas: %s" % replicas)
         return ''
 
-    for replicas in chain(([url] for url in urls), program.blobs(*tags)):
+    for replicas in deref(chain(urls, program.blobs(*tags))):
         sys.stdout.write(curl(replicas))
 
 @DDFS.command

@@ -291,6 +291,11 @@ def external(files):
     from disco.worker.classic.external import package
     return package(files)
 
+def deref(inputs, resolve=False):
+    resolve = urlresolve if resolve else identity
+    for input in inputlist(inputs):
+        yield [resolve(i) for i in iterify(input)]
+
 def parse_dir(dir, partition=None):
     """
     Translates a directory URL (``dir://...``) to a list of normal URLs.

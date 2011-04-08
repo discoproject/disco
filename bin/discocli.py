@@ -133,10 +133,9 @@ def deref(program, *urls):
     Dereference the urls and print them to stdout.
     Input urls are specified as arguments or read from stdin.
     """
-    from disco.util import inputlist, identity, iterify, urlresolve
-    resolve = urlresolve if program.options.resolve else identity
-    for input in inputlist(program.input(*urls)):
-        print "\t".join(resolve(i) for i in iterify(input))
+    from disco.util import deref
+    for input in deref(program.input(*urls), resolve=program.options.resolve):
+        print "\t".join(input)
 
 deref.add_option('-r', '--resolve',
                  action='store_true',
