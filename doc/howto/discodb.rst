@@ -35,10 +35,14 @@ Now let's try creating our word count db from scratch, and querying it::
         $ cd disco/examples/util
         $ disco run wordcount_ddb.WordCount http://discoproject.org/media/text/chekhov.txt
         WordCount@515:66e88:d39
-        $ disco results WordCount@515:66e88:d39 | xargs python query_ddb.py 'word'
+        $ disco results @ | xargs python query_ddb.py 'word'
         word    18
-        $ disco results WordCount@515:66e88:d39 | xargs python query_ddb.py 'this | word'
+        $ disco results @?WordCount | xargs python query_ddb.py 'this | word'
         this | word     217
+
+.. hint:: The special arguments ``@`` and ``@?<string>``
+          are replaced by the most recent job name and
+          the most recent job with name matching ``<string>``, respectively.
 
 There are a few things to note in this example.
 First of all, we use a :func:`disco.worker.classic.func.nop_map`,

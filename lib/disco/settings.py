@@ -103,6 +103,11 @@ Possible settings for Disco are as follows:
                 Root directory for Disco-written data and metadata.
                 Default is obtained using ``os.path.join(DISCO_HOME, 'root')``.
 
+        .. envvar:: DISCO_ROTATE_LOG
+
+                Whether to rotate the master log on startup.
+                Default is ``False``.
+
         .. envvar:: DISCO_USER
 
                 The user Disco should run as.
@@ -254,6 +259,7 @@ class DiscoSettings(Settings):
         'DISCO_PID_DIR':         "os.path.join(DISCO_ROOT, 'run')",
         'DISCO_PORT':            "8989",
         'DISCO_ROOT':            "os.path.join(DISCO_HOME, 'root')",
+        'DISCO_ROTATE_LOG':      "False",
         'DISCO_SETTINGS_FILE':   "guess_settings()",
         'DISCO_WORKER_MAX_MEM':  "'80%'",
         'DISCO_ULIMIT':          "16000000",

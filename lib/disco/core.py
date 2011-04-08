@@ -49,6 +49,12 @@ class Disco(object):
                 e.msg += " (is disco master running at %s?)" % self.master
             raise
 
+    def submit(self, jobpack):
+        status, body = json.loads(self.request('/disco/job/new', jobpack))
+        if status != 'ok':
+            raise DiscoError("Failed to submit jobpack: %s" % body)
+        return body
+
     def get_config(self):
         return json.loads(self.request('/disco/ctrl/load_config_table'))
 

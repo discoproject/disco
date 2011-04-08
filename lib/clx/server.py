@@ -1,5 +1,6 @@
 import os, signal, subprocess
 from itertools import chain
+from logging.handlers import TimedRotatingFileHandler
 
 class ServerError(Exception):
     pass
@@ -11,8 +12,9 @@ class Server(object):
     Concrete implementations must provide `host`, `port`, `log_dir`, `pid_dir`.
     Some subclasses may also need to provide `env` if the default is not satisfactory.
     """
-    def __init__(self, settings):
+    def __init__(self, settings, rotate_log=False):
         self.settings = settings
+        self.rotate_log = rotate_log
 
     @property
     def env(self):
@@ -25,6 +27,9 @@ class Server(object):
     @property
     def log_file(self):
         return os.path.join(self.log_dir, '%s-%s_%s.log' % self.id)
+
+    def log_rotate(self):
+        TimedRotatingFileHandler(self.log_file, when='S', interval=1).doRollover()
 
     @property
     def pid(self):
@@ -40,6 +45,8 @@ class Server(object):
     def start(self, *args, **kwargs):
         if self._status == 'running':
             raise ServerError("%s already started" % self)
+        if self.rotate_log:
+            self.log_rotate()
         process = subprocess.Popen(args or self.args, env=self.env, **kwargs)
         if process.wait():
             raise ServerError("Failed to start %s" % self)
