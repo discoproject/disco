@@ -183,7 +183,6 @@ handle_info({'EXIT', Pid, {error, _} = Msg}, S) ->
     process_exit(Pid, Msg, S);
 
 handle_info({'EXIT', Pid, Reason}, S) ->
-    error_logger:warning_report({"Worker died unexpectedly", Pid, Reason}),
     process_exit(Pid, {error, Reason}, S).
 
 %% ===================================================================
