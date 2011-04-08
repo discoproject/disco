@@ -25,6 +25,29 @@ init(Task, Master) ->
 get_pid(#state{child_pid = Pid}) ->
     Pid.
 
+payload_type(<<"PID">>) -> integer;
+payload_type(<<"VSN">>) -> string;
+payload_type(<<"JOB">>) -> string;
+payload_type(<<"SET">>) -> string;
+payload_type(<<"TSK">>) -> string;
+payload_type(<<"STA">>) -> string;
+payload_type(<<"DAT">>) -> string;
+payload_type(<<"ERR">>) -> string;
+payload_type(<<"END">>) -> string;
+
+payload_type(<<"INP">>) ->
+    {array, [{opt, [{value, <<"include">>},
+                    {value, <<"exclude">>}]},
+             {hom_array, integer}]};
+payload_type(<<"EREP">>) ->
+    {array, [integer, {hom_array, integer}]};
+payload_type(<<"OUT">>) ->
+    {opt, [{array, [string, string]},
+           {array, [string, string, string]}]};
+
+payload_type(_Type) -> none.
+
+
 handle({Type, Body}, S) ->
    %error_logger:info_report({"Got request", Type, Body}),
    case catch mochijson2:decode(Body) of
@@ -33,6 +56,13 @@ handle({Type, Body}, S) ->
                      ["Corrupted message: type '", Type, "', body:\n", Body]}};
         Json ->
            %error_logger:info_report({"worker: handling", Type, Json}),
+           case payload_type(Type) of
+               none -> ok;
+               Spec -> case json_validator:validate(Spec, Json) of
+                           ok -> ok;
+                           E -> error_logger:error_report({"invalid payload type", Type, E})
+                       end
+           end,
            Ret = do_handle({Type, Json}, S),
            %error_logger:info_report({"Return", Ret}),
            Ret
