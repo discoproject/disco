@@ -152,7 +152,7 @@ class Program(clx.Program):
 
 class Master(clx.server.Server):
     def __init__(self, settings):
-        super(Master, self).__init__(settings)
+        super(Master, self).__init__(settings, settings['DISCO_ROTATE_LOG'])
         self.setid()
 
     @property
