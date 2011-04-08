@@ -2,12 +2,41 @@ import fileinput, os, sys
 import clx
 import clx.server
 
+from copy import copy
+from optparse import OptionValueError, Option as Opt
+
+def check_reify(option, opt, val):
+    from disco.util import reify
+    try:
+        return reify(val)
+    except Exception, e:
+        raise OptionValueError('%s option: %s' % (opt, str(e)))
+
+class Option(Opt):
+    actions = ('setitem', 'setitem2')
+    ACTIONS = Opt.ACTIONS + actions
+    STORE_ACTIONS = Opt.STORE_ACTIONS + actions
+    TYPED_ACTIONS = Opt.TYPED_ACTIONS + actions
+    ALWAYS_TYPED_ACTIONS = Opt.ALWAYS_TYPED_ACTIONS + actions
+    TYPES = ('reify',)
+    TYPE_CHECKER = copy(Opt.TYPE_CHECKER)
+    TYPE_CHECKER['reify'] = check_reify
+
+    def take_action(self, action, dest, opt, val, vals, parser):
+        if action == 'setitem':
+            key = opt.strip('-')
+            vals.ensure_value(dest, {})[key] = val
+        elif action == 'setitem2':
+            key, val = val
+            vals.ensure_value(dest, {})[key] = val
+        else:
+            Opt.take_action(self, action, dest, opt, val, vals, parser)
+
 class OptionParser(clx.OptionParser):
     def __init__(self, **kwargs):
-        clx.OptionParser.__init__(self, **kwargs)
+        clx.OptionParser.__init__(self, option_class=Option, **kwargs)
         self.add_option('-t', '--token',
                         help='authorization token to use for tags')
-        self.jobargs = {}
 
 class Program(clx.Program):
     def __init__(self, *args, **kwargs):
@@ -74,10 +103,6 @@ class Program(clx.Program):
         job_function.__doc__ = function.__doc__
         return self.command(function.__name__)(job_function)
 
-    @classmethod
-    def update_jobargs(cls, option, name, val, parser):
-        parser.jobargs[name.strip('-')] = True if val is None else val
-
     def blobs(self, *tags):
         ignore_missing = self.options.ignore_missing
         for tag in self.prefix_mode(*tags):
@@ -132,6 +157,10 @@ class Program(clx.Program):
     @property
     def master(self):
         return Master(self.settings)
+
+    @property
+    def scheduler(self):
+        return dict((k, eval(v)) for k, v in self.options.scheduler.items())
 
     @property
     def settings_class(self):

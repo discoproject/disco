@@ -3,7 +3,7 @@
 # A wrapper for grep.py to make it feel more like Unix grep
 
 bin=`dirname $0`
-job=`PYTHONPATH=$bin disco run grep.Grep --param pattern "$@"` && \
+job=`PYTHONPATH=$bin disco run grep.Grep -P params $@` && \
 DISCO_EVENTS= \
 disco wait $job > /dev/null && \
 disco results $job | xargs ddfs xcat
