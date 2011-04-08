@@ -25,17 +25,47 @@ init(Task, Master) ->
 get_pid(#state{child_pid = Pid}) ->
     Pid.
 
+payload_type(<<"PID">>) -> integer;
+payload_type(<<"VSN">>) -> string;
+payload_type(<<"JOB">>) -> string;
+payload_type(<<"SET">>) -> string;
+payload_type(<<"TSK">>) -> string;
+payload_type(<<"STA">>) -> string;
+payload_type(<<"DAT">>) -> string;
+payload_type(<<"ERR">>) -> string;
+payload_type(<<"END">>) -> string;
+
+payload_type(<<"INP">>) ->
+    {array, [{opt, [{value, <<"include">>},
+                    {value, <<"exclude">>}]},
+             {hom_array, integer}]};
+payload_type(<<"EREP">>) ->
+    {array, [integer, {hom_array, integer}]};
+payload_type(<<"OUT">>) ->
+    {opt, [{array, [string, string]},
+           {array, [string, string, string]}]};
+
+payload_type(_Type) -> none.
+
 handle({Type, Body}, S) ->
-   %error_logger:info_report({"Got request", Type, Body}),
    case catch mochijson2:decode(Body) of
         {'EXIT', _} ->
-            {error, {fatal,
-                     ["Corrupted message: type '", Type, "', body:\n", Body]}};
+            Err = ["Payload is not valid JSON: type '", Type, "', body:\n", Body],
+            {error, {fatal, Err}};
         Json ->
-           %error_logger:info_report({"worker: handling", Type, Json}),
-           Ret = do_handle({Type, Json}, S),
-           %error_logger:info_report({"Return", Ret}),
-           Ret
+            case payload_type(Type) of
+                none ->
+                    Err = ["Unknown message type '", Type, "', body:\n", Body],
+                    {error, {fatal, Err}};
+                Spec ->
+                    case json_validator:validate(Spec, Json) of
+                        ok ->
+                            do_handle({Type, Json}, S);
+                        {error, E} ->
+                            Msg = "Invalid message body (type '~s'): ~p",
+                            {error, {fatal, io_lib:format(Msg, [Type, E])}}
+                    end
+            end
     end.
 
 do_handle({<<"PID">>, Pid}, S) ->
@@ -79,9 +109,6 @@ do_handle({<<"INP">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
 do_handle({<<"INP">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
     {ok, input_reply(worker_inputs:exclude(Iids, Inputs)), S};
 
-do_handle({<<"INP">>, _}, _S) ->
-    {stop, {fatal, "Invalid INP request"}};
-
 do_handle({<<"EREP">>, [Iid, Rids]}, #state{inputs = Inputs} = S) ->
     Inputs1 = worker_inputs:fail(Iid, Rids, Inputs),
     {_, Replicas} = worker_inputs:include([Iid], Inputs1),
@@ -116,10 +143,7 @@ do_handle({<<"END">>, _Body}, #state{task = Task, master = Master} = S) ->
             {stop, {done, results(S)}};
         {error, Reason} ->
             {stop, {error, Reason}}
-    end;
-
-do_handle({Type, _Body}, _S) ->
-    {error, {fatal, ["Unknown message type:", Type]}}.
+    end.
 
 input_reply(Inputs) ->
     {"INP", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
