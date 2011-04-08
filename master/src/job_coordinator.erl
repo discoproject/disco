@@ -24,8 +24,8 @@ new(JobPack) ->
                        ok ->
                            ok;
                        Error ->
-                           exit(disco:format("Job submission failed: ~W",
-                                             [Error, 9]))
+                           error_logger:error_report({"Job failed to start", Error}),
+                           exit(Error)
                    end
                end),
     receive
@@ -44,6 +44,7 @@ job_event(JobName, {EventFormat, Args}) ->
 job_event(JobName, Event) ->
     job_event(JobName, {Event, [], {}}).
 
+-spec job_coordinator(pid(), binary()) -> 'ok'.
 job_coordinator(Parent, JobPack) ->
     {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
     {ok, JobName} = event_server:new_job(Prefix, self()),
@@ -52,7 +53,7 @@ job_coordinator(Parent, JobPack) ->
     Parent ! {job_submitted, JobName},
     job_coordinator(JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}).
 
--spec job_coordinator(nonempty_string(), [binary() | jobinfo()]) -> 'ok'.
+-spec job_coordinator(jobinfo()) -> 'ok'.
 job_coordinator(#jobinfo{jobname = JobName} = Job) ->
     job_event(JobName, {"Starting job", [], {job_data, Job}}),
     Started = now(),
@@ -63,9 +64,11 @@ job_coordinator(#jobinfo{jobname = JobName} = Job) ->
                                 {ready, Results}}),
             event_server:end_job(JobName);
         {error, Error} ->
-            kill_job(JobName, Error);
+            kill_job(JobName, {"Job failed: ~p", [Error]});
+        {error, Error, Params} ->
+            kill_job(JobName, {"Job failed: ~p", [Error], Params});
         Error ->
-            kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", Error})
+            kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", [Error]})
     end.
 
 kill_job(JobName, {EventFormat, Args, Params} = Error) ->
@@ -97,6 +100,7 @@ work([{TaskID, Input}|Inputs], Mode, N, Job, Res) when N < Job#jobinfo.max_cores
                  force_local = Job#jobinfo.force_local,
                  force_remote = Job#jobinfo.force_remote,
                  jobname = Job#jobinfo.jobname,
+                 jobenvs = Job#jobinfo.jobenvs,
                  taskid = TaskID,
                  mode = Mode,
                  input = Input,
@@ -144,9 +148,8 @@ wait_workers(N, Results, Mode) ->
             handle_data_error(Task, Host),
             {N, Results};
         {{fatal, Error}, Task, Host} ->
-            throw({error, {"Worker at '~s' died: ~s",
-                           [Host, Error],
-                           {task_failed, Task#task.mode}}})
+            throw({error, disco:format("Worker at '~s' died: ~s", [Host, Error]),
+                   {task_failed, Task#task.mode}})
     end.
 
 -spec submit_task(task()) -> _.
@@ -155,9 +158,8 @@ submit_task(Task) ->
         ok ->
             ok;
         _ ->
-            throw({error,
-                   "~s:~B scheduling failed. Try again later.",
-                   [Task#task.mode, Task#task.taskid]})
+            throw({error, disco:format("~s:~B scheduling failed. Try again later.",
+                                       [Task#task.mode, Task#task.taskid])})
     end.
 
 % data_error signals that a task failed on an error that is not likely
@@ -212,6 +214,7 @@ map(Inputs, #jobinfo{map = false}) ->
 map(Inputs, Job) ->
     run_phase(map_input(Inputs), "map", Job).
 
+-spec shuffle(nonempty_string(), nonempty_string(), [{node(), binary()}]) -> {'ok', [binary()]}.
 shuffle(_JobName, _Mode, []) ->
     {ok, []};
 shuffle(JobName, Mode, DirUrls) ->

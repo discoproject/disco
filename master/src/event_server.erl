@@ -25,9 +25,11 @@
 
 -include("disco.hrl").
 
+-spec new_job(nonempty_string(), pid()) -> {'ok', nonempty_string()}.
 new_job(Prefix, JobCoordinator) ->
     gen_server:call(?MODULE, {new_job, Prefix, JobCoordinator}, 10000).
 
+-spec end_job(nonempty_string()) -> 'ok'.
 end_job(JobName) ->
     gen_server:cast(?MODULE, {job_done, JobName}).
 
@@ -52,7 +54,7 @@ json_list([X], L) ->
 json_list([X|R], L) ->
     json_list(R, [<<X/binary, ",">>|L]).
 
--spec unique_key(nonempty_string(), dict()) -> nonempty_string().
+-spec unique_key(nonempty_string(), dict()) -> 'invalid_prefix' | {ok, nonempty_string()}.
 unique_key(Prefix, Dict) ->
     C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
     if C > 0 ->

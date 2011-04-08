@@ -39,7 +39,7 @@ def range_header(offset):
     return {}
 
 def auth_header(token):
-    if token:
+    if token != None:
         return {'Authorization': 'Basic ' + base64.b64encode("token:" + token)}
     return {}
 

@@ -209,6 +209,7 @@ class JobPack(object):
         self.jobhome = jobhome
         self.jobdata = jobdata
 
+    @classmethod
     def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
         from struct import pack
         toc = pack(format, magic, *(o for o in offsets))

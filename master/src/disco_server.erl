@@ -10,9 +10,10 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-include_lib("kernel/include/file.hrl").
 -include("disco.hrl").
 
--type connection_status() :: 'undefined' | 'up' | timer:timestamp().
+-type connection_status() :: 'undefined' | 'up' | disco_util:timestamp().
 
 -record(dnode, {host :: nonempty_string(),
                 node_mon :: pid(),
@@ -30,6 +31,16 @@
                 purged :: gb_tree()}).
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
+
+
+% Note! Many parallel calls to get_worker_jobpack can cause master
+% to run out of file descriptors. If master did not close file descriptors
+% after JOBPACK_HANDLE_TIMEOUT, it is possible that unsuccessful
+% disco_workers would leak file descriptors, making the issue even worse.
+%
+% If the issue becomes serious, it should be relatively straightforward to
+% implement throttling to limit the maximum number of concurrent downloaders.
+-define(JOBPACK_HANDLE_TIMEOUT, 10 * 60 * 1000).
 
 %% ===================================================================
 %% API functions
@@ -143,9 +154,7 @@ handle_call(get_num_cores, _, S) ->
     {reply, do_get_num_cores(S), S};
 
 handle_call({jobpack, JobName}, From, State) ->
-    spawn(fun () ->
-                  gen_server:reply(From, jobpack:read(disco:jobhome(JobName)))
-          end),
+    spawn(fun() -> do_send_jobpack(JobName, From) end),
     {noreply, State};
 
 handle_call({kill_job, JobName}, _From, S) ->
@@ -170,7 +179,7 @@ handle_info({'EXIT', Pid, {shutdown, Results}}, S) ->
 handle_info({'EXIT', Pid, noconnection}, S) ->
     process_exit(Pid, {error, "Connection lost to the node (network busy?)"}, S);
 
-handle_info({'EXIT', Pid, {error, _}} = Msg, S) ->
+handle_info({'EXIT', Pid, {error, _} = Msg}, S) ->
     process_exit(Pid, Msg, S);
 
 handle_info({'EXIT', Pid, Reason}, S) ->
@@ -444,3 +453,15 @@ do_clean_job(JobName) ->
     do_kill_job(JobName),
     gen_server:cast(event_server, {clean_job, JobName}),
     ok.
+
+do_send_jobpack(JobName, From) ->
+    JobFile = jobpack:jobfile(disco:jobhome(JobName)),
+    case prim_file:read_file_info(JobFile) of
+        {ok, #file_info{size = Size}} ->
+            {ok, File} = file:open(JobFile, [binary, read]),
+            gen_server:reply(From, {ok, {File, Size}}),
+            timer:sleep(?JOBPACK_HANDLE_TIMEOUT),
+            file:close(File);
+        {error, _} = E ->
+            gen_server:reply(From, E)
+    end.

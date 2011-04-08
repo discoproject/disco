@@ -14,6 +14,7 @@ spawn_node(Host) ->
     process_flag(trap_exit, true),
     spawn_node(Host, is_master(Host)).
 
+-spec spawn_node(nonempty_string(), bool()) -> no_return().
 spawn_node(Host, IsMaster) ->
     case {IsMaster, catch slave_start(Host)} of
         {true, {ok, Node}} ->
@@ -35,15 +36,14 @@ spawn_node(Host, IsMaster) ->
                 {"Spawning node @", Host, "failed for unknown reason", Error}),
             disco_server:connection_status(Host, down)
     end,
-    flush(),
-    timer:sleep(?RESTART_DELAY),
-    spawn_node(Host, IsMaster).
+    timer:sleep(?RESTART_DELAY).
 
 -spec node_monitor(nonempty_string(), node(), {bool(), bool()}) -> _.
 node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
     start_temp_gc(Node),
+    start_lock_server(Node),
     disco_server:connection_status(Host, up),
     wait(Node),
     disco_server:connection_status(Host, down).
@@ -63,13 +63,6 @@ wait(Node) ->
             error_logger:info_report({"Node", Node, "down"});
         E ->
             error_logger:info_report({"Erroneous message (node_mon)", E})
-    end.
-
-flush() ->
-    receive
-        _ -> flush()
-    after
-        0 -> true
     end.
 
 slave_env() ->
@@ -110,6 +103,10 @@ is_master(Host) ->
 -spec start_temp_gc(node()) -> pid().
 start_temp_gc(Node) ->
     spawn_link(Node, temp_gc, start_link, [whereis(disco_server)]).
+
+-spec start_lock_server(node()) -> pid().
+start_lock_server(Node) ->
+    spawn_link(Node, lock_server, start_link, []).
 
 -spec start_ddfs_node(node(), {bool(), bool()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->

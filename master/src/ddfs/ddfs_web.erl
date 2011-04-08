@@ -2,11 +2,12 @@
 -module(ddfs_web).
 
 -include("config.hrl").
+-include("ddfs_tag.hrl").
 
 -export([op/3]).
 
 -spec parse_tag_attribute(string(), atom()) ->
-    {string(), ddfs_tag:attrib() | 'all' | 'unknown_attribute'}.
+    {nonempty_string(), attrib() | 'all' | 'unknown_attribute'}.
 parse_tag_attribute(TagAttrib, DefaultAttrib) ->
     case mochiweb_util:path_split(TagAttrib) of
         {T, ""} -> {T, DefaultAttrib};
@@ -17,7 +18,7 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
         {T, A} -> {T, {user, list_to_binary(A)}}
     end.
 
--spec parse_auth_token(module()) -> ddfs_tag:token().
+-spec parse_auth_token(module()) -> token().
 parse_auth_token(Req) ->
     case Req:get_header_value("authorization") of
         undefined ->

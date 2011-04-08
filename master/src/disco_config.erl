@@ -11,6 +11,8 @@
 -type host_info() :: {nonempty_string(), non_neg_integer()}.
 -type config() :: [{binary(), [binary(),...]}].
 
+-export_type([host_info/0]).
+
 %% ===================================================================
 %% API functions
 

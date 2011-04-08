@@ -109,7 +109,7 @@ class MultiPut(object):
             self.multi.add_handle(conn.handle)
 
     def auth_header(self, token):
-        if token:
+        if token != None:
             return {'Authorization': 'Basic ' + base64.b64encode("token:" + token)}
         return {}
 

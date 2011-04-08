@@ -8,7 +8,7 @@
 -export([start/2, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
--type replica() :: {timer:timestamp(), nonempty_string()}.
+-type replica() :: {disco_util:timestamp(), nonempty_string()}.
 -type replyto() :: {pid(), reference()}.
 
 -record(state, {tag :: tagname(),
@@ -383,11 +383,12 @@ do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
             S
     end.
 
+-spec jsonbin(_) -> binary().
 jsonbin(X) ->
     iolist_to_binary(mochijson2:encode(X)).
 
 -spec do_get({tokentype(), token()}, attrib() | all, tagcontent()) ->
-             binary() | {'error','unauthorized' | 'unknown_attribute'}.
+             {'ok', binary()} | {'error','unauthorized' | 'unknown_attribute'}.
 do_get(_TokenInfo, all, D) ->
     {ok, ddfs_tag_util:encode_tagcontent_secure(D)};
 

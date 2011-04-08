@@ -53,19 +53,20 @@ startswith(B, Prefix) ->
 -spec timestamp() -> string().
 timestamp() -> timestamp(now()).
 
--spec timestamp(timer:timestamp()) -> string().
+-spec timestamp(disco_util:timestamp()) -> string().
 timestamp({X0, X1, X2}) ->
     lists:flatten([to_hex(X0), $-, to_hex(X1), $-, to_hex(X2)]).
 
+-spec timestamp_to_time(nonempty_string()) -> disco_util:timestamp().
 timestamp_to_time(T) ->
     list_to_tuple([erlang:list_to_integer(X, 16) ||
         X <- string:tokens(lists:flatten(T), "-")]).
 
--spec pack_objname(tagname(), timer:timestamp()) -> tagid().
+-spec pack_objname(tagname(), disco_util:timestamp()) -> tagid().
 pack_objname(Name, T) ->
     list_to_binary([Name, "$", timestamp(T)]).
 
--spec unpack_objname(tagid() | string()) -> {binary(), timer:timestamp()}.
+-spec unpack_objname(tagid() | string()) -> {binary(), disco_util:timestamp()}.
 unpack_objname(Obj) when is_binary(Obj) ->
     unpack_objname(binary_to_list(Obj));
 unpack_objname(Obj) ->
