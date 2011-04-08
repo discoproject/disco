@@ -125,6 +125,7 @@ def config(program):
     for config in program.disco.config:
         print "\t".join(config)
 
+@Disco.add_file_mode
 @Disco.command
 def deref(program, *urls):
     """Usage: [url ...]
@@ -135,8 +136,6 @@ def deref(program, *urls):
     for line in program.file_mode(*urls):
         for url in parse_dir(line.strip()):
             print url
-
-OptionParser.add_file_mode(deref)
 
 @Disco.job_command
 def events(program, jobname):
@@ -359,15 +358,15 @@ run.add_option('-n', '--name',
                 help='prefix to use for submitting a job')
 run.add_option('--save',
                 action='callback',
-                callback=OptionParser.update_jobargs,
+                callback=Disco.update_jobargs,
                 help='save results to DDFS')
 run.add_option('--sort',
                 action='callback',
-                callback=OptionParser.update_jobargs,
+                callback=Disco.update_jobargs,
                 help='sort input to reduce')
 run.add_option('--profile',
                 action='callback',
-                callback=OptionParser.update_jobargs,
+                callback=Disco.update_jobargs,
                 help='enable job profiling')
 run.add_option('--param',
                 action='append',
@@ -377,17 +376,17 @@ run.add_option('--param',
                 help='add a job parameter')
 run.add_option('--partitions',
                 action='callback',
-                callback=OptionParser.update_jobargs,
+                callback=Disco.update_jobargs,
                 type='int',
                 help='enable job profiling')
 run.add_option('--sched_max_cores',
                 action='callback',
-                callback=OptionParser.update_jobargs,
+                callback=Disco.update_jobargs,
                 type='int',
                 help='enable job profiling')
 run.add_option('--status_interval',
                 action='callback',
-                callback=OptionParser.update_jobargs,
+                callback=Disco.update_jobargs,
                 type='int',
                 help='how often to report status in job')
 

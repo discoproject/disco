@@ -46,6 +46,7 @@ def attrs(program, tag):
     for k, v in program.ddfs.attrs(tag).items():
         print '%s\t%s' % (k, v)
 
+@DDFS.add_program_blobs
 @DDFS.command
 def blobs(program, *tags):
     """Usage: [tag ...]
@@ -55,8 +56,7 @@ def blobs(program, *tags):
     for replicas in program.blobs(*tags):
         print '\t'.join(replicas)
 
-OptionParser.add_program_blobs(blobs)
-
+@DDFS.add_program_blobs
 @DDFS.command
 def cat(program, *urls):
     """Usage: [url ...]
@@ -85,8 +85,6 @@ def cat(program, *urls):
     for replicas in chain(([url] for url in urls), program.blobs(*tags)):
         sys.stdout.write(curl(replicas))
 
-OptionParser.add_program_blobs(cat)
-
 @DDFS.command
 def chtok(program, tag, token):
     """Usage: tag token
@@ -105,6 +103,8 @@ chtok.add_option('-w', '--write',
                  action='store_true',
                  help='change the write token')
 
+@DDFS.add_classic_reads
+@DDFS.add_program_blobs
 @DDFS.command
 def chunk(program, tag, *urls):
     """Usage: tag [url ...]
@@ -126,8 +126,6 @@ def chunk(program, tag, *urls):
     for replicas in blobs:
         print 'created: %s' % '\t'.join(replicas)
 
-OptionParser.add_classic_reads(chunk)
-OptionParser.add_program_blobs(chunk)
 chunk.add_option('-n', '--replicas',
                  help='number of replicas to create')
 chunk.add_option('-u', '--update',
@@ -176,6 +174,8 @@ def exists(program, tag):
         raise Exception("False")
     print "True"
 
+@DDFS.add_ignore_missing
+@DDFS.add_prefix_mode
 @DDFS.command
 def find(program, *tags):
     """Usage: [tag ...]
@@ -203,11 +203,9 @@ def find(program, *tags):
             else:
                 print '\t'.join(tagpath)
 
-OptionParser.add_ignore_missing(find)
 find.add_option('-w', '--warn-missing',
                 action='store_true',
                 help='warn about missing tags')
-OptionParser.add_prefix_mode(find)
 
 @DDFS.command
 def get(program, tag):
@@ -232,6 +230,7 @@ def grep(program, *args):
     """
     raise NotImplementedError("Distributed grep not yet implemented.")
 
+@DDFS.add_program_blobs
 @DDFS.command
 def ls(program, *prefixes):
     """Usage: [prefix ...]
@@ -250,7 +249,6 @@ def ls(program, *prefixes):
                     print e
                 print
 
-OptionParser.add_program_blobs(ls)
 ls.add_option('-r', '--recursive',
               action='store_true',
               help='lists the blobs reachable from each tag')
@@ -300,6 +298,7 @@ push.add_option('-z', '--compress',
                 action='store_true',
                 help='compress tar blobs when pushing')
 
+@DDFS.add_file_mode
 @DDFS.command
 def put(program, tag, *urls):
     """Usage: tag [url ...]
@@ -309,8 +308,7 @@ def put(program, tag, *urls):
     """
     program.ddfs.put(tag, [url.split() for url in program.file_mode(*urls)])
 
-OptionParser.add_file_mode(put)
-
+@DDFS.add_prefix_mode
 @DDFS.command
 def rm(program, *tags):
     """Usage: [tag ...]
@@ -320,8 +318,6 @@ def rm(program, *tags):
     for tag in program.prefix_mode(*tags):
         print program.ddfs.delete(tag)
 
-OptionParser.add_prefix_mode(rm)
-
 @DDFS.command
 def setattr(program, tag, attr, val):
     """Usage: tag attr val
@@ -330,6 +326,7 @@ def setattr(program, tag, attr, val):
     """
     program.ddfs.setattr(tag, attr, val)
 
+@DDFS.add_prefix_mode
 @DDFS.command
 def stat(program, *tags):
     """Usage: [tag ...]
@@ -340,8 +337,7 @@ def stat(program, *tags):
         tag = program.ddfs.get(tag)
         print '\t'.join('%s' % tag[key] for key in tag.keys() if key != 'urls')
 
-OptionParser.add_prefix_mode(stat)
-
+@DDFS.add_file_mode
 @DDFS.command
 def tag(program, tag, *urls):
     """Usage: tag [url ...]
@@ -350,8 +346,6 @@ def tag(program, tag, *urls):
     Urls may be quoted whitespace-separated lists of replicas.
     """
     program.ddfs.tag(tag, [url.split() for url in program.file_mode(*urls)])
-
-OptionParser.add_file_mode(tag)
 
 @DDFS.command
 def touch(program, *tags):
@@ -362,6 +356,7 @@ def touch(program, *tags):
     for tag in tags:
         program.ddfs.tag(tag, [])
 
+@DDFS.add_prefix_mode
 @DDFS.command
 def urls(program, *tags):
     """Usage: [tag ...]
@@ -372,8 +367,8 @@ def urls(program, *tags):
         for replicas in program.ddfs.urls(tag):
             print '\t'.join(replicas)
 
-OptionParser.add_prefix_mode(urls)
-
+@DDFS.add_classic_reads
+@DDFS.add_program_blobs
 @DDFS.command
 def xcat(program, *urls):
     """Usage: [urls ...]
@@ -395,9 +390,6 @@ def xcat(program, *urls):
                                    input_stream=stream,
                                    reader=reader):
         print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()
-
-OptionParser.add_classic_reads(xcat)
-OptionParser.add_program_blobs(xcat)
 
 if __name__ == '__main__':
     DDFS(option_parser=OptionParser()).main()

@@ -9,15 +9,13 @@ class OptionParser(clx.OptionParser):
                         help='authorization token to use for tags')
         self.jobargs = {}
 
-    @classmethod
-    def update_jobargs(cls, option, name, val, parser):
-        parser.jobargs[name.strip('-')] = True if val is None else val
-
-    @classmethod
-    def add_file_mode(cls, command):
-        command.add_option('-f', '--file-mode',
-                           action='store_true',
-                           help='urls specify files to read input from, or stdin')
+class Program(clx.Program):
+    def __init__(self, *args, **kwargs):
+        super(Program, self).__init__(*args, **kwargs)
+        token = self.options.token
+        if token is not None:
+            self.settings['DDFS_READ_TOKEN']  = token
+            self.settings['DDFS_WRITE_TOKEN'] = token
 
     @classmethod
     def add_classic_reads(cls, command):
@@ -26,31 +24,46 @@ class OptionParser(clx.OptionParser):
         command.add_option('-T', '--stream',
                            default='disco.func.default_stream',
                            help='input stream to import and use')
+        return command
+
+    @classmethod
+    def add_file_mode(cls, command):
+        command.add_option('-f', '--file-mode',
+                           action='store_true',
+                           help='urls specify files to read input from, or stdin')
+        return command
 
     @classmethod
     def add_ignore_missing(cls, command):
         command.add_option('-i', '--ignore-missing',
                            action='store_true',
                            help='ignore missing tags')
+        return command
 
     @classmethod
     def add_prefix_mode(cls, command):
         command.add_option('-p', '--prefix-mode',
                            action='store_true',
                            help='tags are interpreted as prefixes instead of names')
+        return command
 
     @classmethod
     def add_program_blobs(cls, command):
         cls.add_ignore_missing(command)
         cls.add_prefix_mode(command)
+        return command
 
-class Program(clx.Program):
-    def __init__(self, *args, **kwargs):
-        super(Program, self).__init__(*args, **kwargs)
-        token = self.options.token
-        if token is not None:
-            self.settings['DDFS_READ_TOKEN']  = token
-            self.settings['DDFS_WRITE_TOKEN'] = token
+    @classmethod
+    def job_command(self, function):
+        def job_function(program, *jobnames):
+            return function(program,
+                            *(program.job_history(j) for j in jobnames))
+        job_function.__doc__ = function.__doc__
+        return self.command(function.__name__)(job_function)
+
+    @classmethod
+    def update_jobargs(cls, option, name, val, parser):
+        parser.jobargs[name.strip('-')] = True if val is None else val
 
     def blobs(self, *tags):
         ignore_missing = self.options.ignore_missing
@@ -67,14 +80,6 @@ class Program(clx.Program):
         if self.options.file_mode:
             return fileinput.input(urls)
         return urls
-
-    @classmethod
-    def job_command(self, function):
-        def job_function(program, *jobnames):
-            return function(program,
-                            *(program.job_history(j) for j in jobnames))
-        job_function.__doc__ = function.__doc__
-        return self.command(function.__name__)(job_function)
 
     def job_history(self, jobname):
         if jobname == '@':
