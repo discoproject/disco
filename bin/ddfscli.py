@@ -299,7 +299,6 @@ push.add_option('-z', '--compress',
                 action='store_true',
                 help='compress tar blobs when pushing')
 
-@DDFS.add_file_mode
 @DDFS.command
 def put(program, tag, *urls):
     """Usage: tag [url ...]
@@ -307,7 +306,8 @@ def put(program, tag, *urls):
     Put the urls[s] to the given tag.
     Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.put(tag, [url.split() for url in program.file_mode(*urls)])
+    from disco.util import listify
+    program.ddfs.put(tag, [listify(i) for i in program.input(*urls)])
 
 @DDFS.add_prefix_mode
 @DDFS.command
@@ -338,7 +338,6 @@ def stat(program, *tags):
         tag = program.ddfs.get(tag)
         print '\t'.join('%s' % tag[key] for key in tag.keys() if key != 'urls')
 
-@DDFS.add_file_mode
 @DDFS.command
 def tag(program, tag, *urls):
     """Usage: tag [url ...]
@@ -346,7 +345,8 @@ def tag(program, tag, *urls):
     Tags the urls[s] with the given tag.
     Urls may be quoted whitespace-separated lists of replicas.
     """
-    program.ddfs.tag(tag, [url.split() for url in program.file_mode(*urls)])
+    from disco.util import listify
+    program.ddfs.tag(tag, [listify(i) for i in program.input(*urls)])
 
 @DDFS.command
 def touch(program, *tags):

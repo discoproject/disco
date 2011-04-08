@@ -27,13 +27,6 @@ class Program(clx.Program):
         return command
 
     @classmethod
-    def add_file_mode(cls, command):
-        command.add_option('-f', '--file-mode',
-                           action='store_true',
-                           help='urls specify files to read input from, or stdin')
-        return command
-
-    @classmethod
     def add_ignore_missing(cls, command):
         command.add_option('-i', '--ignore-missing',
                            action='store_true',
@@ -96,10 +89,12 @@ class Program(clx.Program):
             raise Exception("unrecognized command: %s" % ' '.join(args))
         print self.disco
 
-    def file_mode(self, *urls):
-        if self.options.file_mode:
-            return fileinput.input(urls)
-        return urls
+    def input(self, *inputs):
+        def maybe_list(seq):
+            return seq[0] if len(seq) == 1 else seq
+        def maybe_lists(inputs):
+            return [maybe_list(i.split()) for i in inputs]
+        return maybe_lists(inputs or fileinput.input(inputs))
 
     def job_history(self, jobname):
         if jobname == '@':
@@ -110,12 +105,6 @@ class Program(clx.Program):
                 if jobname[2:] in job:
                     return job
         return jobname
-
-    def job_input(self, *inputs):
-        def maybe_list(seq):
-            return seq[0] if len(seq) == 1 else seq
-        return inputs or [maybe_list(line.split())
-                          for line in fileinput.input(inputs)]
 
     def prefix_mode(self, *tags):
         from itertools import chain

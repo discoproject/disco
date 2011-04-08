@@ -70,6 +70,9 @@ def hexhash(string):
     from hashlib import md5
     return md5(string).hexdigest()[:2]
 
+def identity(object):
+    return object
+
 def isiterable(object):
     return hasattr(object, '__iter__')
 

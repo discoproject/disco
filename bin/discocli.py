@@ -126,17 +126,21 @@ def config(program):
         print "\t".join(config)
 
 @Disco.add_job_mode
-@Disco.add_file_mode
 @Disco.command
 def deref(program, *urls):
     """Usage: [url ...]
 
-    Dereference the dir:// urls and print them to stdout.
+    Dereference the urls and print them to stdout.
+    Input urls are specified as arguments or read from stdin.
     """
-    from disco.util import parse_dir
-    for line in program.file_mode(*urls):
-        for url in parse_dir(line.strip()):
-            print url
+    from disco.util import inputlist, identity, iterify, urlresolve
+    resolve = urlresolve if program.options.resolve else identity
+    for input in inputlist(program.input(*urls)):
+        print "\t".join(resolve(i) for i in iterify(input))
+
+deref.add_option('-r', '--resolve',
+                 action='store_true',
+                 help='resolve disco internal urls')
 
 @Disco.job_command
 def events(program, jobname):
@@ -170,7 +174,7 @@ def job(program, worker, *inputs):
         if data.startswith('@'):
             return open(data[1:]).read()
         return data
-    jobdict = {'input': program.job_input(*inputs),
+    jobdict = {'input': program.input(*inputs),
                'worker': worker,
                'map?': program.options.has_map,
                'reduce?': program.options.has_reduce,
@@ -350,7 +354,7 @@ def run(program, jobclass, *inputs):
     job = reify(jobclass)(name=program.options.name,
                           master=program.disco,
                           settings=program.settings)
-    job.run(input=program.job_input(*inputs),
+    job.run(input=program.input(*inputs),
             params=dict(program.options.params),
             **program.option_parser.jobargs)
     print job.name
