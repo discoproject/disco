@@ -5,10 +5,10 @@
 This module provides utility functions that are mostly used by Disco
 internally.
 
-(*Deprecated in 0.4*)
-:func:`disco.util.data_err`, :func:`disco.util.err`, and :func:`disco.util.msg`
-are now deprecated and will be removed completely in the next release,
-in favor of using normal Python :keyword:`raise` and :keyword:`print` statements.
+.. deprecated:: 0.4
+                :func:`disco.util.data_err`, :func:`disco.util.err`, and :func:`disco.util.msg`
+                will be removed completely in the next release,
+                in favor of using normal Python **raise** and **print** statements.
 """
 import os, sys
 import cPickle, marshal, time, gzip
@@ -192,20 +192,23 @@ def schemesplit(url):
 def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
     locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
-    if scheme == 'disco':
-        prefix, fname = path.split('/', 1)
-        if locstr == localhost:
-            scheme = 'file'
-            if prefix == 'ddfs':
-                path = os.path.join(settings['DDFS_ROOT'], fname)
-            else:
-                path = os.path.join(settings['DISCO_DATA'], fname)
-        else:
-            scheme = 'http'
-            locstr = '%s:%s' % (locstr, settings['DISCO_PORT'])
     if scheme == 'tag':
         if not path:
             path, locstr = locstr, ''
+    else:
+        disco_port = str(settings['DISCO_PORT'])
+        host, port = netloc.parse(locstr)
+        if scheme == 'disco' or port == disco_port:
+            prefix, fname = path.split('/', 1)
+            if localhost == True or locstr == localhost:
+                scheme = 'file'
+                if prefix == 'ddfs':
+                    path = os.path.join(settings['DDFS_ROOT'], fname)
+                if prefix == 'disco':
+                    path = os.path.join(settings['DISCO_DATA'], fname)
+            elif scheme == 'disco':
+                scheme = 'http'
+                locstr = '%s:%s' % (host, disco_port)
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url, settings=DiscoSettings()):
@@ -231,7 +234,7 @@ def urltoken(url):
 
 def msg(message):
     """
-    (*Deprecated in 0.4* - use :keyword:`print` instead)
+    .. deprecated:: 0.4 use **print** instead.
 
     Sends the string *message* to the master for logging. The message is
     shown on the web interface. To prevent a rogue job from overwhelming the
@@ -242,7 +245,8 @@ def msg(message):
 
 def err(message):
     """
-    (*Deprecated in 0.4* - raise :class:`disco.error.DiscoError` instead)
+    .. deprecated:: 0.4
+                    raise :class:`disco.error.DiscoError` instead.
 
     Raises a :class:`disco.error.DiscoError`. This terminates the job.
     """
@@ -250,7 +254,8 @@ def err(message):
 
 def data_err(message, url):
     """
-    (*Deprecated in 0.4* - raise :class:`disco.error.DataError` instead)
+    .. deprecated:: 0.4
+                    raise :class:`disco.error.DataError` instead.
 
     Raises a :class:`disco.error.DataError`.
     A data error should only be raised if it is likely that the error is transient.
@@ -265,6 +270,14 @@ def jobname(url):
 
     This function is particularly useful for using the methods in
     :class:`disco.core.Disco` given only the results of a job.
+    A typical case is that you no longer need the results.
+    You can tell Disco to delete the unneeded data as follows::
+
+        from disco.core import Disco
+        from disco.util import jobname
+
+        Disco().purge(jobname(results[0]))
+
     """
     scheme, x, path = urlsplit(url)
     if scheme in ('disco', 'dir', 'http'):

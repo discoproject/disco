@@ -253,7 +253,7 @@ update_nodes(Nodes) ->
                   || N <- gb_trees:values(Nodes), allow_task(N)],
     DDFSNodes = [{disco:slave_node(N#dnode.host), allow_write(N), allow_read(N)}
                  || N <- gb_trees:values(Nodes)],
-    gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
+    ddfs_master:update_nodes(DDFSNodes),
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
     schedule_next().
 

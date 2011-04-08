@@ -2,7 +2,8 @@
 
 Out-of-band results
 -------------------
-*(new in version 0.2)*
+
+.. versionadded:: 0.2
 
 In addition to standard input and output streams, map and reduce tasks can
 output results through an auxiliary channel called *out-of-band results* (OOB).

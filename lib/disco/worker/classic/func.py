@@ -3,74 +3,9 @@
 :mod:`disco.worker.classic.func` --- Functions for constructing Classic Disco jobs
 ==================================================================================
 
-A Disco job is specified by one or more user-defined :term:`job
-functions`, namely *map*, *reduce*, *combiner* and *partitioner* functions
-(see :class:`disco.core.JobDict` for more information).
-Of these functions, only *map* is required.
-
-.. hint::
-   When writing custom functions, take into account the following
-   features of the disco worker environment:
-
-        - Only the specified function is included in the request.
-          The function can't refer to anything outside of its local scope.
-          It can't call any functions specified elsewhere in your source file.
-          Nor can it refer to any global names, including any imported modules.
-          If you need to use a module, import it within the function body.
-
-          In short, job functions must be :term:`pure <pure function>`.
-
-        - The function should not print anything to stderr.
-          The task uses stderr to signal events to the master.
-          You can raise a :class:`disco.error.DataError`,
-          to abort the task on this node and try again on another node.
-          It is usually best to let the task fail if any exceptions occur:
-          do not catch any exceptions from which you can't recover.
-          When exceptions occur, the disco worker will catch them and
-          signal an appropriate event to the master.
-
-User-defined Functions
-----------------------
-
-The following types of functions can be provided by the user:
-
-.. autofunction:: map
-.. autofunction:: partition
-.. autofunction:: combiner
-.. autofunction:: reduce
-.. autofunction:: reduce2
-.. autofunction:: init
-.. autofunction:: input_stream
-.. autofunction:: output_stream
-
-
-Interfaces
-----------
-
-.. autoclass:: InputStream
-    :members: __iter__, read
-.. autoclass:: OutputStream
-    :members:
-
-Default/Utility Functions
--------------------------
-
-These functions are provided by Disco to help :class:`disco.core.Job` creation:
-
-.. autofunction:: default_partition
-.. autofunction:: make_range_partition
-.. autofunction:: nop_map
-.. autofunction:: nop_reduce
-.. autofunction:: sum_combiner
-.. autofunction:: sum_reduce
-.. autofunction:: gzip_reader
-.. autofunction:: gzip_line_reader
-.. autofunction:: chain_reader
-.. autofunction:: re_reader
-.. autofunction:: map_input_stream
-.. autofunction:: map_output_stream
-.. autofunction:: reduce_input_stream
-.. autofunction:: reduce_output_stream
+A Classic Disco job is specified by one or more :term:`job functions`.
+This module defines the interfaces for the job functions,
+some default values, as well as otherwise useful functions.
 """
 import re, cPickle
 from disco.error import DataError
@@ -85,11 +20,8 @@ def map(entry, params):
     """
     Returns an iterable of (key, value) pairs given an *entry*.
 
-    :param entry:  entry from the input stream
-    :type params:  :class:`disco.core.Params`
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
-                   Used to maintain state between calls to the map function.
+    :param entry: entry coming from the input stream
+    :param params: used to maintain state between calls to the map function.
 
     For instance::
 
@@ -109,9 +41,7 @@ def partition(key, nr_partitions, params):
 
     :param key: is a key object emitted by a task function
     :param nr_partitions: the number of partitions
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
-
+    :param params: the object specified by the *params* parameter
     """
 
 def combiner(key, value, buffer, done, params):
@@ -126,8 +56,7 @@ def combiner(key, value, buffer, done, params):
                    to prevent it from consuming too much memory, by calling
                    ``buffer.clear()`` after each block of results.
     :param done: flag indicating if this is the last call with a given *buffer*
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
+    :param params: the object specified by the *params* parameter
 
     This function receives all output from the
     :func:`map` before it is saved to intermediate results.
@@ -146,8 +75,7 @@ def reduce(input_stream, output_stream, params):
         to iterate through input entries.
     :param output_stream: :class:`OutputStream` object that is used
         to output results.
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
+    :param params: the object specified by the *params* parameter
 
     For instance::
 
@@ -187,8 +115,6 @@ def init(input_iter, params):
     Perform some task initialization.
 
     :param input_iter: an iterator returned by a :func:`reader`
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
 
     Typically this function is used to initialize some modules in the worker
     environment (e.g. ``ctypes.cdll.LoadLibrary()``), to initialize some
@@ -208,6 +134,10 @@ def input_stream(stream, size, url, params):
     to iterate through input entries.
 
     Using an :func:`input_stream` allows you to customize how input urls are opened.
+
+    Input streams are used for specifying the *map_input_stream*, *map_reader*,
+    *reduce_input_stream*, and *reduce_reader* parameters for the
+    :class:`disco.worker.classic.worker.Worker`.
     """
 
 def output_stream(stream, partition, url, params):
@@ -215,8 +145,6 @@ def output_stream(stream, partition, url, params):
     :param stream: :class:`OutputStream` object
     :param partition: partition id
     :param url: url of the input
-    :param params: the :class:`disco.core.Params` object specified
-                   by the *params* parameter in :class:`disco.core.JobDict`.
 
     Returns a pair (:class:`OutputStream`, url) that is
     passed to the next *output_stream* function in the chain. The
@@ -246,7 +174,8 @@ class OutputStream:
 
     def write(data):
         """
-        *(Deprecated in 0.3)*
+        .. deprecated:: 0.3
+
         Writes `data` to the underlying file object.
         """
 
@@ -417,8 +346,7 @@ def make_range_partition(min_val, max_val):
     Returns a new partitioning function that partitions keys in the range
     *[min_val:max_val]* into equal sized partitions.
 
-    The number of partitions is defined by *partitions*
-    in :class:`disco.core.JobDict`.
+    The number of partitions is defined by the *partitions* parameter
     """
     r = max_val - min_val
     f = "lambda k, n, p: int(round(float(int(k) - %d) / %d * (n - 1)))" %\
@@ -482,8 +410,7 @@ def gzip_line_reader(fd, size, url, params):
     except Exception, e:
         print e
 
-
-def map_input_stream(stream, size, url, params):
+def task_input_stream(stream, size, url, params):
     """
     An :func:`input_stream` which looks at the scheme of ``url``
     and tries to import a function named ``input_stream``
@@ -498,8 +425,7 @@ def map_input_stream(stream, size, url, params):
     mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
     globalize(mod.input_stream, globals())
     return mod.input_stream(stream, size, url, params)
-
-reduce_input_stream = map_input_stream
+map_input_stream = reduce_input_stream = task_input_stream
 
 def string_input_stream(string, size, url, params):
     from cStringIO import StringIO
@@ -618,7 +544,8 @@ def unix_sort(filename, sort_buffer_size='10%'):
         raise DataError("Sorting %s failed: %s" % (filename, e), filename)
 
 chain_reader = disco_input_stream
-chain_stream = (map_input_stream, chain_reader)
-default_stream = (map_input_stream, )
-gzip_stream = (map_input_stream, gzip_reader)
-gzip_line_stream = (map_input_stream, gzip_line_reader)
+chain_stream = (task_input_stream, chain_reader)
+default_stream = (task_input_stream, )
+discodb_stream = (task_output_stream, discodb_output)
+gzip_stream = (task_input_stream, gzip_reader)
+gzip_line_stream = (task_input_stream, gzip_line_reader)

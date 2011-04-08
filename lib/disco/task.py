@@ -2,6 +2,8 @@
 :mod:`disco.task` -- Disco Tasks
 ================================
 
+This module defines objects for interfacing with
+:term:`tasks <task>` assigned by the master.
 
 """
 import os, time
@@ -43,6 +45,19 @@ def output(task, partition=None, type='disco'):
     return task.path('%s-%s' % (task.mode, partition)), 'part', partition
 
 class TaskInput(object):
+    """
+    An iterable over one or more :class:`Task` inputs,
+    which can gracefully handle corrupted replicas or otherwise failed inputs.
+
+    :type  open: function
+    :param open: a function with the following signature::
+
+                        def open(url):
+                            ...
+                            return file
+
+                used to open input files.
+    """
     WAIT_TIMEOUT = 1
 
     def __init__(self, input, **kwds):
@@ -59,6 +74,34 @@ class TaskInput(object):
                 time.sleep(self.WAIT_TIMEOUT)
 
 class TaskOutput(object):
+    """
+    A container for outputs from :class:`tasks <Task>`.
+
+    :type  open: function
+    :param open: a function with the following signature::
+
+                        def open(url):
+                            ...
+                            return file
+
+                used to open new output files.
+
+    .. attribute:: path
+
+        The path to the underlying output file.
+
+    .. attribute:: type
+
+        The type of output.
+
+    .. attribute:: partition
+
+        The partition label for the output (or None).
+
+    .. attribute:: file
+
+        The underlying output file handle.
+    """
     def __init__(self, (path, type, partition), open=None):
         self.path, self.type, self.partition = path, type, partition
         self.open = open or AtomicFile
@@ -66,7 +109,36 @@ class TaskOutput(object):
 
 class Task(object):
     """
-    Tasks are units of work...
+    Encapsulates the information specific to a particular
+    :term:`task` coming from the master.
+
+    Provides convenience functions to :class:`Workers <disco.worker.Worker>`,
+    for opening inputs and outputs, and other common operations.
+
+    .. attribute:: host
+
+        The name of the host this task is running on.
+
+    .. attribute:: jobname
+
+        The name of the :term:`job` this task is part of.
+
+    .. attribute:: master
+
+        The name of the master host for this task.
+
+    .. attribute:: mode
+
+        The phase which this task is part of.
+        Currently either :term:`map` or :term:`reduce`.
+
+    .. attribute:: taskid
+
+        The id of this task, assigned by the master.
+
+    .. attribute:: uid
+
+        A unique id for this particular task instance.
     """
     def __init__(self,
                  host='',
@@ -97,19 +169,39 @@ class Task(object):
         ensure_path(self.taskpath)
 
     def path(self, name):
+        """
+        :return: The *name* joined to the :attr:`taskpath`.
+        """
         return os.path.join(self.taskpath, name)
 
     def url(self, name, scheme='disco'):
         return '%s://%s/disco/%s/%s/%s' % (scheme, self.host, self.jobpath, self.taskpath, name)
 
-    def input(self, merged=False, parallel=False, **kwds):
+    def input(self, merged=False, **kwds):
+        """
+        :type  merged: bool
+        :param merged: if specified, returns a :class:`MergedInput`.
+
+        :type  kwds: dict
+        :param kwds: additional keyword arguments for the :class:`TaskInput`.
+
+        :return: a :class:`TaskInput` to iterate over the inputs from the master.
+        """
         if merged:
             return MergedInput(inputs(), **kwds)
-        if parallel:
-            return ParallelInput(inputs(), **kwds)
         return SerialInput(inputs(), **kwds)
 
     def output(self, partition=None, **kwds):
+        """
+        :type  partition: string or None
+        :param partition: the label of the output partition to get.
+
+        :type  kwds: dict
+        :param kwds: additional keyword arguments for the :class:`TaskOutput`.
+
+        :return: the previously opened :class:`TaskOutput` for *partition*,
+                 or if necessary, a newly opened one.
+        """
         if partition not in self.outputs:
             self.outputs[partition] = TaskOutput(output(self, partition=partition), **kwds)
         return self.outputs[partition]
@@ -139,6 +231,10 @@ class Task(object):
         save_oob(self.master, self.jobname, key, value)
 
     def save(self):
+        """
+        Closes all the outputs, pushes them to :ref:`DDFS`,
+        and informs the master of the tag.
+        """
         from disco.ddfs import DDFS
         def paths():
             for output in self.outputs.values():
@@ -147,12 +243,18 @@ class Task(object):
         Output([DDFS(self.master).save(self.jobname, paths()), 'tag']).send()
 
     def send(self):
+        """
+        Closes all the outputs and informs the master of their type and location.
+        """
         for output in self.outputs.values():
             output.file.close()
             Output([output.path, output.type, output.partition]).send()
 
     @classmethod
     def request(cls):
+        """
+        Request the task info from the master and return a :class:`Task` object.
+        """
         from disco.events import TaskInfo
         return cls(**dict((str(k), v) for k, v in TaskInfo().send().iteritems()))
 
@@ -211,10 +313,7 @@ class InputIter(object):
 
 class SerialInput(TaskInput):
     """
-    Use a class:`SerialInput` for sequential access to records::
-
-        for record in SerialInput(inputs):
-                ...
+    Produces an iterator over the records in a list of sequential inputs.
     """
     def __init__(self, inputs, **kwds):
         self.inputs, self.kwds = inputs, kwds
@@ -226,14 +325,9 @@ class SerialInput(TaskInput):
 
 class ParallelInput(TaskInput):
     """
-    Produces an iterator over the records in the order they are available.
+    Produces an iterator over the unordered records in a set of inputs.
 
-    Use a class:`ParallelInput` for parallel access to inputs::
-
-        for record in ParallelInput(inputs):
-                ...
-
-    Usually require the full list of inputs (i.e. will block with streaming).
+    Usually require the full set of inputs (i.e. will block with streaming).
     """
     def __init__(self, inputs, **kwds):
         self.inputs, self.kwds = inputs, kwds

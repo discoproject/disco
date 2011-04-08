@@ -54,15 +54,15 @@ class DiscoOptionParser(OptionParser):
                         help='prefix to use for submitting a job')
         self.add_option('--save',
                         action='callback',
-                        callback=self.update_jobdict,
+                        callback=self.update_jobargs,
                         help='save results to DDFS')
         self.add_option('--sort',
                         action='callback',
-                        callback=self.update_jobdict,
+                        callback=self.update_jobargs,
                         help='sort input to reduce')
         self.add_option('--profile',
                         action='callback',
-                        callback=self.update_jobdict,
+                        callback=self.update_jobargs,
                         help='enable job profiling')
         self.add_option('--param',
                         action='append',
@@ -72,23 +72,23 @@ class DiscoOptionParser(OptionParser):
                         help='add a job parameter')
         self.add_option('--partitions',
                         action='callback',
-                        callback=self.update_jobdict,
+                        callback=self.update_jobargs,
                         type='int',
                         help='enable job profiling')
         self.add_option('--sched_max_cores',
                         action='callback',
-                        callback=self.update_jobdict,
+                        callback=self.update_jobargs,
                         type='int',
                         help='enable job profiling')
         self.add_option('--status_interval',
                         action='callback',
-                        callback=self.update_jobdict,
+                        callback=self.update_jobargs,
                         type='int',
                         help='how often to report status in job')
-        self.jobdict = {}
+        self.jobargs = {}
 
-    def update_jobdict(self, option, name, val, parser):
-        self.jobdict[name.strip('-')] = True if val is None else val
+    def update_jobargs(self, option, name, val, parser):
+        self.jobargs[name.strip('-')] = True if val is None else val
 
 class Disco(Program):
     def default(self, program, *args):
@@ -318,7 +318,7 @@ def jobdict(program, jobname):
     Print the jobdict for the named job.
     """
     print jobname
-    for key, value in program.disco.jobdict(jobname).iteritems():
+    for key, value in program.disco.jobpack(jobname).jobdict.iteritems():
         print "\t%s\t%s" % (key, value)
 
 @Disco.command
@@ -366,7 +366,7 @@ def oob(program, jobname):
     Print the oob keys for the named job.
     """
     from disco.core import Job
-    for key in Job(program.disco, jobname).oob_list():
+    for key in Job(name=jobname, master=program.disco).oob_list():
         print key
 
 @oob.subcommand
@@ -376,7 +376,7 @@ def get(program, key, jobname):
     Print the oob value for the given key and jobname.
     """
     from disco.core import Job
-    print Job(program.disco, jobname).oob_get(key)
+    print Job(name=jobname, master=program.disco).oob_get(key)
 
 @Disco.command
 def pstats(program, jobname):
@@ -415,7 +415,6 @@ def run(program, jobclass, *inputs):
     Create an instance of jobclass and run it.
     Input urls are specified as arguments or read from stdin.
     """
-    from disco.core import Params
     from disco.util import reify
     def maybe_list(seq):
         return seq[0] if len(seq) == 1 else seq
@@ -425,14 +424,9 @@ def run(program, jobclass, *inputs):
     job = reify(jobclass)(name=program.options.name,
                           master=program.disco,
                           settings=program.settings)
-
-    try:
-        params = job.params
-    except AttributeError:
-        params = Params()
-    params.__dict__.update(**dict(program.options.params))
-
-    job.run(input=input, **program.option_parser.jobdict)
+    job.run(input=input,
+            params=dict(program.options.params),
+            **program.option_parser.jobargs)
     print job.name
 
 @Disco.command

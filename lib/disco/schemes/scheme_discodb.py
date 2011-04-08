@@ -1,12 +1,9 @@
 def input_stream(fd, size, url, params):
-    import os
     from disco import util
-    from disco.settings import DiscoSettings
     from discodb import DiscoDB, Q
-    scheme, netloc, rest = util.urlsplit(url)
+    scheme, netloc, rest = util.urlsplit(url, localhost=True)
     path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
-    root = DiscoSettings()['DISCO_ROOT']
-    discodb = DiscoDB.load(open(os.path.join(root, path)))
+    discodb = DiscoDB.load(open(path))
 
     if rest:
         method_name, arg = rest.split('/', 1) if '/' in rest else (rest, None)

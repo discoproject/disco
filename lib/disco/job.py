@@ -2,6 +2,16 @@
 :mod:`disco.job` -- Disco Jobs
 ==============================
 
+This module contains the core objects for creating and interacting with Disco jobs.
+Often, :class:`Job` is the only thing you need
+in order to start running distributed computations with Disco.
+
+:term:`Jobs <job>` in Disco are used to encapsulate and schedule computation pipelines.
+A job specifies a :term:`worker`, the worker environment, a list of inputs,
+and some additional information about how to run the job.
+For a full explanation of how the job is specified to the Disco :term:`master`,
+see :ref:`jobpack`.
+
 A typical pattern in Disco scripts is to run a job synchronously,
 that is, to block the script until the job has finished.
 This can be accomplished using the :meth:`Job.wait` method::
@@ -12,116 +22,24 @@ This can be accomplished using the :meth:`Job.wait` method::
 import os, sys, time
 
 from disco import func, json
-from disco.error import DiscoError
+from disco.error import JobError
 from disco.util import hexhash, isiterable, netloc, load_oob, save_oob
 from disco.settings import DiscoSettings
-
-class JobPack(object):
-    """
-    :class:`JobPack` file format::
-
-        +---------------- 4
-        | magic / version |
-        +---------------- 8 -------------- 12 ------------- 16 ------------- 20
-        | jobdict offset  | jobenvs offset | jobhome offset | jobdata offset |
-        +--------------------------------------------------------------------+
-        |                           ... reserved ...                         |
-        128 -----------------------------------------------------------------+
-        |                               jobdict                              |
-        +--------------------------------------------------------------------+
-        |                               jobenvs                              |
-        +--------------------------------------------------------------------+
-        |                               jobhome                              |
-        +--------------------------------------------------------------------+
-        |                               jobdata                              |
-        +--------------------------------------------------------------------+
-    """
-    MAGIC = (0xd5c0 << 16) + 0x0001
-    HEADER_FORMAT = "!IIIII"
-    HEADER_SIZE = 128
-    def __init__(self, *fields):
-        self.jobdict, self.jobenvs, self.jobhome, self.jobdata = fields
-
-    def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
-        from struct import pack
-        toc = pack(format, magic, *(o for o in offsets))
-        return toc + '\0' * (size - len(toc))
-
-    def contents(self, offset=HEADER_SIZE):
-        for field in (json.dumps(self.jobdict),
-                      json.dumps(self.jobenvs),
-                      self.jobhome,
-                      self.jobdata):
-            yield offset, field
-            offset += len(field)
-
-    def dumps(self):
-        offsets, fields = zip(*self.contents())
-        return self.header(offsets) + ''.join(fields)
-
-    @classmethod
-    def offsets(cls, jobfile, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
-        from struct import calcsize, unpack
-        jobfile.seek(0)
-        header = [i for i in unpack(format, jobfile.read(calcsize(format)))]
-        assert header[0] == magic, "Invalid jobpack magic."
-        assert header[1] == size, "Invalid jobpack header."
-        assert header[1:] == sorted(header[1:]), "Invalid jobpack offsets."
-        return header[1:]
-
-    @classmethod
-    def load(cls, jobfile):
-        return PackedJobPack(jobfile)
-
-    @classmethod
-    def request(cls):
-        from disco.events import JobFile
-        return cls.load(open(JobFile().send()))
-
-class PackedJobPack(JobPack):
-    def __init__(self, jobfile):
-        self.jobfile = jobfile
-
-    @property
-    def jobdict(self):
-        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
-        self.jobfile.seek(dict_offset)
-        return json.loads(self.jobfile.read(envs_offset - dict_offset))
-
-    @property
-    def jobenvs(self):
-        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
-        self.jobfile.seek(envs_offset)
-        return json.loads(self.jobfile.read(home_offset - dict_offset))
-
-    @property
-    def jobhome(self):
-        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
-        self.jobfile.seek(home_offset)
-        return self.jobfile.read(data_offset - home_offset)
-
-    @property
-    def jobdata(self):
-        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
-        self.jobfile.seek(data_offset)
-        return self.jobfile.read()
 
 class Job(object):
     """
     Creates a Disco Job with the given name, master, worker, and settings.
+    Use :meth:`Job.run` to start the job.
 
     :type  name: string
-    :param name: The job name.
+    :param name: the job name.
                  When you create a handle for an existing job, the name is used as given.
-                 When you create a new job, the name given is used by Disco as a
-                 prefix to construct a unique name, which is then stored in the instance.
-
-                 .. note::
-
-                        Only characters in ``[a-zA-Z0-9_]`` are allowed in the job name.
+                 When you create a new job, the name given is used as the
+                 :attr:`jobdict.prefix` to construct a unique name,
+                 which is then stored in the instance.
 
     :type  master: url of master or :class:`disco.core.Disco`
-    :param master: Identifies the Disco master runs this job.
+    :param master: the Disco master to use for submitting or querying the job.
 
     :type  worker: :class:`disco.worker.Worker`
     :param worker: the worker instance used to create and run the job.
@@ -130,7 +48,11 @@ class Job(object):
 
     :type settings: :class:`disco.settings.DiscoSettings`
 
-    Use :meth:`Job.run` to start the job.
+    .. attribute:: Worker
+
+                Defaults to :class:`disco.worker.classic.worker.Worker`.
+                If no `worker` parameter is specified,
+                :attr:`Worker` is called with no arguments to construct the :attr:`worker`.
     """
     from disco.worker.classic.worker import Worker
     proxy_functions = ('clean',
@@ -165,16 +87,6 @@ class Job(object):
     For instance, you can use `job.wait()` instead of `disco.wait(job.name)`.
     The job methods in :class:`disco.core.Disco` come in handy if you want to manipulate
     a job that is identified by a jobname instead of a :class:`Job` object.
-
-    If you have access only to results of a job, you can extract the job
-    name from an address with the :func:`disco.util.jobname` function.
-    A typical case is that you no longer need the results of a job.
-    You can delete the unneeded job files as follows::
-
-        from disco.core import Disco
-        from disco.util import jobname
-
-        Disco().purge(jobname(results[0]))
     """
 
     def __init__(self, name=None, master=None, worker=None, settings=None):
@@ -194,14 +106,18 @@ class Job(object):
         """
         Creates the :class:`JobPack` for the worker using
         :meth:`disco.worker.Worker.jobdict`,
-        :meth:`disco.worker.Worker.jobdenvs`,
+        :meth:`disco.worker.Worker.jobenvs`,
         :meth:`disco.worker.Worker.jobhome`, and
-        :meth:`disco.worker.Worker.jobdata`.
+        :meth:`disco.worker.Worker.jobdata`,
+        and attempts to submit it.
 
-        Returns the job immediately after the request has been submitted,
-        with a unique name assigned by the master, if the request was successful.
+        :type  jobargs: dict
+        :param jobargs: runtime parameters for the job.
+                        Passed to the :class:`disco.worker.Worker`
+                        methods listed above, along with the job itself.
 
-        A :class:`JobError` is raised if an error occurs while starting the job.
+        :raises: :class:`disco.error.JobError` if the submission fails.
+        :return: the :class:`Job`, with a unique name assigned by the master.
         """
         jobpack = JobPack(self.worker.jobdict(self, **jobargs),
                           self.worker.jobenvs(self, **jobargs),
@@ -210,6 +126,120 @@ class Job(object):
         status, response = json.loads(self.disco.request('/disco/job/new',
                                                          jobpack.dumps()))
         if status != 'ok':
-            raise DiscoError("Failed to start job. Server replied: %s" % response)
+            raise JobError("Failed to start job. Server replied: %s" % response)
         self.name = response
         return self
+
+class JobPack(object):
+    """
+    This class implements :ref:`jobpack` in Python.
+    The attributes correspond to the fields in the :term:`job pack` file.
+    Use :meth:`dumps` to serialize the :class:`JobPack` for sending to the master.
+
+    .. attribute:: jobdict
+
+                   The dictionary of job parameters for the :term:`master`.
+
+                   See also :ref:`jobdict`.
+
+    .. attribute:: jobenvs
+
+                   The dictionary of environment variables to set before the
+                   :term:`worker` is run.
+
+                   See also :ref:`jobenvs`.
+
+    .. attribute:: jobhome
+
+                   The zipped archive to use when initializing the :term:`job home`.
+                   This field should contain the contents of the serialized archive.
+
+                   See also :ref:`jobhome`.
+
+    .. attribute:: jobdata
+
+                   Binary data that the builtin :class:`disco.worker.Worker`
+                   uses for serializing itself.
+
+                   See also :ref:`jobdata`.
+    """
+    MAGIC = (0xd5c0 << 16) + 0x0001
+    HEADER_FORMAT = "!IIIII"
+    HEADER_SIZE = 128
+    def __init__(self, jobdict, jobenvs, jobhome, jobdata):
+        self.jobdict = jobdict
+        self.jobenvs = jobenvs
+        self.jobhome = jobhome
+        self.jobdata = jobdata
+
+    def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
+        from struct import pack
+        toc = pack(format, magic, *(o for o in offsets))
+        return toc + '\0' * (size - len(toc))
+
+    def contents(self, offset=HEADER_SIZE):
+        for field in (json.dumps(self.jobdict),
+                      json.dumps(self.jobenvs),
+                      self.jobhome,
+                      self.jobdata):
+            yield offset, field
+            offset += len(field)
+
+    def dumps(self):
+        """
+        Return the serialized :class:`JobPack`.
+
+        Essentially encodes the :attr:`jobdict` and :attr:`jobenvs` dictionaries,
+        and prepends a valid header.
+        """
+        offsets, fields = zip(*self.contents())
+        return self.header(offsets) + ''.join(fields)
+
+    @classmethod
+    def offsets(cls, jobfile, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
+        from struct import calcsize, unpack
+        jobfile.seek(0)
+        header = [i for i in unpack(format, jobfile.read(calcsize(format)))]
+        assert header[0] == magic, "Invalid jobpack magic."
+        assert header[1] == size, "Invalid jobpack header."
+        assert header[1:] == sorted(header[1:]), "Invalid jobpack offsets."
+        return header[1:]
+
+    @classmethod
+    def load(cls, jobfile):
+        """Load a :class:`JobPack` from a file."""
+        return PackedJobPack(jobfile)
+
+    @classmethod
+    def request(cls):
+        """Get the location of :ref:`jobpack` file from the master, and :meth:`load` it."""
+        from disco.events import JobFile
+        return cls.load(open(JobFile().send()))
+
+class PackedJobPack(JobPack):
+    def __init__(self, jobfile):
+        self.jobfile = jobfile
+
+    @property
+    def jobdict(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(dict_offset)
+        return json.loads(self.jobfile.read(envs_offset - dict_offset))
+
+    @property
+    def jobenvs(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(envs_offset)
+        return json.loads(self.jobfile.read(home_offset - dict_offset))
+
+    @property
+    def jobhome(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(home_offset)
+        return self.jobfile.read(data_offset - home_offset)
+
+    @property
+    def jobdata(self):
+        dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
+        self.jobfile.seek(data_offset)
+        return self.jobfile.read()

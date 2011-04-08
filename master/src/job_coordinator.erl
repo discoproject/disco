@@ -48,7 +48,7 @@ job_coordinator(Parent, JobPack) ->
     {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
     {ok, JobName} = event_server:new_job(Prefix, self()),
     JobFile = jobpack:save(JobPack, disco:jobhome(JobName)),
-    disco_server:new_job(JobName, self(), 30000),
+    ok = disco_server:new_job(JobName, self(), 30000),
     Parent ! {job_submitted, JobName},
     job_coordinator(JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}).
 
@@ -232,9 +232,14 @@ reduce_input(Inputs, NRed) ->
                                  preferred_host(Input)
                          end || Input <- Inputs]),
     NHosts = length(Hosts),
-    HostsD = dict:from_list(disco:enum(Hosts)),
-    [{TaskID, [{Inputs, dict:find(TaskID rem NHosts, HostsD)}]}
-     || TaskID <- lists:seq(0, NRed - 1)].
+    case NHosts of
+        0 ->
+            [];
+        _ ->
+            HostsD = dict:from_list(disco:enum(Hosts)),
+            [{TaskID, [{Inputs, dict:find(TaskID rem NHosts, HostsD)}]}
+             || TaskID <- lists:seq(0, NRed - 1)]
+    end.
 
 reduce(Inputs, #jobinfo{reduce = false}) ->
     Inputs;

@@ -4,129 +4,111 @@
 Troubleshooting Disco installation
 ==================================
 
-Sometimes it happens that Disco doesn't work properly right after
-installation. Since Disco is a distributed system which is based on
-several separate loosely coupled components, it is possible to debug
-the system by testing the components one by one. This page describes
-the troubleshooting process.
+:ref:`setup` should tell you enough to get Disco up and running,
+but it may happen that Disco doesn't work properly right after installation.
+If you can't :ref:`run the word count example <insttest>` successfully,
+the reason is usually a small misconfigured detail somewhere.
+This document tries to help you figure out what's going wrong.
 
-This page helps you to get Disco working locally, on a single
-computer. After this, getting the distributed version to work is rather
-straightforward.
+Since Disco is a distributed system based on loosely coupled components,
+it is possible to debug the system by testing the components one by one.
+This document describes the troubleshooting process.
+It is intended to help you to get Disco working locally, on a single computer.
+After you have done this, distributing it should be rather straightforward:
+the same debugging techniques apply.
 
-Here we assume that you have installed Disco locally with the following steps:
+.. note:: It's assumed that you have already followed the steps in
+          :ref:`install_source`.
 
- * Downloaded :doc:`a recent version of Disco <download>`.
- * Extracted the package to your home directory, say ``~/disco/``.
- * Compiled the sources by writing ``make`` in ``~/disco/``.
- * Started Disco with ``disco start``.
- * Tried to run the ``count_words.py`` example from :ref:`setup` as follows ``python count_words.py http://localhost:8989``.
 
-but the script crashed and/or didn't produce any results.
+.. _stopping_disco:
 
-Let's find out what went wrong. Follow the next steps in order.
+Make sure Disco is not running
+------------------------------
 
-0. Start Disco locally
-----------------------
+If you have started Disco earlier,
+try to stop the :term:`master` using ``disco stop``
+(or :kbd:`C-c` if you are running with ``disco nodaemon``).
+If you cannot seem to stop Disco this way, kill the ``beam`` processes by hand,
 
-If you have started Disco earlier, try to stop the master using ``disco stop``.
-If you cannot seem to stop Disco, kill the previous processes with
-``killall -9 lighttpd`` and ``killall -9 beam`` (or ``killall -9
-beam.smp`` if you have a multi-core system). Note that this kills all
-Erlang and Lighttpd processes owned by the user, so don't do this if
-you have some other Erlang / Lighttpd processes running besides Disco.
+.. hint:: You can use
+   ::
 
-Then, restart Disco by saying::
+        ps aux | grep beam.*disco
 
-        cd ~/disco
+   and::
+
+        kill PID
+
+   to hunt down and kill the :term:`pids <pid>`, respectively.
+
+Is the master starting?
+-----------------------
+
+Start Disco by saying::
+
         disco nodaemon
 
-Here we assume that you've extracted Disco under ``~/disco``. If you
-extracted Disco to some other directory, replace ``~/disco/`` with your
-actual directory here and in the examples below.
+If everything goes well,
+you should see a bunch of ``=INFO REPORT=`` messages printed to the screen.
+If you see any ``=ERROR REPORT=`` messages, something is wrong,
+and you should try to resolve the particular issue :term:`Erlang` is reporting.
+These messages often reveal what went wrong during the startup.
 
-These commands should be enough to get Disco up and running. If you
-can't run ``count_words.py`` example successfully, the reason is usually
-a small misconfigured detail somewhere. We will find it out below.
-
-1. Is Disco master running?
----------------------------
-
-The first thing to check is to see that the master process has actually
-started up. Say::
-
-        ps aux | grep beam
-
-If the master is running, you should see something like this::
-
-        disco 4625 2.5 0.2 67392 10496 ? Sl 13:12 0:00
-        /usr/lib/erlang/erts-5.7.5/bin/beam.smp -K true -- -root
-        /usr/lib/erlang -progname erl -- -home /srv/disco -- -smp
-        -rsh ssh -connect_all false -sname disco_8989_master
-        -pa /usr/local/lib/disco/ebin/ -pa /usr/local/lib/disco/ebin/mochiweb
-        -pa /usr/local/lib/disco/ebin/ddfs -eval application:start(disco)
-        -noshell -noinput -heart -kernel error_logger {file, "/var/log/disco/Master-host_8989.log"}
-
-If you do see output like above, the master is running correctly and
-you can proceed to the next step.
-
-If not, the master didn't start up properly. See if you can find a log
-file at ``DISCO_LOG_DIR/*.log``.
-If you used the nodaemon command to startup the Disco master,
-the log should be printed to stdout.
-If the file exists, see the last messages in the file:
-They often reveal what went wrong during the startup.
-
-.. hint::
-   If you do not know what DISCO_LOG_DIR should be,
-   you can find out the environment Disco is using to run itself by running::
-
-       disco -v|grep DISCO
-
-
-If you can't find the log file, the master didn't start at all. See
-if you can find master binaries at ``DISCO_HOME/master/ebin/*.ebin``. If
-no such files exist, run ``cd DISCO_HOME; make`` again and see if the
-compilation fails for some reason.
-
-If the binaries exist but the master doesn't start, run::
-
-        cd ~/disco
-        disco nodaemon
-
-This assumes ``DISCO_HOME`` is ``~/disco``.
-This command tries to start the Erlang virtual machine with the Disco
-application. The command should fail with the following message::
+If you see something like this::
 
         application: disco
         exited: {bad_return,{{disco_main,start,[normal,[]]},
                 {'EXIT',["Specify ",scgi_port]}}}
 
-which signals that Disco is trying to start up properly. If you don't
-see anything like this, your Erlang installation probably doesn't work
+Disco is trying to start up properly,
+but your Erlang installation probably doesn't work
 correctly and you should try to re-install it.
 
-2. Are there any nodes on the status page?
-------------------------------------------
+.. note:: If you started disco using ``disco start``,
+          you will have to check the logs in :envvar:`DISCO_LOG_DIR`
+          for such messages.
 
-Now that we know that the master process is running, we should
-be able to configure the system. Open your web browser and go to
-`http://localhost:8989/ <http://localhost:8989/>`_. The Disco status
-page should open.
+          If you can't find the log file, the master didn't start at all.
+          See if you can find master binaries in the ``ebin`` directory
+          under :envvar:`DISCO_MASTER_HOME`.
+          If there are no files there,
+          check for compilation errors when you :ref:`install_source`.
 
-Do you see any boxes with black title bars on the status page (like `in
-this screenshot <../_static/screenshots/disco-main.png>`_)? If not,
-add nodes to the system as instructed in :ref:`confignodes`.
+.. hint:: If you don't know what :envvar:`DISCO_LOG_DIR` is
+          (or any other :mod:`setting <disco.settings>`),
+          you can check with::
 
-If adding nodes through the web interface fails, it may be a bug in
-Disco. In that case you can edit the config file manually. For instance,
-the following command initializes a configuration file with one node::
+                disco -v
 
-        echo '[["localhost", "1"]]' > ~/disco/root/disco_4441.config
+If the master is running, you can proceed to the next step
+(you can double check with ``ps`` as in :ref:`stopping_disco`).
+If not, the master didn't start up properly.
 
-Remember to restart the master after editing the config file by hand::
+Are there any nodes on the status page?
+---------------------------------------
 
-         disco restart
+Now that we know that the master process is running,
+we should be able to configure the system.
+Open your web browser and go to
+`http://localhost:8989/ <http://localhost:8989/>`_
+(or whatever your :envvar:`DISCO_MASTER_HOST`
+and :envvar:`DISCO_PORT` are set to).
+The Disco status page should open.
+
+Do you see any boxes with black title bars on the status page
+(like `in this screenshot <../_static/screenshots/disco-main.png>`_)?
+If not, add nodes to the system as instructed in :ref:`confignodes`.
+
+If adding nodes through the web interface fails,
+you can try editing the config file manually.
+For instance,
+if you replace :envvar:`DISCO_ROOT` in the following command,
+it will create a configuration file with one node::
+
+        echo '[["localhost", "1"]]' > DISCO_ROOT/disco_4441.config
+
+.. hint:: Remember to restart the master after editing the config file by hand.
 
 .. note::
 
@@ -137,63 +119,63 @@ Remember to restart the master after editing the config file by hand::
     resume them once nodes are added to the configuration and become
     available.
 
-3. Is worker supervisor running?
---------------------------------
+Now is a good time to try to run a Disco :term:`job`.
+Go ahead and retry the :ref:`installation test <insttest>`.
+You should see the job appear on the Disco status page.
+If the job succeeds, it should appear with a green box on the job list.
+If it turns up red, we need to continue debugging.
 
-Now is a good time to try to run a Disco job. Copy the ``count_words.py``
-example from :ref:`setup` and run it by saying ``python count_words.py
-http://localhost:8989``. You should see the job appear on the Disco
-status page. If the job succeeds, it should appear with a green box on
-the job list. If it turns up red, we need to continue debugging.
+Are slaves running?
+-------------------
 
-In addition to the master process, each node that runs Disco jobs needs
-a worker supervisor (see :ref:`overview` for details). Make sure that
-you have a supervisor running::
+In addition to the master process on the master node,
+:term:`Erlang` runs a :term:`slave` on each node in a Disco cluster.
 
-        ps aux | grep slave_waiter
+Make sure that the slave is running::
 
-If the supervisor is running, you should see something like this::
+        ps aux | grep -o disco.*slave@
 
-        disco 4594 1.1 3.7 8136 4672 ? Sl 21:45
-        0:00 /usr/lib/erlang/erts-5.6.3/bin/beam -K true -- -root
-        /usr/lib/erlang -progname erl -- -home /home/tuulos -noshell
-        -noinput -noshell -noinput -master disco_4441_master@discodev
-        -sname disco_4441_slave@localhost -s slave slave_start
-        disco_4441_master@discodev slave_waiter_0 -pa
-        /home/tuulos/src/disco/master//ebin
+If is is running, you should see something like this::
 
-If you get a similar output, go to step 4. If not, read on.
+   disco_8989_master@discodev -sname disco_8989_slave@
+   disco.*slave@
 
-The most common reason for the supervisor not starting up is a problem
-with ssh authentication. Try the following command::
+If you get a similar output, go to `Do workers run?`_. If not, read on.
+
+Is SSH working?
+'''''''''''''''
+
+The most common reason for the slave not starting up is a problem with :term:`SSH`.
+Try the following command::
 
         ssh localhost erl
 
-If ssh asks for a password, or any other confirmation, you need to
-configure ssh properly as instructed in :ref:`configauth`.
+If SSH asks for a password, or any other confirmation,
+you need to configure SSH properly as instructed in
+:ref:`authentication configuration <configauth>`.
 
-If ssh seems to work correctly, you should check that the Erlang's
-``slave`` module works correctly. You can check it as follows::
+If SSH seems to work correctly, Erlang should be able to start a slave.
+Check that you get something similar when you do::
 
-          disco debug
+        [user@somehost dir]$ disco debug
+        Erlang VERSION
 
-        Erlang (BEAM) emulator...
-
+        Eshell VERSION (abort with ^G)
         (testmaster@somehost)1> slave:start(localhost, "testnode").
         {ok,testnode@localhost}
         (testmaster@somehost)1> net_adm:ping(testnode@localhost).
         pong
 
-If Erlang doesn't return ``{ok..`` for the first expression or if it
-returns ``pang`` for the second expression, there's something wrong either
-with your ssh or Erlang configuration. You should double-check that
-the Erlang security cookie at ``~/.erlang.cookie`` is the same on all
-the nodes (see :ref:`configauth`). The cookie must be readable only to the
-disco user, so run ``chmod 400 ~/.erlang.cookie`` on all the nodes.
+If Erlang doesn't return ``{ok,_Node}`` for the first expression,
+or if it returns ``pang`` for the second expression,
+there's probably something wrong either with your
+:ref:`authentication configuration <configauth>`.
 
-Note that node names need to be consistent. If your master node is called
-``huey`` and your remote node ``dewey``, ``dewey`` must be able to connect to
-the master node by the name ``huey`` and vice versa. Aliasing is not allowed.
+.. note:: Node names need to be consistent.
+          If your master node is called ``huey`` and your remote node ``dewey``,
+          ``dewey`` must be able to connect to the master node named ``huey``,
+          and vice versa.
+          Aliasing is not allowed.
 
 .. warning::
    Future versions of Disco may allow you to specify a port range for Erlang to use,
@@ -202,32 +184,28 @@ the master node by the name ``huey`` and vice versa. Aliasing is not allowed.
    If you have a firewall running inside your cluster,
    you may need to turn it off in order for Disco to work properly.
 
-4. Does disco-worker start up?
-------------------------------
+Do workers run?
+---------------
 
-The worker supervisor is responsible for starting individual Python
-processes that execute the actual map and reduce functions. Assuming
-that the supervisor is running correctly, the problem might be in the
-``disco-worker`` Python process.
+The :term:`master` is responsible for starting individual
+processes that execute the actual :term:`map` and :term:`reduce`
+:term:`tasks <task>`.
+Assuming that the master is running correctly,
+the problem might be in the :term:`worker`.
 
 See what happens with the following command::
 
-        ssh localhost "PATH=~/disco/node PYTHONPATH=~/disco/node:~/disco/lib disco-worker"
+        ssh localhost "python DISCO_HOME/lib/disco/worker/classic/worker.py"
 
-It should respond with an error message that includes::
+Where :envvar:`DISCO_HOME` in this case must be the Disco source directory.
+It should start and send a message like this::
 
-        ... Invalid command line. Usage: ...
+   **<PID:00> 11/03/31 11:52:50
+   "22109"
+   <>**
 
-If you get something else, you may have a problem with your PATH settings
+If you get something else, you may have a problem with your :envvar:`PATH`
 or Python installation.
-
-You can find out what exactly Disco tries to execute as follows::
-
-        grep "Spawn cmd" DISCO_LOG_DIR/master*.log
-
-In the log, you should see lines starting with ``Spawn cmd: nice -19 disco-worker...``.
-You can copy-paste one of the lines and try to execute it by hand.
-This way you can easily see how ``disco-worker`` fails.
 
 Still no success?
 -----------------
