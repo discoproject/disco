@@ -56,6 +56,7 @@ def blobs(program, *tags):
     for replicas in program.blobs(*tags):
         print '\t'.join(replicas)
 
+@DDFS.add_job_mode
 @DDFS.add_program_blobs
 @DDFS.command
 def cat(program, *urls):
@@ -367,6 +368,7 @@ def urls(program, *tags):
         for replicas in program.ddfs.urls(tag):
             print '\t'.join(replicas)
 
+@DDFS.add_job_mode
 @DDFS.add_classic_reads
 @DDFS.add_program_blobs
 @DDFS.command

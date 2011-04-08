@@ -125,6 +125,7 @@ def config(program):
     for config in program.disco.config:
         print "\t".join(config)
 
+@Disco.add_job_mode
 @Disco.add_file_mode
 @Disco.command
 def deref(program, *urls):

@@ -41,6 +41,26 @@ class Program(clx.Program):
         return command
 
     @classmethod
+    def add_job_mode(cls, command):
+        from itertools import chain
+        command.add_option('-j', '--job-mode',
+                           action='store_true',
+                           help='accept jobname arguments instead of urls')
+        function = command.function
+        def job_function(program, *jobnames):
+            def results(jobname):
+                status, results = program.disco.results(jobname)
+                return results
+            if program.options.job_mode:
+                urls = chain(*(results(program.job_history(jobname))
+                               for jobname in jobnames))
+                return function(program, *urls)
+            return function(program, *jobnames)
+        job_function.__doc__ = function.__doc__
+        command.function = job_function
+        return command
+
+    @classmethod
     def add_prefix_mode(cls, command):
         command.add_option('-p', '--prefix-mode',
                            action='store_true',
