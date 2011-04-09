@@ -5,7 +5,9 @@ from disco.events import Status
 class PrintJob(TestJob):
     @staticmethod
     def map(e, params):
-        print e
+        import sys, disco.json
+        msg = disco.json.dumps(e)
+        sys.stderr.write('MSG %d %s\n' % (len(msg), msg))
         return []
 
 class StatusJob(TestJob):
