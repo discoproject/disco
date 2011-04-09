@@ -30,7 +30,7 @@ payload_type(<<"VSN">>) -> string;
 payload_type(<<"JOB">>) -> string;
 payload_type(<<"SET">>) -> string;
 payload_type(<<"TSK">>) -> string;
-payload_type(<<"STA">>) -> string;
+payload_type(<<"MSG">>) -> string;
 payload_type(<<"DAT">>) -> string;
 payload_type(<<"ERR">>) -> string;
 payload_type(<<"END">>) -> string;
@@ -98,8 +98,8 @@ do_handle({<<"TSK">>, _Body}, #state{task = Task} = S) ->
                          {<<"host">>, list_to_binary(disco:host(node()))}]},
     {ok, {"TSK", TaskInfo}, S};
 
-do_handle({<<"STA">>, Msg}, #state{task = Task, master = Master} = S) ->
-    disco_worker:event({<<"STA">>, Msg}, Task, Master),
+do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
+    disco_worker:event({<<"MSG">>, Msg}, Task, Master),
     {ok, {"OK", <<"ok">>}, S};
 
 do_handle({<<"INP">>, <<>>}, #state{inputs = Inputs} = S) ->

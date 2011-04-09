@@ -42,7 +42,7 @@ class Event(object):
         return '%s %d %s\n' % (self.type, len(body), body)
 
 class Status(Event):
-    type = 'STA'
+    type = 'MSG'
 
 class Message(Event):
     type = 'MSG'
