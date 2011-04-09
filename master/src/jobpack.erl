@@ -1,6 +1,7 @@
 -module(jobpack).
 
--export([jobfile/1,
+-export([valid/1,
+         jobfile/1,
          exists/1,
          extract/2,
          extracted/1,
@@ -14,6 +15,7 @@
 
 -define(MAGIC, 16#d5c0).
 -define(VERSION, 16#0001).
+-define(HEADER_SIZE, 128).
 -define(COPY_BUFFER_SIZE, 1048576).
 
 -spec dict({'struct', [{term(), term()}]}) -> dict().
@@ -163,6 +165,25 @@ jobzip(<<?MAGIC:16/big,
     JobHomeLength = JobDataOffset - JobHomeOffset,
     <<_:JobHomeOffset/bytes, JobZip:JobHomeLength/bytes, _/binary>> = JobPack,
     JobZip.
+
+-spec valid(binary()) -> boolean().
+valid(<<?MAGIC:16/big,
+        ?VERSION:16/big,
+        JobDictOffset:32/big,
+        JobEnvsOffset:32/big,
+        JobHomeOffset:32/big,
+        JobDataOffset:32/big,
+        _/binary>> = JobPack)
+  when JobDictOffset =:= ?HEADER_SIZE,
+       JobEnvsOffset > JobDictOffset,
+       JobHomeOffset >= JobEnvsOffset,
+       JobDataOffset >= JobHomeOffset ->
+    case catch {jobdict(JobPack), jobenvs(JobPack)} of
+        {'EXIT', _} -> false;
+        _ -> true
+    end;
+    % FIXME: check prefix/jobinfo/zip for validity
+valid(_JobPack) -> false.
 
 -spec validate_prefix(binary() | list()) -> nonempty_string().
 validate_prefix(Prefix) when is_binary(Prefix)->
