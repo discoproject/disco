@@ -22,12 +22,14 @@ def default_open(url):
     return file
 
 def input(id):
-    status, replicas = Input(id).send()
+    done, inputs = Input(['include',[id]]).send()
+    _id, status, replicas = inputs[0]
+
     if status == 'busy':
         raise Wait
     if status == 'failed':
         raise DataError("Can't handle broken input", id)
-    return replicas
+    return [r[1] for r in replicas]
 
 def inputs(done=False, exclude=()):
     while not done:

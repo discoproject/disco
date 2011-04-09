@@ -36,9 +36,11 @@ payload_type(<<"ERR">>) -> string;
 payload_type(<<"END">>) -> string;
 
 payload_type(<<"INP">>) ->
-    {array, [{opt, [{value, <<"include">>},
-                    {value, <<"exclude">>}]},
-             {hom_array, integer}]};
+    {opt, [{value, <<>>},
+           {array, [{opt, [{value, <<"include">>},
+                           {value, <<"exclude">>}]},
+                    {hom_array, integer}]}
+          ]};
 payload_type(<<"EREP">>) ->
     {array, [integer, {hom_array, integer}]};
 payload_type(<<"OUT">>) ->
