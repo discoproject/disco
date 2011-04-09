@@ -46,22 +46,24 @@ class EventFormatTestCase(TestCase):
 
 class JobEventTestCase(TestCase):
     def serve(self, path):
-        return 'data\n' * 10
+        return 'data\n' * 5
 
     def new_job(self, **kwargs):
         return TestJob().run(input=self.test_server.urls([1]), **kwargs)
 
     def test_single_line_error(self):
         def map(e, params):
-            import sys
-            sys.stderr.write('**<ERR> Single line error!\n')
+            import sys, disco.json
+            msg = disco.json.dumps("Single line error!")
+            sys.stderr.write('ERR %d %s\n' % (len(msg), msg))
         self.job = self.new_job(map=map)
         self.assertRaises(JobError, self.job.wait)
 
     def test_single_line_message(self):
         def map(e, params):
-            import sys
-            sys.stderr.write('**<MSG> Single line message\n')
+            import sys, disco.json
+            msg = disco.json.dumps("Single line message")
+            sys.stderr.write('MSG %d %s\n' % (len(msg), msg))
             return []
         self.job = self.new_job(map=map)
         self.assertResults(self.job, [])
