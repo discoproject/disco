@@ -41,3 +41,28 @@ class JobPackTestCase(TestCase):
         jobpack = JobPack.header(offsets) + '0'*2
         status, response = loads(self.disco.request('/disco/job/new', jobpack))
         self.assertEquals(status, 'error')
+
+class JobPackInfoTestCase(TestCase):
+    def test_badinfo(self):
+        jobenvs, jobzip, jobdata = {}, '', ''
+        jobdict = {}
+        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
+        status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
+        self.assertEquals(status, 'error')
+        self.assertGreater(response.find("missing key"), 0)
+
+    def test_badprefix(self):
+        jobenvs, jobzip, jobdata = {}, '', ''
+        jobdict = {'prefix':'a/b', 'scheduler':{}, 'input':[],
+                   'worker':"w", 'owner':"o", 'nr_reduces':"2"}
+        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
+        status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
+        self.assertEquals(status, 'error')
+        self.assertGreater(response.find("invalid prefix"), 0)
+
+        jobdict = {'prefix':'a.b', 'scheduler':{}, 'input':[],
+                   'worker':"w", 'owner':"o", 'nr_reduces':"2"}
+        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
+        status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
+        self.assertEquals(status, 'error')
+        self.assertGreater(response.find("invalid prefix"), 0)

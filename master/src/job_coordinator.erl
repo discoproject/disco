@@ -1,4 +1,3 @@
-
 -module(job_coordinator).
 -export([new/1]).
 
@@ -21,15 +20,12 @@ new(JobPack) ->
     process_flag(trap_exit, true),
     spawn_link(fun() ->
                    case jobpack:valid(JobPack) of
-                       true -> ok;
-                       false -> exit(invalid_jobpack)
+                       ok -> ok;
+                       {error, E} -> exit(E)
                    end,
                    case catch job_coordinator(Self, JobPack) of
-                       ok ->
-                           ok;
-                       Error ->
-                           error_logger:error_report({"Job failed to start", Error}),
-                           exit(Error)
+                       ok -> ok;
+                       Error -> exit(Error)
                    end
                end),
     receive

@@ -28,10 +28,10 @@ find(Key, Dict) ->
         {ok, Field} ->
             Field;
         error ->
-            throw(disco:format("jobpack missing key '~s'", [Key]))
+            throw({error, disco:format("jobpack missing key '~s'", [Key])})
     end.
 
--spec find(binary(), dict(), term()) -> term().
+-spec find(binary(), dict(), T) -> T.
 find(Key, Dict, Default) ->
     case catch dict:find(Key, Dict) of
         {ok, Field} ->
@@ -142,7 +142,7 @@ jobdict(<<?MAGIC:16/big,
     <<_:JobDictOffset/bytes, JobDict:JobDictLength/bytes, _/binary>> = JobPack,
     dict(mochijson2:decode(JobDict)).
 
--spec jobenvs(binary()) -> dict().
+-spec jobenvs(binary()) -> [{nonempty_string(), string()}].
 jobenvs(<<?MAGIC:16/big,
          _Version:16/big,
          _JobDictOffset:32/big,
@@ -166,7 +166,7 @@ jobzip(<<?MAGIC:16/big,
     <<_:JobHomeOffset/bytes, JobZip:JobHomeLength/bytes, _/binary>> = JobPack,
     JobZip.
 
--spec valid(binary()) -> boolean().
+-spec valid(binary()) -> 'ok' | {'error', term()}.
 valid(<<?MAGIC:16/big,
         ?VERSION:16/big,
         JobDictOffset:32/big,
@@ -178,12 +178,13 @@ valid(<<?MAGIC:16/big,
        JobEnvsOffset > JobDictOffset,
        JobHomeOffset >= JobEnvsOffset,
        JobDataOffset >= JobHomeOffset ->
-    case catch {jobdict(JobPack), jobenvs(JobPack)} of
-        {'EXIT', _} -> false;
-        _ -> true
+    case catch {jobinfo(JobPack), jobenvs(JobPack)} of
+        {'EXIT', _} -> {error, invalid_dicts_or_envs};
+        {error, E} -> {error, E};
+        _ -> ok
     end;
-    % FIXME: check prefix/jobinfo/zip for validity
-valid(_JobPack) -> false.
+    % FIXME: check zip for validity
+valid(_JobPack) -> {error, invalid_header}.
 
 -spec validate_prefix(binary() | list()) -> nonempty_string().
 validate_prefix(Prefix) when is_binary(Prefix)->
@@ -193,5 +194,5 @@ validate_prefix(Prefix) ->
         0 ->
             Prefix;
         _ ->
-            throw("invalid prefix")
+            throw({error, "invalid prefix"})
     end.
