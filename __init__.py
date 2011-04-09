@@ -51,10 +51,18 @@ def walk(commands):
         for subname, subcommand in command.commands.iteritems():
             yield ('%s %s' % (name, subname)), subcommand
 
-def search(receiver, commands):
+def search(receiver, commands, options=()):
     path, args = [], []
+    skip = 0
     for n, command in enumerate(commands):
+        if skip:
+            skip -= 1
+            args.append(command)
+            continue
         if command.startswith('-'):
+            for option in options:
+                if command in (option._long_opts + option._short_opts):
+                    skip = option.nargs or 0
             args.append(command)
             continue
         if command not in receiver.commands:
@@ -101,7 +109,7 @@ class Program(Command):
 
     def __init__(self, argv=sys.argv[1:], option_parser=OptionParser()):
         option_parser.usage     = self.usage
-        self.cmd, path, argv    = self.search(argv)
+        self.cmd, path, argv    = self.search(argv, option_parser.option_list)
         self.option_parser      = self.cmd.add_options(option_parser)
         self.options, self.argv = option_parser.parse_args(argv)
         self.invocation         = ' '.join([self.name] + path)
@@ -164,5 +172,5 @@ If this is not what you want, see the `--help` option
                 raise
             sys.exit("%s" % e)
 
-    def search(self, args):
-        return search(self, args)
+    def search(self, args, options=()):
+        return search(self, args, options=options)
