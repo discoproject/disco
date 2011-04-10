@@ -95,6 +95,8 @@ save(JobPack, JobHome) ->
             throw({"Couldn't save jobpack", TmpFile, Reason})
     end.
 
+-spec copy({file:io_device(), non_neg_integer()}, nonempty_string()) ->
+                  {'ok', nonempty_string()}.
 copy({Src, Size}, JobHome) ->
     TmpFile = tempname(JobHome),
     JobFile = jobfile(JobHome),

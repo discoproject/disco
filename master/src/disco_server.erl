@@ -108,7 +108,8 @@ manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
 % called from remote nodes
--spec get_worker_jobpack(pid(), nonempty_string()) -> binary().
+-spec get_worker_jobpack(node(), nonempty_string()) ->
+                                {'ok', {file:io_device(), non_neg_integer()}}.
 get_worker_jobpack(Master, JobName) ->
     gen_server:call({?MODULE, Master}, {jobpack, JobName}).
 
@@ -301,11 +302,6 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
-start_worker(Node, NodeMon, T) ->
-    event_server:event(T#task.jobname, "~s:~B assigned to ~s",
-                       [T#task.mode, T#task.taskid, Node], []),
-    spawn_link(disco_worker, start_link_remote, [Node, NodeMon, T]).
-
 -spec do_update_config_table([disco_config:host_info()], [nonempty_string()],
                              #state{}) -> #state{}.
 do_update_config_table(Config, Blacklist, S) ->
@@ -342,6 +338,12 @@ do_update_config_table(Config, Blacklist, S) ->
     disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
     update_nodes(NewNodes),
     S#state{nodes = NewNodes}.
+
+-spec start_worker(nonempty_string(), pid(), task()) -> pid().
+start_worker(Node, NodeMon, T) ->
+    event_server:event(T#task.jobname, "~s:~B assigned to ~s",
+                       [T#task.mode, T#task.taskid, Node], []),
+    spawn_link(disco_worker, start_link_remote, [Node, NodeMon, T]).
 
 -spec schedule_next() -> 'ok'.
 schedule_next() ->
@@ -454,6 +456,7 @@ do_clean_job(JobName) ->
     gen_server:cast(event_server, {clean_job, JobName}),
     ok.
 
+-spec do_send_jobpack(nonempty_string(), {pid(), reference()}) -> 'ok'.
 do_send_jobpack(JobName, From) ->
     JobFile = jobpack:jobfile(disco:jobhome(JobName)),
     case prim_file:read_file_info(JobFile) of
