@@ -1,5 +1,6 @@
-import cPickle, errno, struct, os, sys, time, zlib
+import cPickle, errno, inspect, struct, os, sys, time, zlib
 from cStringIO import StringIO
+from inspect import getfile, getmodule, getsourcefile
 from zipfile import ZipFile, ZIP_DEFLATED
 
 from disco.error import DataError
@@ -131,29 +132,15 @@ class DiscoZipFile(ZipFile, object):
         self.buffer = StringIO()
         super(DiscoZipFile, self).__init__(self.buffer, 'w', ZIP_DEFLATED)
 
-    def modulepath(self, module, basename='lib'):
-        module = modulify(module)
-        name, ext = os.path.splitext(module.__file__)
-        modpath = '%s%s' % (os.path.join(*module.__name__.split('.')), ext)
-        return os.path.join(basename, modpath)
+    def writemodule(self, module):
+        self.writepath(getfile(modulify(module)))
 
-    def writebytes(self, pathname, bytes, basename=''):
-        self.writestr(os.path.join(basename, pathname.strip('/')), bytes)
-
-    def writemodule(self, module, basename='lib'):
-        module = modulify(module)
-        self.write(module.__file__, self.modulepath(module, basename=basename))
-
-    def writepath(self, pathname, basename=''):
+    def writepath(self, pathname):
         for file in files(pathname):
-            self.write(file, os.path.join(basename, file.strip('/')))
+            self.write(file, file)
 
-    def writepy(self, pathname, basename='lib'):
-        if ispackage(pathname):
-            basename = os.path.join(basename, os.path.basename(pathname))
-        for module in modules(pathname):
-            self.write(os.path.join(pathname, module),
-                       os.path.join(basename, module))
+    def writesource(self, object):
+        self.writepath(getsourcefile(getmodule(object)))
 
     def dump(self, handle):
         handle.write(self.dumps())
@@ -227,14 +214,6 @@ def ensure_free_space(fname):
     if free < MIN_DISK_SPACE:
         raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
 
-def ismodule(path):
-    if os.path.isfile(path):
-        name, ext = os.path.splitext(path)
-        return ext in ('.py', '.so')
-
-def ispackage(path):
-    return os.path.isdir(path) and '__init__.py' in os.listdir(path)
-
 def files(path):
     if os.path.isdir(path):
         for name in os.listdir(path):
@@ -242,12 +221,3 @@ def files(path):
                 yield file
     else:
         yield path
-
-def modules(dirpath):
-    for name in os.listdir(dirpath):
-        path = os.path.join(dirpath, name)
-        if ismodule(path):
-            yield name
-        elif ispackage(path):
-            for submodule in modules(path):
-                yield '%s/%s' % (name, submodule)
