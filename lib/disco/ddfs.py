@@ -17,7 +17,7 @@ from disco import json
 from disco.comm import upload, download, open_remote
 from disco.error import CommError
 from disco.settings import DiscoSettings
-from disco.util import isiterable, iterify, partition
+from disco.util import isiterable, iterify, listify, partition
 from disco.util import urljoin, urlsplit, urlresolve, urltoken
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
@@ -131,17 +131,21 @@ class DDFS(object):
         Chunks the contents of `urls`,
         pushes the chunks to ddfs and tags them with `tag`.
         """
-        from disco.core import ChunkIter
+        from disco.core import classic_iterator
+        from disco.fileutils import Chunker
+
+        def chunk_iter(replicas):
+            return Chunker().chunks(classic_iterator([replicas], **kwargs))
 
         def chunk_name(replicas, n):
-            url = list(iterify(replicas))[0]
+            url = listify(replicas)[0]
             return self.safe_name('%s-%s' % (os.path.basename(url), n))
 
         blobs = [self._push((StringIO(chunk), chunk_name(reps, n)),
                             replicas=replicas,
                             retries=retries)
                  for reps in urls
-                 for n, chunk in enumerate(ChunkIter(reps, **kwargs))]
+                 for n, chunk in enumerate(chunk_iter(reps))]
         return (self.tag(tag,
                          blobs,
                          delayed=delayed,

@@ -12,7 +12,6 @@ from disco import func, json, util
 from disco.comm import download
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
-from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.job import Job
 from disco.settings import DiscoSettings
 
@@ -350,21 +349,6 @@ class Disco(object):
     def result_iterator(self, *args, **kwargs):
         kwargs['ddfs'] = self.master
         return result_iterator(*args, **kwargs)
-
-class ChunkIter(object):
-    def __init__(self, url,
-                 chunk_size=CHUNK_SIZE,
-                 reader=None,
-                 **kwargs):
-        self.url = url
-        self.chunk_size= chunk_size
-        self.kwargs = kwargs
-        self.kwargs.update(dict(reader=reader))
-
-    def __iter__(self):
-        chunker = Chunker(chunk_size=self.chunk_size)
-        for chunk in chunker.chunks(classic_iterator([self.url], **self.kwargs)):
-            yield chunk
 
 def classic_iterator(urls,
                      reader=func.chain_reader,
