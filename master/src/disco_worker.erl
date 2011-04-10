@@ -20,9 +20,9 @@
                 worker_send :: pid(),
                 error_output :: boolean(),
                 buffer :: binary(),
-                parser,
-                runtime,
-                throttle}).
+                parser :: worker_protocol:state(),
+                runtime :: worker_runtime:state(),
+                throttle :: worker_throttle:state()}).
 -type state() :: #state{}.
 
 -define(JOBHOME_TIMEOUT, 5 * 60 * 1000).
