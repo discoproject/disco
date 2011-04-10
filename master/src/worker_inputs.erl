@@ -3,7 +3,6 @@
          all/1,
          include/2,
          exclude/2,
-         fail/2,
          fail/3,
          add/2,
          add/3]).
@@ -66,12 +65,13 @@ replicas(Iid, Rid, Replicas, {T, _MaxIid} = S) ->
 
 -spec fail(input_id(), [replica_id()], state()) -> state().
 fail(Iid, Rids, S) ->
-    lists:foldl(fun(Rid, S1) -> fail({Iid, Rid}, S1) end, S, Rids).
+    Now = now(),
+    lists:foldl(fun(Rid, S1) -> fail_one({Iid, Rid}, Now, S1) end, S, Rids).
 
-fail(Key, {T, MaxIid} = S) ->
+fail_one(Key, Now, {T, MaxIid} = S) ->
     case gb_trees:lookup(Key, T) of
         {value, R} ->
-            {gb_trees:update(Key, R#input{failed = now()}, T), MaxIid};
+            {gb_trees:update(Key, R#input{failed = Now}, T), MaxIid};
         none ->
             S
     end.
