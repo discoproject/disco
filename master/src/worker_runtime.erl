@@ -238,7 +238,7 @@ close_output(#state{output_file = File}) ->
             ok;
         {R1, R2} ->
             {error, Reason} = lists:max([R1, R2]),
-            ioerror("Closing index file failed", Reason)
+            {error, ioerror("Closing index file failed", Reason)}
     end.
 
 -spec ioerror(list(), atom()) -> term().
