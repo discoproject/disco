@@ -25,7 +25,7 @@ class ExamplesTestCase(TestCase):
 
     def test_chunk(self):
         self.tag = 'disco:test:examples:chunks'
-        self.job = LineChunker().run(input=[chekhov], params={'tag': self.tag})
+        self.job = LineChunker().run(input=[chekhov], params=self.tag)
         self.assertEquals(len(list(self.results(self.job))), 1)
 
     def test_ddb(self):

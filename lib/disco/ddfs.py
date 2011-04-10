@@ -134,6 +134,9 @@ class DDFS(object):
         from disco.core import classic_iterator
         from disco.fileutils import Chunker
 
+        if 'reader' not in kwargs:
+            kwargs['reader'] = None
+
         def chunk_iter(replicas):
             return Chunker().chunks(classic_iterator([replicas], **kwargs))
 
