@@ -126,7 +126,7 @@ do_handle({<<"INP">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
 
 do_handle({<<"EREP">>, [Iid, Rids]}, #state{inputs = Inputs} = S) ->
     Inputs1 = worker_inputs:fail(Iid, Rids, Inputs),
-    {_, Replicas} = worker_inputs:include([Iid], Inputs1),
+    [{_, Replicas} | _] = worker_inputs:include([Iid], Inputs1),
     R = gb_sets:from_list(Rids),
     case [E || [Rid, _Url] = E <- Replicas, not gb_sets:is_member(Rid, R)] of
         [] ->
