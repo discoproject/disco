@@ -135,9 +135,11 @@ class DiscoZipFile(ZipFile, object):
     def writemodule(self, module):
         self.writepath(getfile(modulify(module)))
 
-    def writepath(self, pathname):
+    def writepath(self, pathname, exclude=('.pyc',)):
         for file in files(pathname):
-            self.write(file, file)
+            name, ext = os.path.splitext(file)
+            if ext not in exclude:
+                self.write(file, file)
 
     def writesource(self, object):
         self.writepath(getsourcefile(getmodule(object)))
