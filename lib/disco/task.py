@@ -11,7 +11,7 @@ import os, time
 from itertools import chain, dropwhile, repeat
 from disco.events import Input, DataUnavailable, Output
 from disco.error import DataError
-from disco.fileutils import AtomicFile, ensure_path
+from disco.fileutils import DiscoOutput, ensure_path
 from disco.util import hexhash, isiterable, schemesplit
 
 def default_open(url):
@@ -104,7 +104,7 @@ class TaskOutput(object):
     """
     def __init__(self, (path, type, partition), open=None):
         self.path, self.type, self.partition = path, type, partition
-        self.open = open or AtomicFile
+        self.open = open or DiscoOutput
         self.file = self.open(self.path)
 
 class Task(object):

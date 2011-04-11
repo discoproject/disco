@@ -122,6 +122,14 @@ class DiscoOutputStream(object):
             return DiscoOutputStream_v0(stream, **kwargs)
         return DiscoOutputStream_v1(stream, version=1, **kwargs)
 
+class DiscoOutput(DiscoOutputStream_v1):
+    def __init__(self, url):
+        super(DiscoOutput, self).__init__(AtomicFile(url))
+
+    def close(self):
+        super(DiscoOutput, self).close()
+        self.stream.close()
+
 class DiscoZipFile(ZipFile, object):
     def __init__(self):
         self.buffer = StringIO()
