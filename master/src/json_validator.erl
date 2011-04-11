@@ -2,6 +2,16 @@
 -export([validate/2]).
 -export([test/0]).
 
+-type prim() :: 'null' | 'integer' | 'boolean' | 'float' | 'string'.
+-type spec() :: prim()
+              | {'array', [spec()]}
+              | {'hom_array', spec()}
+              | {'object', [{binary(), spec()}]}
+              | {'value', term()}
+              | {'opt', [spec()]}.
+-export_type([spec/0]).
+
+-spec validate(spec(), term()) -> 'ok' | {'error', tuple()}.
 % primitives
 validate(null, null) -> ok;
 validate(integer, Payload) when is_integer(Payload) -> ok;
@@ -59,6 +69,7 @@ validate({opt, Types}, Payload) ->
         false -> {error, {all_options_failed, Types, Payload}}
     end.
 
+-spec validate_key({binary(), spec()}, term()) -> 'ok' | {'error', tuple()}.
 validate_key({Key, Type}, Payload) ->
     case proplists:get_value(Key, Payload) of
         undefined -> {error, {missing_key, Key, Payload}};

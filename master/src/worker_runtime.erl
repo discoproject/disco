@@ -6,12 +6,15 @@
 -record(state, {task :: task(),
                 inputs,
                 master :: node(),
-                start_time :: timer:timestamp(),
+                start_time :: disco_util:timestamp(),
                 child_pid :: 'none' | non_neg_integer(),
                 persisted_outputs :: [string()],
                 output_filename :: 'none' | string(),
                 output_file :: 'none' | file:io_device()}).
+-type state() :: #state{}.
+-export_type([state/0]).
 
+-spec init(task(), node()) -> state().
 init(Task, Master) ->
     #state{task = Task,
            inputs = worker_inputs:init(Task#task.chosen_input),
@@ -22,23 +25,27 @@ init(Task, Master) ->
            output_filename = none,
            output_file = none}.
 
+-spec get_pid(state()) -> 'none' | non_neg_integer().
 get_pid(#state{child_pid = Pid}) ->
     Pid.
 
+%-spec payload_type(binary()) -> json_validator:spec() | 'none'.
 payload_type(<<"PID">>) -> integer;
 payload_type(<<"VSN">>) -> string;
 payload_type(<<"JOB">>) -> string;
 payload_type(<<"SET">>) -> string;
 payload_type(<<"TSK">>) -> string;
-payload_type(<<"STA">>) -> string;
+payload_type(<<"MSG">>) -> string;
 payload_type(<<"DAT">>) -> string;
 payload_type(<<"ERR">>) -> string;
 payload_type(<<"END">>) -> string;
 
 payload_type(<<"INP">>) ->
-    {array, [{opt, [{value, <<"include">>},
-                    {value, <<"exclude">>}]},
-             {hom_array, integer}]};
+    {opt, [{value, <<>>},
+           {array, [{opt, [{value, <<"include">>},
+                           {value, <<"exclude">>}]},
+                    {hom_array, integer}]}
+          ]};
 payload_type(<<"EREP">>) ->
     {array, [integer, {hom_array, integer}]};
 payload_type(<<"OUT">>) ->
@@ -47,6 +54,12 @@ payload_type(<<"OUT">>) ->
 
 payload_type(_Type) -> none.
 
+-type worker_msg() :: {nonempty_string(), term()}.
+-type handle_return() :: {'ok', worker_msg(), state()}
+                       | {'error', {'fatal', term()}}
+                       | {'stop', {'error' | 'fatal', term()}}.
+
+-spec handle({binary(), binary()}, state()) -> handle_return().
 handle({Type, Body}, S) ->
    case catch mochijson2:decode(Body) of
         {'EXIT', _} ->
@@ -67,6 +80,8 @@ handle({Type, Body}, S) ->
                     end
             end
     end.
+
+-spec do_handle({binary(), term()}, state()) -> handle_return().
 
 do_handle({<<"PID">>, Pid}, S) ->
     {ok, {"OK", <<"ok">>}, S#state{child_pid = Pid}};
@@ -96,8 +111,8 @@ do_handle({<<"TSK">>, _Body}, #state{task = Task} = S) ->
                          {<<"host">>, list_to_binary(disco:host(node()))}]},
     {ok, {"TSK", TaskInfo}, S};
 
-do_handle({<<"STA">>, Msg}, #state{task = Task, master = Master} = S) ->
-    disco_worker:event({<<"STA">>, Msg}, Task, Master),
+do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
+    disco_worker:event({<<"MSG">>, Msg}, Task, Master),
     {ok, {"OK", <<"ok">>}, S};
 
 do_handle({<<"INP">>, <<>>}, #state{inputs = Inputs} = S) ->
@@ -111,7 +126,7 @@ do_handle({<<"INP">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
 
 do_handle({<<"EREP">>, [Iid, Rids]}, #state{inputs = Inputs} = S) ->
     Inputs1 = worker_inputs:fail(Iid, Rids, Inputs),
-    {_, Replicas} = worker_inputs:include([Iid], Inputs1),
+    [{_, Replicas} | _] = worker_inputs:include([Iid], Inputs1),
     R = gb_sets:from_list(Rids),
     case [E || [Rid, _Url] = E <- Replicas, not gb_sets:is_member(Rid, R)] of
         [] ->
@@ -145,19 +160,23 @@ do_handle({<<"END">>, _Body}, #state{task = Task, master = Master} = S) ->
             {stop, {error, Reason}}
     end.
 
+-spec input_reply([worker_inputs:worker_input()]) -> worker_msg().
 input_reply(Inputs) ->
     {"INP", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
 
+-spec url_path(task(), nonempty_string(), nonempty_string()) -> file:filename().
 url_path(Task, Host, LocalFile) ->
     LocationPrefix = disco:joburl(Host, Task#task.jobname),
     filename:join(LocationPrefix, LocalFile).
 
+-spec local_results(task(), nonempty_string()) -> binary().
 local_results(Task, FileName) ->
     Host = disco:host(node()),
     Output = io_lib:format("dir://~s/~s",
                            [Host, url_path(Task, Host, FileName)]),
     list_to_binary(Output).
 
+-spec results(state()) -> {'none' | binary(), [string()]}.
 results(#state{output_filename = none, persisted_outputs = Outputs}) ->
     {none, Outputs};
 results(#state{task = Task,
@@ -165,7 +184,7 @@ results(#state{task = Task,
                persisted_outputs = Outputs}) ->
     {local_results(Task, FileName), Outputs}.
 
--spec add_output(list(), #state{}) -> {ok, #state{}} | {error, string()}.
+-spec add_output(list(), #state{}) -> {ok, state()} | {error, term()}.
 add_output([Tag, <<"tag">>], S) ->
     Result = list_to_binary(io_lib:format("tag://~s", [Tag])),
     Outputs = [Result | S#state.persisted_outputs],
@@ -192,6 +211,7 @@ add_output(RL, #state{output_file = RF} = S) ->
             {error, ioerror("Writing to index file failed", Reason)}
     end.
 
+-spec results_filename(task()) -> nonempty_string().
 results_filename(Task) ->
     TimeStamp = timer:now_diff(now(), {0,0,0}),
     FileName = io_lib:format("~s-~B-~B.results", [Task#task.mode,
@@ -199,6 +219,7 @@ results_filename(Task) ->
                                                   TimeStamp]),
     filename:join(".disco", FileName).
 
+-spec format_output_line(state(), [string()|binary()]) -> iolist().
 format_output_line(S, [LocalFile, Type]) ->
     format_output_line(S, [LocalFile, Type, <<"0">>]);
 format_output_line(#state{task = Task}, [LocalFile, Type, Label]) ->
@@ -209,7 +230,7 @@ format_output_line(#state{task = Task}, [LocalFile, Type, Label]) ->
                                                binary_to_list(LocalFile))]).
 
 
--spec close_output(#state{}) -> 'ok' | {error, string()}.
+-spec close_output(#state{}) -> 'ok' | {error, term()}.
 close_output(#state{output_file = none}) -> ok;
 close_output(#state{output_file = File}) ->
     case {prim_file:sync(File), prim_file:close(File)} of
@@ -217,8 +238,9 @@ close_output(#state{output_file = File}) ->
             ok;
         {R1, R2} ->
             {error, Reason} = lists:max([R1, R2]),
-            ioerror("Closing index file failed", Reason)
+            {error, ioerror("Closing index file failed", Reason)}
     end.
 
+-spec ioerror(list(), atom()) -> term().
 ioerror(Msg, Reason) ->
     [Msg, ": ", atom_to_list(Reason)].

@@ -20,9 +20,10 @@
                 worker_send :: pid(),
                 error_output :: boolean(),
                 buffer :: binary(),
-                parser,
-                runtime,
-                throttle}).
+                parser :: worker_protocol:state(),
+                runtime :: worker_runtime:state(),
+                throttle :: worker_throttle:state()}).
+-type state() :: #state{}.
 
 -define(JOBHOME_TIMEOUT, 5 * 60 * 1000).
 -define(PID_TIMEOUT, 30 * 1000).
@@ -30,6 +31,7 @@
 -define(MESSAGE_TIMEOUT, 30 * 1000).
 -define(MAX_ERROR_BUFFER_SIZE, 100 * 1024).
 
+-spec start_link_remote(nonempty_string(), pid(), task()) -> no_return().
 start_link_remote(Host, NodeMon, Task) ->
     Node = disco:slave_node(Host),
     wait_until_node_ready(NodeMon),
@@ -46,6 +48,7 @@ start_link_remote(Host, NodeMon, Task) ->
     end,
     wait_for_exit().
 
+-spec wait_until_node_ready(pid()) -> 'ok'.
 wait_until_node_ready(NodeMon) ->
     NodeMon ! {is_ready, self()},
     receive
@@ -54,12 +57,14 @@ wait_until_node_ready(NodeMon) ->
         exit({error, "Node unavailable"})
     end.
 
+-spec wait_for_exit() -> no_return().
 wait_for_exit() ->
     receive
         {'EXIT', _, Reason} ->
             exit(Reason)
     end.
 
+-spec start_link({pid(), node(), task()}) -> no_return().
 start_link({Parent, Master, Task}) ->
     process_flag(trap_exit, true),
     {ok, Server} = gen_server:start_link(disco_worker, {Master, Task}, []),
@@ -163,6 +168,7 @@ terminate(_Reason, S) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+-spec update(state()) -> {'noreply', state()} | {'stop', term(), state()}.
 % Note that size(Buffer) =:= 0 is here to avoid binary matching
 % which would force expensive copying of Buffer. See
 % http://www.erlang.org/doc/efficiency_guide/binaryhandling.html
@@ -201,6 +207,7 @@ update(S) ->
             handle_info({none, {data, <<>>}}, S#state{error_output = true})
     end.
 
+-spec worker_send(port()) -> no_return().
 worker_send(Port) ->
     receive
         {{MsgName, Payload}, Delay} ->
@@ -213,6 +220,7 @@ worker_send(Port) ->
             worker_send(Port)
     end.
 
+-spec make_jobhome(nonempty_string(), node()) -> 'ok'.
 make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
     case jobpack:extracted(JobHome) of
@@ -233,6 +241,7 @@ make_jobhome(JobName, Master) ->
             jobpack:extract(JobPack, JobHome)
     end.
 
+-spec jobhome(nonempty_string()) -> nonempty_string().
 jobhome(JobName) ->
     Home = filename:join(disco:get_setting("DISCO_DATA"), disco:host(node())),
     disco:jobhome(JobName, Home).

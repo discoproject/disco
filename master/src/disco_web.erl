@@ -19,7 +19,7 @@ op('POST', "/disco/job/" ++ _, Req) ->
             {ok, JobName} ->
                 reply({ok, [<<"ok">>, list_to_binary(JobName)]}, Req);
             Error ->
-                ErrorString = disco:format("could not start job: ~p", [Error]),
+                ErrorString = disco:format("Job failed to start: ~p", [Error]),
                 error_logger:warning_report(ErrorString),
                 reply({ok, [<<"error">>, list_to_binary(ErrorString)]}, Req)
         end

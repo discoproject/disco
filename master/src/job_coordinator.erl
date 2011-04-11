@@ -1,4 +1,3 @@
-
 -module(job_coordinator).
 -export([new/1]).
 
@@ -20,12 +19,13 @@ new(JobPack) ->
     Self = self(),
     process_flag(trap_exit, true),
     spawn_link(fun() ->
+                   case jobpack:valid(JobPack) of
+                       ok -> ok;
+                       {error, E} -> exit(E)
+                   end,
                    case catch job_coordinator(Self, JobPack) of
-                       ok ->
-                           ok;
-                       Error ->
-                           error_logger:error_report({"Job failed to start", Error}),
-                           exit(Error)
+                       ok -> ok;
+                       Error -> exit(Error)
                    end
                end),
     receive
@@ -71,15 +71,14 @@ job_coordinator(#jobinfo{jobname = JobName} = Job) ->
             kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", [Error]})
     end.
 
+-spec kill_job(nonempty_string(), tuple()) -> no_return().
 kill_job(JobName, {EventFormat, Args, Params} = Error) ->
     job_event(JobName, {"ERROR: " ++ EventFormat, Args, Params}),
     disco_server:kill_job(JobName, 30000),
     gen_server:cast(event_server, {job_done, JobName}),
     exit(Error);
 kill_job(JobName, {EventFormat, Args}) ->
-    kill_job(JobName, {EventFormat, Args, {}});
-kill_job(JobName, EventFormat) ->
-    kill_job(JobName, {EventFormat, [], {}}).
+    kill_job(JobName, {EventFormat, Args, {}}).
 
 % work() is the heart of the map/reduce show. First it distributes tasks
 % to nodes. After that, it starts to wait for the results and finally
