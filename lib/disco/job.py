@@ -126,6 +126,9 @@ class Job(object):
         self.name = self.disco.submit(jobpack.dumps())
         return self
 
+class SimpleJob(Job):
+    from disco.worker.simple import Worker
+
 class JobChain(dict):
     def wait(self, poll_interval=1):
         while sum(self.walk()) < len(self):
