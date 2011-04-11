@@ -2,7 +2,7 @@ import time, cStringIO
 from random import randint, choice
 from string import ascii_lowercase
 from disco.error import DataError
-from disco.fileutils import DiscoOutput
+from disco.fileutils import DiscoOutputStream
 from disco.test import TestCase
 from disco.worker.classic.func import disco_input_stream
 
@@ -30,7 +30,7 @@ class DiscoProtoTestCase(TestCase):
               ignore_corrupt=False,
               **kwargs):
         buf = cStringIO.StringIO()
-        stream = DiscoOutput(buf, version=version, **kwargs)
+        stream = DiscoOutputStream(buf, version=version, **kwargs)
         t = self.encode(stream, self.data)
         final_size = len(buf.getvalue())
         final_mb = final_size / 1024**2

@@ -1,7 +1,9 @@
-import cPickle, errno, inspect, struct, os, sys, time, zlib
+import os, struct, sys, time
+from cPickle import dumps
 from cStringIO import StringIO
 from inspect import getfile, getmodule, getsourcefile
 from zipfile import ZipFile, ZIP_DEFLATED
+from zlib import compress, crc32
 
 from disco.error import DataError
 from disco.util import modulify
@@ -37,22 +39,22 @@ class Chunker(object):
         out = self.makeout()
         for record in records:
             if out.size > self.chunk_size:
-                yield out.dumps()
+                yield self.dumpout(out)
                 out = self.makeout()
             out.append(record)
         if out.hunk_size:
-            yield out.dumps()
+            yield self.dumpout(out)
+
+    def dumpout(self, out):
+        out.close()
+        return out.stream.getvalue()
 
     def makeout(self):
-        return DiscoOutput(StringIO(), max_record_size=MAX_RECORD_SIZE)
+        return DiscoOutputStream(StringIO(), max_record_size=MAX_RECORD_SIZE)
 
-class DiscoOutput_v0(object):
+class DiscoOutputStream_v0(object):
     def __init__(self, stream):
         self.stream = stream
-
-    @property
-    def path(self):
-        return self.stream.path
 
     def add(self, k, v):
         k, v = str(k), str(v)
@@ -61,12 +63,9 @@ class DiscoOutput_v0(object):
     def close(self):
         pass
 
-    def write(self, data):
-        self.stream.write(data)
-
-class DiscoOutput_v1(DiscoOutput_v0):
+class DiscoOutputStream_v1(object):
     def __init__(self, stream,
-                 version=None,
+                 version=1,
                  compression_level=2,
                  min_hunk_size=HUNK_SIZE,
                  max_record_size=None):
@@ -83,7 +82,7 @@ class DiscoOutput_v1(DiscoOutput_v0):
         self.append((k, v))
 
     def append(self, record):
-        self.hunk_write(cPickle.dumps(record, 1))
+        self.hunk_write(dumps(record, 1))
         if self.hunk_size > self.min_hunk_size:
             self.flush()
 
@@ -92,16 +91,12 @@ class DiscoOutput_v1(DiscoOutput_v0):
             self.flush()
         self.flush()
 
-    def dumps(self):
-        self.close()
-        return self.stream.getvalue()
-
     def flush(self):
         hunk = self.hunk.getvalue()
-        checksum = zlib.crc32(hunk) & 0xFFFFFFFF
+        checksum = crc32(hunk) & 0xFFFFFFFF
         iscompressed = int(self.compression_level > 0)
         if iscompressed:
-            hunk = zlib.compress(hunk, self.compression_level)
+            hunk = compress(hunk, self.compression_level)
         data = '%s%s' % (struct.pack('<BBIQ',
                                      128 + self.version,
                                      iscompressed,
@@ -121,11 +116,11 @@ class DiscoOutput_v1(DiscoOutput_v0):
         self.hunk.write(data)
         self.hunk_size += size
 
-class DiscoOutput(object):
+class DiscoOutputStream(object):
     def __new__(cls, stream, version=-1, **kwargs):
         if version == 0:
-            return DiscoOutput_v0(stream, **kwargs)
-        return DiscoOutput_v1(stream, version=1, **kwargs)
+            return DiscoOutputStream_v0(stream, **kwargs)
+        return DiscoOutputStream_v1(stream, version=1, **kwargs)
 
 class DiscoZipFile(ZipFile, object):
     def __init__(self):
@@ -202,12 +197,13 @@ def sync(fd):
     os.fsync(fd.fileno())
 
 def ensure_path(path):
+    from errno import EEXIST
     try:
         os.makedirs(path)
     except OSError, x:
         # File exists is ok.
         # It may happen if two tasks are racing to create the directory
-        if x.errno != errno.EEXIST:
+        if x.errno != EEXIST:
             raise
 
 def ensure_free_space(fname):

@@ -1,4 +1,3 @@
-
 """
 :mod:`disco.worker.classic.func` --- Functions for constructing Classic Disco jobs
 ==================================================================================
@@ -442,8 +441,8 @@ map_output_stream = reduce_output_stream = task_output_stream
 
 def disco_output_stream(stream, partition, url, params):
     """Output stream for Disco's internal compression format."""
-    from disco.fileutils import DiscoOutput
-    return DiscoOutput(stream)
+    from disco.fileutils import DiscoOutputStream
+    return DiscoOutputStream(stream)
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
     """Input stream for Disco's internal compression format."""
