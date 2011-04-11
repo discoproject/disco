@@ -1,4 +1,3 @@
-
 -module(ddfs_master).
 -behaviour(gen_server).
 
@@ -51,11 +50,9 @@ tag_operation(Op, Tag) ->
 tag_operation(Op, Tag, Timeout) ->
     gen_server:call(?MODULE, {tag, Op, Tag}, Timeout).
 
--spec get_nodeinfo('all'|'filter') -> {'ok', {[node()], [node()], [binary()]}};
-                  ('safe') -> {'ok', [binary()]} | 'too_many_failed_nodes'.
-
-get_nodeinfo(Mode) ->
-    gen_server:call(?MODULE, {get_nodeinfo, Mode}).
+-spec get_nodeinfo('all') -> {'ok', [node_info()]}.
+get_nodeinfo(all) ->
+    gen_server:call(?MODULE, {get_nodeinfo, all}).
 
 -spec get_read_nodes() -> {'ok', [node()], non_neg_integer()}.
 get_read_nodes() ->
