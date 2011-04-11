@@ -15,9 +15,7 @@
 -type replica() :: {{input_id(), replica_id()}, input()}.
 -type state() :: {gb_tree(), non_neg_integer()}.
 
- % This is a list instead of a tuple for the benefit of mochijson2;
- % the list() is actually [replica_id, binary()]
--type labeled_rep() :: list().
+-type labeled_rep() :: [replica_id() | binary(), ...].
 -type worker_input() :: {input_id(), [labeled_rep()]}.
 
 -export_type([state/0, worker_input/0]).
