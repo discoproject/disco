@@ -3,9 +3,16 @@
 
 -define(MAX_EVENTS_PER_SECOND, 5).
 
+-type state() :: queue().
+-type throttle() :: {'ok', non_neg_integer(), state()} | {'error', term()}.
+
+-export_type([state/0]).
+
+-spec init() -> state().
 init() ->
     queue:new().
 
+-spec handle(state()) -> throttle().
 handle(Q) ->
     Now = now(),
     Q1 = queue:in(Now, Q),
@@ -17,6 +24,7 @@ handle(Q) ->
         throttle(Q1, queue:len(Q1))
     end.
 
+-spec throttle(state(), non_neg_integer()) -> throttle().
 throttle(_Q, N) when N > ?MAX_EVENTS_PER_SECOND * 3 ->
     {error, ["Worker is behaving badly: Sent ",
              integer_to_list(N), " events in a second, ignoring replies."]};
@@ -26,4 +34,3 @@ throttle(Q, N) when N > ?MAX_EVENTS_PER_SECOND ->
 
 throttle(Q, _N) ->
     {ok, 0, Q}.
-
