@@ -1,6 +1,9 @@
-import cPickle, errno, struct, os, sys, time, zlib
+import os, struct, sys, time
+from cPickle import dumps
 from cStringIO import StringIO
+from inspect import getfile, getmodule, getsourcefile
 from zipfile import ZipFile, ZIP_DEFLATED
+from zlib import compress, crc32
 
 from disco.error import DataError
 from disco.util import modulify
@@ -36,22 +39,22 @@ class Chunker(object):
         out = self.makeout()
         for record in records:
             if out.size > self.chunk_size:
-                yield out.dumps()
+                yield self.dumpout(out)
                 out = self.makeout()
             out.append(record)
         if out.hunk_size:
-            yield out.dumps()
+            yield self.dumpout(out)
+
+    def dumpout(self, out):
+        out.close()
+        return out.stream.getvalue()
 
     def makeout(self):
-        return DiscoOutput(StringIO(), max_record_size=MAX_RECORD_SIZE)
+        return DiscoOutputStream(StringIO(), max_record_size=MAX_RECORD_SIZE)
 
-class DiscoOutput_v0(object):
+class DiscoOutputStream_v0(object):
     def __init__(self, stream):
         self.stream = stream
-
-    @property
-    def path(self):
-        return self.stream.path
 
     def add(self, k, v):
         k, v = str(k), str(v)
@@ -60,12 +63,9 @@ class DiscoOutput_v0(object):
     def close(self):
         pass
 
-    def write(self, data):
-        self.stream.write(data)
-
-class DiscoOutput_v1(DiscoOutput_v0):
+class DiscoOutputStream_v1(object):
     def __init__(self, stream,
-                 version=None,
+                 version=1,
                  compression_level=2,
                  min_hunk_size=HUNK_SIZE,
                  max_record_size=None):
@@ -82,7 +82,7 @@ class DiscoOutput_v1(DiscoOutput_v0):
         self.append((k, v))
 
     def append(self, record):
-        self.hunk_write(cPickle.dumps(record, 1))
+        self.hunk_write(dumps(record, 1))
         if self.hunk_size > self.min_hunk_size:
             self.flush()
 
@@ -91,16 +91,12 @@ class DiscoOutput_v1(DiscoOutput_v0):
             self.flush()
         self.flush()
 
-    def dumps(self):
-        self.close()
-        return self.stream.getvalue()
-
     def flush(self):
         hunk = self.hunk.getvalue()
-        checksum = zlib.crc32(hunk) & 0xFFFFFFFF
+        checksum = crc32(hunk) & 0xFFFFFFFF
         iscompressed = int(self.compression_level > 0)
         if iscompressed:
-            hunk = zlib.compress(hunk, self.compression_level)
+            hunk = compress(hunk, self.compression_level)
         data = '%s%s' % (struct.pack('<BBIQ',
                                      128 + self.version,
                                      iscompressed,
@@ -120,40 +116,36 @@ class DiscoOutput_v1(DiscoOutput_v0):
         self.hunk.write(data)
         self.hunk_size += size
 
-class DiscoOutput(object):
+class DiscoOutputStream(object):
     def __new__(cls, stream, version=-1, **kwargs):
         if version == 0:
-            return DiscoOutput_v0(stream, **kwargs)
-        return DiscoOutput_v1(stream, version=1, **kwargs)
+            return DiscoOutputStream_v0(stream, **kwargs)
+        return DiscoOutputStream_v1(stream, version=1, **kwargs)
+
+class DiscoOutput(DiscoOutputStream_v1):
+    def __init__(self, url):
+        super(DiscoOutput, self).__init__(AtomicFile(url))
+
+    def close(self):
+        super(DiscoOutput, self).close()
+        self.stream.close()
 
 class DiscoZipFile(ZipFile, object):
     def __init__(self):
         self.buffer = StringIO()
         super(DiscoZipFile, self).__init__(self.buffer, 'w', ZIP_DEFLATED)
 
-    def modulepath(self, module, basename='lib'):
-        module = modulify(module)
-        name, ext = os.path.splitext(module.__file__)
-        modpath = '%s%s' % (os.path.join(*module.__name__.split('.')), ext)
-        return os.path.join(basename, modpath)
+    def writemodule(self, module):
+        self.writepath(getfile(modulify(module)))
 
-    def writebytes(self, pathname, bytes, basename=''):
-        self.writestr(os.path.join(basename, pathname.strip('/')), bytes)
-
-    def writemodule(self, module, basename='lib'):
-        module = modulify(module)
-        self.write(module.__file__, self.modulepath(module, basename=basename))
-
-    def writepath(self, pathname, basename=''):
+    def writepath(self, pathname, exclude=('.pyc',)):
         for file in files(pathname):
-            self.write(file, os.path.join(basename, file.strip('/')))
+            name, ext = os.path.splitext(file)
+            if ext not in exclude:
+                self.write(file, file)
 
-    def writepy(self, pathname, basename='lib'):
-        if ispackage(pathname):
-            basename = os.path.join(basename, os.path.basename(pathname))
-        for module in modules(pathname):
-            self.write(os.path.join(pathname, module),
-                       os.path.join(basename, module))
+    def writesource(self, object):
+        self.writepath(getsourcefile(getmodule(object)))
 
     def dump(self, handle):
         handle.write(self.dumps())
@@ -213,12 +205,13 @@ def sync(fd):
     os.fsync(fd.fileno())
 
 def ensure_path(path):
+    from errno import EEXIST
     try:
         os.makedirs(path)
     except OSError, x:
         # File exists is ok.
         # It may happen if two tasks are racing to create the directory
-        if x.errno != errno.EEXIST:
+        if x.errno != EEXIST:
             raise
 
 def ensure_free_space(fname):
@@ -227,14 +220,6 @@ def ensure_free_space(fname):
     if free < MIN_DISK_SPACE:
         raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
 
-def ismodule(path):
-    if os.path.isfile(path):
-        name, ext = os.path.splitext(path)
-        return ext in ('.py', '.so')
-
-def ispackage(path):
-    return os.path.isdir(path) and '__init__.py' in os.listdir(path)
-
 def files(path):
     if os.path.isdir(path):
         for name in os.listdir(path):
@@ -242,12 +227,3 @@ def files(path):
                 yield file
     else:
         yield path
-
-def modules(dirpath):
-    for name in os.listdir(dirpath):
-        path = os.path.join(dirpath, name)
-        if ismodule(path):
-            yield name
-        elif ispackage(path):
-            for submodule in modules(path):
-                yield '%s/%s' % (name, submodule)

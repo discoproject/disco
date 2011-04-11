@@ -107,7 +107,8 @@ class Worker(dict):
         The path to the :term:`worker` binary, relative to the :term:`job home`.
         Used to set :attr:`jobdict.worker` in :meth:`jobdict`.
         """
-        return os.path.join('lib', '%s.py' % self.__module__.replace('.', '/'))
+        from inspect import getsourcefile, getmodule
+        return getsourcefile(getmodule(self)).strip('/')
 
     def defaults(self):
         """
@@ -214,8 +215,8 @@ class Worker(dict):
         """
         settings = job.settings
         settings['LC_ALL'] = 'C'
-        settings['LD_LIBRARY_PATH'] = 'lib'
-        settings['PYTHONPATH'] = ':'.join((settings.get('PYTHONPATH', ''), 'lib'))
+        settings['PYTHONPATH'] = ':'.join([settings.get('PYTHONPATH', '')] +
+                                          [path.strip('/') for path in sys.path])
         return settings.env
 
     def jobhome(self, job, **jobargs):
@@ -241,18 +242,18 @@ class Worker(dict):
         def get(key):
             return self.getitem(key, job, jobargs)
         jobzip = DiscoZipFile()
-        jobzip.writepy(os.path.dirname(clxpath), 'lib')
-        jobzip.writepy(os.path.dirname(discopath), 'lib')
-        jobzip.writemodule(job.__module__)
-        jobzip.writemodule(self.__module__)
+        jobzip.writepath(os.path.dirname(clxpath))
+        jobzip.writepath(os.path.dirname(discopath))
+        jobzip.writesource(job)
+        jobzip.writesource(self)
         if isinstance(get('required_files'), dict):
             for path, bytes in get('required_files').iteritems():
-                    jobzip.writebytes(path, bytes)
+                    jobzip.writestr(path, bytes)
         else:
             for path in get('required_files'):
                 jobzip.writepath(path)
         for mod in get('required_modules') or ():
-            jobzip.writemodule((mod[0] if iskv(mod) else mod), 'lib')
+            jobzip.writemodule((mod[0] if iskv(mod) else mod))
         return jobzip
 
     def jobdata(self, job, **jobargs):
@@ -292,12 +293,6 @@ class Worker(dict):
 
     @classmethod
     def unpack(cls, jobpack):
-        try:
-            from imp import find_module, load_module
-            __disco__ = load_module('__disco__', *find_module('__main__', ['lib']))
-            sys.modules['__main__'].__dict__.update(__disco__.__dict__)
-        except ImportError:
-            pass
         return cPickle.loads(jobpack.jobdata)
 
     @classmethod

@@ -179,7 +179,7 @@ def job(program, worker, *inputs):
                'reduce?': program.options.has_reduce,
                'nr_reduces': program.options.nr_reduces,
                'prefix': program.options.prefix,
-               'scheduler': dict((k, eval(v)) for k, v in program.options.scheduler),
+               'scheduler': program.scheduler,
                'owner': program.options.owner or program.settings['DISCO_JOB_OWNER']}
     jobenvs = dict(program.options.env)
     jobzip  = jobzip(worker, *program.options.files)
@@ -215,8 +215,8 @@ job.add_option('-p', '--prefix',
                default='job',
                help='prefix to use when naming the job')
 job.add_option('-S', '--scheduler',
-               action='append',
-               default=[],
+               action='setitem2',
+               default={},
                nargs=2,
                help='add a param to the scheduler field of the jobdict')
 job.add_option('-e', '--env',
@@ -353,46 +353,48 @@ def run(program, jobclass, *inputs):
     job = reify(jobclass)(name=program.options.name,
                           master=program.disco,
                           settings=program.settings)
-    job.run(input=program.input(*inputs),
-            params=dict(program.options.params),
-            **program.option_parser.jobargs)
+    if program.options.scheduler:
+        program.options.jobargs['scheduler'] = program.scheduler
+    job.run(input=program.input(*inputs), **program.options.jobargs)
     print job.name
 
 run.add_option('-n', '--name',
-                help='prefix to use for submitting a job')
+               help='prefix to use for submitting a job')
+run.add_option('-m', '--map',
+               action='setitem',
+               dest='jobargs',
+               type='reify',
+               help='the worker map parameter')
+run.add_option('-r', '--reduce',
+               action='setitem',
+               dest='jobargs',
+               type='reify',
+               help='the worker reduce parameter')
 run.add_option('--save',
-                action='callback',
-                callback=Disco.update_jobargs,
-                help='save results to DDFS')
-run.add_option('--sort',
-                action='callback',
-                callback=Disco.update_jobargs,
-                help='sort input to reduce')
+               action='setitem',
+               dest='jobargs',
+               type='reify',
+               help='save results to DDFS?')
 run.add_option('--profile',
-                action='callback',
-                callback=Disco.update_jobargs,
-                help='enable job profiling')
-run.add_option('--param',
-                action='append',
-                default=[],
-                dest='params',
-                nargs=2,
-                help='add a job parameter')
+               action='setitem',
+               dest='jobargs',
+               type='reify',
+               help='enable job profiling?')
 run.add_option('--partitions',
-                action='callback',
-                callback=Disco.update_jobargs,
-                type='int',
-                help='enable job profiling')
-run.add_option('--sched_max_cores',
-                action='callback',
-                callback=Disco.update_jobargs,
-                type='int',
-                help='enable job profiling')
-run.add_option('--status_interval',
-                action='callback',
-                callback=Disco.update_jobargs,
-                type='int',
-                help='how often to report status in job')
+               action='setitem',
+               dest='jobargs',
+               type='reify',
+               help='enable job profiling')
+run.add_option('-S', '--scheduler',
+               action='setitem2',
+               nargs=2,
+               help='add a param to the scheduler field of the jobdict')
+run.add_option('-P', '--param',
+               action='setitem2',
+               dest='jobargs',
+               default={},
+               nargs=2,
+               help='add a job parameter')
 
 @Disco.command
 def submit(program, *file):
