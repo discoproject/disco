@@ -225,7 +225,11 @@ handle_call(dbg_get_state, _, S) ->
 handle_call(_, _, S) -> {reply, ok, S}.
 
 handle_info(timeout, S) ->
-    handle_cast({die, none}, S).
+    handle_cast({die, none}, S);
+
+% handle late replies to "catch gen_server:call"
+handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
+    {noreply, S}.
 
 % callback stubs
 terminate(_Reason, _State) -> {}.

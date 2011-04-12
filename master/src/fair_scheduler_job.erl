@@ -154,7 +154,11 @@ handle_info({'EXIT', Pid, normal}, S) when Pid == self() ->
 
 % Our job coordinator dies, the job is dead, we have no reason to live anymore
 handle_info({'EXIT', _, _}, S) ->
-    {stop, normal, S}.
+    {stop, normal, S};
+
+% handle late replies to "catch gen_server:call"
+handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
+    {noreply, S}.
 
 -spec schedule_local(gb_tree(), [node()]) -> {'nolocal', gb_tree()}
     | {'nonodes', gb_tree()} | {{'run', node(), task()}, gb_tree()}.

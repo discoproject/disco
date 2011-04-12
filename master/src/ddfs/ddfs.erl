@@ -15,11 +15,9 @@ new_blob(Host, Blob, Replicas, Exclude) ->
         gen_server:call(Host, {new_blob, Obj, Replicas, Exclude})
     end).
 
--spec tags(node(), binary()) -> 'timeout' | {'ok', [binary()]}.
+-spec tags(node(), binary()) -> {'ok', [binary()]}.
 tags(Host, Prefix) ->
-    case catch gen_server:call(Host, {get_tags, safe}, ?NODEOP_TIMEOUT) of
-        {'EXIT', {timeout, _}} ->
-            timeout;
+    case gen_server:call(Host, {get_tags, safe}, ?NODEOP_TIMEOUT) of
         {ok, Tags} ->
             {ok, if Prefix =:= <<>> ->
                 Tags;
