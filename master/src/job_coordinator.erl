@@ -64,9 +64,9 @@ job_coordinator(#jobinfo{jobname = JobName} = Job) ->
                                 {ready, Results}}),
             event_server:end_job(JobName);
         {error, Error} ->
-            kill_job(JobName, {"Job failed: ~p", [Error]});
+            kill_job(JobName, {"Job failed: ~s", [Error]});
         {error, Error, Params} ->
-            kill_job(JobName, {"Job failed: ~p", [Error], Params});
+            kill_job(JobName, {"Job failed: ~s", [Error], Params});
         Error ->
             kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", [Error]})
     end.
