@@ -34,7 +34,17 @@ loop() ->
             ok
     end,
     timer:sleep(?GC_INTERVAL),
+    flush(),
     loop().
+
+% gen_server calls below may timeout, so we need to purge late replies
+flush() ->
+    receive
+        _ ->
+            flush()
+    after 0 ->
+        ok
+    end.
 
 ddfs_delete(Tag) ->
     ddfs:delete({ddfs_master, get(master)}, Tag, internal).
