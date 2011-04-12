@@ -311,12 +311,13 @@ choose_vol(Vols) ->
     no_return().
 monitor_diskspace(Root, Vols) ->
     timer:sleep(?DISKSPACE_INTERVAL),
-    Df = fun(VolName) ->
-            ddfs_util:diskspace(filename:join([Root, VolName]))
-         end,
-    NewVols = [{Space, VolName}
-               || {VolName, {ok, Space}}
-               <- [{VolName, Df(VolName)} || {_OldSpace, VolName} <- Vols]],
+    Fold = fun({_OldSpace, VolName}, VolAcc) ->
+                   case ddfs_util:diskspace(filename:join([Root, VolName])) of
+                       {ok, Space} -> [{Space, VolName} | VolAcc];
+                       _ -> VolAcc
+                   end
+           end,
+    NewVols = lists:reverse(lists:foldl(Fold, [], Vols)),
     gen_server:cast(ddfs_node, {update_vols, NewVols}),
     monitor_diskspace(Root, NewVols).
 
