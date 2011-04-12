@@ -113,7 +113,7 @@ do_handle({<<"TSK">>, _Body}, #state{task = Task} = S) ->
 
 do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
     disco_worker:event({<<"MSG">>, Msg}, Task, Master),
-    {ok, {"OK", <<"ok">>}, S};
+    {ok, {"OK", <<"ok">>}, S, rate_limit};
 
 do_handle({<<"INP">>, <<>>}, #state{inputs = Inputs} = S) ->
     {ok, input_reply(worker_inputs:all(Inputs)), S};

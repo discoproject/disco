@@ -181,6 +181,9 @@ update(S) ->
             S1 = S#state{buffer = Buffer},
             case catch worker_runtime:handle(Request, S#state.runtime) of
                 {ok, Reply, RState} ->
+                    S#state.worker_send ! {Reply, 0},
+                    update(S1#state{parser = PState, runtime = RState});
+                {ok, Reply, RState, rate_limit} ->
                     case worker_throttle:handle(S#state.throttle) of
                         {ok, Delay, TState} ->
                             S#state.worker_send ! {Reply, Delay},
