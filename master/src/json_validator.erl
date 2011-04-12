@@ -9,9 +9,16 @@
               | {'object', [{binary(), spec()}]}
               | {'value', term()}
               | {'opt', [spec()]}.
+-type not_error() :: {'not_null' | 'not_integer' | 'not_boolean' | 'not_float'
+                      | 'not_string' | 'not_list' | 'not_object'}.
+-type error() :: {not_error(), term()}
+               | {'incorrect_length', term(), non_neg_integer()}
+               | {'unexpected_value', term(), term()}
+               | {'all_options_failed', spec(), term()}
+               | {'missing_key', binary(), term()}.
 -export_type([spec/0]).
 
--spec validate(spec(), term()) -> 'ok' | {'error', tuple()}.
+-spec validate(spec(), term()) -> 'ok' | {'error', error()}.
 % primitives
 validate(null, null) -> ok;
 validate(integer, Payload) when is_integer(Payload) -> ok;
