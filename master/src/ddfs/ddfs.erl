@@ -3,8 +3,7 @@
 -include("config.hrl").
 -include("ddfs_tag.hrl").
 
--export([new_blob/4, tags/2, get_tag/4, update_tag/4, update_tag/5,
-         update_tag_delayed/4, update_tag_delayed/5,
+-export([new_blob/4, tags/2, get_tag/4, update_tag/5, update_tag_delayed/5,
          replace_tag/5, delete/3, delete_attrib/4]).
 
 -spec new_blob(node(), string(), non_neg_integer(), [node()]) ->
@@ -33,17 +32,9 @@ tags(Host, Prefix) ->
 get_tag(Host, Tag, Attrib, Token) ->
     tagop(Host, Tag, {get, Attrib, Token}, ?NODEOP_TIMEOUT).
 
--spec update_tag(node(), nonempty_string(), [[binary()]], token()) -> _.
-update_tag(Host, Tag, Urls, Token) ->
-    update_tag(Host, Tag, Urls, Token, []).
-
 -spec update_tag(node(), nonempty_string(), [[binary()]], token(), [term()]) -> _.
 update_tag(Host, Tag, Urls, Token, Opt) ->
     tagop(Host, Tag, {update, Urls, Token, Opt}).
-
--spec update_tag_delayed(node(), nonempty_string(), [[binary()]], token()) -> _.
-update_tag_delayed(Host, Tag, Urls, Token) ->
-    update_tag_delayed(Host, Tag, Urls, Token, []).
 
 -spec update_tag_delayed(node(), nonempty_string(), [[binary()]],
                          token(), [term()]) -> _.
