@@ -12,7 +12,7 @@
 
 -record(state, {nodename :: string(),
                 root :: nonempty_string(),
-                vols :: [{diskinfo(), nonempty_string()},...],
+                vols :: [{diskinfo(), nonempty_string()}],
                 putq :: http_queue:q(),
                 getq :: http_queue:q(),
                 tags :: gb_tree()}).
@@ -243,8 +243,8 @@ do_put_tag_commit(Tag, TagVol, S) ->
             {E, S}
     end.
 
--spec init_vols(nonempty_string(), [nonempty_string(),...]) ->
-    {'ok', [{diskinfo(), nonempty_string()},...]}.
+-spec init_vols(nonempty_string(), [nonempty_string()]) ->
+                       {'ok', [{diskinfo(), nonempty_string()}]}.
 init_vols(Root, VolNames) ->
     lists:foreach(fun(VolName) ->
                           prim_file:make_dir(filename:join([Root, VolName, "blob"])),
@@ -273,7 +273,7 @@ find_vols(Root) ->
             Error
     end.
 
--spec find_tags(nonempty_string(), [{diskinfo(), nonempty_string()},...]) ->
+-spec find_tags(nonempty_string(), [{diskinfo(), nonempty_string()}]) ->
     {'ok', gb_tree()}.
 find_tags(Root, Vols) ->
     {ok,
@@ -297,8 +297,8 @@ parse_tag(Tag, VolName, Tags) ->
             Tags
     end.
 
--spec choose_vol([{diskinfo(), nonempty_string()},...]) ->
-    {diskinfo(), nonempty_string()}.
+-spec choose_vol([{diskinfo(), nonempty_string()}]) ->
+                        {diskinfo(), nonempty_string()}.
 choose_vol(Vols) ->
     % Choose the volume with most available space.  Note that the key
     % being sorted is the diskinfo() tuple, which has free-space as
@@ -307,7 +307,7 @@ choose_vol(Vols) ->
     Vol.
 
 -spec monitor_diskspace(nonempty_string(),
-                        [{diskinfo(), nonempty_string()},...]) ->
+                        [{diskinfo(), nonempty_string()}]) ->
     no_return().
 monitor_diskspace(Root, Vols) ->
     timer:sleep(?DISKSPACE_INTERVAL),
@@ -320,7 +320,7 @@ monitor_diskspace(Root, Vols) ->
     gen_server:cast(ddfs_node, {update_vols, NewVols}),
     monitor_diskspace(Root, NewVols).
 
--spec refresh_tags(nonempty_string(), [{diskinfo(), nonempty_string()},...]) ->
+-spec refresh_tags(nonempty_string(), [{diskinfo(), nonempty_string()}]) ->
     no_return().
 refresh_tags(Root, Vols) ->
     timer:sleep(?FIND_TAGS_INTERVAL),
