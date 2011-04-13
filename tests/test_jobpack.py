@@ -49,7 +49,7 @@ class JobPackInfoTestCase(TestCase):
         jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
         status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
         self.assertEquals(status, 'error')
-        self.assertGreater(response.find("missing key"), 0)
+        self.assertTrue(response.find("missing key") >= 0)
 
     def test_badprefix(self):
         jobenvs, jobzip, jobdata = {}, '', ''
@@ -58,11 +58,11 @@ class JobPackInfoTestCase(TestCase):
         jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
         status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
         self.assertEquals(status, 'error')
-        self.assertGreater(response.find("invalid prefix"), 0)
+        self.assertTrue(response.find("invalid prefix") >= 0)
 
         jobdict = {'prefix':'a.b', 'scheduler':{}, 'input':[],
                    'worker':"w", 'owner':"o", 'nr_reduces':"2"}
         jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
         status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
         self.assertEquals(status, 'error')
-        self.assertGreater(response.find("invalid prefix"), 0)
+        self.assertTrue(response.find("invalid prefix") >= 0)
