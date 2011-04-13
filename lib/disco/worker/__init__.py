@@ -259,8 +259,8 @@ class Worker(dict):
         def get(key):
             return self.getitem(key, job, jobargs)
         jobzip = DiscoZipFile()
-        jobzip.writepath(os.path.dirname(clxpath))
-        jobzip.writepath(os.path.dirname(discopath))
+        jobzip.writepath(os.path.dirname(clxpath), exclude=('.pyc',))
+        jobzip.writepath(os.path.dirname(discopath), exclude=('.pyc',))
         jobzip.writesource(job)
         jobzip.writesource(self)
         if isinstance(get('required_files'), dict):
