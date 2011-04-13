@@ -1,5 +1,5 @@
 -module(worker_protocol).
--export([init/0, parse/1, parse/2, test/0]).
+-export([init/0, parse/1, parse/2]).
 
 -define(MAX_MESSAGE_LENGTH, 100 * 1024 * 1024).
 
@@ -80,23 +80,3 @@ head(<<Head:9/binary, 32, _/binary>>) -> {ok, Head};
 head(<<Head:10/binary, 32, _/binary>>) -> {ok, Head};
 head(Buffer) when size(Buffer) >= 10 -> head_missing;
 head(_) -> more_data.
-
-test() ->
-    new_message = init(),
-    {cont, _, {parse_length, <<"FOO">>}} = parse(<<"FOO 1">>),
-    {cont, _, {parse_body, <<"FOO">>, <<"3">>, 10}} = parse(<<"FOO 3 bar">>),
-
-    {error, invalid_type} = parse(<<"01234567890abc">>),
-    {error, invalid_length} = parse(<<"FOO 01234567890abc ">>),
-    {error, invalid_length} = parse(<<"FOO BAR ">>),
-    {error, message_too_big} = parse(<<"FOO 1000000000 ">>),
-    {error, invalid_body} = parse(<<"FOO 3 bar ">>),
-
-    {ok, {<<"FOO">>, <<"bar">>}, <<>>, new_message} = parse(<<"FOO 3 bar\n">>),
-    {ok, {<<"FOO">>, <<>>}, <<>>, new_message} = parse(<<"FOO 0 \n">>),
-
-    Buffer = <<"ABC 3 abc\nDEFG 2 ab\nHIJKL 1 a\ntail">>,
-    {ok, {<<"ABC">>, <<"abc">>}, Rest0, _} = parse(Buffer),
-    {ok, {<<"DEFG">>, <<"ab">>}, Rest1, _} = parse(Rest0),
-    {ok, {<<"HIJKL">>, <<"a">>}, <<"tail">>, _} = parse(Rest1),
-    ok.
