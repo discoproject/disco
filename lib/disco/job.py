@@ -247,12 +247,6 @@ class JobPack(object):
         """Load a :class:`JobPack` from a file."""
         return PackedJobPack(jobfile)
 
-    @classmethod
-    def request(cls):
-        """Get the location of :ref:`jobpack` file from the master, and :meth:`load` it."""
-        from disco.events import JobFile
-        return cls.load(open(JobFile().send()))
-
 class PackedJobPack(JobPack):
     def __init__(self, jobfile):
         self.jobfile = jobfile

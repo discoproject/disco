@@ -160,21 +160,6 @@ class NonBlockingInput(object):
         self.fd, self.timeout = file.fileno(), timeout
         fcntl(self.fd, F_SETFL, fcntl(self.fd, F_GETFL) | os.O_NONBLOCK)
 
-    def readline(self):
-        spent, line = self.select(), os.read(self.fd, 1)
-        while not line.endswith('\n'):
-            spent += self.select(spent)
-            line += os.read(self.fd, 1)
-        return line
-
-    def read(self, bytes=-1):
-        spent = self.select()
-        read = os.read(self.fd, bytes)
-        while bytes > 0 and len(read) < bytes:
-            spent += self.select(spent)
-            read += os.read(self.fd, bytes - len(read))
-        return read
-
     def select(self, spent=0):
         from select import select
         started = time.time()
@@ -182,6 +167,19 @@ class NonBlockingInput(object):
             if any(select([self.fd], [], [], self.timeout - spent)):
                 return time.time() - started
         raise IOError("Reading timed out after %s seconds" % self.timeout)
+
+    def t_read(self, nbytes, spent=0, bytes=''):
+        while True:
+            spent += self.select(spent)
+            bytes += os.read(self.fd, nbytes - len(bytes))
+            if nbytes <= len(bytes):
+                return spent, bytes
+
+    def t_read_until(self, delim, spent=0, bytes=''):
+        while not bytes.endswith(delim):
+            spent += self.select(spent)
+            bytes += os.read(self.fd, 1)
+        return spent, bytes
 
 class AtomicFile(file):
     def __init__(self, path):
@@ -199,6 +197,9 @@ class AtomicFile(file):
             super(AtomicFile, self).close()
             os.rename(self.partial, self.path)
             self.isopen = False
+
+class Wait(Exception):
+    """File objects can raise this if reading will block."""
 
 def sync(fd):
     fd.flush()

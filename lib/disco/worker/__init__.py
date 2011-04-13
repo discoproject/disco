@@ -56,6 +56,22 @@ using a standard :class:`Worker`:
 """
 import cPickle, os, sys, traceback
 
+from disco.error import DataError
+from disco.fileutils import DiscoOutput, NonBlockingInput, Wait
+
+class MessageWriter(object):
+    def __init__(self, worker):
+        self.worker = worker
+
+    @classmethod
+    def force_utf8(cls, string):
+        if isinstance(string, unicode):
+            return string.encode('utf-8', 'replace')
+        return string.decode('utf-8', 'replace').encode('utf-8')
+
+    def write(self, string):
+        self.worker.send('MSG', self.force_utf8(string.strip()))
+
 class Worker(dict):
     """
     A :class:`Worker` is a :class:`dict` subclass,
@@ -100,6 +116,7 @@ class Worker(dict):
     def __init__(self, **kwargs):
         super(Worker, self).__init__(self.defaults())
         self.update(kwargs)
+        self.outputs = {}
 
     @property
     def bin(self):
@@ -262,6 +279,35 @@ class Worker(dict):
         """
         return cPickle.dumps((self, job, jobargs), -1)
 
+    def input(self, task, merged=False, **kwds):
+        """
+        :type  merged: bool
+        :param merged: if specified, returns a :class:`MergedInput`.
+
+        :type  kwds: dict
+        :param kwds: additional keyword arguments for the :class:`Input`.
+
+        :return: a :class:`Input` to iterate over the inputs from the master.
+        """
+        if merged:
+            return MergedInput(self.get_inputs(), **kwds)
+        return SerialInput(self.get_inputs(), **kwds)
+
+    def output(self, task, partition=None, **kwds):
+        """
+        :type  partition: string or None
+        :param partition: the label of the output partition to get.
+
+        :type  kwds: dict
+        :param kwds: additional keyword arguments for the :class:`Output`.
+
+        :return: the previously opened :class:`Output` for *partition*,
+                 or if necessary, a newly opened one.
+        """
+        if partition not in self.outputs:
+            self.outputs[partition] = Output(task.output(partition=partition), **kwds)
+        return self.outputs[partition]
+
     def start(self, task, job, **jobargs):
         from disco.sysutil import set_mem_limit
         set_mem_limit(job.settings['DISCO_WORKER_MAX_MEM'])
@@ -283,17 +329,12 @@ class Worker(dict):
         self.getitem(task.mode, job, jobargs)(task, job, **jobargs)
 
     def end(self, task, job, **jobargs):
-        from disco.events import Status
         if not self['save'] or (task.mode == 'map' and self['reduce']):
-            task.send()
-            Status("Results sent to master").send()
+            self.send_outputs()
+            self.send('MSG', "Results sent to master")
         else:
-            task.save()
-            Status("Results saved to DDFS").send()
-
-    @classmethod
-    def unpack(cls, jobpack):
-        return cPickle.loads(jobpack.jobdata)
+            self.save_outputs(task.jobname, master=task.master)
+            self.send('MSG', "Results saved to DDFS")
 
     @classmethod
     def main(cls):
@@ -309,28 +350,292 @@ class Worker(dict):
                   in the ``__main__`` module, before running :meth:`main`,
                   as the worker module is also generally imported on the client side.
         """
-        from disco.error import DataError
-        from disco.events import AnnouncePID, WorkerDone, DataUnavailable, TaskFailed
-        from disco.job import JobPack
-        from disco.task import Task
-        from disco.fileutils import NonBlockingInput
-        from disco.util import MessageWriter
         try:
             sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
-            sys.stdout = MessageWriter()
-            AnnouncePID(os.getpid()).send()
-            worker, job, jobargs = cls.unpack(JobPack.request())
-            worker.start(Task.request(), job, **jobargs)
-            WorkerDone().send()
+            sys.stdout = MessageWriter(cls)
+            cls.send('PID', os.getpid())
+            worker, job, jobargs = cls.unpack(cls.get_jobpack())
+            worker.start(cls.get_task(), job, **jobargs)
+            cls.send('END')
         except (DataError, EnvironmentError, MemoryError), e:
             # check the number of open file descriptors (under proc), warn if close to max
             # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
             # also check for other known reasons for error, such as if disk is full
-            DataUnavailable(traceback.format_exc()).send()
+            cls.send('DAT', traceback.format_exc())
             raise
         except Exception, e:
-            TaskFailed(MessageWriter.force_utf8(traceback.format_exc())).send()
+            cls.send('ERR', MessageWriter.force_utf8(traceback.format_exc()))
             raise
+
+    @classmethod
+    def unpack(cls, jobpack):
+        return cPickle.loads(jobpack.jobdata)
+
+    @classmethod
+    def send(cls, type, payload=''):
+        from disco.json import dumps, loads
+        body = dumps(payload)
+        sys.stderr.write('%s %d %s\n' % (type, len(body), body))
+        spent, rtype = sys.stdin.t_read_until(' ')
+        spent, rsize = sys.stdin.t_read_until(' ', spent=spent)
+        spent, rbody = sys.stdin.t_read(int(rsize) + 1, spent=spent)
+        if type == 'ERROR':
+            raise ValueError(loads(rbody[:-1]))
+        return loads(rbody[:-1])
+
+    @classmethod
+    def get_input(cls, id):
+        done, inputs = cls.send('INP', ['include', [id]])
+        _id, status, replicas = inputs[0]
+
+        if status == 'busy':
+            raise Wait
+        if status == 'failed':
+            raise DataError("Can't handle broken input", id)
+        return [url for rid, url in replicas]
+
+    @classmethod
+    def get_inputs(cls, done=False, exclude=()):
+        while not done:
+            done, inputs = cls.send('INP')
+            for id, status, urls in inputs:
+                if id not in exclude:
+                    yield IDedInput((cls, id))
+                    exclude += (id, )
+
+    @classmethod
+    def get_jobpack(cls):
+        from disco.job import JobPack
+        return JobPack.load(open(cls.send('JOB')))
+
+    @classmethod
+    def get_task(cls):
+        from disco.task import Task
+        return Task(**dict((str(k), v) for k, v in cls.send('TSK').items()))
+
+    def save_outputs(self, jobname, master=None):
+        from disco.ddfs import DDFS
+        def paths():
+            for output in self.outputs.values():
+                output.file.close()
+                yield output.path
+        self.send('OUT', [DDFS(master).save(jobname, paths()), 'tag'])
+
+    def send_outputs(self):
+        for output in self.outputs.values():
+            output.file.close()
+            self.send('OUT', [output.path, output.type, output.partition])
+
+class IDedInput(tuple):
+    @property
+    def worker(self):
+        return self[0]
+
+    @property
+    def id(self):
+        return self[1]
+
+    @property
+    def urls(self):
+        return self.worker.get_input(self.id)
+
+    def unavailable(self, tried):
+        return self.worker.send('DAT', [self.id, list(tried)])
+
+class ReplicaIter(object):
+    def __init__(self, inp_or_urls):
+        self.inp, self.urls = None, None
+        if isinstance(inp_or_urls, IDedInput):
+            self.inp = inp_or_urls
+        elif isinstance(inp_or_urls, basestring):
+            self.urls = inp_or_urls,
+        else:
+            self.urls = inp_or_urls
+        self.used = set()
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        urls = set(self.inp.urls if self.inp else self.urls) - self.used
+        for url in urls:
+            self.used.add(url)
+            return url
+        if self.inp:
+            self.inp.unavailable(self.used)
+        raise StopIteration
+
+class InputIter(object):
+    def __init__(self, input, open=None, start=0):
+        self.urls = ReplicaIter(input)
+        self.last = start - 1
+        self.open = open if open else Input.default_open
+        self.swap()
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        try:
+            self.last, item = self.iter.next()
+            return item
+        except DataError:
+            self.swap()
+
+    def swap(self):
+        try:
+            def skip(iter, N):
+                from itertools import dropwhile
+                return dropwhile(lambda (n, rec): n < N, enumerate(iter))
+            self.iter = skip(self.open(self.urls.next()), self.last + 1)
+        except DataError:
+            self.swap()
+        except StopIteration:
+            raise DataError("Exhausted all available replicas", list(self.urls.used))
+
+class Input(object):
+    """
+    An iterable over one or more :class:`Task` inputs,
+    which can gracefully handle corrupted replicas or otherwise failed inputs.
+
+    :type  open: function
+    :param open: a function with the following signature::
+
+                        def open(url):
+                            ...
+                            return file
+
+                used to open input files.
+    """
+    WAIT_TIMEOUT = 1
+
+    def __init__(self, input, **kwds):
+        self.input, self.kwds = input, kwds
+
+    def __iter__(self):
+        iter = InputIter(self.input, **self.kwds)
+        while iter:
+            try:
+                for item in iter:
+                    yield item
+                iter = None
+            except Wait:
+                time.sleep(self.WAIT_TIMEOUT)
+
+    @staticmethod
+    def default_open(url):
+        from disco.util import schemesplit
+        scheme, _url = schemesplit(url)
+        scheme_ = 'scheme_%s' % (scheme or 'file')
+        mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
+        file, size, url = mod.input_stream(None, None, url, None)
+        return file
+
+class Output(object):
+    """
+    A container for outputs from :class:`tasks <Task>`.
+
+    :type  open: function
+    :param open: a function with the following signature::
+
+                        def open(url):
+                            ...
+                            return file
+
+                used to open new output files.
+
+    .. attribute:: path
+
+        The path to the underlying output file.
+
+    .. attribute:: type
+
+        The type of output.
+
+    .. attribute:: partition
+
+        The partition label for the output (or None).
+
+    .. attribute:: file
+
+        The underlying output file handle.
+    """
+    def __init__(self, (path, type, partition), open=None):
+        self.path, self.type, self.partition = path, type, partition
+        self.open = open or DiscoOutput
+        self.file = self.open(self.path)
+
+class SerialInput(Input):
+    """
+    Produces an iterator over the records in a list of sequential inputs.
+    """
+    def __init__(self, inputs, **kwds):
+        self.inputs, self.kwds = inputs, kwds
+
+    def __iter__(self):
+        for input in self.inputs:
+            for record in Input(input, **self.kwds):
+                yield record
+
+class ParallelInput(Input):
+    """
+    Produces an iterator over the unordered records in a set of inputs.
+
+    Usually require the full set of inputs (i.e. will block with streaming).
+    """
+    def __init__(self, inputs, **kwds):
+        self.inputs, self.kwds = inputs, kwds
+
+    def __iter__(self):
+        iters = [InputIter(input, **self.kwds) for input in self.inputs]
+        while iters:
+            iter = iters.pop()
+            try:
+                for item in iter:
+                    yield item
+            except Wait:
+                if not iters:
+                    time.sleep(self.WAIT_TIMEOUT)
+                iters.insert(0, iter)
+
+    def couple(self, iters, heads, n):
+        while True:
+            if heads[n] is Wait:
+                self.fill(iters, heads, n=n)
+            head = heads[n]
+            heads[n] = Wait
+            yield head
+
+    def fetch(self, iters, heads, stop=all):
+        busy = 0
+        for n, head in enumerate(heads):
+            if head is Wait:
+                try:
+                    heads[n] = next(iters[n])
+                except Wait:
+                    if stop in (all, n):
+                        busy += 1
+                except StopIteration:
+                    if stop in (all, n):
+                        raise
+        return busy
+
+    def fill(self, iters, heads, n=all, busy=True):
+        while busy:
+            busy = self.fetch(iters, heads, stop=n)
+            if busy:
+                time.sleep(self.WAIT_TIMEOUT)
+        return heads
+
+class MergedInput(ParallelInput):
+    """
+    Produces an iterator over the minimal head elements of the inputs.
+    """
+    def __iter__(self):
+        from disco.future import merge
+        iters = [InputIter(input, **self.kwds) for input in self.inputs]
+        heads = [Wait] * len(iters)
+        return merge(*(self.couple(iters, heads, n) for n in xrange(len(iters))))
 
 if __name__ == '__main__':
     Worker.main()

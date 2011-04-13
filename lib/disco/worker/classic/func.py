@@ -503,13 +503,12 @@ def discodb_output(stream, partition, url, params):
     from disco.worker.classic.func import DiscoDBOutput
     return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
 
-def disk_sort(input, filename, sort_buffer_size='10%'):
+def disk_sort(worker, input, filename, sort_buffer_size='10%'):
     from os.path import getsize
     from disco.comm import open_local
     from disco.util import format_size
-    from disco.events import Status
     from disco.fileutils import AtomicFile
-    Status("Downloading %s" % filename).send()
+    worker.send('MSG', "Downloading %s" % filename)
     out_fd = AtomicFile(filename)
     for key, value in input:
         if not isinstance(key, str):
@@ -520,10 +519,10 @@ def disk_sort(input, filename, sort_buffer_size='10%'):
             # value pickled using protocol 0 will always be printable ASCII
             out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
     out_fd.close()
-    Status("Downloaded %s OK" % format_size(getsize(filename))).send()
-    Status("Sorting %s..." % filename).send()
+    worker.send('MSG', "Downloaded %s OK" % format_size(getsize(filename)))
+    worker.send('MSG', "Sorting %s..." % filename)
     unix_sort(filename, sort_buffer_size=sort_buffer_size)
-    Status("Finished sorting").send()
+    worker.send('MSG', ("Finished sorting"))
     fd, size, url = open_local(filename)
     for k, v in re_reader("(?s)(.*?)\xff(.*?)\x00", fd, size, url):
         yield k, cPickle.loads(v)

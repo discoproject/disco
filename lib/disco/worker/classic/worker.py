@@ -18,12 +18,9 @@ For example, here's a simple distributed grep from the Disco ``examples/`` direc
 """
 import os, sys
 
-from disco import events, util, worker
+from disco import util, worker
 from disco.worker.classic import external
 from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
-
-def status(message):
-    return events.Status(message).send()
 
 class Worker(worker.Worker):
     """
@@ -252,12 +249,12 @@ class Worker(worker.Worker):
     def map(self, task, params):
         if self['save'] and self['partitions'] and not self['reduce']:
             raise NotImplementedError("Storing partitioned outputs in DDFS is not yet supported")
-        entries = self.status_iter(task.input(open=self.opener('map', 'in', params)),
+        entries = self.status_iter(self.input(task, open=self.opener('map', 'in', params)),
                                    "%s entries mapped")
         bufs = {}
         self['map_init'](entries, params)
         def output(partition):
-            return task.output(partition, open=self.opener('map', 'out', params)).file.fds[-1]
+            return self.output(task, partition, open=self.opener('map', 'out', params)).file.fds[-1]
         for entry in entries:
             for key, val in self['map'](entry, params):
                 part = None
@@ -275,11 +272,11 @@ class Worker(worker.Worker):
                 output(part).add(*record)
 
     def reduce(self, task, params):
-        from disco.task import input, inputs, SerialInput
+        from disco.worker import SerialInput
         from disco.util import inputlist, ispartitioned, shuffled
         # master should feed only the partitioned inputs to reduce (and shuffle them?)
-        # should be able to just use task.input(parallel=True) for normal reduce
-        inputs = [input(id) for id in inputs()]
+        # should be able to just use self.input(task, parallel=True) for normal reduce
+        inputs = [self.get_input(inp.id) for inp in self.get_inputs()]
         partition = None
         if ispartitioned(inputs) and not self['merge_partitions']:
             partition = str(task.taskid)
@@ -287,7 +284,7 @@ class Worker(worker.Worker):
                                         open=self.opener('reduce', 'in', params)),
                             task)
         entries = self.status_iter(ordered, "%s entries reduced")
-        output = task.output(None, open=self.opener('reduce', 'out', params)).file.fds[-1]
+        output = self.output(task, None, open=self.opener('reduce', 'out', params)).file.fds[-1]
         self['reduce_init'](entries, params)
         if util.argcount(self['reduce']) < 3:
             for record in self['reduce'](entries, *(params, )):
@@ -297,7 +294,8 @@ class Worker(worker.Worker):
 
     def sort(self, input, task):
         if self['sort']:
-            return disk_sort(input,
+            return disk_sort(self,
+                             input,
                              task.path('sort.dl'),
                              sort_buffer_size=self['sort_buffer_size'])
         return input
@@ -307,9 +305,9 @@ class Worker(worker.Worker):
         n = -1
         for n, item in enumerate(iterator):
             if status_interval and (n + 1) % status_interval == 0:
-                status(message_template % (n + 1))
+                self.send('MSG', message_template % (n + 1))
             yield item
-        status("Done: %s" % (message_template % (n + 1)))
+        self.send('MSG', "Done: %s" % (message_template % (n + 1)))
 
     def opener(self, mode, direction, params):
         if direction == 'in':
