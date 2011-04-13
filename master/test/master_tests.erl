@@ -7,4 +7,6 @@ main() ->
     io:fwrite("Running ddfs_tag prop tests ...~n", []),
     ddfs_tag_test:prop_test(),
     io:fwrite("Running ddfs_tag tests ...~n", []),
-    ddfs_tag_test:test().
+    ddfs_tag_test:test(),
+    io:fwrite("Running json_validator_tests ...~n", []),
+    json_validator_test:test().

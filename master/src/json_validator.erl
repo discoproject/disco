@@ -1,6 +1,5 @@
 -module(json_validator).
 -export([validate/2, error_msg/1]).
--export([test/0]).
 
 -type prim() :: 'null' | 'integer' | 'boolean' | 'float' | 'string'.
 -type spec() :: prim()
@@ -106,31 +105,3 @@ error_msg({all_options_failed, Spec, Payload}) ->
     io_lib:format("value of type '~p' expected, '~p' received", [Spec, Payload]);
 error_msg({missing_key, Key, Payload}) ->
     io_lib:format("object with key '~s' expected, '~p' received", [Key, Payload]).
-
-
-test() ->
-    Tests = [{null, "null"},
-             {integer, "1"},
-             {integer, "-1"},
-             {boolean, "true"},
-             {boolean, "false"},
-             {float, "0.1"},
-             {float, "-0.1"},
-             {string, "\"string\""},
-             {{array, [null, boolean, string]},
-              "[null, true, \"string\"]"},
-             {{array, [{array, [integer, boolean]},
-                       integer]},
-              "[[1, true], 3]"},
-             {{hom_array, boolean}, "[true, false]"},
-             {{object, [{<<"intkey">>, integer},
-                        {<<"arraykey">>, {hom_array, integer}}]},
-              "{\"intkey\" : 1, \"arraykey\" : [1,2]}"},
-             {{value, <<"string">>}, "\"string\""},
-             {{opt, [integer, string, boolean]}, "true"}
-            ],
-
-    lists:foreach(fun({Type, Json}) ->
-                          Payload = mochijson2:decode(Json),
-                          ok = validate(Type, Payload)
-                  end, Tests).
