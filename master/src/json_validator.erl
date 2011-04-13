@@ -1,5 +1,5 @@
 -module(json_validator).
--export([validate/2]).
+-export([validate/2, error_msg/1]).
 -export([test/0]).
 
 -type prim() :: 'null' | 'integer' | 'boolean' | 'float' | 'string'.
@@ -82,6 +82,30 @@ validate_key({Key, Type}, Payload) ->
         undefined -> {error, {missing_key, Key, Payload}};
         Value -> validate(Type, Value)
     end.
+
+-spec error_msg(error()) -> iolist().
+error_msg({not_null, Payload}) ->
+    io_lib:format("null expected, '~p' received", [Payload]);
+error_msg({not_integer, Payload}) ->
+    io_lib:format("integer expected, '~p' received", [Payload]);
+error_msg({not_boolean, Payload}) ->
+    io_lib:format("boolean expected, '~p' received", [Payload]);
+error_msg({not_float, Payload}) ->
+    io_lib:format("float expected, '~p' received", [Payload]);
+error_msg({not_string, Payload}) ->
+    io_lib:format("string expected, '~p' received", [Payload]);
+error_msg({not_list, Payload}) ->
+    io_lib:format("list expected, '~p' received", [Payload]);
+error_msg({not_object, Payload}) ->
+    io_lib:format("object/dict expected, '~p' received", [Payload]);
+error_msg({incorrect_length, Payload, Len}) ->
+    io_lib:format("list of length ~B expected, '~p' received", [Len, Payload]);
+error_msg({unexpected_value, Value, Payload}) ->
+    io_lib:format("value '~p' expected, '~p' received", [Value, Payload]);
+error_msg({all_options_failed, Spec, Payload}) ->
+    io_lib:format("value of type '~p' expected, '~p' received", [Spec, Payload]);
+error_msg({missing_key, Key, Payload}) ->
+    io_lib:format("object with key '~s' expected, '~p' received", [Key, Payload]).
 
 
 test() ->
