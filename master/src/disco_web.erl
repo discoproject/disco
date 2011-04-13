@@ -154,7 +154,9 @@ getop(_, _) -> not_found.
 validate_payload(_Op, Spec, Payload, Fun) ->
     case json_validator:validate(Spec, Payload) of
         ok -> Fun(Payload);
-        _ ->  {error, <<"Invalid request payload">>}
+        {error, E} ->
+            Msg = list_to_binary(json_validator:error_msg(E)),
+            {error, Msg}
     end.
 
 postop("kill_job", Json) ->
