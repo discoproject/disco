@@ -25,7 +25,9 @@
          format_time/4,
          format_time_since/1,
          make_dir/1,
-         ensure_dir/1]).
+         ensure_dir/1,
+         is_file/1,
+         is_dir/1]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -188,14 +190,14 @@ ensure_dir("/") ->
     ok;
 ensure_dir(F) ->
     Dir = filename:dirname(F),
-    case do_is_dir(Dir) of
+    case is_dir(Dir) of
         true ->
             ok;
         false ->
             ensure_dir(Dir),
             case prim_file:make_dir(Dir) of
                 {error,eexist}=EExist ->
-                    case do_is_dir(Dir) of
+                    case is_dir(Dir) of
                         true ->
                             ok;
                         false ->
@@ -206,8 +208,18 @@ ensure_dir(F) ->
             end
     end.
 
-do_is_dir(Dir) ->
+is_dir(Dir) ->
     case prim_file:read_file_info(Dir) of
+        {ok, #file_info{type=directory}} ->
+            true;
+        _ ->
+            false
+    end.
+
+is_file(Dir) ->
+    case prim_file:read_file_info(Dir) of
+        {ok, #file_info{type=regular}} ->
+            true;
         {ok, #file_info{type=directory}} ->
             true;
         _ ->
