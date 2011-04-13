@@ -170,6 +170,10 @@ handle_call({connection_status, Node, Status}, _From, S) ->
 handle_call({manual_blacklist, Node, True}, _From, S) ->
     {reply, ok, do_manual_blacklist(Node, True, S)}.
 
+% handle late replies to "catch gen_server:call"
+handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
+    {noreply, S};
+
 handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
     error_logger:warning_report(["Disco server dies on error!", Reason]),
     {stop, stop_requested, S};

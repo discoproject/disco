@@ -46,7 +46,7 @@ jobfile(JobHome) ->
 
 -spec exists(nonempty_string()) -> bool().
 exists(JobHome) ->
-    filelib:is_file(jobfile(JobHome)).
+    disco:is_file(jobfile(JobHome)).
 
 -spec extract(binary(), nonempty_string()) -> 'ok'.
 extract(JobPack, JobHome) ->
@@ -62,7 +62,7 @@ extract(JobPack, JobHome) ->
 
 -spec extracted(nonempty_string()) -> bool().
 extracted(JobHome) ->
-    filelib:is_file(filename:join(JobHome, ".jobhome")).
+    disco:is_file(filename:join(JobHome, ".jobhome")).
 
 ensure_executable_worker(JobPack, JobHome) ->
     Worker = find(<<"worker">>, jobdict(JobPack)),
