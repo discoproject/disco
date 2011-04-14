@@ -70,7 +70,9 @@ class MessageWriter(object):
         return string.decode('utf-8', 'replace').encode('utf-8')
 
     def write(self, string):
-        self.worker.send('MSG', self.force_utf8(string.strip()))
+        string = string.strip()
+        if string:
+            self.worker.send('MSG', self.force_utf8(string))
 
 class Worker(dict):
     """
