@@ -115,6 +115,23 @@ class Worker(worker.Worker):
 
                           .. versionadded:: 0.2
 
+    :type  required_files: list of paths or dict
+    :param required_files: additional files that are required by the worker.
+                           Either a list of paths to files to include,
+                           or a dictionary which contains items of the form
+                           ``(filename, filecontents)``.
+
+                           .. versionchanged:: 0.4
+                              The worker includes *required_files* in :meth:`jobzip`,
+                              so they are available relative to the working directory
+                              of the worker.
+
+    :type  required_modules: list of modules or module names
+    :param required_modules: required modules to send with the worker.
+
+                             .. versionchanged:: 0.4
+                                Can also be a list of module objects.
+
     :type  merge_partitions: bool
     :param merge_partitions: whether or not to merge partitioned inputs during reduce.
 
@@ -195,6 +212,8 @@ class Worker(worker.Worker):
                          'reduce_input_stream': (reduce_input_stream, ),
                          'reduce_output_stream': (reduce_output_stream,
                                                   disco_output_stream),
+                         'required_files': {},
+                         'required_modules': None,
                          'ext_params': {},
                          'params': None,
                          'sort': False,
@@ -205,15 +224,25 @@ class Worker(worker.Worker):
 
     def jobzip(self, job, **jobargs):
         from disco.modutil import find_modules
+        from disco.util import iskv
+        jobzip = super(Worker, self).jobzip(job, **jobargs)
         def get(key):
             return self.getitem(key, job, jobargs)
+        if isinstance(get('required_files'), dict):
+            for path, bytes in get('required_files').iteritems():
+                    jobzip.writestr(path, bytes)
+        else:
+            for path in get('required_files'):
+                jobzip.writepath(path)
         if get('required_modules') is None:
             self['required_modules'] = find_modules([obj
                                                      for key in self
                                                      for obj in util.iterify(get(key))
                                                      if callable(obj)],
                                                     exclude=['Task'])
-        jobzip = super(Worker, self).jobzip(job, **jobargs)
+        for mod in get('required_modules') or ():
+            if iskv(mod):
+                jobzip.writepath(mod[1])
         for func in ('map', 'reduce'):
             if isinstance(self[func], dict):
                 for path, bytes in self[func].iteritems():

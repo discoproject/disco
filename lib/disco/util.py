@@ -96,12 +96,6 @@ def kvify(entry):
 def listify(object):
     return list(iterify(object))
 
-def modulify(module):
-    if isinstance(module, basestring):
-        __import__(module)
-        module = sys.modules[module]
-    return module
-
 def partition(iterable, fn):
     t, f = [], []
     for item in iterable:

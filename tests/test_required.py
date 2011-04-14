@@ -3,8 +3,6 @@ import os, sys
 from disco.test import TestCase, TestJob
 
 class RequiredFilesJob(TestJob):
-    required_modules = ['extramodule1', 'extramodule2']
-
     @staticmethod
     def map(e, params):
         x = extramodule1.magic(int(e))
@@ -20,6 +18,17 @@ class RequiredModulesJob(TestJob):
 class RequiredTestCase(TestCase):
     def serve(self, path):
         return '%s\n' % path
+
+    def setUp(self):
+        super(RequiredTestCase, self).setUp()
+        self.sys_path = sys.path
+        self.support  = os.path.join(os.path.dirname(__file__), 'support')
+        sys.path.append(self.support)
+        os.environ['PYTHONPATH'] += ':%s' % self.support
+
+    def tearDown(self):
+        super(RequiredTestCase, self).tearDown()
+        sys.path = self.sys_path
 
     def test_required_files(self):
         sys.path.append(os.path.join(os.path.dirname(__file__), 'support'))

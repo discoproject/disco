@@ -74,6 +74,9 @@ class ModUtilTestCase(TestCase):
         self.assertResults(self.job, [(4.0, '')])
 
     def test_list_modules(self):
+        reqs = ['math',
+                ('mod1', os.path.normpath(os.path.join(self.support, 'mod1.py'))),
+                ('mod2', os.path.normpath(os.path.join(self.support, 'mod2.py')))]
         self.job = ModUtilJob().run(input=self.test_server.urls(['0.5|1.2']),
-                                    required_modules=['math', 'mod1', 'mod2'])
+                                    required_modules=reqs)
         self.assertResults(self.job, [(4.0, '')])

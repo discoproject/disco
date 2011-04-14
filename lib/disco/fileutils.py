@@ -1,12 +1,10 @@
 import os, struct, sys, time
 from cPickle import dumps
 from cStringIO import StringIO
-from inspect import getfile, getmodule, getsourcefile
 from zipfile import ZipFile, ZIP_DEFLATED
 from zlib import compress, crc32
 
 from disco.error import DataError
-from disco.util import modulify
 
 MB = 1024**2
 MIN_DISK_SPACE  = 1 * MB
@@ -135,9 +133,6 @@ class DiscoZipFile(ZipFile, object):
         self.buffer = StringIO()
         super(DiscoZipFile, self).__init__(self.buffer, 'w', ZIP_DEFLATED)
 
-    def writemodule(self, module):
-        self.writepath(getfile(modulify(module)))
-
     def writepath(self, pathname, exclude=()):
         for file in files(pathname):
             name, ext = os.path.splitext(file)
@@ -145,6 +140,7 @@ class DiscoZipFile(ZipFile, object):
                 self.write(file, file)
 
     def writesource(self, object):
+        from inspect import getmodule, getsourcefile
         self.writepath(getsourcefile(getmodule(object)))
 
     def dump(self, handle):

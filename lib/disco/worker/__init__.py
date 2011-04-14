@@ -90,23 +90,6 @@ class Worker(dict):
                    :class:`disco.task.Task` in mode *reduce*.
                    Also used by :meth:`jobdict` to set :attr:`jobdict.reduce?`.
 
-    :type  required_files: list of paths or dict
-    :param required_files: additional files that are required by the worker.
-                           Either a list of paths to files to include,
-                           or a dictionary which contains items of the form
-                           ``(filename, filecontents)``.
-
-                           .. versionchanged:: 0.4
-                              The worker includes *required_files* in :meth:`jobzip`,
-                              so they are available relative to the working directory
-                              of the worker.
-
-    :type  required_modules: list of modules or module names
-    :param required_modules: required modules to send with the worker.
-
-                             .. versionchanged:: 0.4
-                                Can also be a list of module objects.
-
     :type  save: bool
     :param save: whether or not to save the output to :ref:`DDFS`.
 
@@ -134,8 +117,6 @@ class Worker(dict):
         return {'map': None,
                 'merge_partitions': False, # XXX: maybe deprecated
                 'reduce': None,
-                'required_files': {},
-                'required_modules': None,
                 'save': False,
                 'partitions': 1,  # move to classic once partitions are dynamic
                 'profile': False}
@@ -255,22 +236,11 @@ class Worker(dict):
         from clx import __file__ as clxpath
         from disco import __file__ as discopath
         from disco.fileutils import DiscoZipFile
-        from disco.util import iskv
-        def get(key):
-            return self.getitem(key, job, jobargs)
         jobzip = DiscoZipFile()
         jobzip.writepath(os.path.dirname(clxpath), exclude=('.pyc',))
         jobzip.writepath(os.path.dirname(discopath), exclude=('.pyc',))
         jobzip.writesource(job)
         jobzip.writesource(self)
-        if isinstance(get('required_files'), dict):
-            for path, bytes in get('required_files').iteritems():
-                    jobzip.writestr(path, bytes)
-        else:
-            for path in get('required_files'):
-                jobzip.writepath(path)
-        for mod in get('required_modules') or ():
-            jobzip.writemodule((mod[0] if iskv(mod) else mod))
         return jobzip
 
     def jobdata(self, job, **jobargs):
