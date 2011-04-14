@@ -16,6 +16,7 @@ from urllib import urlencode
 from disco import json
 from disco.comm import upload, download, open_remote
 from disco.error import CommError
+from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.settings import DiscoSettings
 from disco.util import isiterable, iterify, listify, partition
 from disco.util import urljoin, urlsplit, urlresolve, urltoken
@@ -126,19 +127,20 @@ class DDFS(object):
               delayed=False,
               update=False,
               token=None,
+              chunk_size=CHUNK_SIZE,
               **kwargs):
         """
         Chunks the contents of `urls`,
         pushes the chunks to ddfs and tags them with `tag`.
         """
         from disco.core import classic_iterator
-        from disco.fileutils import Chunker
 
         if 'reader' not in kwargs:
             kwargs['reader'] = None
 
         def chunk_iter(replicas):
-            return Chunker().chunks(classic_iterator([replicas], **kwargs))
+            chunker = Chunker(chunk_size=chunk_size)
+            return chunker.chunks(classic_iterator([replicas], **kwargs))
 
         def chunk_name(replicas, n):
             url = listify(replicas)[0]
