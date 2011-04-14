@@ -405,9 +405,8 @@ do_new_task(Task, S) ->
         ok ->
             schedule_next(),
             ok;
-        Error ->
-            error_logger:warning_report({"Scheduling task failed",
-                                         Task, Error}),
+        unknown_job ->
+            % most likely job was killed
             failed
     end.
 

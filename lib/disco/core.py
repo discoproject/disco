@@ -6,7 +6,7 @@ The :mod:`disco.core` module provides a high-level interface for
 communication with the Disco master. It provides functions for submitting
 new jobs, querying the status of the system, and getting results of jobs.
 """
-import os, time
+import os, time, sys
 
 from disco import func, json, util
 from disco.comm import download
@@ -120,13 +120,15 @@ class Disco(object):
         return list(set(self.ddfs.blob_name(replicas[0])
                         for replicas in urls))
 
-    def profile_stats(self, jobname, mode=''):
+    def profile_stats(self, jobname, mode='', stream=sys.stdout):
         """
         Returns results of job profiling.
         :ref:`jobdict` must have had the ``profile`` flag enabled.
 
         :type  mode: 'map' or 'reduce' or ''
         :param mode: restricts results to the map or reduce phase, or not.
+        :type  stream: file-like object
+        :param stream: alternate output stream, (see `pstats.Stats object <http://docs.python.org/library/profile.html#pstats.Stats>`_)
 
         The function returns a `pstats.Stats object <http://docs.python.org/library/profile.html#the-stats-class>`_.
         For instance, you can print out results as follows::
@@ -141,9 +143,11 @@ class Disco(object):
             raise JobError(Job(name=jobname, master=self), "No profile data")
 
         import pstats
-        stats = pstats.Stats(Stats(self.oob_get(jobname, f[0])))
+        stats = pstats.Stats(Stats(self.oob_get(jobname, f[0])), stream=stream)
         for s in f[1:]:
             stats.add(Stats(self.oob_get(jobname, s)))
+        stats.strip_dirs()
+        stats.sort_stats('cumulative')
         return stats
 
     def new_job(self, name, **jobargs):
