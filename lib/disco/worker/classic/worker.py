@@ -305,7 +305,7 @@ class Worker(worker.Worker):
         from disco.util import inputlist, ispartitioned, shuffled
         # master should feed only the partitioned inputs to reduce (and shuffle them?)
         # should be able to just use self.input(task, parallel=True) for normal reduce
-        inputs = [self.get_input(inp.id) for inp in self.get_inputs()]
+        inputs = [[url for rid, url in i.replicas] for i in self.get_inputs()]
         partition = None
         if ispartitioned(inputs) and not self['merge_partitions']:
             partition = str(task.taskid)

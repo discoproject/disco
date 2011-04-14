@@ -364,7 +364,7 @@ class Worker(dict):
             raise Wait
         if status == 'failed':
             raise DataError("Can't handle broken input", id)
-        return [url for rid, url in replicas]
+        return replicas
 
     @classmethod
     def get_inputs(cls, done=False, exclude=()):
@@ -408,38 +408,37 @@ class IDedInput(tuple):
         return self[1]
 
     @property
-    def urls(self):
+    def replicas(self):
         return self.worker.get_input(self.id)
 
     def unavailable(self, tried):
-        return self.worker.send('DAT', [self.id, list(tried)])
+        return self.worker.send('EREP', [self.id, list(tried)])
 
 class ReplicaIter(object):
-    def __init__(self, inp_or_urls):
-        self.inp, self.urls = None, None
-        if isinstance(inp_or_urls, IDedInput):
-            self.inp = inp_or_urls
-        elif isinstance(inp_or_urls, basestring):
-            self.urls = inp_or_urls,
-        else:
-            self.urls = inp_or_urls
-        self.used = set()
+    def __init__(self, input):
+        self.input, self.used = input, set()
 
     def __iter__(self):
         return self
 
     def next(self):
-        urls = set(self.inp.urls if self.inp else self.urls) - self.used
-        for url in urls:
-            self.used.add(url)
-            return url
-        if self.inp:
-            self.inp.unavailable(self.used)
+        replicas = dict(self.input.replicas)
+        repl_ids = set(replicas) - self.used
+        for repl_id in repl_ids:
+            self.used.add(repl_id)
+            return replicas[repl_id]
+        self.input.unavailable(self.used)
         raise StopIteration
 
 class InputIter(object):
     def __init__(self, input, open=None, start=0):
-        self.urls = ReplicaIter(input)
+        self.input = input
+        if isinstance(input, IDedInput):
+            self.urls = ReplicaIter(input)
+        elif isinstance(input, basestring):
+            self.urls = iter([input])
+        else:
+            self.urls = iter(input)
         self.last = start - 1
         self.open = open if open else Input.default_open
         self.swap()
@@ -463,7 +462,7 @@ class InputIter(object):
         except DataError:
             self.swap()
         except StopIteration:
-            raise DataError("Exhausted all available replicas", list(self.urls.used))
+            raise DataError("Exhausted all available replicas", self.input)
 
 class Input(object):
     """
