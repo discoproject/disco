@@ -155,6 +155,7 @@ def locate_modules(modules, recurse=True, include_sys=False):
     for module in modules:
         file, path, x = imp.find_module(module)
         path = os.path.realpath(path)
+
         if dirname(path) in LOCALDIRS and os.path.isfile(path):
             found[module] = path
             if recurse:

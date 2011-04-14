@@ -18,12 +18,9 @@ For example, here's a simple distributed grep from the Disco ``examples/`` direc
 """
 import os, sys
 
-from disco import events, util, worker
+from disco import util, worker
 from disco.worker.classic import external
 from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
-
-def status(message):
-    return events.Status(message).send()
 
 class Worker(worker.Worker):
     """
@@ -118,6 +115,23 @@ class Worker(worker.Worker):
 
                           .. versionadded:: 0.2
 
+    :type  required_files: list of paths or dict
+    :param required_files: additional files that are required by the worker.
+                           Either a list of paths to files to include,
+                           or a dictionary which contains items of the form
+                           ``(filename, filecontents)``.
+
+                           .. versionchanged:: 0.4
+                              The worker includes *required_files* in :meth:`jobzip`,
+                              so they are available relative to the working directory
+                              of the worker.
+
+    :type  required_modules: list of modules or module names
+    :param required_modules: required modules to send with the worker.
+
+                             .. versionchanged:: 0.4
+                                Can also be a list of module objects.
+
     :type  merge_partitions: bool
     :param merge_partitions: whether or not to merge partitioned inputs during reduce.
 
@@ -198,6 +212,8 @@ class Worker(worker.Worker):
                          'reduce_input_stream': (reduce_input_stream, ),
                          'reduce_output_stream': (reduce_output_stream,
                                                   disco_output_stream),
+                         'required_files': {},
+                         'required_modules': None,
                          'ext_params': {},
                          'params': None,
                          'sort': False,
@@ -208,15 +224,25 @@ class Worker(worker.Worker):
 
     def jobzip(self, job, **jobargs):
         from disco.modutil import find_modules
+        from disco.util import iskv
+        jobzip = super(Worker, self).jobzip(job, **jobargs)
         def get(key):
             return self.getitem(key, job, jobargs)
+        if isinstance(get('required_files'), dict):
+            for path, bytes in get('required_files').iteritems():
+                    jobzip.writestr(path, bytes)
+        else:
+            for path in get('required_files'):
+                jobzip.writepath(path)
         if get('required_modules') is None:
             self['required_modules'] = find_modules([obj
                                                      for key in self
                                                      for obj in util.iterify(get(key))
                                                      if callable(obj)],
                                                     exclude=['Task'])
-        jobzip = super(Worker, self).jobzip(job, **jobargs)
+        for mod in get('required_modules') or ():
+            if iskv(mod):
+                jobzip.writepath(mod[1])
         for func in ('map', 'reduce'):
             if isinstance(self[func], dict):
                 for path, bytes in self[func].iteritems():
@@ -252,12 +278,12 @@ class Worker(worker.Worker):
     def map(self, task, params):
         if self['save'] and self['partitions'] and not self['reduce']:
             raise NotImplementedError("Storing partitioned outputs in DDFS is not yet supported")
-        entries = self.status_iter(task.input(open=self.opener('map', 'in', params)),
+        entries = self.status_iter(self.input(task, open=self.opener('map', 'in', params)),
                                    "%s entries mapped")
         bufs = {}
         self['map_init'](entries, params)
         def output(partition):
-            return task.output(partition, open=self.opener('map', 'out', params)).file.fds[-1]
+            return self.output(task, partition, open=self.opener('map', 'out', params)).file.fds[-1]
         for entry in entries:
             for key, val in self['map'](entry, params):
                 part = None
@@ -275,11 +301,11 @@ class Worker(worker.Worker):
                 output(part).add(*record)
 
     def reduce(self, task, params):
-        from disco.task import input, inputs, SerialInput
+        from disco.worker import SerialInput
         from disco.util import inputlist, ispartitioned, shuffled
         # master should feed only the partitioned inputs to reduce (and shuffle them?)
-        # should be able to just use task.input(parallel=True) for normal reduce
-        inputs = [input(id) for id in inputs()]
+        # should be able to just use self.input(task, parallel=True) for normal reduce
+        inputs = [self.get_input(inp.id) for inp in self.get_inputs()]
         partition = None
         if ispartitioned(inputs) and not self['merge_partitions']:
             partition = str(task.taskid)
@@ -287,7 +313,7 @@ class Worker(worker.Worker):
                                         open=self.opener('reduce', 'in', params)),
                             task)
         entries = self.status_iter(ordered, "%s entries reduced")
-        output = task.output(None, open=self.opener('reduce', 'out', params)).file.fds[-1]
+        output = self.output(task, None, open=self.opener('reduce', 'out', params)).file.fds[-1]
         self['reduce_init'](entries, params)
         if util.argcount(self['reduce']) < 3:
             for record in self['reduce'](entries, *(params, )):
@@ -297,7 +323,8 @@ class Worker(worker.Worker):
 
     def sort(self, input, task):
         if self['sort']:
-            return disk_sort(input,
+            return disk_sort(self,
+                             input,
                              task.path('sort.dl'),
                              sort_buffer_size=self['sort_buffer_size'])
         return input
@@ -307,9 +334,9 @@ class Worker(worker.Worker):
         n = -1
         for n, item in enumerate(iterator):
             if status_interval and (n + 1) % status_interval == 0:
-                status(message_template % (n + 1))
+                self.send('MSG', message_template % (n + 1))
             yield item
-        status("Done: %s" % (message_template % (n + 1)))
+        self.send('MSG', "Done: %s" % (message_template % (n + 1)))
 
     def opener(self, mode, direction, params):
         if direction == 'in':

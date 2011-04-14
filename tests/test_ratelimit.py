@@ -1,6 +1,5 @@
 from disco.test import TestCase, TestJob
 from disco.error import JobError
-from disco.events import Status
 
 class PrintJob(TestJob):
     @staticmethod
@@ -8,12 +7,6 @@ class PrintJob(TestJob):
         import sys, disco.json
         msg = disco.json.dumps(e)
         sys.stderr.write('MSG %d %s\n' % (len(msg), msg))
-        return []
-
-class StatusJob(TestJob):
-    @staticmethod
-    def map(e, params):
-        Status("Internal msg").send()
         return []
 
 class RateLimitTestCase(TestCase):
@@ -26,8 +19,3 @@ class RateLimitTestCase(TestCase):
         self.job = PrintJob().run(input=self.test_server.urls([1]))
         self.assertRaises(JobError, self.job.wait)
         self.assertEquals(self.job.jobinfo()['active'], 'dead')
-
-    def test_status(self):
-        self.job = StatusJob().run(input=self.test_server.urls([1]))
-        self.job.wait()
-        self.assertEquals(self.job.jobinfo()['active'], 'ready')

@@ -368,13 +368,13 @@ def classic_iterator(urls,
     :type  notifier: :func:`disco.classic.worker.func.notifier`
     :param notifier: called when the task opens a url.
     """
-    from disco.task import TaskInput
+    from disco.worker import Input
     from disco.worker.classic.worker import Worker
     worker = Worker(map_reader=reader, map_input_stream=input_stream)
     settings = DiscoSettings(DISCO_MASTER=ddfs) if ddfs else DiscoSettings()
     for input in util.inputlist(urls, settings=settings):
         notifier(input)
-        for record in TaskInput(input, open=worker.opener('map', 'in', params)):
+        for record in Input(input, open=worker.opener('map', 'in', params)):
             yield record
 
 def result_iterator(*args, **kwargs):

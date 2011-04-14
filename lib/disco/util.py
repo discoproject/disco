@@ -20,18 +20,7 @@ from types import CodeType, FunctionType
 from urllib import urlencode
 
 from disco.error import DiscoError, DataError, CommError
-from disco.events import Message
 from disco.settings import DiscoSettings
-
-class MessageWriter(object):
-    @classmethod
-    def force_utf8(cls, string):
-        if isinstance(string, unicode):
-            return string.encode('utf-8', 'replace')
-        return string.decode('utf-8', 'replace').encode('utf-8')
-
-    def write(self, string):
-        Message(self.force_utf8(string.strip())).send()
 
 class netloc(tuple):
     @classmethod
@@ -106,12 +95,6 @@ def kvify(entry):
 
 def listify(object):
     return list(iterify(object))
-
-def modulify(module):
-    if isinstance(module, basestring):
-        __import__(module)
-        module = sys.modules[module]
-    return module
 
 def partition(iterable, fn):
     t, f = [], []
@@ -244,7 +227,7 @@ def msg(message):
     master, the maximum *message* size is set to 255 characters and job is
     allowed to send at most 10 messages per second.
     """
-    return Message(message).send()
+    print message
 
 def err(message):
     """
