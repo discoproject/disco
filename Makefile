@@ -135,7 +135,7 @@ $(ETEST)/%.beam: $(ETEST)/%.erl
 
 $(EPLT):
 	$(DIALYZER) --build_plt --output_plt $(EPLT) \
-		    --apps stdlib kernel erts mnesia compiler crypto inets xmerl
+		    --apps stdlib kernel erts mnesia compiler crypto inets xmerl ssl syntax_tools
 
 $(TARGETBIN):
 	$(INSTALL) -d $(TARGETBIN)
