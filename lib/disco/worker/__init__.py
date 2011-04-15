@@ -249,13 +249,16 @@ class Worker(dict):
 
     def input(self, task, merged=False, **kwds):
         """
+        :type  task: :class:`disco.task.Task`
+        :param task: the task for which to retrieve input.
+
         :type  merged: bool
         :param merged: if specified, returns a :class:`MergedInput`.
 
         :type  kwds: dict
         :param kwds: additional keyword arguments for the :class:`Input`.
 
-        :return: a :class:`Input` to iterate over the inputs from the master.
+        :return: an :class:`Input` to iterate over the inputs from the master.
         """
         if merged:
             return MergedInput(self.get_inputs(), **kwds)
@@ -263,6 +266,9 @@ class Worker(dict):
 
     def output(self, task, partition=None, **kwds):
         """
+        :type  task: :class:`disco.task.Task`
+        :param task: the task for which to create output.
+
         :type  partition: string or None
         :param partition: the label of the output partition to get.
 
@@ -466,7 +472,7 @@ class InputIter(object):
 
 class Input(object):
     """
-    An iterable over one or more :class:`Task` inputs,
+    An iterable over one or more :class:`Worker` inputs,
     which can gracefully handle corrupted replicas or otherwise failed inputs.
 
     :type  open: function
@@ -502,7 +508,7 @@ class Input(object):
 
 class Output(object):
     """
-    A container for outputs from :class:`tasks <Task>`.
+    A container for outputs from :class:`workers <Worker>`.
 
     :type  open: function
     :param open: a function with the following signature::

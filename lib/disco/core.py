@@ -127,8 +127,10 @@ class Disco(object):
 
         :type  mode: 'map' or 'reduce' or ''
         :param mode: restricts results to the map or reduce phase, or not.
+
         :type  stream: file-like object
-        :param stream: alternate output stream, (see `pstats.Stats object <http://docs.python.org/library/profile.html#pstats.Stats>`_)
+        :param stream: alternate output stream.
+                       See the `pstats.Stats constructor <http://docs.python.org/library/profile.html#pstats.Stats>`_.
 
         The function returns a `pstats.Stats object <http://docs.python.org/library/profile.html#the-stats-class>`_.
         For instance, you can print out results as follows::
