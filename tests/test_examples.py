@@ -35,7 +35,7 @@ class ExamplesTestCase(TestCase):
         self.assertEquals(self.results(b).next()[1], ['2'])
 
     def test_grep(self):
-        self.job = Grep().run(input=[chekhov], params={'pattern': 'd.*?co'})
+        self.job = Grep().run(input=[chekhov], params='d.*?co')
         self.assertEquals(len(list(self.results(self.job))), 17)
 
     def test_wordcount(self):
