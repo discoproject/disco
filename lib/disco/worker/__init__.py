@@ -54,7 +54,7 @@ using a standard :class:`Worker`:
 #. (node) worker requests the :class:`disco.task.Task` from the master
 #. (node) worker runs the :term:`task` and reports the output to the master
 """
-import cPickle, os, sys, traceback
+import cPickle, os, sys, time, traceback
 
 from disco.error import DataError
 from disco.fileutils import DiscoOutput, NonBlockingInput, Wait
@@ -451,6 +451,7 @@ class InputIter(object):
             return item
         except DataError:
             self.swap()
+            raise Wait(0)
 
     def swap(self):
         try:
@@ -477,8 +478,6 @@ class Input(object):
 
                 used to open input files.
     """
-    WAIT_TIMEOUT = 1
-
     def __init__(self, input, **kwds):
         self.input, self.kwds = input, kwds
 
@@ -489,8 +488,8 @@ class Input(object):
                 for item in iter:
                     yield item
                 iter = None
-            except Wait:
-                time.sleep(self.WAIT_TIMEOUT)
+            except Wait, w:
+                time.sleep(w.retry_after)
 
     @staticmethod
     def default_open(url):
@@ -553,6 +552,8 @@ class ParallelInput(Input):
 
     Usually require the full set of inputs (i.e. will block with streaming).
     """
+    BUSY_TIMEOUT = 1
+
     def __init__(self, inputs, **kwds):
         self.inputs, self.kwds = inputs, kwds
 
@@ -563,9 +564,9 @@ class ParallelInput(Input):
             try:
                 for item in iter:
                     yield item
-            except Wait:
+            except Wait, w:
                 if not iters:
-                    time.sleep(self.WAIT_TIMEOUT)
+                    time.sleep(w.retry_after)
                 iters.insert(0, iter)
 
     def couple(self, iters, heads, n):
@@ -594,7 +595,7 @@ class ParallelInput(Input):
         while busy:
             busy = self.fetch(iters, heads, stop=n)
             if busy:
-                time.sleep(self.WAIT_TIMEOUT)
+                time.sleep(self.BUSY_TIMEOUT)
         return heads
 
 class MergedInput(ParallelInput):
