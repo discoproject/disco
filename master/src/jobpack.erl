@@ -179,7 +179,8 @@ valid(<<?MAGIC:16/big,
   when JobDictOffset =:= ?HEADER_SIZE,
        JobEnvsOffset > JobDictOffset,
        JobHomeOffset >= JobEnvsOffset,
-       JobDataOffset >= JobHomeOffset ->
+       JobDataOffset >= JobHomeOffset,
+       size(JobPack) > JobDataOffset ->
     case catch {jobinfo(JobPack), jobenvs(JobPack)} of
         {'EXIT', _} -> {error, invalid_dicts_or_envs};
         {error, E} -> {error, E};
