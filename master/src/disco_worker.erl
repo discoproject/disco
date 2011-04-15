@@ -233,7 +233,7 @@ make_jobhome(JobName, Master) ->
         true ->
             ok;
         false ->
-            disco:make_dir(JobHome),
+            {ok, _} = disco:make_dir(JobHome),
             JobPack =
                 case jobpack:exists(JobHome) of
                     true ->
