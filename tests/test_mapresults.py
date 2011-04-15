@@ -18,7 +18,7 @@ class MapResultsTestCase(TestCase):
     def runTest(self):
         ducks = ['huey', 'dewey', 'louie']
         self.job = MapResultsJob().run(input=['raw://%s' % d for d in ducks])
-        self.assertAllEqual(sorted(result_iterator(self.job.results())),
+        self.assertAllEqual(sorted(result_iterator(self.job.wait())),
                             sorted(('%s!?' % d, '') for d in ducks))
         self.assertAllEqual(sorted(result_iterator(self.job.mapresults())),
                             sorted(('%s!' % d, '') for d in ducks))
