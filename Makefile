@@ -44,6 +44,7 @@ ETEST = master/test
 
 ELIBS    = $(ESRC) $(ESRC)/ddfs $(ESRC)/mochiweb
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
+EHEADERS = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.hrl))
 EAPPS    = $(subst $(ESRC),$(EBIN),$(ELIBS))
 EOBJECTS = $(subst $(ESRC),$(EBIN),$(ESOURCES:.erl=.beam))
 ETARGETS = $(foreach object,$(EOBJECTS),$(TARGETLIB)/$(object))
@@ -127,7 +128,7 @@ $(EBIN):
 $(EBIN)/disco.app: $(ESRC)/disco.app | $(EBIN)
 	- $(RE_VERSION) $< > $@
 
-$(EBIN)/%.beam: $(ESRC)/%.erl | $(EBIN)
+$(EBIN)/%.beam: $(ESRC)/%.erl $(EHEADERS) | $(EBIN)
 	$(ERLC) $(EOPT) -o $(dir $@) $<
 
 $(ETEST)/%.beam: $(ETEST)/%.erl
