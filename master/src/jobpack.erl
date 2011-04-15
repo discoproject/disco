@@ -57,7 +57,7 @@ extract(JobPack, JobHome) ->
             ok = ensure_executable_worker(JobPack, JobHome),
             Files;
         {error, Reason} ->
-            throw({"Couldn't extract jobhome", JobHome, Reason})
+            exit({"Couldn't extract jobhome", JobHome, Reason})
     end.
 
 -spec extracted(nonempty_string()) -> bool().
