@@ -101,7 +101,7 @@ handle_cast(start, #state{task = Task, master = Master} = State) ->
             {stop, {shutdown, {error, "Job pack extraction timeout"}}, State};
         {error, Reason} ->
             Msg = io_lib:format("Jobpack extraction failed: ~p", [Reason]),
-            {stop, {shutdown, {fatal, Msg}}, State};
+            {stop, {shutdown, {error, Msg}}, State};
         {'EXIT', {timeout, _}} ->
             {stop, {shutdown, {error, "Job initialization timeout"}}, State}
     end;

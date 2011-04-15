@@ -79,11 +79,13 @@ class JobPackLengthTestCase(TestCase):
         self.assertEquals(status, 'error')
         self.assertTrue(response.find("invalid_header") >= 0)
 
-    def test_badzip(self):
-        jobenvs, jobzip, jobdata = {}, '0'*64, '0'*64
-        jobdict = {'prefix':'JobPackBadZip', 'scheduler':{}, 'input':["raw://data"],
-                   "map?":True, 'worker':"w", 'owner':"o", 'nr_reduces':"2"}
-        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata).dumps()
-        status, jobname = loads(self.disco.request('/disco/job/new', jobpack))
-        self.assertEquals(status, 'ok')
-        self.assertRaises(JobError, lambda: self.disco.wait(jobname))
+    # Zip extraction failures are currently treated as non-fatal errors.
+    #
+    # def test_badzip(self):
+    #     jobenvs, jobzip, jobdata = {}, '0'*64, '0'*64
+    #     jobdict = {'prefix':'JobPackBadZip', 'scheduler':{}, 'input':["raw://data"],
+    #                "map?":True, 'worker':"w", 'owner':"o", 'nr_reduces':"2"}
+    #     jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata).dumps()
+    #     status, jobname = loads(self.disco.request('/disco/job/new', jobpack))
+    #     self.assertEquals(status, 'ok')
+    #     self.assertRaises(JobError, lambda: self.disco.wait(jobname))
