@@ -186,7 +186,6 @@ valid(<<?MAGIC:16/big,
         {error, E} -> {error, E};
         _ -> ok
     end;
-    % FIXME: check zip for validity
 valid(_JobPack) -> {error, invalid_header}.
 
 -spec validate_prefix(binary() | list()) -> nonempty_string().
