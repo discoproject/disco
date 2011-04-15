@@ -213,11 +213,8 @@ class Worker(dict):
         """
         :return: :ref:`jobenvs` dict.
         """
-        settings = job.settings
-        settings['LC_ALL'] = 'C'
-        settings['PYTHONPATH'] = ':'.join([settings.get('PYTHONPATH', '')] +
-                                          [path.strip('/') for path in sys.path])
-        return settings.env
+        return {'LC_ALL': 'C',
+                'PYTHONPATH': ':'.join([path.strip('/') for path in sys.path])}
 
     def jobhome(self, job, **jobargs):
         """
