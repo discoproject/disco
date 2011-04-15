@@ -66,3 +66,14 @@ class JobPackInfoTestCase(TestCase):
         status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
         self.assertEquals(status, 'error')
         self.assertTrue(response.find("invalid prefix") >= 0)
+
+class JobPackLengthTestCase(TestCase):
+    def test_badlength(self):
+        jobenvs, jobzip, jobdata = {}, '0'*64, '0'*64
+        jobdict = {'prefix':'ab', 'scheduler':{}, 'input':["raw://data"], "map?":True,
+                   'worker':"w", 'owner':"o", 'nr_reduces':"2"}
+        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata).dumps()
+        jobpack = jobpack[:(len(jobpack)-len(jobdata)-1)]
+        status, response = loads(self.disco.request('/disco/job/new', jobpack))
+        self.assertEquals(status, 'error')
+        self.assertTrue(response.find("invalid_header") >= 0)
