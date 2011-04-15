@@ -213,8 +213,7 @@ class Worker(dict):
         """
         :return: :ref:`jobenvs` dict.
         """
-        return {'LC_ALL': 'C',
-                'PYTHONPATH': ':'.join([path.strip('/') for path in sys.path])}
+        return {'PYTHONPATH': ':'.join([path.strip('/') for path in sys.path])}
 
     def jobhome(self, job, **jobargs):
         """
