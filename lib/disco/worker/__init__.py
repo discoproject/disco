@@ -414,6 +414,9 @@ class IDedInput(tuple):
     def unavailable(self, tried):
         return self.worker.send('EREP', [self.id, list(tried)])
 
+    def __str__(self):
+        return '%s' % [url for rid, url in self.replicas]
+
 class ReplicaIter(object):
     def __init__(self, input):
         self.input, self.used = input, set()
