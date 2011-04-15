@@ -353,9 +353,12 @@ def run(program, jobclass, *inputs):
     job = reify(jobclass)(name=program.options.name,
                           master=program.disco,
                           settings=program.settings)
+    input = program.input(*inputs)
+    if any(input):
+        program.options.jobargs['input'] = input
     if program.options.scheduler:
         program.options.jobargs['scheduler'] = program.scheduler
-    job.run(input=program.input(*inputs), **program.options.jobargs)
+    job.run(**program.options.jobargs)
     print job.name
 
 run.add_option('-n', '--name',
@@ -384,7 +387,7 @@ run.add_option('--partitions',
                action='setitem',
                dest='jobargs',
                type='reify',
-               help='enable job profiling')
+               help='number of partitions to create, if any')
 run.add_option('-S', '--scheduler',
                action='setitem2',
                nargs=2,
