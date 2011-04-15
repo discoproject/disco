@@ -3,12 +3,15 @@ from datetime import datetime
 from disco.error import JobError
 from disco.test import TestCase, TestJob
 
+class ProtocolJob(TestJob):
+    pass
+
 class ProtocolTestCase(TestCase):
     def serve(self, path):
         return 'data\n' * 5
 
     def new_job(self, **kwargs):
-        return TestJob().run(input=self.test_server.urls([1]), **kwargs)
+        return ProtocolJob().run(input=self.test_server.urls([1]), **kwargs)
 
     def test_single_line_error(self):
         def map(e, params):
