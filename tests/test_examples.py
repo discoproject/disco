@@ -28,11 +28,14 @@ class ExamplesTestCase(TestCase):
         self.job = LineChunker().run(input=[chekhov], params=self.tag)
         self.assertEquals(len(list(self.results(self.job))), 1)
 
-    def test_ddb(self):
-        a, b = WordCountDDB(), Query()
-        b.params = 'discover'
-        self.job = JobChain({a: [chekhov], b: a}).wait()
-        self.assertEquals(self.results(b).next()[1], ['2'])
+    def test_discodb(self):
+        if self.settings['DISCO_TEST_DISCODB']:
+            a, b = WordCountDDB(), Query()
+            b.params = 'discover'
+            self.job = JobChain({a: [chekhov], b: a}).wait()
+            self.assertEquals(self.results(b).next()[1], ['2'])
+        else:
+            self.skipTest("DISCO_TEST_DISCODB not set")
 
     def test_grep(self):
         self.job = Grep().run(input=[chekhov], params='d.*?co')

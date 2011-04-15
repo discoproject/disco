@@ -166,6 +166,11 @@ Settings to control the scheduler behavior:
 
 Settings used by the testing environment:
 
+        .. envvar:: DISCO_TEST_DISCODB
+
+                Whether or not to run :mod:`discodb` tests.
+                Default is ``''``.
+
         .. envvar:: DISCO_TEST_HOST
 
                 The hostname that the test data server should bind on.
@@ -278,6 +283,7 @@ class DiscoSettings(Settings):
         'DISCO_SCHEDULER':       "'fair'",
         'DISCO_SCHEDULER_ALPHA': ".001",
 # TESTING
+        'DISCO_TEST_DISCODB':    "''",
         'DISCO_TEST_HOST':       "socket.gethostname()",
         'DISCO_TEST_PORT':       "9444",
         'DISCO_TEST_PROFILE':    "''",
