@@ -50,9 +50,6 @@ class ConfigTestCase(TestCase):
             self.disco.config = self.config
             self.checkAnswers(self.job, input)
 
-    def test_localhost(self):
-        self.configTest([['localhost', '1']])
-
     def test_missing_node(self):
         nodenames = set(name for name, workers in self.config)
         self.configTest(self.config + [[unique_nodename(nodenames), '1']])
