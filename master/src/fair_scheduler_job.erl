@@ -328,7 +328,9 @@ assign_nopref(Task, _Tasks, _Nodes) when Task#task.force_local ->
 
 assign_nopref(Task, Tasks, _Nodes) ->
     {N, C, L} = gb_trees:get(nopref, Tasks),
-    [{Input, _}|_] = Task#task.input,
+    % Choosing a nopref-replica randomly is clearly a suboptimal policy.
+    % We should ignore replicas that have failed in the past.
+    {Input, _} = ddfs_util:choose_random(Task#task.input),
     T = Task#task{chosen_input = Input},
     gb_trees:update(nopref, {N + 1, C + 1, [T|L]}, Tasks).
 
