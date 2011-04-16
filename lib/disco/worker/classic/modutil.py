@@ -1,11 +1,12 @@
 """
-:mod:`disco.modutil` -- Parse and find module dependencies
-==========================================================
+:mod:`disco.worker.classic.modutil` -- Parse and find module dependencies
+=========================================================================
 
-*(New in version 0.2.3)*
+.. versionadded:: 0.2.3
 
 This module provides helper functions to be used with the ``required_modules``
-parameter in :meth:`disco.core.Disco.new_job`. These functions are needed when
+parameter in :class:`~disco.worker.classic.worker.Worker`.
+These functions are needed when
 your job functions depend on external Python modules and the default value
 for ``required_modules`` does not suffice.
 
@@ -23,13 +24,16 @@ or by generating the list semi-automatically using the functions in this module.
 How to specify required modules
 -------------------------------
 
-The ``required_modules`` parameter in :meth:`disco.core.Disco.new_job` accepts
-a list of module definitions. A module definition may be either a module name,
-e.g. ``"PIL.Image"``, or a tuple that specifies both the module name and its
-path, e.g. ``("mymodule", "lib/mymodule.py")``. In the former case, the
-Disco worker only imports the module, assuming that it has been previously
-installed to the node. In the latter case Disco sends the module file to
-nodes before importing it and no pre-installation is required.
+The ``required_modules`` parameter accepts a list of module definitions.
+A module definition may be either a module name, e.g. ``"PIL.Image"``,
+or a tuple that specifies both the module name and its path,
+e.g. ``("mymodule", "lib/mymodule.py")``.
+In the former case,
+the :class:`disco.worker.classic.worker.Worker` only imports the module,
+assuming that it has been previously installed to the node.
+In the latter case,
+Disco sends the module file to nodes before importing it,
+and no pre-installation is required.
 
 For instance, the following is a valid list for
 ``required_modules``::
@@ -91,7 +95,19 @@ import functools
 from os.path import abspath, dirname
 from opcode import opname
 
-from disco.error import ModUtilImportError
+from disco.error import DiscoError
+
+class ModUtilImportError(DiscoError, ImportError):
+    """Error raised when a module can't be found by :mod:`disco.worker.classic.modutil`."""
+    def __init__(self, error, function):
+        self.error    = error
+        self.function = function
+
+    def __str__(self):
+        # XXX! Add module name below
+        return ("%s: Could not find module defined in %s. Maybe it is a typo. "
+                "See documentation of the required_modules parameter for details "
+                "on how to include modules." % (self.error, self.function.func_name))
 
 def user_paths():
     return set([os.path.abspath(path)

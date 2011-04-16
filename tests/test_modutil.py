@@ -1,6 +1,5 @@
-from disco import modutil
 from disco.test import TestCase, TestJob
-from disco.error import ModUtilImportError
+from disco.worker.classic.modutil import find_modules, ModUtilImportError
 
 import sys, os
 
@@ -51,9 +50,9 @@ class ModUtilTestCase(TestCase):
         sys.path = self.sys_path
 
     def assertFindsModules(self, functions, modules, send_modules=False, recurse=True):
-        self.assertEquals(sorted(modutil.find_modules(functions,
-                                                      send_modules=send_modules,
-                                                      recurse=recurse)),
+        self.assertEquals(sorted(find_modules(functions,
+                                              send_modules=send_modules,
+                                              recurse=recurse)),
                           sorted(['test_modutil'] + modules))
 
     def test_system(self):
@@ -63,7 +62,7 @@ class ModUtilTestCase(TestCase):
         self.assertFindsModules([local_module], ['extramodule1'])
 
     def test_missing(self):
-        self.assertRaises(ModUtilImportError, lambda: modutil.find_modules([missing_module]))
+        self.assertRaises(ModUtilImportError, lambda: find_modules([missing_module]))
 
     def test_recursive(self):
         self.assertFindsModules([recursive_module], [mod1req, mod2req], send_modules=True)
@@ -78,7 +77,7 @@ class ModUtilTestCase(TestCase):
     def test_find_modules(self):
         self.job = ModUtilJob()
         self.job.run(input=self.test_server.urls(['0.5|1.2']),
-                     required_modules=modutil.find_modules([self.job.map]))
+                     required_modules=find_modules([self.job.map]))
         self.assertResults(self.job, [(4.0, '')])
 
     def test_list_modules(self):

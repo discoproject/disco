@@ -49,15 +49,3 @@ class DataError(DiscoError):
 
 class CommError(DataError):
     """An error caused by the inability to access a resource over the network."""
-
-class ModUtilImportError(DiscoError, ImportError):
-    """An error raised by :mod:`disco.modutil` when it can't find a module."""
-    def __init__(self, error, function):
-        self.error    = error
-        self.function = function
-
-    def __str__(self):
-        # XXX! Add module name below
-        return ("%s: Could not find module defined in %s. Maybe it is a typo. "
-                "See documentation of the required_modules parameter for details "
-                "on how to include modules." % (self.error, self.function.func_name))

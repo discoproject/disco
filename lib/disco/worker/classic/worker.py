@@ -35,7 +35,7 @@ class Worker(worker.Worker):
                   to nodes by default.
 
                   If guessing fails, or you have other requirements,
-                  see :mod:`disco.modutil` for options.
+                  see :mod:`disco.worker.classic.modutil` for options.
 
     :type  map: :func:`disco.worker.classic.func.map`
     :param map: a function that defines the map task.
@@ -126,11 +126,8 @@ class Worker(worker.Worker):
                               so they are available relative to the working directory
                               of the worker.
 
-    :type  required_modules: list of modules or module names
+    :type  required_modules: see :ref:`modspec`
     :param required_modules: required modules to send with the worker.
-
-                             .. versionchanged:: 0.4
-                                Can also be a list of module objects.
 
     :type  merge_partitions: bool
     :param merge_partitions: whether or not to merge partitioned inputs during reduce.
@@ -223,8 +220,8 @@ class Worker(worker.Worker):
         return defaults
 
     def jobzip(self, job, **jobargs):
-        from disco.modutil import find_modules
         from disco.util import iskv
+        from disco.worker.classic.modutil import find_modules
         jobzip = super(Worker, self).jobzip(job, **jobargs)
         def get(key):
             return self.getitem(key, job, jobargs)
