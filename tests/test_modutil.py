@@ -4,6 +4,10 @@ from disco.error import ModUtilImportError
 
 import sys, os
 
+support = os.path.join(os.path.dirname(__file__), 'support')
+mod1req = ('mod1', os.path.normpath(os.path.join(support, 'mod1.py')))
+mod2req = ('mod2', os.path.normpath(os.path.join(support, 'mod2.py')))
+
 def system_modules():
     os.path.abspath('')
     random.random()
@@ -24,6 +28,13 @@ class ModUtilJob(TestJob):
         x, y = [float(x) for x in e.split('|')]
         yield mod1.plusceil(x, y) + math.ceil(1.5), ''
 
+class RequiredFilesJob(TestJob):
+    @staticmethod
+    def map(e, params):
+        x = extramodule1.magic(int(e))
+        y = extramodule2.kungfu(x)
+        yield '', y
+
 class ModUtilTestCase(TestCase):
     def serve(self, path):
         return '%s\n' % path
@@ -31,9 +42,9 @@ class ModUtilTestCase(TestCase):
     def setUp(self):
         super(ModUtilTestCase, self).setUp()
         self.sys_path = sys.path
-        self.support  = os.path.join(os.path.dirname(__file__), 'support')
-        sys.path.append(self.support)
-        os.environ['PYTHONPATH'] += ':%s' % self.support
+        sys.path.append(support)
+        python_path = os.getenv('PYTHONPATH', '').split(':')
+        os.environ['PYTHONPATH'] = ':'.join(python_path + [support])
 
     def tearDown(self):
         super(ModUtilTestCase, self).tearDown()
@@ -55,10 +66,7 @@ class ModUtilTestCase(TestCase):
         self.assertRaises(ModUtilImportError, lambda: modutil.find_modules([missing_module]))
 
     def test_recursive(self):
-        self.assertFindsModules([recursive_module],
-                                [('mod1', os.path.normpath(os.path.join(self.support, 'mod1.py'))),
-                                 ('mod2', os.path.normpath(os.path.join(self.support, 'mod2.py')))],
-                                send_modules=True)
+        self.assertFindsModules([recursive_module], [mod1req, mod2req], send_modules=True)
 
     def test_norecursive(self):
         self.assertFindsModules([recursive_module], ['mod1'], recurse=False)
@@ -74,9 +82,10 @@ class ModUtilTestCase(TestCase):
         self.assertResults(self.job, [(4.0, '')])
 
     def test_list_modules(self):
-        reqs = ['math',
-                ('mod1', os.path.normpath(os.path.join(self.support, 'mod1.py'))),
-                ('mod2', os.path.normpath(os.path.join(self.support, 'mod2.py')))]
         self.job = ModUtilJob().run(input=self.test_server.urls(['0.5|1.2']),
-                                    required_modules=reqs)
+                                    required_modules=['math', mod1req, mod2req])
         self.assertResults(self.job, [(4.0, '')])
+
+    def test_required_files(self):
+        self.job = RequiredFilesJob().run(input=self.test_server.urls([123]))
+        self.assertResults(self.job, [('', 123 ** 2 + 2)])
