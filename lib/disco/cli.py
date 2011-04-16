@@ -225,8 +225,7 @@ class Master(clx.server.Server):
 
     @property
     def env(self):
-        env = os.environ.copy()
-        env.update(self.settings.env)
+        env = self.settings.env
         env.update({'DISCO_MASTER_PID': self.pid_file,
                     'DISCO_SETTINGS': ','.join(self.settings.defaults)})
         return env

@@ -112,7 +112,6 @@ def test(program, *tests):
     from disco.test import TestRunner
     if not tests:
         tests = list(program.tests)
-    os.environ.update(program.settings.env)
     sys.path.insert(0, program.tests_path)
     TestRunner(program.settings).run(*tests)
 
