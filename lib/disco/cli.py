@@ -96,12 +96,20 @@ class Program(clx.Program):
         return command
 
     @classmethod
-    def job_command(self, function):
+    def input(cls, *inputs):
+        def maybe_list(seq):
+            return seq[0] if len(seq) == 1 else seq
+        def maybe_lists(inputs):
+            return [maybe_list(i.split()) for i in inputs]
+        return maybe_lists(inputs or fileinput.input(inputs))
+
+    @classmethod
+    def job_command(cls, function):
         def job_function(program, *jobnames):
             return function(program,
                             *(program.job_history(j) for j in jobnames))
         job_function.__doc__ = function.__doc__
-        return self.command(function.__name__)(job_function)
+        return cls.command(function.__name__)(job_function)
 
     def blobs(self, *tags):
         ignore_missing = self.options.ignore_missing
@@ -113,13 +121,6 @@ class Program(clx.Program):
         if args:
             raise Exception("unrecognized command: %s" % ' '.join(args))
         print self.disco
-
-    def input(self, *inputs):
-        def maybe_list(seq):
-            return seq[0] if len(seq) == 1 else seq
-        def maybe_lists(inputs):
-            return [maybe_list(i.split()) for i in inputs]
-        return maybe_lists(inputs or fileinput.input(inputs))
 
     def job_history(self, jobname):
         if jobname == '@':
