@@ -153,7 +153,8 @@ class Program(Command):
 If this is not what you want, see the `--help` option
                 """ % (self.name,
                        '\n\t\t'.join('%s = %s' % item
-                                     for item in sorted(self.settings.env.iteritems()))))
+                                     for item in sorted((k, self.settings[k])
+                                                        for k in self.settings.defaults))))
             sys.stdout.write("\n")
 
         if self.options.help:
