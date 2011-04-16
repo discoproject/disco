@@ -3,6 +3,7 @@ from random import random
 from disco.json import loads
 from disco.job import JobPack
 from disco.test import TestCase
+from disco.error import JobError
 
 def random_bytes(size):
     return ''.join(chr(int(random() * 255)) for x in xrange(size))
@@ -66,3 +67,25 @@ class JobPackInfoTestCase(TestCase):
         status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
         self.assertEquals(status, 'error')
         self.assertTrue(response.find("invalid prefix") >= 0)
+
+class JobPackLengthTestCase(TestCase):
+    def test_badlength(self):
+        jobenvs, jobzip, jobdata = {}, '0'*64, '0'*64
+        jobdict = {'prefix':'JobPackBadLength', 'scheduler':{}, 'input':["raw://data"],
+                   "map?":True, 'worker':"w", 'owner':"o", 'nr_reduces':"2"}
+        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata).dumps()
+        jobpack = jobpack[:(len(jobpack)-len(jobdata)-1)]
+        status, response = loads(self.disco.request('/disco/job/new', jobpack))
+        self.assertEquals(status, 'error')
+        self.assertTrue(response.find("invalid_header") >= 0)
+
+    # Zip extraction failures are currently treated as non-fatal errors.
+    #
+    # def test_badzip(self):
+    #     jobenvs, jobzip, jobdata = {}, '0'*64, '0'*64
+    #     jobdict = {'prefix':'JobPackBadZip', 'scheduler':{}, 'input':["raw://data"],
+    #                "map?":True, 'worker':"w", 'owner':"o", 'nr_reduces':"2"}
+    #     jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata).dumps()
+    #     status, jobname = loads(self.disco.request('/disco/job/new', jobpack))
+    #     self.assertEquals(status, 'ok')
+    #     self.assertRaises(JobError, lambda: self.disco.wait(jobname))
