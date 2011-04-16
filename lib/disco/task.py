@@ -15,9 +15,6 @@ class Task(object):
     Encapsulates the information specific to a particular
     :term:`task` coming from the master.
 
-    Provides convenience functions to :class:`Workers <disco.worker.Worker>`,
-    for opening inputs and outputs, and other common operations.
-
     .. attribute:: host
 
         The name of the host this task is running on.

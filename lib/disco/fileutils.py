@@ -196,6 +196,10 @@ class AtomicFile(file):
 
 class Wait(Exception):
     """File objects can raise this if reading will block."""
+    retry_after = 1
+    def __init__(self, retry_after=None):
+        if retry_after is not None:
+            self.retry_after = retry_after
 
 def sync(fd):
     fd.flush()

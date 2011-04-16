@@ -537,7 +537,8 @@ def unix_sort(filename, sort_buffer_size='10%'):
                                '-T', '.',
                                '-S', sort_buffer_size,
                                '-o', filename,
-                               filename])
+                               filename],
+                              env={'LC_ALL': 'C'})
     except subprocess.CalledProcessError, e:
         raise DataError("Sorting %s failed: %s" % (filename, e), filename)
 

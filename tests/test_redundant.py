@@ -1,5 +1,6 @@
-from disco.test import TestCase, TestJob, FailedReply
 from disco.core import result_iterator
+from disco.error import DataError
+from disco.test import TestCase, TestJob, FailedReply
 
 class RedundantJob(TestJob):
     @staticmethod
@@ -38,7 +39,7 @@ class RedundantOutputTestCase(TestCase):
         def corrupt_reader(fd, size, url, params):
             yield 'hello'
             if 'corrupt' in url:
-                raise Exception("Corrupt!")
+                raise DataError("Corrupt!", url)
             yield 'there'
         self.assertAllEqual(result_iterator([['raw://corrupt'] * 9 +
                                              ['raw://decent']],
