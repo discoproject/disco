@@ -57,7 +57,7 @@ extract(JobPack, JobHome) ->
             ok = ensure_executable_worker(JobPack, JobHome),
             Files;
         {error, Reason} ->
-            throw({"Couldn't extract jobhome", JobHome, Reason})
+            exit({"Couldn't extract jobhome", JobHome, Reason})
     end.
 
 -spec extracted(nonempty_string()) -> bool().
@@ -186,7 +186,6 @@ valid(<<?MAGIC:16/big,
         {error, E} -> {error, E};
         _ -> ok
     end;
-    % FIXME: check zip for validity
 valid(_JobPack) -> {error, invalid_header}.
 
 -spec validate_prefix(binary() | list()) -> nonempty_string().

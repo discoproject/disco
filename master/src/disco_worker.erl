@@ -99,6 +99,9 @@ handle_cast(start, #state{task = Task, master = Master} = State) ->
             {noreply, State};
         {error, killed} ->
             {stop, {shutdown, {error, "Job pack extraction timeout"}}, State};
+        {error, Reason} ->
+            Msg = io_lib:format("Jobpack extraction failed: ~p", [Reason]),
+            {stop, {shutdown, {error, Msg}}, State};
         {'EXIT', {timeout, _}} ->
             {stop, {shutdown, {error, "Job initialization timeout"}}, State}
     end;
@@ -230,7 +233,7 @@ make_jobhome(JobName, Master) ->
         true ->
             ok;
         false ->
-            disco:make_dir(JobHome),
+            {ok, _} = disco:make_dir(JobHome),
             JobPack =
                 case jobpack:exists(JobHome) of
                     true ->
