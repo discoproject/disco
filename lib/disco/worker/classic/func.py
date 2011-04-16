@@ -530,6 +530,8 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
 def unix_sort(filename, sort_buffer_size='10%'):
     import subprocess
     try:
+        env = os.environ.copy()
+        env['LC_ALL'] = 'C'
         subprocess.check_call(['sort',
                                '-z',
                                '-t', '\xff',
@@ -538,7 +540,7 @@ def unix_sort(filename, sort_buffer_size='10%'):
                                '-S', sort_buffer_size,
                                '-o', filename,
                                filename],
-                              env={'LC_ALL': 'C'})
+                               env=env)
     except subprocess.CalledProcessError, e:
         raise DataError("Sorting %s failed: %s" % (filename, e), filename)
 
