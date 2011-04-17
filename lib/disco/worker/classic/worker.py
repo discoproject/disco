@@ -253,10 +253,6 @@ class Worker(worker.Worker):
             self[key] = self.getitem(key, job, jobargs)
         assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
 
-        def open_hook(file, size, url):
-            return file
-        self.open_hook = open_hook
-
         params = self['params']
         if isinstance(self[task.mode], dict):
             params = self['ext_params']
@@ -339,17 +335,12 @@ class Worker(worker.Worker):
         if direction == 'in':
             from itertools import chain
             streams = filter(None, chain(self['%s_input_stream' % mode],
-                                         (self['%s_reader' % mode],
-                                          self.open_hook)))
+                                         [self['%s_reader' % mode]]))
         else:
             streams = self['%s_output_stream' % mode]
         def open(url):
             return ClassicFile(url, streams, params)
         return open
-
-    @staticmethod
-    def open_hook(file, size, url):
-        return file
 
 class ClassicFile(object):
     def __init__(self, url, streams, params, fd=None, size=None):
