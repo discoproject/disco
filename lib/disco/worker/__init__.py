@@ -336,10 +336,10 @@ class Worker(dict):
             # check the number of open file descriptors (under proc), warn if close to max
             # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
             # also check for other known reasons for error, such as if disk is full
-            cls.send('DAT', traceback.format_exc())
+            cls.send('ERROR', traceback.format_exc())
             raise
         except Exception, e:
-            cls.send('ERR', MessageWriter.force_utf8(traceback.format_exc()))
+            cls.send('FATAL', MessageWriter.force_utf8(traceback.format_exc()))
             raise
 
     @classmethod
@@ -360,7 +360,7 @@ class Worker(dict):
 
     @classmethod
     def get_input(cls, id):
-        done, inputs = cls.send('INP', ['include', [id]])
+        done, inputs = cls.send('INPUT', ['include', [id]])
         _id, status, replicas = inputs[0]
 
         if status == 'busy':
@@ -372,7 +372,7 @@ class Worker(dict):
     @classmethod
     def get_inputs(cls, done=False, exclude=()):
         while not done:
-            done, inputs = cls.send('INP')
+            done, inputs = cls.send('INPUT')
             for id, status, urls in inputs:
                 if id not in exclude:
                     yield IDedInput((cls, id))
@@ -381,7 +381,7 @@ class Worker(dict):
     @classmethod
     def get_task(cls):
         from disco.task import Task
-        return Task(**dict((str(k), v) for k, v in cls.send('TSK').items()))
+        return Task(**dict((str(k), v) for k, v in cls.send('TASK').items()))
 
     def save_outputs(self, jobname, master=None):
         from disco.ddfs import DDFS
@@ -389,12 +389,12 @@ class Worker(dict):
             for output in self.outputs.values():
                 output.file.close()
                 yield output.path
-        self.send('OUT', [DDFS(master).save(jobname, paths()), 'tag'])
+        self.send('OUTPUT', [DDFS(master).save(jobname, paths()), 'tag'])
 
     def send_outputs(self):
         for output in self.outputs.values():
             output.file.close()
-            self.send('OUT', [output.path, output.type, output.partition])
+            self.send('OUTPUT', [output.path, output.type, output.partition])
 
 class IDedInput(tuple):
     @property
@@ -410,7 +410,7 @@ class IDedInput(tuple):
         return self.worker.get_input(self.id)
 
     def unavailable(self, tried):
-        return self.worker.send('EREP', [self.id, list(tried)])
+        return self.worker.send('INPUT_ERR', [self.id, list(tried)])
 
     def __str__(self):
         return '%s' % [url for rid, url in self.replicas]
