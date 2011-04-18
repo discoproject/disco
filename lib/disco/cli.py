@@ -18,7 +18,7 @@ class Option(Opt):
     STORE_ACTIONS = Opt.STORE_ACTIONS + actions
     TYPED_ACTIONS = Opt.TYPED_ACTIONS + actions
     ALWAYS_TYPED_ACTIONS = Opt.ALWAYS_TYPED_ACTIONS + actions
-    TYPES = ('reify',)
+    TYPES = Opt.TYPES + ('reify',)
     TYPE_CHECKER = copy(Opt.TYPE_CHECKER)
     TYPE_CHECKER['reify'] = check_reify
 
