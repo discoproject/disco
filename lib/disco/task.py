@@ -42,11 +42,13 @@ class Task(object):
     """
     def __init__(self,
                  host='',
+                 jobfile='',
                  jobname='',
                  master=None,
                  mode=None,
                  taskid=-1):
         self.host = host
+        self.jobfile = jobfile
         self.jobname = jobname
         self.master = master
         self.mode = mode
@@ -56,6 +58,11 @@ class Task(object):
                                     taskid,
                                     hexhash(str((time.time()))),
                                     os.getpid())
+
+    @property
+    def jobpack(self):
+        from disco.job import JobPack
+        return JobPack.load(open(self.jobfile))
 
     @property
     def jobpath(self):

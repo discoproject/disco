@@ -328,8 +328,9 @@ class Worker(dict):
             sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
             sys.stdout = MessageWriter(cls)
             cls.send('PID', os.getpid())
-            worker, job, jobargs = cls.unpack(cls.get_jobpack())
-            worker.start(cls.get_task(), job, **jobargs)
+            task = cls.get_task()
+            worker, job, jobargs = cls.unpack(task.jobpack)
+            worker.start(task, job, **jobargs)
             cls.send('END')
         except (DataError, EnvironmentError, MemoryError), e:
             # check the number of open file descriptors (under proc), warn if close to max
@@ -376,11 +377,6 @@ class Worker(dict):
                 if id not in exclude:
                     yield IDedInput((cls, id))
                     exclude += (id, )
-
-    @classmethod
-    def get_jobpack(cls):
-        from disco.job import JobPack
-        return JobPack.load(open(cls.send('JOB')))
 
     @classmethod
     def get_task(cls):
