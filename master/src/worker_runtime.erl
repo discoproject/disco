@@ -32,7 +32,6 @@ get_pid(#state{child_pid = Pid}) ->
 %-spec payload_type(binary()) -> json_validator:spec() | 'none'.
 payload_type(<<"PID">>) -> integer;
 payload_type(<<"VSN">>) -> string;
-payload_type(<<"SET">>) -> string;
 payload_type(<<"TSK">>) -> string;
 payload_type(<<"MSG">>) -> string;
 payload_type(<<"DAT">>) -> string;
@@ -90,18 +89,19 @@ do_handle({<<"VSN">>, <<"1.0">>}, S) ->
 do_handle({<<"VSN">>, Ver}, _S) ->
     {error, {fatal, ["Invalid worker version: ", io_lib:format("~p", [Ver])]}};
 
-do_handle({<<"SET">>, _Body}, S) ->
-    Port = list_to_integer(disco:get_setting("DISCO_PORT")),
-    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
-    Settings = {struct, [{<<"port">>, Port},
-                         {<<"put_port">>, PutPort}]},
-    {ok, {"SET", Settings}, S};
-
 do_handle({<<"TSK">>, _Body}, #state{task = Task} = S) ->
     Master = disco:get_setting("DISCO_MASTER"),
     JobFile = jobpack:jobfile(disco_worker:jobhome(Task#task.jobname)),
+    Port = list_to_integer(disco:get_setting("DISCO_PORT")),
+    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
+    DDFSData = disco:get_setting("DDFS_ROOT"),
+    DiscoData = disco:get_setting("DISCO_DATA"),
     TaskInfo = {struct, [{<<"taskid">>, Task#task.taskid},
                          {<<"master">>, list_to_binary(Master)},
+                         {<<"port">>, Port},
+                         {<<"put_port">>, PutPort},
+                         {<<"ddfs_data">>, list_to_binary(DDFSData)},
+                         {<<"disco_data">>, list_to_binary(DiscoData)},
                          {<<"mode">>, list_to_binary(Task#task.mode)},
                          {<<"jobfile">>, list_to_binary(JobFile)},
                          {<<"jobname">>, list_to_binary(Task#task.jobname)},
