@@ -383,7 +383,7 @@ def parse_message(msg):
     if type == '**<MSG':
         Worker.send('MSG', payload)
     elif type == '**<ERR':
-        Worker.send('ERR', payload)
+        Worker.send('FATAL', payload)
     else:
         raise DiscoError("Invalid message type in: %s" % msg);
 
