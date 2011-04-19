@@ -313,7 +313,7 @@ job_event_handler(JobName, JobCoordinator) ->
     {ok, File} = file:open(event_log(JobName), [append, raw]),
     gen_server:call(event_server, {job_initialized, JobName, self()}),
     gen_server:reply(JobCoordinator, {ok, JobName}),
-    timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
+    {ok, _} = timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
     job_event_handler_do(File, [], 0).
 
 job_event_handler_do(File, Buf, BufSize) when BufSize > ?EVENT_BUFFER_SIZE ->
@@ -325,7 +325,7 @@ job_event_handler_do(File, Buf, BufSize) ->
             job_event_handler_do(File, [Line|Buf], BufSize + 1);
         flush ->
             flush_buffer(File, Buf),
-            timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
+            {ok, _} = timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
             job_event_handler_do(File, [], 0);
         done ->
             flush_buffer(File, Buf),
