@@ -138,21 +138,22 @@ TASK
    "port"
         The value of the :envvar:`DISCO_PORT` setting, which is the
         port the Disco master is running on, and the port used to
-        retrieve data from Disco and DDFS.  This is used to convert
-        URLs with the `disco` and `ddfs` schemes into `http` URLs.
+        retrieve data from Disco and :ref:`DDFS <ddfs>`.  This is used
+        to convert URLs with the `disco` and `ddfs` schemes into
+        `http` URLs.
 
    "put_port"
         The value of the :envvar:`DDFS_PUT_PORT` setting.  This can
-        be used by the worker to upload results to DDFS.
+        be used by the worker to upload results to :ref:`DDFS <ddfs>`.
 
    "disco_data"
         The value of the :envvar:`DISCO_DATA` setting.
 
    "ddfs_data"
         The value of the :envvar:`DDFS_ROOT` setting.  This can be
-        used to read DDFS data directly from the local filesystem
-        after it has been ascertained that the DDFS data is indeed
-        local to the current host.
+        used to read :ref:`DDFS <ddfs>` data directly from the local
+        filesystem after it has been ascertained that the :ref:`DDFS
+        <ddfs>` data is indeed local to the current host.
 
    "jobfile"
         The path to the :ref:`jobpack` file for the current job.  This
@@ -288,7 +289,7 @@ OUTPUT
 
    The `output_type` can be either `'disco'`, `'part'` or `'tag'`.
    `'disco'` and `'part'` outputs are used for local outputs, while
-   `'tag'` specifies a location within DDFS.
+   `'tag'` specifies a location within :ref:`DDFS <ddfs>`.
 
    Local outputs have locations that are paths relative to `jobhome`.
 
@@ -318,7 +319,9 @@ ERROR
    Report a failed input or transient error to Disco.
 
    The worker can send a `ERROR` message with a payload containing the
-   error message as a string.  Disco should respond with an `'OK'`.
+   error message as a string.  This message will terminate the worker,
+   but not the job.  The current task will be retried by Disco.  See
+   also the information above for the `END` message.
 
 .. _FATAL:
 
@@ -328,8 +331,8 @@ FATAL
    Report a fatal error to the master.
 
    The worker can send an `FATAL` message, with a payload containig
-   the error message as a string.  See the information above for the
-   `END` message.
+   the error message as a string.  This message will terminate the
+   entire job.  See also the information above for the `END` message.
 
 Messages from Disco to the Worker
 =================================
@@ -354,3 +357,52 @@ RETRY
 -----
 
    A possible response from Disco for an `INPUT_ERR` message, as described above.
+
+.. _protocol_session:
+
+Sessions of the Protocol
+========================
+
+On startup, the worker should first send the `VSN` and `PID` messages,
+and then request the `TASK` information.  The `taskid` and `mode` in
+the `TASK` response can be used, along with the current system time,
+to create a working directory within which to store any scratch data
+that will not interact with other, possibly concurrent, workers
+computing other tasks of the same job.  These messages can be said to
+constitute the initial handshake of the protocol.
+
+The crucial messages the worker will then send are the `INPUT` and
+`OUTPUT` messages, and often the `INPUT_ERR` messages.  The processing
+of the responses to `INPUT` and `INPUT_ERR` will be determined by the
+application.  The worker will usually end a successful session with
+one or more `OUTPUT` messages followed by the `END` message.  Note
+that it is possible for a successful session to have several
+`INPUT_ERR` messages, due to transient network conditions in the
+cluster as well as machines going down and recovering.
+
+An unsuccessful session is normally ended with an `ERROR` or `FATAL`
+message from the worker.  An `ERROR` message terminates the worker,
+but does not terminate the job; the task will possibly be retried on
+another host in the cluster.  A `FATAL` message, however, terminates
+both the worker, and the entire job.
+
+.. _new_worker:
+
+Considerations when implementing a new Worker
+=============================================
+
+You will need some simple and usually readily available tools when
+writing a new worker that implements the Disco protocol.  Parsing and
+generating messages in the protocol requires a :term:`JSON` parser and
+generator.  Fetching data from the replica locations specified in the
+Disco `INPUT` responses will need an implementation of a simple HTTP
+client.  This HTTP client and :term:`JSON` tool can also be used to
+persistently store computed results in :ref:`DDFS <ddfs>` using the
+REST API.
+
+The protocol does not specify the data contents of the Disco job
+inputs or outputs.  This leaves the implementor freedom to choose an
+appropriate format for marshalling and parsing data output by the
+worker tasks.  This choice will have an impact on how efficiently the
+computation is performed, and how much disk space the marshalled
+output uses.
