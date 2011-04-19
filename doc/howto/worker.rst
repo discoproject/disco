@@ -1,8 +1,8 @@
 .. _worker_protocol:
 
-===========================
-The Worker Message Protocol
-===========================
+=========================
+The Disco Worker Protocol
+=========================
 
 .. note:: This protocol is used by a :term:`worker` in Disco.
           You don't need to write your own worker to run a :term:`job`,
