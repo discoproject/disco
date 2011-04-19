@@ -241,9 +241,9 @@ class Worker(worker.Worker):
             if iskv(mod):
                 jobzip.writepath(mod[1])
         for func in ('map', 'reduce'):
-            if isinstance(self[func], dict):
-                for path, bytes in self[func].iteritems():
-                    jobzip.writebytes(os.path.join('ext.%s' % func, path), bytes)
+            if isinstance(get(func), dict):
+                for path, bytes in get(func).iteritems():
+                    jobzip.writestr(os.path.join('ext.%s' % func, path), bytes)
         return jobzip
 
     def run(self, task, job, **jobargs):

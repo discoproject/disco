@@ -110,6 +110,11 @@ Note that extra care must be taken with buffering of the standard output, so
 that the output pairs are actually sent to the receiving program, and not kept
 in an internal buffer. Call *fflush(stdout)* if unsure.
 
+External program is started with one command line argument: "map" or "reduce".
+This makes it possible to use a single binary to handle
+both map and reduce by using the command line argument to choose the
+function it should execute.
+
 Map and reduce tasks follow slightly different interfaces, as specified below.
 
 External map
@@ -340,18 +345,24 @@ In addition, the library contains the following utility functions:
    Copies *src* to *dst*. Grows *dst* if needed, or allocates a new
    :c:type:`p_entry` if *dst = NULL*.
 """
-import os, time, struct, marshal
+import os, time, struct, marshal, stat, select
 from subprocess import Popen, PIPE
 from netstring import decode_netstring_str, encode_netstring_fd
 from disco.util import msg
 from disco.error import DiscoError
+from disco.worker import Worker
 
 MAX_ITEM_SIZE = 1024**3
-MAX_NUM_OUTPUT = 1000000
 
 proc = None
+poll = None
 
-def pack_kv(k, v):
+def pack_kv(e):
+    if isinstance(e, tuple):
+        k, v = e
+    else:
+        k = ''
+        v = e
     return struct.pack("I", len(k)) + k +\
            struct.pack("I", len(v)) + v
 
@@ -366,57 +377,66 @@ def unpack_kv():
     v = proc.stdout.read(le)
     return k, v
 
-def map(e, params):
-    if isinstance(e, basestring):
-        k = ""
-        v = e
+def parse_message(msg):
+    type, payload = msg.split('>', 1)
+    payload = payload.strip()
+    if type == '**<MSG':
+        Worker.send('MSG', payload)
+    elif type == '**<ERR':
+        Worker.send('ERR', payload)
     else:
-        k, v = e
-    proc.stdin.write(pack_kv(k, v))
-    proc.stdin.flush()
-    num = struct.unpack("I", proc.stdout.read(4))[0]
-    r = [unpack_kv() for i in range(num)]
-    return r
+        raise DiscoError("Invalid message type in: %s" % msg);
 
-def reduce(red_in, red_out, params):
-    import select
-    p = select.poll()
-    eof = select.POLLHUP | select.POLLNVAL | select.POLLERR
-    p.register(proc.stdout, select.POLLIN | eof)
-    p.register(proc.stdin, select.POLLOUT | eof)
-    MAX_NUM_OUTPUT = MAX_NUM_OUTPUT
-
-    tt = 0
+def communicate(input_iter, oneshot=False):
+    poll.register(proc.stdin)
+    stdout = proc.stdout.fileno()
+    stderr = proc.stderr.fileno()
     while True:
-        for fd, event in p.poll():
+        for fd, event in poll.poll():
             if event & (select.POLLNVAL | select.POLLERR):
                 raise DiscoError("Pipe to the external process failed")
-            elif event & select.POLLIN:
-                num = struct.unpack("I",
-                    proc.stdout.read(4))[0]
-                if num > MAX_NUM_OUTPUT:
-                    raise DiscoError("External output limit "\
-                        "exceeded: %d > %d" %\
-                        (num, MAX_NUM_OUTPUT))
+            elif event & select.POLLIN and fd == stdout:
+                num = struct.unpack("I", proc.stdout.read(4))[0]
                 for i in range(num):
-                    red_out.add(*unpack_kv())
-                    tt += 1
+                    yield unpack_kv()
+                if oneshot:
+                    return
+            elif event & select.POLLIN and fd == stderr:
+                parse_message(proc.stderr.readline())
             elif event & select.POLLOUT:
                 try:
-                    msg = pack_kv(*red_in.next())
+                    msg = pack_kv(input_iter.next())
                     proc.stdin.write(msg)
                     proc.stdin.flush()
                 except StopIteration:
-                    p.unregister(proc.stdin)
-                    proc.stdin.close()
-            else:
+                    poll.unregister(proc.stdin)
+                    if not oneshot:
+                        proc.stdin.close()
+            elif event & select.POLLHUP:
                 return
+
+def map(e, params):
+    return communicate(iter((e,)), oneshot=True)
+
+def reduce(iter, params):
+    return communicate(iter)
+
+def register_poll():
+    global poll
+    poll = select.poll()
+    eof = select.POLLHUP | select.POLLNVAL | select.POLLERR
+    poll.register(proc.stdout, select.POLLIN | eof)
+    poll.register(proc.stderr, select.POLLIN | eof)
 
 def prepare(params, mode):
     global proc
     # op -> worker
     # find required files
-    proc = Popen([os.path.join('ext.%s' % mode, 'op')], stdin=PIPE, stdout=PIPE)
+    path = os.path.join('ext.%s' % mode, 'op')
+    os.chmod(path, stat.S_IEXEC)
+    proc = Popen([path, mode], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    register_poll()
+
     if params and isinstance(params, dict):
         proc.stdin.write(encode_netstring_fd(params))
     else:
