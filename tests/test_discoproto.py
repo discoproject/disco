@@ -7,9 +7,12 @@ from disco.test import TestCase
 from disco.worker.classic.func import disco_input_stream
 
 class DiscoProtoTestCase(TestCase):
-    data = [(randint(0, 100) * choice(ascii_lowercase), randint(0, 1e6))
-            for i in range(1000000)] + [('', '')]
-    size = sum(len(k) + len(str(v)) for k, v in data) / 1024**2
+
+    def setUp(self):
+        super(DiscoProtoTestCase, self).setUp()
+        self.data = [(randint(0, 100) * choice(ascii_lowercase), randint(0, 1e6))
+                     for i in range(1000000)] + [('', '')]
+        self.size = sum(len(k) + len(str(v)) for k, v in self.data) / 1024**2
 
     def encode(self, stream, data):
         t = time.time()
