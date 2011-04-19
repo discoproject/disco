@@ -345,7 +345,7 @@ In addition, the library contains the following utility functions:
    Copies *src* to *dst*. Grows *dst* if needed, or allocates a new
    :c:type:`p_entry` if *dst = NULL*.
 """
-import os, time, struct, marshal, stat, select
+import os, time, struct, marshal, stat, select, sys
 from subprocess import Popen, PIPE
 from netstring import decode_netstring_str, encode_netstring_fd
 from disco.util import msg
@@ -378,14 +378,18 @@ def unpack_kv():
     return k, v
 
 def parse_message(msg):
-    type, payload = msg.split('>', 1)
-    payload = payload.strip()
-    if type == '**<MSG':
-        Worker.send('MSG', payload)
-    elif type == '**<ERR':
-        Worker.send('FATAL', payload)
-    else:
-        raise DiscoError("Invalid message type in: %s" % msg);
+    try:
+        type, payload = msg.split('>', 1)
+        payload = payload.strip()
+        if type == '**<MSG':
+            Worker.send('MSG', payload)
+        elif type == '**<ERR':
+            Worker.send('FATAL', payload)
+        else:
+            raise Exception
+    except:
+        # let master handle erroneous output
+        sys.stderr.write(msg)
 
 def communicate(input_iter, oneshot=False):
     poll.register(proc.stdin)
