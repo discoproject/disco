@@ -103,7 +103,7 @@ copy({Src, Size}, JobHome) ->
     {ok, Dst} = prim_file:open(TmpFile, [raw, binary, write]),
     ok = copy(Src, Dst, Size),
     ok = prim_file:close(Dst),
-    file:close(Src),
+    _ = file:close(Src),
     ok = prim_file:rename(TmpFile, JobFile),
     {ok, JobFile}.
 

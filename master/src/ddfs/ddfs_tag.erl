@@ -183,7 +183,7 @@ handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
             S1 = authorize(write, Token, ReplyTo, S, Do),
             {noreply, S1, S1#state.timeout};
         false ->
-            send_replies(ReplyTo, {error, invalid_attribute_value}),
+            _ = send_replies(ReplyTo, {error, invalid_attribute_value}),
             {noreply, S, S#state.timeout}
     end;
 
@@ -194,7 +194,7 @@ handle_cast({{delete_attrib, Field, Token}, ReplyTo},
     {noreply, S1, S1#state.timeout};
 
 handle_cast({{delete_attrib, _Field, _Token}, ReplyTo}, S) ->
-    send_replies(ReplyTo, {error, unknown_attribute}),
+    _ = send_replies(ReplyTo, {error, unknown_attribute}),
     {noreply, S, S#state.timeout};
 
 % Special operations for the +deleted metatag
@@ -253,7 +253,7 @@ authorize(TokenType, Token, ReplyTo, State, Op) ->
 authorize(TokenType, Token, ReplyTo, ReadToken, WriteToken, S, Op) ->
     case ddfs_tag_util:check_token(TokenType, Token, ReadToken, WriteToken) of
         false ->
-            send_replies(ReplyTo, {error, unauthorized}),
+            _ = send_replies(ReplyTo, {error, unauthorized}),
             S;
         TokenPrivilege ->
             Op({TokenPrivilege, Token})
@@ -277,7 +277,7 @@ do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls, S) ->
             NState = do_put(TokenInfo, urls, Merged, ReplyTo, S),
             NState#state{url_cache = Cache};
         false ->
-            send_replies(ReplyTo, {error, invalid_url_object}),
+            _ = send_replies(ReplyTo, {error, invalid_url_object}),
             S
     end.
 
@@ -444,16 +444,16 @@ do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
                             {ok, _} = remove_from_deleted(TagName);
                        true -> ok
                     end,
-                    send_replies(ReplyTo, {ok, DestUrls}),
+                    _ = send_replies(ReplyTo, {ok, DestUrls}),
                     S#state{data = {ok, TagContent},
                             replicas = DestNodes,
                             url_cache = false};
                 {error, _} = E ->
-                    send_replies(ReplyTo, E),
+                    _ = send_replies(ReplyTo, E),
                     S#state{url_cache = false}
             end;
         {error, _} = E ->
-            send_replies(ReplyTo, E),
+            _ = send_replies(ReplyTo, E),
             S
     end.
 
@@ -463,12 +463,12 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
     TagId = TagContent#tagcontent.id,
     case put_distribute({TagId, NewTagData}) of
         {ok, DestNodes, _DestUrls} ->
-            send_replies(ReplyTo, ok),
+            _ = send_replies(ReplyTo, ok),
             S#state{data = {ok, TagContent},
                     replicas = DestNodes,
                     url_cache = false};
         {error, _} = E ->
-            send_replies(ReplyTo, E),
+            _ = send_replies(ReplyTo, E),
             S#state{url_cache = false}
     end.
 

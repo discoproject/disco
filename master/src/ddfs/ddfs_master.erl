@@ -220,7 +220,7 @@ do_update_nodes(NewNodes, #state{nodes = Nodes, tags = Tags} = S) ->
                                      end || {Node, _WB, _RB} <- NewNodes]),
     if
         UpdatedNodes =/= Nodes ->
-            [gen_server:cast(Pid, {die, none}) || Pid <- gb_trees:values(Tags)],
+            _ = [gen_server:cast(Pid, {die, none}) || Pid <- gb_trees:values(Tags)],
             spawn(fun() ->
                           {ok, ReadableNodes, RBSize} =
                               do_get_readable_nodes(UpdatedNodes, ReadBlacklist),

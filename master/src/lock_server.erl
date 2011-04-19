@@ -49,8 +49,8 @@ handle_info({'EXIT', Pid, Reason}, S) ->
     {value, {Key, TRef}} = gb_trees:lookup(Pid, S#state.procs),
     {value, Waiters} = gb_trees:lookup(Key, S#state.waiters),
     Msg = if Reason =:= normal -> ok; true -> {error, Reason} end,
-    [gen_server:reply(From, Msg) || From <- Waiters],
-    timer:cancel(TRef),
+    _ = [gen_server:reply(From, Msg) || From <- Waiters],
+    _ = timer:cancel(TRef),
     {noreply, S#state{procs = gb_trees:delete(Pid, S#state.procs),
                       waiters = gb_trees:delete(Key, S#state.waiters)}}.
 

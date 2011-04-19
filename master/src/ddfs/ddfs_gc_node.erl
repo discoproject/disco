@@ -10,8 +10,8 @@
 -spec gc_node(pid(), disco_util:timestamp()) -> 'orphans_done'.
 gc_node(Master, Now) ->
     process_flag(priority, low),
-    ets:new(tag, [named_table, set, private]),
-    ets:new(blob, [named_table, set, private]),
+    _ = ets:new(tag, [named_table, set, private]),
+    _ = ets:new(blob, [named_table, set, private]),
     {Vols, Root} = gen_server:call(ddfs_node, get_vols),
     {_, VolNames} = lists:unzip(Vols),
     traverse(Now, Root, VolNames, "blob", blob),

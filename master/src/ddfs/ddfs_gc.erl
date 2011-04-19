@@ -88,15 +88,15 @@ gc_objects(DeletedAges) ->
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
     put(blobk, list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS"))),
 
-    ets:new(gc_nodes, [named_table, set, private]),
-    ets:new(obj_cache, [named_table, set, private]),
+    _ = ets:new(gc_nodes, [named_table, set, private]),
+    _ = ets:new(obj_cache, [named_table, set, private]),
 
     {Tags, NumOk, NumFailed} = process_tags(),
 
     if NumOk > 0, NumFailed < TagMinK ->
         error_logger:info_report({"GC: Only", NumFailed,
             "failed nodes. Deleting is allowed."}),
-        [Pid ! done || {_, Pid} <- ets:tab2list(gc_nodes)],
+        _ = [Pid ! done || {_, Pid} <- ets:tab2list(gc_nodes)],
         orphan_server(ets:info(gc_nodes, size)),
         process_deleted(Tags, DeletedAges);
     true ->
@@ -124,7 +124,7 @@ process_tags() ->
     error_logger:info_report({"GC: Process tags"}),
     {OkNodes, Failed, Tags} = ddfs_master:get_tags(all),
     start_gc_nodes(OkNodes),
-    [process_tag(Tag) || Tag <- Tags],
+    _ = [process_tag(Tag) || Tag <- Tags],
     {Tags, length(OkNodes), length(Failed)}.
 
 -spec process_tag(binary()) -> 'ok'.
@@ -158,19 +158,21 @@ process_tag(Tag, TagId, TagUrls, TagReplicas) ->
         {fixed, NewUrls} ->
             % Run call in a separate process so post-timeout replies
             % won't pollute the gc process' inbox.
-            spawn(fun() ->
-                      Op = {put, urls, NewUrls, internal},
-                      ddfs_master:tag_operation(Op, Tag)
-                  end);
+            _ = spawn(fun() ->
+                          Op = {put, urls, NewUrls, internal},
+                          ddfs_master:tag_operation(Op, Tag)
+                      end),
+            ok;
         %%%
         %%% O5) Re-replicate tags that don't have enough replicas
         %%%
         _ when length(OkReplicas) < TagK ->
             error_logger:info_report({"GC: Re-replicating tag", Tag}),
-            spawn(fun() ->
-                      Op = {put, urls, TagUrls, internal},
-                      ddfs_master:tag_operation(Op, Tag)
-                  end);
+            _ = spawn(fun() ->
+                          Op = {put, urls, TagUrls, internal},
+                          ddfs_master:tag_operation(Op, Tag)
+                      end),
+            ok;
         _ ->
             ok
     end,

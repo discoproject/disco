@@ -172,7 +172,7 @@ handle_data_error(Task, Host) ->
     check_failure_rate(Task, MaxFail),
     spawn_link(fun() ->
                        {A1, A2, A3} = now(),
-                       random:seed(A1, A2, A3),
+                       _ = random:seed(A1, A2, A3),
                        T = Task#task.taskblack,
                        C = Task#task.fail_count + 1,
                        S = lists:min([C * ?FAILED_MIN_PAUSE, ?FAILED_MAX_PAUSE]) +

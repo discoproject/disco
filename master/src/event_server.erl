@@ -44,7 +44,7 @@ stop() ->
     gen_server:call(event_server, stop).
 
 init(_Args) ->
-    ets:new(event_files, [named_table]),
+    _ = ets:new(event_files, [named_table]),
     {ok, {dict:new(), dict:new()}}.
 
 json_list(List) -> json_list(List, []).
@@ -303,7 +303,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 delete_jobdir(JobName) ->
     Safe = string:chr(JobName, $.) + string:chr(JobName, $/),
     if Safe =:= 0 ->
-            os:cmd("rm -Rf " ++ disco:jobhome(JobName));
+            _ = os:cmd("rm -Rf " ++ disco:jobhome(JobName));
        true ->
             ok
     end.

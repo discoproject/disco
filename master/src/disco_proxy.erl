@@ -143,7 +143,7 @@ kill_proxy() ->
     case get_pid() of
         {ok, Pid} ->
             error_logger:info_report({"Killing PID", Pid}),
-            os:cmd(["kill -9 ", Pid]),
+            _ = os:cmd(["kill -9 ", Pid]),
             sleep(1000);
         _ -> ok
     end.

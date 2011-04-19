@@ -163,9 +163,9 @@ terminate(_Reason, S) ->
         Pid ->
             PidStr = integer_to_list(Pid),
             % Kill child processes of the worker process
-            os:cmd(["pkill -9 -P ", PidStr]),
+            _ = os:cmd(["pkill -9 -P ", PidStr]),
             % Kill the worker process
-            os:cmd(["kill -9 ",  PidStr])
+            _ = os:cmd(["kill -9 ",  PidStr])
     end.
 
 code_change(_OldVsn, State, _Extra) ->

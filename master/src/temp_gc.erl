@@ -60,15 +60,15 @@ process_dir([], _Purged, _Active) -> ok;
 process_dir([Dir|R], Purged, Active) ->
     Path = disco:data_path(node, Dir),
     {ok, Jobs} = prim_file:list_dir(Path),
-    [process_job(filename:join(Path, Job), Purged) ||
-        Job <- Jobs, ifdead(Job, Active)],
+    _ = [process_job(filename:join(Path, Job), Purged) ||
+            Job <- Jobs, ifdead(Job, Active)],
     process_dir(R, Purged, Active).
 
 -spec ifdead(string(), gb_set()) -> bool().
 ifdead(Job, Active) ->
     not gb_sets:is_member(list_to_binary(Job), Active).
 
--spec process_job(string(), gb_set()) -> 'ok' | string().
+-spec process_job(string(), gb_set()) -> 'ok'.
 process_job(JobPath, Purged) ->
     case prim_file:read_file_info(JobPath) of
         {ok, #file_info{type = directory, mtime = TStamp}} ->
@@ -79,7 +79,7 @@ process_job(JobPath, Purged) ->
             GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
             if IsPurged; Now - T > GCAfter ->
                 ddfs_delete(disco:oob_name(Job)),
-                os:cmd("rm -Rf " ++ JobPath);
+                _ = os:cmd("rm -Rf " ++ JobPath);
             true ->
                 ok
             end;
