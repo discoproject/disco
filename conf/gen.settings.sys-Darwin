@@ -3,31 +3,18 @@
 
 cat << EOF
 # Disco settings
-import os
-
 # --
 # -- You can modify these directories as you wish
 # --
 
-DISCO_HOME = "${TARGETDIR}"
+DISCO_HOME = "${TARGETLIB}"
 
 # Root directory for Disco data.
-DISCO_ROOT = "${DISCO_ROOT}"
-
-# Root directory for Disco logs.
-DISCO_LOG_DIR = "${DESTDIR}/var/log/disco/"
-
-# Root directory for the Disco PID file.
-DISCO_PID_DIR = "${DESTDIR}/var/run/disco/"
+DISCO_ROOT = "${TARGETSRV}"
 
 # --
 # -- Variables below this line rarely need to be modified
 # --
-
-# disco_worker is installed by setuptools to the system default bin directory
-DISCO_WORKER = "${TARGETBIN}/disco-worker"
-
-DISCO_MASTER_HOME = DISCO_HOME
 
 # Lighttpd for master and nodes runs on this port.
 # disco://host URIs are mapped to http://host:DISCO_PORT.

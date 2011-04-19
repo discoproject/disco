@@ -1,14 +1,14 @@
 import time, cStringIO
 from random import randint, choice
 from string import ascii_lowercase
-from disco.test import DiscoTestCase
-from disco.fileutils import DiscoOutput
-from disco.func import disco_input_stream
 from disco.error import DataError
+from disco.fileutils import DiscoOutputStream
+from disco.test import TestCase
+from disco.worker.classic.func import disco_input_stream
 
-class DiscoProtoTestCase(DiscoTestCase):
+class DiscoProtoTestCase(TestCase):
     data = [(randint(0, 100) * choice(ascii_lowercase), randint(0, 1e6))
-                for i in range(1000000)] + [('', '')]
+            for i in range(1000000)] + [('', '')]
     size = sum(len(k) + len(str(v)) for k, v in data) / 1024**2
 
     def encode(self, stream, data):
@@ -29,9 +29,8 @@ class DiscoProtoTestCase(DiscoTestCase):
               corrupt=False,
               ignore_corrupt=False,
               **kwargs):
-
         buf = cStringIO.StringIO()
-        stream = DiscoOutput(buf, version=version, **kwargs)
+        stream = DiscoOutputStream(buf, version=version, **kwargs)
         t = self.encode(stream, self.data)
         final_size = len(buf.getvalue())
         final_mb = final_size / 1024**2
@@ -55,21 +54,18 @@ class DiscoProtoTestCase(DiscoTestCase):
         return res
 
     def test_compress(self):
-        self.assertEquals(self.codec(compression_level=2),
-                          self.data, msg='decoding failed!')
+        self.assertEquals(self.codec(compression_level=2), self.data)
 
     def test_nocompress(self):
-        self.assertEquals(self.codec(compression_level=0),
-                          self.data, msg='decoding failed!')
+        self.assertEquals(self.codec(compression_level=0), self.data)
 
     def test_oldformat(self):
         data = [(str(k), str(v)) for k, v in self.data]
-        self.assertEquals(
-            self.codec(version=0), data, msg='decoding failed!')
+        self.assertEquals(self.codec(version=0), data)
 
     def test_corrupt(self):
-        self.assertRaises(DataError,
-            lambda: self.codec(compression_level=2, corrupt=True))
+        fn = lambda: self.codec(compression_level=2, corrupt=True)
+        self.assertRaises(DataError, fn)
 
     def test_ignorecorrupt(self):
         self.codec(compression_level=2, corrupt=True, ignore_corrupt=True)

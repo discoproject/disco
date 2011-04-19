@@ -1,82 +1,57 @@
-from disco.test import DiscoJobTestFixture, DiscoMultiJobTestFixture
-from disco.test import DiscoTestCase
-from disco.func import chain_reader
-from disco.util import ddfs_name
 from disco.ddfs import DDFS
+from disco.job import JobChain
+from disco.test import TestCase, TestJob
+from disco.worker.classic.func import chain_reader
 
-class SaveOnlyMapTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = map(str, range(10))
+class SaveMapJob(TestJob):
     partitions = None
     save = True
 
-    def getdata(self, path):
-        return '%s\n' % path
-
     @staticmethod
     def map(e, params):
-        return [(e.strip() + "#", '')]
+        yield e.strip() + '!', ''
 
-    @property
-    def answers(self):
-        return [('%s#' % e, '') for e in self.inputs]
-
-    def runTest(self):
-        results = sorted(list(self.results))
-        ddfs = DDFS(self.disco_master_url)
-        tag = self.disco.results(self.job.name)[1][0]
-        self.assertEquals(len(list(ddfs.blobs(tag))), len(self.inputs))
-        self.assertEquals(self.answers, results)
-
-    def tearDown(self):
-        super(SaveOnlyMapTestCase, self).tearDown()
-        DDFS(self.disco_master_url).delete(ddfs_name(self.job.name))
-
-class SaveTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
-    njobs = 2
-    inputs_1 = ['huey', 'dewey', 'louie']
-    partitions_1 = 3
-    partitions_2 = 1
-    map_reader_2 = chain_reader
-    save_1 = True
-    save_2 = True
-    sort_2 = True
-
-    def getdata(self, path):
-        return path + "\n"
-
-    @property
-    def input_2(self):
-        return self.job_1.wait()
+class SaveJob1(SaveMapJob):
+    partitions = 3
+    save = False
 
     @staticmethod
-    def map_1(e, params):
-        if type(e) == tuple:
-            e = e[0]
-        yield (e.strip() + "!", '')
-
-    map_2 = map_1
-
-    @staticmethod
-    def reduce_1(iter, out, params):
+    def reduce(iter, params):
         for k, v in iter:
-            out.add(k + "?", v)
+            yield k + '?', v
 
-    reduce_2 = reduce_1
+class SaveJob2(SaveJob1):
+    partitions = 1
+    save = True
+    sort = True
+    map_reader = staticmethod(chain_reader)
 
-    @property
-    def answers(self):
-        return [('dewey!?!?', ''), ('huey!?!?', ''), ('louie!?!?', '')]
+    @staticmethod
+    def map((k, v), params):
+        yield k + '!', ''
 
-    def runTest(self):
-        self.assertEquals(self.answers, list(self.results_2))
+class SaveTestCase(TestCase):
+    def serve(self, path):
+        return '%s\n' % path
+
+    def test_save_map(self):
+        input = range(10)
+        self.job = SaveMapJob().run(input=self.test_server.urls(input))
+        results = sorted(self.results(self.job))
+        self.tag = self.disco.results(self.job.name)[1][0]
+        self.assertEquals(len(list(self.ddfs.blobs(self.tag))), len(input))
+        self.assertEquals(results, [('%s!' % e, '') for e in input])
+
+    def test_save(self):
+        ducks = ['dewey', 'huey', 'louie']
+        a, b = SaveJob1(), SaveJob2()
+        self.job = JobChain({a: self.test_server.urls(ducks),
+                             b: a}).wait()
+        self.tag = self.disco.results(b)[1][0]
+        self.assertAllEqual(sorted(self.results(b)),
+                            [('%s!?!?' % d, '') for d in ducks])
 
     def tearDown(self):
         super(SaveTestCase, self).tearDown()
-        DDFS(self.disco_master_url).delete(ddfs_name(self.job_1.name))
-        DDFS(self.disco_master_url).delete(ddfs_name(self.job_2.name))
-
-
-
-
-
-
+        if hasattr(self, 'tag'):
+            self.ddfs.delete(self.tag)

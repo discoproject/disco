@@ -1,33 +1,33 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
+from disco.test import TestCase, TestJob
 
-class SimpleTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31]
-
-    def getdata(self, path):
-        return '\n'.join([path] * 10)
-
+class SimpleJob(TestJob):
     @staticmethod
     def map(e, params):
-        yield '=' + e, e
+        yield int(e), e.strip()
 
     @staticmethod
     def reduce(iter, out, params):
-        s = 1
-        for k, v in iter:
-            assert k == '=' + v, "Corrupted key!"
-            s *= int(v)
-        out.add('result', s)
+        for k, v in sorted(iter):
+            out.add(k, v)
 
-    @property
-    def answers(self):
-        yield ('result',
-               102838057849351261119838300575805205791938675762040158350002406688858214958513887550465113168573010369619140625)
-
-class SimplerTestCase(SimpleTestCase):
+class SimplerJob(SimpleJob):
     @staticmethod
     def reduce(iter, params):
-        s = 1
-        for k, v in iter:
-            assert k == '=' + v, "Corrupted key!"
-            s *= int(v)
-        yield 'result', s
+        return sorted(iter)
+
+class SimpleTestCase(TestCase):
+    input = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31]
+
+    def answers(self):
+        return ((i, str(i)) for i in self.input for x in xrange(10))
+
+    def serve(self, path):
+        return '\n'.join([path] * 10)
+
+    def test_simple(self):
+        self.job = SimpleJob().run(input=self.test_server.urls(self.input))
+        self.assertResults(self.job, self.answers())
+
+    def test_simpler(self):
+        self.job = SimplerJob().run(input=self.test_server.urls(self.input))
+        self.assertResults(self.job, self.answers())

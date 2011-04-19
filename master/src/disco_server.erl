@@ -5,15 +5,17 @@
 -export([start_link/0, stop/0]).
 -export([update_config_table/2, get_active/1, get_nodeinfo/1,
          new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
-         new_task/2, connection_status/2, manual_blacklist/2]).
+         new_task/2, connection_status/2, manual_blacklist/2,
+         get_worker_jobpack/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-include_lib("kernel/include/file.hrl").
 -include("disco.hrl").
 
--type connection_status() :: 'undefined' | 'up' | timer:timestamp().
+-type connection_status() :: 'undefined' | 'up' | disco_util:timestamp().
 
--record(dnode, {name :: nonempty_string(),
+-record(dnode, {host :: nonempty_string(),
                 node_mon :: pid(),
                 manual_blacklist :: bool(),
                 connection_status :: connection_status(),
@@ -29,6 +31,16 @@
                 purged :: gb_tree()}).
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
+
+
+% Note! Many parallel calls to get_worker_jobpack can cause master
+% to run out of file descriptors. If master did not close file descriptors
+% after JOBPACK_HANDLE_TIMEOUT, it is possible that unsuccessful
+% disco_workers would leak file descriptors, making the issue even worse.
+%
+% If the issue becomes serious, it should be relatively straightforward to
+% implement throttling to limit the maximum number of concurrent downloaders.
+-define(JOBPACK_HANDLE_TIMEOUT, 10 * 60 * 1000).
 
 %% ===================================================================
 %% API functions
@@ -95,6 +107,12 @@ connection_status(Node, Status) ->
 manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
+% called from remote nodes
+-spec get_worker_jobpack(node(), nonempty_string()) ->
+                                {'ok', {file:io_device(), non_neg_integer()}}.
+get_worker_jobpack(Master, JobName) ->
+    gen_server:call({?MODULE, Master}, {jobpack, JobName}).
+
 %% ===================================================================
 %% gen_server callbacks
 
@@ -112,10 +130,7 @@ handle_cast(schedule_next, S) ->
     {noreply, do_schedule_next(S)};
 
 handle_cast({purge_job, JobName}, S) ->
-    {noreply, do_purge_job(JobName, S)};
-
-handle_cast({exit_worker, Pid, Res}, S) ->
-    {noreply, do_exit_worker(Pid, Res, S)}.
+    {noreply, do_purge_job(JobName, S)}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -139,6 +154,10 @@ handle_call(get_purged, _, S) ->
 handle_call(get_num_cores, _, S) ->
     {reply, do_get_num_cores(S), S};
 
+handle_call({jobpack, JobName}, From, State) ->
+    spawn(fun() -> do_send_jobpack(JobName, From) end),
+    {noreply, State};
+
 handle_call({kill_job, JobName}, _From, S) ->
     {reply, do_kill_job(JobName), S};
 
@@ -151,12 +170,25 @@ handle_call({connection_status, Node, Status}, _From, S) ->
 handle_call({manual_blacklist, Node, True}, _From, S) ->
     {reply, ok, do_manual_blacklist(Node, True, S)}.
 
+% handle late replies to "catch gen_server:call"
+handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
+    {noreply, S};
+
 handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
     error_logger:warning_report(["Disco server dies on error!", Reason]),
     {stop, stop_requested, S};
 
+handle_info({'EXIT', Pid, {shutdown, Results}}, S) ->
+    process_exit(Pid, Results, S);
+
+handle_info({'EXIT', Pid, noconnection}, S) ->
+    process_exit(Pid, {error, "Connection lost to the node (network busy?)"}, S);
+
+handle_info({'EXIT', Pid, {error, _} = Msg}, S) ->
+    process_exit(Pid, Msg, S);
+
 handle_info({'EXIT', Pid, Reason}, S) ->
-    {noreply, process_exit(Pid, Reason, S)}.
+    process_exit(Pid, {error, Reason}, S).
 
 %% ===================================================================
 %% gen_server callback stubs
@@ -165,6 +197,40 @@ terminate(Reason, _State) ->
     error_logger:warning_report({"Disco server dies", Reason}).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+%% ===================================================================
+%% exit handlers
+
+process_exit(Pid, {Type, _} = Results, S) ->
+    case gb_trees:lookup(Pid, S#state.workers) of
+        none ->
+            nodemon_exit(Pid, S);
+        {_, {Host, Task}} ->
+            UWorkers = gb_trees:delete(Pid, S#state.workers),
+            Task#task.from ! {Results, Task, Host},
+            schedule_next(),
+            {noreply, update_stats(Host,
+                                   gb_trees:lookup(Host, S#state.nodes),
+                                   Type,
+                                   S#state{workers = UWorkers})}
+    end.
+
+nodemon_exit(Pid, S) ->
+    Iter = gb_trees:iterator(S#state.nodes),
+    nodemon_exit(Pid, S, gb_trees:next(Iter)).
+
+nodemon_exit(Pid, S, {Host, N, _Iter}) when N#dnode.node_mon =:= Pid ->
+    error_logger:warning_report({"Restarting monitor for", Host}),
+    N1 = N#dnode{node_mon = node_mon:start_link(Host)},
+    S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},
+    {noreply, do_connection_status(Host, down, S1)};
+
+nodemon_exit(Pid, S, {_Host, _N, Iter}) ->
+    nodemon_exit(Pid, S, gb_trees:next(Iter));
+
+nodemon_exit(Pid, S, none) ->
+    error_logger:warning_report({"Unknown PID exits", Pid}),
+    {noreply, S}.
 
 %% ===================================================================
 %% internal functions
@@ -187,11 +253,11 @@ allow_task(#dnode{} = N) -> allow_write(N).
 
 -spec update_nodes(gb_tree()) -> 'ok'.
 update_nodes(Nodes) ->
-    WhiteNodes = [{N#dnode.name, N#dnode.slots}
+    WhiteNodes = [{N#dnode.host, N#dnode.slots}
                   || N <- gb_trees:values(Nodes), allow_task(N)],
-    DDFSNodes = [{disco:node(N#dnode.name), allow_write(N), allow_read(N)}
+    DDFSNodes = [{disco:slave_node(N#dnode.host), allow_write(N), allow_read(N)}
                  || N <- gb_trees:values(Nodes)],
-    gen_server:cast(ddfs_master, {update_nodes, DDFSNodes}),
+    ddfs_master:update_nodes(DDFSNodes),
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
     schedule_next().
 
@@ -201,11 +267,11 @@ update_stats(_Node, none, _ReplyType, S) -> S;
 update_stats(Node, {value, N}, ReplyType, S) ->
     M = N#dnode{num_running = N#dnode.num_running - 1},
     M0 = case ReplyType of
-             job_ok ->
+             done ->
                  M#dnode{stats_ok = M#dnode.stats_ok + 1};
-             data_error ->
+             error ->
                  M#dnode{stats_failed = M#dnode.stats_failed + 1};
-             job_error ->
+             fatal ->
                  M#dnode{stats_crashed = M#dnode.stats_crashed + 1};
              _ ->
                  M#dnode{stats_crashed = M#dnode.stats_crashed + 1}
@@ -239,54 +305,6 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
-start_worker(Node, NodeMon, T) ->
-    event_server:event(T#task.jobname, "~s:~B assigned to ~s",
-                       [T#task.mode, T#task.taskid, Node], []),
-    spawn_link(disco_worker, start_link_remote,
-               [self(), whereis(event_server), Node, NodeMon, T]).
-
-process_exit(Pid, Code, S) ->
-    case gb_trees:lookup(Pid, S#state.workers) of
-        {value, {Node, T}} ->
-            Msg = worker_exit_msg(Pid, Node, Code),
-            process_worker_exit(Node, T, Pid, Msg, Code),
-            S;
-        none ->
-            process_nodemon_exit(Pid, Code, S)
-    end.
-
--spec process_worker_exit(nonempty_string(), task(), pid(), _, _) -> 'ok'.
-process_worker_exit(Node, T, Pid, Msg, Code) ->
-    P = io_lib:fwrite("WARN: [~s:~B] ", [T#task.mode, T#task.taskid]),
-    event_server:event(Node, T#task.jobname, lists:flatten(P, Msg), [],
-                       {task_failed, T#task.mode}),
-    gen_server:cast(self(), {exit_worker, Pid, {data_error, Code}}).
-
-worker_exit_msg(Pid, Node, normal) ->
-    error_logger:warning_report({"Task failed to call exit_worker", Pid}),
-    io_lib:fwrite("Worker on ~p died unexpectedly without a reason", [Node]);
-worker_exit_msg(_Pid, _Node, {worker_dies, {Msg, Args}}) ->
-    io_lib:fwrite(Msg, Args);
-worker_exit_msg(_Pid, Node, noconnection) ->
-    io_lib:fwrite("Connection lost to node ~p (network busy?)", [Node]);
-worker_exit_msg(_Pid, Node, Reason) ->
-    io_lib:fwrite("Worker on ~p died unexpectedly: ~p", [Node, Reason]).
-
--spec process_nodemon_exit(pid(), _, #state{}) -> #state{}.
-process_nodemon_exit(Pid, Code, S) ->
-    Iter = gb_trees:iterator(S#state.nodes),
-    process_nodemon_exit1(Pid, Code, S, gb_trees:next(Iter)).
-
-process_nodemon_exit1(Pid, Code, S, {Host, N, _Iter})
-                      when N#dnode.node_mon =:= Pid ->
-    error_logger:warning_report({"Restarting monitor for", Host, Code}),
-    N1 = N#dnode{node_mon = node_mon:start_link(Host)},
-    S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},
-    do_connection_status(Host, down, S1);
-process_nodemon_exit1(Pid, Code, S, {_Host, _N, Iter}) ->
-    process_nodemon_exit1(Pid, Code, S, gb_trees:next(Iter));
-process_nodemon_exit1(_Pid, _Code, S, none) -> S.
-
 -spec do_update_config_table([disco_config:host_info()], [nonempty_string()],
                              #state{}) -> #state{}.
 do_update_config_table(Config, Blacklist, S) ->
@@ -296,7 +314,7 @@ do_update_config_table(Config, Blacklist, S) ->
             NewNode =
                 case gb_trees:lookup(Host, S#state.nodes) of
                     none ->
-                        #dnode{name = Host,
+                        #dnode{host = Host,
                                node_mon = node_mon:start_link(Host),
                                manual_blacklist = lists:member(Host, Blacklist),
                                connection_status = undefined,
@@ -313,7 +331,7 @@ do_update_config_table(Config, Blacklist, S) ->
         end, gb_trees:empty(), Config),
     lists:foreach(
         fun(OldNode) ->
-            case gb_trees:lookup(OldNode#dnode.name, NewNodes) of
+            case gb_trees:lookup(OldNode#dnode.host, NewNodes) of
                 none ->
                     unlink(OldNode#dnode.node_mon),
                     exit(OldNode#dnode.node_mon, kill);
@@ -324,13 +342,19 @@ do_update_config_table(Config, Blacklist, S) ->
     update_nodes(NewNodes),
     S#state{nodes = NewNodes}.
 
+-spec start_worker(nonempty_string(), pid(), task()) -> pid().
+start_worker(Node, NodeMon, T) ->
+    event_server:event(T#task.jobname, "~s:~B assigned to ~s",
+                       [T#task.mode, T#task.taskid, Node], []),
+    spawn_link(disco_worker, start_link_remote, [Node, NodeMon, T]).
+
 -spec schedule_next() -> 'ok'.
 schedule_next() ->
     gen_server:cast(?MODULE, schedule_next).
 
 -spec do_schedule_next(#state{}) -> #state{}.
 do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
-    Running = [{Y, N} || #dnode{slots = X, num_running = Y, name = N} = Node
+    Running = [{Y, N} || #dnode{slots = X, num_running = Y, host = N} = Node
                              <- gb_trees:values(Nodes), X > Y, allow_task(Node)],
     {_, AvailableNodes} = lists:unzip(lists:keysort(1, Running)),
     if AvailableNodes =/= [] ->
@@ -366,19 +390,6 @@ do_purge_job(JobName, #state{purged = Purged} = S) ->
         end,
     S#state{purged = NPurged}.
 
--spec do_exit_worker(pid(), _, #state{}) -> #state{}.
-do_exit_worker(Pid, {Type, _} = Res, S) ->
-    V = gb_trees:lookup(Pid, S#state.workers),
-    if V == none ->
-            S;
-       true ->
-            {_, {Node, Task}} = V,
-            UWorkers = gb_trees:delete(Pid, S#state.workers),
-            Task#task.from ! {Res, Task, Node},
-            schedule_next(),
-            update_stats(Node, gb_trees:lookup(Node, S#state.nodes),
-                         Type, S#state{workers = UWorkers})
-    end.
 
 -spec do_new_job(nonempty_string(), pid(), #state{}) -> 'ok'.
 do_new_job(JobName, JobCoord, _S) ->
@@ -394,9 +405,8 @@ do_new_task(Task, S) ->
         ok ->
             schedule_next(),
             ok;
-        Error ->
-            error_logger:warning_report({"Scheduling task failed",
-                                         Task, Error}),
+        unknown_job ->
+            % most likely job was killed
             failed
     end.
 
@@ -411,7 +421,7 @@ do_get_active(JobName, #state{workers = Workers}) ->
 
 -spec do_get_nodeinfo(#state{}) -> {'ok', [nodeinfo()]}.
 do_get_nodeinfo(#state{nodes = Nodes}) ->
-    Info = [#nodeinfo{name = N#dnode.name,
+    Info = [#nodeinfo{name = N#dnode.host,
                       slots = N#dnode.slots,
                       num_running = N#dnode.num_running,
                       stats_ok = N#dnode.stats_ok,
@@ -447,3 +457,16 @@ do_clean_job(JobName) ->
     do_kill_job(JobName),
     gen_server:cast(event_server, {clean_job, JobName}),
     ok.
+
+-spec do_send_jobpack(nonempty_string(), {pid(), reference()}) -> 'ok'.
+do_send_jobpack(JobName, From) ->
+    JobFile = jobpack:jobfile(disco:jobhome(JobName)),
+    case prim_file:read_file_info(JobFile) of
+        {ok, #file_info{size = Size}} ->
+            {ok, File} = file:open(JobFile, [binary, read]),
+            gen_server:reply(From, {ok, {File, Size}}),
+            timer:sleep(?JOBPACK_HANDLE_TIMEOUT),
+            file:close(File);
+        {error, _} = E ->
+            gen_server:reply(From, E)
+    end.

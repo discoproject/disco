@@ -1,6 +1,6 @@
 """
-:mod:`disco.ddfs` --- Client interface for Disco Distributed Filesystem
-=======================================================================
+:mod:`disco.ddfs` -- Client interface for Disco Distributed Filesystem
+======================================================================
 
 See also: :ref:`DDFS`.
 
@@ -8,19 +8,18 @@ See also: :ref:`DDFS`.
 
         Parameters below which are indicated as tags can be specified as
         a `tag://` URL, or the name of the tag.
-
-.. autoclass:: DDFS(master=None, proxy=None, settings=DiscoSettings())
-        :members:
 """
 import os, re, random
 from cStringIO import StringIO
 from urllib import urlencode
 
-from disco.comm import upload, download, json, open_remote
+from disco import json
+from disco.comm import upload, download, open_remote
 from disco.error import CommError
+from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.settings import DiscoSettings
-from disco.util import isiterable, iterify, partition
-from disco.util import urljoin, urlsplit, urlresolve
+from disco.util import isiterable, iterify, listify, partition
+from disco.util import urljoin, urlsplit, urlresolve, urltoken
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
@@ -66,13 +65,14 @@ class DDFS(object):
     :param master: address of the master,
                    for instance ``disco://localhost``.
     """
-    def __init__(self, master=None,
-                 proxy=None,
-                 settings=DiscoSettings()):
-        self.proxy  = proxy or settings['DISCO_PROXY']
-        self.master = self.proxy or master or settings['DISCO_MASTER']
-        self.settings = settings
+    def __init__(self, master=None, proxy=None, settings=None):
+        self.settings = settings or DiscoSettings()
+        self.proxy  = proxy or self.settings['DISCO_PROXY']
+        self.master = self.proxy or master or self.settings['DISCO_MASTER']
         self.settings['DISCO_MASTER'] = self.master
+
+    def __repr__(self):
+        return 'DDFS master at %s' % self.master
 
     @classmethod
     def safe_name(cls, name):
@@ -81,6 +81,18 @@ class DDFS(object):
     @classmethod
     def blob_name(cls, url):
         return url.split('/')[-1].split('$')[0]
+
+    @classmethod
+    def job_blob(self, jobname, filename):
+        return 'disco:blob:%s:%s' % (jobname, os.path.basename(filename))
+
+    @classmethod
+    def job_oob(self, jobname):
+        return 'disco:job:oob:%s' % jobname
+
+    @classmethod
+    def job_tag(self, jobname):
+        return 'disco:job:results:%s' % jobname
 
     def attrs(self, tag, token=None):
         """Get a list of the attributes of the tag ``tag`` and their values."""
@@ -115,22 +127,30 @@ class DDFS(object):
               delayed=False,
               update=False,
               token=None,
+              chunk_size=CHUNK_SIZE,
               **kwargs):
         """
         Chunks the contents of `urls`,
         pushes the chunks to ddfs and tags them with `tag`.
         """
-        from disco.core import ChunkIter
+        from disco.core import classic_iterator
+
+        if 'reader' not in kwargs:
+            kwargs['reader'] = None
+
+        def chunk_iter(replicas):
+            chunker = Chunker(chunk_size=chunk_size)
+            return chunker.chunks(classic_iterator([replicas], **kwargs))
 
         def chunk_name(replicas, n):
-            url = list(iterify(replicas))[0]
+            url = listify(replicas)[0]
             return self.safe_name('%s-%s' % (os.path.basename(url), n))
 
         blobs = [self._push((StringIO(chunk), chunk_name(reps, n)),
                             replicas=replicas,
                             retries=retries)
                  for reps in urls
-                 for n, chunk in enumerate(ChunkIter(reps, **kwargs))]
+                 for n, chunk in enumerate(chunk_iter(reps))]
         return (self.tag(tag,
                          blobs,
                          delayed=delayed,
@@ -252,6 +272,12 @@ class DDFS(object):
                             StringIO(json.dumps(urls)),
                             token=token)
 
+    def save(self, jobname, paths, retries=600):
+        tag = self.job_tag(jobname)
+        blobs = [(p, self.job_blob(jobname, p)) for p in paths]
+        self.push(tag, blobs, retries=retries, delayed=True, update=True)
+        return tag
+
     def setattr(self, tag, attr, val, token=None):
         """Set the value of the attribute ``attr`` of the tag ``tag``."""
         return self._upload(self._tagattr(tag, attr),
@@ -360,11 +386,15 @@ class DDFS(object):
     def _tagattr(self, tag, attr):
         return '%s/%s' % (self._resolve(canonizetag(tag)), attr)
 
-    def _token(self, token, method):
+    def _token(self, url, token, method):
         if token is None:
-            if method == 'GET':
-                return self.settings['DDFS_READ_TOKEN']
-            return self.settings['DDFS_WRITE_TOKEN']
+            token = urltoken(url)
+            if token is None:
+                if method == 'GET':
+                    token = self.settings['DDFS_READ_TOKEN']
+                    return token if token else None
+                token = self.settings['DDFS_WRITE_TOKEN']
+                return token if token else None
         return token
 
     def _resolve(self, url):
@@ -374,9 +404,9 @@ class DDFS(object):
         return json.loads(download(self._resolve(url),
                                    data=data,
                                    method=method,
-                                   token=self._token(token, method)))
+                                   token=self._token(url, token, method)))
 
     def _upload(self, urls, source, token=None, **kwargs):
         urls = [self._resolve(self._maybe_proxy(url, method='PUT'))
                 for url in iterify(urls)]
-        return upload(urls, source, token=self._token(token, 'PUT'), **kwargs)
+        return upload(urls, source, token=self._token(url, token, 'PUT'), **kwargs)

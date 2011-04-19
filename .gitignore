@@ -3,12 +3,10 @@
 *.log
 *.pid
 *.pyc
-master/.dialyzer_plt
-master/ebin/disco.app
-master/www/*.html
+*.dialyzer_plt
+master/ebin
 conf/settings.py
 doc/.build/
-doc/conf.py
 lib/build/
 root/
 tests/test_external

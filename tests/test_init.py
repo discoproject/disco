@@ -1,34 +1,34 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.core import Params
+from disco.test import TestCase, TestJob
 
-class InitTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs = range(10)
-    params = Params(x=10)
-    sort   = False
-
-    def getdata(self, path):
-        return 'skipthis\n' + ('%s\n' % path) * 10
+class InitJob(TestJob):
+    params = {'x': 10}
+    sort = False
 
     @staticmethod
-    def map_init(input_iter, params):
-        input_iter.next()
-        params.x += 100
+    def map_init(iter, params):
+        iter.next()
+        params['x'] += 100
 
     @staticmethod
     def map(e, params):
-        return [(e, int(e) + params.x)]
+        yield e, int(e) + params['x']
 
     @staticmethod
-    def reduce_init(input_iter, params):
-        params.y = 1000
+    def reduce_init(iter, params):
+        params['y'] = 1000
 
     @staticmethod
-    def reduce(iter, out, params):
+    def reduce(iter, params):
         for k, v in iter:
-            out.add(k, int(v) + params.y)
+            yield k, int(v) + params['y']
+
+class InitTestCase(TestCase):
+    def serve(self, path):
+        return 'skipthis\n' + ('%s\n' % path) * 10
 
     def runTest(self):
-        results = list(self.results)
+        self.job = InitJob().run(input=self.test_server.urls(range(10)))
+        results = list(self.results(self.job))
         for k, v in results:
             self.assertEquals(int(k) + 1110, int(v))
         self.assertEquals(len(results), 100)

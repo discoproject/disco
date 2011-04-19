@@ -1,119 +1,69 @@
-from disco.test import DiscoMultiJobTestFixture
-from disco.test import DiscoJobTestFixture, DiscoTestCase
+from disco.job import JobChain
 from disco.error import JobError
-from disco import func
+from disco.test import TestCase, TestJob
+from disco.worker.classic import func
 
-class EmptyInputTestCase(DiscoJobTestFixture, DiscoTestCase):
-    input = []
-
-    @staticmethod
-    def map(e, params):
-        return []
-
-    @property
-    def answers(self):
-        return []
-
-class MapPartitionedOutputTestCase(DiscoJobTestFixture, DiscoTestCase):
-    input = ['raw://organic_vodka']
-    partitions = 2
+class MapJob(TestJob):
+    partitions = 3
 
     @staticmethod
     def map(e, params):
-        assert Task.jobdict['partitions'] == 2
         yield e, 'against_me'
 
-    @property
-    def answers(self):
-        yield 'organic_vodka', 'against_me'
-
-class MapNonPartitionedOutputTestCase(MapPartitionedOutputTestCase):
-    partitions = None
-
+class ReduceJob(TestJob):
     @staticmethod
-    def map(e, params):
-        assert Task.jobdict['partitions'] == 0
-        yield e, 'against_me'
+    def reduce(iter, params):
+        for item in iter:
+            yield item, 'mmm'
 
-class MapNonPartitionedOutputTestCase2(MapPartitionedOutputTestCase):
-    partitions = 0
+class MergeReduceJob(ReduceJob):
+    merge_partitions = True
 
-    @staticmethod
-    def map(e, params):
-        assert Task.jobdict['partitions'] == 0
-        yield e, 'against_me'
+class MapReduceJob(MapJob, ReduceJob):
+    pass
 
-class ReduceNonPartitionedInputTestCase(DiscoJobTestFixture, DiscoTestCase):
-    inputs        = ['test']
-    reduce_reader = func.map_line_reader
-
-    def getdata(self, path):
+class InputTestCase(TestCase):
+    def serve(self, path):
         return 'smoothies'
 
-    @staticmethod
-    def reduce(iter, out, params):
-        for e in iter:
-            out.add(e, 'mmm')
+    def test_empty_map(self):
+        self.job = MapJob().run(input=[])
+        self.assertResults(self.job, [])
 
-    @property
-    def answers(self):
-        yield 'smoothies', 'mmm'
+    def test_empty_reduce(self):
+        self.job = ReduceJob().run(input=[])
+        self.assertResults(self.job, [])
 
-class MapReducePartitionedTestCase(ReduceNonPartitionedInputTestCase):
-    partitions = 8
-    reduce_reader = func.chain_reader
+    def test_empty_mapreduce(self):
+        self.job = MapReduceJob().run(input=[])
+        self.assertResults(self.job, [])
 
-    @staticmethod
-    def map(e, params):
-        yield 'smoothies', 'mmm'
+    def test_partitioned_map(self):
+        self.job = MapJob().run(input=['raw://organic_vodka'], partitions=2)
+        self.assertResults(self.job, [('organic_vodka', 'against_me')])
 
-    @staticmethod
-    def reduce(iter, out, params):
-        for e in iter:
-            out.add(*e)
+    def test_nonpartitioned_map(self):
+        self.job = MapJob().run(input=['raw://organic_vodka'], partitions=None)
+        self.assertResults(self.job, [('organic_vodka', 'against_me')])
 
-class ReducePartitionedInputTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
-    beers        = ['sam_adams', 'trader_jose', 'boont_esb']
-    input_1      = ['raw://%s' % beer for beer in beers]
-    input_2      = input_1
-    njobs        = 3
-    partitions_1 = 3
-    partitions_2 = 3
+    def test_nonpartitioned_reduce(self):
+        self.job = ReduceJob().run(input=self.test_server.urls(['test']),
+                                   partitions=None,
+                                   reduce_reader=None)
+        self.assertResults(self.job, [('smoothies', 'mmm')])
 
-    @staticmethod
-    def map_1(e, params):
-        yield e, None
+    def test_partitioned_mapreduce(self):
+        self.job = MapReduceJob().run(input=self.test_server.urls(['test']),
+                                      partitions=8,
+                                      reduce_reader=func.chain_reader)
+        self.assertResults(self.job, [(('smoothies', 'against_me'), 'mmm')])
 
-    @staticmethod
-    def map_2(e, params):
-        yield e, None
-
-    @property
-    def input_3(self):
-        return self.job_1.wait() + self.job_2.wait()
-
-    def reduce_3(iter, out, params):
-        for k, v in iter:
-            out.add(k, v)
-
-    def runTest(self):
-        answers = sorted(self.beers * 2)
-        results = sorted(k for k, v in self.results_3 if v is None)
-        for answer, result in zip(answers, results):
-            self.assertEquals(answer, result)
-        self.assertEquals(len(answers), len(results))
-
-"""
-class MismatchedPartitionedInputTestCase(ReducePartitionedInputTestCase):
-    partitions_1 = 2
-
-    def runTest(self):
-        self.assertRaises(JobError, self.job_3.wait)
-"""
-
-class MergeReducePartitionedInputTestCase(ReducePartitionedInputTestCase):
-    merge_partitions_3 = True
-
-class MergeReducePartitionedInputTestCase2(ReducePartitionedInputTestCase):
-    merge_partitions_3 = True
-    partitions_1 = 2
+    def test_partitioned_reduce(self):
+        beers = ['sam_adams', 'trader_jose', 'boont_esb']
+        input = ['raw://%s' % beer for beer in beers]
+        a, b, c, d = MapJob(), MapJob(), ReduceJob(), MergeReduceJob()
+        self.job = JobChain({a: input,
+                             b: input,
+                             c: [a, b],
+                             d: [a, b]}).wait()
+        self.assertAllEqual(sorted(self.results(c)), sorted(self.results(d)))

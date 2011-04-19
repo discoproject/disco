@@ -154,7 +154,11 @@ handle_info({'EXIT', Pid, normal}, S) when Pid == self() ->
 
 % Our job coordinator dies, the job is dead, we have no reason to live anymore
 handle_info({'EXIT', _, _}, S) ->
-    {stop, normal, S}.
+    {stop, normal, S};
+
+% handle late replies to "catch gen_server:call"
+handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
+    {noreply, S}.
 
 -spec schedule_local(gb_tree(), [node()]) -> {'nolocal', gb_tree()}
     | {'nonodes', gb_tree()} | {{'run', node(), task()}, gb_tree()}.
@@ -324,7 +328,9 @@ assign_nopref(Task, _Tasks, _Nodes) when Task#task.force_local ->
 
 assign_nopref(Task, Tasks, _Nodes) ->
     {N, C, L} = gb_trees:get(nopref, Tasks),
-    [{Input, _}|_] = Task#task.input,
+    % Choosing a nopref-replica randomly is clearly a suboptimal policy.
+    % We should ignore replicas that have failed in the past.
+    {Input, _} = ddfs_util:choose_random(Task#task.input),
     T = Task#task{chosen_input = Input},
     gb_trees:update(nopref, {N + 1, C + 1, [T|L]}, Tasks).
 

@@ -52,11 +52,11 @@ function Job(name) {
   self.update_info = function (data) {
     self.status = data.active;
     self.started = data.timestamp;
-    self.username = data.username;
+    self.owner = data.owner;
 
     $("#nfo_status").text(self.status);
     $("#nfo_started").text(self.started);
-    $("#nfo_username").text(self.username);
+    $("#nfo_owner").text(self.owner);
     $("#nfo_map").html(make_jobinfo_row(data.mapi, "Map"));
     $("#nfo_red").html(make_jobinfo_row(data.redi, "Reduce"));
 
@@ -130,7 +130,7 @@ function make_event(E, i) {
   var tstamp = E[0];
   var host = E[1];
   var msg = E[2];
-  var type = (msg.match("^(WARN|ERROR|READY)") || [""])[0].toLowerCase();
+  var type = (msg.match("^(WARNING|ERROR|READY)") || [""])[0].toLowerCase();
 
   var msg = $.map(msg.split("\n"), function (x, i) {
       return $.create("pre", {}, [x])

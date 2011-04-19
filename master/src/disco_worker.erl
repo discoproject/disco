@@ -1,242 +1,276 @@
 -module(disco_worker).
 -behaviour(gen_server).
 
--export([start_link/1, start_link_remote/5]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-    terminate/2, code_change/3]).
+-export([start_link_remote/3,
+         start_link/1,
+         init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3,
+         jobhome/1,
+         event/3]).
 
 -include("disco.hrl").
 
--record(state, {id :: pid(),
-                master :: pid(),
-                port :: port(),
+-record(state, {master :: node(),
                 task :: task(),
-                start_time :: timer:timestamp(),
-                eventserver :: pid(),
-                eventstream :: event_stream:event_stream(),
-                child_pid :: 'none' | string(),
-                host :: string(),
-                linecount :: non_neg_integer(),
-                errlines :: message_buffer:message_buffer(),
-                results :: string(),
-                debug :: bool(),
-                last_event :: timer:timestamp(),
-                event_counter :: non_neg_integer()}).
+                port :: none | port(),
+                worker_send :: pid(),
+                error_output :: boolean(),
+                buffer :: binary(),
+                parser :: worker_protocol:state(),
+                runtime :: worker_runtime:state(),
+                throttle :: worker_throttle:state()}).
+-type state() :: #state{}.
 
--define(RATE_WINDOW, 100000). % 100ms
--define(RATE_LIMIT, 25).
--define(ERRLINES_MAX, 100).
--define(OOB_MAX, 1000).
+-define(JOBHOME_TIMEOUT, 5 * 60 * 1000).
+-define(PID_TIMEOUT, 30 * 1000).
+-define(ERROR_TIMEOUT, 10 * 1000).
+-define(MESSAGE_TIMEOUT, 30 * 1000).
+-define(MAX_ERROR_BUFFER_SIZE, 100 * 1024).
 
--define(CMD, "nice -n 19 $DISCO_WORKER '~s' '~s' '~s' '~w' ~s").
-
-port_options() ->
-    [{line, 100000}, binary, exit_status,
-     use_stdio, stderr_to_stdout,
-     {env, [{"LD_LIBRARY_PATH", "lib"}, {"LC_ALL", "C"}] ++
-      [{Setting, disco:get_setting(Setting)} || Setting <- disco:settings()]}].
-
-start_link_remote(Master, EventServer, Host, NodeMon, Task) ->
-    Debug = disco:get_setting("DISCO_DEBUG") =/= "off",
-    Node  = disco:node(Host),
+-spec start_link_remote(nonempty_string(), pid(), task()) -> no_return().
+start_link_remote(Host, NodeMon, Task) ->
+    Node = disco:slave_node(Host),
     wait_until_node_ready(NodeMon),
-    spawn_link(Node, disco_worker, start_link,
-               [[self(), EventServer, Master, Task, Host, Debug]]),
+    spawn_link(Node, disco_worker, start_link, [{self(), node(), Task}]),
     process_flag(trap_exit, true),
     receive
         ok -> ok;
         {'EXIT', _, Reason} ->
-            exit(Reason);
+            exit({error, Reason});
         _ ->
-            exit({error, invalid_reply})
+            exit({error, "Internal server error: invalid_reply"})
     after 60000 ->
-            exit({worker_dies, {"Worker did not start in 60s", []}})
+            exit({error, "Worker did not start in 60s at " ++ Host})
     end,
     wait_for_exit().
 
+-spec wait_until_node_ready(pid()) -> 'ok'.
 wait_until_node_ready(NodeMon) ->
     NodeMon ! {is_ready, self()},
     receive
         node_ready -> ok
     after 30000 ->
-        exit({worker_dies, {"Node unavailable", []}})
+        exit({error, "Node unavailable"})
     end.
 
+-spec wait_for_exit() -> no_return().
 wait_for_exit() ->
     receive
         {'EXIT', _, Reason} ->
             exit(Reason)
     end.
 
-start_link([Parent|_] = Args) ->
+-spec start_link({pid(), node(), task()}) -> no_return().
+start_link({Parent, Master, Task}) ->
     process_flag(trap_exit, true),
-    Worker = case catch gen_server:start_link(disco_worker, Args, []) of
-             {ok, Server} ->
-                 Server;
-             Reason ->
-                 exit({worker_dies, {"Worker initialization failed: ~p",
-                             [Reason]}})
-         end,
-    % NB: start_worker call is known to timeout if the node is really
-    % busy - it should not be a fatal problem
-    case catch gen_server:call(Worker, start_worker, 30000) of
-        ok ->
-            Parent ! ok;
-        Reason1 ->
-            exit({worker_dies, {"Worker startup failed: ~p",
-                [Reason1]}})
-    end,
+    {ok, Server} = gen_server:start_link(disco_worker, {Master, Task}, []),
+    gen_server:cast(Server, start),
+    Parent ! ok,
     wait_for_exit().
 
-init([Id, EventServer, Master, Task, Host, Debug]) ->
-    process_flag(trap_exit, true),
+init({Master, Task}) ->
+    % Note! Worker is killed implicitely by killing its job_coordinator
+    % which should be noticed by the monitor below. If the DOWN message
+    % gets lost, e.g. due to temporary network partitioning, the worker
+    % becomes a zombie.
     erlang:monitor(process, Task#task.from),
-    {ok, #state{id = Id,
-            master = Master,
+    {ok,
+     #state{master = Master,
             task = Task,
-            host = Host,
-            child_pid = none,
-            eventserver = EventServer,
-            eventstream = event_stream:new(),
-            linecount = 0,
-            start_time = now(),
-            last_event = now(),
-            event_counter = 0,
-            errlines = message_buffer:new(?ERRLINES_MAX),
-            debug = Debug,
-            results = []}}.
+            port = none,
+            buffer = <<>>,
+            error_output = false,
+            parser = worker_protocol:init(),
+            runtime = worker_runtime:init(Task, Master),
+            throttle = worker_throttle:init()}
+    }.
 
-spawn_cmd(#state{task = T, host = Host}) ->
-    Args = [T#task.mode, T#task.jobname, Host, T#task.taskid, T#task.chosen_input],
-    lists:flatten(io_lib:fwrite(?CMD, Args)).
-
-worker_exit(#state{id = Id, master = Master}, Msg) ->
-    gen_server:cast(Master, {exit_worker, Id, Msg}),
-    normal.
-
-event(Event, S) ->
-    event(Event, S, []).
-
-event({_Type, Message}, #state{task = T,
-                               eventserver = EventServer,
-                               host = Host}, Params) ->
-    event_server:event(EventServer, Host, T#task.jobname, "[~s:~B] ~s",
-                       [T#task.mode, T#task.taskid, Message], Params).
-
-on_error(State) ->
-    {stop, worker_exit(State, {job_error, "Worker killed"}), State}.
-
-on_error(Reason, State) ->
-    on_error(nonrecoverable, Reason, State).
-
-on_error(recoverable, Reason, State) ->
-    Task = State#state.task,
-    event({"WARN", Reason}, State, {task_failed, Task#task.mode}),
-    {stop, worker_exit(State, {data_error, Reason}), State};
-on_error(nonrecoverable, Reason, State) ->
-    event({"ERROR", Reason}, State),
-    {stop, worker_exit(State, {job_error, Reason}), State}.
-
-handle_call(start_worker, _From, S) ->
-    Cmd = spawn_cmd(S),
-    if
-        S#state.debug ->
-            error_logger:info_report(["Spawn cmd: ", Cmd]);
-        true ->
-            ok
-    end,
-    Port = open_port({spawn, Cmd}, port_options()),
-    {reply, ok, S#state{port = Port}, 30000}.
-
-handle_cast(kill_worker, S) ->
-    on_error(S).
-
-handle_event({event, {<<"DAT">>, _Time, _Tags, Message}}, S) ->
-    on_error(recoverable, Message, S);
-
-handle_event({event, {<<"END">>, _Time, _Tags, _Message}}, S) ->
-    event({"END", "Task finished in " ++ disco:format_time(S#state.start_time)}, S),
-    {stop, worker_exit(S, {job_ok, S#state.results}), S};
-
-handle_event({event, {<<"ERR">>, _Time, _Tags, Message}}, S) ->
-    on_error(Message, S);
-
-handle_event({event, {<<"PID">>, _Time, _Tags, ChildPID}}, S) ->
-    % event({"PID", "Child PID is " ++ ChildPID}, S),
-    {noreply, S#state{child_pid = ChildPID}};
-
-handle_event({event, {<<"OUT">>, _Time, _Tags, Results}}, S) ->
-    % event({"OUT", "Results at " ++ Results}, S),
-    {noreply, S#state{results = Results}};
-
-handle_event({event, {<<"STA">>, _Time, _Tags, Message}}, S) ->
-    event({<<"STA">>, Message}, S),
-    {noreply, S};
-
-% rate limited event
-handle_event({event, {Type, _Time, _Tags, Payload}}, S) ->
-    Now = now(),
-    EventGap = timer:now_diff(Now, S#state.last_event),
-    if
-        EventGap > ?RATE_WINDOW ->
-            event({Type, Payload}, S),
-            {noreply, S#state{last_event = Now, event_counter = 1}};
-        S#state.event_counter > ?RATE_LIMIT ->
-            on_error("Event rate limit exceeded. Too many msg() calls?", S);
-        true ->
-            event({Type, Payload}, S),
-            {noreply, S#state{event_counter = S#state.event_counter + 1}}
+handle_cast(start, #state{task = Task, master = Master} = State) ->
+    JobName = Task#task.jobname,
+    Fun = fun() -> make_jobhome(JobName, Master) end,
+    case catch gen_server:call(lock_server,
+                               {wait, JobName, Fun}, ?JOBHOME_TIMEOUT) of
+        ok ->
+            gen_server:cast(self(), work),
+            {noreply, State};
+        {error, killed} ->
+            {stop, {shutdown, {error, "Job pack extraction timeout"}}, State};
+        {error, Reason} ->
+            Msg = io_lib:format("Jobpack extraction failed: ~p", [Reason]),
+            {stop, {shutdown, {error, Msg}}, State};
+        {'EXIT', {timeout, _}} ->
+            {stop, {shutdown, {error, "Job initialization timeout"}}, State}
     end;
 
-handle_event({errline, _Line}, #state{errlines = {_Q, overflow, _Max}} = S) ->
-    Garbage = message_buffer:to_string(S#state.errlines),
-    on_error("Worker failed (too much garbage on stderr):\n" ++ Garbage, S);
+handle_cast(work, #state{task = Task, port = none} = State) ->
+    JobHome = jobhome(Task#task.jobname),
+    Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
+    Command = "nice -n 19 " ++ Worker,
+    Options = [{cd, JobHome},
+               stream,
+               binary,
+               exit_status,
+               use_stdio,
+               stderr_to_stdout,
+               {env, Task#task.jobenvs}],
+    Port = open_port({spawn, Command}, Options),
+    SendPid = spawn_link(fun() -> worker_send(Port) end),
+    {noreply, State#state{port = Port, worker_send = SendPid}, ?PID_TIMEOUT}.
 
-handle_event({errline, Line}, S) ->
-    {noreply, S#state{errlines =
-        message_buffer:append(Line, S#state.errlines)}};
+handle_info({_Port, {data, Data}},
+            #state{error_output = true, buffer = Buffer} = State)
+            when size(Buffer) < ?MAX_ERROR_BUFFER_SIZE ->
+    Buffer1 = <<(State#state.buffer)/binary, Data/binary>>,
+    {noreply, State#state{buffer = Buffer1}, ?ERROR_TIMEOUT};
 
-handle_event({malformed_event, Reason}, S) ->
-    on_error(Reason, S);
+handle_info({_Port, {data, _Data}}, #state{error_output = true} = State) ->
+    exit_on_error(State);
 
-handle_event(_EventState, S) ->
-    {noreply, S}.
+handle_info({_Port, {data, Data}}, S) ->
+    update(S#state{buffer = <<(S#state.buffer)/binary, Data/binary>>});
 
-handle_info({_Port, {data, Data}}, #state{eventstream = EventStream} = S) ->
-    EventStream1 = event_stream:feed(Data, EventStream),
-    {next_stream, {_NextState, EventState}} = EventStream1,
-    handle_event(EventState, S#state{eventstream = EventStream1,
-                     linecount   = S#state.linecount + 1});
+handle_info(timeout, #state{error_output = false} = S) ->
+    case worker_runtime:get_pid(S#state.runtime) of
+        none ->
+            warning("Worker did not send its PID in 30 seconds", S);
+        _ ->
+            warning("Worker stuck in the middle of a message", S)
+    end,
+    exit_on_error(S);
 
-handle_info({_, {exit_status, _Status}}, #state{linecount = 0} = S) ->
-    Reason = "Worker didn't start.\nSpawn command was: " ++ spawn_cmd(S) ++
-        "Last words:\n" ++ message_buffer:to_string(S#state.errlines),
-    on_error(recoverable, Reason, S);
+handle_info(timeout, S) ->
+    warning("Worker did not exit properly after error", S),
+    exit_on_error(S);
 
-handle_info({_, {exit_status, _Status}}, S) ->
-    Reason =  "Worker failed. Last words:\n" ++ message_buffer:to_string(S#state.errlines),
-    on_error(Reason, S);
+handle_info({_Port, {exit_status, Code}}, S) ->
+    warning(["Worker crashed! (exit code: ", integer_to_list(Code), ")"], S),
+    exit_on_error(S);
 
-handle_info({_, closed}, S) ->
-    on_error(S);
+handle_info({'DOWN', _, _, _, Info}, State) ->
+    {stop, {shutdown, {fatal, Info}}, State}.
 
-handle_info(timeout, #state{linecount = 0} = S) ->
-    on_error(recoverable, "Worker didn't start in 30 seconds", S);
+handle_call(_Req, _From, State) ->
+    {noreply, State}.
 
-handle_info({'DOWN', _, _, _, _}, S) ->
-    on_error(S).
-
-terminate(_Reason, State) ->
-    % Possible bug: If we end up here before knowing child_pid, the
-    % child may stay running. However, it may die by itself due to
-    % SIGPIPE anyway.
-
-    if State#state.child_pid =/= none ->
-        % Kill child processes of the worker process
-        os:cmd("pkill -9 -P " ++ State#state.child_pid),
-        % Kill the worker process
-        os:cmd("kill -9 " ++ State#state.child_pid);
-    true -> ok
+terminate(_Reason, S) ->
+    case worker_runtime:get_pid(S#state.runtime) of
+        none ->
+            warning("PID unknown: worker could not be killed", S);
+        Pid ->
+            PidStr = integer_to_list(Pid),
+            % Kill child processes of the worker process
+            os:cmd(["pkill -9 -P ", PidStr]),
+            % Kill the worker process
+            os:cmd(["kill -9 ",  PidStr])
     end.
 
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+-spec update(state()) -> {'noreply', state()} | {'stop', term(), state()}.
+% Note that size(Buffer) =:= 0 is here to avoid binary matching
+% which would force expensive copying of Buffer. See
+% http://www.erlang.org/doc/efficiency_guide/binaryhandling.html
+update(#state{buffer = Buffer} = S) when size(Buffer) =:= 0 ->
+    {noreply, S};
+
+update(S) ->
+    case worker_protocol:parse(S#state.buffer, S#state.parser) of
+        {ok, Request, Buffer, PState} ->
+            S1 = S#state{buffer = Buffer},
+            case catch worker_runtime:handle(Request, S#state.runtime) of
+                {ok, Reply, RState} ->
+                    S#state.worker_send ! {Reply, 0},
+                    update(S1#state{parser = PState, runtime = RState});
+                {ok, Reply, RState, rate_limit} ->
+                    case worker_throttle:handle(S#state.throttle) of
+                        {ok, Delay, TState} ->
+                            S#state.worker_send ! {Reply, Delay},
+                            update(S1#state{parser = PState,
+                                            runtime = RState,
+                                            throttle = TState});
+                        {error, Msg} ->
+                            warning(Msg, S1),
+                            exit_on_error(fatal, S1)
+                    end;
+                {stop, Ret} ->
+                    {stop, {shutdown, Ret}, S};
+                {error, {Type, Msg}} ->
+                    warning(Msg, S1),
+                    exit_on_error(Type, S1);
+                {'EXIT', Reason} ->
+                    warning(io_lib:format("~p", [Reason]), S1),
+                    exit_on_error(error, S1)
+            end;
+        {cont, Buffer, PState} ->
+            {noreply, S#state{buffer = Buffer, parser = PState}, ?MESSAGE_TIMEOUT};
+        {error, Type} ->
+            warning(["Could not parse worker event: ", atom_to_list(Type)], S),
+            handle_info({none, {data, <<>>}}, S#state{error_output = true})
+    end.
+
+-spec worker_send(port()) -> no_return().
+worker_send(Port) ->
+    receive
+        {{MsgName, Payload}, Delay} ->
+            timer:sleep(Delay),
+            Type = list_to_binary(MsgName),
+            Body = list_to_binary(mochijson2:encode(Payload)),
+            Length = list_to_binary(integer_to_list(size(Body))),
+            Msg = <<Type/binary, " ", Length/binary, " ", Body/binary, "\n">>,
+            port_command(Port, Msg),
+            worker_send(Port)
+    end.
+
+-spec make_jobhome(nonempty_string(), node()) -> 'ok'.
+make_jobhome(JobName, Master) ->
+    JobHome = jobhome(JobName),
+    case jobpack:extracted(JobHome) of
+        true ->
+            ok;
+        false ->
+            {ok, _} = disco:make_dir(JobHome),
+            JobPack =
+                case jobpack:exists(JobHome) of
+                    true ->
+                        jobpack:read(JobHome);
+                    false ->
+                        {ok, JobPackSrc} =
+                            disco_server:get_worker_jobpack(Master, JobName),
+                        {ok, _JobFile} = jobpack:copy(JobPackSrc, JobHome),
+                        jobpack:read(JobHome)
+                end,
+            jobpack:extract(JobPack, JobHome)
+    end.
+
+-spec jobhome(nonempty_string()) -> nonempty_string().
+jobhome(JobName) ->
+    Home = filename:join(disco:get_setting("DISCO_DATA"), disco:host(node())),
+    disco:jobhome(JobName, Home).
+
+warning(Msg, #state{master = Master, task = Task}) ->
+    event({<<"WARNING">>, iolist_to_binary(Msg)}, Task, Master).
+
+event(Event, Task, Master) ->
+    Host = disco:host(node()),
+    event_server:task_event(Task, Event, {}, Host, {event_server, Master}).
+
+exit_on_error(S) ->
+    exit_on_error(error, S).
+
+exit_on_error(Type, #state{buffer = <<>>} = S) ->
+    {stop, {shutdown, {Type, "Worker died without output"}}, S};
+
+exit_on_error(Type, #state{buffer = Buffer} = S)
+              when size(Buffer) > ?MAX_ERROR_BUFFER_SIZE ->
+    <<Buffer1:(?MAX_ERROR_BUFFER_SIZE - 3)/binary, _/binary>> = Buffer,
+    exit_on_error(Type, S#state{buffer = <<Buffer1/binary, "...">>});
+
+exit_on_error(Type, #state{buffer = Buffer} = S) ->
+    Msg = ["Worker died. Last words:\n", Buffer],
+    {stop, {shutdown, {Type, Msg}}, S}.
+

@@ -1,34 +1,30 @@
-from disco.test import DiscoMultiJobTestFixture, DiscoTestCase
+from disco.job import JobChain
+from disco.test import TestCase, TestJob
 
-from random import sample
-
-class AsyncTestCase(DiscoMultiJobTestFixture, DiscoTestCase):
-    njobs      = 5
+class AsyncJob(TestJob):
     partitions = 11
-    sort       = False
-
-    def input(self, m):
-        num_workers = self.num_workers
-        inputs = sample(range(num_workers * 10), num_workers * 2)
-        return self.test_servers[m].urls(inputs)
-
-    def getdata(self, path):
-        return '\n'.join([path] * 10)
+    sort = False
 
     @staticmethod
     def map(e, params):
-        return [(e, None)]
-
-    map_1 = map_2 = map_3 = map_4 = map_5 = map
+        yield e, None
 
     @staticmethod
-    def reduce(iter, out, params):
+    def reduce(iter, params):
         for k, v in iter:
-            out.add('[%s]' % k, v)
+            yield '[%s]' % k, v
 
-    reduce_1 = reduce_2 = reduce_3 = reduce_4 = reduce_5 = reduce
+class AsyncTestCase(TestCase):
+    def sample(self, n):
+        from random import sample
+        return sample(range(n * 10), n * 2)
+
+    def serve(self, path):
+        return '\n'.join([path] * 10)
 
     def runTest(self):
-        for m in xrange(self.njobs):
-            self.assertEquals(sum(1 for result in self.results(m)),
-                      self.num_workers * 20)
+        N = self.num_workers
+        self.job = JobChain((AsyncJob(), self.test_server.urls(self.sample(N)))
+                            for x in xrange(5)).wait()
+        for job in self.job:
+            self.assertEquals(sum(1 for result in self.results(job)), N * 20)

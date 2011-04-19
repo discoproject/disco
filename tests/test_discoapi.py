@@ -1,20 +1,19 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
+from disco.test import TestCase, TestJob
 
-class DiscoAPITestCase(DiscoJobTestFixture, DiscoTestCase):
-    input = ['raw://discoapi']
+special = '--special_test_string--'
 
+def isspecial((offset, (time, node, message))):
+    return special in message
+
+class DiscoAPIJob(TestJob):
     @staticmethod
     def map(e, params):
         for i in range(3):
-            msg('--special_test_string--')
-        return [(e, '')]
+            print special
+        yield e.split('_')
 
-    @property
-    def answers(self):
-        yield 'discoapi', ''
-
+class DiscoAPITestCase(TestCase):
     def runTest(self):
-        super(DiscoAPITestCase, self).runTest()
-        special_messages = [message for offset, (time, node, message) in self.job.events()
-                    if '--special_test_string--' in message]
-        self.assertEquals(len(special_messages), 3)
+        self.job = DiscoAPIJob().run(input=['raw://disco_api'])
+        self.assertResults(self.job, [('disco', 'api')])
+        self.assertEquals(len(filter(isspecial, self.job.events())), 3)

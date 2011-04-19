@@ -1,52 +1,45 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
-from disco.core import Params
 from functools import partial
 
+from disco.test import TestCase, TestJob
+from disco.worker.classic.worker import Params
+
 def foo(x, extra):
-    return x+extra
+    return x + extra
 
 def init(items, params, extra):
     pass
 
 def reader(fd, size, fname, extra):
-    from disco.func import netstr_reader
-    for k,v in netstr_reader(fd, size, fname):
-        yield k+extra, v
-
-def writer(fd, k, v, params, extra):
-    from disco.func import netstr_writer
-    netstr_writer(fd, k+extra, v, params)
+    from disco.worker.classic.func import chain_reader
+    for k, v in chain_reader(fd, size, fname):
+        yield k + extra, v
 
 def map(e, params, extra):
-    return [(e[0]+params.foo(extra), e[1])]
+    yield e[0] + params.foo(extra), e[1]
 
 def combiner(k, v, buf, done, params, extra):
     if not done:
-        return [(k+extra, v)]
+        return [(k + extra, v)]
 
 def reduce(items, out, params, extra):
-    for k,v in items:
-        out.add(k+params.foo(extra), v)
+    for k, v in items:
+        out.add(k + params.foo(extra), v)
 
-class PartialTestCase(DiscoJobTestFixture, DiscoTestCase):
-    @property
-    def inputs(self):
-        return [str(x) for x in range(self.num_workers)]
+class PartialJob(TestJob):
+    map_init = partial(init, extra='d')
+    map = partial(map, extra='a')
+    combiner = partial(combiner, extra='b')
+    reduce_init = partial(init, extra='e')
+    reduce = partial(reduce, extra='c')
+    map_reader = partial(reader, extra='f')
+    reduce_reader = partial(reader, extra='h')
+    params = Params(foo=partial(foo, extra='z'))
 
-    def getdata(self, path):
+class PartialTestCase(TestCase):
+    def serve(self, path):
         return '1 _ 0 \n'
 
-    map=partial(map, extra='a')
-    combiner=partial(combiner, extra='b')
-    reduce=partial(reduce, extra='c')
-    map_init=partial(init, extra='d')
-    reduce_init=partial(init, extra='e')
-    map_reader=partial(reader, extra='f')
-    map_writer=partial(writer, extra='g')
-    reduce_reader=partial(reader, extra='h')
-    reduce_writer=partial(writer, extra='i')
-    params=Params(foo=partial(foo, extra='z'))
-
     def runTest(self):
-        for k, v in self.results:
-            self.assertEquals(k, '_fazbghczi')
+        self.job = PartialJob().run(input=self.test_server.urls(range(self.num_workers)))
+        for k, v in self.results(self.job):
+            self.assertEquals(k, '_fazbhcz')

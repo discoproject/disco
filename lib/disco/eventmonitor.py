@@ -1,5 +1,5 @@
 import sys, os, time
-from disco.comm import json
+from disco import json
 from disco.error import DiscoError
 
 try:

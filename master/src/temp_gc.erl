@@ -2,31 +2,25 @@
 
 -include_lib("kernel/include/file.hrl").
 
--export([start_link/6]).
+-export([start_link/1]).
 
 -define(GC_INTERVAL, 600000).
 
--spec start_link(pid(), pid(), pid(), nonempty_string(), nonempty_string(),
-    non_neg_integer()) -> no_return().
-start_link(Master, EventServer, DdfsMaster, DataRoot, Host, GCAfter) ->
+-spec start_link(pid()) -> no_return().
+start_link(Master) ->
     case catch register(temp_gc, self()) of
         {'EXIT', {badarg, _}} ->
             exit(already_started);
         _ -> ok
     end,
     put(master, Master),
-    put(events, EventServer),
-    put(ddfs, DdfsMaster),
-    put(root, filename:join(DataRoot, Host)),
-    put(gcafter, GCAfter),
     loop().
 
 -spec loop() -> no_return().
 loop() ->
-    case catch {gen_server:call(get(master), get_purged),
-                gen_server:call(get(events), get_jobs)} of
+    case catch {get_purged(), get_jobs()} of
         {{ok, Purged}, {ok, Jobs}} ->
-            case prim_file:list_dir(get(root)) of
+            case prim_file:list_dir(disco:data_root(node())) of
                 {ok, Dirs} ->
                     Active = gb_sets:from_list(
                         [Name || {Name, active, _Start, _Pid} <- Jobs]),
@@ -40,12 +34,31 @@ loop() ->
             ok
     end,
     timer:sleep(?GC_INTERVAL),
+    flush(),
     loop().
+
+% gen_server calls below may timeout, so we need to purge late replies
+flush() ->
+    receive
+        _ ->
+            flush()
+    after 0 ->
+        ok
+    end.
+
+ddfs_delete(Tag) ->
+    ddfs:delete({ddfs_master, get(master)}, Tag, internal).
+
+get_purged() ->
+    gen_server:call({disco_server, get(master)}, get_purged).
+
+get_jobs() ->
+    gen_server:call({event_server, get(master)}, get_jobs).
 
 -spec process_dir([string()], gb_set(), gb_set()) -> 'ok'.
 process_dir([], _Purged, _Active) -> ok;
 process_dir([Dir|R], Purged, Active) ->
-    Path = filename:join(get(root), Dir),
+    Path = disco:data_path(node, Dir),
     {ok, Jobs} = prim_file:list_dir(Path),
     [process_job(filename:join(Path, Job), Purged) ||
         Job <- Jobs, ifdead(Job, Active)],
@@ -63,9 +76,9 @@ process_job(JobPath, Purged) ->
             Now = calendar:datetime_to_gregorian_seconds(calendar:local_time()),
             Job = filename:basename(JobPath),
             IsPurged = gb_sets:is_member(list_to_binary(Job), Purged),
-            GCAfter = get(gcafter),
+            GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
             if IsPurged; Now - T > GCAfter ->
-                ddfs:delete(get(ddfs), disco:oob_name(Job), internal),
+                ddfs_delete(disco:oob_name(Job)),
                 os:cmd("rm -Rf " ++ JobPath);
             true ->
                 ok

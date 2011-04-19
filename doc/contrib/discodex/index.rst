@@ -1,5 +1,5 @@
-discodex - Distributed indices for Disco
-========================================
+:mod:`discodex` -- Distributed indices for Disco
+================================================
 
 Getting Started
 ---------------
@@ -17,14 +17,6 @@ Reference
    :glob:
 
    man/discodex
-   api/rest
    api/discodex/*
    api/discodex/mapreduce/index
-
-Indices and tables
-------------------
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
+   api/rest

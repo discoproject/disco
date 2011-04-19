@@ -1,20 +1,20 @@
-from disco.test import DiscoJobTestFixture, DiscoTestCase
+import signal, sys, time
 
-import signal
+from disco.test import TestCase, TestJob
 
-class InterruptTestCase(DiscoJobTestFixture, DiscoTestCase):
-    @property
-    def inputs(self):
-        return [''] * self.num_workers * 2
-
-    def getdata(self, path):
-        return '1 2 3\n'
-
+class InterruptJob(TestJob):
     @staticmethod
     def map(e, params):
-        import time
         time.sleep(10)
         return []
 
+class InterruptTestCase(TestCase):
+    def serve(self, path):
+        return '1 2 3\n'
+
     def runTest(self):
-        signal.getsignal(signal.SIGINT)(signal.SIGINT, None)
+        major, minor, _, _, _ =  sys.version_info
+        if major >= 2 and minor >= 7:
+            input = [''] * self.num_workers * 2
+            self.job = InterruptJob().run(input=self.test_server.urls(input))
+            signal.getsignal(signal.SIGINT)(signal.SIGINT, None)

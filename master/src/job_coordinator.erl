@@ -1,11 +1,12 @@
-
 -module(job_coordinator).
 -export([new/1]).
 
 -include("disco.hrl").
 -include("config.hrl").
 
--type result() :: {node(), nonempty_string()}.
+-type input() :: binary() | [binary()].
+-type host() :: nonempty_string() | 'false'.
+-type task_input() :: {non_neg_integer(), [{input(), host()}]}.
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
@@ -14,172 +15,140 @@
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
 -spec new(binary()) -> {'ok', _}.
-new(PostData) ->
-    TMsg = "couldn't start a new job coordinator in 30s (master busy?)",
-    S = self(),
-    P = spawn(fun() -> init_job_coordinator(S, PostData) end),
+new(JobPack) ->
+    Self = self(),
+    process_flag(trap_exit, true),
+    spawn_link(fun() ->
+                   case jobpack:valid(JobPack) of
+                       ok -> ok;
+                       {error, E} -> exit(E)
+                   end,
+                   case catch job_coordinator(Self, JobPack) of
+                       ok -> ok;
+                       Error -> exit(Error)
+                   end
+               end),
     receive
-    {P, ok, JobName} -> {ok, JobName};
-    {P, env_failed} -> throw("creating job directories failed "
-             "(disk full?)");
-    {P, invalid_prefix} -> throw("invalid prefix");
-    {P, invalid_jobdesc} -> throw("invalid job description");
-    {P, timeout} -> throw(TMsg);
-    _ -> throw("job coordinator failed")
+        {job_submitted, JobName} ->
+            {ok, JobName};
+        {'EXIT', _From, Reason} ->
+            throw(Reason)
     after 30000 ->
-    throw(TMsg)
+            throw("timed out after 30s (master busy?)")
     end.
 
-% job_coordinator() orchestrates map/reduce tasks for a job
--spec init_job_coordinator(pid(), binary()) -> _.
-init_job_coordinator(Parent, PostData) ->
-    Msg = netstring:decode_netstring_fd(PostData),
-    case catch find_values(Msg) of
-    {'EXIT', _} ->
-        Parent ! {self(), invalid_jobdesc};
-    Params ->
-        init_job_coordinator(Parent, Params, PostData)
+job_event(JobName, {EventFormat, Args, Params}) ->
+    event_server:event(JobName, EventFormat, Args, Params);
+job_event(JobName, {EventFormat, Args}) ->
+    job_event(JobName, {EventFormat, Args, {}});
+job_event(JobName, Event) ->
+    job_event(JobName, {Event, [], {}}).
+
+-spec job_coordinator(pid(), binary()) -> 'ok'.
+job_coordinator(Parent, JobPack) ->
+    {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
+    {ok, JobName} = event_server:new_job(Prefix, self()),
+    JobFile = jobpack:save(JobPack, disco:jobhome(JobName)),
+    ok = disco_server:new_job(JobName, self(), 30000),
+    Parent ! {job_submitted, JobName},
+    job_coordinator(JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}).
+
+-spec job_coordinator(jobinfo()) -> 'ok'.
+job_coordinator(#jobinfo{jobname = JobName} = Job) ->
+    job_event(JobName, {"Starting job", [], {job_data, Job}}),
+    Started = now(),
+    case catch map_reduce(Job) of
+        {ok, Results} ->
+            job_event(JobName, {"READY: Job finished in ~s",
+                                [disco:format_time_since(Started)],
+                                {ready, Results}}),
+            event_server:end_job(JobName);
+        {error, Error} ->
+            kill_job(JobName, {"Job failed: ~s", [Error]});
+        {error, Error, Params} ->
+            kill_job(JobName, {"Job failed: ~s", [Error], Params});
+        Error ->
+            kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", [Error]})
     end.
 
--spec init_job_coordinator(pid(), {nonempty_string(), jobinfo()}, binary()) -> _.
-init_job_coordinator(Parent, {Prefix, JobInfo}, PostData) ->
-    C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
-    if C > 0 ->
-    Parent ! {self(), invalid_prefix};
-    true ->
-    case gen_server:call(event_server, {new_job, Prefix, self()}, 10000) of
-        {ok, JobName} ->
-        save_params(JobName, PostData),
-        Parent ! {self(), ok, JobName},
-        job_coordinator(JobName, JobInfo);
-        _ ->
-        Parent ! {self(), timeout}
-    end
-    end.
-
-save_params(Name, PostData) ->
-    Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    Home = disco:jobhome(Name),
-    ok = file:write_file(filename:join([Root, Home, "params"]), PostData).
-
--spec field_exists(netstring:kvtable(), binary()) -> bool().
-field_exists(Msg, Opt) ->
-    lists:keysearch(Opt, 1, Msg) =/= false.
-
--spec find_values(netstring:kvtable()) -> {nonempty_string(), jobinfo()}.
-find_values(Msg) ->
-    {value, {_, PrefixBinary}} = lists:keysearch(<<"prefix">>, 1, Msg),
-    Prefix = binary_to_list(PrefixBinary),
-
-    {value, {_, InputStr}} = lists:keysearch(<<"input">>, 1, Msg),
-    Inputs = [case string:tokens(Inp, "\n") of
-		      [X] -> list_to_binary(X);
-		      Y -> [list_to_binary(X) || X <- Y]
-		  end || Inp <- string:tokens(binary_to_list(InputStr), " ")],
-
-    {value, {_, MaxCStr}} = lists:keysearch(<<"sched_max_cores">>, 1, Msg),
-    MaxCores = list_to_integer(binary_to_list(MaxCStr)),
-
-    {value, {_, NRedStr}} = lists:keysearch(<<"nr_reduces">>, 1, Msg),
-    NumRed = list_to_integer(binary_to_list(NRedStr)),
-
-    User = case lists:keysearch(<<"username">>, 1, Msg) of
-               {value, {_, U}} -> binary_to_list(U);
-               _ -> undefined
-           end,
-
-    {Prefix, #jobinfo{
-       nr_reduce = NumRed,
-       inputs = Inputs,
-       max_cores = MaxCores,
-       map = field_exists(Msg, <<"map">>),
-       reduce = field_exists(Msg, <<"reduce">>),
-       force_local = field_exists(Msg, <<"sched_force_local">>),
-       force_remote = field_exists(Msg, <<"sched_force_remote">>),
-       user_name = User
-    }}.
-
+-spec kill_job(nonempty_string(), tuple()) -> no_return().
+kill_job(JobName, {EventFormat, Args, Params} = Error) ->
+    job_event(JobName, {"ERROR: " ++ EventFormat, Args, Params}),
+    disco_server:kill_job(JobName, 30000),
+    gen_server:cast(event_server, {job_done, JobName}),
+    exit(Error);
+kill_job(JobName, {EventFormat, Args}) ->
+    kill_job(JobName, {EventFormat, Args, {}}).
 
 % work() is the heart of the map/reduce show. First it distributes tasks
 % to nodes. After that, it starts to wait for the results and finally
 % returns when it has gathered all the results.
-
--spec work([{non_neg_integer(), [{binary(), nonempty_string()}]}],
-    nonempty_string(), nonempty_string(), non_neg_integer(),
-    jobinfo(), gb_tree()) -> {'ok', gb_tree()}.
+-spec work([{non_neg_integer(), [{input(), host()}]}],
+           nonempty_string(),
+           non_neg_integer(),
+           jobinfo(),
+           gb_tree()) ->
+    {'ok', gb_tree()}.
 
 %. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 %  not reached.
-work([{TaskID, Input}|Inputs], Mode, Name, N, Job, Res)
-    when N < Job#jobinfo.max_cores ->
-
-    Task = #task{jobname = Name,
-         taskid = TaskID,
-         mode = Mode,
-         taskblack = [],
-         fail_count = 0,
-         input = Input,
-         from = self(),
-         force_local = Job#jobinfo.force_local,
-         force_remote = Job#jobinfo.force_remote
-    },
+work([{TaskID, Input}|Inputs], Mode, N, Job, Res) when N < Job#jobinfo.max_cores ->
+    Task = #task{from = self(),
+                 taskblack = [],
+                 fail_count = 0,
+                 force_local = Job#jobinfo.force_local,
+                 force_remote = Job#jobinfo.force_remote,
+                 jobname = Job#jobinfo.jobname,
+                 jobenvs = Job#jobinfo.jobenvs,
+                 taskid = TaskID,
+                 mode = Mode,
+                 input = Input,
+                 worker = Job#jobinfo.worker},
     submit_task(Task),
-    work(Inputs, Mode, Name, N + 1, Job, Res);
+    work(Inputs, Mode, N + 1, Job, Res);
 
 % 2. Tasks to distribute but the maximum number of tasks are already running.
 % Wait for tasks to return. Note that wait_workers() may return with the same
 % number of tasks still running, i.e. N = M.
-work([_|_] = IArg, Mode, Name, N, Job, Res) when N >= Job#jobinfo.max_cores ->
-    {M, NRes} = wait_workers(N, Res, Name, Mode),
-    work(IArg, Mode, Name, M, Job, NRes);
+work([_|_] = IArg, Mode, N, Job, Res) when N >= Job#jobinfo.max_cores ->
+    {M, NRes} = wait_workers(N, Res, Mode),
+    work(IArg, Mode, M, Job, NRes);
 
 % 3. No more tasks to distribute. Wait for tasks to return.
-work([], Mode, Name, N, Job, Res) when N > 0 ->
-    {M, NRes} = wait_workers(N, Res, Name, Mode),
-    work([], Mode, Name, M, Job, NRes);
+work([], Mode, N, Job, Res) when N > 0 ->
+    {M, NRes} = wait_workers(N, Res, Mode),
+    work([], Mode, M, Job, NRes);
 
 % 4. No more tasks to distribute, no more tasks running. Done.
-work([], _Mode, _Name, 0, _Job, Res) -> {ok, Res}.
+work([], _Mode, 0, _Job, Res) ->
+    {ok, Res}.
 
 % wait_workers receives messages from disco_server:clean_worker() that is
 % called when a worker exits.
--spec wait_workers(non_neg_integer(), gb_tree(), nonempty_string(),
-    nonempty_string()) -> {non_neg_integer(), gb_tree()}.
+-spec wait_workers(non_neg_integer(), gb_tree(), nonempty_string()) ->
+    {non_neg_integer(), gb_tree()}.
 
 % Error condition: should not happen.
-wait_workers(0, _Res, _Name, _Mode) ->
-    throw("Nothing to wait");
-
-wait_workers(N, Results, Name, Mode) ->
+wait_workers(0, _Res, _Mode) ->
+    throw({error, "Nothing to wait"});
+wait_workers(N, Results, Mode) ->
     receive
-        {{job_ok, Result}, Task, Node} ->
-            event_server:event(Name,
-            "Received results from ~s:~B @ ~s.",
-                [Task#task.mode, Task#task.taskid, Node],
-                {task_ready, Mode}),
+        {{done, TaskResults}, Task, Host} ->
+            event_server:task_event(Task,
+                                    disco:format("Received results from ~s", [Host]),
+                                    {task_ready, Mode}),
             {N - 1, gb_trees:enter(Task#task.taskid,
-                                   {disco:node(Node), list_to_binary(Result)},
+                                   {disco:slave_node(Host), TaskResults},
                                    Results)};
-
-        {{data_error, _Msg}, Task, Node} ->
-            handle_data_error(Task, Node),
+        {{error, Error}, Task, Host} ->
+            event_server:task_event(Task,
+                                    {<<"WARNING">>, Error},
+                                    {task_failed, Task#task.mode}),
+            handle_data_error(Task, Host),
             {N, Results};
-
-        {{job_error, _Error}, _Task, _Node} ->
-            throw(logged_error);
-
-        {{error, Error}, Task, Node} ->
-            event_server:event(Name,
-            "ERROR: Worker crashed in ~s:~B @ ~s: ~p",
-                [Task#task.mode, Task#task.taskid,
-                Node, Error], []),
-            throw(logged_error);
-
-        Error ->
-            event_server:event(Name,
-            "ERROR: Received an unknown error: ~p",
-                [Error], []),
-            throw(logged_error)
+        {{fatal, Error}, Task, Host} ->
+            throw({error, disco:format("Worker at '~s' died: ~s", [Host, Error]),
+                   {task_failed, Task#task.mode}})
     end.
 
 -spec submit_task(task()) -> _.
@@ -188,11 +157,8 @@ submit_task(Task) ->
         ok ->
             ok;
         _ ->
-            event_server:event(Task#task.jobname,
-            "ERROR: ~s:~B scheduling failed. "
-            "Try again later.",
-            [Task#task.mode, Task#task.taskid], []),
-            throw(logged_error)
+            throw({error, disco:format("~s:~B scheduling failed. Try again later.",
+                                       [Task#task.mode, Task#task.taskid])})
     end.
 
 % data_error signals that a task failed on an error that is not likely
@@ -201,160 +167,114 @@ submit_task(Task) ->
 % failing node in its blacklist. If a task fails too many times, as
 % determined by check_failure_rate(), the whole job will be terminated.
 -spec handle_data_error(task(), node()) -> _.
-handle_data_error(Task, Node) ->
+handle_data_error(Task, Host) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     check_failure_rate(Task, MaxFail),
     spawn_link(fun() ->
-        {A1, A2, A3} = now(),
-        random:seed(A1, A2, A3),
-        T = Task#task.taskblack,
-        C = Task#task.fail_count + 1,
-        S = lists:min([C * ?FAILED_MIN_PAUSE, ?FAILED_MAX_PAUSE]) +
-                random:uniform(?FAILED_PAUSE_RANDOMIZE),
-        event_server:event(
-            Task#task.jobname,
-            "~s:~B Task failed for the ~Bth time. "
-                "Sleeping ~B seconds before retrying.",
-            [Task#task.mode, Task#task.taskid, C, round(S / 1000)],
-            []),
-        timer:sleep(S),
-        submit_task(Task#task{taskblack = [Node|T], fail_count = C})
-    end).
+                       {A1, A2, A3} = now(),
+                       random:seed(A1, A2, A3),
+                       T = Task#task.taskblack,
+                       C = Task#task.fail_count + 1,
+                       S = lists:min([C * ?FAILED_MIN_PAUSE, ?FAILED_MAX_PAUSE]) +
+                           random:uniform(?FAILED_PAUSE_RANDOMIZE),
+                       event_server:event(
+                         Task#task.jobname,
+                         "~s:~B Task failed for the ~Bth time. "
+                         "Sleeping ~B seconds before retrying.",
+                         [Task#task.mode, Task#task.taskid, C, round(S / 1000)],
+                         []),
+                       timer:sleep(S),
+                       submit_task(Task#task{taskblack = [Host|T], fail_count = C})
+               end).
 
 -spec check_failure_rate(task(), non_neg_integer()) -> _.
-check_failure_rate(Task, MaxFail)
-    when Task#task.fail_count + 1 < MaxFail -> ok;
+check_failure_rate(Task, MaxFail) when Task#task.fail_count + 1 < MaxFail ->
+    ok;
 check_failure_rate(Task, MaxFail) ->
-    event_server:event(Task#task.jobname,
-    "ERROR: ~s:~B failed ~B times. At most ~B failures "
-    "are allowed. Aborting job.",
-        [Task#task.mode,
-         Task#task.taskid,
-         Task#task.fail_count + 1,
-         MaxFail], []),
-    throw(logged_error).
+    Message = disco:format("Task failed ~B times. At most ~B failures are allowed.",
+                           [Task#task.fail_count + 1, MaxFail]),
+    event_server:task_event(Task, {<<"ERROR">>, Message}),
+    throw({error, Message}).
 
--spec kill_job(nonempty_string(), nonempty_string(), [_], atom()) -> no_return().
-kill_job(Name, Msg, P, Type) ->
-    event_server:event(Name, Msg, P, []),
-    disco_server:kill_job(Name, 30000),
-    gen_server:cast(event_server, {job_done, Name}),
-    exit(Type).
+map_reduce(#jobinfo{inputs = Inputs} = Job) ->
+    {ok, reduce(map(Inputs, Job), Job)}.
 
-% run_task() is a common supervisor for both the map and reduce tasks.
-% Its main function is to catch and report any errors that occur during
-% work() calls.
--spec run_task([{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}],
-    nonempty_string(), nonempty_string(), jobinfo()) -> [binary()].
-run_task(Inputs, Mode, Name, Job) ->
-    case catch run_task_do(Inputs, Mode, Name, Job) of
-        {ok, Res} ->
-            Res;
-        logged_error ->
-            kill_job(Name,
-            "ERROR: Job terminated due to the previous errors",
-            [], logged_error);
-        Error ->
-            kill_job(Name,
-            "ERROR: Job coordinator failed unexpectedly: ~p",
-            [Error], unknown_error)
-    end.
+-spec map_input([input()]) -> [task_input()].
+map_input(Inputs) ->
+    disco:enum([case Input of
+                    List when is_list(List) ->
+                        [{I, preferred_host(I)} || I <- List];
+                    I ->
+                        [{I, preferred_host(I)}]
+                end || Input <- Inputs]).
 
-run_task_do(Inputs, Mode, Name, Job) ->
-    {ok, Results} = work(Inputs, Mode, Name, 0, Job, gb_trees:empty()),
-    % if save=True, tasks output tag:// urls, not dir://.
-    % We don't need to shuffle tags.
-    Fun = fun({_, <<"dir://", _/binary>>}) -> true; (_) -> false end,
-    {DirUrls, Others} = lists:partition(Fun, gb_trees:values(Results)),
-    {ok, Combined} = shuffle(Name, Mode, DirUrls),
-    {ok, lists:usort(([Url || {_Node, Url} <- Others])) ++ Combined}.
+map(Inputs, #jobinfo{map = false}) ->
+    Inputs;
+map(Inputs, Job) ->
+    run_phase(map_input(Inputs), "map", Job).
 
-shuffle(_Name, _Mode, []) -> {ok, []};
-shuffle(Name, Mode, DirUrls) ->
-    event_server:event(Name, "Shuffle phase starts", [], {}),
-    T = now(),
-    Ret = shuffle:combine_tasks(Name, Mode, DirUrls),
-    Elapsed = timer:now_diff(now(), T) div 1000,
-    event_server:event(Name, "Shuffle phase took ~bms.", [Elapsed], {}),
+-spec shuffle(nonempty_string(), nonempty_string(), [{node(), binary()}]) -> {'ok', [binary()]}.
+shuffle(_JobName, _Mode, []) ->
+    {ok, []};
+shuffle(JobName, Mode, DirUrls) ->
+    job_event(JobName, "Starting shuffle phase"),
+    Started = now(),
+    Ret = shuffle:combine_tasks(JobName, Mode, DirUrls),
+    job_event(JobName, {"Finished shuffle phase in ~s",
+                        [disco:format_time_since(Started)]}),
     Ret.
 
--spec job_coordinator(nonempty_string(), jobinfo()) -> 'ok'.
-job_coordinator(Name, Job) ->
-    Started = now(),
-    event_server:event(Name, "Starting job", [], {job_data, Job}),
-
-    case catch disco_server:new_job(Name, self(), 30000) of
-    ok -> ok;
-    R ->
-        event_server:event(Name,
-        "ERROR: Job initialization failed: ~p", [R], {}),
-        exit(job_init_failed)
-    end,
-
-    RedInputs = if Job#jobinfo.map ->
-        event_server:event(Name, "Map phase", [], {}),
-        MapResults = run_task(map_input(Job#jobinfo.inputs),
-            "map", Name, Job),
-        event_server:event(Name, "Map phase done", [], {map_ready, MapResults}),
-        MapResults;
-    true ->
-        Job#jobinfo.inputs
-    end,
-
-    if Job#jobinfo.reduce ->
-        event_server:event(Name, "Starting reduce phase", [], {}),
-        RedResults = run_task(reduce_input(
-            Name, RedInputs, Job#jobinfo.nr_reduce),
-            "reduce", Name,
-            Job#jobinfo{force_local = false, force_remote = false}),
-
-        event_server:event(Name, "Reduce phase done", [], []),
-        event_server:event(Name, "READY: Job finished in " ++
-            disco:format_time(Started), [], {ready, RedResults});
-    true ->
-        event_server:event(Name, "READY: Job finished in " ++
-            disco:format_time(Started), [], {ready, RedInputs})
-    end,
-    gen_server:cast(event_server, {job_done, Name}).
-
--spec map_input([binary() | [binary()]]) ->
-    [{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}].
-map_input(Inputs) ->
-    Prefs = [map_input1(I) || I <- Inputs],
-    lists:zip(lists:seq(0, length(Prefs) - 1), Prefs).
-
--spec map_input1(binary() | [binary()]) ->
-    [{binary(), nonempty_string() | 'false'}].
-map_input1(Inp) when is_list(Inp) ->
-    [{<<"'", X/binary, "' ">>, pref_node(X)} || X <- Inp];
-map_input1(Inp) ->
-    [{<<"'", Inp/binary, "' ">>, pref_node(Inp)}].
-
--spec reduce_input(nonempty_string(), _, non_neg_integer()) ->
-    [{non_neg_integer(), [{binary(), nonempty_string() | 'false'}]}].
-reduce_input(Name, Inputs, NRed) ->
-    V = lists:any(fun erlang:is_list/1, Inputs),
-    if V ->
-    event_server:event(Name,
-        "ERROR: Reduce doesn't support redundant inputs", [], []),
-    throw({error, "redundant inputs in reduce"});
-    true -> ok
-    end,
-    B = << <<"'", X/binary, "' ">> || X <- Inputs >>,
-    U = lists:usort([pref_node(X) || X <- Inputs]),
-    N = length(U),
-    D = dict:from_list(lists:zip(lists:seq(0, N - 1), U)),
-    [{X, [{B, dict:fetch(X rem N, D)}]} || X <- lists:seq(0, NRed - 1)].
-
-% pref_node() suggests a preferred node for a task (one preserving locality)
-% given the url of its input.
-
--spec pref_node(binary() | string()) -> 'false' | nonempty_string().
-pref_node(Url) when is_binary(Url) -> pref_node(binary_to_list(Url));
-pref_node(Url) ->
-    case re:run(Url ++ "/", "[a-zA-Z0-9]+://(.*?)[/:]",
-        [{capture, all_but_first}]) of
-    nomatch -> false;
-    {match, [{S, L}]} -> string:sub_string(Url, S + 1, S + L)
+-spec reduce_input([input()], non_neg_integer()) -> [task_input()].
+reduce_input(Inputs, NRed) ->
+    Hosts = lists:usort([case Input of
+                             List when is_list(List) andalso length(List) > 1 ->
+                                 throw({error, "Redundant inputs in reduce"});
+                             Input ->
+                                 preferred_host(Input)
+                         end || Input <- Inputs]),
+    NHosts = length(Hosts),
+    case NHosts of
+        0 ->
+            [];
+        _ ->
+            HostsD = dict:from_list(disco:enum(Hosts)),
+            [{TaskID, [{Inputs, dict:find(TaskID rem NHosts, HostsD)}]}
+             || TaskID <- lists:seq(0, NRed - 1)]
     end.
 
+reduce(Inputs, #jobinfo{reduce = false}) ->
+    Inputs;
+reduce(Inputs, Job) ->
+    run_phase(reduce_input(Inputs, Job#jobinfo.nr_reduce),
+              "reduce",
+              Job#jobinfo{force_local = false,
+                          force_remote = false}).
+
+-spec run_phase([task_input()], nonempty_string(), jobinfo()) -> [input()].
+run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
+    job_event(JobName, {"Starting ~s phase", [Mode]}),
+    Started = now(),
+    {ok, TaskResults} = work(Inputs, Mode, 0, Job, gb_trees:empty()),
+    Fun = fun ({_Node, {none, GResults}}, {Local, Global}) ->
+                  {Local, GResults ++ Global};
+              ({Node, {LResult, GResults}}, {Local, Global}) ->
+                  {[{Node, LResult} | Local], GResults ++ Global}
+          end,
+    {LResults, GResults} = lists:foldl(Fun, {[], []}, gb_trees:values(TaskResults)),
+    % Only local results need to be shuffled.
+    {ok, Combined} = shuffle(JobName, Mode, LResults),
+    Results = lists:usort(GResults ++ Combined),
+    job_event(JobName, {"Finished ~s phase in ~s",
+                        [Mode, disco:format_time_since(Started)],
+                        {list_to_atom(Mode ++ "_ready"), Results}}),
+    Results.
+
+-spec preferred_host(binary()) -> host().
+preferred_host(Url) ->
+    case re:run(Url, "^[a-zA-Z0-9]+://([^/:]*)",
+                [{capture, all_but_first, binary}]) of
+        {match, [Match]} ->
+            binary_to_list(Match);
+        nomatch ->
+            false
+    end.

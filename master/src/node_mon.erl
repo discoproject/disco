@@ -14,6 +14,7 @@ spawn_node(Host) ->
     process_flag(trap_exit, true),
     spawn_node(Host, is_master(Host)).
 
+-spec spawn_node(nonempty_string(), bool()) -> no_return().
 spawn_node(Host, IsMaster) ->
     case {IsMaster, catch slave_start(Host)} of
         {true, {ok, Node}} ->
@@ -35,15 +36,14 @@ spawn_node(Host, IsMaster) ->
                 {"Spawning node @", Host, "failed for unknown reason", Error}),
             disco_server:connection_status(Host, down)
     end,
-    flush(),
-    timer:sleep(?RESTART_DELAY),
-    spawn_node(Host, IsMaster).
+    timer:sleep(?RESTART_DELAY).
 
 -spec node_monitor(nonempty_string(), node(), {bool(), bool()}) -> _.
 node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
-    start_temp_gc(Node, disco:host(Node)),
+    start_temp_gc(Node),
+    start_lock_server(Node),
     disco_server:connection_status(Host, up),
     wait(Node),
     disco_server:connection_status(Host, down).
@@ -65,13 +65,6 @@ wait(Node) ->
             error_logger:info_report({"Erroneous message (node_mon)", E})
     end.
 
-flush() ->
-    receive
-        _ -> flush()
-    after
-        0 -> true
-    end.
-
 slave_env() ->
     Home = disco:get_setting("DISCO_MASTER_HOME"),
     lists:flatten([?SLAVE_ARGS,
@@ -84,7 +77,7 @@ slave_env() ->
 slave_start(Host) ->
     error_logger:info_report({"starting node @", Host}),
     slave:start(Host,
-                disco:node_name(),
+                disco:slave_name(),
                 slave_env(),
                 self(),
                 disco:get_setting("DISCO_ERLANG")).
@@ -107,15 +100,13 @@ is_master(Host) ->
             is_master(Host)
     end.
 
--spec start_temp_gc(node(), nonempty_string()) -> pid().
-start_temp_gc(Node, Host) ->
-    DataRoot = disco:get_setting("DISCO_DATA"),
-    GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
-    spawn_link(Node, temp_gc, start_link,
-               [whereis(disco_server),
-                whereis(event_server),
-                whereis(ddfs_master),
-                DataRoot, Host, GCAfter]).
+-spec start_temp_gc(node()) -> pid().
+start_temp_gc(Node) ->
+    spawn_link(Node, temp_gc, start_link, [whereis(disco_server)]).
+
+-spec start_lock_server(node()) -> pid().
+start_lock_server(Node) ->
+    spawn_link(Node, lock_server, start_link, []).
 
 -spec start_ddfs_node(node(), {bool(), bool()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->

@@ -1,28 +1,34 @@
 -module(shuffle).
 -export([combine_tasks/3, combine_tasks_node/4, process_url/3]).
 
-combine_tasks(Name, Mode, DirUrls) ->
+-type msg() :: {node(), [term()]}.
+-type promise() :: {pid(), msg()}.
+
+-spec combine_tasks(nonempty_string(), nonempty_string(),
+                    [msg()]) -> {'ok', [binary()]}.
+combine_tasks(JobName, Mode, DirUrls) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
-    JobHome = disco:jobhome(Name),
     NodeGroups = disco_util:groupby(1, lists:keysort(1, DirUrls)),
     Messages = [begin
                    {[Node|_], NodeDirUrls} = lists:unzip(NodeUrls),
-                   {Node, [DataRoot, JobHome, Mode, NodeDirUrls]}
+                   {Node, [DataRoot, JobName, Mode, NodeDirUrls]}
                 end || NodeUrls <- NodeGroups],
-    {ok, wait_replies(Name, call_nodes(Name, Messages, 0), [])}.
+    {ok, wait_replies(JobName, call_nodes(Messages, 0), [])}.
 
-call_nodes(Name, Messages, FailCount) ->
+-spec call_nodes([msg()], non_neg_integer()) ->
+                        {[promise()], non_neg_integer()}.
+call_nodes(Messages, FailCount) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     if FailCount >= MaxFail ->
-        event_server:event(Name,
-            "ERROR: Shuffling failed ~B times. At most ~B failures "
-            "are allowed. Aborting job.",
-            [FailCount, MaxFail], []),
-        throw(logged_error);
-    true ->
-        call_nodes_do(Messages, FailCount + 1)
+            throw({error,
+                   {"Shuffling failed ~B times. At most ~B failures are allowed.",
+                    [FailCount, MaxFail]}});
+       true ->
+            call_nodes_do(Messages, FailCount + 1)
     end.
 
+-spec call_nodes_do([{node(), [term()]}], non_neg_integer()) ->
+                           {[promise()], non_neg_integer()}.
 call_nodes_do(Messages, FailCount) ->
     Promises =
         [begin
@@ -31,6 +37,8 @@ call_nodes_do(Messages, FailCount) ->
          end || {Node, Args} = Msg <- Messages],
     {Promises, FailCount}.
 
+-spec wait_replies(nonempty_string(), {[promise()], non_neg_integer()},
+                   [binary()]) -> [binary()].
 wait_replies(_Name, {[], _FailCount}, Results) -> Results;
 wait_replies(Name, {Promises, FailCount}, Results) ->
     Replies = [{rpc:yield(Key), Msg} || {Key, Msg} <- Promises],
@@ -38,36 +46,43 @@ wait_replies(Name, {Promises, FailCount}, Results) ->
     {OkReplies, Failed} = lists:partition(Fun, Replies),
     Messages =
         [begin
-            M = "WARN: Creating index file failed at ~s: ~p (retrying)",
+            M = "WARNING: Creating index file failed at ~s: ~p (retrying)",
             event_server:event(Name, M, [disco:host(Node), Reply], {}),
             timer:sleep(10000),
             Msg
          end || {Reply, {Node, _Arg} = Msg} <- Failed],
     Ok = Results ++ [Url || {{ok, Url}, _} <- OkReplies],
-    wait_replies(Name, call_nodes(Name, Messages, FailCount), Ok).
+    wait_replies(Name, call_nodes(Messages, FailCount), Ok).
 
+-type partinfo() :: {file:filename(), [nonempty_string()]}.
 % NB: Under rare circumstances it is possible that several instances of
 % combine_tasks_node are running in parallel on a single node. Thus, all
 % operations it performs on shared resources should be atomic.
 
-combine_tasks_node(DataRoot, JobHome, Mode, DirUrls) ->
+-spec combine_tasks_node(nonempty_string(), nonempty_string(), nonempty_string(),
+                         [nonempty_string()]) -> {'ok', binary()}.
+combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     process_flag(priority, low),
     Host = disco:host(node()),
-    JobRoot = filename:join([DataRoot, Host, JobHome]),
+    JobHome = disco:jobhome(JobName, filename:join([DataRoot, Host])),
+    ResultsHome = filename:join(JobHome, ".disco"),
+    JobLink = disco:jobhome(JobName, filename:join([Host, "disco", Host])),
+    ResultsLink = filename:join(JobLink, ".disco"),
 
-    PartDir = ["partitions-", ddfs_util:timestamp()],
-    PartPath = filename:join(JobRoot, PartDir),
-    PartUrl = ["disco://", Host, "/disco/", Host, "/", JobHome, PartDir],
+    PartDir = lists:flatten(["partitions-", ddfs_util:timestamp()]),
+    PartPath = filename:join(ResultsHome, PartDir),
+    PartUrl = ["disco://", ResultsLink, "/", PartDir],
 
-    IndexFile = [Mode, "-index.txt.gz"],
-    IndexPath = filename:join([JobRoot, IndexFile]),
-    IndexUrl = ["dir://", Host, "/disco/", Host, "/", JobHome, IndexFile],
+    IndexFile = lists:flatten([Mode, "-index.txt.gz"]),
+    IndexPath = filename:join(ResultsHome, IndexFile),
+    IndexUrl = ["dir://", ResultsLink, "/", IndexFile],
 
     prim_file:make_dir(PartPath),
     Index = merged_index(DirUrls, DataRoot, {PartPath, PartUrl}),
     ok = write_index(IndexPath, Index),
     {ok, list_to_binary(IndexUrl)}.
 
+-spec write_index(file:filename(), [binary()]) -> 'ok'.
 write_index(Path, Lines) ->
     Time = ddfs_util:timestamp(),
     {ok, IO} = prim_file:open([Path, $., Time], [write, raw, compressed]),
@@ -75,6 +90,8 @@ write_index(Path, Lines) ->
     ok = prim_file:close(IO),
     prim_file:rename([Path, $., Time], Path).
 
+-spec merged_index([nonempty_string()], nonempty_string(), partinfo()) ->
+                          [binary()].
 merged_index(DirUrls, DataRoot, PartInfo) ->
     gb_sets:to_list(
         lists:foldl(
@@ -83,6 +100,8 @@ merged_index(DirUrls, DataRoot, PartInfo) ->
                 gb_sets:union(UrlSet, Set)
             end, gb_sets:empty(), DirUrls)).
 
+-spec process_task(nonempty_string(), nonempty_string(), partinfo()) ->
+                          [binary()].
 process_task(DirUrl, DataRoot, PartInfo) ->
     TaskPath = disco:disco_url_path(DirUrl),
     {ok, Index} = prim_file:read_file(filename:join(DataRoot, TaskPath)),
@@ -93,10 +112,11 @@ process_task(DirUrl, DataRoot, PartInfo) ->
 % i.e. potentially millions of times for a job. Be careful when making
 % any changes to it. Especially measure the performance impact of your
 % changes!
+-spec process_url(_, nonempty_string(), partinfo()) -> binary().
 process_url([Id, <<"part://", _/binary>> = Url],
             DataRoot,
             {PartPath, PartUrl}) ->
-    PartFile = ["part-", Id],
+    PartFile = ["part-", binary_to_list(Id)],
     PartSrc = [DataRoot, "/", disco:disco_url_path(Url)],
     PartDst = [PartPath, "/", PartFile],
     ok = ddfs_util:concatenate(PartSrc, PartDst),
@@ -105,9 +125,11 @@ process_url([Id, <<"part://", _/binary>> = Url],
 process_url([Id, Url], _DataRoot, _PartInfo) ->
     list_to_binary([Id, " ", Url, "\n"]).
 
+-spec parse_index(binary()) -> _.
+parse_index(<<"">>) ->
+    [];
 parse_index(Index) ->
     {match, Lines} = re:run(Index,
                             "(.*?) (.*?)\n",
                             [global, {capture, all_but_first, binary}]),
     Lines.
-

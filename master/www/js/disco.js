@@ -5,6 +5,9 @@ jQuery.fn.log = function (msg) {
 
 $(document).ready(function() {
     $.ajaxSetup({cache: false});
+    $.getJSON("/disco/version", function (data) {
+        $("#version").text(data);
+      });
   });
 
 function format_size(num) {
@@ -16,11 +19,11 @@ function format_size(num) {
   }
 }
 
-function show_msg(m){
+function show_msg(m) {
   $("#msg").text(m.replace(/\"/g, "")).show().fadeOut(2000);
 }
 
-function post_req(url, data, func){
+function post_req(url, data, func) {
   $.ajax({data: data,
         dataType: "JSON",
         url: url,

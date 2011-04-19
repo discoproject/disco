@@ -5,9 +5,33 @@
 -define(EVENT_BUFFER_SIZE, 1000).
 -define(EVENT_BUFFER_TIMEOUT, 2000).
 
--export([event/4, event/5, event/6]).
--export([start_link/0, stop/0, init/1, handle_call/3, handle_cast/2,
-    handle_info/2, terminate/2, code_change/3]).
+-export([new_job/2,
+         end_job/1,
+         event/4,
+         event/5,
+         event/6,
+         task_event/2,
+         task_event/3,
+         task_event/4,
+         task_event/5]).
+-export([start_link/0,
+         stop/0,
+         init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
+
+-include("disco.hrl").
+
+-spec new_job(nonempty_string(), pid()) -> {'ok', nonempty_string()}.
+new_job(Prefix, JobCoordinator) ->
+    gen_server:call(?MODULE, {new_job, Prefix, JobCoordinator}, 10000).
+
+-spec end_job(nonempty_string()) -> 'ok'.
+end_job(JobName) ->
+    gen_server:cast(?MODULE, {job_done, JobName}).
 
 start_link() ->
     error_logger:info_report([{"Event server starts"}]),
@@ -30,15 +54,20 @@ json_list([X], L) ->
 json_list([X|R], L) ->
     json_list(R, [<<X/binary, ",">>|L]).
 
--spec unique_key(nonempty_string(), dict()) -> nonempty_string().
+-spec unique_key(nonempty_string(), dict()) -> 'invalid_prefix' | {ok, nonempty_string()}.
 unique_key(Prefix, Dict) ->
-    {MegaSecs, Secs, MicroSecs} = now(),
-    Key = lists:flatten(io_lib:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs])),
-    case dict:is_key(Key, Dict) of
-        false ->
-            Key;
-        true ->
-            unique_key(Prefix, Dict)
+    C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
+    if C > 0 ->
+        invalid_prefix;
+    true ->
+        {MegaSecs, Secs, MicroSecs} = now(),
+        Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
+        case dict:is_key(Key, Dict) of
+            false ->
+                {ok, Key};
+            true ->
+                unique_key(Prefix, Dict)
+        end
     end.
 
 handle_call(get_jobs, _From, {Events, _MsgBuf} = S) ->
@@ -88,12 +117,16 @@ handle_call({get_map_results, JobName}, _From, {Events, _MsgBuf} = S) ->
             end
     end;
 
-handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0}) ->
-    JobName = unique_key(JobPrefix, Events0),
-    Events = dict:store(JobName, {[], now(), Pid}, Events0),
-    MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
-    spawn(fun() -> job_event_handler(JobName, From) end),
-    {noreply, {Events, MsgBuf}};
+handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0} = S) ->
+    case unique_key(JobPrefix, Events0) of
+        invalid_prefix ->
+            {reply, {error, invalid_prefix}, S};
+        {ok, JobName} ->
+            Events = dict:store(JobName, {[], now(), Pid}, Events0),
+            MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
+            spawn(fun() -> job_event_handler(JobName, From) end),
+            {noreply, {Events, MsgBuf}}
+    end;
 
 handle_call({job_initialized, JobName, JobEventHandler}, _From, S) ->
     ets:insert(event_files, {JobName, JobEventHandler}),
@@ -149,22 +182,22 @@ handle_info(Msg, State) ->
     error_logger:warning_report(["Unknown message received: ", Msg]),
     {noreply, State}.
 
-tail_log(JobName, N)->
-    Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
-    Tail = string:tokens(os:cmd(["tail -n ", integer_to_list(N),
-                     " ", FName, " 2>/dev/null"]), "\n"),
+event_log(JobName) ->
+    filename:join(disco:jobhome(JobName), "events").
+
+tail_log(JobName, N) ->
+    Tail = string:tokens(os:cmd(["tail -n ", integer_to_list(N), " ",
+                                 event_log(JobName),
+                                 " 2>/dev/null"]), "\n"),
     [list_to_binary(L) || L <- lists:reverse(Tail)].
 
 grep_log(JobName, Query, N) ->
-    Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
-
     % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
     % only whitelisted characters are allowed in the query
     {ok, CQ, _} = regexp:gsub(Query, "[^a-zA-Z0-9:-_!@]", ""),
-    Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ", FName,
-                      " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
+    Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ",
+                                  event_log(JobName),
+                                  " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
     lists:map(fun erlang:list_to_binary/1, lists:reverse(Lines)).
 
 process_status(Pid) ->
@@ -223,10 +256,10 @@ event(Host, JobName, Format, Args, Params) ->
 %-spec event(atom(), nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(EventServer, Host, JobName, Format, Args, Params) ->
     SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 10000 of
-		     true -> trunc_io:fprint(X, 10000);
-		     false -> X 
-		 end || X <- Args],
-    RawMsg = lists:flatten(io_lib:fwrite(Format, SArgs)),
+                 true -> trunc_io:fprint(X, 10000);
+                 false -> X
+             end || X <- Args],
+    RawMsg = disco:format(Format, SArgs),
     Json = case catch mochijson2:encode(list_to_binary(RawMsg)) of
                {'EXIT', _} ->
                    Hex = ["WARNING: Binary message data: ",
@@ -238,36 +271,46 @@ event(EventServer, Host, JobName, Format, Args, Params) ->
     Msg = list_to_binary(Json),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
 
+task_event(Task, Event) ->
+    task_event(Task, Event, {}).
+
+task_event(Task, Event, Params) ->
+    task_event(Task, Event, Params, "master").
+
+task_event(Task, Event, Params, Host) ->
+    task_event(Task, Event, Params, Host, event_server).
+
+task_event(Task, {Type, Message}, Params, Host, EventServer) ->
+    event(EventServer,
+          Host,
+          Task#task.jobname,
+          "~s: [~s:~B] " ++ task_format(Message),
+          [Type, Task#task.mode, Task#task.taskid, Message],
+          Params);
+task_event(Task, Message, Params, Host, EventServer) ->
+    task_event(Task, {<<"SYS">>, Message}, Params, Host, EventServer).
+
+task_format(Msg) when is_atom(Msg) or is_binary(Msg) or is_list(Msg) ->
+    "~s";
+task_format(_Msg) ->
+    "~w".
+
 % callback stubs
 terminate(_Reason, _State) -> {}.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-check_mkdir(ok) -> ok;
-check_mkdir({error, eexist}) -> ok;
-check_mkdir(_) -> throw("creating directory failed").
-
-prepare_environment(Name) ->
-    Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    Home = disco:jobhome(Name),
-    [Path, _] = filename:split(Home),
-    check_mkdir(file:make_dir(filename:join(Root, Path))),
-    check_mkdir(file:make_dir(filename:join(Root, Home))).
-
-delete_jobdir(Name) ->
-    Safe = string:chr(Name, $.) + string:chr(Name, $/),
+delete_jobdir(JobName) ->
+    Safe = string:chr(JobName, $.) + string:chr(JobName, $/),
     if Safe =:= 0 ->
-        Root = disco:get_setting("DISCO_MASTER_ROOT"),
-        Home = disco:jobhome(Name),
-        os:cmd("rm -Rf " ++ filename:join(Root, Home));
-    true -> ok
+            os:cmd("rm -Rf " ++ disco:jobhome(JobName));
+       true ->
+            ok
     end.
 
 job_event_handler(JobName, JobCoordinator) ->
-    prepare_environment(JobName),
-    Root = disco:get_setting("DISCO_MASTER_ROOT"),
-    FName = filename:join([Root, disco:jobhome(JobName), "events"]),
-    {ok, File} = file:open(FName, [append, raw]),
+    {ok, _JobHome} = disco:make_dir(disco:jobhome(JobName)),
+    {ok, File} = file:open(event_log(JobName), [append, raw]),
     gen_server:call(event_server, {job_initialized, JobName, self()}),
     gen_server:reply(JobCoordinator, {ok, JobName}),
     timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),

@@ -8,7 +8,7 @@
 -export([start/2, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
--type replica() :: {timer:timestamp(), nonempty_string()}.
+-type replica() :: {disco_util:timestamp(), nonempty_string()}.
 -type replyto() :: {pid(), reference()}.
 
 -record(state, {tag :: tagname(),
@@ -225,7 +225,11 @@ handle_call(dbg_get_state, _, S) ->
 handle_call(_, _, S) -> {reply, ok, S}.
 
 handle_info(timeout, S) ->
-    handle_cast({die, none}, S).
+    handle_cast({die, none}, S);
+
+% handle late replies to "catch gen_server:call"
+handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
+    {noreply, S}.
 
 % callback stubs
 terminate(_Reason, _State) -> {}.
@@ -295,7 +299,7 @@ merge_urls(NewUrls, OldUrls, true, Cache) ->
 find_unseen([], Seen, Urls) ->
     {Seen, Urls};
 find_unseen([[Url|_] = Repl|Rest], Seen, Urls) ->
-    Name = ddfs_util:name_from_url(Url),
+    Name = ddfs_util:url_to_name(Url),
     case {Name, gb_sets:is_member(Name, Seen)} of
         {false, _} ->
             find_unseen(Rest, Seen, [Repl|Urls]);
@@ -306,7 +310,7 @@ find_unseen([[Url|_] = Repl|Rest], Seen, Urls) ->
     end.
 
 init_url_cache(Urls) ->
-    gb_sets:from_list([ddfs_util:name_from_url(Url) || [Url|_] <- Urls]).
+    gb_sets:from_list([ddfs_util:url_to_name(Url) || [Url|_] <- Urls]).
 
 -spec send_replies(replyto() | [replyto()],
                    {'error', 'commit_failed' | 'invalid_attribute_value' |
@@ -321,7 +325,7 @@ send_replies(ReplyToList, Message) ->
 -spec get_tagdata(tagname()) -> {'missing', 'notfound'} | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.
 get_tagdata(TagName) ->
-    {ok, ReadableNodes, RBSize} = gen_server:call(ddfs_master, get_read_nodes),
+    {ok, ReadableNodes, RBSize} = ddfs_master:get_read_nodes(),
     TagMinK = get(min_tagk),
     case RBSize >= TagMinK of
         true ->
@@ -383,11 +387,12 @@ do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
             S
     end.
 
+-spec jsonbin(_) -> binary().
 jsonbin(X) ->
     iolist_to_binary(mochijson2:encode(X)).
 
 -spec do_get({tokentype(), token()}, attrib() | all, tagcontent()) ->
-             binary() | {'error','unauthorized' | 'unknown_attribute'}.
+             {'ok', binary()} | {'error','unauthorized' | 'unknown_attribute'}.
 do_get(_TokenInfo, all, D) ->
     {ok, ddfs_tag_util:encode_tagcontent_secure(D)};
 
@@ -495,7 +500,7 @@ put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
 put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
-    {ok, Nodes} = gen_server:call(ddfs_master, {choose_write_nodes, K0, Exclude}),
+    {ok, Nodes} = ddfs_master:choose_write_nodes(K0, Exclude),
     if
         Nodes =:= [], length(OkNodes) < TagMinK ->
             {error, replication_failed};
@@ -542,16 +547,16 @@ do_delete(ReplyTo, S) ->
 -spec is_tag_deleted(tagname()) -> _.
 is_tag_deleted(<<"+deleted">>) -> false;
 is_tag_deleted(Tag) ->
-    Msg = {tag, {has_tagname, Tag}, <<"+deleted">>},
-    gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
+    deleted_op({has_tagname, Tag}, ?NODEOP_TIMEOUT).
 
 -spec add_to_deleted(tagname()) -> _.
 add_to_deleted(Tag) ->
     Urls = [[<<"tag://", Tag/binary>>]],
-    Msg = {tag, {update, Urls, internal, [nodup]}, <<"+deleted">>},
-    gen_server:call(ddfs_master, Msg, ?TAG_UPDATE_TIMEOUT).
+    deleted_op({update, Urls, internal, [nodup]}, ?TAG_UPDATE_TIMEOUT).
 
 -spec remove_from_deleted(tagname()) -> _.
 remove_from_deleted(Tag) ->
-    Msg = {tag, {delete_tagname, Tag}, <<"+deleted">>},
-    gen_server:call(ddfs_master, Msg, ?NODEOP_TIMEOUT).
+    deleted_op({delete_tagname, Tag}, ?NODEOP_TIMEOUT).
+
+deleted_op(Op, Timeout) ->
+    ddfs_master:tag_operation(Op, <<"+deleted">>, Timeout).

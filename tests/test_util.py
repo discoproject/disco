@@ -1,26 +1,21 @@
-from disco.test import DiscoTestCase
-from disco.util import flatten, iterify, rapply, pack, unpack, urlsplit
-
 import os
 from datetime import datetime
+
+from disco.test import TestCase
+from disco.util import flatten, iterify, pack, unpack, urlsplit
 
 def function(x):
     return x + 0
 
 sequence = 0, [1, [2, 3], [[4, [5, [6]]]]]
 
-class UtilTestCase(DiscoTestCase):
+class UtilTestCase(TestCase):
     def test_flatten(self):
         self.assertEquals(range(7), list(flatten(sequence)))
 
     def test_iterify(self):
         self.assertEquals([5], list(iterify(5)))
         self.assertEquals([5], list(iterify([5])))
-
-    def test_rapply(self):
-        for x, y in zip(xrange(7), flatten(rapply(sequence, function))):
-            self.assertEquals(function(x), y)
-
 
     def test_pack(self):
         now = datetime.now()
@@ -29,9 +24,9 @@ class UtilTestCase(DiscoTestCase):
         self.assertEquals(function.func_code, unpack(pack(function)).func_code)
 
     def test_urlsplit(self):
-        port = self.disco_settings['DISCO_PORT']
-        ddfs = self.disco_settings['DDFS_ROOT']
-        data = self.disco_settings['DISCO_DATA']
+        port = self.settings['DISCO_PORT']
+        ddfs = self.settings['DDFS_ROOT']
+        data = self.settings['DISCO_DATA']
         self.assertEquals(urlsplit('http://host/path'),
                           ('http', ('host', ''), 'path'))
         self.assertEquals(urlsplit('http://host:port/path'),

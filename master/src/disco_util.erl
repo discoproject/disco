@@ -1,6 +1,10 @@
 -module(disco_util).
 -export([groupby/2, join/2]).
 
+% Define locally since this is not exported from stdlib/timer.erl or erts/erlang.erl.
+-type timestamp() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
+-export_type([timestamp/0]).
+
 groupby(N, TupleList) ->
     groupby(N, TupleList, []).
 

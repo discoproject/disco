@@ -135,7 +135,9 @@ prioq_insert(Item, L, H) ->
 fairness_fairy(NumCores) ->
     receive
         {update, NewNumCores} ->
-            fairness_fairy(NewNumCores)
+            fairness_fairy(NewNumCores);
+        _ ->
+            fairness_fairy(NumCores)
     after ?FAIRY_INTERVAL ->
         case application:get_env(fair_scheduler_alpha) of
             {ok, Alpha} ->

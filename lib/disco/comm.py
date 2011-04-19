@@ -22,20 +22,6 @@ else:
     from disco import comm_pycurl
     from disco.comm_pycurl import HTTPConnection
 
-# get rid of this for python2.6+
-try:
-    import json
-except ImportError:
-    try:
-        import simplejson as json
-    except ImportError:
-        import cjson
-        class Dummy(object):
-            pass
-        json = Dummy()
-        json.loads = cjson.decode
-        json.dumps = cjson.encode
-
 def isredirection(status):
     return str(status).startswith('3')
 
@@ -53,7 +39,7 @@ def range_header(offset):
     return {}
 
 def auth_header(token):
-    if token:
+    if token != None:
         return {'Authorization': 'Basic ' + base64.b64encode("token:" + token)}
     return {}
 
@@ -112,10 +98,16 @@ def upload(urls, source, token=None, **kwargs):
                         headers=auth_header(token)).read() for url in urls]
     return list(comm_pycurl.upload(urls, source, token, **kwargs))
 
+def open_url(url, *args, **kwargs):
+    from disco.util import schemesplit
+    scheme, url_ = schemesplit(url)
+    if not scheme or scheme == 'file':
+        return open_local(url, *args, **kwargs)
+    return open_remote(url, *args, **kwargs)
+
 def open_local(path):
-    fd = open(path, 'r', BUFFER_SIZE)
-    size = os.stat(path).st_size
-    return fd, size, 'file://%s' % path
+    file = File(path, 'r', BUFFER_SIZE)
+    return file, len(file), file.url
 
 def open_remote(url, token=None):
     conn = Connection(urlresolve(url), token)
@@ -137,6 +129,15 @@ class FileSource(object):
             return StringIO(self.source).read
         return open(self.source, 'r').read
 
+class File(file):
+    def __len__(self):
+        return os.path.getsize(self.name)
+
+    @property
+    def url(self):
+        return 'file://%s' % self.name
+
+# should raise DataError
 class Connection(object):
     def __init__(self, url, token=None):
         self.url = url

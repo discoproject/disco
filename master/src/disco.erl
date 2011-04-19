@@ -1,11 +1,42 @@
 -module(disco).
 
--export([get_setting/1, has_setting/1,
-         host/1, node/1, node_name/0, node_safe/1,
-         oob_name/1, jobhome/1, debug_flags/1,
-         format_time/1, settings/0, disco_url_path/1]).
+-export([get_setting/1,
+         has_setting/1,
+         settings/0,
+         host/1,
+         name/1,
+         master_name/0,
+         master_node/1,
+         slave_name/0,
+         slave_node/1,
+         slave_safe/1,
+         oob_name/1,
+         hexhash/1,
+         jobhome/1,
+         jobhome/2,
+         joburl/2,
+         data_root/1,
+         data_path/2,
+         debug_flags/1,
+         disco_url_path/1,
+         enum/1,
+         format/2,
+         format_time/1,
+         format_time/4,
+         format_time_since/1,
+         make_dir/1,
+         ensure_dir/1,
+         is_file/1,
+         is_dir/1]).
 
--spec get_setting(string()) -> string().
+-include_lib("kernel/include/file.hrl").
+
+-define(MILLISECOND, 1000).
+-define(SECOND, (1000 * ?MILLISECOND)).
+-define(MINUTE, (60 * ?SECOND)).
+-define(HOUR, (60 * ?MINUTE)).
+
+-spec get_setting(nonempty_string()) -> string().
 get_setting(SettingName) ->
     case os:getenv(SettingName) of
         false ->
@@ -16,7 +47,7 @@ get_setting(SettingName) ->
             Val
     end.
 
--spec has_setting(string()) -> bool().
+-spec has_setting(nonempty_string()) -> bool().
 has_setting(SettingName) ->
     case os:getenv(SettingName) of
         false -> false;
@@ -24,34 +55,79 @@ has_setting(SettingName) ->
         _Val  -> true
     end.
 
--spec host(node()) -> string().
-host(Node) ->
-    string:sub_word(atom_to_list(Node), 2, $@).
-
--spec node(string()) -> node().
-node(Host) ->
-    list_to_atom(node_name() ++ "@" ++ Host).
-
--spec node_name() -> string().
-node_name() ->
-    get_setting("DISCO_NAME") ++ "_slave".
-
--spec node_safe(string()) -> 'false' | node().
-node_safe(Host) ->
-    case catch list_to_existing_atom(node_name() ++ "@" ++ Host) of
-        {'EXIT', _} -> false;
-        Node -> Node
-    end.
-
--spec oob_name(string()) -> string().
-oob_name(JobName) ->
-    lists:flatten(["disco:job:oob:", JobName]).
-
--spec settings() -> [string()].
+-spec settings() -> [nonempty_string()].
 settings() ->
     lists:filter(fun has_setting/1,
                  string:tokens(get_setting("DISCO_SETTINGS"), ",")).
 
+-spec host(node()) -> string().
+host(Node) ->
+    string:sub_word(atom_to_list(Node), 2, $@).
+
+-spec name(node()) -> string().
+name(Node) ->
+    string:sub_word(atom_to_list(Node), 1, $@).
+
+-spec master_name() -> nonempty_string().
+master_name() ->
+    get_setting("DISCO_NAME") ++ "_master".
+
+-spec master_node(string()) -> atom().
+master_node(Host) ->
+    list_to_atom(master_name() ++ "@" ++ Host).
+
+-spec slave_name() -> nonempty_string().
+slave_name() ->
+    get_setting("DISCO_NAME") ++ "_slave".
+
+-spec slave_node(string()) -> node().
+slave_node(Host) ->
+    list_to_atom(slave_name() ++ "@" ++ Host).
+
+-spec slave_safe(string()) -> 'false' | node().
+slave_safe(Host) ->
+    case catch list_to_existing_atom(slave_name() ++ "@" ++ Host) of
+        {'EXIT', _Reason} ->
+            false;
+        Node ->
+            Node
+    end.
+
+-spec oob_name(nonempty_string()) -> nonempty_string().
+oob_name(JobName) ->
+    lists:flatten(["disco:job:oob:", JobName]).
+
+-spec hexhash(nonempty_string() | binary()) -> nonempty_string().
+hexhash(Path) when is_list(Path) ->
+    hexhash(list_to_binary(Path));
+hexhash(Path) ->
+    <<Hash:8, _/binary>> = erlang:md5(Path),
+    lists:flatten(io_lib:format("~2.16.0b", [Hash])).
+
+-spec jobhome(nonempty_string()) -> nonempty_string().
+jobhome(JobName) ->
+    jobhome(JobName, get_setting("DISCO_MASTER_ROOT")).
+
+-spec jobhome(nonempty_string(), nonempty_string()) -> nonempty_string().
+jobhome(JobName, Root) ->
+    filename:join([Root, hexhash(JobName), JobName]).
+
+-spec joburl(nonempty_string(), nonempty_string()) -> nonempty_string().
+joburl(Host, JobName) ->
+    filename:join(["disco", Host, hexhash(JobName), JobName]).
+
+-spec data_root(node() | nonempty_string()) -> nonempty_string().
+data_root(Node) when is_atom(Node) ->
+    data_root(host(Node));
+data_root(Host) ->
+    filename:join(get_setting("DISCO_DATA"), Host).
+
+-spec data_path(node() | nonempty_string(), nonempty_string()) ->
+                       nonempty_string().
+data_path(NodeOrHost, Path) ->
+    filename:join(data_root(NodeOrHost), Path).
+
+-spec debug_flags(nonempty_string()) -> [term()].
 debug_flags(Server) ->
     case os:getenv("DISCO_DEBUG") of
         "trace" ->
@@ -61,30 +137,91 @@ debug_flags(Server) ->
         _ -> []
     end.
 
-jobhome(JobName) when is_list(JobName) ->
-    jobhome(list_to_binary(JobName));
-jobhome(JobName) ->
-    <<D0:8, _/binary>> = erlang:md5(JobName),
-    [D1] = io_lib:format("~.16b", [D0]),
-    Prefix = case D1 of [_] -> "0"; _ -> "" end,
-    lists:flatten([Prefix, D1, "/", binary_to_list(JobName), "/"]).
-
-format_time(T) ->
-    MS = 1000,
-    SEC = 1000 * MS,
-    MIN = 60 * SEC,
-    HOUR = 60 * MIN,
-    D = timer:now_diff(now(), T),
-    Ms = (D rem SEC) div MS,
-    Sec = (D rem MIN) div SEC,
-    Min = (D rem HOUR) div MIN,
-    Hour = D div HOUR,
-    lists:flatten(io_lib:format("~B:~2.10.0B:~2.10.0B.~3.10.0B",
-        [Hour, Min, Sec, Ms])).
-
+-spec disco_url_path(file:filename()) -> [nonempty_string()].
 disco_url_path(Url) ->
     {match, [Path]} = re:run(Url,
                              ".*?://.*?/disco/(.*)",
                              [{capture, all_but_first, list}]),
     Path.
 
+-spec enum([term()]) -> [{non_neg_integer(), term()}].
+enum(List) ->
+    lists:zip(lists:seq(0, length(List) - 1), List).
+
+-spec format(nonempty_string(), [term()]) -> nonempty_string().
+format(Format, Args) ->
+    lists:flatten(io_lib:format(Format, Args)).
+
+-spec format_time(integer()) -> nonempty_string().
+format_time(Ms) when is_integer(Ms) ->
+    format_time((Ms rem ?SECOND) div ?MILLISECOND,
+                (Ms rem ?MINUTE) div ?SECOND,
+                (Ms rem ?HOUR) div ?MINUTE,
+                (Ms div ?HOUR)).
+
+-spec format_time(integer(), integer(), integer(), integer()) ->
+                         nonempty_string().
+format_time(Ms, Second, Minute, Hour) ->
+    format("~B:~2.10.0B:~2.10.0B.~3.10.0B", [Hour, Minute, Second, Ms]).
+
+-spec format_time_since(disco_util:timestamp()) -> nonempty_string().
+format_time_since(Time) ->
+    format_time(timer:now_diff(now(), Time)).
+
+-spec make_dir(file:filename()) -> {'ok', file:filename()} | {'error', _}.
+make_dir(Dir) ->
+    case ensure_dir(Dir) of
+        ok ->
+            case prim_file:make_dir(Dir) of
+                ok ->
+                    {ok, Dir};
+                {error, eexist} ->
+                    {ok, Dir};
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+% based on ensure_dir() in /usr/lib/erlang/lib/stdlib-1.17/src/filelib.erl
+
+ensure_dir("/") ->
+    ok;
+ensure_dir(F) ->
+    Dir = filename:dirname(F),
+    case is_dir(Dir) of
+        true ->
+            ok;
+        false ->
+            ensure_dir(Dir),
+            case prim_file:make_dir(Dir) of
+                {error,eexist}=EExist ->
+                    case is_dir(Dir) of
+                        true ->
+                            ok;
+                        false ->
+                            EExist
+                    end;
+                Err ->
+                    Err
+            end
+    end.
+
+is_dir(Dir) ->
+    case prim_file:read_file_info(Dir) of
+        {ok, #file_info{type=directory}} ->
+            true;
+        _ ->
+            false
+    end.
+
+is_file(Dir) ->
+    case prim_file:read_file_info(Dir) of
+        {ok, #file_info{type=regular}} ->
+            true;
+        {ok, #file_info{type=directory}} ->
+            true;
+        _ ->
+            false
+    end.

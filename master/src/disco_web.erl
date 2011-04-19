@@ -5,6 +5,10 @@
 -include("disco.hrl").
 -include("config.hrl").
 
+op('GET', "/disco/version", Req) ->
+    {ok, Vsn} = application:get_key(vsn),
+    reply({ok, list_to_binary(Vsn)}, Req);
+
 op('POST', "/disco/job/" ++ _, Req) ->
     BodySize = list_to_integer(Req:get_header_value("content-length")),
     if BodySize > ?MAX_JOB_PACKET ->
@@ -14,9 +18,10 @@ op('POST', "/disco/job/" ++ _, Req) ->
         case catch job_coordinator:new(Body) of
             {ok, JobName} ->
                 reply({ok, [<<"ok">>, list_to_binary(JobName)]}, Req);
-            {'EXIT', Error} ->
-                error_logger:warning_report({"could not start job", Error}),
-                reply({ok, [<<"error">>, <<"could not start job">>]}, Req)
+            Error ->
+                ErrorString = disco:format("Job failed to start: ~p", [Error]),
+                error_logger:warning_report(ErrorString),
+                reply({ok, [<<"error">>, list_to_binary(ErrorString)]}, Req)
         end
     end;
 
@@ -74,7 +79,7 @@ getop("jobinfo", {_Query, JobName}) ->
     end;
 
 getop("parameters", {_Query, Name}) ->
-    job_file(Name, "params");
+    job_file(Name, "jobfile");
 
 getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");
@@ -93,7 +98,7 @@ getop("jobevents", {Query, Name}) ->
 getop("nodeinfo", _Query) ->
     {ok, Active} = disco_server:get_active(all),
     {ok, DiscoNodes} = disco_server:get_nodeinfo(all),
-    {ok, DDFSNodes} = gen_server:call(ddfs_master, {get_nodeinfo, all}),
+    {ok, DDFSNodes} = ddfs_master:get_nodeinfo(all),
     ActiveNodeInfo = lists:foldl(fun ({Host, #task{jobname = JobName}}, Dict) ->
                                          dict:append(Host,
                                                      list_to_binary(JobName),
@@ -145,47 +150,74 @@ getop("get_mapresults", {_Query, Name}) ->
 
 getop(_, _) -> not_found.
 
+-spec validate_payload(nonempty_string(), json_validator:spec(), term(), fun((term()) -> T)) -> T.
+validate_payload(_Op, Spec, Payload, Fun) ->
+    case json_validator:validate(Spec, Payload) of
+        ok -> Fun(Payload);
+        {error, E} ->
+            Msg = list_to_binary(json_validator:error_msg(E)),
+            {error, Msg}
+    end.
+
 postop("kill_job", Json) ->
-    JobName = binary_to_list(Json),
-    disco_server:kill_job(JobName),
-    {ok, <<>>};
+    validate_payload("kill_job", string, Json, fun(J) ->
+                                           JobName = binary_to_list(J),
+                                           disco_server:kill_job(JobName),
+                                           {ok, <<>>}
+                                   end);
 
 postop("purge_job", Json) ->
-    JobName = binary_to_list(Json),
-    disco_server:purge_job(JobName),
-    {ok, <<>>};
+    validate_payload("purge_job", string, Json, fun(J) ->
+                                           JobName = binary_to_list(J),
+                                           disco_server:purge_job(JobName),
+                                           {ok, <<>>}
+                                   end);
 
 postop("clean_job", Json) ->
-    JobName = binary_to_list(Json),
-    disco_server:clean_job(JobName),
-    {ok, <<>>};
+    validate_payload("clean_job", string, Json, fun(J) ->
+                                           JobName = binary_to_list(J),
+                                           disco_server:clean_job(JobName),
+                                           {ok, <<>>}
+                                   end);
 
 postop("get_results", Json) ->
-    [Timeout, Names] = Json,
-    S = [{N, gen_server:call(event_server,
-        {get_results, binary_to_list(N)})} || N <- Names],
-    {ok, [[N, status_msg(M)] || {N, M} <- wait_jobs(S, Timeout)]};
+    Results = fun(N) -> gen_server:call(event_server, {get_results, N}) end,
+    validate_payload("get_results", {array, [integer, {hom_array, string}]}, Json,
+                     fun(J) ->
+                             [Timeout, Names] = J,
+                             S = [{N, Results(binary_to_list(N))} || N <- Names],
+                             {ok, [[N, status_msg(M)]
+                                   || {N, M} <- wait_jobs(S, Timeout)]}
+                     end);
 
 postop("blacklist", Json) ->
-    Node = binary_to_list(Json),
-    disco_config:blacklist(Node),
-    {ok, <<>>};
+    validate_payload("blacklist", string, Json, fun(J) ->
+                                           Node = binary_to_list(J),
+                                           disco_config:blacklist(Node),
+                                           {ok, <<>>}
+                                   end);
 
 postop("whitelist", Json) ->
-    Node = binary_to_list(Json),
-    disco_config:whitelist(Node),
-    {ok, <<>>};
+    validate_payload("whitelist", string, Json, fun(J) ->
+                                           Node = binary_to_list(J),
+                                           disco_config:whitelist(Node),
+                                           {ok, <<>>}
+                                   end);
 
 postop("save_config_table", Json) ->
-    disco_config:save_config_table(Json);
+    validate_payload("save_config_table", {hom_array, {array, [string, string]}},
+                     Json, fun(J) -> disco_config:save_config_table(J) end);
 
 postop("save_settings", Json) ->
-    {struct, Lst} = Json,
-    {ok, App} = application:get_application(),
-    lists:foreach(fun({Key, Val}) ->
-        update_setting(Key, Val, App)
-    end, Lst),
-    {ok, <<"Settings saved">>};
+    validate_payload("save_settings", {object, []}, Json,
+                     fun(J) ->
+                             {struct, Lst} = J,
+                             {ok, App} = application:get_application(),
+                             lists:foreach(fun({Key, Val}) ->
+                                                   update_setting(Key, Val, App)
+                                           end, Lst),
+                             {ok, <<"Settings saved">>}
+                     end);
 
 postop(_, _) -> not_found.
 
@@ -237,10 +269,6 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
                    JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
                true -> 0
            end,
-    User = case JobInfo#jobinfo.user_name of
-               undefined -> nil;
-               U -> U
-           end,
 
     {struct, [{timestamp, Timestamp},
               {active, Status},
@@ -249,8 +277,9 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
               {reduce, JobInfo#jobinfo.reduce},
               {results, lists:flatten(Results)},
               {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
+              {worker, JobInfo#jobinfo.worker},
               {hosts, [list_to_binary(Host) || Host <- Hosts]},
-              {username, list_to_binary(User)}
+              {owner, JobInfo#jobinfo.owner}
              ]}.
 
 status_msg(invalid_job) -> [<<"unknown job">>, []];

@@ -1,16 +1,10 @@
 #!/bin/bash
-# This file is used by "make install" on Linux.
+# This file is used by Debian packaging.
 
 cat << EOF
 # Disco settings
-import os
 
 DISCO_USER = "disco"
-
-# --
-# -- You can modify these directories as you wish
-# --
-
 DISCO_HOME = "/usr/lib/disco"
 
 # Root directory for Disco data.
@@ -25,11 +19,6 @@ DISCO_PID_DIR = "/var/run/disco/"
 # --
 # -- Variables below this line rarely need to be modified
 # --
-
-# disco_worker is installed by setuptools to the system default bin directory
-DISCO_WORKER = "/usr/bin/disco-worker"
-
-DISCO_MASTER_HOME = DISCO_HOME
 
 # Lighttpd for master and nodes runs on this port.
 # disco://host URIs are mapped to http://host:DISCO_PORT.

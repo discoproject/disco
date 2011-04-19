@@ -2,11 +2,12 @@
 -module(ddfs_web).
 
 -include("config.hrl").
+-include("ddfs_tag.hrl").
 
 -export([op/3]).
 
 -spec parse_tag_attribute(string(), atom()) ->
-    {string(), ddfs_tag:attrib() | 'all' | 'unknown_attribute'}.
+    {nonempty_string(), attrib() | 'all' | 'unknown_attribute'}.
 parse_tag_attribute(TagAttrib, DefaultAttrib) ->
     case mochiweb_util:path_split(TagAttrib) of
         {T, ""} -> {T, DefaultAttrib};
@@ -17,7 +18,7 @@ parse_tag_attribute(TagAttrib, DefaultAttrib) ->
         {T, A} -> {T, {user, list_to_binary(A)}}
     end.
 
--spec parse_auth_token(module()) -> ddfs_tag:token().
+-spec parse_auth_token(module()) -> token().
 parse_auth_token(Req) ->
     case Req:get_header_value("authorization") of
         undefined ->
@@ -59,9 +60,11 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
 
 op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
     Prefix = list_to_binary(string:strip(Prefix0, both, $/)),
-    case ddfs:tags(ddfs_master, Prefix) of
+    case catch ddfs:tags(ddfs_master, Prefix) of
         {ok, Tags} ->
             okjson(Tags, Req);
+        {'EXIT', {timeout, _}} ->
+            on_error({error, timeout}, Req);
         E ->
             on_error(E, Req)
     end;
@@ -217,5 +220,4 @@ tag_update(Fun, Req) ->
 -spec parse_exclude('false' | {'value', {_, string()}}) -> [node()].
 parse_exclude(false) -> [];
 parse_exclude({value, {_, ExcStr}}) ->
-    [disco:node_safe(Host) || Host <- string:tokens(ExcStr, ",")].
-
+    [disco:slave_safe(Host) || Host <- string:tokens(ExcStr, ",")].
