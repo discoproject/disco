@@ -303,7 +303,8 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 delete_jobdir(JobName) ->
     Safe = string:chr(JobName, $.) + string:chr(JobName, $/),
     if Safe =:= 0 ->
-            _ = os:cmd("rm -Rf " ++ disco:jobhome(JobName));
+            _ = os:cmd("rm -Rf " ++ disco:jobhome(JobName)),
+            ok;
        true ->
             ok
     end.

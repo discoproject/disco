@@ -441,7 +441,8 @@ do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
             case put_distribute({TagID, NewTagData}) of
                 {ok, DestNodes, DestUrls} ->
                     if TagData =:= {missing, deleted} ->
-                            {ok, _} = remove_from_deleted(TagName);
+                            {ok, _} = remove_from_deleted(TagName),
+                            ok;
                        true -> ok
                     end,
                     _ = send_replies(ReplyTo, {ok, DestUrls}),

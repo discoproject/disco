@@ -79,7 +79,8 @@ process_job(JobPath, Purged) ->
             GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
             if IsPurged; Now - T > GCAfter ->
                 ddfs_delete(disco:oob_name(Job)),
-                _ = os:cmd("rm -Rf " ++ JobPath);
+                _ = os:cmd("rm -Rf " ++ JobPath),
+                ok;
             true ->
                 ok
             end;
