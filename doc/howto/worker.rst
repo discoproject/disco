@@ -4,82 +4,79 @@
 The Worker Message Protocol
 ===========================
 
-.. note:: This protocol is needed to create a :term:`worker` for Disco.
+.. note:: This protocol is used by a :term:`worker` in Disco.
           You don't need to write your own worker to run a :term:`job`,
           you can usually use the standard :mod:`disco.worker`.
 
-A :term:`worker` is an executable that can run a task,
-given by the Disco :term:`master`.
-The executable could either be a binary executable,
-or a script that launches other executables.
-In order to be usable as a Disco worker,
-an executable needs to implement the :ref:`worker_protocol`.
+A :term:`worker` is an executable that can run a task, given by the
+Disco :term:`master`.  The executable could either be a binary
+executable, or a script that launches other executables.  In order to
+be usable as a Disco worker, an executable needs to implement the
+:ref:`worker_protocol`.
 
 There are two parts to using a binary executable as a Disco worker.
 The first part is the submission of the executable to the Disco master.
 The second part is the interaction of the executable with its
 execution environment, when running a :term:`task`.
 
-This document describes how the worker should communicate with the master,
-while it is executing.
-For more on submitting the :term:`job pack`, see :ref:`jobpack`.
+This document describes how the worker should communicate with
+Disco, while it is executing.  For more on creating and submitting
+the :term:`job pack`, see :ref:`jobpack`.
 
-.. note:: The same executable is launched to perform :term:`map` and :term:`reduce` tasks.
+.. note:: The same executable is launched to perform :term:`map` and
+          :term:`reduce` tasks.
+
+A worker-initiated synchronous message-based protocol is used for this
+communication.  That is, all communication is initiated by the worker
+by sending a message to Disco, and Disco in turn sends a reply to each
+message.  A worker could pipeline several messages to Disco, and
+it will receive a response to each message in order.
+
+The worker sends messages over :term:`stderr` to Disco, and
+receives responses over :term:`stdin`.  Disco should respond
+within *600 seconds*: it is advised for the worker to timeout after
+waiting this long.
+
+.. note:: Workers should not write anything to :term:`stderr`,
+          except messages formatted as described below.
+          :term:`stdout` is also initially redirected to stderr.
+
+.. note:: In Python, :class:`Workers <disco.worker.Worker>` wrap all
+          exceptions, and everything written to :term:`stdout`, with
+          an appropriate message to Disco (on :term:`stderr`).
+          For instance, you can raise a :class:`disco.error.DataError`
+          to abort the worker and try again on another host.  For
+          other types of failures, it is usually best to just let the
+          worker catch the exception.
 
 Message Format
 ==============
 
-The worker sends messages over :term:`stderr` to the master,
-and receives responses over :term:`stdin`.
-The master should respond within *600 seconds*:
-it is advised for the worker to timeout after waiting this long.
+Messages in the protocol, both from and to the worker, are in the format:
 
-.. note:: Workers should not write anything to :term:`stderr`,
-          except messages formatted as described here.
-          :term:`stdout` is also initially redirected to stderr.
-          The :term:`worker` uses stderr to send signals to the :term:`master`.
+         *<name>* 'SP' *<payload-len>* 'SP' *<payload>* '\n'
 
-.. note:: In Python, :class:`Workers <disco.worker.Worker>` wrap all exceptions,
-          and everything written to stdout,
-          with an appropriate message to the master (on stderr).
-          For instance, you can raise a :class:`disco.error.DataError`
-          to abort the worker and try again on another host.
-          For other types of failures,
-          it is usually best to just let the worker catch the exception.
+where 'SP' denotes a single space character, and *<name>* is one of:
 
-Messages to the master look like::
-
-         **<type:version> timestamp tags
-         payload
-         <>**
-
-where type is one of:
-
-      |     :ref:`DAT`
       |     :ref:`END`
-      |     :ref:`ERR`
-      |     :ref:`INP`
-      |     :ref:`JOB`
+      |     :ref:`ERROR`
+      |     :ref:`FAIL`
+      |     :ref:`FATAL`
+      |     :ref:`INPUT`
+      |     :ref:`INPUT_ERR`
       |     :ref:`MSG`
-      |     :ref:`OUT`
+      |     :ref:`OK`
+      |     :ref:`OUTPUT`
       |     :ref:`PID`
-      |     :ref:`SET`
-      |     :ref:`STA`
-      |     :ref:`TSK`
+      |     :ref:`RETRY`
+      |     :ref:`TASK`
       |     :ref:`VSN`
 
-version is 2 bytes
+*<payload-len>* is the length of the *<payload>* in bytes,
+and *<payload>* is a :term:`JSON` formatted term.
 
-timestamp is::
-
-          %y/%m/%d %H:%M:%S
-
-tags are::
-
-     (^\w+ ?)*
-
-Valid Messages
-==============
+Messages from the Worker to Disco
+=================================
 
 .. _VSN:
 
@@ -88,94 +85,182 @@ VSN
 
    Announce the version of the message protocol the worker is using.
 
-   The worker should send a *VSN* message before it sends any others.
-   The payload of the VSN message should be the protocol version the worker is using
-   The current version is `"0.1"`.
-   The master should respond `'OK'` if it intends to use the same version.
+   The worker should send a `VSN` message before it sends any others.
+   The string payload of the `VSN` message should be the protocol
+   version the worker is using.  The current version is `"1.0"`.
+   Disco should respond with an `OK` if it intends to use the same
+   version.
 
 .. _PID:
 
 PID
 ---
 
-   Announce the :term:`pid` to the master.
-   The worker should send this so it can be properly killed,
-   (e.g. if there's a problem with the :term:`job`).
+   Announce the :term:`pid` of the worker to Disco.
 
-   The worker should send a *PID* message,
-   with a payload containing its :term:`pid` as a string.
-   The master should respond `'OK'`.
+   The worker should send a `PID` message, with a payload containing
+   its :term:`pid` as an integer.  Disco should respond with an `OK`.
 
-.. _JOB:
+   .. note::
+      The worker should send this so it can be properly killed,
+      (e.g. if there's a problem with the :term:`job`).  This is
+      currently required due to limitations in the Erlang support for
+      external spawned processes.
 
-JOB
----
+.. _TASK:
 
-   Request the location of the jobpack from the master.
+TASK
+----
 
-   The worker can send a *JOB* message with no payload.
-   The master should respond with a `'JOB'` message,
-   and a payload containing the path of the :term:`job pack` as a string.
+   Request the task information from Disco.
 
-.. _TSK:
-
-TSK
----
-
-   Request the task info from the master.
-
-   The worker should send a *TSK* message with no payload.
-   The master should respond with a `'TSK'` message,
-   and a payload containing the task info as a dictionary.
+   The worker should send a `TASK` message with no payload.  Disco
+   should respond with a `TASK` message, and a payload containing the
+   following task information as a dictionary:
 
    "host"
         The host the :term:`task` is running on.
 
-   "jobname"
-        The name of the :term:`job`.
-
    "master"
         The host the :term:`master` is running on.
 
-   "mode"
-        The mode or phase of the :term:`job`.
-        Either `"map"` or `"reduce"`.
+   "jobname"
+        The name of the :term:`job` this task is a member of.
 
    "taskid"
         The internal Disco id of the :term:`task`.
 
+   "mode"
+        The mode or phase of the :term:`job`.  This is currently
+        either `"map"` or `"reduce"`, although more modes may be added
+        in future releases.
 
-.. _INP:
+   "port"
+        The value of the :envvar:`DISCO_PORT` setting, which is the
+        port the Disco master is running on, and the port used to
+        retrieve data from Disco and DDFS.  This is used to convert
+        URLs with the `disco` and `ddfs` schemes into `http` URLs.
 
-INP
----
-   Request input from the master.
+   "put_port"
+        The value of the :envvar:`DDFS_PUT_PORT` setting.  This can
+        be used by the worker to upload results to DDFS.
 
-   The worker can send an *INP* message, with no payload.
-   The master should respond with an `'INP'` message,
-   and a payload containing a two-element tuple (list in :term:`JSON`).
+   "disco_data"
+        The value of the :envvar:`DISCO_DATA` setting.
 
-   The first element is a flag,
-   which will either be `'more'` or `'done'`,
-   indicating whether the worker should continue to poll for new inputs.
+   "ddfs_data"
+        The value of the :envvar:`DDFS_ROOT` setting.  This can be
+        used to read DDFS data directly from the local filesystem
+        after it has been ascertained that the DDFS data is indeed
+        local to the current host.
 
-   The second element is a list of inputs.
-   Each input is a three-element tuple::
+   "jobfile"
+        The path to the :ref:`jobpack` file for the current job.  This
+        can be used to access any :ref:`jobdata` that was uploaded as
+        part of the :ref:`jobpack`.
+
+.. _INPUT:
+
+INPUT
+-----
+   Request input for the task from Disco.
+
+   To get the complete list of current inputs for the task, the worker
+   can send an `INPUT` message with no payload.  Disco should
+   respond with an `INPUT` message, and a payload containing a
+   two-element tuple (list in :term:`JSON`).
+
+   The first element is a flag, which will either be `'more'` or
+   `'done'`.  `'done'` indicates that the input list is complete,
+   while `'more'` indicates that more inputs could be added to the
+   list in the future, and the worker should continue to poll for new
+   inputs.
+
+   The second element is a list of inputs, where each input is a
+   specified as a three-element tuple::
 
            input_id, status, replicas
 
-   where::
+   where `input_id` is an integer identifying the input, and `status`
+   and `replicas` follow the format::
 
            status ::= 'ok' | 'busy' | 'failed'
            replicas ::= [replica]
            replica ::= rep_id, replica_location
 
-   The worker can also send an *INP* message,
-   with a payload containing an `input_id`.
-   The master should respond with an `'INP'` message,
-   and a payload containing a two-element tuple::
+   It is possible for an input to be available at multiple locations;
+   each such location is called a `replica`.  A `rep_id` is an integer
+   identifying the replica.
 
-         status, replicas
+   The `replica_location` is specified as a URL.  The protocol scheme
+   used for the `replica_location` could be one of `http`, `disco`, or
+   `raw`.  A URL with the `disco` scheme is to be accessed using HTTP
+   at the Disco `port` specified in the `TASK` response from Disco.
+   The `raw` scheme denotes that the URL itself (minus the scheme) is
+   the data for the task.
+
+   The common input status will be `'ok'` - this indicates that as far
+   as Disco is aware, the input should be accessible from at
+   least one of the specified replica locations.  The `'failed'`
+   status indicates that Disco thinks that the specified
+   locations are inaccessible; however, the worker can still choose to
+   ignore this status and attempt retrieval from the specified
+   locations.  A `'busy'` status indicates that Disco is in the
+   process of generating more replicas for this input, and the worker
+   should poll for additional replicas if needed.
+
+   It is recommended that the worker attempts the retrieval of an
+   input from the replica locations in the order specified in the
+   response.  That is, it should attempt retrieval from the first
+   replica, and if that fails, then try the second replica location,
+   and so on.
+
+   When a worker polls for any changes in task's input, it is
+   preferable not to repeatedly retrieve information for inputs
+   already successfully processed.  In this case, the worker can send
+   an `INPUT` message with an `'exclude'` payload that specifies the
+   `input_ids` to exclude in the response.  In this case, the `INPUT`
+   message from the worker should have the following payload::
+
+           ['exclude', [input_id]]
+
+   On the other hand, when a worker is interested in changes in
+   replicas for a particular set of inputs, it can send an `INPUT`
+   message with an `include` payload that requests information only
+   for the specified `input_ids`.  The `INPUT` message from the worker
+   in this case should have the following payload::
+
+           ['include', [input_id]]
+
+.. _INPUT_ERR:
+
+INPUT_ERR
+---------
+
+   Inform Disco that about failures in retrieving inputs.
+
+   The worker should inform Disco if it cannot retrieve an input due
+   to failures accessing the replicas specified by Disco in the
+   `INPUT` response.  The payload of this message specifies the input
+   and the failed replica locations using their identifiers, as
+   follows::
+
+           [input_id, [rep_id]]
+
+   If there are alternative replicas that the worker can try, Disco
+   should respond with a `RETRY` message, with a payload specifying new
+   replicas::
+
+           [[rep_id, replica_location]]
+
+   If there are no alternatives, and it is not possible for Disco to
+   generate new alternatives, Disco should reply with a `FAIL` message
+   (which has no payload).
+
+   If Disco is in the process of generating new replicas, it should
+   reply with a `WAIT` message and specify an integer duration in
+   seconds in the payload.  The worker should then poll for any new
+   replicas after the specified duration.
 
 .. _MSG:
 
@@ -184,79 +269,88 @@ MSG
 
    Send a message (i.e. to be displayed in the ui).
 
-   The worker can send a *MSG* message, with a payload containing a string.
-   The master should respond `'OK'`.
+   The worker can send a `MSG` message, with a payload containing a string.
+   Disco should respond with an `OK`.
 
-.. _SET:
 
-SET
----
+.. _OUTPUT:
 
-   Request the system settings.
+OUTPUT
+------
 
-   The worker can send a *SET* message.
-   The master should respond with a `'SET'` message,
-   and a payload containing the settings as a dictionary.
+   The worker should report its output(s) to Disco.
 
-   "port"
-        The port the Disco master is running on.
+   For each output generated by the worker, it should send an `OUTPUT`
+   message specifying the type and location of the output, and
+   optionally, its label::
 
-   "put_port"
-        The put port used for DDFS.
+      [output_location, output_type, label]
 
-.. _STA:
+   The `output_type` can be either `'disco'`, `'part'` or `'tag'`.
+   `'disco'` and `'part'` outputs are used for local outputs, while
+   `'tag'` specifies a location within DDFS.
 
-STA
----
+   Local outputs have locations that are paths relative to `jobhome`.
 
-   Send a status message to the master.
-   Status messages are used to log the status of the worker.
-
-   The worker can send a *STA* message, with a payload containing a string.
-   The master should respond `'OK'`.
-
-.. _OUT:
-
-OUT
----
-   The worker should report its output to the master.
+   Labels are currently only interpreted for `'part'` outputs, and are
+   integers that are used to denote the partition for the output.
 
 .. _END:
 
 END
 ---
 
-   Inform the master that the worker is finished.
+   Inform Disco that the worker is finished.
 
-   The worker should only send this message after syncing all output files,
-   since Disco normally terminates the worker when this message is received.
-   The worker should not exit immediately after sending this message,
-   since there is no guarantee if the message will be received by the
-   master if the worker exits.
-   Instead, the worker should wait for the response from the master
+   The worker should only send this message (which has no payload)
+   after syncing all output files, since Disco normally terminates the
+   worker when this message is received.  The worker should not exit
+   immediately after sending this message, since there is no guarantee
+   if the message will be received by Disco if the worker exits.
+   Instead, the worker should wait for the response from Disco
    (as it should for all messages).
 
-   The worker should send an *END* message, with no payload.
-   The master should respond `'OK'`.
+.. _ERROR:
 
-.. _DAT:
+ERROR
+-----
 
-DAT
----
+   Report a failed input or transient error to Disco.
 
-   Report a failed input or transient error to the master.
+   The worker can send a `ERROR` message with a payload containing the
+   error message as a string.  Disco should respond with an `'OK'`.
 
-   The worker can send a *DAT* message,
-   with a payload containing the error message as a string.
-   The master should respont `'OK'`.
+.. _FATAL:
 
-.. _ERR:
-
-ERR
----
+FATAL
+-----
 
    Report a fatal error to the master.
 
-   The worker can send an *ERR* message,
-   with a payload containig the error message as a string.
-   The master should respond `'OK'`.
+   The worker can send an `FATAL` message, with a payload containig
+   the error message as a string.  See the information above for the
+   `END` message.
+
+Messages from Disco to the Worker
+=================================
+
+.. _OK:
+
+OK
+--
+
+   A generic response from Disco.  This message has no payload.
+
+.. _FAIL:
+
+FAIL
+----
+
+   A possible response from Disco for an `INPUT_ERR` message, as described above.
+
+.. _RETRY:
+
+RETRY
+-----
+
+   A possible response from Disco for an `INPUT_ERR` message, as described above.
