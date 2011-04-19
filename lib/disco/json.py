@@ -13,4 +13,9 @@ except ImportError:
         from simplejson import loads, dumps
     except ImportError:
         from cjson import decode as loads
-        from cjson import encode as dumps
+        from cjson import encode
+        def dumps(x):
+            # do the same thing as simplejson: assume that all strings are utf-8
+            if isinstance(x, str):
+                x = x.decode('utf-8')
+            return encode(x)
