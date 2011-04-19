@@ -32,22 +32,21 @@ get_pid(#state{child_pid = Pid}) ->
 %-spec payload_type(binary()) -> json_validator:spec() | 'none'.
 payload_type(<<"PID">>) -> integer;
 payload_type(<<"VSN">>) -> string;
-payload_type(<<"SET">>) -> string;
-payload_type(<<"TSK">>) -> string;
+payload_type(<<"TASK">>) -> string;
 payload_type(<<"MSG">>) -> string;
-payload_type(<<"DAT">>) -> string;
-payload_type(<<"ERR">>) -> string;
+payload_type(<<"ERROR">>) -> string;
+payload_type(<<"FATAL">>) -> string;
 payload_type(<<"END">>) -> string;
 
-payload_type(<<"INP">>) ->
+payload_type(<<"INPUT">>) ->
     {opt, [{value, <<>>},
            {array, [{opt, [{value, <<"include">>},
                            {value, <<"exclude">>}]},
                     {hom_array, integer}]}
           ]};
-payload_type(<<"EREP">>) ->
+payload_type(<<"INPUT_ERR">>) ->
     {array, [integer, {hom_array, integer}]};
-payload_type(<<"OUT">>) ->
+payload_type(<<"OUTPUT">>) ->
     {opt, [{array, [string, string]},
            {array, [string, string, string]}]};
 
@@ -90,38 +89,39 @@ do_handle({<<"VSN">>, <<"1.0">>}, S) ->
 do_handle({<<"VSN">>, Ver}, _S) ->
     {error, {fatal, ["Invalid worker version: ", io_lib:format("~p", [Ver])]}};
 
-do_handle({<<"SET">>, _Body}, S) ->
-    Port = list_to_integer(disco:get_setting("DISCO_PORT")),
-    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
-    Settings = {struct, [{<<"port">>, Port},
-                         {<<"put_port">>, PutPort}]},
-    {ok, {"SET", Settings}, S};
-
-do_handle({<<"TSK">>, _Body}, #state{task = Task} = S) ->
+do_handle({<<"TASK">>, _Body}, #state{task = Task} = S) ->
     Master = disco:get_setting("DISCO_MASTER"),
     JobFile = jobpack:jobfile(disco_worker:jobhome(Task#task.jobname)),
+    Port = list_to_integer(disco:get_setting("DISCO_PORT")),
+    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
+    DDFSData = disco:get_setting("DDFS_ROOT"),
+    DiscoData = disco:get_setting("DISCO_DATA"),
     TaskInfo = {struct, [{<<"taskid">>, Task#task.taskid},
                          {<<"master">>, list_to_binary(Master)},
+                         {<<"port">>, Port},
+                         {<<"put_port">>, PutPort},
+                         {<<"ddfs_data">>, list_to_binary(DDFSData)},
+                         {<<"disco_data">>, list_to_binary(DiscoData)},
                          {<<"mode">>, list_to_binary(Task#task.mode)},
                          {<<"jobfile">>, list_to_binary(JobFile)},
                          {<<"jobname">>, list_to_binary(Task#task.jobname)},
                          {<<"host">>, list_to_binary(disco:host(node()))}]},
-    {ok, {"TSK", TaskInfo}, S};
+    {ok, {"TASK", TaskInfo}, S};
 
 do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
     disco_worker:event({<<"MSG">>, Msg}, Task, Master),
     {ok, {"OK", <<"ok">>}, S, rate_limit};
 
-do_handle({<<"INP">>, <<>>}, #state{inputs = Inputs} = S) ->
+do_handle({<<"INPUT">>, <<>>}, #state{inputs = Inputs} = S) ->
     {ok, input_reply(worker_inputs:all(Inputs)), S};
 
-do_handle({<<"INP">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
+do_handle({<<"INPUT">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
     {ok, input_reply(worker_inputs:include(Iids, Inputs)), S};
 
-do_handle({<<"INP">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
+do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
     {ok, input_reply(worker_inputs:exclude(Iids, Inputs)), S};
 
-do_handle({<<"EREP">>, [Iid, Rids]}, #state{inputs = Inputs} = S) ->
+do_handle({<<"INPUT_ERR">>, [Iid, Rids]}, #state{inputs = Inputs} = S) ->
     Inputs1 = worker_inputs:fail(Iid, Rids, Inputs),
     [{_, Replicas} | _] = worker_inputs:include([Iid], Inputs1),
     R = gb_sets:from_list(Rids),
@@ -132,13 +132,13 @@ do_handle({<<"EREP">>, [Iid, Rids]}, #state{inputs = Inputs} = S) ->
             {ok, {"RETRY", Valid}, S#state{inputs = Inputs1}}
     end;
 
-do_handle({<<"DAT">>, Msg}, _S) ->
+do_handle({<<"ERROR">>, Msg}, _S) ->
     {stop, {error, Msg}};
 
-do_handle({<<"ERR">>, Msg}, _S) ->
+do_handle({<<"FATAL">>, Msg}, _S) ->
     {stop, {fatal, Msg}};
 
-do_handle({<<"OUT">>, Results}, S) ->
+do_handle({<<"OUTPUT">>, Results}, S) ->
     case add_output(Results, S) of
         {ok, S1} ->
             {ok, {"OK", <<"ok">>}, S1};
@@ -159,7 +159,7 @@ do_handle({<<"END">>, _Body}, #state{task = Task, master = Master} = S) ->
 
 -spec input_reply([worker_inputs:worker_input()]) -> worker_msg().
 input_reply(Inputs) ->
-    {"INP", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
+    {"INPUT", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
 
 -spec url_path(task(), nonempty_string(), nonempty_string()) -> file:filename().
 url_path(Task, Host, LocalFile) ->
