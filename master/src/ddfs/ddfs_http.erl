@@ -46,7 +46,7 @@ http_put_conn(SrcPath, DstUrl, Parent) ->
             ok = gen_tcp:send(Socket, Head),
             {ok, IO} = prim_file:open(SrcPath, [read, raw, binary]),
             ok = send_body(Socket, IO),
-            prim_file:close(IO),
+            _ = prim_file:close(IO),
             Parent ! read_response(Socket);
         E -> 
             die(Parent, E)
