@@ -17,7 +17,7 @@ class ProtocolTestCase(TestCase):
         def map(e, params):
             import sys, disco.json
             msg = disco.json.dumps("Single line error!")
-            sys.stderr.write('ERR %d %s\n' % (len(msg), msg))
+            sys.stderr.write('FATAL %d %s\n' % (len(msg), msg))
         self.job = self.new_job(map=map)
         self.assertRaises(JobError, self.job.wait)
 
