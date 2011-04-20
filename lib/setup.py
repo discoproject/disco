@@ -16,7 +16,7 @@ def packages(dirpath):
 package_dir = os.path.realpath(os.path.dirname(__file__))
 
 setup(name='disco',
-      version='0.1',
+      version=os.getenv('DISCO_VERSION'),
       description='An open-source mapreduce framework.',
       url='http://discoproject.org',
       author='Nokia Research Center',
