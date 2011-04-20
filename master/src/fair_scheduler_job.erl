@@ -2,7 +2,7 @@
 -module(fair_scheduler_job).
 -behaviour(gen_server).
 
--export([start/2, init/1, next_task/3, handle_call/3, handle_cast/2, 
+-export([start/2, init/1, next_task/3, handle_call/3, handle_cast/2,
     handle_info/2, terminate/2, code_change/3]).
 
 -define(SCHEDULE_TIMEOUT, 30000).
@@ -12,11 +12,11 @@
 -type load() :: {non_neg_integer(), {binary(), node()}}.
 
 start(JobName, JobCoord) ->
-    case gen_server:start(fair_scheduler_job, {JobName, JobCoord}, 
+    case gen_server:start(fair_scheduler_job, {JobName, JobCoord},
             disco:debug_flags("fair_scheduler_job-" ++ JobName)) of
         {ok, Server} -> {ok, Server};
         Error ->
-            % This happens mainly if the job coordinator has 
+            % This happens mainly if the job coordinator has
             % already died.
             V = is_process_alive(JobCoord),
             if V ->
@@ -36,11 +36,11 @@ init({JobName, JobCoord}) ->
     process_flag(trap_exit, true),
     put(jobname, JobName),
     case catch link(JobCoord) of
-        true -> 
+        true ->
             {ok, {gb_trees:insert(nopref, {0, []},
                     gb_trees:empty()),
                   gb_trees:empty(), []}};
-        R -> 
+        R ->
             error_logger:info_report({"Linking failed", R}),
             {stop, normal}
     end.
@@ -75,14 +75,14 @@ schedule(Mode, Job, Jobs, AvailableNodes) ->
             none
     end.
 
-% Return an often empty subset of AvailableNodes that don't have any tasks 
+% Return an often empty subset of AvailableNodes that don't have any tasks
 % assigned to them by any job.
 -spec all_empty_nodes([jobinfo()], [node()]) -> [node()].
 all_empty_nodes(_, []) -> [];
 all_empty_nodes([], AvailableNodes) -> AvailableNodes;
-all_empty_nodes([Job|Jobs], AvailableNodes) -> 
+all_empty_nodes([Job|Jobs], AvailableNodes) ->
     % Job may have died already, don't care
-    case catch gen_server:call(Job, 
+    case catch gen_server:call(Job,
             {get_empty_nodes, AvailableNodes}, 500) of
         {ok, L} -> all_empty_nodes(Jobs, L);
         _ -> all_empty_nodes(Jobs, AvailableNodes)
@@ -125,10 +125,10 @@ handle_call({get_empty_nodes, AvailableNodes}, _, {Tasks, _, _} = S) ->
             {reply, {ok, empty_nodes(Tasks, AvailableNodes)}, S};
         _ ->
             {reply, {ok, []}, S}
-    end; 
+    end;
 
 % Primary task scheduling policy:
-% Try to find 
+% Try to find
 % 1) a local task assigned to one of the AvailableNodes
 % 2) any remote task
 handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
@@ -137,10 +137,10 @@ handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
 
 % Secondary task scheduling policy:
 % No local or remote tasks were found. Free nodes are available that have
-% no tasks assigned to them by any job. Pick a task from 
+% no tasks assigned to them by any job. Pick a task from
 % If ForceLocal, always fail.
 handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
-    {Reply, UpdatedTasks} = pop_and_switch_node(Tasks, 
+    {Reply, UpdatedTasks} = pop_and_switch_node(Tasks,
         datalocal_nodes(Tasks, gb_trees:keys(Tasks)),
             FreeNodes),
     {reply, Reply, {UpdatedTasks, Running, Nodes}}.
@@ -166,7 +166,7 @@ schedule_local(Tasks, AvailableNodes) ->
     % Does the job have any local tasks to be run on AvailableNodes?
     case datalocal_nodes(Tasks, AvailableNodes) of
         % No local tasks assigned to AvailableNodes
-        [] -> 
+        [] ->
             % Does the job have any remote tasks?
             case gb_trees:get(nopref, Tasks) of
                 % No remote tasks either. Maybe we can move
@@ -175,13 +175,13 @@ schedule_local(Tasks, AvailableNodes) ->
                 % available.
                 {0, _, _} -> {nolocal, Tasks};
                 % Remote tasks found. Pick a remote task
-                % and run it on a random node that is 
+                % and run it on a random node that is
                 % available.
                 _ -> pop_and_switch_node(Tasks, [nopref],
                     AvailableNodes)
             end;
         % Local tasks found. Choose an AvailableNode that has the
-        % least number of tasks already running, that is, the first 
+        % least number of tasks already running, that is, the first
         % item in the list. Pick the first task from the chosen node.
         [Node|_] ->
             {N, C, [Task|R]} = gb_trees:get(Node, Tasks),
@@ -210,7 +210,7 @@ pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
                     % other task that is ok.
                     pop_suitable(Tasks, Nodes, AvailableNodes)
             end
-    end.    
+    end.
 
 % pop_busiest_node defines the policy for choosing the next task from a chosen
 % set of Nodes. Pick the task from the longest list.
@@ -251,7 +251,7 @@ pop_suitable(Tasks, Nodes, AvailableNodes) ->
             {{run, Target, Task}, UTasks}
     end.
 
-% Find first task from any node in Nodes that can be run, 
+% Find first task from any node in Nodes that can be run,
 % i.e. choose_node() =/= false
 -spec find_suitable([task()], node(), [node()], gb_tree(), [node()]) ->
     {'ok', task(), node(), node()} | 'false'.

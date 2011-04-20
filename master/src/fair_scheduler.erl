@@ -1,7 +1,7 @@
 -module(fair_scheduler).
 -behaviour(gen_server).
 
--export([start_link/0, init/1, handle_call/3, handle_cast/2, 
+-export([start_link/0, init/1, handle_call/3, handle_cast/2,
     handle_info/2, terminate/2, code_change/3]).
 
 -include("disco.hrl").
@@ -57,7 +57,7 @@ handle_call({new_job, JobName, JobCoord}, _, Nodes) ->
 
 % This is not a handle_cast function, since we don't want to race against
 % disco_server. We need to send the new_job and new_task messaged before
-% disco_server sends its task_started and next_task messages. 
+% disco_server sends its task_started and next_task messages.
 handle_call({new_task, Task, NodeStats}, _, Nodes) ->
     JobName = Task#task.jobname,
     case ets:lookup(jobs, JobName) of
@@ -77,7 +77,7 @@ handle_call({next_task, AvailableNodes}, _From, Nodes) ->
 
 next_task(AvailableNodes, Jobs, NotJobs) ->
     case gen_server:call(sched_policy, {next_job, NotJobs}) of
-        {ok, JobPid} -> 
+        {ok, JobPid} ->
             case fair_scheduler_job:next_task(
                     JobPid, Jobs, AvailableNodes) of
                 {ok, Task} ->
@@ -89,7 +89,7 @@ next_task(AvailableNodes, Jobs, NotJobs) ->
         nojobs -> nojobs
     end.
 
-handle_info(_Msg, State) -> {noreply, State}. 
+handle_info(_Msg, State) -> {noreply, State}.
 
 terminate(_Reason, _State) ->
     [exit(JobPid, kill) || {_, {JobPid, _}} <- ets:tab2list(jobs)].

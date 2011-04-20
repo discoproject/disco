@@ -12,17 +12,17 @@ http_put(SrcPath, DstUrl, Timeout) ->
     % We use a middleman process to prevent messages received after timeout
     % reaching the original caller.
     P = self(),
-    Pid = 
+    Pid =
         spawn(fun() ->
             process_flag(trap_exit, true),
-            S = self(), 
+            S = self(),
             spawn_link(fun() -> http_put_conn(SrcPath, DstUrl, S) end),
             receive
                 ok -> P ! {S, ddfs_util, ok}, ok;
                 {'EXIT', _, _} ->
                     P ! {S, ddfs_util, {error, crashed}}, ok;
                 E -> P ! {S, ddfs_util, E}, ok
-            after Timeout -> 
+            after Timeout ->
                 P ! {S, ddfs_util, {error, timeout}}, ok
             end,
             exit(die)
@@ -48,7 +48,7 @@ http_put_conn(SrcPath, DstUrl, Parent) ->
             ok = send_body(Socket, IO),
             _ = prim_file:close(IO),
             Parent ! read_response(Socket);
-        E -> 
+        E ->
             die(Parent, E)
     end.
 
