@@ -339,4 +339,4 @@ job_event_handler_do(File, Buf, BufSize) ->
 
 flush_buffer(_, []) -> ok;
 flush_buffer(File, Buf) ->
-    file:write(File, lists:reverse(Buf)).
+    ok = file:write(File, lists:reverse(Buf)).
