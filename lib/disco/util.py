@@ -175,6 +175,12 @@ def urljoin((scheme, netloc, path)):
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('', url)
 
+def localize(path, settings):
+    prefix, fname = path.split('/', 1)
+    if prefix == 'ddfs':
+        return os.path.join(settings['DDFS_ROOT'], fname)
+    return os.path.join(settings['DISCO_DATA'], fname)
+
 def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
     locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
@@ -188,11 +194,7 @@ def urlsplit(url, localhost=None, settings=DiscoSettings()):
             if localhost == True or locstr == localhost:
                 scheme = 'file'
                 locstr = ''
-                prefix, fname = path.split('/', 1)
-                if prefix == 'ddfs':
-                    path = os.path.join(settings['DDFS_ROOT'], fname)
-                else:
-                    path = os.path.join(settings['DISCO_DATA'], fname)
+                path = localize(path, settings)
             elif scheme == 'disco':
                 scheme = 'http'
                 locstr = '%s:%s' % (host, disco_port)

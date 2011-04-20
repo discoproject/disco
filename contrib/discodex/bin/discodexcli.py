@@ -24,7 +24,6 @@
 Run :command:`discodex help` for information on using the command line utility.
 
 See also: :mod:`discodex.settings`
-
 """
 
 import os, sys
@@ -37,42 +36,40 @@ from disco.util import iterify
 class DiscodexOptionParser(OptionParser):
     def __init__(self, **kwargs):
         OptionParser.__init__(self, **kwargs)
-        self.add_option('-f', '--files',
-                        action='store_true',
-                        help='file mode for commands that take it.')
         self.add_option('-H', '--host',
                         help='host that the client should connect to')
         self.add_option('-P', '--port',
                         help='port that the client should connect to')
-        self.add_option('-n', '--nr-ichunks',
-                        help='the number of ichunks to create')
-        self.add_option('-u', '--unique-items',
-                        action='store_true',
-                        help='ensure unique items in discodbs')
-        self.add_option('-p', '--profile',
-                        action='store_true',
-                        help='turn on job profiling')
-        self.add_option('--parser',
-                        help='parser object to use for indexing')
-        self.add_option('--demuxer',
-                        help='demuxer object to user for indexing')
-        self.add_option('--balancer',
-                        help='balancer to use for indexing')
-        self.add_option('--param',
-                        action='append',
-                        default=[],
-                        dest='params',
-                        nargs=2,
-                        help='add a param to the inquiry job params')
-        self.add_option('--stream',
+
+class Discodex(Program):
+    @classmethod
+    def add_stream(cls, command):
+        command.add_option('--stream',
                         action='append',
                         default=[],
                         dest='streams',
-                        help='add a stream for indexing or filtering inquiries')
-        self.add_option('--reduce',
-                        help='reduce used for filtering inquiries')
+                        help='add an input stream function')
+        return command
 
-class Discodex(Program):
+    @classmethod
+    def input(cls, *inputs):
+        from disco.cli import Program
+        return Program.input(*inputs)
+
+    @classmethod
+    def inquiry(cls, function):
+        command = cls.command(function)
+        command.add_option('--param',
+                           action='append',
+                           default=[],
+                           dest='params',
+                           nargs=2,
+                           help='add a param to the job params')
+        command.add_option('--reduce',
+                           help='reduce used for filtering inquiries')
+        cls.add_stream(command)
+        return command
+
     @property
     def client(self):
         from discodex.client import DiscodexClient
@@ -105,11 +102,6 @@ class Discodex(Program):
                                             self.settings['DISCODEX_HTTP_PORT'])
         print "Disco master at %s" % self.settings['DISCODEX_DISCO_MASTER']
 
-    def file_mode(self, *urls):
-        if self.options.files:
-            return fileinput.input(urls)
-        return urls
-
     def server_command(self, command):
         for message in chain(getattr(self.djangoscgi, command)(),
                              getattr(self.lighttpd, command)()):
@@ -117,7 +109,7 @@ class Discodex(Program):
 
 @Discodex.command
 def help(program, *args):
-    command, leftover = program.search(args)
+    command, path, leftover = program.search(__builtins__.list(args))
     print command
     if not args:
         print """
@@ -150,17 +142,6 @@ def append(program, indexaspec, indexbspec):
     program.client.append(indexaspec, indexbspec)
 
 @Discodex.command
-def clone(program, indexaspec, indexbspec):
-    """Usage: <indexaspec> <indexbspec>
-
-    Clone index at indexaspec to indexbspec.
-    """
-    client = program.client
-    index = client.get(indexaspec)
-    index['origin'] = client.indexurl(indexaspec)
-    client.put(indexbspec, index)
-
-@Discodex.command
 def delete(program, indexspec):
     """Usage: <indexspec>
 
@@ -178,12 +159,12 @@ def get(program, indexspec):
 
 @Discodex.command
 def put(program, indexspec, *urls):
-    """Usage: [-f] <indexspec> url ...
+    """Usage: <indexspec> url ...
 
     Read ichunk urls from url[s], and put them to an index at indexspec.
     """
     from discodex.objects import Index
-    index = Index(urls=[url.split() for url in program.file_mode(*urls)])
+    index = Index(urls=program.input(*urls))
     program.client.put(indexspec, index)
 
 @Discodex.command
@@ -197,15 +178,29 @@ def list(program):
 
 @Discodex.command
 def index(program, *urls):
-    """Usage: [-f] [--parser p] [--demuxer d] [--balancer b] [-n N] [--profile] [url ...]
+    """Usage: [url ...]
 
     Read input urls from urls[s], and index using the specified options.
     """
     from discodex.objects import DataSet
-    dataset = DataSet(options=program.option_dict,
-                      input=[url.split() for url in program.file_mode(*urls)])
+    dataset = DataSet(options=program.option_dict, input=program.input(*urls))
     print program.client.index(dataset)
 
+index.add_option('-n', '--nr-ichunks',
+                 help='the number of ichunks to create')
+index.add_option('-u', '--unique-items',
+                 action='store_true',
+                 help='ensure unique items in discodbs')
+index.add_option('-p', '--profile',
+                 action='store_true',
+                 help='turn on job profiling')
+index.add_option('--parser',
+                 help='parser function')
+index.add_option('--demuxer',
+                 help='demuxer function')
+index.add_option('--balancer',
+                 help='balancer function')
+Discodex.add_stream(index)
 
 def inquire(program, indexspec, inquiry, query=None):
     for result in program.client.inquire(indexspec, inquiry,
@@ -215,7 +210,7 @@ def inquire(program, indexspec, inquiry, query=None):
                                          params=dict(program.options.params)):
         print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
 
-@Discodex.command
+@Discodex.inquiry
 def items(program, indexspec):
     """Usage: <indexspec>
 
@@ -223,7 +218,7 @@ def items(program, indexspec):
     """
     inquire(program, indexspec, 'items')
 
-@Discodex.command
+@Discodex.inquiry
 def keys(program, indexspec):
     """Usage: <indexspec>
 
@@ -231,7 +226,7 @@ def keys(program, indexspec):
     """
     inquire(program, indexspec, 'keys')
 
-@Discodex.command
+@Discodex.inquiry
 def values(program, indexspec):
     """Usage: <indexspec>
 
@@ -239,7 +234,7 @@ def values(program, indexspec):
     """
     inquire(program, indexspec, 'values')
 
-@Discodex.command
+@Discodex.inquiry
 def query(program, indexspec, *args):
     """Usage: <indexspec> [query]
 
@@ -249,9 +244,9 @@ def query(program, indexspec, *args):
     query = Q.parse('&'.join(arg.replace(',', '|') for arg in args))
     inquire(program, indexspec, 'query', query)
 
-@Discodex.command
+@Discodex.inquiry
 def metaquery(program, indexspec, *args):
-    """Usage: <indexspec> q[uery]
+    """Usage: <indexspec> [query]
 
     Metaquery the specified index using the given clauses.
     """
