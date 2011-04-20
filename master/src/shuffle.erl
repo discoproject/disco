@@ -77,7 +77,7 @@ combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     IndexPath = filename:join(ResultsHome, IndexFile),
     IndexUrl = ["dir://", ResultsLink, "/", IndexFile],
 
-    prim_file:make_dir(PartPath),
+    ok = prim_file:make_dir(PartPath),
     Index = merged_index(DirUrls, DataRoot, {PartPath, PartUrl}),
     ok = write_index(IndexPath, Index),
     {ok, list_to_binary(IndexUrl)}.
