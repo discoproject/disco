@@ -144,19 +144,22 @@ safe_rename(Src, Dst) ->
         _ -> {error, file_exists}
     end.
 
+-spec concatenate(file:filename(), file:filename()) -> 'ok' | {'error', term()}.
 concatenate(Src, Dst) ->
     {ok, SrcIO} = prim_file:open(Src, [read, raw, binary]),
     {ok, DstIO} = prim_file:open(Dst, [append, raw]),
     R = concatenate_do(SrcIO, DstIO),
-    prim_file:close(SrcIO),
-    prim_file:close(DstIO),
+    _ = prim_file:close(SrcIO),
+    _ = prim_file:close(DstIO),
     R.
 
 concatenate_do(SrcIO, DstIO) ->
     case prim_file:read(SrcIO, 524288) of
         {ok, Data} ->
-            ok = prim_file:write(DstIO, Data),
-            concatenate_do(SrcIO, DstIO);
+            case prim_file:write(DstIO, Data) of
+                ok -> concatenate_do(SrcIO, DstIO);
+                Error -> Error
+            end;
         eof ->
             ok;
         Error ->
