@@ -186,6 +186,7 @@ make_dir(Dir) ->
 
 % based on ensure_dir() in /usr/lib/erlang/lib/stdlib-1.17/src/filelib.erl
 
+-spec ensure_dir(file:filename()) -> 'ok' | {'error', file:posix()}.
 ensure_dir("/") ->
     ok;
 ensure_dir(F) ->
@@ -194,14 +195,18 @@ ensure_dir(F) ->
         true ->
             ok;
         false ->
-            ensure_dir(Dir),
-            case prim_file:make_dir(Dir) of
-                {error,eexist}=EExist ->
-                    case is_dir(Dir) of
-                        true ->
-                            ok;
-                        false ->
-                            EExist
+            case ensure_dir(Dir) of
+                ok ->
+                    case prim_file:make_dir(Dir) of
+                        {error,eexist}=EExist ->
+                            case is_dir(Dir) of
+                                true ->
+                                    ok;
+                                false ->
+                                    EExist
+                            end;
+                        Err ->
+                            Err
                     end;
                 Err ->
                     Err
