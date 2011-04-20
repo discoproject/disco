@@ -418,12 +418,8 @@ def task_input_stream(stream, size, url, params):
     If no scheme is found in the url, ``file`` is used.
     The resulting input stream is then used.
     """
-    from disco.util import globalize, schemesplit
-    scheme, _url = schemesplit(url)
-    scheme_ = 'scheme_%s' % (scheme or 'file')
-    mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
-    globalize(mod.input_stream, globals())
-    return mod.input_stream(stream, size, url, params)
+    from disco import schemes
+    return schemes.input_stream(stream, size, url, params, globals=globals())
 map_input_stream = reduce_input_stream = task_input_stream
 
 def string_input_stream(string, size, url, params):
@@ -523,8 +519,8 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
     worker.send('MSG', "Sorting %s..." % filename)
     unix_sort(filename, sort_buffer_size=sort_buffer_size)
     worker.send('MSG', ("Finished sorting"))
-    fd, size, url = open_local(filename)
-    for k, v in re_reader("(?s)(.*?)\xff(.*?)\x00", fd, size, url):
+    fd = open_local(filename)
+    for k, v in re_reader("(?s)(.*?)\xff(.*?)\x00", fd, len(fd), fd.url):
         yield k, cPickle.loads(v)
 
 def unix_sort(filename, sort_buffer_size='10%'):

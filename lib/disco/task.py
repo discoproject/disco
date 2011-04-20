@@ -6,9 +6,16 @@ This module defines objects for interfacing with
 :term:`tasks <task>` assigned by the master.
 
 """
-import os, time
+import cPickle, os, time
 
 from disco.util import hexhash
+
+def jobdata(*objs):
+    """
+    :return: :ref:`jobdata` needed for instantiating the :class:`disco.job.Job` on the node.
+    """
+    from cPickle import dumps
+    return dumps(objs, -1)
 
 class Task(object):
     """
@@ -51,9 +58,12 @@ class Task(object):
                  disco_data='',
                  mode=None,
                  taskid=-1):
+        from disco.job import JobPack
         self.host = host
         self.jobfile = jobfile
         self.jobname = jobname
+        self.jobpack = JobPack.load(open(jobfile))
+        self.jobobjs = cPickle.loads(self.jobpack.jobdata)
         self.master = master
         self.port = port
         self.put_port = put_port
@@ -66,11 +76,6 @@ class Task(object):
                                     taskid,
                                     hexhash(str((time.time()))),
                                     os.getpid())
-
-    @property
-    def jobpack(self):
-        from disco.job import JobPack
-        return JobPack.load(open(self.jobfile))
 
     @property
     def jobpath(self):
