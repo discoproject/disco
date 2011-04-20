@@ -249,8 +249,10 @@ do_put_tag_commit(Tag, TagVol, S) ->
                        {'ok', [{diskinfo(), nonempty_string()}]}.
 init_vols(Root, VolNames) ->
     lists:foreach(fun(VolName) ->
-                          prim_file:make_dir(filename:join([Root, VolName, "blob"])),
-                          prim_file:make_dir(filename:join([Root, VolName, "tag"]))
+                          BlobOk = prim_file:make_dir(filename:join([Root, VolName, "blob"])),
+                          true = (BlobOk =:= {error, eexist}) orelse (BlobOk =:= ok),
+                          TagOk = prim_file:make_dir(filename:join([Root, VolName, "tag"])),
+                          true = (TagOk =:= {error, eexist}) orelse (TagOk =:= ok)
                   end, VolNames),
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
@@ -262,7 +264,8 @@ find_vols(Root) ->
             case [F || "vol" ++ _ = F <- Files] of
                 [] ->
                     VolName = "vol0",
-                    prim_file:make_dir(filename:join([Root, VolName])),
+                    VolOk = prim_file:make_dir(filename:join([Root, VolName])),
+                    true = (VolOk =:= {error, eexist}) orelse (VolOk =:= ok),
                     error_logger:warning_report({"Could not find volumes in ", Root,
                                                  "Created ", VolName}),
                     init_vols(Root, [VolName]);
