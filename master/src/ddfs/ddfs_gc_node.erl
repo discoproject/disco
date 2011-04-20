@@ -119,14 +119,14 @@ delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
     Trash = "!trash." ++ filename:basename(Path),
     Deleted = filename:join(filename:dirname(Path), Trash),
     % Chmod u+w deleted files, so they can removed safely with rm without -f
-    prim_file:write_file_info(Path, #file_info{mode = 8#00600}),
-    prim_file:rename(Path, Deleted),
+    _ = prim_file:write_file_info(Path, #file_info{mode = 8#00600}),
+    _ = prim_file:rename(Path, Deleted),
     % Sleep here two prevent master being DDOS'ed by info_reports above
     timer:sleep(100);
 
 delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
     error_logger:info_report({"GC: Deleting expired object", Path}),
-    prim_file:delete(Path),
+    _ = prim_file:delete(Path),
     timer:sleep(100);
 
 delete_if_expired(_Path, _Diff, _Expires, _Paranoid) ->
