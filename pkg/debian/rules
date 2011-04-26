@@ -20,14 +20,15 @@ DESTDIR=$(CURDIR)/debian/disco-master
 NODEDEST=$(CURDIR)/debian/disco-node
 PYDISCODEST=$(CURDIR)/debian/python-disco
 PYDISCODBDEST=$(CURDIR)/debian/python-discodb
+DISCOMAKE=cd ..; make
 
-clean: 
+clean:
 	dh_testdir
 	dh_testroot
 	rm -f build-arch-stamp build-indep-stamp configure-stamp
 
-	$(MAKE) clean
-	dh_clean 
+	$(DISCOMAKE) clean
+	dh_clean
 
 install:
 	dh_testdir
@@ -35,14 +36,14 @@ install:
 	dh_clean -k -A
 	dh_installdirs -A
 
-	$(MAKE) install-master UNAME=Debian PREFIX=/usr DESTDIR=$(DESTDIR) 
-	$(MAKE) install-lib UNAME=Debian PREFIX=/usr DESTDIR=$(PYDISCODEST)
-	$(MAKE) install-node UNAME=Debian PREFIX=/usr DESTDIR=$(NODEDEST)
-	$(MAKE) install-discodb UNAME=Debian PREFIX=/usr DESTDIR=$(PYDISCODBDEST)
+	$(DISCOMAKE) install-master UNAME=Debian prefix=/usr DESTDIR=$(DESTDIR)
+	$(DISCOMAKE) install-core UNAME=Debian prefix=/usr DESTDIR=$(PYDISCODEST)
+	$(DISCOMAKE) install-node UNAME=Debian prefix=/usr DESTDIR=$(NODEDEST)
+	$(DISCOMAKE) install-discodb UNAME=Debian prefix=/usr DESTDIR=$(PYDISCODBDEST)
 
 	# disco.conf is provided by disco-node, so it should
 	# be removed from disco-master
-	rm -f $(DESTDIR)/etc/disco/disco.conf
+	#rm -f $(DESTDIR)/etc/disco/disco.conf
 
 	dh_install -A
 
@@ -52,14 +53,14 @@ install:
 # in another 'make' thread.
 binary-common:
 	dh_testdir -A
-	dh_testroot -A 
+	dh_testroot -A
 	dh_installchangelogs -A
 	dh_installdocs -A
 	dh_installexamples -A
 	dh_pysupport -A
 #	dh_installmenu
-#	dh_installdebconf	
-#	dh_installlogrotate	
+#	dh_installdebconf
+#	dh_installlogrotate
 #	dh_installemacsen
 #	dh_installpam
 #	dh_installmime
