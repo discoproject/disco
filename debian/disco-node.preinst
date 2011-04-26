@@ -1,0 +1,4 @@
+#!/bin/sh
+
+[ -e /etc/init.d/disco-node ] && invoke-rc.d disco-node stop
+exit 0
