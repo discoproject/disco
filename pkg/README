@@ -1,0 +1,5 @@
+Build Debian packages for Disco by running
+
+dpkg-buildpackage
+
+in this directory.
