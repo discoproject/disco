@@ -58,6 +58,9 @@ EPLT  = .dialyzer_plt
 .PHONY: install \
 	install-master \
 	install-core \
+	install-node \
+	install-config \
+	install-bin \
 	install-discodb \
 	install-discodex \
 	install-examples \
@@ -98,13 +101,18 @@ install-discodex:
 
 install-examples: $(TARGETLIB)/examples
 
-install-master: master \
-		$(ETARGETS) \
-		$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
-		$(TARGETCFG)/settings.py \
-		$(TARGETLIB)/$(EBIN)/disco.app \
-		$(TARGETLIB)/$(WWW) \
-		$(TARGETSRV)/ddfs
+install-master: install-node install-config
+
+install-node: master install-bin
+
+install-bin: \
+	$(ETARGETS) \
+	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
+	$(TARGETLIB)/$(EBIN)/disco.app \
+	$(TARGETLIB)/$(WWW) \
+	$(TARGETSRV)/ddfs
+
+install-config: $(TARGETCFG)/settings.py
 
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
