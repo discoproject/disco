@@ -34,11 +34,13 @@ class UtilTestCase(TestCase):
         self.assertEquals(urlsplit('disco://master/long/path'),
                           ('http', ('master', '%s' % port), 'long/path'))
         self.assertEquals(urlsplit('disco://localhost/ddfs/path',
-                                   localhost='localhost'),
-                          ('file', ('localhost', ''), os.path.join(ddfs, 'path')))
+                                   localhost='localhost',
+                                   ddfs_data=ddfs),
+                          ('file', ('', ''), os.path.join(ddfs, 'path')))
         self.assertEquals(urlsplit('disco://localhost/data/path',
-                                   localhost='localhost'),
-                          ('file', ('localhost', ''), os.path.join(data, 'path')))
+                                   localhost='localhost',
+                                   disco_data=data),
+                          ('file', ('', ''), os.path.join(data, 'path')))
         self.assertEquals(urlsplit('tag://tag', ''),
                           ('tag', ('', ''), 'tag'))
         self.assertEquals(urlsplit('tag://host/tag', ''),

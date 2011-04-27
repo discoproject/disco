@@ -1,18 +1,22 @@
 import __builtin__
 
 from disco import util
-from disco.settings import DiscoSettings
 from discodb import DiscoDB, Q
 
 def open(url, task=None):
     if task:
-        job, args = task.jobobjs
-        settings  = job.settings
+        disco_data = task.disco_data
+        ddfs_data = task.ddfs_data
     else:
-        settings  = DiscoSettings()
-    scheme, netloc, rest = util.urlsplit(url, settings)
+        from disco.settings import DiscoSettings
+        settings = DiscoSettings()
+        disco_data = settings['DISCO_DATA']
+        ddfs_data = settings['DDFS_ROOT']
+    scheme, netloc, rest = util.urlsplit(url)
     path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
-    discodb = DiscoDB.load(__builtin__.open(util.localize(path, settings)))
+    discodb = DiscoDB.load(__builtin__.open(util.localize(path,
+                                                          disco_data=disco_data,
+                                                          ddfs_data=ddfs_data)))
 
     if rest:
         method_name, arg = rest.split('/', 1) if '/' in rest else (rest, None)

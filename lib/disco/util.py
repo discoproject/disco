@@ -175,43 +175,43 @@ def urljoin((scheme, netloc, path)):
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('', url)
 
-def localize(path, settings):
+def localize(path, ddfs_data=None, disco_data=None):
     prefix, fname = path.split('/', 1)
     if prefix == 'ddfs':
-        return os.path.join(settings['DDFS_ROOT'], fname)
-    return os.path.join(settings['DISCO_DATA'], fname)
+        return os.path.join(ddfs_data, fname)
+    return os.path.join(disco_data, fname)
 
-def urlsplit(url, localhost=None, settings=DiscoSettings()):
+def urlsplit(url, localhost=None, disco_port=None, **kwargs):
     scheme, rest = schemesplit(url)
-    locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
+    locstr, path = rest.split('/', 1)  if '/' in rest else (rest ,'')
     if scheme == 'tag':
         if not path:
             path, locstr = locstr, ''
     else:
-        disco_port = str(settings['DISCO_PORT'])
+        disco_port = disco_port or str(DiscoSettings()['DISCO_PORT'])
         host, port = netloc.parse(locstr)
         if scheme == 'disco' or port == disco_port:
             if localhost == True or locstr == localhost:
                 scheme = 'file'
                 locstr = ''
-                path = localize(path, settings)
+                path = localize(path, **kwargs)
             elif scheme == 'disco':
                 scheme = 'http'
                 locstr = '%s:%s' % (host, disco_port)
     return scheme, netloc.parse(locstr), path
 
-def urlresolve(url, settings=DiscoSettings()):
-    def master((host, port)):
+def urlresolve(url, master=None):
+    def _master((host, port)):
         if not host:
-            return settings['DISCO_MASTER']
+            return master or DiscoSettings()['DISCO_MASTER']
         if not port:
             return 'disco://%s' % host
         return 'http://%s:%s' % (host, port)
     scheme, netloc, path = urlsplit(url)
     if scheme == 'dir':
-        return urlresolve('%s/%s' % (master(netloc), path))
+        return urlresolve('%s/%s' % (_master(netloc), path))
     if scheme == 'tag':
-        return urlresolve('%s/ddfs/tag/%s' % (master(netloc), path))
+        return urlresolve('%s/ddfs/tag/%s' % (_master(netloc), path))
     return '%s://%s/%s' % (scheme, netloc, path)
 
 def urltoken(url):

@@ -3,13 +3,13 @@ from disco.settings import DiscoSettings
 
 def open(url, task=None):
     if task:
-        localhost = task.host
-        job, args = task.jobobjs
-        settings  = job.settings
+        scheme, netloc, path = util.urlsplit(url,
+                                             localhost=task.host,
+                                             disco_port=task.port,
+                                             disco_data=task.disco_data,
+                                             ddfs_data=task.ddfs_data)
     else:
-        localhost = None
-        settings  = DiscoSettings()
-    scheme, netloc, path = util.urlsplit(url, localhost, settings)
+        scheme, netloc, path = util.urlsplit(url, localhost=None)
     return comm.open_url(util.urljoin((scheme, netloc, path)))
 
 def input_stream(fd, size, url, params):
