@@ -200,6 +200,13 @@ INPUT
    The `raw` scheme denotes that the URL itself (minus the scheme) is
    the data for the task.
 
+   One important optimization is to use the local filesystem instead
+   of HTTP for accessing inputs when they are local.  This can be
+   determined by comparing the URL hostname with the `host` specified
+   in the `TASK` response, and then converting the URL path into a
+   filesystem path using the `disco_data` or `ddfs_data` path prefixes
+   for URL paths beginning with `disco/` and `ddfs/` respectively.
+
    The common input status will be `'ok'` - this indicates that as far
    as Disco is aware, the input should be accessible from at
    least one of the specified replica locations.  The `'failed'`
