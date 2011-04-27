@@ -9,7 +9,7 @@ Homepage: http://www.discoproject.org
 Package: python-disco
 Architecture: all
 Section: python
-Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.6), python-cjson
+Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.6)
 Recommends: python-pycurl
 Description: Disco client
  This is Disco client.
