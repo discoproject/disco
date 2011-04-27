@@ -94,7 +94,7 @@ do_handle({<<"TASK">>, _Body}, #state{task = Task} = S) ->
     JobFile = jobpack:jobfile(disco_worker:jobhome(Task#task.jobname)),
     Port = list_to_integer(disco:get_setting("DISCO_PORT")),
     PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
-    DDFSData = disco:get_setting("DDFS_ROOT"),
+    DDFSData = disco:get_setting("DDFS_DATA"),
     DiscoData = disco:get_setting("DISCO_DATA"),
     TaskInfo = {struct, [{<<"taskid">>, Task#task.taskid},
                          {<<"master">>, list_to_binary(Master)},

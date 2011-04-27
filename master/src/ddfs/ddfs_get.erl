@@ -19,7 +19,7 @@ start(MochiConfig, Roots) ->
 
 -spec serve_ddfs_file(nonempty_string(), module()) -> _.
 serve_ddfs_file(Path, Req) ->
-    DdfsRoot = disco:get_setting("DDFS_ROOT"),
+    DdfsRoot = disco:get_setting("DDFS_DATA"),
     loop(Path, Req, {DdfsRoot, none}).
 
 -spec serve_disco_file(nonempty_string(), module()) -> _.

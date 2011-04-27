@@ -25,7 +25,7 @@ class UtilTestCase(TestCase):
 
     def test_urlsplit(self):
         port = self.settings['DISCO_PORT']
-        ddfs = self.settings['DDFS_ROOT']
+        ddfs = self.settings['DDFS_DATA']
         data = self.settings['DISCO_DATA']
         self.assertEquals(urlsplit('http://host/path'),
                           ('http', ('host', ''), 'path'))

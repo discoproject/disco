@@ -183,7 +183,7 @@ Settings used by the testing environment:
 
 Settings used by DDFS:
 
-        .. envvar:: DDFS_ROOT
+        .. envvar:: DDFS_DATA
 
                 The root data directory for DDFS.
                 Default is obtained using ``os.path.join(DISCO_ROOT, 'ddfs')``.
@@ -216,7 +216,7 @@ Settings used by DDFS:
 
         .. envvar:: DDFS_PARANOID_DELETE
 
-                Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_ROOT = "/srv/disco/ddfs"``)::
+                Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_DATA = "/srv/disco/ddfs"``)::
 
                     find /srv/disco/ddfs/ -perm 600 -iname '!trash*' -exec rm {} \;
 
@@ -289,7 +289,7 @@ class DiscoSettings(Settings):
         'DISCO_TEST_PROFILE':    "''",
         'DISCO_TEST_PURGE':      "'purge'",
 # DDFS
-        'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
+        'DDFS_DATA':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_PUT_PORT':         "8990",
         'DDFS_PUT_MAX':          "3",
         'DDFS_GET_MAX':          "3",
@@ -309,7 +309,7 @@ class DiscoSettings(Settings):
                   'DISCO_MASTER_ROOT',
                   'DISCO_LOG_DIR',
                   'DISCO_PID_DIR',
-                  'DDFS_ROOT')
+                  'DDFS_DATA')
 
     settings_file_var = 'DISCO_SETTINGS_FILE'
 

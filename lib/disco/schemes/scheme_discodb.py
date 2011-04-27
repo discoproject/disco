@@ -11,7 +11,7 @@ def open(url, task=None):
         from disco.settings import DiscoSettings
         settings = DiscoSettings()
         disco_data = settings['DISCO_DATA']
-        ddfs_data = settings['DDFS_ROOT']
+        ddfs_data = settings['DDFS_DATA']
     scheme, netloc, rest = util.urlsplit(url)
     path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
     discodb = DiscoDB.load(__builtin__.open(util.localize(path,

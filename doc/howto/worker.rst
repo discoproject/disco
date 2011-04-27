@@ -150,7 +150,7 @@ TASK
         The value of the :envvar:`DISCO_DATA` setting.
 
    "ddfs_data"
-        The value of the :envvar:`DDFS_ROOT` setting.  This can be
+        The value of the :envvar:`DDFS_DATA` setting.  This can be
         used to read :ref:`DDFS <ddfs>` data directly from the local
         filesystem after it has been ascertained that the :ref:`DDFS
         <ddfs>` data is indeed local to the current host.
