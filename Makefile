@@ -21,7 +21,8 @@ TARGETLIB = $(DESTDIR)$(libdir)/disco
 TARGETCFG = $(DESTDIR)$(sysconfdir)/disco
 TARGETSRV = $(DESTDIR)$(localstatedir)/disco
 
-# options to sphinx for building the docs
+# options to python and sphinx for building the lib and docs
+PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
 SPHINXOPTS = "-D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)"
 
 # used to choose which conf file will be generated
@@ -34,7 +35,7 @@ EOPT       = -W
 DIALYZER   = dialyzer
 TYPER      = typer
 PYTHON     = python
-PY_INSTALL = $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix)
+PY_INSTALL = $(PYTHONENVS) $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix)
 RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
 
 WWW   = master/www

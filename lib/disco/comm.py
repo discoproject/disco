@@ -100,18 +100,16 @@ def upload(urls, source, token=None, **kwargs):
 
 def open_url(url, *args, **kwargs):
     from disco.util import schemesplit
-    scheme, url_ = schemesplit(url)
+    scheme, rest = schemesplit(url)
     if not scheme or scheme == 'file':
-        return open_local(url, *args, **kwargs)
+        return open_local(rest, *args, **kwargs)
     return open_remote(url, *args, **kwargs)
 
 def open_local(path):
-    file = File(path, 'r', BUFFER_SIZE)
-    return file, len(file), file.url
+    return File(path, 'r', BUFFER_SIZE)
 
 def open_remote(url, token=None):
-    conn = Connection(urlresolve(url), token)
-    return conn, len(conn), conn.url
+    return Connection(urlresolve(url), token)
 
 class FileSource(object):
     def __init__(self, source):

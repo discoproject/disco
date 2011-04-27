@@ -175,6 +175,12 @@ def urljoin((scheme, netloc, path)):
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('', url)
 
+def localize(path, settings):
+    prefix, fname = path.split('/', 1)
+    if prefix == 'ddfs':
+        return os.path.join(settings['DDFS_ROOT'], fname)
+    return os.path.join(settings['DISCO_DATA'], fname)
+
 def urlsplit(url, localhost=None, settings=DiscoSettings()):
     scheme, rest = schemesplit(url)
     locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
@@ -185,13 +191,10 @@ def urlsplit(url, localhost=None, settings=DiscoSettings()):
         disco_port = str(settings['DISCO_PORT'])
         host, port = netloc.parse(locstr)
         if scheme == 'disco' or port == disco_port:
-            prefix, fname = path.split('/', 1)
             if localhost == True or locstr == localhost:
                 scheme = 'file'
-                if prefix == 'ddfs':
-                    path = os.path.join(settings['DDFS_ROOT'], fname)
-                else:
-                    path = os.path.join(settings['DISCO_DATA'], fname)
+                locstr = ''
+                path = localize(path, settings)
             elif scheme == 'disco':
                 scheme = 'http'
                 locstr = '%s:%s' % (host, disco_port)
@@ -299,10 +302,10 @@ def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
 
 def read_index(dir):
     from disco.comm import open_url
-    body, size, url = open_url(proxy_url(dir))
+    file = open_url(proxy_url(dir))
     if dir.endswith(".gz"):
-        body = gzip.GzipFile(fileobj=body)
-    for line in body:
+        file = gzip.GzipFile(fileobj=file)
+    for line in file:
         yield line.split()
 
 def ispartitioned(input):

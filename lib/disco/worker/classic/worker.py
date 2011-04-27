@@ -293,18 +293,21 @@ class Worker(worker.Worker):
             for record in self['combiner'](None, None, buf, True, params) or ():
                 output(part).add(*record)
 
-    def reduce(self, task, params):
+    def reduce_input(self, task, params):
+        # master should feed only the partitioned inputs to reduce (and shuffle them?)
         from disco.worker import SerialInput
         from disco.util import inputlist, ispartitioned, shuffled
-        # master should feed only the partitioned inputs to reduce (and shuffle them?)
-        # should be able to just use self.input(task, parallel=True) for normal reduce
         inputs = [[url for rid, url in i.replicas] for i in self.get_inputs()]
         partition = None
         if ispartitioned(inputs) and not self['merge_partitions']:
             partition = str(task.taskid)
-        ordered = self.sort(SerialInput(shuffled(inputlist(inputs, partition=partition)),
-                                        open=self.opener('reduce', 'in', params)),
-                            task)
+        return self.sort(SerialInput(shuffled(inputlist(inputs, partition=partition)),
+                                     task=task,
+                                     open=self.opener('reduce', 'in', params)),
+                         task)
+
+    def reduce(self, task, params):
+        ordered = self.reduce_input(task, params)
         entries = self.status_iter(ordered, "%s entries reduced")
         output = self.output(task, None, open=self.opener('reduce', 'out', params)).file.fds[-1]
         self['reduce_init'](entries, params)

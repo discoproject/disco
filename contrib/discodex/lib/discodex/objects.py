@@ -74,7 +74,7 @@ class DataSet(dict, JSONSerialized):
 
     @property
     def required_files(self):
-        return self.options.get('required_files')
+        return self.options.get('required_files', ())
 
     @property
     def unique_items(self):

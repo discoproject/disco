@@ -207,12 +207,12 @@ Settings used by DDFS:
         .. envvar:: DDFS_READ_TOKEN
 
                 The default read authorization token to use.
-                Default is ``''``.
+                Default is ``None``.
 
         .. envvar:: DDFS_WRITE_TOKEN
 
                 The default write authorization token to use.
-                Default is ``''``.
+                Default is ``None``.
 
         .. envvar:: DDFS_PARANOID_DELETE
 
@@ -293,8 +293,8 @@ class DiscoSettings(Settings):
         'DDFS_PUT_PORT':         "8990",
         'DDFS_PUT_MAX':          "3",
         'DDFS_GET_MAX':          "3",
-        'DDFS_READ_TOKEN':       "''",
-        'DDFS_WRITE_TOKEN':      "''",
+        'DDFS_READ_TOKEN':       "None",
+        'DDFS_WRITE_TOKEN':      "None",
         'DDFS_TAG_MIN_REPLICAS': "1",
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
