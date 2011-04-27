@@ -59,8 +59,6 @@ EPLT  = .dialyzer_plt
 	install-master \
 	install-core \
 	install-node \
-	install-config \
-	install-bin \
 	install-discodb \
 	install-discodex \
 	install-examples \
@@ -88,7 +86,7 @@ docclean:
 doctest:
 	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) doctest)
 
-install: install-core install-master
+install: install-core install-master install-node
 
 install-core:
 	(cd lib && $(PY_INSTALL))
@@ -101,18 +99,14 @@ install-discodex:
 
 install-examples: $(TARGETLIB)/examples
 
-install-master: install-node install-config
-
-install-node: master install-bin
-
-install-bin: \
-	$(ETARGETS) \
+install-master: master \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
-	$(TARGETLIB)/$(EBIN)/disco.app \
 	$(TARGETLIB)/$(WWW) \
+	$(TARGETCFG)/settings.py \
+	$(TARGETLIB)/$(EBIN)/disco.app \
 	$(TARGETSRV)/ddfs
 
-install-config: $(TARGETCFG)/settings.py
+install-node: master $(ETARGETS)
 
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
