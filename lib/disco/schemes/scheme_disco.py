@@ -5,7 +5,7 @@ def open(url, task=None):
     if task:
         scheme, netloc, path = util.urlsplit(url,
                                              localhost=task.host,
-                                             disco_port=task.port,
+                                             disco_port=task.disco_port,
                                              disco_data=task.disco_data,
                                              ddfs_data=task.ddfs_data)
     else:

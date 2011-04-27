@@ -52,7 +52,7 @@ class Task(object):
                  jobfile='',
                  jobname='',
                  master=None,
-                 port=None,
+                 disco_port=None,
                  put_port=None,
                  ddfs_data='',
                  disco_data='',
@@ -65,7 +65,7 @@ class Task(object):
         self.jobpack = JobPack.load(open(jobfile))
         self.jobobjs = cPickle.loads(self.jobpack.jobdata)
         self.master = master
-        self.port = port
+        self.disco_port = disco_port
         self.put_port = put_port
         self.ddfs_data = ddfs_data
         self.disco_data = disco_data

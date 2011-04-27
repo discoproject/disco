@@ -135,7 +135,7 @@ TASK
         either `"map"` or `"reduce"`, although more modes may be added
         in future releases.
 
-   "port"
+   "disco_port"
         The value of the :envvar:`DISCO_PORT` setting, which is the
         port the Disco master is running on, and the port used to
         retrieve data from Disco and :ref:`DDFS <ddfs>`.  This is used
@@ -196,7 +196,7 @@ INPUT
    The `replica_location` is specified as a URL.  The protocol scheme
    used for the `replica_location` could be one of `http`, `disco`, or
    `raw`.  A URL with the `disco` scheme is to be accessed using HTTP
-   at the Disco `port` specified in the `TASK` response from Disco.
+   at the `disco_port` specified in the `TASK` response from Disco.
    The `raw` scheme denotes that the URL itself (minus the scheme) is
    the data for the task.
 
