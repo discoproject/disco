@@ -183,10 +183,18 @@ Settings used by the testing environment:
 
 Settings used by DDFS:
 
+        .. envvar:: DDFS_ROOT
+
+                .. deprecated:: 0.4
+
+                Use :envvar:`DDFS_DATA` instead.
+                Only provided as a default for backwards compatability.
+                Default is obtained using ``os.path.join(DISCO_ROOT, 'ddfs')``.
+
         .. envvar:: DDFS_DATA
 
                 The root data directory for DDFS.
-                Default is obtained using ``os.path.join(DISCO_ROOT, 'ddfs')``.
+                Default is obtained using ``DDFS_ROOT``.
 
         .. envvar:: DDFS_PUT_PORT
 
@@ -289,7 +297,8 @@ class DiscoSettings(Settings):
         'DISCO_TEST_PROFILE':    "''",
         'DISCO_TEST_PURGE':      "'purge'",
 # DDFS
-        'DDFS_DATA':             "os.path.join(DISCO_ROOT, 'ddfs')",
+        'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
+        'DDFS_DATA':             "DDFS_ROOT",
         'DDFS_PUT_PORT':         "8990",
         'DDFS_PUT_MAX':          "3",
         'DDFS_GET_MAX':          "3",
