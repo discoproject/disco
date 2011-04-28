@@ -406,6 +406,10 @@ def put(*args, **kwargs):
     """See :meth:`disco.task.Task.put`."""
     return Task.put(*args, **kwargs)
 
+def this_inputs():
+    """Returns the inputs for the :ref:`worker`."""
+    return [[url for rid, url in i.replicas] for i in Worker.get_inputs()]
+
 def this_name():
     """Returns the jobname for the current task."""
     return Task.jobname
