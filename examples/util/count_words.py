@@ -1,11 +1,11 @@
 from disco.core import Job, result_iterator
-from disco.util import kvgroup
 
 def map(line, params):
     for word in line.split():
         yield word, 1
 
 def reduce(iter, params):
+    from disco.util import kvgroup
     for word, counts in kvgroup(sorted(iter)):
         yield word, sum(counts)
 

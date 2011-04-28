@@ -239,7 +239,6 @@ class Worker(dict):
         jobzip.writepath(os.path.dirname(discopath), exclude=('.pyc',))
         jobzip.writesource(job)
         jobzip.writesource(self)
-        jobzip.writemodule('__main__', '__disco__.py')
         return jobzip
 
     def input(self, task, merged=False, **kwds):
@@ -325,12 +324,6 @@ class Worker(dict):
             sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
             sys.stdout = MessageWriter(cls)
             cls.send('PID', os.getpid())
-            try:
-                from imp import find_module, load_module
-                __disco__ = load_module('__disco__', *find_module('__disco__', ['']))
-                sys.modules['__main__'].__dict__.update(__disco__.__dict__)
-            except ImportError:
-                pass
             task = cls.get_task()
             job, jobargs = task.jobobjs
             job.worker.start(task, job, **jobargs)

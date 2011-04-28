@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 
 from disco.test import TestCase
-from disco.util import flatten, iterify, pack, unpack, urlsplit
+from disco.util import flatten, iterify, urlsplit
 
 def function(x):
     return x + 0
@@ -16,12 +16,6 @@ class UtilTestCase(TestCase):
     def test_iterify(self):
         self.assertEquals([5], list(iterify(5)))
         self.assertEquals([5], list(iterify([5])))
-
-    def test_pack(self):
-        now = datetime.now()
-        self.assertEquals(now, unpack(pack(now)))
-        self.assertEquals(666, unpack(pack(666)))
-        self.assertEquals(function.func_code, unpack(pack(function)).func_code)
 
     def test_urlsplit(self):
         port = self.settings['DISCO_PORT']

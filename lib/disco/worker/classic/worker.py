@@ -387,15 +387,6 @@ class Params(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
-    def __getstate__(self):
-        return dict((k, util.pack(v))
-                    for k, v in self.__dict__.iteritems()
-                    if not k.startswith('_'))
-
-    def __setstate__(self, state):
-        for k, v in state.iteritems():
-            self.__dict__[k] = util.unpack(v)
-
 from disco.util import msg, err, data_err
 
 def get(*args, **kwargs):

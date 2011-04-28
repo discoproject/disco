@@ -88,6 +88,7 @@ Each token is output separately as a key, together with the value *1*.
 Now, let's write the corresponding reduce function::
 
         def fun_reduce(iter, params):
+                from disco.util import kvgroup
                 for word, counts in kvgroup(sorted(iter)):
                         yield word, sum(counts)
 

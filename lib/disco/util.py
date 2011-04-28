@@ -10,13 +10,11 @@ internally.
                 will be removed completely in the next release,
                 in favor of using normal Python **raise** and **print** statements.
 """
-import os, sys
-import cPickle, marshal, time, gzip
-import copy_reg, functools
+import os, sys, time
+import functools, gzip
 
 from cStringIO import StringIO
 from itertools import chain, groupby, repeat
-from types import CodeType, FunctionType
 from urllib import urlencode
 
 from disco.error import DiscoError, DataError, CommError
@@ -126,46 +124,6 @@ def globalize(object, globals):
     if hasattr(object, 'func_globals'):
         for k, v in globals.iteritems():
             object.func_globals.setdefault(k, v)
-
-def unpickle_partial(func, args, kwargs):
-    return functools.partial(unpack(func),
-                             *[unpack(x) for x in args],
-                             **dict((k, unpack(v)) for k, v in kwargs))
-
-def pickle_partial(p):
-    kw = p.keywords or {}
-    return unpickle_partial, (pack(p.func),
-                              [pack(x) for x in p.args],
-                              [(k, pack(v)) for k, v in kw.iteritems()])
-
-# support functools.partial also on Pythons prior to 3.1
-if sys.version_info < (3,1):
-    copy_reg.pickle(functools.partial, pickle_partial)
-copy_reg.pickle(FunctionType, lambda func: (unpack, (pack(func),)))
-
-def pack(object):
-    if hasattr(object, 'func_code'):
-        if object.func_closure != None:
-            raise TypeError("Function must not have closures: "
-                            "%s (try using functools.partial instead)"
-                            % object.func_name)
-        return marshal.dumps((object.func_code, object.func_defaults))
-    if isinstance(object, (list, tuple)):
-        object = type(object)(pack(o) for o in object)
-    return cPickle.dumps(object, cPickle.HIGHEST_PROTOCOL)
-
-def unpack(string, globals={'__builtins__': __builtins__}):
-    try:
-        object = cPickle.loads(string)
-        if isinstance(object, (list, tuple)):
-            return type(object)(unpack(s, globals=globals) for s in object)
-        return object
-    except Exception:
-        try:
-            code, defs = marshal.loads(string)
-            return FunctionType(code, globals, argdefs=defs)
-        except Exception, e:
-            raise ValueError("Could not unpack: %s (%s)" % (string, e))
 
 def urljoin((scheme, netloc, path)):
     return '%s%s%s' % ('%s://' % scheme if scheme else '',
