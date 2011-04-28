@@ -333,10 +333,10 @@ def save_oob(host, name, key, value, ddfs_token=None):
 
 def load_oob(host, name, key):
     from disco.ddfs import DDFS
+    ddfs = DDFS(host)
     # NB: this assumes that blobs are listed in LIFO order.
     # We want to return the latest version
-    for fd, sze, url in DDFS(host).pull(DDFS.job_oob(name),
-                                        blobfilter=lambda x: x == key):
+    for fd in ddfs.pull(ddfs.job_oob(name), blobfilter=lambda x: x == key):
         return fd.read()
 
 def format_size(num):
