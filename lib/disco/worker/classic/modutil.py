@@ -212,6 +212,4 @@ def find_modules(functions, send_modules=True, recurse=True, exclude=()):
             modules.update((k, v) if v else k for k, v in m)
         else:
             modules.update(fmod)
-        if hasattr(function, '__module__') and function.__module__:
-            modules.update([function.__module__])
     return list(modules)
