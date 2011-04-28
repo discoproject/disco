@@ -139,6 +139,12 @@ class DiscoZipFile(ZipFile, object):
             if ext not in exclude:
                 self.write(file, file)
 
+    def writemodule(self, path, module):
+        from inspect import getsource
+        if isinstance(module, basestring):
+            module = __import__(module)
+        self.writestr(path, getsource(module))
+
     def writesource(self, object):
         from inspect import getmodule, getsourcefile
         self.writepath(getsourcefile(getmodule(object)))
