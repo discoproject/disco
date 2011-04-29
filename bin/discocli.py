@@ -169,12 +169,14 @@ def job(program, worker, *inputs):
         if data.startswith('@'):
             return open(data[1:]).read()
         return data
+    def prefix(p):
+        return p or os.path.basename(worker).split(".")[0]
     jobdict = {'input': program.input(*inputs),
                'worker': worker,
                'map?': program.options.has_map,
                'reduce?': program.options.has_reduce,
                'nr_reduces': program.options.nr_reduces,
-               'prefix': program.options.prefix,
+               'prefix': prefix(program.options.prefix),
                'scheduler': program.scheduler,
                'owner': program.options.owner or program.settings['DISCO_JOB_OWNER']}
     jobenvs = dict(program.options.env)
@@ -208,7 +210,7 @@ job.add_option('-n', '--nr-reduces',
 job.add_option('-o', '--owner',
                help='owner of the job')
 job.add_option('-p', '--prefix',
-               default='job',
+               default=None,
                help='prefix to use when naming the job')
 job.add_option('-S', '--scheduler',
                action='setitem2',
