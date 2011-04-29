@@ -157,6 +157,8 @@ handle_info({'DOWN', _, _, _, Info}, State) ->
 handle_call(_Req, _From, State) ->
     {noreply, State}.
 
+terminate(_Reason, #state{port = none} = _State) ->
+    ok;
 terminate(_Reason, S) ->
     case worker_runtime:get_pid(S#state.runtime) of
         none ->
