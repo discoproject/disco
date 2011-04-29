@@ -166,7 +166,7 @@ concatenate_do(SrcIO, DstIO) ->
             Error
     end.
 
--spec diskspace([byte()]|byte()) ->
+-spec diskspace(nonempty_string()) ->
     {'error', 'invalid_output' | 'invalid_path'} | {'ok', ddfs_node:diskinfo()}.
 diskspace(Path) ->
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
