@@ -34,10 +34,7 @@ function Job(name) {
   }
 
   self.find = function () {
-    $.getJSON("/disco/ctrl/jobevents", {name: self.name,
-                                        num: 200,
-                                        filter: $("#pagesearch").val()},
-      self.update_events);
+    self.request_events();
     return false;
   }
 
@@ -73,8 +70,10 @@ function Job(name) {
   }
 
   self.request_events = function () {
-    $.getJSON("/disco/ctrl/jobevents", {name: self.name, num: 100},
-              self.update_events);
+    $.getJSON("/disco/ctrl/jobevents", {name: self.name,
+                                        num: 100,
+                                        filter: $("#pagesearch").val()},
+      self.update_events);
   }
 
   self.update_events = function (events) {
