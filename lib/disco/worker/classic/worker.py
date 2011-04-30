@@ -212,7 +212,7 @@ class Worker(worker.Worker):
                          'required_files': {},
                          'required_modules': None,
                          'ext_params': {},
-                         'params': None,
+                         'params': Params(),
                          'sort': False,
                          'sort_buffer_size': '10%',
                          'status_interval': 100000,
