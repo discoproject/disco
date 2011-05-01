@@ -2,11 +2,16 @@ import functools, marshal, pickle, types
 
 from cPickle import loads
 from cStringIO import StringIO
+from inspect import getfile, getmodule
+from os.path import dirname
 
 def dumps(obj, protocol=None):
     file = StringIO()
     Pickler(file, protocol).dump(obj)
     return file.getvalue()
+
+def is_std(module, stdlib=(dirname(getfile(pickle)),)):
+    return module.__name__ != '__main__' and dirname(getfile(module)) in stdlib
 
 def unfunc(packed, globals={'__builtins__': __builtins__}):
     code, defs = marshal.loads(packed)
@@ -20,7 +25,7 @@ class Pickler(pickle.Pickler):
     dispatch = pickle.Pickler.dispatch.copy()
 
     def save_func(self, func):
-        if func.__module__.startswith('disco.'):
+        if is_std(getmodule(func)) or func.__module__.startswith('disco.'):
             self.save_global(func)
         else:
             packed = marshal.dumps((func.func_code, func.func_defaults))
@@ -31,4 +36,3 @@ class Pickler(pickle.Pickler):
         packed = dumps((partial.func, partial.args, partial.keywords or {}))
         self.save_reduce(unpartial, (packed,), obj=partial)
     dispatch[functools.partial] = save_partial
-
