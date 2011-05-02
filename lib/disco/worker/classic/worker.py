@@ -404,7 +404,7 @@ def put(*args, **kwargs):
     return Task.put(*args, **kwargs)
 
 def this_inputs():
-    """Returns the inputs for the :ref:`worker`."""
+    """Returns the inputs for the :term:`worker`."""
     return [[url for rid, url in i.replicas] for i in Worker.get_inputs()]
 
 def this_name():
