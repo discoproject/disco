@@ -200,9 +200,7 @@ See what happens with the following command::
 Where :envvar:`DISCO_HOME` in this case must be the Disco source directory.
 It should start and send a message like this::
 
-   **<PID:00> 11/03/31 11:52:50
-   "22109"
-   <>**
+   WORKER 32 {"version": "1.0", "pid": 13492}
 
 If you get something else, you may have a problem with your :envvar:`PATH`
 or Python installation.
