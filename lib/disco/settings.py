@@ -185,8 +185,16 @@ Settings used by DDFS:
 
         .. envvar:: DDFS_ROOT
 
-                The root data directory for DDFS.
+                .. deprecated:: 0.4
+
+                Use :envvar:`DDFS_DATA` instead.
+                Only provided as a default for backwards compatability.
                 Default is obtained using ``os.path.join(DISCO_ROOT, 'ddfs')``.
+
+        .. envvar:: DDFS_DATA
+
+                The root data directory for DDFS.
+                Default is obtained using ``DDFS_ROOT``.
 
         .. envvar:: DDFS_PUT_PORT
 
@@ -207,16 +215,16 @@ Settings used by DDFS:
         .. envvar:: DDFS_READ_TOKEN
 
                 The default read authorization token to use.
-                Default is ``''``.
+                Default is ``None``.
 
         .. envvar:: DDFS_WRITE_TOKEN
 
                 The default write authorization token to use.
-                Default is ``''``.
+                Default is ``None``.
 
         .. envvar:: DDFS_PARANOID_DELETE
 
-                Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_ROOT = "/srv/disco/ddfs"``)::
+                Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_DATA = "/srv/disco/ddfs"``)::
 
                     find /srv/disco/ddfs/ -perm 600 -iname '!trash*' -exec rm {} \;
 
@@ -290,11 +298,12 @@ class DiscoSettings(Settings):
         'DISCO_TEST_PURGE':      "'purge'",
 # DDFS
         'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
+        'DDFS_DATA':             "DDFS_ROOT",
         'DDFS_PUT_PORT':         "8990",
         'DDFS_PUT_MAX':          "3",
         'DDFS_GET_MAX':          "3",
-        'DDFS_READ_TOKEN':       "''",
-        'DDFS_WRITE_TOKEN':      "''",
+        'DDFS_READ_TOKEN':       "None",
+        'DDFS_WRITE_TOKEN':      "None",
         'DDFS_TAG_MIN_REPLICAS': "1",
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
@@ -309,7 +318,7 @@ class DiscoSettings(Settings):
                   'DISCO_MASTER_ROOT',
                   'DISCO_LOG_DIR',
                   'DISCO_PID_DIR',
-                  'DDFS_ROOT')
+                  'DDFS_DATA')
 
     settings_file_var = 'DISCO_SETTINGS_FILE'
 

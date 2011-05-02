@@ -66,9 +66,6 @@ class DiscodexClient(object):
     def index(self, dataset):
         return self.request('POST', self.indexurl(''), dataset.dumps()).read()
 
-    def clone(self, indexaspec, indexbspec):
-        self.put(indexbspec, self.get(indexaspec))
-
     def inquire(self, indexspec, inquiry, query=None, streams=(), reduce='', params={}):
         method = 'GET' if query is None else 'POST'
         body   = Dict(arg=query.urlformat()).dumps() if query else None

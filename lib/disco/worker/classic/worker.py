@@ -293,18 +293,21 @@ class Worker(worker.Worker):
             for record in self['combiner'](None, None, buf, True, params) or ():
                 output(part).add(*record)
 
-    def reduce(self, task, params):
+    def reduce_input(self, task, params):
+        # master should feed only the partitioned inputs to reduce (and shuffle them?)
         from disco.worker import SerialInput
         from disco.util import inputlist, ispartitioned, shuffled
-        # master should feed only the partitioned inputs to reduce (and shuffle them?)
-        # should be able to just use self.input(task, parallel=True) for normal reduce
         inputs = [[url for rid, url in i.replicas] for i in self.get_inputs()]
         partition = None
         if ispartitioned(inputs) and not self['merge_partitions']:
             partition = str(task.taskid)
-        ordered = self.sort(SerialInput(shuffled(inputlist(inputs, partition=partition)),
-                                        open=self.opener('reduce', 'in', params)),
-                            task)
+        return self.sort(SerialInput(shuffled(inputlist(inputs, partition=partition)),
+                                     task=task,
+                                     open=self.opener('reduce', 'in', params)),
+                         task)
+
+    def reduce(self, task, params):
+        ordered = self.reduce_input(task, params)
         entries = self.status_iter(ordered, "%s entries reduced")
         output = self.output(task, None, open=self.opener('reduce', 'out', params)).file.fds[-1]
         self['reduce_init'](entries, params)
@@ -384,15 +387,6 @@ class Params(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
-    def __getstate__(self):
-        return dict((k, util.pack(v))
-                    for k, v in self.__dict__.iteritems()
-                    if not k.startswith('_'))
-
-    def __setstate__(self, state):
-        for k, v in state.iteritems():
-            self.__dict__[k] = util.unpack(v)
-
 from disco.util import msg, err, data_err
 
 def get(*args, **kwargs):
@@ -402,6 +396,10 @@ def get(*args, **kwargs):
 def put(*args, **kwargs):
     """See :meth:`disco.task.Task.put`."""
     return Task.put(*args, **kwargs)
+
+def this_inputs():
+    """Returns the inputs for the :ref:`worker`."""
+    return [[url for rid, url in i.replicas] for i in Worker.get_inputs()]
 
 def this_name():
     """Returns the jobname for the current task."""

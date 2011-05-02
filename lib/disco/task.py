@@ -8,7 +8,14 @@ This module defines objects for interfacing with
 """
 import os, time
 
+from disco import dPickle
 from disco.util import hexhash
+
+def jobdata(*objs):
+    """
+    :return: :ref:`jobdata` needed for instantiating the :class:`disco.job.Job` on the node.
+    """
+    return dPickle.dumps(objs, -1)
 
 class Task(object):
     """
@@ -45,17 +52,20 @@ class Task(object):
                  jobfile='',
                  jobname='',
                  master=None,
-                 port=None,
+                 disco_port=None,
                  put_port=None,
                  ddfs_data='',
                  disco_data='',
                  mode=None,
                  taskid=-1):
+        from disco.job import JobPack
         self.host = host
         self.jobfile = jobfile
         self.jobname = jobname
+        self.jobpack = JobPack.load(open(jobfile))
+        self.jobobjs = dPickle.loads(self.jobpack.jobdata)
         self.master = master
-        self.port = port
+        self.disco_port = disco_port
         self.put_port = put_port
         self.ddfs_data = ddfs_data
         self.disco_data = disco_data
@@ -66,11 +76,6 @@ class Task(object):
                                     taskid,
                                     hexhash(str((time.time()))),
                                     os.getpid())
-
-    @property
-    def jobpack(self):
-        from disco.job import JobPack
-        return JobPack.load(open(self.jobfile))
 
     @property
     def jobpath(self):

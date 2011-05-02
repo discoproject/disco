@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 
 from disco.test import TestCase
-from disco.util import flatten, iterify, pack, unpack, urlsplit
+from disco.util import flatten, iterify, urlsplit
 
 def function(x):
     return x + 0
@@ -17,15 +17,9 @@ class UtilTestCase(TestCase):
         self.assertEquals([5], list(iterify(5)))
         self.assertEquals([5], list(iterify([5])))
 
-    def test_pack(self):
-        now = datetime.now()
-        self.assertEquals(now, unpack(pack(now)))
-        self.assertEquals(666, unpack(pack(666)))
-        self.assertEquals(function.func_code, unpack(pack(function)).func_code)
-
     def test_urlsplit(self):
         port = self.settings['DISCO_PORT']
-        ddfs = self.settings['DDFS_ROOT']
+        ddfs = self.settings['DDFS_DATA']
         data = self.settings['DISCO_DATA']
         self.assertEquals(urlsplit('http://host/path'),
                           ('http', ('host', ''), 'path'))
@@ -34,11 +28,13 @@ class UtilTestCase(TestCase):
         self.assertEquals(urlsplit('disco://master/long/path'),
                           ('http', ('master', '%s' % port), 'long/path'))
         self.assertEquals(urlsplit('disco://localhost/ddfs/path',
-                                   localhost='localhost'),
-                          ('file', ('localhost', ''), os.path.join(ddfs, 'path')))
+                                   localhost='localhost',
+                                   ddfs_data=ddfs),
+                          ('file', ('', ''), os.path.join(ddfs, 'path')))
         self.assertEquals(urlsplit('disco://localhost/data/path',
-                                   localhost='localhost'),
-                          ('file', ('localhost', ''), os.path.join(data, 'path')))
+                                   localhost='localhost',
+                                   disco_data=data),
+                          ('file', ('', ''), os.path.join(data, 'path')))
         self.assertEquals(urlsplit('tag://tag', ''),
                           ('tag', ('', ''), 'tag'))
         self.assertEquals(urlsplit('tag://host/tag', ''),

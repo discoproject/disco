@@ -22,3 +22,17 @@ For instance, an input URL of `http://discoproject.org` would import and use :fu
 .. automodule:: disco.schemes.scheme_raw
    :members:
 """
+from disco import util
+
+def import_scheme(url):
+    scheme, _rest = util.schemesplit(url)
+    scheme = 'scheme_%s' % (scheme or 'file')
+    return __import__('disco.schemes.%s' % scheme, fromlist=[scheme])
+
+def input_stream(stream, size, url, params, globals=globals()):
+    input_stream = import_scheme(url).input_stream
+    util.globalize(input_stream, globals)
+    return input_stream(stream, size, url, params)
+
+def open(url, task=None):
+    return import_scheme(url).open(url, task=task)

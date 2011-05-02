@@ -22,7 +22,7 @@ from discodex.objects import (DataSet,
 from disco.core import Disco
 from disco.ddfs import DDFS
 from disco.error import DiscoError
-from disco.util import ddfs_name, flatten, parse_dir
+from disco.util import flatten, parse_dir
 
 discodex_settings = settings.DiscodexSettings()
 disco_master_url  = discodex_settings['DISCODEX_DISCO_MASTER']
@@ -146,7 +146,7 @@ class IndexResource(Collection):
 
     def delete(self, request, *args, **kwargs):
         ddfs.delete(self.tag)
-        ddfs.delete(ddfs_name(self.jobname))
+        ddfs.delete(ddfs.job_tag(self.jobname))
         return HttpResponseNoContent()
 
 class DiscoDBResource(Resource):

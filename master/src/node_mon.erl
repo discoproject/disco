@@ -110,7 +110,7 @@ start_lock_server(Node) ->
 
 -spec start_ddfs_node(node(), {bool(), bool()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
-    DdfsRoot = disco:get_setting("DDFS_ROOT"),
+    DdfsRoot = disco:get_setting("DDFS_DATA"),
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     PutMax = list_to_integer(disco:get_setting("DDFS_PUT_MAX")),
     GetMax = list_to_integer(disco:get_setting("DDFS_GET_MAX")),

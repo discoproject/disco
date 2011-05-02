@@ -126,14 +126,14 @@ class DDFSReadTestCase(TestCase):
         self.assertEquals(list(self.ddfs.blobs('disco:test:notag')), [])
 
     def test_pull(self):
-        self.assertEquals([(self.ddfs.blob_name(url), fd.read())
-                           for fd, sze, url in self.ddfs.pull('disco:test:blobs')],
+        self.assertEquals([(self.ddfs.blob_name(fd.url), fd.read())
+                           for fd  in self.ddfs.pull('disco:test:blobs')],
                           [('blobdata2', 'datablob2'), ('blobdata', 'datablob')])
-        self.assertEquals([(self.ddfs.blob_name(url), fd.read())
-                           for fd, sze, url in self.ddfs.pull('disco:test:blobs',
-                                                              blobfilter=lambda b: '2' in b)],
+        self.assertEquals([(self.ddfs.blob_name(fd.url), fd.read())
+                           for fd in self.ddfs.pull('disco:test:blobs',
+                                                    blobfilter=lambda b: '2' in b)],
                           [('blobdata2', 'datablob2')])
-        self.assertEquals([(sze, fd.read()) for fd, sze, url in
+        self.assertEquals([(len(fd), fd.read()) for fd in
                            self.ddfs.pull('disco:test:emptyblob')], [(0, '')])
         self.assertCommErrorCode(404, self.ddfs.pull('disco:test:notag').next)
 

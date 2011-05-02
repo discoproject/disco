@@ -185,8 +185,8 @@ with respect to data persistence. It mainly acts as a lock server, ensuring
 atomicity of metadata operations.
 
 Each storage node contains a number of disks or volumes (`vol0..volN`),
-assigned to DDFS by mounting them under ``DDFS_ROOT/vol0`` ...
-``DDFS_ROOT/volN`` (see :envvar:`DDFS_ROOT`).
+assigned to DDFS by mounting them under ``DDFS_DATA/vol0`` ...
+``DDFS_DATA/volN`` (see :envvar:`DDFS_DATA`).
 On each volume, DDFS creates two directories,
 ``tag`` and ``blob``, for storing tags and blobs, respectively. DDFS
 monitors available disk space on each volume on regular intervals for

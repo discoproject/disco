@@ -1,6 +1,7 @@
 import os, struct, sys, time
 from cPickle import dumps
 from cStringIO import StringIO
+from inspect import getmodule, getsourcefile
 from zipfile import ZipFile, ZIP_DEFLATED
 from zlib import compress, crc32
 
@@ -139,8 +140,12 @@ class DiscoZipFile(ZipFile, object):
             if ext not in exclude:
                 self.write(file, file)
 
+    def writemodule(self, module, arcname=None):
+        if isinstance(module, basestring):
+            module = __import__(module)
+        self.write(getsourcefile(module), arcname=arcname)
+
     def writesource(self, object):
-        from inspect import getmodule, getsourcefile
         self.writepath(getsourcefile(getmodule(object)))
 
     def dump(self, handle):

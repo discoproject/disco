@@ -10,13 +10,11 @@ internally.
                 will be removed completely in the next release,
                 in favor of using normal Python **raise** and **print** statements.
 """
-import os, sys
-import cPickle, marshal, time, gzip
-import copy_reg, functools
+import os, sys, time
+import functools, gzip
 
 from cStringIO import StringIO
 from itertools import chain, groupby, repeat
-from types import CodeType, FunctionType
 from urllib import urlencode
 
 from disco.error import DiscoError, DataError, CommError
@@ -127,46 +125,6 @@ def globalize(object, globals):
         for k, v in globals.iteritems():
             object.func_globals.setdefault(k, v)
 
-def unpickle_partial(func, args, kwargs):
-    return functools.partial(unpack(func),
-                             *[unpack(x) for x in args],
-                             **dict((k, unpack(v)) for k, v in kwargs))
-
-def pickle_partial(p):
-    kw = p.keywords or {}
-    return unpickle_partial, (pack(p.func),
-                              [pack(x) for x in p.args],
-                              [(k, pack(v)) for k, v in kw.iteritems()])
-
-# support functools.partial also on Pythons prior to 3.1
-if sys.version_info < (3,1):
-    copy_reg.pickle(functools.partial, pickle_partial)
-copy_reg.pickle(FunctionType, lambda func: (unpack, (pack(func),)))
-
-def pack(object):
-    if hasattr(object, 'func_code'):
-        if object.func_closure != None:
-            raise TypeError("Function must not have closures: "
-                            "%s (try using functools.partial instead)"
-                            % object.func_name)
-        return marshal.dumps((object.func_code, object.func_defaults))
-    if isinstance(object, (list, tuple)):
-        object = type(object)(pack(o) for o in object)
-    return cPickle.dumps(object, cPickle.HIGHEST_PROTOCOL)
-
-def unpack(string, globals={'__builtins__': __builtins__}):
-    try:
-        object = cPickle.loads(string)
-        if isinstance(object, (list, tuple)):
-            return type(object)(unpack(s, globals=globals) for s in object)
-        return object
-    except Exception:
-        try:
-            code, defs = marshal.loads(string)
-            return FunctionType(code, globals, argdefs=defs)
-        except Exception, e:
-            raise ValueError("Could not unpack: %s (%s)" % (string, e))
-
 def urljoin((scheme, netloc, path)):
     return '%s%s%s' % ('%s://' % scheme if scheme else '',
                        '%s/' % (netloc, ) if netloc else '',
@@ -175,40 +133,43 @@ def urljoin((scheme, netloc, path)):
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('', url)
 
-def urlsplit(url, localhost=None, settings=DiscoSettings()):
+def localize(path, ddfs_data=None, disco_data=None):
+    prefix, fname = path.split('/', 1)
+    if prefix == 'ddfs':
+        return os.path.join(ddfs_data, fname)
+    return os.path.join(disco_data, fname)
+
+def urlsplit(url, localhost=None, disco_port=None, **kwargs):
     scheme, rest = schemesplit(url)
-    locstr, path = rest.split('/', 1)  if '/'   in rest else (rest ,'')
+    locstr, path = rest.split('/', 1)  if '/' in rest else (rest ,'')
     if scheme == 'tag':
         if not path:
             path, locstr = locstr, ''
     else:
-        disco_port = str(settings['DISCO_PORT'])
+        disco_port = disco_port or str(DiscoSettings()['DISCO_PORT'])
         host, port = netloc.parse(locstr)
         if scheme == 'disco' or port == disco_port:
-            prefix, fname = path.split('/', 1)
             if localhost == True or locstr == localhost:
                 scheme = 'file'
-                if prefix == 'ddfs':
-                    path = os.path.join(settings['DDFS_ROOT'], fname)
-                else:
-                    path = os.path.join(settings['DISCO_DATA'], fname)
+                locstr = ''
+                path = localize(path, **kwargs)
             elif scheme == 'disco':
                 scheme = 'http'
                 locstr = '%s:%s' % (host, disco_port)
     return scheme, netloc.parse(locstr), path
 
-def urlresolve(url, settings=DiscoSettings()):
-    def master((host, port)):
+def urlresolve(url, master=None):
+    def _master((host, port)):
         if not host:
-            return settings['DISCO_MASTER']
+            return master or DiscoSettings()['DISCO_MASTER']
         if not port:
             return 'disco://%s' % host
         return 'http://%s:%s' % (host, port)
     scheme, netloc, path = urlsplit(url)
     if scheme == 'dir':
-        return urlresolve('%s/%s' % (master(netloc), path))
+        return urlresolve('%s/%s' % (_master(netloc), path))
     if scheme == 'tag':
-        return urlresolve('%s/ddfs/tag/%s' % (master(netloc), path))
+        return urlresolve('%s/ddfs/tag/%s' % (_master(netloc), path))
     return '%s://%s/%s' % (scheme, netloc, path)
 
 def urltoken(url):
@@ -299,10 +260,10 @@ def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
 
 def read_index(dir):
     from disco.comm import open_url
-    body, size, url = open_url(proxy_url(dir))
+    file = open_url(proxy_url(dir))
     if dir.endswith(".gz"):
-        body = gzip.GzipFile(fileobj=body)
-    for line in body:
+        file = gzip.GzipFile(fileobj=file)
+    for line in file:
         yield line.split()
 
 def ispartitioned(input):
@@ -330,10 +291,10 @@ def save_oob(host, name, key, value, ddfs_token=None):
 
 def load_oob(host, name, key):
     from disco.ddfs import DDFS
+    ddfs = DDFS(host)
     # NB: this assumes that blobs are listed in LIFO order.
     # We want to return the latest version
-    for fd, sze, url in DDFS(host).pull(DDFS.job_oob(name),
-                                        blobfilter=lambda x: x == key):
+    for fd in ddfs.pull(ddfs.job_oob(name), blobfilter=lambda x: x == key):
         return fd.read()
 
 def format_size(num):

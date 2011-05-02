@@ -27,7 +27,7 @@ class Indexer(Job):
     save = True
 
     def __init__(self, master, name, dataset):
-        super(Indexer, self).__init__(master, name)
+        super(Indexer, self).__init__(name=name, master=master)
         self.input            = dataset.input
         self.map_input_stream = dataset.stream
         self.map_reader       = dataset.parser
@@ -49,7 +49,7 @@ class DiscoDBIterator(Job):
     map_reader     = None
 
     def __init__(self, master, name, index, method, arg, streams, reduce, **kwargs):
-        super(DiscoDBIterator, self).__init__(master, name)
+        super(DiscoDBIterator, self).__init__(name=name, master=master)
         self.input = [['%s!%s/%s' % (url, method, arg) if method else url
                        for url in urls]
                       for urls in index.ichunks]
@@ -60,6 +60,7 @@ class DiscoDBIterator(Job):
             self.partitions = len(self.master.nodeinfo())
             self.reduce = reduce
 
+    @staticmethod
     def map(entry, params):
         from disco.util import kvify
         from discodb import DiscoDBInquiry

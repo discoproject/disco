@@ -249,10 +249,24 @@ do_put_tag_commit(Tag, TagVol, S) ->
                        {'ok', [{diskinfo(), nonempty_string()}]}.
 init_vols(Root, VolNames) ->
     lists:foreach(fun(VolName) ->
-                          BlobOk = prim_file:make_dir(filename:join([Root, VolName, "blob"])),
-                          true = (BlobOk =:= {error, eexist}) orelse (BlobOk =:= ok),
-                          TagOk = prim_file:make_dir(filename:join([Root, VolName, "tag"])),
-                          true = (TagOk =:= {error, eexist}) orelse (TagOk =:= ok)
+                          BlobDir = filename:join([Root, VolName, "blob"]),
+                          BlobOk = prim_file:make_dir(BlobDir),
+                          case ((BlobOk =:= {error, eexist}) orelse (BlobOk =:= ok)) of
+                              true ->
+                                  ok;
+                              false ->
+                                  error_logger:warning_report({"Error initializing blob directory",
+                                                               BlobDir, BlobOk})
+                          end,
+                          TagDir = filename:join([Root, VolName, "tag"]),
+                          TagOk = prim_file:make_dir(TagDir),
+                          case ((TagOk =:= {error, eexist}) orelse (TagOk =:= ok)) of
+                              true ->
+                                  ok;
+                              false ->
+                                  error_logger:warning_report({"Error initializing tag directory",
+                                                               TagDir, TagOk})
+                          end
                   end, VolNames),
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 

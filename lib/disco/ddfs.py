@@ -398,7 +398,7 @@ class DDFS(object):
         return token
 
     def _resolve(self, url):
-        return urlresolve(url, settings=self.settings)
+        return urlresolve(url, master=self.master)
 
     def _download(self, url, data=None, token=None, method='GET'):
         return json.loads(download(self._resolve(url),

@@ -3,7 +3,7 @@
 
 -define(MAX_EVENTS_PER_SECOND, 5).
 
--type state() :: queue().
+-opaque state() :: queue().
 -type throttle() :: {'ok', non_neg_integer(), state()} | {'error', term()}.
 
 -export_type([state/0]).
@@ -24,7 +24,7 @@ handle(Q) ->
         throttle(Q1, queue:len(Q1))
     end.
 
--spec throttle(state(), non_neg_integer()) -> throttle().
+-spec throttle(queue(), non_neg_integer()) -> throttle().
 throttle(_Q, N) when N > ?MAX_EVENTS_PER_SECOND * 3 ->
     {error, ["Worker is behaving badly: Sent ",
              integer_to_list(N), " events in a second, ignoring replies."]};

@@ -21,9 +21,9 @@ This can be accomplished using the :meth:`Job.wait` method::
 """
 import os, sys, time
 
-from disco import func, json, util
+from disco import func, json, task, util
 from disco.error import JobError
-from disco.util import hexhash, isiterable, netloc, load_oob, save_oob
+from disco.util import hexhash, isiterable, load_oob, save_oob
 from disco.settings import DiscoSettings
 
 class Job(object):
@@ -107,8 +107,8 @@ class Job(object):
         Creates the :class:`JobPack` for the worker using
         :meth:`disco.worker.Worker.jobdict`,
         :meth:`disco.worker.Worker.jobenvs`,
-        :meth:`disco.worker.Worker.jobhome`, and
-        :meth:`disco.worker.Worker.jobdata`,
+        :meth:`disco.worker.Worker.jobhome`,
+        :meth:`disco.task.jobdata`,
         and attempts to submit it.
 
         :type  jobargs: dict
@@ -122,7 +122,7 @@ class Job(object):
         jobpack = JobPack(self.worker.jobdict(self, **jobargs),
                           self.worker.jobenvs(self, **jobargs),
                           self.worker.jobhome(self, **jobargs),
-                          self.worker.jobdata(self, **jobargs))
+                          task.jobdata(self, jobargs))
         self.name = self.disco.submit(jobpack.dumps())
         return self
 

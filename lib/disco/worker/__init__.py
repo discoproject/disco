@@ -45,7 +45,7 @@ using a standard :class:`Worker`:
            :meth:`Worker.jobdict`,
            :meth:`Worker.jobenvs`,
            :meth:`Worker.jobhome`,
-           :meth:`Worker.jobdata`
+           :meth:`disco.task.jobdata`
         #. submit the :class:`disco.job.JobPack` to the master
 #. (node) master unpacks the :term:`job home`
 #. (node) master executes the :attr:`jobdict.worker` with
@@ -54,7 +54,7 @@ using a standard :class:`Worker`:
 #. (node) worker requests the :class:`disco.task.Task` from the master
 #. (node) worker runs the :term:`task` and reports the output to the master
 """
-import cPickle, os, sys, time, traceback
+import os, sys, time, traceback
 
 from disco.error import DataError
 from disco.fileutils import DiscoOutput, NonBlockingInput, Wait
@@ -241,12 +241,6 @@ class Worker(dict):
         jobzip.writesource(self)
         return jobzip
 
-    def jobdata(self, job, **jobargs):
-        """
-        :return: :ref:`jobdata` needed for instantiating the :class:`Worker` on the node.
-        """
-        return cPickle.dumps((self, job, jobargs), -1)
-
     def input(self, task, merged=False, **kwds):
         """
         :type  task: :class:`disco.task.Task`
@@ -261,8 +255,8 @@ class Worker(dict):
         :return: an :class:`Input` to iterate over the inputs from the master.
         """
         if merged:
-            return MergedInput(self.get_inputs(), **kwds)
-        return SerialInput(self.get_inputs(), **kwds)
+            return MergedInput(self.get_inputs(), task=task, **kwds)
+        return SerialInput(self.get_inputs(), task=task, **kwds)
 
     def output(self, task, partition=None, **kwds):
         """
@@ -303,7 +297,9 @@ class Worker(dict):
         self.getitem(task.mode, job, jobargs)(task, job, **jobargs)
 
     def end(self, task, job, **jobargs):
-        if not self['save'] or (task.mode == 'map' and self['reduce']):
+        def get(key):
+            return self.getitem(key, job, jobargs)
+        if not get('save') or (task.mode == 'map' and get('reduce')):
             self.send_outputs()
             self.send('MSG', "Results sent to master")
         else:
@@ -329,8 +325,8 @@ class Worker(dict):
             sys.stdout = MessageWriter(cls)
             cls.send('PID', os.getpid())
             task = cls.get_task()
-            worker, job, jobargs = cls.unpack(task.jobpack)
-            worker.start(task, job, **jobargs)
+            job, jobargs = task.jobobjs
+            job.worker.start(task, job, **jobargs)
             cls.send('END')
         except (DataError, EnvironmentError, MemoryError), e:
             # check the number of open file descriptors (under proc), warn if close to max
@@ -341,10 +337,6 @@ class Worker(dict):
         except Exception, e:
             cls.send('FATAL', MessageWriter.force_utf8(traceback.format_exc()))
             raise
-
-    @classmethod
-    def unpack(cls, jobpack):
-        return cPickle.loads(jobpack.jobdata)
 
     @classmethod
     def send(cls, type, payload=''):
@@ -432,7 +424,7 @@ class ReplicaIter(object):
         raise StopIteration
 
 class InputIter(object):
-    def __init__(self, input, open=None, start=0):
+    def __init__(self, input, task=None, open=None, start=0):
         self.input = input
         if isinstance(input, IDedInput):
             self.urls = ReplicaIter(input)
@@ -441,7 +433,7 @@ class InputIter(object):
         else:
             self.urls = iter(input)
         self.last = start - 1
-        self.open = open if open else Input.default_open
+        self.open = open if open else Input.default_opener(task=task)
         self.swap()
 
     def __iter__(self):
@@ -480,11 +472,11 @@ class Input(object):
 
                 used to open input files.
     """
-    def __init__(self, input, **kwds):
-        self.input, self.kwds = input, kwds
+    def __init__(self, input, task=None, **kwds):
+        self.input, self.task, self.kwds = input, task, kwds
 
     def __iter__(self):
-        iter = InputIter(self.input, **self.kwds)
+        iter = self.input_iter(self.input)
         while iter:
             try:
                 for item in iter:
@@ -493,14 +485,15 @@ class Input(object):
             except Wait, w:
                 time.sleep(w.retry_after)
 
-    @staticmethod
-    def default_open(url):
-        from disco.util import schemesplit
-        scheme, _url = schemesplit(url)
-        scheme_ = 'scheme_%s' % (scheme or 'file')
-        mod = __import__('disco.schemes.%s' % scheme_, fromlist=[scheme_])
-        file, size, url = mod.input_stream(None, None, url, None)
-        return file
+    def input_iter(self, input):
+        return InputIter(self.input, task=self.task, **self.kwds)
+
+    @classmethod
+    def default_opener(cls, task):
+        from disco import schemes
+        def open(url):
+            return schemes.open(url, task=task)
+        return open
 
 class Output(object):
     """
@@ -540,12 +533,9 @@ class SerialInput(Input):
     """
     Produces an iterator over the records in a list of sequential inputs.
     """
-    def __init__(self, inputs, **kwds):
-        self.inputs, self.kwds = inputs, kwds
-
     def __iter__(self):
-        for input in self.inputs:
-            for record in Input(input, **self.kwds):
+        for input in self.input:
+            for record in Input(input, task=self.task, **self.kwds):
                 yield record
 
 class ParallelInput(Input):
@@ -556,11 +546,8 @@ class ParallelInput(Input):
     """
     BUSY_TIMEOUT = 1
 
-    def __init__(self, inputs, **kwds):
-        self.inputs, self.kwds = inputs, kwds
-
     def __iter__(self):
-        iters = [InputIter(input, **self.kwds) for input in self.inputs]
+        iters = [self.input_iter(input) for input in self.input]
         while iters:
             iter = iters.pop()
             try:
@@ -606,7 +593,7 @@ class MergedInput(ParallelInput):
     """
     def __iter__(self):
         from disco.future import merge
-        iters = [InputIter(input, **self.kwds) for input in self.inputs]
+        iters = [self.input_iter(input) for input in self.input]
         heads = [Wait] * len(iters)
         return merge(*(self.couple(iters, heads, n) for n in xrange(len(iters))))
 
