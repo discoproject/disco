@@ -152,6 +152,9 @@ do_handle({<<"OUTPUT">>, Results}, S) ->
             {stop, {error, Reason}}
     end;
 
+do_handle({<<"PING">>, _Body}, S) ->
+    {ok, {"OK", <<"pong">>}, S};
+
 do_handle({<<"DONE">>, _Body}, #state{task = Task, master = Master} = S) ->
     case close_output(S) of
         ok ->

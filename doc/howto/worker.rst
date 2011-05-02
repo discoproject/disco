@@ -67,6 +67,7 @@ where 'SP' denotes a single space character, and *<name>* is one of:
       |     :ref:`MSG`
       |     :ref:`OK`
       |     :ref:`OUTPUT`
+      |     :ref:`PING`
       |     :ref:`RETRY`
       |     :ref:`TASK`
       |     :ref:`WAIT`
@@ -336,6 +337,17 @@ FATAL
    The worker can send an `FATAL` message, with a payload containig
    the error message as a string.  This message will terminate the
    entire job.  See also the information above for the `DONE` message.
+
+.. _PING:
+
+PING
+----
+
+   No-op - always returns `OK`.
+
+   Worker can use `PING` as a heartbeat message, to make sure that the
+   master is still alive and responsive.
+
 
 Messages from Disco to the Worker
 =================================
