@@ -31,9 +31,9 @@ new(JobPack) ->
         {'EXIT', _From, Reason} ->
             exit(Pid, kill),
             throw(Reason)
-    after 30000 ->
+    after 60000 ->
             exit(Pid, kill),
-            throw("timed out after 30s (master busy?)")
+            throw("timed out after 60s (master busy?)")
     end.
 
 job_event(JobName, {EventFormat, Args, Params}) ->
