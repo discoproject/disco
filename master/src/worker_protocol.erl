@@ -41,6 +41,8 @@ parse(Buffer, {parse_length, Type} = State) ->
             case catch list_to_integer(binary_to_list(LengthStr)) of
                 {'EXIT', _} ->
                     {error, invalid_length};
+                Length when Length < 0 ->
+                    {error, invalid_length};
                 Length when Length > ?MAX_MESSAGE_LENGTH ->
                     {error, message_too_big};
                 Length ->
