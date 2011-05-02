@@ -58,7 +58,7 @@ Messages in the protocol, both from and to the worker, are in the format:
 
 where 'SP' denotes a single space character, and *<name>* is one of:
 
-      |     :ref:`END`
+      |     :ref:`DONE`
       |     :ref:`ERROR`
       |     :ref:`FAIL`
       |     :ref:`FATAL`
@@ -67,10 +67,9 @@ where 'SP' denotes a single space character, and *<name>* is one of:
       |     :ref:`MSG`
       |     :ref:`OK`
       |     :ref:`OUTPUT`
-      |     :ref:`PID`
       |     :ref:`RETRY`
       |     :ref:`TASK`
-      |     :ref:`VSN`
+      |     :ref:`WORKER`
 
 *<payload-len>* is the length of the *<payload>* in bytes,
 and *<payload>* is a :term:`JSON` formatted term.
@@ -78,34 +77,30 @@ and *<payload>* is a :term:`JSON` formatted term.
 Messages from the Worker to Disco
 =================================
 
-.. _VSN:
+.. _WORKER:
 
-VSN
----
+WORKER
+------
 
-   Announce the version of the message protocol the worker is using.
+   Announce the startup of the worker.
 
-   The worker should send a `VSN` message before it sends any others.
-   The string payload of the `VSN` message should be the protocol
-   version the worker is using.  The current version is `"1.0"`.
-   Disco should respond with an `OK` if it intends to use the same
-   version.
+   The payload is a dictionary containing the following information:
 
-.. _PID:
+   "version"
+        The version of the message protocol the worker is using, as a
+        string.  The current version is `"1.0"`.
 
-PID
----
+   "pid"
+        The integer :term:`pid` of the worker.
 
-   Announce the :term:`pid` of the worker to Disco.
+        The worker should send this so it can be properly killed,
+        (e.g. if there's a problem with the :term:`job`).  This is
+        currently required due to limitations in the Erlang support
+        for external spawned processes.
 
-   The worker should send a `PID` message, with a payload containing
-   its :term:`pid` as an integer.  Disco should respond with an `OK`.
-
-   .. note::
-      The worker should send this so it can be properly killed,
-      (e.g. if there's a problem with the :term:`job`).  This is
-      currently required due to limitations in the Erlang support for
-      external spawned processes.
+   The worker should send a `WORKER` message before it sends any
+   others.  Disco should respond with an `OK` if it intends to use the
+   same version.
 
 .. _TASK:
 
@@ -303,10 +298,10 @@ OUTPUT
    Labels are currently only interpreted for `'part'` outputs, and are
    integers that are used to denote the partition for the output.
 
-.. _END:
+.. _DONE:
 
-END
----
+DONE
+----
 
    Inform Disco that the worker is finished.
 
@@ -328,7 +323,7 @@ ERROR
    The worker can send a `ERROR` message with a payload containing the
    error message as a string.  This message will terminate the worker,
    but not the job.  The current task will be retried by Disco.  See
-   also the information above for the `END` message.
+   also the information above for the `DONE` message.
 
 .. _FATAL:
 
@@ -339,7 +334,7 @@ FATAL
 
    The worker can send an `FATAL` message, with a payload containig
    the error message as a string.  This message will terminate the
-   entire job.  See also the information above for the `END` message.
+   entire job.  See also the information above for the `DONE` message.
 
 Messages from Disco to the Worker
 =================================
@@ -365,6 +360,13 @@ RETRY
 
    A possible response from Disco for an `INPUT_ERR` message, as described above.
 
+.. _WAIT:
+
+WAIT
+-----
+
+   A possible response from Disco for an `INPUT_ERR` message, as described above.
+
 .. _protocol_session:
 
 Sessions of the Protocol
@@ -382,7 +384,7 @@ The crucial messages the worker will then send are the `INPUT` and
 `OUTPUT` messages, and often the `INPUT_ERR` messages.  The processing
 of the responses to `INPUT` and `INPUT_ERR` will be determined by the
 application.  The worker will usually end a successful session with
-one or more `OUTPUT` messages followed by the `END` message.  Note
+one or more `OUTPUT` messages followed by the `DONE` message.  Note
 that it is possible for a successful session to have several
 `INPUT_ERR` messages, due to transient network conditions in the
 cluster as well as machines going down and recovering.
