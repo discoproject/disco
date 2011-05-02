@@ -373,8 +373,8 @@ WAIT
 Sessions of the Protocol
 ========================
 
-On startup, the worker should first send the `VSN` and `PID` messages,
-and then request the `TASK` information.  The `taskid` and `mode` in
+On startup, the worker should first send the `WORKER` message, and
+then request the `TASK` information.  The `taskid` and `mode` in
 the `TASK` response can be used, along with the current system time,
 to create a working directory within which to store any scratch data
 that will not interact with other, possibly concurrent, workers

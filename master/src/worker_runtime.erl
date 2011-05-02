@@ -95,11 +95,6 @@ do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
             {error, {fatal, ["No worker version received"]}, S1}
     end;
 
-do_handle({<<"VSN">>, <<"1.0">>}, S) ->
-    {ok, {"OK", <<"ok">>}, S};
-do_handle({<<"VSN">>, Ver}, _S) ->
-    {error, {fatal, ["Invalid worker version: ", io_lib:format("~p", [Ver])]}};
-
 do_handle({<<"TASK">>, _Body}, #state{task = Task} = S) ->
     Master = disco:get_setting("DISCO_MASTER"),
     JobFile = jobpack:jobfile(disco_worker:jobhome(Task#task.jobname)),
