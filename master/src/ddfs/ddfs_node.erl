@@ -268,11 +268,11 @@ try_makedir(Dir) ->
 -spec init_vols(nonempty_string(), [nonempty_string()]) ->
                        {'ok', [{diskinfo(), nonempty_string()}]}.
 init_vols(Root, VolNames) ->
-    Vols = [{VolName,
-             try_makedir(filename:join([Root, VolName, "blob"])),
-             try_makedir(filename:join([Root, VolName, "tag"]))
-            } || VolName <- VolNames],
-    {ok, [{{0, 0}, VolName} || {VolName, ok, ok} <- lists:sort(Vols)]}.
+    [begin
+        ok = try_makedir(filename:join([Root, VolName, "blob"])),
+        ok = try_makedir(filename:join([Root, VolName, "tag"]))
+    end || VolName <- VolNames],
+    {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
 -spec find_vols(nonempty_string()) ->
     'eof' | 'ok' | {'ok', [{diskinfo(), nonempty_string()}]} | {'error', _}.
