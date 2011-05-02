@@ -18,22 +18,25 @@
 new(JobPack) ->
     Self = self(),
     process_flag(trap_exit, true),
-    spawn_link(fun() ->
-                   case jobpack:valid(JobPack) of
-                       ok -> ok;
-                       {error, E} -> exit(E)
-                   end,
-                   case catch job_coordinator(Self, JobPack) of
-                       ok -> ok;
-                       Error -> exit(Error)
-                   end
-               end),
+    Pid =
+        spawn_link(fun() ->
+                       case jobpack:valid(JobPack) of
+                           ok -> ok;
+                           {error, E} -> exit(E)
+                       end,
+                       case catch job_coordinator(Self, JobPack) of
+                           ok -> ok;
+                           Error -> exit(Error)
+                       end
+                   end),
     receive
         {job_submitted, JobName} ->
             {ok, JobName};
         {'EXIT', _From, Reason} ->
+            exit(Pid, kill),
             throw(Reason)
     after 30000 ->
+            exit(Pid, kill),
             throw("timed out after 30s (master busy?)")
     end.
 
