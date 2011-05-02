@@ -53,7 +53,7 @@ class ModUtilTestCase(TestCase):
         self.assertEquals(sorted(find_modules(functions,
                                               send_modules=send_modules,
                                               recurse=recurse)),
-                          sorted(['test_modutil'] + modules))
+                          sorted(modules))
 
     def test_system(self):
         self.assertFindsModules([system_modules], ['os', 'random', 'time'])

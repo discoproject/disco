@@ -230,14 +230,14 @@ class Worker(worker.Worker):
                     jobzip.writestr(path, bytes)
         else:
             for path in get('required_files'):
-                jobzip.writepath(path)
+                jobzip.write(path, os.path.basename(path))
         if get('required_modules') is None:
             self['required_modules'] = find_modules([obj
                                                      for key in self
                                                      for obj in util.iterify(get(key))
                                                      if callable(obj)],
                                                     exclude=['Task'])
-        for mod in get('required_modules') or ():
+        for mod in get('required_modules'):
             if iskv(mod):
                 jobzip.writepath(mod[1])
         for func in ('map', 'reduce'):
