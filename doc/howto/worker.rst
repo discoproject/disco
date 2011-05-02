@@ -69,6 +69,7 @@ where 'SP' denotes a single space character, and *<name>* is one of:
       |     :ref:`OUTPUT`
       |     :ref:`RETRY`
       |     :ref:`TASK`
+      |     :ref:`WAIT`
       |     :ref:`WORKER`
 
 *<payload-len>* is the length of the *<payload>* in bytes,
