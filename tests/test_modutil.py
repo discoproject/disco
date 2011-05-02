@@ -32,6 +32,8 @@ class RequiredFilesJob(TestJob):
     def map(e, params):
         x = extramodule1.magic(int(e))
         y = extramodule2.kungfu(x)
+        open('lib/mod1.py')
+        import mod1
         yield '', y
 
 class ModUtilTestCase(TestCase):
@@ -86,5 +88,6 @@ class ModUtilTestCase(TestCase):
         self.assertResults(self.job, [(4.0, '')])
 
     def test_required_files(self):
-        self.job = RequiredFilesJob().run(input=self.test_server.urls([123]))
+        self.job = RequiredFilesJob().run(input=self.test_server.urls([123]),
+                                          required_files=[mod1req[1], mod2req[1]])
         self.assertResults(self.job, [('', 123 ** 2 + 2)])
