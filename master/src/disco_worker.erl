@@ -17,7 +17,7 @@
 -record(state, {master :: node(),
                 task :: task(),
                 port :: none | port(),
-                worker_send :: pid(),
+                worker_send :: none | pid(),
                 error_output :: boolean(),
                 buffer :: binary(),
                 parser :: worker_protocol:state(),
@@ -82,8 +82,9 @@ init({Master, Task}) ->
      #state{master = Master,
             task = Task,
             port = none,
-            buffer = <<>>,
+            worker_send = none,
             error_output = false,
+            buffer = <<>>,
             parser = worker_protocol:init(),
             runtime = worker_runtime:init(Task, Master),
             throttle = worker_throttle:init()}
@@ -156,6 +157,8 @@ handle_info({'DOWN', _, _, _, Info}, State) ->
 handle_call(_Req, _From, State) ->
     {noreply, State}.
 
+terminate(_Reason, #state{port = none} = _State) ->
+    ok;
 terminate(_Reason, S) ->
     case worker_runtime:get_pid(S#state.runtime) of
         none ->

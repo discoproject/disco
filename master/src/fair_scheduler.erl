@@ -15,16 +15,17 @@ start_link() ->
     end.
 
 init([]) ->
-    case application:get_env(scheduler_opt) of
-        {ok, "fifo"} ->
-            error_logger:info_report(
-                [{"Scheduler uses fifo policy"}]),
-            fair_scheduler_fifo_policy:start_link();
-        _ ->
-            error_logger:info_report(
-                [{"Scheduler uses fair policy"}]),
-            fair_scheduler_fair_policy:start_link()
-    end,
+    {ok, _ } =
+        case application:get_env(scheduler_opt) of
+            {ok, "fifo"} ->
+                error_logger:info_report(
+                  [{"Scheduler uses fifo policy"}]),
+                fair_scheduler_fifo_policy:start_link();
+            _ ->
+                error_logger:info_report(
+                  [{"Scheduler uses fair policy"}]),
+                fair_scheduler_fair_policy:start_link()
+        end,
     _ = ets:new(jobs, [private, named_table]),
     {ok, []}.
 
