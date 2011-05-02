@@ -246,7 +246,7 @@ do_put_tag_commit(Tag, TagVol, S) ->
     end.
 
 
--spec try_makedir(nonempty_string()) -> ok.
+-spec try_makedir(nonempty_string()) -> ok | error.
 try_makedir(Dir) ->
     case prim_file:make_dir(Dir) of
         ok ->
@@ -254,20 +254,21 @@ try_makedir(Dir) ->
         {error, eexist} ->
             ok;
         Error ->
-            error_logger:warning_report({"Error initializing directory",
-                                         Dir,
-                                         Error}),
-            ok
+            error_logger:warning_report({
+                "Error initializing directory. This volume will be ignored!",
+                Dir,
+               Error}),
+            error
     end.
 
 -spec init_vols(nonempty_string(), [nonempty_string()]) ->
                        {'ok', [{diskinfo(), nonempty_string()}]}.
 init_vols(Root, VolNames) ->
-    lists:foreach(fun(VolName) ->
-                          try_makedir(filename:join([Root, VolName, "blob"])),
-                          try_makedir(filename:join([Root, VolName, "tag"]))
-                  end, VolNames),
-    {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
+    Vols = [{VolName,
+             try_makedir(filename:join([Root, VolName, "blob"])),
+             try_makedir(filename:join([Root, VolName, "tag"]))
+            } || VolName <- VolNames],
+    {ok, [{{0, 0}, VolName} || {VolName, ok, ok} <- lists:sort(Vols)]}.
 
 -spec find_vols(nonempty_string()) ->
     'eof' | 'ok' | {'ok', [{diskinfo(), nonempty_string()}]} | {'error', _}.
@@ -277,10 +278,7 @@ find_vols(Root) ->
             case [F || "vol" ++ _ = F <- Files] of
                 [] ->
                     VolName = "vol0",
-                    VolOk = prim_file:make_dir(filename:join([Root, VolName])),
-                    true = (VolOk =:= {error, eexist}) orelse (VolOk =:= ok),
-                    error_logger:warning_report({"Could not find volumes in ", Root,
-                                                 "Created ", VolName}),
+                    ok = try_makedir(filename:join([Root, VolName])),
                     init_vols(Root, [VolName]);
                 VolNames ->
                     init_vols(Root, VolNames)
