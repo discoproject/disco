@@ -134,10 +134,9 @@ care to use unique filenames as needed.
 Additional Job Data
 -------------------
 
-Arbitrary data included in the :term:`job pack` to be used by the
-:term:`worker`.  A running worker can access the :term:`job pack` at
-the path specified in :term:`jobfile` in the response to the
-:ref:`TASK` message.
+Arbitrary data included in the :term:`job pack`, used by the :term:`worker`.
+A running worker can access the job pack at the path specified by ``jobfile``
+in the response to the :ref:`TASK` message.
 
 .. _submitting_jobpack:
 

@@ -1,7 +1,11 @@
 """
-This example could be run and the results printed from the `examples/util` directory in Disco:
+This example could be run (in this case from the Disco `examples/util` directory):
 
-disco run wordcount.WordCount http://discoproject.org/media/text/chekhov.txt | xargs disco wait | xargs ddfs xcat
+disco run wordcount.WordCount http://discoproject.org/media/text/chekhov.txt
+
+Assuming this was the last job submitted, the results could be printed:
+
+disco wait @ | xargs ddfs xcat
 """
 from disco.core import Job
 from disco.util import kvgroup

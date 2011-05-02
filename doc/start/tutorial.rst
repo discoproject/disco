@@ -134,6 +134,9 @@ and prints out the results:
 
     .. literalinclude:: ../../examples/util/count_words.py
 
+.. note:: This example could also be written by extending :class:`disco.job.Job`.
+          See, for example, `examples/util/wordcount.py`.
+
 Now comes the moment of truth.
 
 Run the script as follows::
