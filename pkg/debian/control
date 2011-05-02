@@ -23,8 +23,7 @@ Description: DiscoDB
 
 Package: disco-node
 Architecture: all
-Depends: ${misc:Depends}, adduser, erlang-base (>= 1:14.a), erlang-nox (>= 1:14.a), python-disco (= ${source:Version})
-Recommends: python-pycurl
+Depends: ${misc:Depends}, adduser, erlang-base (>= 1:14.a), erlang-nox (>= 1:14.a)
 Description: Disco node
  This is Disco node.
 
