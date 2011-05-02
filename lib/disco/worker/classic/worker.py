@@ -221,7 +221,7 @@ class Worker(worker.Worker):
 
     def jobenvs(self, job, **jobargs):
         envs = super(Worker, self).jobenvs(job, **jobargs)
-        envs['LD_LIBRARY_PATH'] = '.'
+        envs['LD_LIBRARY_PATH'] = 'lib'
         return envs
 
     def jobzip(self, job, **jobargs):
@@ -235,7 +235,7 @@ class Worker(worker.Worker):
                     jobzip.writestr(path, bytes)
         else:
             for path in get('required_files'):
-                jobzip.write(path, os.path.basename(path))
+                jobzip.write(path, os.path.join('lib', os.path.basename(path)))
         if get('required_modules') is None:
             self['required_modules'] = find_modules([obj
                                                      for key in self
