@@ -219,6 +219,11 @@ class Worker(worker.Worker):
                          'version': '.'.join(str(s) for s in sys.version_info[:2])})
         return defaults
 
+    def jobenvs(self, job, **jobargs):
+        envs = super(Worker, self).jobenvs(job, **jobargs)
+        envs['LD_LIBRARY_PATH'] = '.'
+        return envs
+
     def jobzip(self, job, **jobargs):
         from disco.util import iskv
         from disco.worker.classic.modutil import find_modules
