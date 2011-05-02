@@ -150,6 +150,8 @@ do_get_diskspace(#state{vols = Vols}) ->
 
 -spec do_put_blob(nonempty_string(), {pid(), _}, #state{}) ->
                  {'reply', 'full', #state{}} | {'noreply', #state{}}.
+do_put_blob(_BlobName, _From, #state{vols = []} = S) ->
+    {reply, {error, no_volumes}, S};
 do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
     Reply = fun() ->
                     {_Space, VolName} = choose_vol(S#state.vols),
@@ -200,6 +202,8 @@ do_get_tag_data(Tag, VolName, From, S) ->
     end.
 
 -spec do_put_tag_data(binary(), binary(), #state{}) -> {'ok', binary()} | {'error', _}.
+do_put_tag_data(_Tag, _Data, #state{vols = []}) ->
+    {error, no_volumes};
 do_put_tag_data(Tag, Data, S) ->
     {_Space, VolName} = choose_vol(S#state.vols),
     {ok, Local, _} = ddfs_util:hashdir(Tag,

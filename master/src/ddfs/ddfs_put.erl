@@ -40,6 +40,8 @@ loop("/ddfs/" ++ BlobName, Req) ->
                 {error, Path, Error} ->
                     error_reply(Req, "Could not create path for blob",
                         Path, Error);
+                {error, no_volumes} ->
+                    Req:respond({500, [], "No volumes"});
                 _ ->
                     Req:respond({503, [],
                         ["Maximum number of uploaders reached. ",
