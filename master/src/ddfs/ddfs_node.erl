@@ -245,28 +245,27 @@ do_put_tag_commit(Tag, TagVol, S) ->
             {E, S}
     end.
 
+
+-spec try_makedir(nonempty_string()) -> ok.
+try_makedir(Dir) ->
+    case prim_file:make_dir(Dir) of
+        ok ->
+            ok;
+        {error, eexist} ->
+            ok;
+        Error ->
+            error_logger:warning_report({"Error initializing directory",
+                                         Dir,
+                                         Error}),
+            ok
+    end.
+
 -spec init_vols(nonempty_string(), [nonempty_string()]) ->
                        {'ok', [{diskinfo(), nonempty_string()}]}.
 init_vols(Root, VolNames) ->
     lists:foreach(fun(VolName) ->
-                          BlobDir = filename:join([Root, VolName, "blob"]),
-                          BlobOk = prim_file:make_dir(BlobDir),
-                          case ((BlobOk =:= {error, eexist}) orelse (BlobOk =:= ok)) of
-                              true ->
-                                  ok;
-                              false ->
-                                  error_logger:warning_report({"Error initializing blob directory",
-                                                               BlobDir, BlobOk})
-                          end,
-                          TagDir = filename:join([Root, VolName, "tag"]),
-                          TagOk = prim_file:make_dir(TagDir),
-                          case ((TagOk =:= {error, eexist}) orelse (TagOk =:= ok)) of
-                              true ->
-                                  ok;
-                              false ->
-                                  error_logger:warning_report({"Error initializing tag directory",
-                                                               TagDir, TagOk})
-                          end
+                          try_makedir(filename:join([Root, VolName, "blob"])),
+                          try_makedir(filename:join([Root, VolName, "tag"]))
                   end, VolNames),
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
