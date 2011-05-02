@@ -323,11 +323,11 @@ class Worker(dict):
         try:
             sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
             sys.stdout = MessageWriter(cls)
-            cls.send('PID', os.getpid())
+            cls.send('WORKER', {'pid': os.getpid(), 'version': "1.0"})
             task = cls.get_task()
             job, jobargs = task.jobobjs
             job.worker.start(task, job, **jobargs)
-            cls.send('END')
+            cls.send('DONE')
         except (DataError, EnvironmentError, MemoryError), e:
             # check the number of open file descriptors (under proc), warn if close to max
             # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
