@@ -252,14 +252,14 @@ class Worker(worker.Worker):
         for key in self:
             self[key] = self.getitem(key, job, jobargs)
         assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
-
+        sys.path.append('')
         params = self['params']
         if isinstance(self[task.mode], dict):
             params = self['ext_params']
             self[task.mode] = external.prepare(params, task.mode)
 
         globals_ = globals().copy()
-        for module in self['required_modules'] or ():
+        for module in self['required_modules']:
             name = module[0] if util.iskv(module) else module
             globals_[name.split('.')[-1]] = __import__(name, fromlist=[name])
         for obj in util.flatten(self.values()):
