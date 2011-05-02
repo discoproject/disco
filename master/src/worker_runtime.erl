@@ -30,8 +30,8 @@ get_pid(#state{child_pid = Pid}) ->
     Pid.
 
 %-spec payload_type(binary()) -> json_validator:spec() | 'none'.
-payload_type(<<"PID">>) -> integer;
-payload_type(<<"VSN">>) -> string;
+payload_type(<<"WORKER">>) -> {object, [{<<"version">>, string},
+                                        {<<"pid">>, integer}]};
 payload_type(<<"TASK">>) -> string;
 payload_type(<<"MSG">>) -> string;
 payload_type(<<"ERROR">>) -> string;
@@ -55,6 +55,7 @@ payload_type(_Type) -> none.
 -type worker_msg() :: {nonempty_string(), term()}.
 -type handle_return() :: {'ok', worker_msg(), state()}
                        | {'error', {'fatal', term()}}
+                       | {'error', {'fatal', term()}, state()}
                        | {'stop', {'error' | 'fatal', term()}}.
 
 -spec handle({binary(), binary()}, state()) -> handle_return().
@@ -81,8 +82,18 @@ handle({Type, Body}, S) ->
 
 -spec do_handle({binary(), term()}, state()) -> handle_return().
 
-do_handle({<<"PID">>, Pid}, S) ->
-    {ok, {"OK", <<"ok">>}, S#state{child_pid = Pid}};
+do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
+    {value, {_, Pid}} = lists:keysearch(<<"pid">>, 1, Worker),
+    S1 = S#state{child_pid = Pid},
+    case lists:keysearch(<<"version">>, 1, Worker) of
+        {value, {_, <<"1.0">>}} ->
+            {ok, {"OK", <<"ok">>}, S1};
+        {value, {_, Ver}} ->
+            VerMsg = io_lib:format("~p", [Ver]),
+            {error, {fatal, ["Invalid worker version: ", VerMsg]}, S1};
+        _ ->
+            {error, {fatal, ["No worker version received"]}, S1}
+    end;
 
 do_handle({<<"VSN">>, <<"1.0">>}, S) ->
     {ok, {"OK", <<"ok">>}, S};

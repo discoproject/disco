@@ -205,6 +205,10 @@ update(S) ->
                 {error, {Type, Msg}} ->
                     warning(Msg, S1),
                     exit_on_error(Type, S1);
+                {error, {Type, Msg}, RState} ->
+                    S2 = S1#state{runtime = RState},
+                    warning(Msg, S2),
+                    exit_on_error(Type, S2);
                 {'EXIT', Reason} ->
                     warning(io_lib:format("~p", [Reason]), S1),
                     exit_on_error(error, S1)
