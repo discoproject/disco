@@ -36,7 +36,7 @@ payload_type(<<"TASK">>) -> string;
 payload_type(<<"MSG">>) -> string;
 payload_type(<<"ERROR">>) -> string;
 payload_type(<<"FATAL">>) -> string;
-payload_type(<<"END">>) -> string;
+payload_type(<<"DONE">>) -> string;
 
 payload_type(<<"INPUT">>) ->
     {opt, [{value, <<>>},
@@ -157,7 +157,7 @@ do_handle({<<"OUTPUT">>, Results}, S) ->
             {stop, {error, Reason}}
     end;
 
-do_handle({<<"END">>, _Body}, #state{task = Task, master = Master} = S) ->
+do_handle({<<"DONE">>, _Body}, #state{task = Task, master = Master} = S) ->
     case close_output(S) of
         ok ->
             Time = disco:format_time_since(S#state.start_time),
