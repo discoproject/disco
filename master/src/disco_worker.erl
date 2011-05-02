@@ -34,7 +34,7 @@
 -spec start_link_remote(nonempty_string(), pid(), task()) -> no_return().
 start_link_remote(Host, NodeMon, Task) ->
     Node = disco:slave_node(Host),
-    wait_until_node_ready(NodeMon),
+    wait_until_node_ready(NodeMon, Host),
     spawn_link(Node, disco_worker, start_link, [{self(), node(), Task}]),
     process_flag(trap_exit, true),
     receive
@@ -48,13 +48,13 @@ start_link_remote(Host, NodeMon, Task) ->
     end,
     wait_for_exit().
 
--spec wait_until_node_ready(pid()) -> 'ok'.
-wait_until_node_ready(NodeMon) ->
+-spec wait_until_node_ready(pid(), nonempty_string()) -> 'ok'.
+wait_until_node_ready(NodeMon, Host) ->
     NodeMon ! {is_ready, self()},
     receive
         node_ready -> ok
     after 30000 ->
-        exit({error, "Node unavailable"})
+        exit({error, lists:flatten(["Node ", Host, " unavailable"])})
     end.
 
 -spec wait_for_exit() -> no_return().
