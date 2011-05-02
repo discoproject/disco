@@ -222,6 +222,7 @@ class Worker(worker.Worker):
     def jobenvs(self, job, **jobargs):
         envs = super(Worker, self).jobenvs(job, **jobargs)
         envs['LD_LIBRARY_PATH'] = 'lib'
+        envs['PYTHONPATH'] = ':'.join(('lib', envs.get('PYTHONPATH', '')))
         return envs
 
     def jobzip(self, job, **jobargs):
@@ -257,7 +258,7 @@ class Worker(worker.Worker):
         for key in self:
             self[key] = self.getitem(key, job, jobargs)
         assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
-        sys.path.append('')
+
         params = self['params']
         if isinstance(self[task.mode], dict):
             params = self['ext_params']
