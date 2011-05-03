@@ -21,10 +21,13 @@ Some of the :program:`ddfs` utilities also work with data stored in Disco's temp
    If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
    Doing so allows you to simply call :command:`ddfs`, instead of specifying the complete path.
 
-
 Run :command:`ddfs help` for information on using the command line utility.
 
-See also: :mod:`disco.settings`
+.. seealso::
+
+        The :mod:`disco <discocli>` command.
+
+        See :mod:`disco.settings` for information about Disco settings.
 """
 
 import fileinput, os, sys

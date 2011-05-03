@@ -21,10 +21,33 @@ The new startup script makes it even easier to get up and running with a Disco c
    If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
    Doing so allows you to simply call :program:`disco`, instead of specifying the complete path.
 
-
 Run :command:`disco help` for information on using the command line utility.
 
-See also: :mod:`disco.settings`
+.. seealso::
+
+        The :mod:`ddfs <ddfscli>` command.
+
+        See :mod:`disco.settings` for information about Disco settings.
+
+.. _jobhistory:
+
+Job History
+-----------
+
+For commands which take a jobname, or which support :option:`-j`,
+the special arguments ``@`` and ``@?<string>``
+are replaced by the most recent job name and
+the most recent job with name matching ``<string>``, respectively.
+
+For example::
+
+        disco results @
+
+Would get the results for the most recent job, and::
+
+        disco results @?WordCount
+
+Would get the results for the last job with name containing ``WordCount``.
 """
 
 import fileinput, os, sys
