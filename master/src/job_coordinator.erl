@@ -20,6 +20,10 @@ new(JobPack) ->
     process_flag(trap_exit, true),
     Pid =
         spawn_link(fun() ->
+                       case jobpack:valid(JobPack) of
+                           ok -> ok;
+                           {error, E} -> exit(E)
+                       end,
                        case catch job_coordinator(Self, JobPack) of
                            ok -> ok;
                            Error -> exit(Error)
