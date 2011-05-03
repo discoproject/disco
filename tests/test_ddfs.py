@@ -292,3 +292,28 @@ class DDFSAuthTestCase(TestCase):
         self.ddfs.delete('disco:test:atomic1', token='secret1')
         self.ddfs.delete('disco:test:atomic2', token='secret2')
         self.ddfs.delete('disco:test:notoken')
+
+class DDFSDeleteTestCase(TestCase):
+    def setUp(self):
+        self.ddfs.push('disco:test:delete1', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:delete2', [(StringIO('datablob'), 'blobdata')])
+
+    def test_create_delete_create(self):
+        self.ddfs.delete('disco:test:delete1')
+        self.assert_(not self.ddfs.exists('disco:test:delete1'))
+        self.ddfs.push('disco:test:delete1', [(StringIO('datablob'), 'blobdata')])
+        self.assert_(self.ddfs.exists('disco:test:delete1'))
+        self.assert_("disco:test:delete1" in self.ddfs.list('disco:test:delete1'))
+
+    def test_create_delete_create_token(self):
+        self.ddfs.delete('disco:test:delete2')
+        self.assert_(not self.ddfs.exists('disco:test:delete2'))
+        self.ddfs.push('disco:test:delete2',
+                       [(StringIO('abc'), 'atom')],
+                       token='secret1')
+        self.assert_(self.ddfs.exists('disco:test:delete2'))
+        self.assert_("disco:test:delete2" in self.ddfs.list('disco:test:delete2'))
+
+    def tearDown(self):
+        self.ddfs.delete('disco:test:delete1')
+        self.ddfs.delete('disco:test:delete2', token='secret1')
