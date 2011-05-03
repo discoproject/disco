@@ -423,27 +423,14 @@ do_get(_TokenInfo, {user, A}, D) ->
         _ -> {error, unknown_attribute}
     end.
 
-% First, a special case: New tag is being created and a token is set ->
-% Assign the token as a read and write token for the new tag atomically.
-
 -spec do_put({tokentype(), token()}, attrib(), string(), replyto(), #state{})
             -> #state{}.
 do_put({_, Token},
        Field,
        Value,
        ReplyTo,
-       #state{tag = TagName, data = {missing, _} = D} = S)
-       when is_binary(Token) ->
-    D1 = ddfs_tag_util:update_tagcontent(TagName, read_token, Token, D),
-    D2 = ddfs_tag_util:update_tagcontent(TagName, write_token, Token, D1),
-    do_put(Field, Value, ReplyTo, S#state{data = D2});
-
-do_put(_TokenInfo, Field, Value, ReplyTo, S) ->
-    do_put(Field, Value, ReplyTo, S).
-
--spec do_put(attrib(), string(), replyto(), #state{}) -> #state{}.
-do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
-    case ddfs_tag_util:update_tagcontent(TagName, Field, Value, TagData) of
+       #state{tag = TagName, data = TagData} = S) ->
+    case ddfs_tag_util:update_tagcontent(TagName, Field, Value, TagData, Token) of
         {ok, TagContent} ->
             NewTagData = ddfs_tag_util:encode_tagcontent(TagContent),
             TagID = TagContent#tagcontent.id,

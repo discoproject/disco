@@ -4,7 +4,7 @@
 -include("config.hrl").
 
 -export([check_token/4, encode_tagcontent/1, encode_tagcontent_secure/1,
-         decode_tagcontent/1, update_tagcontent/4, delete_tagattrib/3,
+         decode_tagcontent/1, update_tagcontent/5, delete_tagattrib/3,
          validate_urls/1, validate_value/2]).
 
 -export([make_tagcontent/6]).
@@ -107,19 +107,19 @@ update_tagcontent(TagName, Tag) ->
     Tag#tagcontent{id = ddfs_util:pack_objname(TagName, now()),
                    last_modified = ddfs_util:format_timestamp()}.
 
--spec update_tagcontent(tagname(), attrib(), _, _) ->
+-spec update_tagcontent(tagname(), attrib(), _, _, token()) ->
                         {'error', 'too_many_attributes' | 'invalid_url_object'} |
                         {'ok', tagcontent()}.
-update_tagcontent(TagName, Field, Value, {ok, Tag}) ->
+update_tagcontent(TagName, Field, Value, {ok, Tag}, _Token) ->
     Updated = update_tagcontent(TagName, Tag),
     update_tagcontent(Field, Value, Updated);
 
-update_tagcontent(TagName, Field, Value, _Tag) ->
-    New = #tagcontent{read_token = null,
-                      write_token = null,
+update_tagcontent(TagName, Field, Value, _Tag, Token) ->
+    New = #tagcontent{read_token = Token,
+                      write_token = Token,
                       urls = [],
                       user = []},
-    update_tagcontent(TagName, Field, Value, {ok, New}).
+    update_tagcontent(TagName, Field, Value, {ok, New}, Token).
 
 -spec update_tagcontent(attrib(), _, tagcontent()) ->
                        {'error', 'too_many_attributes' | 'invalid_url_object'} |
