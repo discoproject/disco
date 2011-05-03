@@ -402,7 +402,9 @@ def communicate(input_iter, oneshot=False):
             elif event & select.POLLIN and fd == stdout:
                 num = struct.unpack("I", proc.stdout.read(4))[0]
                 for i in range(num):
-                    yield unpack_kv()
+                    x = unpack_kv()
+                    print "X", x
+                    yield x
                 if oneshot:
                     return
             elif event & select.POLLIN and fd == stderr:
@@ -416,7 +418,7 @@ def communicate(input_iter, oneshot=False):
                     poll.unregister(proc.stdin)
                     if not oneshot:
                         proc.stdin.close()
-            elif event & select.POLLHUP:
+            elif event & select.POLLHUP and fd == stdout:
                 return
 
 def map(e, params):
