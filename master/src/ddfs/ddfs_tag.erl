@@ -178,7 +178,8 @@ handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
         true ->
             Do =
                 fun (TokenInfo) ->
-                    do_put(TokenInfo, Field, Value, ReplyTo, S)
+                    S1 = do_put(TokenInfo, Field, Value, ReplyTo, S),
+                    S1#state{url_cache = false}
                 end,
             S1 = authorize(write, Token, ReplyTo, S, Do),
             {noreply, S1, S1#state.timeout};
@@ -217,7 +218,12 @@ handle_cast({get_tagnames, ReplyTo}, #state{url_cache = Cache} = S) ->
 handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
     NewDel = gb_sets:delete_any(Name, Cache),
     NewUrls = [[<<"tag://", Tag/binary>>] || Tag <- gb_sets:to_list(NewDel)],
-    handle_cast({{put, urls, NewUrls, internal}, ReplyTo}, S).
+    S1 = do_put({write, internal},
+                urls,
+                NewUrls,
+                ReplyTo,
+                S#state{url_cache = NewDel}),
+    {noreply, S1, S1#state.timeout}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -274,8 +280,11 @@ do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls, S) ->
                                          OldUrls,
                                          NoDup,
                                          S#state.url_cache),
-            NState = do_put(TokenInfo, urls, Merged, ReplyTo, S),
-            NState#state{url_cache = Cache};
+            do_put(TokenInfo,
+                   urls,
+                   Merged,
+                   ReplyTo,
+                   S#state{url_cache = Cache});
         false ->
             _ = send_replies(ReplyTo, {error, invalid_url_object}),
             S
@@ -446,16 +455,14 @@ do_put(Field, Value, ReplyTo, #state{tag = TagName, data = TagData} = S) ->
                        true -> ok
                     end,
                     _ = send_replies(ReplyTo, {ok, DestUrls}),
-                    S#state{data = {ok, TagContent},
-                            replicas = DestNodes,
-                            url_cache = false};
+                    S#state{data = {ok, TagContent}, replicas = DestNodes};
                 {error, _} = E ->
                     _ = send_replies(ReplyTo, E),
                     S#state{url_cache = false}
             end;
         {error, _} = E ->
             _ = send_replies(ReplyTo, E),
-            S
+            S#state{url_cache = false}
     end.
 
 do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
@@ -466,11 +473,10 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
         {ok, DestNodes, _DestUrls} ->
             _ = send_replies(ReplyTo, ok),
             S#state{data = {ok, TagContent},
-                    replicas = DestNodes,
-                    url_cache = false};
+                    replicas = DestNodes};
         {error, _} = E ->
             _ = send_replies(ReplyTo, E),
-            S#state{url_cache = false}
+            S
     end.
 
 % Put transaction:
