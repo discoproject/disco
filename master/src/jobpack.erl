@@ -181,7 +181,7 @@ valid(<<?MAGIC:16/big,
        JobHomeOffset >= JobEnvsOffset,
        JobDataOffset >= JobHomeOffset,
        size(JobPack) >= JobDataOffset ->
-    case catch {jobinfo(JobPack), jobenvs(JobPack)} of
+    case catch jobenvs(JobPack) of
         {'EXIT', _} -> {error, invalid_dicts_or_envs};
         {error, E} -> {error, E};
         _ -> ok
