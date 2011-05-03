@@ -402,9 +402,7 @@ def communicate(input_iter, oneshot=False):
             elif event & select.POLLIN and fd == stdout:
                 num = struct.unpack("I", proc.stdout.read(4))[0]
                 for i in range(num):
-                    x = unpack_kv()
-                    print "X", x
-                    yield x
+                    yield unpack_kv()
                 if oneshot:
                     return
             elif event & select.POLLIN and fd == stderr:
