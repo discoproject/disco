@@ -41,10 +41,6 @@ install:
 	$(DISCOMAKE) install-node UNAME=Debian prefix=/usr DESTDIR=$(NODEDEST)
 	$(DISCOMAKE) install-discodb UNAME=Debian prefix=/usr DESTDIR=$(PYDISCODBDEST)
 
-	# disco.conf is provided by disco-node, so it should
-	# be removed from disco-master
-	#rm -f $(DESTDIR)/etc/disco/disco.conf
-
 	dh_install -A
 
 

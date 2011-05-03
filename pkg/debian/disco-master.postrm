@@ -1,5 +1,5 @@
 #!/bin/sh
-# postrm script for disco-node
+# postrm script for disco-master
 #
 # see: dh_installdeb(1)
 
