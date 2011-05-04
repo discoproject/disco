@@ -2,6 +2,41 @@
 Release notes
 =============
 
+Disco 0.4 (May 4th 2011)
+------------------------
+
+New features
+''''''''''''
+- :ref:`worker_protocol` introduced to support custom :term:`workers <worker>`,
+  especially in languages besides Python
+  (see `ODisco <https://github.com/pmundkur/odisco>`_
+  for an OCaml worker now included in ``contrib``).
+- Complete overhaul of the Python :mod:`disco.worker` to support the new protocol -
+  most notably the worker is now completely self-contained.
+- :ref:`jobhistory` makes using the command-line less tedious.
+  Several other enhancements to :mod:`disco <discocli>` and :mod:`ddfs <ddfscli>`.
+- :ref:`setup` is easier than ever.
+  Updated Debian packaging and dependencies make :ref:`install_sys` a breeze.
+- Support for log rotation on the :term:`master` via :envvar:`DISCO_ROTATE_LOG`.
+- More documentation, including a :ref:`discodb_tutorial`
+  using extended :class:`disco.job.Job` classes.
+- Throttling of messages coming from the worker,
+  to prevent them from overwhelming the master without killing the process.
+- Upgraded to `mochiweb <https://github.com/mochi/mochiweb>`_ 2.0.
+
+Bugfixes
+''''''''
+- The web UI no longer loses the filter when the events are refreshed.
+- :ref:`Jobpacks <jobpack>` are distributed once per node,
+  even when workers start running at the same time.
+
+Deprecated
+''''''''''
+- :func:`disco.util.data_err`, :func:`disco.util.err`, and :func:`disco.util.msg`,
+  have all been deprecated in favor of using ``raise`` and ``print`` statements.
+- The old-style :ref:`external <discoext>` interface is deprecated,
+  thanks to the new and improved :ref:`worker protocol <worker_protocol>`.
+
 Disco 0.3.2 (Dec 6th 2010)
 --------------------------
 

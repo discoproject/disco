@@ -131,7 +131,7 @@ How do I print messages to the Web interface from Python?
 Use a normal Python **print** statement.
 
 .. note:: This is meant for simple debugging,
-          you cannot print messages too often, or Disco will kill your job.
+          if you print messages too often, Disco will throttle your worker.
           The master limits the rate of messages coming from workers,
           to prevent it from being overwhelmed.
 
@@ -148,9 +148,6 @@ See :func:`disco.worker.classic.func.input_stream`.
 
 Why not `Hadoop <http://hadoop.apache.org>`_?
 '''''''''''''''''''''''''''''''''''''''''''''
-
-Why `Vim <http://www.vim.org>`_ and not `Emacs
-<http://www.gnu.org/software/emacs/>`_?
 
 We see that platforms for distributed computing will be of such high
 importance in the future that it is crucial to have a wide variety of

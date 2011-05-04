@@ -43,6 +43,7 @@ Now let's try creating our word count db from scratch, and querying it::
 .. hint:: The special arguments ``@`` and ``@?<string>``
           are replaced by the most recent job name and
           the most recent job with name matching ``<string>``, respectively.
+          See :mod:`discocli`.
 
 There are a few things to note in this example.
 First of all, we use a :func:`disco.worker.classic.func.nop_map`,

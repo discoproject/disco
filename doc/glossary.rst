@@ -4,6 +4,9 @@ Glossary
 
 .. glossary::
 
+   client
+        The program which submits a :term:`job` to the :term:`master`.
+
    conjunctive normal form
         See `conjunctive normal form <http://en.wikipedia.org/wiki/Conjunctive_normal_form>`_.
 
@@ -11,6 +14,14 @@ Glossary
         An arbitrary file stored in :ref:`DDFS`.
 
         See also :ref:`blobs`.
+
+   data locality
+        Performing computation over a set of data near where the data is located.
+        Disco preserves *data locality* whenever possible,
+        since transferring data over a network can be prohibitively expensive
+        when operating on massive amounts of data.
+
+        See `locality of reference <http://en.wikipedia.org/wiki/Locality_of_reference>`_.
 
    DDFS
         See :ref:`DDFS`.

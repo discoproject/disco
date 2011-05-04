@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
+
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://web.resource.org/cc/"
+   xmlns:cc="http://creativecommons.org/ns#"
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
@@ -12,9 +13,8 @@
    height="368.80685"
    id="svg2"
    sodipodi:version="0.32"
-   inkscape:version="0.45.1"
-   sodipodi:docbase="/home/tuulos"
-   sodipodi:docname="disco.svg"
+   inkscape:version="0.48.1 r9760"
+   sodipodi:docname="disco-arch.svg"
    inkscape:output_extension="org.inkscape.output.svg.inkscape"
    version="1.0">
   <defs
@@ -69,22 +69,28 @@
      objecttolerance="10"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="1.4142136"
-     inkscape:cx="669.22091"
-     inkscape:cy="159.53301"
+     inkscape:zoom="1.4261445"
+     inkscape:cx="401.0924"
+     inkscape:cy="212.45107"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="true"
      inkscape:grid-points="false"
-     inkscape:window-width="2546"
-     inkscape:window-height="1565"
+     inkscape:window-width="1280"
+     inkscape:window-height="756"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:grid-bbox="false"
      showguides="true"
      inkscape:guide-bbox="true"
      width="1052.3622px"
-     height="744.09448px" />
+     height="744.09448px"
+     inkscape:window-maximized="0">
+    <sodipodi:guide
+       orientation="0,1"
+       position="183.01091,117.80012"
+       id="guide3979" />
+  </sodipodi:namedview>
   <metadata
      id="metadata7">
     <rdf:RDF>
@@ -137,20 +143,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="106.71305"
-       y="414.29691"
-       id="text4186"><tspan
-         sodipodi:role="line"
-         id="tspan4188"
-         x="106.71305"
-         y="414.29691"
-         style="font-style:normal;font-weight:normal;fill:#000000">python</tspan><tspan
-         sodipodi:role="line"
-         x="106.71305"
-         y="426.79691"
-         style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan4208">worker</tspan></text>
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="84.713051"
+       y="420.29691"
+       id="text4186">       <tspan
+   sodipodi:role="line"
+   x="84.713051"
+   y="420.29691"
+   style="font-style:normal;font-weight:normal;fill:#000000"
+   id="tspan4208">worker</tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
        id="rect4212"
@@ -187,20 +188,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="167.40218"
-       y="414.58606"
-       id="text4222"><tspan
-         sodipodi:role="line"
-         id="tspan4224"
-         x="167.40218"
-         y="414.58606"
-         style="font-style:normal;font-weight:normal;fill:#000000">python</tspan><tspan
-         sodipodi:role="line"
-         x="167.40218"
-         y="427.08606"
-         style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan4226">worker</tspan></text>
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="145.40218"
+       y="420.58606"
+       id="text4222">       <tspan
+   sodipodi:role="line"
+   x="145.40218"
+   y="420.58606"
+   style="font-style:normal;font-weight:normal;fill:#000000"
+   id="tspan4226">worker</tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
        id="rect4228"
@@ -237,20 +233,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="227.85982"
-       y="414.93961"
-       id="text4238"><tspan
-         sodipodi:role="line"
-         id="tspan4240"
-         x="227.85982"
-         y="414.93961"
-         style="font-style:normal;font-weight:normal;fill:#000000">python</tspan><tspan
-         sodipodi:role="line"
-         x="227.85982"
-         y="427.43961"
-         style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan4242">worker</tspan></text>
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="205.85982"
+       y="420.93961"
+       id="text4238">       <tspan
+   sodipodi:role="line"
+   x="205.85982"
+   y="420.93961"
+   style="font-style:normal;font-weight:normal;fill:#000000"
+   id="tspan4242">worker</tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
        id="rect4244"
@@ -326,15 +317,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="169.3783"
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="193.3783"
        y="370.33719"
        id="text12043"><tspan
          sodipodi:role="line"
-         x="169.3783"
+         x="193.3783"
          y="370.33719"
          style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan12045">worker supervisor</tspan></text>
+         id="tspan12045">slave</tspan></text>
     <path
        style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#838383;stroke-width:1.02594864;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        d="M 141.58812,377.40455 L 141.58812,401.47693"
@@ -415,20 +406,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="563.07935"
-       y="414.84247"
-       id="text17128"><tspan
-         sodipodi:role="line"
-         id="tspan17130"
-         x="563.07935"
-         y="414.84247"
-         style="font-style:normal;font-weight:normal;fill:#000000">python</tspan><tspan
-         sodipodi:role="line"
-         x="563.07935"
-         y="427.34247"
-         style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan17132">worker</tspan></text>
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="541.07935"
+       y="420.84247"
+       id="text17128">       <tspan
+   sodipodi:role="line"
+   x="541.07935"
+   y="420.84247"
+   style="font-style:normal;font-weight:normal;fill:#000000"
+   id="tspan17132">worker</tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
        id="rect17134"
@@ -465,20 +451,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="442.64041"
-       y="414.58606"
-       id="text17144"><tspan
-         sodipodi:role="line"
-         id="tspan17146"
-         x="442.64041"
-         y="414.58606"
-         style="font-style:normal;font-weight:normal;fill:#000000">python</tspan><tspan
-         sodipodi:role="line"
-         x="442.64041"
-         y="427.08606"
-         style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan17148">worker</tspan></text>
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="420.64041"
+       y="420.58606"
+       id="text17144">       <tspan
+   sodipodi:role="line"
+   x="420.64041"
+   y="420.58606"
+   style="font-style:normal;font-weight:normal;fill:#000000"
+   id="tspan17148">worker</tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
        id="rect17150"
@@ -515,20 +496,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="503.09805"
-       y="414.93961"
-       id="text17160"><tspan
-         sodipodi:role="line"
-         id="tspan17162"
-         x="503.09805"
-         y="414.93961"
-         style="font-style:normal;font-weight:normal;fill:#000000">python</tspan><tspan
-         sodipodi:role="line"
-         x="503.09805"
-         y="427.43961"
-         style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan17164">worker</tspan></text>
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="481.09805"
+       y="420.93961"
+       id="text17160">       <tspan
+   sodipodi:role="line"
+   x="481.09805"
+   y="420.93961"
+   style="font-style:normal;font-weight:normal;fill:#000000"
+   id="tspan17164">worker</tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
        id="rect17166"
@@ -604,15 +580,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="444.61655"
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="482.61655"
        y="370.33716"
        id="text17188"><tspan
          sodipodi:role="line"
-         x="444.61655"
+         x="482.61655"
          y="370.33716"
          style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan17190">worker supervisor</tspan></text>
+         id="tspan17190">slave</tspan></text>
     <path
        style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#838383;stroke-width:1.02594864;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        d="M 595.77216,377.40454 L 595.77216,401.47692"
@@ -693,20 +669,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="654.18903"
-       y="413.75134"
-       id="text17222"><tspan
-         sodipodi:role="line"
-         id="tspan17224"
-         x="654.18903"
-         y="413.75134"
-         style="font-style:normal;font-weight:normal;fill:#000000">python</tspan><tspan
-         sodipodi:role="line"
-         x="654.18903"
-         y="426.25134"
-         style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan17226">worker</tspan></text>
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="632.18903"
+       y="420.79434"
+       id="text17222">       <tspan
+   sodipodi:role="line"
+   x="632.18903"
+   y="420.79434"
+   style="font-style:normal;font-weight:normal;fill:#000000"
+   id="tspan17226">worker</tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
        id="rect17228"
@@ -769,20 +740,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="775.33575"
-       y="414.39404"
-       id="text17254"><tspan
-         sodipodi:role="line"
-         id="tspan17256"
-         x="775.33575"
-         y="414.39404"
-         style="font-style:normal;font-weight:normal;fill:#000000">python</tspan><tspan
-         sodipodi:role="line"
-         x="775.33575"
-         y="426.89404"
-         style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan17258">worker</tspan></text>
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="753.33575"
+       y="420.39404"
+       id="text17254">       <tspan
+   sodipodi:role="line"
+   x="753.33575"
+   y="420.39404"
+   style="font-style:normal;font-weight:normal;fill:#000000"
+   id="tspan17258">worker</tspan></text>
     <rect
        style="fill:none;fill-opacity:1;stroke:#000000;stroke-opacity:1"
        id="rect17260"
@@ -858,15 +824,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="716.85425"
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="746.85425"
        y="369.7916"
        id="text17282"><tspan
          sodipodi:role="line"
-         x="716.85425"
+         x="746.85425"
          y="369.7916"
          style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan17284">worker supervisor</tspan></text>
+         id="tspan17284">slave</tspan></text>
     <path
        style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#838383;stroke-width:1.02594864;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        d="M 689.06402,376.85898 L 689.06402,400.93136"
@@ -957,15 +923,15 @@
        id="path23223" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.89999998;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="330.2066"
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="348.2066"
        y="245.51456"
        id="text24200"><tspan
          sodipodi:role="line"
-         x="330.2066"
+         x="348.2066"
          y="245.51456"
-         style="font-style:normal;font-weight:normal;fill:#000000;stroke-width:0.89999998;stroke-miterlimit:4;stroke-dasharray:none"
-         id="tspan24202">client process 0</tspan></text>
+         style="font-style:normal;font-weight:normal;fill:#000000"
+         id="tspan24202">client 0</tspan></text>
     <rect
        style="fill:#dddddd;fill-opacity:1;stroke:#000000;stroke-width:1;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
        id="rect24204"
@@ -976,15 +942,15 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.89999998;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="462.53903"
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="480.53903"
        y="245.26164"
        id="text24206"><tspan
          sodipodi:role="line"
-         x="462.53903"
+         x="480.53903"
          y="245.26164"
-         style="font-style:normal;font-weight:normal;fill:#000000;stroke-width:0.89999998;stroke-miterlimit:4;stroke-dasharray:none"
-         id="tspan24208">client process ...</tspan></text>
+         style="font-style:normal;font-weight:normal;fill:#000000"
+         id="tspan24208">client ...</tspan></text>
     <path
        style="fill:none;fill-rule:evenodd;stroke:#717171;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;marker-end:url(#Arrow2Mend);stroke-opacity:1"
        d="M 592.79587,251.56416 L 592.79587,268.06416"
@@ -999,26 +965,26 @@
        ry="0" />
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.89999998;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="595.4751"
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="613.4751"
        y="245.26163"
        id="text24212"><tspan
          sodipodi:role="line"
-         x="595.4751"
+         x="613.4751"
          y="245.26163"
-         style="font-style:normal;font-weight:normal;fill:#000000;stroke-width:0.89999998;stroke-miterlimit:4;stroke-dasharray:none"
-         id="tspan24214">client process Q</tspan></text>
+         style="font-style:normal;font-weight:normal;fill:#000000"
+         id="tspan24214">client Q</tspan></text>
     <text
        xml:space="preserve"
-       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
-       x="458.51221"
+       style="font-size:10px;font-style:normal;font-weight:normal;fill:#ffffff;fill-opacity:1;stroke:none;font-family:Bitstream Vera Sans"
+       x="478.51221"
        y="282.32251"
        id="text24224"><tspan
          sodipodi:role="line"
-         x="458.51221"
+         x="478.51221"
          y="282.32251"
          style="font-style:normal;font-weight:normal;fill:#000000"
-         id="tspan24226">disco master</tspan></text>
+         id="tspan24226">master</tspan></text>
     <text
        xml:space="preserve"
        style="font-size:10px;font-style:normal;font-weight:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Bitstream Vera Sans"
