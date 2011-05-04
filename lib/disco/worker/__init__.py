@@ -443,19 +443,22 @@ class InputIter(object):
         try:
             self.last, item = self.iter.next()
             return item
-        except DataError:
-            self.swap()
+        except DataError, e:
+            self.swap(e)
             raise Wait(0)
 
-    def swap(self):
+    def swap(self, error=None):
         try:
             def skip(iter, N):
                 from itertools import dropwhile
                 return dropwhile(lambda (n, rec): n < N, enumerate(iter))
             self.iter = skip(self.open(self.urls.next()), self.last + 1)
-        except DataError:
-            self.swap()
+        except DataError, e:
+            self.swap(e)
         except StopIteration:
+            if error:
+                raise DataError("Exhausted all available replicas, "
+                                "last error was: %s" % error, self.input)
             raise DataError("Exhausted all available replicas", self.input)
 
 class Input(object):
