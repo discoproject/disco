@@ -13,6 +13,7 @@
 
 -define(PROC_TIMEOUT, 10 * 60 * 1000).
 
+-spec start_link() -> no_return().
 start_link() ->
     process_flag(trap_exit, true),
     case catch gen_server:start_link({local, lock_server}, lock_server, [], []) of

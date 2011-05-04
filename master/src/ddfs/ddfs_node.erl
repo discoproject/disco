@@ -17,6 +17,7 @@
                 getq :: http_queue:q(),
                 tags :: gb_tree()}).
 
+-spec start_link(term()) -> no_return().
 start_link(Config) ->
     process_flag(trap_exit, true),
     error_logger:info_report([{"DDFS node starts"}]),
