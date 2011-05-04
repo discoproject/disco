@@ -54,10 +54,10 @@ payload_type(_Type) -> none.
 
 -type worker_msg() :: {nonempty_string(), term()}.
 
--type handle() :: do_handle() | {'error', {'fatal', term()}}.
 -type do_handle() :: {'ok', worker_msg(), state()}
                    | {'error', {'fatal', term()}, state()}
                    | {'stop', {'error' | 'fatal' | 'done', term()}}.
+-type handle() :: do_handle() | {'error', {'fatal', term()}}.
 
 -spec handle({binary(), binary()}, state()) -> handle().
 handle({Type, Body}, S) ->
