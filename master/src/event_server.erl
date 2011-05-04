@@ -255,8 +255,8 @@ event(Host, JobName, Format, Args, Params) ->
 
 %-spec event(atom(), nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
 event(EventServer, Host, JobName, Format, Args, Params) ->
-    SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 10000 of
-                 true -> trunc_io:fprint(X, 10000);
+    SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 1000000 of
+                 true -> trunc_io:fprint(X, 1000000);
                  false -> X
              end || X <- Args],
     RawMsg = disco:format(Format, SArgs),
