@@ -99,6 +99,7 @@ recv_all(_, {error, closed}, Buf) -> {ok, Buf};
 recv_all(Socket, {ok, Bin}, Buf) ->
     recv_all(Socket, gen_tcp:recv(Socket, 0), <<Buf/binary, Bin/binary>>).
 
+-spec die(pid(), term()) -> no_return().
 die(Parent, E) ->
     Parent ! E,
     exit(error).

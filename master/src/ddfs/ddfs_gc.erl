@@ -62,6 +62,7 @@
 
 -include("config.hrl").
 
+-spec abort(term(), atom()) -> no_return().
 abort(Msg, Code) ->
     error_logger:warning_report(Msg),
     error_logger:warning_report({"Garbage collection aborted"}),

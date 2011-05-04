@@ -17,6 +17,7 @@
                 getq :: http_queue:q(),
                 tags :: gb_tree()}).
 
+-spec start_link(term()) -> no_return().
 start_link(Config) ->
     process_flag(trap_exit, true),
     error_logger:info_report([{"DDFS node starts"}]),
@@ -268,10 +269,10 @@ try_makedir(Dir) ->
 -spec init_vols(nonempty_string(), [nonempty_string()]) ->
                        {'ok', [{diskinfo(), nonempty_string()}]}.
 init_vols(Root, VolNames) ->
-    [begin
-        ok = try_makedir(filename:join([Root, VolName, "blob"])),
-        ok = try_makedir(filename:join([Root, VolName, "tag"]))
-    end || VolName <- VolNames],
+    _ = [begin
+             ok = try_makedir(filename:join([Root, VolName, "blob"])),
+             ok = try_makedir(filename:join([Root, VolName, "tag"]))
+         end || VolName <- VolNames],
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
 -spec find_vols(nonempty_string()) ->
