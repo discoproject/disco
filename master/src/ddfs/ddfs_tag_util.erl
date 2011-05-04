@@ -115,7 +115,7 @@ update_tagcontent(TagName, Field, Value, {ok, Tag}, _Token) ->
     update_tagcontent(Field, Value, Updated);
 
 % make sure that 'internal' doesn't leak to the tag
-update_tagcontent(TagName, Field, Value, Tag, Token) when is_atom(Token) ->
+update_tagcontent(TagName, Field, Value, Tag, internal) ->
     update_tagcontent(TagName, Field, Value, Tag, null);
 
 update_tagcontent(TagName, Field, Value, _Tag, Token) ->
