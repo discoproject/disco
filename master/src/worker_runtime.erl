@@ -53,12 +53,13 @@ payload_type(<<"OUTPUT">>) ->
 payload_type(_Type) -> none.
 
 -type worker_msg() :: {nonempty_string(), term()}.
--type handle_return() :: {'ok', worker_msg(), state()}
-                       | {'error', {'fatal', term()}}
-                       | {'error', {'fatal', term()}, state()}
-                       | {'stop', {'error' | 'fatal', term()}}.
 
--spec handle({binary(), binary()}, state()) -> handle_return().
+-type handle() :: do_handle() | {'error', {'fatal', term()}}.
+-type do_handle() :: {'ok', worker_msg(), state()}
+                   | {'error', {'fatal', term()}, state()}
+                   | {'stop', {'error' | 'fatal' | 'done', term()}}.
+
+-spec handle({binary(), binary()}, state()) -> handle().
 handle({Type, Body}, S) ->
    case catch mochijson2:decode(Body) of
         {'EXIT', _} ->
@@ -80,7 +81,7 @@ handle({Type, Body}, S) ->
             end
     end.
 
--spec do_handle({binary(), term()}, state()) -> handle_return().
+-spec do_handle({binary(), term()}, state()) -> do_handle().
 
 do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
     {value, {_, Pid}} = lists:keysearch(<<"pid">>, 1, Worker),
