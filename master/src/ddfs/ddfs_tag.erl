@@ -218,7 +218,7 @@ handle_cast({get_tagnames, ReplyTo}, #state{url_cache = Cache} = S) ->
 handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
     NewDel = gb_sets:delete_any(Name, Cache),
     NewUrls = [[<<"tag://", Tag/binary>>] || Tag <- gb_sets:to_list(NewDel)],
-    S1 = do_put({write, internal},
+    S1 = do_put({write, null},
                 urls,
                 NewUrls,
                 ReplyTo,
