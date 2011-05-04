@@ -2,7 +2,7 @@ Source: disco
 Section: admin
 Priority: extra
 Maintainer: Ville Tuulos <ville.h.tuulos@nokia.com>
-Build-depends: debhelper (>= 7), python-support (>= 0.5.3), erlang-dev (>= 1:14.a), erlang-nox (>= 1:14.a), python-all-dev, gcc, libcmph-dev (>= 0.9)
+Build-depends: debhelper (>= 7), python-support (>= 0.5.3), erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), python-all-dev, gcc, libcmph-dev (>= 0.9)
 Standards-Version: 3.7.3
 Homepage: http://www.discoproject.org
 
@@ -23,7 +23,7 @@ Description: DiscoDB
 
 Package: disco-node
 Architecture: all
-Depends: ${misc:Depends}, adduser, erlang-base (>= 1:14.a), erlang-nox (>= 1:14.a)
+Depends: ${misc:Depends}, adduser, erlang-base (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1)
 Description: Disco node
  This is Disco node.
 
