@@ -443,8 +443,8 @@ class InputIter(object):
         try:
             self.last, item = self.iter.next()
             return item
-        except DataError, e:
-            self.swap(e)
+        except DataError:
+            self.swap(traceback.format_exc())
             raise Wait(0)
 
     def swap(self, error=None):
@@ -453,12 +453,12 @@ class InputIter(object):
                 from itertools import dropwhile
                 return dropwhile(lambda (n, rec): n < N, enumerate(iter))
             self.iter = skip(self.open(self.urls.next()), self.last + 1)
-        except DataError, e:
-            self.swap(e)
+        except DataError:
+            self.swap(traceback.format_exc())
         except StopIteration:
             if error:
                 raise DataError("Exhausted all available replicas, "
-                                "last error was: %s" % error, self.input)
+                                "last error was:\n\n%s" % error, self.input)
             raise DataError("Exhausted all available replicas", self.input)
 
 class Input(object):
