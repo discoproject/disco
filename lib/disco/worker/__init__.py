@@ -359,13 +359,13 @@ class Worker(dict):
             raise Wait
         if status == 'failed':
             raise DataError("Can't handle broken input", id)
-        return replicas
+        return [(id, str(url)) for id, url in replicas]
 
     @classmethod
     def get_inputs(cls, done=False, exclude=()):
         while not done:
             done, inputs = cls.send('INPUT')
-            for id, status, urls in inputs:
+            for id, _status, _replicas in inputs:
                 if id not in exclude:
                     yield IDedInput((cls, id))
                     exclude += (id, )
