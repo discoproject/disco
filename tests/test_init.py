@@ -1,11 +1,16 @@
 from disco.test import TestCase, TestJob
 
 class InitJob(TestJob):
-    params = {'x': 10}
     sort = False
 
     @staticmethod
+    def map_reader(stream, size, url, params):
+        params.x = 10
+        return (stream, size, url)
+
+    @staticmethod
     def map_init(iter, params):
+        assert hasattr(params, 'x')
         iter.next()
         params['x'] += 100
 
