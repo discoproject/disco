@@ -4,8 +4,11 @@
 :mod:`disco.worker.classic.external` - Classic Disco External Interface
 =======================================================================
 
-.. deprecated:: 0.4
-   Consider using :ref:`worker_protocol` for programs written in languages besides Python.
+.. note::
+   Since Disco 0.4, you can write workers in any language without any
+   dependencies to Python, using :ref:`worker_protocol`. Use Disco
+   External Interface if primarily you want to use Python with only
+   parts of your job written in another language.
 
 An external interface for specifying map and reduce
 functions as external programs, instead of Python functions. This feature

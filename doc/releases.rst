@@ -11,31 +11,52 @@ New features
   especially in languages besides Python
   (see `ODisco <https://github.com/pmundkur/odisco>`_
   for an OCaml worker now included in ``contrib``).
-- Complete overhaul of the Python :mod:`disco.worker` to support the new protocol -
-  most notably the worker is now completely self-contained.
+- Complete overhaul of the Python :mod:`disco.worker` to support the new protocol.
+  Most notably the worker is now completely self-contained - you do not have to
+  install Python libraries on slave nodes anymore.
 - :ref:`jobhistory` makes using the command-line less tedious.
-  Several other enhancements to :mod:`disco <discocli>` and :mod:`ddfs <ddfscli>`.
+  Several other enhancements to :mod:`disco <discocli>` and :mod:`ddfs <ddfscli>`
+  command line tools.
 - :ref:`setup` is easier than ever.
   Updated Debian packaging and dependencies make :ref:`install_sys` a breeze.
-- Support for log rotation on the :term:`master` via :envvar:`DISCO_ROTATE_LOG`.
 - More documentation, including a :ref:`discodb_tutorial`
   using extended :class:`disco.job.Job` classes.
 - Throttling of messages coming from the worker,
   to prevent them from overwhelming the master without killing the process.
 - Upgraded to `mochiweb <https://github.com/mochi/mochiweb>`_ 2.0.
+- Support for log rotation on the :term:`master` via :envvar:`DISCO_ROTATE_LOG`.
+- *prefix* is now optional for jobs.
+- Many Dialyzer-related improvements.
+- Separate Debian branch containing rules to create Debian packages merged under ``pkg``.
+- Debian package for :mod:`DiscoDB`.
+- :ref:`discoext` provides the task type on the command line, to allow a single
+  binary to handle both map and reduce phases.
 
 Bugfixes
 ''''''''
+- DDFS:
+    - **important** Recreating a previously deleted tag with a
+      token did not work correctly. The call returned without an error but the tag
+      was not created.
+    - Under some circumstances DDFS garbage collector deleted .partial files,
+      causing PUT operations to fail (6deef33f).
+- Redundant inputs using the ``http://`` scheme were not handled correctly (``disco://`` scheme worked ok) (9fcc740d).
+- Fix `eaddrinuse` errors caused by already running nodes (1eed58d08).
+- Fix newlines in error messages in the web UI.
 - The web UI no longer loses the filter when the events are refreshed.
-- :ref:`Jobpacks <jobpack>` are distributed once per node,
-  even when workers start running at the same time.
+- Several fixes in `node_mon`. It should handle unavailable nodes now more robustly.
+- The OOB issue (#227) highlighted below became a non-issue as GC takes care of removing OOB results when the job is garbage collected.
+- Fix the issue with the job starting even when the client got an error when submitting a new job.
+
 
 Deprecated
 ''''''''''
 - :func:`disco.util.data_err`, :func:`disco.util.err`, and :func:`disco.util.msg`,
   have all been deprecated in favor of using ``raise`` and ``print`` statements.
-- The old-style :ref:`external <discoext>` interface is deprecated,
-  thanks to the new and improved :ref:`worker protocol <worker_protocol>`.
+- Jobs without inputs i.e. generator maps: See the `raw://` protocol in :meth:`disco.core.Disco.new_job`.
+- *map_init* and *reduce_init* deprecated. Use *input_stream* or *reader* instead.
+- *scheme_dfs* removed.
+- Deprecated ``DDFS_ROOT`` setting, use ``DDFS_DATA`` instead.
 
 Disco 0.3.2 (Dec 6th 2010)
 --------------------------
