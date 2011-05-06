@@ -12,7 +12,10 @@ A :term:`worker` is an executable that can run a task, given by the
 Disco :term:`master`.  The executable could either be a binary
 executable, or a script that launches other executables.  In order to
 be usable as a Disco worker, an executable needs to implement the
-:ref:`worker_protocol`.
+:ref:`worker_protocol`. For instance, `ODisco
+<https://github.com/pmundkur/odisco>`_, which implements the Disco
+Worker Protocol, allows you to write Disco jobs in
+`the O'Caml language <http://caml.inria.fr/ocaml/index.en.html>`_.
 
 There are two parts to using a binary executable as a Disco worker.
 The first part is the submission of the executable to the Disco master.
