@@ -28,7 +28,7 @@ New features
 - *prefix* is now optional for jobs.
 - Many Dialyzer-related improvements.
 - Separate Debian branch containing rules to create Debian packages merged under ``pkg``.
-- Debian package for :mod:`DiscoDB`.
+- Debian package for :mod:`discodb`.
 - :ref:`discoext` provides the task type on the command line, to allow a single
   binary to handle both map and reduce phases.
 
