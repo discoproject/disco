@@ -1,3 +1,6 @@
 [submodule "contrib/java-ext"]
 	path = contrib/java-ext
 	url = http://github.com/ryan-maus/disco-java-ext.git
+[submodule "contrib/odisco"]
+	path = contrib/odisco
+	url = git://github.com/pmundkur/odisco.git
