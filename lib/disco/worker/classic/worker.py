@@ -44,6 +44,12 @@ class Worker(worker.Worker):
     :param map_init: initialization function for the map task.
                      This function is called once before the task starts.
 
+                     .. deprecated:: 0.4
+                                *map_init* has not been needed ever since
+                                :func:`InputStreams <disco.worker.classic.func.InputStream>`
+                                were introduced.
+                                Use *map_input_stream* and/or *map_reader* instead.
+
     :type  map_input_stream: sequence of :func:`disco.worker.classic.func.input_stream`
     :param map_input_stream: The given functions are chained together and the final resulting
                              :class:`disco.worker.classic.func.InputStream` object is used
@@ -89,6 +95,12 @@ class Worker(worker.Worker):
     :type  reduce_init: :func:`disco.worker.classic.func.init`
     :param reduce_init: initialization function for the reduce task.
                         This function is called once before the task starts.
+
+                     .. deprecated:: 0.4
+                                *reduce_init* has not been needed ever since
+                                :func:`InputStreams <disco.worker.classic.func.InputStream>`
+                                were introduced.
+                                Use *reduce_input_stream* and/or *reduce_reader* instead.
 
     :type  reduce_input_stream: sequence of :func:`disco.worker.classic.func.output_stream`
     :param reduce_input_stream: The given functions are chained together and the last
