@@ -249,6 +249,10 @@ If the format is textual, it may be possible to define a regular
 expression that can be used to extract input entries from the files. See
 :func:`disco.func.re_reader` for more information.
 
+For `CSV <http://en.wikipedia.org/wiki/Comma-separated_values>` files you can
+also have a look at the Python's standard
+`csv <http://docs.python.org/library/csv.html>` module.
+
 Why not `Hadoop <http://hadoop.apache.org>`_?
 '''''''''''''''''''''''''''''''''''''''''''''
 
