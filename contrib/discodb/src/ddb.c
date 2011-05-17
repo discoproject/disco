@@ -355,7 +355,7 @@ struct ddb_cursor *ddb_query(struct ddb *db,
             if (!(term->cursor = ddb_getitem(db, &clauses[i].terms[k].key)))
                 goto err;
 
-            if (clauses[i].terms[k].not)
+            if (clauses[i].terms[k].nnot)
                 term->next = ddb_not_next;
             else
                 term->next = ddb_val_next;

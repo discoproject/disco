@@ -55,7 +55,7 @@ static struct ddb_query_clause *parse_cnf(char **tokens, int num, int *num_claus
                         continue;
                 }
                 if (tokens[i][0] == '~'){
-                        terms[t].not = 1;
+                        terms[t].nnot = 1;
                         terms[t].key.data = &tokens[i][1];
                         terms[t].key.length = strlen(&tokens[i][1]);
                 }else{

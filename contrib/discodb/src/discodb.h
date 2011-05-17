@@ -48,7 +48,7 @@ struct ddb_entry{
 
 struct ddb_query_term{
     struct ddb_entry key;
-    int not;
+    int nnot;
 };
 
 struct ddb_query_clause{
