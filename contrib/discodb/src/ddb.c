@@ -27,6 +27,19 @@ static const char *ERR_STR[] = {
     "Write failed"
 };
 
+static void *acalloc(size_t size)
+{
+#ifdef DDB_ALLOC_ALIGN
+    void *p;
+    if (posix_memalign(&p, sizeof(void*), size))
+        return NULL;
+    memset(p, 0, size);
+    return p;
+#else
+    return calloc(1, size);
+#endif
+}
+
 int ddb_get_valuestr(struct ddb_cursor *c, valueid_t id)
 {
     const struct ddb *db = c->db;
@@ -65,7 +78,7 @@ static void get_item(struct ddb_cursor *c,
 struct ddb *ddb_new()
 {
     struct ddb *db = NULL;
-    if (!(db = calloc(1, sizeof(struct ddb))))
+    if (!(db = acalloc(sizeof(struct ddb))))
         return NULL;
     return db;
 }
@@ -142,7 +155,7 @@ void ddb_free(struct ddb *db)
 char *ddb_dumps(struct ddb *db, uint64_t *length)
 {
     char *d = NULL;
-    if (!(d = malloc(db->size))){
+    if (!(d = acalloc(db->size))){
         db->errno = DDB_ERR_OUT_OF_MEMORY;
         return NULL;
     }
@@ -180,7 +193,7 @@ static const struct ddb_entry *key_cursor_next(struct ddb_cursor *c)
 struct ddb_cursor *ddb_keys(struct ddb *db)
 {
     struct ddb_cursor *c = NULL;
-    if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+    if (!(c = acalloc(sizeof(struct ddb_cursor)))){
         db->errno = DDB_ERR_OUT_OF_MEMORY;
         return NULL;
     }
@@ -203,7 +216,7 @@ static const struct ddb_entry *unique_values_cursor_next(struct ddb_cursor *c)
 struct ddb_cursor *ddb_unique_values(struct ddb *db)
 {
     struct ddb_cursor *c = NULL;
-    if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+    if (!(c = acalloc(sizeof(struct ddb_cursor)))){
         db->errno = DDB_ERR_OUT_OF_MEMORY;
         return NULL;
     }
@@ -231,7 +244,7 @@ static const struct ddb_entry *values_cursor_next(struct ddb_cursor *c)
 struct ddb_cursor *ddb_values(struct ddb *db)
 {
     struct ddb_cursor *c = NULL;
-    if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+    if (!(c = acalloc(sizeof(struct ddb_cursor)))){
         db->errno = DDB_ERR_OUT_OF_MEMORY;
         return NULL;
     }
@@ -267,7 +280,7 @@ struct ddb_cursor *ddb_getitem(struct ddb *db, const struct ddb_entry *key)
     }
 
     struct ddb_cursor *c = NULL;
-    if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+    if (!(c = acalloc(sizeof(struct ddb_cursor)))){
         db->errno = DDB_ERR_OUT_OF_MEMORY;
         return NULL;
     }
@@ -313,7 +326,7 @@ struct ddb_cursor *ddb_query(struct ddb *db,
         return NULL;
     }
 
-    if (!(c = calloc(1, sizeof(struct ddb_cursor)))){
+    if (!(c = acalloc(sizeof(struct ddb_cursor)))){
         db->errno = DDB_ERR_OUT_OF_MEMORY;
         return NULL;
     }
