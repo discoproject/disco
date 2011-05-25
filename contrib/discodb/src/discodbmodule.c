@@ -349,7 +349,7 @@ DiscoDB_query(register DiscoDB *self, PyObject *query_)
             if (term == NULL)
                 goto Done;
 
-            ddb_clauses[i].terms[j].not = PyObject_IsTrue(negated);
+            ddb_clauses[i].terms[j].nnot = PyObject_IsTrue(negated);
 
             pack = Py_BuildValue("(O)", term);
             if (pack == NULL)
