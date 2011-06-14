@@ -843,12 +843,9 @@ DiscoDBIter_dealloc(DiscoDBIter *self)
 static PyObject *
 DiscoDBIter_count(DiscoDBIter *self)
 {
-    Py_ssize_t n;
     int errcode;
-    const struct ddb_entry *next;
-
-    for (n = 0; (next = ddb_next(self->cursor, &errcode)) != NULL; n++)
-      if (errcode)
+    Py_ssize_t n = ddb_cursor_count(self->cursor, &errcode);
+    if (errcode)
         return PyErr_NoMemory();
     return PyInt_FromSsize_t(n);
 }

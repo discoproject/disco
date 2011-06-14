@@ -119,6 +119,7 @@ struct ddb_cursor{
 
     uint32_t num_items;
     int errno;
+    int no_valuestr;
 };
 
 int ddb_get_valuestr(struct ddb_cursor *c, valueid_t id);

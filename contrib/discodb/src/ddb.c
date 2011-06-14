@@ -42,6 +42,9 @@ static void *acalloc(size_t size)
 
 int ddb_get_valuestr(struct ddb_cursor *c, valueid_t id)
 {
+    if (c->no_valuestr)
+        return c->errno;
+    
     const struct ddb *db = c->db;
     uint64_t len = db->id2value[id] - db->id2value[id - 1];
     const char *data = &db->buf[db->id2value[id - 1]];
@@ -319,7 +322,6 @@ struct ddb_cursor *ddb_query(struct ddb *db,
     const struct ddb_query_clause *clauses, uint32_t length)
 {
     struct ddb_cursor *c = NULL;
-
     /* CNF queries are not supported for multisets */
     if (HASFLAG(db, F_MULTISET)){
         db->errno = DDB_ERR_QUERY_NOT_SUPPORTED;
@@ -403,9 +405,20 @@ int ddb_free_cursor(struct ddb_cursor *c)
     }
     return 0;
 }
+
 uint64_t ddb_resultset_size(const struct ddb_cursor *c)
 {
     return c->num_items;
+}
+
+uint64_t ddb_cursor_count(struct ddb_cursor *c, int *err)
+{
+    uint64_t n = 0;
+    c->no_valuestr = 1;
+    *err = 0;
+    while (ddb_next(c, err) && !*err)
+        ++n;
+    return n;
 }
 
 int ddb_notfound(const struct ddb_cursor *c)
