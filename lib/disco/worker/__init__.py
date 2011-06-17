@@ -213,7 +213,12 @@ class Worker(dict):
         """
         :return: :ref:`jobenvs` dict.
         """
-        return {'PYTHONPATH': ':'.join([path.strip('/') for path in sys.path])}
+        def mangle_path(path):
+            if '.virtualenvs' in path:
+                return path
+            else:
+                return path.strip('/')
+        return {'PYTHONPATH': ':'.join([mangle_path(path) for path in sys.path])}
 
     def jobhome(self, job, **jobargs):
         """
