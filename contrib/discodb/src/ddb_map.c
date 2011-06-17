@@ -17,9 +17,11 @@
 
 #define IDX1(x) (x & 0x0000ffff)
 #define IDX2(x) ((x & 0x00ff0000) >> 16)
+#define LEAF_SIZE_INCREMENT 64
 
 struct leaf{
     struct ddb_map_item *items;
+    uint32_t num_items;
     uint32_t size;
 };
 
@@ -55,11 +57,14 @@ static uint64_t *new_item(
     else
         return NULL;
 
-    if (!(leaf->items = realloc(leaf->items,
-            ++leaf->size * sizeof(struct ddb_map_item))))
-        return NULL;
+    if (++leaf->num_items > leaf->size){
+        leaf->size += LEAF_SIZE_INCREMENT;
+        if (!(leaf->items = realloc(leaf->items,
+                leaf->size * sizeof(struct ddb_map_item))))
+            return NULL;
+    }
 
-    struct ddb_map_item *item = &leaf->items[leaf->size - 1];
+    struct ddb_map_item *item = &leaf->items[leaf->num_items - 1];
     if (str_key)
         item->key = (uint64_t)ddb_membuffer_copy_ns(
             map->key_buffer, str_key->data, str_key->length);
@@ -86,7 +91,7 @@ static uint64_t *lookup_leaf(
             return NULL;
 
     struct leaf *leaf = &map->leaves[idx][IDX2(hash)];
-    uint32_t i = leaf->size;
+    uint32_t i = leaf->num_items;
 
     if (leafout)
         *leafout = leaf;
