@@ -17,7 +17,7 @@
 
 #define IDX1(x) (x & 0x0000ffff)
 #define IDX2(x) ((x & 0x00ff0000) >> 16)
-#define LEAF_SIZE_INCREMENT 64
+#define LEAF_SIZE_INCREMENT 2
 
 struct leaf{
     struct ddb_map_item *items;
