@@ -4,6 +4,8 @@
 
 #include <ddb_list.h>
 
+#define LIST_INCREMENT 128
+
 struct ddb_list{
     uint32_t size;
     uint32_t i;
@@ -13,9 +15,9 @@ struct ddb_list{
 struct ddb_list *ddb_list_new()
 {
     struct ddb_list *list;
-    if (!(list = malloc(sizeof(struct ddb_list) + 8)))
+    if (!(list = malloc(sizeof(struct ddb_list) + 4 * 8)))
         return NULL;
-    list->size = 1;
+    list->size = 4;
     list->i = 0;
     return list;
 }
@@ -28,11 +30,17 @@ void ddb_list_free(struct ddb_list *list)
 struct ddb_list *ddb_list_append(struct ddb_list *list, uint64_t e)
 {
     if (list->i == list->size){
-        list->size *= 2;
+        if (list->size >= UINT32_MAX - LIST_INCREMENT)
+            list->size = UINT32_MAX;
+        else
+            list->size += LIST_INCREMENT;
         if (!(list = realloc(list, sizeof(struct ddb_list) + list->size * 8)))
             return NULL;
     }
-    list->list[list->i++] = e;
+    if (list->i == UINT32_MAX)
+        return NULL;
+    else
+        list->list[list->i++] = e;
     return list;
 }
 
