@@ -130,3 +130,16 @@ void ddb_membuffer_free(struct ddb_membuffer *mb)
     }
 }
 
+void ddb_membuffer_mem_usage(const struct ddb_membuffer *mb,
+                             uint64_t *alloc,
+                             uint64_t *used)
+{
+    struct page *p = mb->first;
+    *alloc = *used = sizeof(struct ddb_membuffer);
+    do{
+        *alloc += DDB_MB_PAGE_SIZE;
+        *used += p->offset;
+        p = p->next;
+    }while (p);
+}
+

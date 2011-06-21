@@ -21,4 +21,8 @@ char *ddb_membuffer_copy_ns(struct ddb_membuffer *mb,
                             const char *src,
                             uint64_t length);
 
+void ddb_membuffer_mem_usage(const struct ddb_membuffer *mb,
+                             uint64_t *alloc,
+                             uint64_t *used);
+
 #endif /* __DDB_MEMBUFFER__ */

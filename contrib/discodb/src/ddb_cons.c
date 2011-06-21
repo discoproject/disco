@@ -1,6 +1,7 @@
 
 #include <string.h>
 #include <limits.h>
+#include <stdio.h>
 
 #include <cmph.h>
 
@@ -20,6 +21,9 @@ struct ddb_cons{
     struct ddb_map *values_map;
     struct ddb_map *keys_map;
     uint64_t uvalues_total_size;
+#ifdef DDB_PROFILE
+    uint64_t counter;
+#endif
 };
 
 struct ddb_packed{
@@ -32,6 +36,8 @@ struct ddb_packed{
 
     struct ddb_codebook codebook[DDB_CODEBOOK_SIZE];
 };
+
+static void print_mem_usage(const struct ddb_cons *db);
 
 static int _buffer_grow(struct ddb_packed *p, uint64_t size)
 {
@@ -314,6 +320,10 @@ char *ddb_cons_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
     if (pack_header(pack, cons))
         goto err;
 
+#ifdef DDB_PROFILE
+    print_mem_usage(cons);
+#endif
+
     DDB_TIMER_START
     pack->head->hash_offs = pack->offs;
     if (!(order = pack_hash(pack, cons->keys_map)))
@@ -422,13 +432,68 @@ int ddb_cons_add(struct ddb_cons *db,
             db->uvalues_total_size += value->length;
         }
         value_id = *val_ptr;
-
-        if (!(value_list = ddb_list_append(value_list, value_id)))
+        if (ddb_deltalist_append(value_list, value_id))
             return -1;
-        *key_ptr = (uint64_t)value_list;
     }
+
+#ifdef DDB_PROFILE
+    if (!(++db->counter & 1048575))
+        print_mem_usage(db);
+#endif
+
     return 0;
 }
 
+#ifdef DDB_PROFILE
+static int keys_mem_usage(const struct ddb_map *map,
+                          uint64_t *total_alloc,
+                          uint64_t *total_used)
+{
+    struct ddb_map_cursor *c;
+    struct ddb_entry key;
+    uint64_t *ptr;
 
+    if (!(c = ddb_map_cursor_new(map)))
+        return -1;
+
+    *total_alloc = *total_used = 0;
+    while (ddb_map_next_item_str(c, &key, &ptr)){
+        uint64_t alloc, used, segments;
+        struct ddb_deltalist *d = (struct ddb_deltalist*)*ptr;
+        ddb_deltalist_mem_usage(d, &segments, &alloc, &used);
+        *total_alloc += alloc;
+        *total_used += used;
+    }
+    ddb_map_cursor_free(c);
+    return 0;
+}
+
+static void print_map_mem_usage(const struct ddb_map_stat *stat)
+{
+    printf("num items: %llu\n", stat->num_items);
+    printf("num leaves: %llu\n", stat->num_leaves);
+    printf("leaves alloc: %llu\n", stat->leaves_alloc);
+    printf("leaves used: %llu\n", stat->leaves_used);
+    printf("num keys: %llu\n", stat->num_keys);
+    printf("keys alloc: %llu\n", stat->keys_alloc);
+    printf("keys used: %llu\n", stat->keys_used);
+    printf("membuf alloc: %llu\n", stat->membuf_alloc);
+    printf("membuf used: %llu\n", stat->membuf_used);
+}
+
+static void print_mem_usage(const struct ddb_cons *db)
+{
+    struct ddb_map_stat stat;
+    uint64_t alloc = 0, used = 0;
+
+    printf("-- keys --\n");
+    keys_mem_usage(db->keys_map, &alloc, &used);
+    ddb_map_mem_usage(db->keys_map, &stat);
+    print_map_mem_usage(&stat);
+    printf("LISTS: alloc %llu used %llu\n", alloc, used);
+    printf("-- values --\n");
+    ddb_map_mem_usage(db->values_map, &stat);
+    print_map_mem_usage(&stat);
+}
+#endif
 

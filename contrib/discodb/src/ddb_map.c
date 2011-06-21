@@ -244,3 +244,33 @@ void ddb_map_free(struct ddb_map *map)
     free(map);
 }
 
+void ddb_map_mem_usage(const struct ddb_map *map, struct ddb_map_stat *stats)
+{
+    int i = 65536;
+    memset(stats, 0, sizeof(struct ddb_map_stat));
+    stats->leaves_alloc = stats->leaves_used = sizeof(struct ddb_map)
+                                             + i * sizeof(struct leaf*);
+    while (i--)
+        if (map->leaves[i]){
+            int j = 256;
+            while (j--){
+                struct leaf *f = &map->leaves[i][j];
+                if (f->items){
+                    ++stats->num_leaves;
+                    stats->leaves_alloc +=
+                        f->size * sizeof(struct ddb_map_item);
+                    stats->leaves_used +=
+                        f->num_items * sizeof(struct ddb_map_item);
+                    stats->num_items += f->num_items;
+                }
+            }
+            stats->leaves_alloc += 256 * sizeof(struct leaf);
+            stats->leaves_used += 256 * sizeof(struct leaf);
+
+        }
+    ddb_list_pointer(map->keys, &stats->num_keys);
+    ddb_list_mem_usage(map->keys, &stats->keys_alloc, &stats->keys_used);
+    ddb_membuffer_mem_usage(map->key_buffer,
+                            &stats->membuf_alloc,
+                            &stats->membuf_used);
+}

@@ -9,6 +9,18 @@
 struct ddb_map;
 struct ddb_map_cursor;
 
+struct ddb_map_stat{
+    uint64_t num_leaves;
+    uint32_t num_keys;
+    uint64_t num_items;
+    uint64_t leaves_alloc;
+    uint64_t leaves_used;
+    uint64_t keys_alloc;
+    uint64_t keys_used;
+    uint64_t membuf_alloc;
+    uint64_t membuf_used;
+};
+
 struct ddb_map *ddb_map_new(uint32_t max_num_items);
 
 void ddb_map_free(struct ddb_map *map);
@@ -41,5 +53,7 @@ int ddb_map_next_item_str(struct ddb_map_cursor *c,
                           uint64_t **ptr);
 
 void ddb_map_cursor_free(struct ddb_map_cursor *c);
+
+void ddb_map_mem_usage(const struct ddb_map *map, struct ddb_map_stat *stats);
 
 #endif /* __DDB_MAP_H__ */

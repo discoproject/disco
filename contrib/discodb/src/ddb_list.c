@@ -42,4 +42,10 @@ uint64_t *ddb_list_pointer(const struct ddb_list *list, uint32_t *length)
     return (uint64_t*)list->list;
 }
 
-
+void ddb_list_mem_usage(const struct ddb_list *list,
+                        uint64_t *alloc,
+                        uint64_t *used)
+{
+    *alloc = list->size * 8 + sizeof(struct ddb_list);
+    *used = list->i * 8 + sizeof(struct ddb_list);
+}
