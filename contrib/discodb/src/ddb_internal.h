@@ -3,6 +3,7 @@
 #define __DDB_INTERNAL_H__
 
 #include <discodb.h>
+#include <ddb_types.h>
 #include <ddb_huffman.h>
 #include <ddb_delta.h>
 
@@ -17,9 +18,6 @@
 
 #define HASFLAG(db, f) (db->flags & f)
 #define SETFLAG(db, f) (db->flags |= f)
-
-typedef uint32_t keyid_t;
-typedef uint32_t valueid_t;
 
 struct ddb_header{
     uint64_t magic;
