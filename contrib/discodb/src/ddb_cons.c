@@ -10,7 +10,7 @@
 
 #include <ddb_profile.h>
 #include <ddb_map.h>
-#include <ddb_list.h>
+#include <ddb_deltalist.h>
 #include <ddb_delta.h>
 #include <ddb_cmph.h>
 
@@ -98,8 +98,10 @@ static int pack_key2values(struct ddb_packed *pack,
                            const struct ddb_map *keys_map,
                            int unique_items)
 {
-    char *buf = NULL;
-    uint64_t buf_size = 0;
+    valueid_t *values = NULL;
+    uint64_t values_size = 0;
+    char *dbuf = NULL;
+    uint64_t dbuf_size = 0;
     int i, ret = -1;
     uint32_t num = pack->head->num_keys;
 
@@ -108,13 +110,25 @@ static int pack_key2values(struct ddb_packed *pack,
 
     for (i = 0; i < num; i++){
         uint64_t *ptr = ddb_map_lookup_str(keys_map, &keys[i]);
-        const struct ddb_list *values = (const struct ddb_list*)*ptr;
-        uint64_t size = 0;
+        uint64_t size, num_values;
+        uint32_t num_written;
         int duplicates = 0;
-        uint32_t num_written = 0;
 
-        if (ddb_delta_encode(values, &buf, &buf_size, &size,
-                &num_written, &duplicates, unique_items))
+        const struct ddb_deltalist *d = (const struct ddb_deltalist*)*ptr;
+        if (ddb_deltalist_to_array(d, &num_values, &values, &values_size))
+            goto end;
+
+        if (num_values > UINT32_MAX)
+            goto end;
+
+        if (ddb_delta_encode(values,
+                             (uint32_t)num_values,
+                             &dbuf,
+                             &dbuf_size,
+                             &size,
+                             &num_written,
+                             &duplicates,
+                             unique_items))
             goto end;
 
         pack->head->num_values += num_written;
@@ -127,13 +141,14 @@ static int pack_key2values(struct ddb_packed *pack,
             goto end;
         if (buffer_write_data(pack, keys[i].data, keys[i].length))
             goto end;
-        if (buffer_write_data(pack, buf, size))
+        if (buffer_write_data(pack, dbuf, size))
             goto end;
     }
     buffer_toc_mark(pack);
     ret = 0;
 end:
-    free(buf);
+    free(values);
+    free(dbuf);
     return ret;
 }
 
@@ -306,6 +321,7 @@ static int maybe_disable_compression(const struct ddb_cons *cons)
     return 0;
 }
 
+
 char *ddb_cons_finalize(struct ddb_cons *cons, uint64_t *length, uint64_t flags)
 {
     struct ddb_packed *pack = NULL;
@@ -416,13 +432,13 @@ int ddb_cons_add(struct ddb_cons *db,
     uint64_t *val_ptr;
     uint64_t *key_ptr;
     valueid_t value_id;
-    struct ddb_list *value_list;
+    struct ddb_deltalist *value_list;
 
     if (!(key_ptr = ddb_map_insert_str(db->keys_map, key)))
         return -1;
-    if (!*key_ptr && !(*key_ptr = (uint64_t)ddb_list_new()))
+    if (!*key_ptr && !(*key_ptr = (uint64_t)ddb_deltalist_new()))
         return -1;
-    value_list = (struct ddb_list*)*key_ptr;
+    value_list = (struct ddb_deltalist*)*key_ptr;
 
     if (value){
         if (!(val_ptr = ddb_map_insert_str(db->values_map, value)))

@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#include <ddb_list.h>
+#include <ddb_types.h>
 
 struct ddb_delta_cursor{
     const char *deltas;
@@ -18,7 +18,8 @@ void ddb_delta_cursor_next(struct ddb_delta_cursor *c);
 
 void ddb_delta_cursor(struct ddb_delta_cursor *c, const char *src);
 
-int ddb_delta_encode(const struct ddb_list *values,
+int ddb_delta_encode(valueid_t *values,
+                     uint32_t num_values,
                      char **buf,
                      uint64_t *buf_size,
                      uint64_t *size,

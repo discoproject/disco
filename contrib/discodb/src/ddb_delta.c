@@ -8,6 +8,8 @@
 #include <ddb_bits.h>
 #include <ddb_delta.h>
 
+#define BUF_INCREMENT 1048576
+
 static uint32_t bits_needed(uint32_t max)
 {
     uint32_t x = max;
@@ -28,8 +30,11 @@ static uint32_t allocate_bits(char **buf, uint64_t *buf_size,
     /* + 8 is for write_bits and read_bits which may try to access
      * at most 7 bytes out of array bounds */
     if (len + 8 > *buf_size){
-        *buf_size = len + 8;
-        if (!(*buf = realloc(*buf, *buf_size)))
+        while (len + 8 > *buf_size)
+            *buf_size += BUF_INCREMENT;
+        free(*buf);
+        *buf = NULL;
+        if (!(*buf = malloc(*buf_size)))
             return 0;
     }
     memset(*buf, 0, len + 8);
@@ -38,8 +43,8 @@ static uint32_t allocate_bits(char **buf, uint64_t *buf_size,
 
 static int id_cmp(const void *p1, const void *p2)
 {
-    const uint64_t x = *(const uint64_t*)p1;
-    const uint64_t y = *(const uint64_t*)p2;
+    const valueid_t x = *(const valueid_t*)p1;
+    const valueid_t y = *(const valueid_t*)p2;
 
     if (x > y)
         return 1;
@@ -70,7 +75,8 @@ void ddb_delta_cursor(struct ddb_delta_cursor *c, const char *src)
     }
 }
 
-int ddb_delta_encode(const struct ddb_list *values,
+int ddb_delta_encode(valueid_t *values,
+                     uint32_t num_values,
                      char **buf,
                      uint64_t *buf_size,
                      uint64_t *size,
@@ -78,23 +84,22 @@ int ddb_delta_encode(const struct ddb_list *values,
                      int *duplicates,
                      int unique_values)
 {
-    uint32_t len, i, j = 0, bits = 0, prev = 0, max_diff = 0;
-    uint64_t *list = ddb_list_pointer(values, &len);
+    uint32_t i, j = 0, bits = 0, prev = 0, max_diff = 0;
     uint64_t offs = 0;
     *duplicates = 0;
 
-    if (len){
-        qsort(list, len, 8, id_cmp);
+    if (num_values){
+        qsort(values, num_values, sizeof(valueid_t), id_cmp);
 
         /* find maximum delta -> bits needed per id */
-        max_diff = list[0];
-        for (i = 1; i < len; i++){
-            uint32_t d = list[i] - list[i - 1];
+        max_diff = values[0];
+        for (i = 1; i < num_values; i++){
+            uint32_t d = values[i] - values[i - 1];
             if (d > max_diff)
                 max_diff = d;
         }
         bits = bits_needed(max_diff);
-        if (!(allocate_bits(buf, buf_size, 32 + 5 + bits * len)))
+        if (!(allocate_bits(buf, buf_size, 32 + 5 + bits * num_values)))
             return -1;
     }else{
         if (!(allocate_bits(buf, buf_size, 32)))
@@ -106,11 +111,11 @@ int ddb_delta_encode(const struct ddb_list *values,
          delta-encoded values (bits * num_vals) ]
     */
     offs = 32;
-    if (len){
+    if (num_values){
         write_bits(*buf, offs, bits - 1);
         offs += 5;
-        for (i = 0; i < len; i++){
-            uint32_t d = list[i] - prev;
+        for (i = 0; i < num_values; i++){
+            uint32_t d = values[i] - prev;
             if (!d && i){
                 if (unique_values)
                     continue;
@@ -118,7 +123,7 @@ int ddb_delta_encode(const struct ddb_list *values,
                     *duplicates = 1;
             }
             write_bits(*buf, offs, d);
-            prev = list[i];
+            prev = values[i];
             offs += bits;
             ++j;
         }
