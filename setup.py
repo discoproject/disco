@@ -13,11 +13,12 @@ def packages(dirpath):
             for subpackage in packages(path):
                 yield '%s.%s' % (name, subpackage)
 
-package_dir = os.path.realpath(os.path.dirname(__file__))
+package_dir = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'lib')
 
 setup(name='disco',
       version=os.getenv('DISCO_VERSION'),
       description='An open-source mapreduce framework.',
       url='http://discoproject.org',
       author='Nokia Research Center',
+      package_dir = {'': 'lib'},
       packages=list(packages(package_dir)))

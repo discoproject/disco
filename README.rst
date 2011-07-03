@@ -1,3 +1,7 @@
+Note: this is a straight fork of https://github.com/tuulos/disco with the
+disco python libraries moved to the root so that this package can be
+installed by pip.
+
 
 Disco - Massive data, Minimal code
 ==================================
