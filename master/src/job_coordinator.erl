@@ -146,7 +146,8 @@ wait_workers(N, Results, Mode) ->
         {{error, Error}, Task, Host} ->
             event_server:task_event(Task,
                                     {<<"WARNING">>, Error},
-                                    {task_failed, Task#task.mode}),
+                                    {task_failed, Task#task.mode},
+                                    Host),
             handle_data_error(Task, Host),
             {N, Results};
         {{fatal, Error}, Task, Host} ->
