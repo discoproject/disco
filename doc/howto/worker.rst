@@ -202,7 +202,18 @@ INPUT
    HTTP at the `disco_port` specified in the `TASK` response from Disco.
    The `raw` scheme denotes that the URL itself (minus the scheme) is
    the data for the task. The data needs to be properly URL encoded,
-   for instance using Base64 encoding.
+   for instance using Base64 encoding. The `dir` is like the `disco`
+   scheme, except that the file pointed to contains lines of the form
+
+   *<label>* 'SP' *<url>* '\\n'
+
+   The `'label'` comes from the `'label'` specified in an `OUTPUT`
+   message by a task, while the `'url'` points to a file containing
+   output data generated with that label.  This is currently how
+   labeled output data is communicated by upstream tasks to downstream
+   ones, e.g. from map tasks to reduce tasks, or from tasks in the
+   final phase of a previous job to the tasks in the first phase of a
+   subsequent job (see :ref:`dataflow`).
 
    One important optimization is to use the local filesystem instead
    of HTTP for accessing inputs when they are local.  This can be
