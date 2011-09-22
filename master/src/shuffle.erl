@@ -62,7 +62,6 @@ wait_replies(Name, {Promises, FailCount}, Results) ->
 -spec combine_tasks_node(nonempty_string(), nonempty_string(), nonempty_string(),
                          [nonempty_string()]) -> {'ok', binary()}.
 combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
-    process_flag(priority, low),
     Host = disco:host(node()),
     JobHome = disco:jobhome(JobName, filename:join([DataRoot, Host])),
     ResultsHome = filename:join(JobHome, ".disco"),
