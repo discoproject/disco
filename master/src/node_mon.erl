@@ -102,7 +102,7 @@ is_master(Host) ->
 
 -spec start_temp_gc(node()) -> pid().
 start_temp_gc(Node) ->
-    spawn_link(Node, temp_gc, start_link, [whereis(disco_server)]).
+    spawn_link(Node, temp_gc, start_link, [node(whereis(disco_server))]).
 
 -spec start_lock_server(node()) -> pid().
 start_lock_server(Node) ->
