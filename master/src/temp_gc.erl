@@ -58,7 +58,7 @@ get_jobs() ->
 -spec process_dir([string()], gb_set(), gb_set()) -> 'ok'.
 process_dir([], _Purged, _Active) -> ok;
 process_dir([Dir|R], Purged, Active) ->
-    Path = disco:data_path(node, Dir),
+    Path = disco:data_path(node(), Dir),
     {ok, Jobs} = prim_file:list_dir(Path),
     _ = [process_job(filename:join(Path, Job), Purged) ||
             Job <- Jobs, ifdead(Job, Active)],
