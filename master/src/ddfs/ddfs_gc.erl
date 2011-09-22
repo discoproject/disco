@@ -85,7 +85,6 @@ gc_objects(DeletedAges) ->
     % ensures that only a single gc_objects process is running at a time
     register(gc_objects_lock, self()),
     error_logger:info_report({"GC starts"}),
-    process_flag(priority, low),
 
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
