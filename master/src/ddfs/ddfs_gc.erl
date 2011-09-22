@@ -62,6 +62,8 @@
 
 -include("config.hrl").
 
+-define(GET_TAG_TIMEOUT, 5 * ?MINUTE).
+
 -spec abort(term(), atom()) -> no_return().
 abort(Msg, Code) ->
     error_logger:warning_report(Msg),
@@ -131,7 +133,7 @@ process_tags() ->
 -spec process_tag(binary()) -> 'ok'.
 process_tag(Tag) ->
     error_logger:info_report({"process tag", Tag}),
-    case catch ddfs_master:tag_operation(gc_get, Tag, 30000) of
+    case catch ddfs_master:tag_operation(gc_get, Tag, ?GET_TAG_TIMEOUT) of
         {{missing, deleted}, false} ->
             error_logger:info_report({"deleted", Tag}),
             ok;
