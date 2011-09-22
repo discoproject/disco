@@ -2,6 +2,29 @@
 Release notes
 =============
 
+Disco 0.4.1 (Sep 22th 2011)
+---------------------------
+
+The official Disco repository is now at http://github.com/discoproject/disco
+
+New features
+''''''''''''
+
+- DiscoDB: `ddb_cursor_count()` added. ``iterator.count()`` is now faster.
+- DiscoDB: Value lists are now stored in deltalists instead of lists during 
+  discodb construction, resulting to 50-75% smaller memory footprint in the 
+  many-values-per-key case.
+
+
+Bugfixes
+''''''''
+
+- Fix GC timeout issue (#268).
+- Fix regression in Temp GC (09a1debb). Thanks to Jamie Brandon.
+- Improved and fixed documentation. Thanks to Jens Rantil, stillinbeta and Luke Hoersten.
+- Fix chunking. Thanks to Daniel Grana.
+- Minor fixes in DiscoDB.
+
 Disco 0.4 (May 4th 2011)
 ------------------------
 
