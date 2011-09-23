@@ -9,4 +9,4 @@ If you want to start contributing patches to disco,
 make sure you follow the :doc:`Disco coding conventions <style>`.
 
 .. _github: http://github.com
-.. _official repository: http://github.com/tuulos/disco
+.. _official repository: http://github.com/discoproject/disco

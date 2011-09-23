@@ -57,7 +57,7 @@ You can try with a larger file to see that chunks are created as needed.
    Disco includes an `example`_ of how to do this,
    which should work unmodified for most use cases.
 
-.. _example: https://github.com/tuulos/disco/blob/master/examples/util/chunk.py
+.. _example: https://github.com/discoproject/disco/blob/master/examples/util/chunk.py
 
 2. Write job functions
 ----------------------

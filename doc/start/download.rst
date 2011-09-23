@@ -12,7 +12,7 @@ Development branches
 
 Clone a bleeding edge version from `github`_::
 
-        git clone git://github.com/tuulos/disco.git
+        git clone git://github.com/discoproject/disco.git
 
 Debian packages
 ---------------
@@ -41,5 +41,5 @@ Disco master or nodes.
 .. warning:: **Our Debian packages are experimental!**
         They may not play nicely with other packages or they may destroy your computer.
 
-.. _official releases: http://github.com/tuulos/disco/downloads
-.. _github: http://github.com/tuulos/disco
+.. _official releases: http://github.com/discoproject/disco/downloads
+.. _github: http://github.com/discoproject/disco

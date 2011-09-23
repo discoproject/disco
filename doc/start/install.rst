@@ -53,7 +53,7 @@ Short Version
 
 ::
 
-        git clone git://github.com/tuulos/disco.git DISCO_HOME
+        git clone git://github.com/discoproject/disco.git DISCO_HOME
         cd DISCO_HOME
         make
         bin/disco nodaemon
