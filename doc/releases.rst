@@ -2,7 +2,7 @@
 Release notes
 =============
 
-Disco 0.4.1 (Sep 22th 2011)
+Disco 0.4.1 (Sep 23rd 2011)
 ---------------------------
 
 The official Disco repository is now at http://github.com/discoproject/disco
