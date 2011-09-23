@@ -375,7 +375,7 @@ Messages from Disco to the Worker
 OK
 --
 
-   A generic response from Disco.  This message has no payload.
+   A generic response from Disco.  This message has the payload `"ok"`.
 
 .. _FAIL:
 
