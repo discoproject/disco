@@ -14,6 +14,31 @@
 #include <ddb_delta.h>
 #include <ddb_cmph.h>
 
+/* Idea:
+   DiscoDB's memory footprint can be huge in the worst case. Consider e.g.
+
+   DiscoDB((title, str(i)) for i, title in enumerate(file('wikipedia-titles')))
+
+   which is pretty much the worst case: all keys and values are unique, so
+   keys_map and values_map just waste space for nothing. Of course there's no way 
+   DiscoDB could know this in advance.
+
+   We could provide an alternative interface where the user can maintain the
+   key/value -> id mapping and hence use all the domain information to conserve
+   memory. The interface could look as follows:
+
+   uint64_t value_id = ddb_cons_new_value(const struct ddb_entry *value);
+   uint64_t key_id = ddb_cons_new_key(const struct ddb_entry *key);
+   int ret = ddb_cons_add_id(struct ddb_cons *db, uint64_t key_id, uint64_t value_id);
+
+   In this scenario DiscoDB does not need to maintain internal mappings at all,
+   only two flat arrays for keys (id -> deltalist) and (id -> key) and one for
+   values (id -> value).
+
+   This would be especially convenient in the situations where keys and/or values
+   are unique or grouped - neither user nor discodb needs to maintain a mapping,
+   just a one-time id would suffice.
+*/
 
 #define BUFFER_INC (1024 * 1024 * 64)
 
