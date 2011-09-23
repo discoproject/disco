@@ -187,6 +187,7 @@ Disco requires a number of ports to be accessible to function properly.
 - 8989 - Disco web interface/API. Must be unblocked on slaves and the master.
 - 4369 - Erlang port mapper
 - 30000 to 65535 - Communication between Erlang slaves
+
 .. note::
    Future versions of Disco may allow you to specify a port range for Erlang to
    use. However, the current version of Disco does not, so you must open up the
