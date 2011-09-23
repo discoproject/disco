@@ -11,10 +11,9 @@ New features
 ''''''''''''
 
 - DiscoDB: `ddb_cursor_count()` added. ``iterator.count()`` is now faster.
-- DiscoDB: Value lists are now stored in deltalists instead of lists during 
-  discodb construction, resulting to 50-75% smaller memory footprint in the 
+- DiscoDB: Value lists are now stored in deltalists instead of lists during
+  discodb construction, resulting to 50-75% smaller memory footprint in the
   many-values-per-key case.
-
 
 Bugfixes
 ''''''''
@@ -24,6 +23,7 @@ Bugfixes
 - Improved and fixed documentation. Thanks to Jens Rantil, stillinbeta and Luke Hoersten.
 - Fix chunking. Thanks to Daniel Grana.
 - Minor fixes in DiscoDB.
+- Fix a bug in job pack extraction (e7b3b6).
 
 Disco 0.4 (May 4th 2011)
 ------------------------
