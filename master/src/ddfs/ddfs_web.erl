@@ -151,6 +151,8 @@ op('DELETE', "/ddfs/tag/" ++ TagAttrib, Req) ->
 
 op('GET', Path, Req) ->
     ddfs_get:serve_ddfs_file(Path, Req);
+op('HEAD', Path, Req) ->
+    ddfs_get:serve_ddfs_file(Path, Req);
 
 op(_, _, Req) ->
     Req:not_found().
