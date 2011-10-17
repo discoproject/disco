@@ -146,9 +146,10 @@ My input files are stored in CSV / XML / XYZ format. What is the easiest to use 
 
 See :func:`disco.worker.classic.func.input_stream`.
 
-For `CSV <http://en.wikipedia.org/wiki/Comma-separated_values>` files you can
-also have a look at the Python's standard
-`csv <http://docs.python.org/library/csv.html>` module.
+For `CSV <http://en.wikipedia.org/wiki/Comma-separated_values>`_ files
+you can also have a look at
+`the csv module <http://docs.python.org/library/csv.html>`_ shipped in
+the Python standard library.
 
 Why not `Hadoop <http://hadoop.apache.org>`_?
 '''''''''''''''''''''''''''''''''''''''''''''
