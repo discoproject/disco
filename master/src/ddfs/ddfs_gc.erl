@@ -126,7 +126,7 @@ process_tags() ->
     error_logger:info_report({"GC: Process tags"}),
     {OkNodes, Failed, Tags} = ddfs_master:get_tags(all),
     start_gc_nodes(OkNodes),
-    _ = [process_tag(Tag) || Tag <- Tags],
+    lists:foreach(fun process_tag/1, Tags),
     {Tags, length(OkNodes), length(Failed)}.
 
 -spec process_tag(binary()) -> 'ok'.
