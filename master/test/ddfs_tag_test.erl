@@ -2,17 +2,17 @@
 
 -export([test/0]).
 
--include_lib("triq/include/triq.hrl").
+-include_lib("proper/include/proper.hrl").
 
 % Workaround for Issue 161.
 safe_binary() ->
-    ?LET(X, list(char()), list_to_binary(X)).
+    ?LET(X, list(printable_char()), list_to_binary(X)).
+
+printable_char() ->
+    range(32, 126).
 
 token() ->
     oneof([null, safe_binary()]).
-
-tokentype() ->
-    oneof([read, write]).
 
 user_attr() ->
     list({safe_binary(), safe_binary()}).
@@ -28,11 +28,11 @@ tagcontent() ->
 tag_encode_decode(T) ->
     Encoded = ddfs_tag_util:encode_tagcontent(T),
     {ok, Decoded} = ddfs_tag_util:decode_tagcontent(Encoded),
-    case T == Decoded of
+    case T =:= Decoded of
         true -> ok;
         false -> io:format(" Input=~p~n Output=~p~n", [T, Decoded])
     end,
-    T == Decoded.
+    T =:= Decoded.
 
 % Sanity check the tag encoding and decoding.
 encode_decode_check() ->
@@ -58,9 +58,9 @@ api_token_test() ->
 
 prop_test() ->
     io:fwrite("[api_token_test]~n", []),
-    triq:check(api_token_test()),
+    proper:quickcheck(api_token_test()),
     io:fwrite("[tag_encode_decode]~n", []),
-    triq:check(encode_decode_check()).
+    proper:quickcheck(encode_decode_check()).
 
 % Non-property tests.
 
