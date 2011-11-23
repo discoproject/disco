@@ -1,16 +1,16 @@
 -module(ddfs_util_test).
 
--include_lib("triq/include/triq.hrl").
+-include_lib("proper/include/proper.hrl").
 
 of_hex_helper(H, Int) ->
     case H of
         "" ->
             Int;
-        [Hd|Tl] when (Hd >= $0) and (Hd =< $9) ->
+        [Hd|Tl] when Hd >= $0, Hd =< $9 ->
             of_hex_helper(Tl, Int*16 + (Hd - $0));
-        [Hd|Tl] when ((Hd >= $A) and (Hd =< $F)) ->
+        [Hd|Tl] when Hd >= $A, Hd =< $F ->
             of_hex_helper(Tl, Int*16 + 10 + (Hd - $A));
-        [Hd|Tl] when ((Hd >= $a) and (Hd =< $f)) ->
+        [Hd|Tl] when Hd >= $a, Hd =< $f ->
             of_hex_helper(Tl, Int*16 + 10 + (Hd - $a));
         _ ->
             {'error', "invalid hex character"}
@@ -22,7 +22,7 @@ of_hex(H) ->
 
 
 prop_inttoint() ->
-    ?FORALL(Val, int(), ?IMPLIES(Val >= 0, Val == of_hex(ddfs_util:to_hex(Val)))).
+    ?FORALL(Val, non_neg_integer(), Val =:= of_hex(ddfs_util:to_hex(Val))).
 
 prop_test() ->
-    triq:check(prop_inttoint()).
+    proper:quickcheck(prop_inttoint()).
