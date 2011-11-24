@@ -476,7 +476,7 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
 -spec put_distribute({tagid(),binary()}) ->
-    {'error','commit_failed' | 'replication_failed'} | {'ok',[node()],[binary()]}.
+    {'error', 'commit_failed' | 'replication_failed'} | {'ok', [node()], [binary(),...]}.
 put_distribute({TagID, _} = Msg) ->
     case put_distribute(Msg, get(tagk), [], []) of
         {ok, TagVol} ->
