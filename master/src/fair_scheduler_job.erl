@@ -31,7 +31,8 @@ start(JobName, JobCoord) ->
             end
     end.
 
--spec init({nonempty_string(), pid()}) -> _.
+-spec init({nonempty_string(), pid()}) ->
+    {'ok', {gb_tree(), gb_tree(), []}} | {'stop', 'normal'}.
 init({JobName, JobCoord}) ->
     process_flag(trap_exit, true),
     put(jobname, JobName),
