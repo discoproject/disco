@@ -64,7 +64,7 @@ process_dir([Dir|R], Purged, Active) ->
             Job <- Jobs, ifdead(Job, Active)],
     process_dir(R, Purged, Active).
 
--spec ifdead(string(), gb_set()) -> bool().
+-spec ifdead(string(), gb_set()) -> boolean().
 ifdead(Job, Active) ->
     not gb_sets:is_member(list_to_binary(Job), Active).
 

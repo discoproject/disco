@@ -277,7 +277,7 @@ empty_nodes(Tasks, AvailableNodes) ->
 datalocal_nodes(Tasks, AvailableNodes) ->
     filter_nodes(Tasks, AvailableNodes, true).
 
--spec filter_nodes(gb_tree(), [node()], bool()) -> [node()].
+-spec filter_nodes(gb_tree(), [node()], boolean()) -> [node()].
 filter_nodes(Tasks, AvailableNodes, Local) ->
     [Node || Node <- AvailableNodes,
 		 case gb_trees:lookup(Node, Tasks) of

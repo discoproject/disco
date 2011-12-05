@@ -17,7 +17,7 @@
 
 -record(dnode, {host :: nonempty_string(),
                 node_mon :: pid(),
-                manual_blacklist :: bool(),
+                manual_blacklist :: boolean(),
                 connection_status :: connection_status(),
                 slots :: non_neg_integer(),
                 num_running :: non_neg_integer(),
@@ -103,7 +103,7 @@ new_task(Task, Timeout) ->
 connection_status(Node, Status) ->
     gen_server:call(?MODULE, {connection_status, Node, Status}).
 
--spec manual_blacklist(nonempty_string(), bool()) -> 'ok'.
+-spec manual_blacklist(nonempty_string(), boolean()) -> 'ok'.
 manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
@@ -235,20 +235,20 @@ nodemon_exit(Pid, S, none) ->
 %% ===================================================================
 %% internal functions
 
--spec allow_write(#dnode{}) -> bool().
+-spec allow_write(#dnode{}) -> boolean().
 allow_write(#dnode{connection_status = up,
                    manual_blacklist = false}) ->
     true;
 allow_write(#dnode{}) ->
     false.
 
--spec allow_read(#dnode{}) -> bool().
+-spec allow_read(#dnode{}) -> boolean().
 allow_read(#dnode{connection_status = up}) ->
     true;
 allow_read(#dnode{}) ->
     false.
 
--spec allow_task(#dnode{}) -> bool().
+-spec allow_task(#dnode{}) -> boolean().
 allow_task(#dnode{} = N) -> allow_write(N).
 
 -spec update_nodes(gb_tree()) -> 'ok'.
@@ -293,7 +293,7 @@ do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
--spec do_manual_blacklist(nonempty_string(), bool(), #state{}) -> #state{}.
+-spec do_manual_blacklist(nonempty_string(), boolean(), #state{}) -> #state{}.
 do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of

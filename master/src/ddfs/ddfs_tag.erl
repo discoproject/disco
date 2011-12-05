@@ -34,11 +34,11 @@
 % Correspondingly GC'ing must ensure that K replicas for a tag
 % are found within its partition rather than globally.
 
--spec start(tagname(), bool()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start(tagname(), boolean()) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start(TagName, NotFound) ->
     gen_server:start(ddfs_tag, {TagName, NotFound}, []).
 
--spec init({tagname(), bool()}) -> {'ok', #state{}}.
+-spec init({tagname(), boolean()}) -> {'ok', #state{}}.
 init({TagName, true}) ->
     init(TagName, {missing, notfound}, ?TAG_EXPIRES_ONERROR);
 init({TagName, false}) ->
