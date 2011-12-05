@@ -1,15 +1,16 @@
 -module(disco_main).
+
+-export([init/1, start/2, stop/1]).
+
 -behaviour(supervisor).
 -behaviour(application).
 
--include_lib("kernel/include/inet.hrl").
 -include("config.hrl").
 
 -compile([verbose, report_errors, report_warnings, trace, debug_info]).
+
 -define(MAX_R, 10).
 -define(MAX_T, 60).
-
--export([init/1, start/2, stop/1]).
 
 set_env(Key, Default) ->
     Val =
@@ -32,13 +33,15 @@ write_pid(PidFile) ->
             exit(["Could not write PID to ", PidFile, ":", Error])
     end.
 
+-spec start(_, _) -> {'ok', pid()} | {'error', term()}.
 start(_Type, _Args) ->
     init_settings(),
     write_pid(disco:get_setting("DISCO_MASTER_PID")),
     Port = disco:get_setting("DISCO_PORT"),
     supervisor:start_link(disco_main, [list_to_integer(Port)]).
 
--spec init([non_neg_integer()]) -> {'ok', any()}.
+-spec init([non_neg_integer()]) ->
+        {'ok', {{'one_for_one', ?MAX_R, ?MAX_T}, [supervisor:child_spec()]}}.
 init([Port]) ->
     error_logger:info_report([{"DISCO BOOTS"}]),
     {ok, {{one_for_one, ?MAX_R, ?MAX_T}, [
@@ -57,6 +60,7 @@ init([Port]) ->
         ]
     }}.
 
+-spec stop(_) -> 'ok'.
 stop(_State) ->
     ok.
 

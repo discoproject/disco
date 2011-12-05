@@ -44,11 +44,11 @@ find(Key, Dict, Default) ->
 jobfile(JobHome) ->
     filename:join(JobHome, "jobfile").
 
--spec exists(nonempty_string()) -> bool().
+-spec exists(nonempty_string()) -> boolean().
 exists(JobHome) ->
     disco:is_file(jobfile(JobHome)).
 
--spec extract(binary(), nonempty_string()) -> 'ok'.
+-spec extract(binary(), nonempty_string()) -> [file:name()].
 extract(JobPack, JobHome) ->
     JobZip = jobzip(JobPack),
     case discozip:extract(JobZip, [{cwd, JobHome}]) of
@@ -60,7 +60,7 @@ extract(JobPack, JobHome) ->
             exit({"Couldn't extract jobhome", JobHome, Reason})
     end.
 
--spec extracted(nonempty_string()) -> bool().
+-spec extracted(nonempty_string()) -> boolean().
 extracted(JobHome) ->
     disco:is_file(filename:join(JobHome, ".jobhome")).
 

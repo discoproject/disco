@@ -34,11 +34,11 @@
 % Correspondingly GC'ing must ensure that K replicas for a tag
 % are found within its partition rather than globally.
 
--spec start(tagname(), bool()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start(tagname(), boolean()) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start(TagName, NotFound) ->
     gen_server:start(ddfs_tag, {TagName, NotFound}, []).
 
--spec init({tagname(), bool()}) -> {'ok', #state{}}.
+-spec init({tagname(), boolean()}) -> {'ok', #state{}}.
 init({TagName, true}) ->
     init(TagName, {missing, notfound}, ?TAG_EXPIRES_ONERROR);
 init({TagName, false}) ->
@@ -476,7 +476,7 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
 -spec put_distribute({tagid(),binary()}) ->
-    {'error','commit_failed' | 'replication_failed'} | {'ok',[node()],[binary()]}.
+    {'error', 'commit_failed' | 'replication_failed'} | {'ok', [node()], [binary(),...]}.
 put_distribute({TagID, _} = Msg) ->
     case put_distribute(Msg, get(tagk), [], []) of
         {ok, TagVol} ->
