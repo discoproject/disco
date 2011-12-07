@@ -369,7 +369,7 @@ orphan_server(Objs, NumNodes) ->
 %
 % The Ages table persists the time of death for each deleted tag.
 %
--spec process_deleted([binary()], ets:tab()) -> _.
+-spec process_deleted([binary()], ets:tab()) -> 'ok'.
 process_deleted(Tags, Ages) ->
     error_logger:info_report({"GC: Process deleted"}),
     Now = now(),

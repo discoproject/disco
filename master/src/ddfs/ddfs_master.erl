@@ -72,7 +72,7 @@ get_tags(Mode) ->
 new_blob(Obj, K, Exclude) ->
     gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
 
--spec update_nodes([{node(), bool(), bool()}]) -> 'ok'.
+-spec update_nodes([{node(), boolean(), boolean()}]) -> 'ok'.
 update_nodes(DDFSNodes) ->
     gen_server:cast(?MODULE, {update_nodes, DDFSNodes}).
 
@@ -206,7 +206,7 @@ do_tag_request(M, Tag, From, #state{tags = Tags, tag_cache = Cache} = S) ->
     S#state{tags = TagsN,
             tag_cache = Cache =/= false andalso gb_sets:add(Tag, Cache)}.
 
--spec do_update_nodes([{node(), bool(), bool()}], state()) -> state().
+-spec do_update_nodes([{node(), boolean(), boolean()}], state()) -> state().
 do_update_nodes(NewNodes, #state{nodes = Nodes, tags = Tags} = S) ->
     error_logger:info_report({"DDFS UPDATE NODES", NewNodes}),
     WriteBlacklist = lists:sort([Node || {Node, false, _} <- NewNodes]),

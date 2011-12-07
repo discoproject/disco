@@ -24,12 +24,12 @@
 -include("config.hrl").
 -include("ddfs_tag.hrl").
 
--spec is_valid_name(string()) -> bool().
+-spec is_valid_name(string()) -> boolean().
 is_valid_name([]) -> false;
 is_valid_name(Name) when length(Name) > ?NAME_MAX -> false;
 is_valid_name(Name) ->
     Ok = ":@-_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-    not lists:any(fun(C) -> string:chr(Ok, C) == 0 end, Name).
+    not lists:any(fun(C) -> string:chr(Ok, C) =:= 0 end, Name).
 
 -spec replace(string(), char(), char()) -> string().
 replace(Str, A, B) ->
@@ -38,12 +38,12 @@ replace(Str, A, B) ->
 -spec replace(string(), char(), char(), string()) -> string().
 replace([], _, _, L) ->
     lists:reverse(L);
-replace([C|R], A, B, L) when C == A ->
+replace([C|R], A, B, L) when C =:= A ->
     replace(R, A, B, [B|L]);
 replace([C|R], A, B, L) ->
     replace(R, A, B, [C|L]).
 
--spec startswith(binary(), binary()) -> bool().
+-spec startswith(binary(), binary()) -> boolean().
 startswith(B, Prefix) when size(B) < size(Prefix) ->
     false;
 startswith(B, Prefix) ->
@@ -195,7 +195,7 @@ fold_files(Dir, Fun, Acc0) ->
         end
     end, Acc0, L).
 
--spec choose_random(list(T)) -> T.
+-spec choose_random([T,...]) -> T.
 choose_random(L) ->
     lists:nth(random:uniform(length(L)), L).
 
@@ -208,4 +208,3 @@ choose_random(_, R, 0) -> R;
 choose_random(L, R, N) ->
     C = choose_random(L),
     choose_random(L -- [C], [C|R], N - 1).
-
