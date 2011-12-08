@@ -72,19 +72,31 @@ abort(Msg, Code) ->
 
 -spec start_gc() -> no_return().
 start_gc() ->
+    process_flag(trap_exit, true),
     start_gc(ets:new(deleted_ages, [set, public])).
 
 -spec start_gc(ets:tab()) -> no_return().
 start_gc(DeletedAges) ->
-    spawn(fun() -> gc_objects(DeletedAges) end),
-    timer:sleep(?GC_INTERVAL),
+    Gc = spawn_link(fun() -> gc_objects(DeletedAges) end),
+    start_gc_wait(Gc),
     start_gc(DeletedAges).
+start_gc_wait(Pid) ->
+    receive
+	{'EXIT', Pid, Reason} ->
+	    error_logger:error_report({"GC: exit", Pid, Reason});
+	{'EXIT', Other, Reason} ->
+	    error_logger:error_report({"GC: unexpected exit", Other, Reason});
+	Other ->
+	    error_logger:error_report({"GC: unexpected msg", Other})
+    after ?GC_INTERVAL ->
+	    error_logger:error_report({"GC: timeout"})
+    end.
 
 -spec gc_objects(ets:tab()) -> 'ok'.
 gc_objects(DeletedAges) ->
     % ensures that only a single gc_objects process is running at a time
     register(gc_objects_lock, self()),
-    error_logger:info_report({"GC starts"}),
+    error_logger:info_report({"GC starts", self()}),
 
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
