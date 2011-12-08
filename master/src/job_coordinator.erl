@@ -155,7 +155,7 @@ wait_workers(N, Results, Mode) ->
                    {task_failed, Task#task.mode}})
     end.
 
--spec submit_task(task()) -> _.
+-spec submit_task(task()) -> 'ok'.
 submit_task(Task) ->
     case catch disco_server:new_task(Task, 30000) of
         ok ->
@@ -170,7 +170,7 @@ submit_task(Task) ->
 % handle_data_error() schedules the failed task for a retry, with the
 % failing node in its blacklist. If a task fails too many times, as
 % determined by check_failure_rate(), the whole job will be terminated.
--spec handle_data_error(task(), node()) -> _.
+-spec handle_data_error(task(), node()) -> pid().
 handle_data_error(Task, Host) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     check_failure_rate(Task, MaxFail),
@@ -191,7 +191,7 @@ handle_data_error(Task, Host) ->
                        submit_task(Task#task{taskblack = [Host|T], fail_count = C})
                end).
 
--spec check_failure_rate(task(), non_neg_integer()) -> _.
+-spec check_failure_rate(task(), non_neg_integer()) -> 'ok'.
 check_failure_rate(Task, MaxFail) when Task#task.fail_count + 1 < MaxFail ->
     ok;
 check_failure_rate(Task, MaxFail) ->

@@ -6,15 +6,18 @@
 -define(RPC_CALL_TIMEOUT, 30000).
 -define(RPC_RETRY_TIMEOUT, 120000).
 
+-type host() :: nonempty_string().
+
+-spec start_link(host()) -> pid().
 start_link(Host) ->
     spawn_link(fun() -> spawn_node(Host) end).
 
--spec spawn_node(nonempty_string()) -> no_return().
+-spec spawn_node(host()) -> 'ok'.
 spawn_node(Host) ->
     process_flag(trap_exit, true),
     spawn_node(Host, is_master(Host)).
 
--spec spawn_node(nonempty_string(), bool()) -> no_return().
+-spec spawn_node(host(), boolean()) -> 'ok'.
 spawn_node(Host, IsMaster) ->
     case {IsMaster, catch slave_start(Host)} of
         {true, {ok, Node}} ->
@@ -38,7 +41,7 @@ spawn_node(Host, IsMaster) ->
     end,
     timer:sleep(?RESTART_DELAY).
 
--spec node_monitor(nonempty_string(), node(), {bool(), bool()}) -> _.
+-spec node_monitor(host(), node(), {boolean(), boolean()}) -> 'ok'.
 node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
@@ -48,7 +51,7 @@ node_monitor(Host, Node, WebConfig) ->
     wait(Node),
     disco_server:connection_status(Host, down).
 
--spec wait(node()) -> _.
+-spec wait(node()) -> 'ok'.
 wait(Node) ->
     receive
         {is_ready, Pid} ->
@@ -73,7 +76,7 @@ slave_env() ->
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 
--spec slave_start(nonempty_string()) -> {'ok', node()} | {'error', _}.
+-spec slave_start(host()) -> {'ok', node()} | {'error', _}.
 slave_start(Host) ->
     error_logger:info_report({"starting node @", Host}),
     slave:start(Host,
@@ -82,7 +85,7 @@ slave_start(Host) ->
                 self(),
                 disco:get_setting("DISCO_ERLANG")).
 
--spec is_master(nonempty_string()) -> bool().
+-spec is_master(host()) -> boolean().
 is_master(Host) ->
     % the underlying tcp connection used by net_adm:names() may hang,
     % so we use a timed rpc.
@@ -108,7 +111,7 @@ start_temp_gc(Node) ->
 start_lock_server(Node) ->
     spawn_link(Node, lock_server, start_link, []).
 
--spec start_ddfs_node(node(), {bool(), bool()}) -> pid().
+-spec start_ddfs_node(node(), {boolean(), boolean()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
     DdfsRoot = disco:get_setting("DDFS_DATA"),
     DiscoRoot = disco:get_setting("DISCO_DATA"),

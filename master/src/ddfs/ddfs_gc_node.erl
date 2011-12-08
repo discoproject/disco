@@ -7,6 +7,9 @@
 
 % see ddfs_gc.erl for comments
 
+-type mode() :: nonempty_string().
+-type tabname() :: 'tag' | 'blob'.
+
 -spec gc_node(pid(), disco_util:timestamp()) -> 'orphans_done'.
 gc_node(Master, Now) ->
     process_flag(priority, low),
@@ -39,7 +42,7 @@ node_server(Root) ->
                 requests_failed)
     end.
 
--spec take_key(binary(), atom()) -> bool().
+-spec take_key(binary(), atom()) -> boolean().
 take_key(Key, Ets) ->
     ets:update_element(Ets, Key, {3, true}).
 
@@ -52,7 +55,7 @@ send_blob(Obj, DstUrl, Root) ->
         DstUrl, ?GC_PUT_TIMEOUT).
 
 -spec traverse(disco_util:timestamp(), nonempty_string(),
-               [nonempty_string()], nonempty_string(), 'blob' | 'tag') -> _.
+               [nonempty_string()], mode(), tabname()) -> _.
 traverse(Now, Root, VolNames, Mode, Ets) ->
     lists:foldl(
         fun(VolName, _) ->
@@ -66,7 +69,7 @@ traverse(Now, Root, VolNames, Mode, Ets) ->
 %%% O1) Remove leftover !partial. files
 %%%
 -spec handle_file(nonempty_string(), nonempty_string(),
-    nonempty_string(), 'blob' | 'tag', disco_util:timestamp()) -> _.
+    nonempty_string(), tabname(), disco_util:timestamp()) -> _.
 handle_file("!trash" ++ _, _, _, _, _) ->
     ok;
 handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
@@ -84,7 +87,7 @@ handle_file(Obj, _, VolName, Ets, _) ->
 %%% O3) Remove orphaned blobs
 %%%
 -spec delete_orphaned(pid(), disco_util:timestamp(), nonempty_string(),
-                      nonempty_string(), 'blob'|'tag', non_neg_integer()) -> _.
+                      mode(), tabname(), non_neg_integer()) -> 'ok'.
 delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
     Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
     lists:foreach(
@@ -98,7 +101,7 @@ delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
                 delete_if_expired(FullPath, Diff, Expires, Paranoid)
         end, ets:match(Ets, {'$1', '$2', false})).
 
--spec is_really_orphan(pid(), binary()) -> bool().
+-spec is_really_orphan(pid(), binary()) -> boolean().
 is_really_orphan(Master, Obj) ->
     Master ! {is_orphan, self(), Obj},
     receive
@@ -113,7 +116,7 @@ is_really_orphan(Master, Obj) ->
     end.
 
 -spec delete_if_expired(file:filename(), float(),
-                        non_neg_integer(), bool()) -> 'ok'.
+                        non_neg_integer(), boolean()) -> 'ok'.
 delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
     error_logger:info_report({"GC: Deleting expired object (paranoid)", Path}),
     Trash = "!trash." ++ filename:basename(Path),

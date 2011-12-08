@@ -98,7 +98,7 @@ parse_row([NodeSpecB, InstancesB]) ->
     Instances = string:strip(binary_to_list(InstancesB)),
     add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
--spec update_config_table([host_info()], [nonempty_string()]) -> _.
+-spec update_config_table([host_info()], [nonempty_string()]) -> 'ok'.
 update_config_table(HostInfo, Blacklist) ->
     disco_server:update_config_table(HostInfo, Blacklist).
 
