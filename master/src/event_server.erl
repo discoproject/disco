@@ -194,7 +194,7 @@ tail_log(JobName, N) ->
 grep_log(JobName, Query, N) ->
     % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
     % only whitelisted characters are allowed in the query
-    {ok, CQ, _} = regexp:gsub(Query, "[^a-zA-Z0-9:-_!@]", ""),
+    {ok, CQ, _} = re:replace(Query, "[^a-zA-Z0-9:-_!@]", "", [global, {return, list}]),
     Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ",
                                   event_log(JobName),
                                   " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
