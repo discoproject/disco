@@ -62,6 +62,7 @@
 
 -include("config.hrl").
 
+-define(GC_INITIAL_WAIT, 5 * ?MINUTE).
 -define(GET_TAG_TIMEOUT, 5 * ?MINUTE).
 
 -spec abort(term(), atom()) -> no_return().
@@ -72,6 +73,8 @@ abort(Msg, Code) ->
 
 -spec start_gc() -> no_return().
 start_gc() ->
+    % Wait some time for all nodes to start and stabilize.
+    timer:sleep(?GC_INITIAL_WAIT),
     process_flag(trap_exit, true),
     start_gc(ets:new(deleted_ages, [set, public])).
 
@@ -86,6 +89,8 @@ start_gc(DeletedAges) ->
 	    ok
     end,
     start_gc(DeletedAges).
+
+-spec start_gc_wait(pid(), timer:time()) -> timer:time().
 start_gc_wait(Pid, Interval) ->
     Start = now(),
     receive
