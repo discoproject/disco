@@ -78,9 +78,16 @@ start_gc() ->
 -spec start_gc(ets:tab()) -> no_return().
 start_gc(DeletedAges) ->
     Gc = spawn_link(fun() -> gc_objects(DeletedAges) end),
-    start_gc_wait(Gc),
+    Wait = start_gc_wait(Gc, ?GC_INTERVAL),
+    case ?GC_INTERVAL > Wait of
+	true ->
+	    timer:sleep(?GC_INTERVAL - Wait);
+	false ->
+	    ok
+    end,
     start_gc(DeletedAges).
-start_gc_wait(Pid) ->
+start_gc_wait(Pid, Interval) ->
+    Start = now(),
     receive
 	{'EXIT', Pid, Reason} ->
 	    error_logger:error_report({"GC: exit", Pid, Reason});
@@ -88,9 +95,11 @@ start_gc_wait(Pid) ->
 	    error_logger:error_report({"GC: unexpected exit", Other, Reason});
 	Other ->
 	    error_logger:error_report({"GC: unexpected msg", Other})
-    after ?GC_INTERVAL ->
+    after Interval ->
 	    error_logger:error_report({"GC: timeout"})
-    end.
+    end,
+    % timer:now_diff() returns microseconds.
+    round(timer:now_diff(now(), Start) / 1000).
 
 -spec gc_objects(ets:tab()) -> 'ok'.
 gc_objects(DeletedAges) ->
