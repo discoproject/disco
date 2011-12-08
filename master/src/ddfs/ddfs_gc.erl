@@ -68,7 +68,7 @@
 -spec abort(term(), atom()) -> no_return().
 abort(Msg, Code) ->
     error_logger:warning_report(Msg),
-    error_logger:warning_report({"Garbage collection aborted"}),
+    error_logger:warning_report({"GC: aborted"}),
     exit(Code).
 
 -spec start_gc() -> no_return().
@@ -99,9 +99,9 @@ start_gc_wait(Pid, Interval) ->
 	{'EXIT', Other, Reason} ->
 	    error_logger:error_report({"GC: unexpected exit", Other, Reason});
 	Other ->
-	    error_logger:error_report({"GC: unexpected msg", Other})
+	    error_logger:error_report({"GC: unexpected msg exit", Other})
     after Interval ->
-	    error_logger:error_report({"GC: timeout"})
+	    error_logger:error_report({"GC: timeout exit"})
     end,
     % timer:now_diff() returns microseconds.
     round(timer:now_diff(now(), Start) / 1000).
@@ -110,7 +110,7 @@ start_gc_wait(Pid, Interval) ->
 gc_objects(DeletedAges) ->
     % ensures that only a single gc_objects process is running at a time
     register(gc_objects_lock, self()),
-    error_logger:info_report({"GC starts", self()}),
+    error_logger:info_report({"GC: starts", self()}),
 
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
