@@ -11,11 +11,11 @@
 % How many replicas by default
 % -define(DEFAULT_REPLICAS, 3).
 
-% How long to wait for replies from nodes
--define(NODE_TIMEOUT, 5 * ?SECOND).
-
 % How long ddfs node startup can take
 -define(NODE_STARTUP, 1 * ?MINUTE).
+
+% How long to wait for replies from nodes
+-define(NODE_TIMEOUT, 10 * ?SECOND).
 
 % How long to wait for a reply from and operation that accesses nodes
 % (>NODE_TIMEOUT)
@@ -60,6 +60,10 @@
 % Time to wait between garbage collection runs
 -define(GC_INTERVAL, ?DAY).
 
+% Time to wait after startup for cluster to stabilize before running
+% first GC.
+-define(GC_INITIAL_WAIT, 5 * ?MINUTE).
+
 % Tag cache expires in this many milliseconds if tag can't be fetched
 -define(TAG_EXPIRES_ONERROR, 1 * ?SECOND).
 
@@ -94,16 +98,16 @@
 % Delete !partial leftovers after this many milliseconds
 -define(PARTIAL_EXPIRES, ?DAY).
 
-% When orphaned blob can be deleted 
+% When orphaned blob can be deleted
 -define(ORPHANED_BLOB_EXPIRES, 5 * ?DAY).
 
-% When orphaned tag can be deleted 
+% When orphaned tag can be deleted
 -define(ORPHANED_TAG_EXPIRES, 5 * ?DAY).
 
 % How long a tag has to stay on the deleted list before
 % we can permanently forget it, after all known instances
-% of the tag object have been removed. This quarantine period 
-% ensures that a node that was temporarily unavailable 
+% of the tag object have been removed. This quarantine period
+% ensures that a node that was temporarily unavailable
 % and reactivates can't resurrect deleted tags. You
 % must ensure that all temporarily inactive nodes
 % are reactivated (or cleaned) within the ?DELETED_TAG_EXPIRES
