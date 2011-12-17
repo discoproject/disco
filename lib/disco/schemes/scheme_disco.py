@@ -10,7 +10,9 @@ def open(url, task=None):
                                              ddfs_data=task.ddfs_data)
     else:
         scheme, netloc, path = util.urlsplit(url, localhost=None)
-    return comm.open_url(util.urljoin((scheme, netloc, path)))
+
+    u = util.proxy_url(util.urljoin((scheme, netloc, path)))
+    return comm.open_url(u)
 
 def input_stream(fd, size, url, params):
     """

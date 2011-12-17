@@ -279,7 +279,7 @@ def parse_dir(dir, partition=None):
 def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
     if proxy:
         scheme, (host, port), path = urlsplit(url)
-        return '%s/disco/node/%s/%s' % (proxy, host, path)
+        return '%s/proxy/%s/GET/%s' % (proxy, host, path)
     return url
 
 def read_index(dir):
