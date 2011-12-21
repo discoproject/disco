@@ -10,7 +10,6 @@
          is_valid_name/1,
          pack_objname/2,
          parse_url/1,
-         replace/3,
          safe_rename/2,
          startswith/2,
          timestamp/0,
@@ -32,18 +31,6 @@ is_valid_name(Name) when length(Name) > ?NAME_MAX -> false;
 is_valid_name(Name) ->
     Ok = ":@-_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
     not lists:any(fun(C) -> string:chr(Ok, C) =:= 0 end, Name).
-
--spec replace(string(), char(), char()) -> string().
-replace(Str, A, B) ->
-    replace(lists:flatten(Str), A, B, []).
-
--spec replace(string(), char(), char(), string()) -> string().
-replace([], _, _, L) ->
-    lists:reverse(L);
-replace([C|R], A, B, L) when C =:= A ->
-    replace(R, A, B, [B|L]);
-replace([C|R], A, B, L) ->
-    replace(R, A, B, [C|L]).
 
 -spec startswith(binary(), binary()) -> boolean().
 startswith(B, Prefix) when size(B) < size(Prefix) ->
