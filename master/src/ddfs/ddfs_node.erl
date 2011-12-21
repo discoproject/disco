@@ -5,10 +5,7 @@
         handle_info/2, terminate/2, code_change/3]).
 
 -include("config.hrl").
-
-% Diskinfo is {FreeSpace, UsedSpace}.
--type diskinfo() :: {non_neg_integer(), non_neg_integer()}.
--export_type([diskinfo/0]).
+-include("ddfs.hrl").
 
 -record(state, {nodename :: string(),
                 root :: nonempty_string(),
@@ -177,7 +174,7 @@ do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
     end.
 
 -spec do_get_tag_timestamp(binary(), #state{}) ->
-                          'notfound' | {'ok', {disco_util:timestamp(), binary()}}.
+                          'notfound' | {'ok', {erlang:timestamp(), binary()}}.
 do_get_tag_timestamp(TagName, S) ->
     case gb_trees:lookup(TagName, S#state.tags) of
         none ->
@@ -186,7 +183,7 @@ do_get_tag_timestamp(TagName, S) ->
             {ok, TagNfo}
     end.
 
--spec do_get_tag_data(binary(), nonempty_string(), {pid(), _}, #state{}) -> 'ok'.
+-spec do_get_tag_data(binary(), volume_name(), {pid(), _}, #state{}) -> 'ok'.
 do_get_tag_data(Tag, VolName, From, S) ->
     {ok, TagDir, _Url} = ddfs_util:hashdir(Tag,
                                            disco:host(node()),
@@ -251,7 +248,7 @@ do_put_tag_commit(Tag, TagVol, S) ->
     end.
 
 
--spec try_makedir(nonempty_string()) -> ok | error.
+-spec try_makedir(path()) -> ok | error.
 try_makedir(Dir) ->
     case prim_file:make_dir(Dir) of
         ok ->
@@ -266,8 +263,8 @@ try_makedir(Dir) ->
             error
     end.
 
--spec init_vols(nonempty_string(), [nonempty_string()]) ->
-                       {'ok', [{diskinfo(), nonempty_string()}]}.
+-spec init_vols(path(), [volume_name()]) ->
+                       {'ok', [{diskinfo(), volume_name()}]}.
 init_vols(Root, VolNames) ->
     _ = [begin
              ok = try_makedir(filename:join([Root, VolName, "blob"])),
