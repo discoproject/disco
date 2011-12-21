@@ -9,6 +9,7 @@
          hashdir/5,
          is_valid_name/1,
          pack_objname/2,
+         parse_url/1,
          replace/3,
          safe_rename/2,
          startswith/2,
@@ -127,6 +128,21 @@ hashdir(Name, Host, Type, Root, Vol) ->
     Url = list_to_binary(["disco://", Host, "/ddfs/", Path, "/", Name]),
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
+
+
+-spec parse_url(binary()|string()) ->
+        'not_ddfs' | {host(), volume_name(), object_type(), string(), string()}.
+parse_url(Url) when is_binary(Url) ->
+    parse_url(binary_to_list(Url));
+parse_url(Url) when is_list(Url) ->
+    {_S, Host, Path, _Q, _F} = mochiweb_util:urlsplit(Url),
+    case filename:split(Path) of
+        ["/","ddfs","vol" ++ _ = Vol, "blob", Hash, Obj] ->
+            {Host, Vol, blob, Hash, Obj};
+        ["/","ddfs","vol" ++ _ = Vol, "tag", Hash, Obj] ->
+            {Host, Vol, tag, Hash, Obj};
+        _ -> not_ddfs
+    end.
 
 -spec safe_rename(string(), string()) -> 'ok' | {'error', 'file_exists'
     | {'chmod_failed', _} | {'rename_failed', _}}.
