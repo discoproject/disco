@@ -1,6 +1,8 @@
 -module(ddfs_node).
 -behaviour(gen_server).
 
+-export([get_vols/0]).
+
 -export([start_link/1, stop/0, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
@@ -34,6 +36,10 @@ start_link(Config) ->
 
 stop() ->
     gen_server:call(ddfs_node, stop).
+
+-spec get_vols() -> {[volume()], path()}.
+get_vols() ->
+    gen_server:call(?MODULE, get_vols).
 
 init(Config) ->
     {nodename, NodeName} = proplists:lookup(nodename, Config),
