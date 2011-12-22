@@ -7,6 +7,7 @@
          get_read_nodes/0,
          choose_write_nodes/2,
          new_blob/3,
+         tag_notify/2,
          tag_operation/2, tag_operation/3,
          update_nodes/1
         ]).
@@ -49,6 +50,10 @@ tag_operation(Op, Tag) ->
                            term().
 tag_operation(Op, Tag, Timeout) ->
     gen_server:call(?MODULE, {tag, Op, Tag}, Timeout).
+
+-spec tag_notify(term(), nonempty_string() | binary()) -> 'ok'.
+tag_notify(Op, Tag) ->
+    gen_server:cast(?MODULE, {tag_notify, Op, Tag}).
 
 -spec get_nodeinfo('all') -> {'ok', [node_info()]}.
 get_nodeinfo(all) ->
@@ -126,6 +131,9 @@ handle_call({get_tags, Mode}, From, #state{nodes = Nodes} = S) ->
           end),
     {noreply, S}.
 
+handle_cast({tag_notify, M, Tag}, S) ->
+    {noreply, do_tag_notify(M, Tag, S)};
+
 handle_cast({update_tag_cache, TagCache}, S) ->
     {noreply, S#state{tag_cache = TagCache}};
 
@@ -188,21 +196,33 @@ do_new_blob(Obj, K, Exclude, BlackList, Nodes) ->
 
 % Tag request: Start a new tag server if one doesn't exist already. Forward
 % the request to the tag server.
+
+-spec get_tag_pid(nonempty_string() | binary(), gb_tree(), 'false' | gb_set()) ->
+                         {pid(), gb_tree()}.
+get_tag_pid(Tag, Tags, Cache) ->
+    case gb_trees:lookup(Tag, Tags) of
+        none ->
+            NotFound = (Cache =/= false
+                        andalso not gb_sets:is_element(Tag, Cache)),
+            {ok, Server} = ddfs_tag:start(Tag, NotFound),
+            erlang:monitor(process, Server),
+            {Server, gb_trees:insert(Tag, Server, Tags)};
+        {value, P} ->
+            {P, Tags}
+    end.
+
 -spec do_tag_request(term(), nonempty_string() | binary(), replyto(), state()) ->
                             state().
 do_tag_request(M, Tag, From, #state{tags = Tags, tag_cache = Cache} = S) ->
-    {Pid, TagsN} =
-        case gb_trees:lookup(Tag, Tags) of
-            none ->
-                NotFound = (Cache =/= false
-                            andalso not gb_sets:is_element(Tag, Cache)),
-                {ok, Server} = ddfs_tag:start(Tag, NotFound),
-                erlang:monitor(process, Server),
-                {Server, gb_trees:insert(Tag, Server, Tags)};
-            {value, P} ->
-                {P, Tags}
-        end,
+    {Pid, TagsN} = get_tag_pid(Tag, Tags, Cache),
     gen_server:cast(Pid, {M, From}),
+    S#state{tags = TagsN,
+            tag_cache = Cache =/= false andalso gb_sets:add(Tag, Cache)}.
+
+-spec do_tag_notify(term(), nonempty_string() | binary(), state()) -> state().
+do_tag_notify(M, Tag, #state{tags = Tags, tag_cache = Cache} = S) ->
+    {Pid, TagsN} = get_tag_pid(Tag, Tags, Cache),
+    gen_server:cast(Pid, {notify, M}),
     S#state{tags = TagsN,
             tag_cache = Cache =/= false andalso gb_sets:add(Tag, Cache)}.
 
