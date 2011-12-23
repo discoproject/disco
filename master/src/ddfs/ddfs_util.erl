@@ -118,16 +118,16 @@ hashdir(Name, Host, Type, Root, Vol) ->
 
 
 -spec parse_url(binary()|string()) ->
-        'not_ddfs' | {host(), volume_name(), object_type(), string(), string()}.
+        'not_ddfs' | {host(), volume_name(), object_type(), string(), object_name()}.
 parse_url(Url) when is_binary(Url) ->
     parse_url(binary_to_list(Url));
 parse_url(Url) when is_list(Url) ->
     {_S, Host, Path, _Q, _F} = mochiweb_util:urlsplit(Url),
     case filename:split(Path) of
         ["/","ddfs","vol" ++ _ = Vol, "blob", Hash, Obj] ->
-            {Host, Vol, blob, Hash, Obj};
+            {Host, Vol, blob, Hash, list_to_binary(Obj)};
         ["/","ddfs","vol" ++ _ = Vol, "tag", Hash, Obj] ->
-            {Host, Vol, tag, Hash, Obj};
+            {Host, Vol, tag, Hash, list_to_binary(Obj)};
         _ -> not_ddfs
     end.
 
