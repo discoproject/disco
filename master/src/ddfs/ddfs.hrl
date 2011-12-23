@@ -8,3 +8,4 @@
 
 -type object_type() :: 'blob' | 'tag'.
 -type object_name() :: binary().
+-type url() :: binary().
