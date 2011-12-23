@@ -1,119 +1,133 @@
 -module(ddfs_gc_node).
--export([gc_node/2]).
-
+-export([start_gc_node/4]).
+-export([gc_node_init/3]).  % WHY IS THIS NEEDED?
 -include_lib("kernel/include/file.hrl").
 
 -include("config.hrl").
+-include("ddfs.hrl").
+-include("ddfs_gc.hrl").
 
-% see ddfs_gc.erl for comments
+% The module contains the node-local portion of the DDFS GC/RR
+% algorithm.
 
--type mode() :: nonempty_string().
--type tabname() :: 'tag' | 'blob'.
+-spec start_gc_node(node(), pid(), erlang:timestamp(), phase()) -> pid().
+start_gc_node(Node, Master, Now, Phase) ->
+    spawn_link(Node, ?MODULE, gc_node_init, [Master, Now, Phase]).
 
--spec gc_node(pid(), disco_util:timestamp()) -> 'orphans_done'.
-gc_node(Master, Now) ->
+-spec gc_node_init(pid(), erlang:timestamp(), phase()) -> 'ok'.
+gc_node_init(Master, Now, Phase) ->
+    % All phases of GC/RR require that we build a snapshot of our
+    % node-local DDFS content across all volumes.
     process_flag(priority, low),
+    {Vols, Root} = ddfs_node:get_vols(),
+    {_, VolNames} = lists:unzip(Vols),
     _ = ets:new(tag, [named_table, set, private]),
     _ = ets:new(blob, [named_table, set, private]),
-    {Vols, Root} = gen_server:call(ddfs_node, get_vols),
-    {_, VolNames} = lists:unzip(Vols),
-    traverse(Now, Root, VolNames, "blob", blob),
-    traverse(Now, Root, VolNames, "tag", tag),
+    traverse(Now, Root, VolNames, blob),
+    traverse(Now, Root, VolNames, tag),
     error_logger:info_report({"GC: # blobs", ets:info(blob, size)}),
     error_logger:info_report({"GC: # tags", ets:info(tag, size)}),
-    node_server(Root),
-    delete_orphaned(Master, Now, Root, "blob", blob, ?ORPHANED_BLOB_EXPIRES),
-    delete_orphaned(Master, Now, Root, "tag", tag, ?ORPHANED_TAG_EXPIRES),
-    Master ! orphans_done.
 
--spec node_server(nonempty_string()) -> 'ok'.
-node_server(Root) ->
-    receive
-        {{touch, Ets}, M, Obj} ->
-            M ! {Obj, take_key(Obj, Ets)},
-            node_server(Root);
-        {put_blob, M, Obj, DstUrl} ->
-            M ! {Obj, send_blob(Obj, DstUrl, Root)},
-            node_server(Root);
-        done ->
-            ok;
-        E ->
-            ddfs_gc:abort({"GC: Erroneous message received", E},
-                requests_failed)
-    end.
+    % Now, dispatch to the phase that is running on the master.
+    gc_node(Master, Now, Root, Phase).
 
--spec take_key(binary(), atom()) -> boolean().
-take_key(Key, Ets) ->
-    ets:update_element(Ets, Key, {3, true}).
+-spec gc_node(pid(), erlang:timestamp(), path(), phase()) -> 'ok'.
+gc_node(Master, Now, Root, Phase)
+  when Phase =:= start; Phase =:= build_map; Phase =:= map_wait ->
+    check_server(Master, Root),
+    local_gc(Master, Now, Root),
+    replica_server(Master, Root);
 
--spec send_blob(binary(), nonempty_string(), nonempty_string()) ->
-    'ok' | {'error', 'crashed' | 'timeout'}.
-send_blob(Obj, DstUrl, Root) ->
-    [{_, VolName, _}] = ets:lookup(blob, Obj),
-    {ok, Path, _} = ddfs_util:hashdir(Obj, "nonode!", "blob", Root, VolName),
-    ddfs_http:http_put(filename:join(Path, binary_to_list(Obj)),
-        DstUrl, ?GC_PUT_TIMEOUT).
+gc_node(Master, Now, Root, gc) ->
+    local_gc(Master, Now, Root),
+    replica_server(Master, Root);
 
--spec traverse(disco_util:timestamp(), nonempty_string(),
-               [nonempty_string()], mode(), tabname()) -> _.
-traverse(Now, Root, VolNames, Mode, Ets) ->
-    lists:foldl(
-        fun(VolName, _) ->
-            ddfs_util:fold_files(filename:join([Root, VolName, Mode]),
-                                 fun(Obj, Dir, _) ->
-                                     handle_file(Obj, Dir, VolName, Ets, Now)
-                                 end, nil)
-        end, nil, VolNames).
+gc_node(Master, _Now, Root, Phase)
+  when Phase =:= rr_blobs; Phase =:= rr_blobs_wait; Phase =:= rr_tags ->
+    replica_server(Master, Root).
 
-%%%
-%%% O1) Remove leftover !partial. files
-%%%
--spec handle_file(nonempty_string(), nonempty_string(),
-    nonempty_string(), tabname(), disco_util:timestamp()) -> _.
+%%
+%% Node-local object table construction. (build_map / map_wait / gc)
+%%
+
+-spec traverse(erlang:timestamp(), path(), [volume_name()], object_type()) -> 'ok'.
+traverse(Now, Root, VolNames, Type) ->
+    Mode = case Type of tag -> "tag"; blob -> "blob" end,
+    lists:foreach(
+      fun(VolName) ->
+              DDFSDir = filename:join([Root, VolName, Mode]),
+              Handler = fun(Obj, Dir, _Ok) ->
+                                handle_file(Obj, Dir, VolName, Type, Now)
+                        end,
+              ddfs_util:fold_files(DDFSDir, Handler, ok)
+      end, VolNames).
+
+-spec handle_file(path(), path(), volume_name(), object_type(), erlang:timestamp())
+                 -> 'ok'.
 handle_file("!trash" ++ _, _, _, _, _) ->
     ok;
+% GC1) Remove leftover !partial. files
 handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     [_, Obj] = string:tokens(File, "."),
     {_, Time} = ddfs_util:unpack_objname(Obj),
     Diff = timer:now_diff(Now, Time) / 1000,
     Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
     delete_if_expired(filename:join(Dir, File), Diff, ?PARTIAL_EXPIRES, Paranoid);
-handle_file(Obj, _, VolName, Ets, _) ->
+handle_file(Obj, _, VolName, Type, _) ->
     % We could check a checksum of Obj here
-    ets:insert(Ets, {list_to_binary(Obj), VolName, false}).
+    ets:insert(Type, {list_to_binary(Obj), VolName, false}).
 
-%%%
-%%% O2) Remove orphaned tags
-%%% O3) Remove orphaned blobs
-%%%
--spec delete_orphaned(pid(), disco_util:timestamp(), nonempty_string(),
-                      mode(), tabname(), non_neg_integer()) -> 'ok'.
-delete_orphaned(Master, Now, Root, Mode, Ets, Expires) ->
-    Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
-    lists:foreach(
-        fun([Obj, VolName]) ->
-            {_, Time} = ddfs_util:unpack_objname(Obj),
-            {ok, Path, _} =
-                ddfs_util:hashdir(Obj, "nonode!", Mode, Root, VolName),
-            FullPath = filename:join(Path, binary_to_list(Obj)),
-            Diff = timer:now_diff(Now, Time) / 1000,
-            is_really_orphan(Master, Obj) andalso
-                delete_if_expired(FullPath, Diff, Expires, Paranoid)
-        end, ets:match(Ets, {'$1', '$2', false})).
+%%
+%% Serve check requests from master (build_map / map_wait)
+%%
 
--spec is_really_orphan(pid(), binary()) -> boolean().
-is_really_orphan(Master, Obj) ->
-    Master ! {is_orphan, self(), Obj},
+check_server(Master, Root) ->
     receive
-        {Obj, IsOrphan} ->
-            IsOrphan;
+        {check, Type, ObjName} ->
+            LocalObj = {ObjName, node()},
+            Master ! {check_result, Type, LocalObj, check_object(Type, ObjName)},
+            check_server(Master, Root);
+        start_gc ->
+            ok;
         E ->
             ddfs_gc:abort({"GC: Erroneous message received", E},
-                          orphans_failed)
-    after 10000 ->
-        ddfs_gc:abort({"GC: Master stopped responding"}, orphan_timeout),
-        timeout
+                          node_request_failed)
     end.
+
+-spec check_object(object_type(), object_name()) -> boolean().
+check_object(Type, ObjName) ->
+    ets:update_element(Type, ObjName, {3, true}).
+
+% Perform GC
+%
+% GC2) Remove orphaned tags (old versions and deleted tags)
+% GC3) Remove orphaned blobs (blobs not referred by any tag)
+
+local_gc(Master, Now, Root) ->
+    delete_orphaned(Master, Now, Root, blob, ?ORPHANED_BLOB_EXPIRES),
+    delete_orphaned(Master, Now, Root, tag, ?ORPHANED_TAG_EXPIRES),
+    ddfs_gc_main:node_gc_done(Master),
+    ok.
+
+-spec delete_orphaned(pid(), erlang:timestamp(), path(), object_type(),
+                      non_neg_integer()) -> 'ok'.
+delete_orphaned(Master, Now, Root, Type, Expires) ->
+    Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
+    lists:foreach(
+      fun([Obj, VolName]) ->
+              {_, Time} = ddfs_util:unpack_objname(Obj),
+              {ok, Path, _} =
+                  ddfs_util:hashdir(Obj, "nonode!", atom_to_list(Type), Root, VolName),
+              FullPath = filename:join(Path, binary_to_list(Obj)),
+              Diff = timer:now_diff(Now, Time) / 1000,
+              case catch ddfs_gc_main:is_orphan(Master, Type, Obj, VolName) of
+                  {ok, true} ->
+                      delete_if_expired(FullPath, Diff, Expires, Paranoid);
+                  _E ->
+                      % Do not delete if not orphan, timeout or error.
+                      ok
+              end
+      end, ets:match(Type, {'$1', '$2', false})).
 
 -spec delete_if_expired(file:filename(), float(),
                         non_neg_integer(), boolean()) -> 'ok'.
@@ -135,3 +149,39 @@ delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
 delete_if_expired(_Path, _Diff, _Expires, _Paranoid) ->
     ok.
 
+%%
+%% Re-replication  (rr_blobs / rr_blobs_wait)
+%%
+
+-spec replica_server(pid(), path()) -> no_return().
+replica_server(Master, Root) ->
+    receive
+        {put_blob, Replicator, Ref, Blob, PutUrl} ->
+            [{_, VolName, _}] = ets:lookup(blob, Blob),
+            {ok, Path, _} =
+                ddfs_util:hashdir(Blob, "nonode!", "blob", Root, VolName),
+            SrcPath = filename:join(Path, binary_to_list(Blob)),
+            Replicator ! {Ref, do_put(SrcPath, PutUrl)},
+            replica_server(Master, Root)
+    end.
+
+-spec do_put(path(), nonempty_string()) -> {'ok', [binary(),...]} | {'error', term()}.
+do_put(SrcPath, PutUrl) ->
+    case ddfs_http:http_put(SrcPath, PutUrl, ?GC_PUT_TIMEOUT) of
+        {ok, Body} ->
+            case catch mochijson2:decode(Body) of
+                {'EXIT', _, _} ->
+                    {error, {server_error, Body}};
+                Resp when is_binary(Resp) ->
+                    case ddfs_util:parse_url(Resp) of
+                        not_ddfs ->
+                            {error, {server_error, Body}};
+                        _ ->
+                            {ok, [Resp]}
+                    end;
+                _Err ->
+                    {error, {server_error, Body}}
+            end;
+        {error, E} ->
+            {error, E}
+    end.

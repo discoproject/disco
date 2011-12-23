@@ -94,7 +94,7 @@ update_tag_cache(TagCache) ->
 
 init(_Args) ->
     spawn_link(fun() -> monitor_diskspace() end),
-    spawn_link(fun() -> ddfs_gc:start_gc() end),
+    spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
     spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
     {ok, #state{tags = gb_trees:empty(),

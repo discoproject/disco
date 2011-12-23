@@ -64,11 +64,24 @@
 % first GC.
 -define(GC_INITIAL_WAIT, 5 * ?MINUTE).
 
+% Maximum number of times we try to bring up a node that failed during
+% GC before we abort GC.
+-define(MAX_GC_NODE_FAILURES, 3).
+
+% The longest potential interval between messages in the GC protocol;
+% used to ensure GC makes forward progress.  This can be set to the
+% estimated time to traverse all the volumes on a DDFS node.
+-define(GC_PROGRESS_INTERVAL, 30 * ?MINUTE).
+
 % Tag cache expires in this many milliseconds if tag can't be fetched
 -define(TAG_EXPIRES_ONERROR, 1 * ?SECOND).
 
 % Number of tag replicas: min(length(Nodes), ?TAG_REPLICAS)
 % -define(TAG_REPLICAS, 3).
+
+% Number of extra replicas (i.e. lost replicas recovered during GC) to
+% allow before deleting extra replicas.
+-define(NUM_EXTRA_REPLICAS, 1).
 
 % Permissions for blobs and tags
 -define(FILE_MODE, 8#00400).

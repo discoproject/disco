@@ -3,6 +3,7 @@
 -behaviour(gen_server).
 
 -include("config.hrl").
+-include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
 -export([start/2, init/1, handle_call/3, handle_cast/2,
@@ -66,11 +67,15 @@ init(TagName, Data, Timeout) ->
 % We don't want to cache requests made by garbage collector
 handle_cast({gc_get, ReplyTo}, #state{data = none} = S) ->
     handle_cast({gc_get0, ReplyTo}, S#state{timeout = 100});
+handle_cast({notify, M}, #state{data = none} = S) ->
+    handle_cast({notify0, M}, S#state{timeout = 100});
 
 % On the other hand, if tag is already cached, GC'ing should
 % not trash it
 handle_cast({gc_get, ReplyTo}, S) ->
     handle_cast({gc_get0, ReplyTo}, S);
+handle_cast({notify, M}, S) ->
+    handle_cast({notify0, M}, S);
 
 % First request for this tag: No tag data loaded - load it
 handle_cast(M, #state{data = none} = S) ->
@@ -95,10 +100,9 @@ handle_cast(M, #state{data = none} = S) ->
             {error, _} = E ->
                 {E, false, ?TAG_EXPIRES_ONERROR}
         end,
-    handle_cast(M, S#state{
-                data = Data,
-                replicas = Replicas,
-                timeout = lists:min([Timeout, S#state.timeout])});
+    handle_cast(M, S#state{data = Data,
+                           replicas = Replicas,
+                           timeout = lists:min([Timeout, S#state.timeout])});
 
 % Delayed update with an empty buffer, initialize the buffer and a flush process
 handle_cast({{delayed_update, _, _, _}, _} = M,
@@ -197,6 +201,10 @@ handle_cast({{delete_attrib, Field, Token}, ReplyTo},
 handle_cast({{delete_attrib, _Field, _Token}, ReplyTo}, S) ->
     _ = send_replies(ReplyTo, {error, unknown_attribute}),
     {noreply, S, S#state.timeout};
+
+handle_cast({notify0, {gc_rr_update, Updates}}, S) ->
+    S1 = do_gc_rr_update(S, Updates),
+    {noreply, S1, S1#state.timeout};
 
 % Special operations for the +deleted metatag
 
@@ -330,6 +338,71 @@ send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
     send_replies([ReplyTo], Message);
 send_replies(ReplyToList, Message) ->
     [gen_server:reply(Re, Message) || Re <- ReplyToList].
+
+
+-spec do_gc_rr_update(#state{}, [{object_name(), [url()]}]) ->
+                             #state{}.
+do_gc_rr_update(#state{data = {missing, _}} = S, _Updates) ->
+    % The tag has been deleted, or cannot be found; ignore the update.
+    S;
+do_gc_rr_update(#state{data = {error, _}} = S, _Updates) ->
+    % Error retrieving tag data; ignore the update.
+    S;
+do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S, Updates) ->
+    OldUrls = D#tagcontent.urls,
+    Map = gb_trees:from_orddict(lists:sort(Updates)),
+    NewUrls = gc_update_urls(OldUrls, Map),
+    {ok, NewTagContent} =
+        ddfs_tag_util:update_tagcontent(TagName, urls, NewUrls, Tag, null),
+    NewTagData = ddfs_tag_util:encode_tagcontent(NewTagContent),
+    TagId = NewTagContent#tagcontent.id,
+    case put_distribute({TagId, NewTagData}) of
+        {ok, DestNodes, _} ->
+            S#state{data = {ok, NewTagContent},
+                    replicas = DestNodes,
+                    url_cache = init_url_cache(NewUrls)};
+        {error, _} = E ->
+            error_logger:error_report({"GC: unable to update tag", TagName, E}),
+            S
+    end.
+
+-spec gc_update_urls([[url()]], gb_tree()) -> [[url()]].
+gc_update_urls(OldUrls, Map) ->
+    gc_update_urls(OldUrls, Map, []).
+gc_update_urls([], _Map, Acc) ->
+    lists:reverse(Acc);
+gc_update_urls([[] | Rest], Map, Acc) ->
+    gc_update_urls(Rest, Map, Acc);
+gc_update_urls([[Url|_] = BlobSet | Rest], Map, Acc) ->
+    case ddfs_util:parse_url(Url) of
+        not_ddfs ->
+            gc_update_urls(Rest, Map, [BlobSet|Acc]);
+        {_, _, _, _, BlobName} ->
+            case gb_trees:lookup(BlobName, Map) of
+                none ->
+                    gc_update_urls(Rest, Map, [BlobSet|Acc]);
+                {value, NewUrls} ->
+                    % Ensure that new locations use the same scheme as
+                    % the existing locations.  Also, _add_, not
+                    % _replace_, the updates to the current set, since
+                    % the current set could include locations on nodes
+                    % that happened to be down during the GC/RR
+                    % session.
+                    NewBlobSet = rewrite_scheme(Url, NewUrls) ++ BlobSet,
+                    gc_update_urls(Rest, Map, [lists:usort(NewBlobSet)|Acc])
+            end
+    end.
+
+-spec rewrite_scheme(url(), [url()]) -> [url()].
+rewrite_scheme(OrigUrl, Urls) ->
+    {S, _, _, _, _} = mochiweb_util:urlsplit(binary_to_list(OrigUrl)),
+    lists:map(fun(U) ->
+                      U1 = binary_to_list(U),
+                      {_, H, P, Q, F} = mochiweb_util:urlsplit(U1),
+                      NewU = mochiweb_util:urlunsplit({S, H, P, Q, F}),
+                      list_to_binary(NewU)
+              end,
+              Urls).
 
 -spec get_tagdata(tagname()) -> {'missing', 'notfound'} | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.
