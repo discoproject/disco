@@ -166,7 +166,6 @@
 -type state() :: #state{}.
 
 -type object_location() :: {node(), volume_name()}.
--type rr_result() :: 'error' | 'timeout' | [url()].
 
 %% ===================================================================
 %% launch entry point
@@ -189,9 +188,9 @@ is_orphan(Master, Type, ObjName, Vol) ->
 node_gc_done(Master) ->
     gen_server:cast(Master, {gc_done, node()}).
 
--spec add_replicas(pid(), object_name(), rr_result()) -> 'ok'.
-add_replicas(Master, Blob, Result) ->
-    gen_server:cast(Master, {add_replicas, Blob, Result}).
+-spec add_replicas(pid(), object_name(), [url()]) -> 'ok'.
+add_replicas(Master, Blob, NewUrls) ->
+    gen_server:cast(Master, {add_replicas, Blob, NewUrls}).
 
 
 %% ===================================================================
@@ -349,11 +348,11 @@ handle_cast({rr_blob, '$end_of_table'},
 handle_cast({rr_blob, Next}, #state{phase = rr_blobs} = S) ->
     rereplicate_blob(S, Next),
     {noreply, S};
-handle_cast({add_replicas, Blob, Result}, #state{phase = Phase} = S)
+handle_cast({add_replicas, Blob, NewUrls}, #state{phase = Phase} = S)
   when Phase =:= rr_blobs; Phase =:= rr_blobs_wait ->
-    add_replicas(Blob, Result),
+    update_replicas(S, Blob, NewUrls),
     {noreply, S};
-handle_cast({add_replicas, _Blob, _Result} = M, #state{phase = Phase} = S) ->
+handle_cast({add_replicas, _Blob, _NewUrls} = M, #state{phase = Phase} = S) ->
     error_logger:info_report({"GC: ignoring late response", M, Phase}),
     {noreply, S};
 
@@ -622,7 +621,7 @@ start_gc_phase(S) ->
     % gc_objects: {Key :: {object_type(), object_name()},
     %              Present :: [node()],
     %              Recovered :: [object_location()],
-    %              Update :: rr_update()}
+    %              Update :: rep_update()}
     _ = ets:new(gc_objects, [named_table, set, private]),
 
     _ = ets:foldl(
@@ -632,7 +631,7 @@ start_gc_phase(S) ->
                   Key = {Type, ObjName},
                   case ets:lookup(gc_objects, Key) of
                       [] ->
-                          Entry = {Key, [Node], [], pending},
+                          Entry = {Key, [Node], [], noupdate},
                           ets:insert(gc_objects, Entry);
                       [{_, Present, _, _}] ->
                           Acc = [Node | Present],
@@ -781,7 +780,6 @@ process_deleted(Tags, Ages) ->
 %% blob rereplication
 
 -type rep_result() :: 'noupdate' | {'update', [url()]}.
--type rr_update() :: 'pending' | rep_result().
 
 % Rereplicate at most one blob, and then return.
 -spec rereplicate_blob(state(), rr_next() | '$end_of_table') -> 'ok'.
@@ -801,7 +799,7 @@ rereplicate_blob(S, {blob, Blob} = Key) ->
 
 -spec rereplicate_blob(state(), object_name(), [node()],
                        [object_location()], non_neg_integer())
-                      -> rr_update().
+                      -> rep_result().
 rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
     BL = S#state.blacklist,
     SafePresent = [N || N <- Present, not lists:member(N, BL)],
@@ -828,10 +826,9 @@ rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
             error_logger:warning_report({"GC: all replicas missing!!!", Blob}),
             noupdate;
         {_, _NumPresent, NumRecovered} ->
-            % Extra replicas are needed; we generate one new replica
-            % at a time, in a single-shot way. We use any available
-            % replicas as sources, including those from blacklisted
-            % nodes.
+            % Extra replicas are needed; we generate one new replica at a
+            % time, in a single-shot way. We use any available replicas as
+            % sources, including those from blacklisted nodes.
             {RepNodes, _RepVols} = lists:unzip(Recovered),
             OkNodes = RepNodes ++ Present,
             case {try_put_blob(S, Blob, OkNodes, BL), NumRecovered} of
@@ -841,7 +838,8 @@ rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
                     % We should record the usable recovered replicas.
                     {update, []};
                 {pending, _} ->
-                    pending
+                    % Mark the blob as updatable (see update_replicas/3).
+                    {update, []}
             end
     end.
 
@@ -859,24 +857,15 @@ try_put_blob(#state{rr_pid = RR} = S, Blob, OkNodes, BL) ->
     end.
 
 % gen_server update handler.
--spec add_replicas(object_name(), rr_result()) -> 'ok'.
-add_replicas(Blob, Result) ->
+-spec update_replicas(state(), object_name(), [url()]) -> 'ok'.
+update_replicas(_S, Blob, NewUrls) ->
     Key = {blob, Blob},
-    [{_, _Present, Recovered, _}] = ets:lookup(gc_objects, Key),
-    FinalReps = replica_update(Recovered, Result),
-    _ = ets:update_element(gc_objects, Key, {4, FinalReps}),
+    % An update can only arrive for a blob that was marked for replication
+    % (see rereplicate_blob/5).
+    [{_, _Present, _Recovered, {update, Urls}}] = ets:lookup(gc_objects, Key),
+    Update = {update, NewUrls ++ Urls},
+    _ = ets:update_element(gc_objects, Key, {4, Update}),
     ok.
-
--spec replica_update([object_location()], rr_result()) -> rep_result().
-replica_update(Recovered, error) ->
-    replica_update(Recovered, []);
-replica_update(Recovered, timeout) ->
-    replica_update(Recovered, []);
-replica_update(Recovered, NewLocs) ->
-    case {length(Recovered), length(NewLocs)} of
-        {0, 0} -> noupdate;
-        {_, _} -> {update, NewLocs}
-    end.
 
 
 % Coordinate blob transfers in a separate process, which can wait for
@@ -907,19 +896,23 @@ stop_replicator(RR) ->
                   pid(), node(), binary()) -> 'ok'.
 do_put_blob(Master, Ref, Blob, SrcPeer, SrcNode, PutUrl) ->
     SrcPeer ! {put_blob, self(), Ref, Blob, PutUrl},
-    wait_put_blob(Master, Ref, Blob, SrcNode).
+    wait_put_blob(Master, Ref, SrcNode).
 
--spec wait_put_blob(pid(), non_neg_integer(), object_name(), node()) -> 'ok'.
-wait_put_blob(Master, Ref, Blob, SrcNode) ->
+-spec wait_put_blob(pid(), non_neg_integer(), node()) -> 'ok'.
+wait_put_blob(Master, Ref, SrcNode) ->
     receive
-        {Ref, {ok, NewUrls}} ->
+        {Ref, {ok, Blob, NewUrls}} ->
             add_replicas(Master, Blob, NewUrls);
         {Ref, _E} ->
-            add_replicas(Master, Blob, error);
+            ok;
+        {_OldRef, {ok, Blob, NewUrls}} ->
+            % Delayed response.
+            add_replicas(Master, Blob, NewUrls),
+            wait_put_blob(Master, Ref, SrcNode);
         {_OldRef, _OldResult} ->
-            wait_put_blob(Master, Ref, Blob, SrcNode)
+            wait_put_blob(Master, Ref, SrcNode)
     after ?GC_PUT_TIMEOUT ->
-            add_replicas(Master, Blob, timeout)
+            ok
     end.
 
 

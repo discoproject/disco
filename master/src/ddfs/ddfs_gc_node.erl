@@ -161,12 +161,13 @@ replica_server(Master, Root) ->
             {ok, Path, _} =
                 ddfs_util:hashdir(Blob, "nonode!", "blob", Root, VolName),
             SrcPath = filename:join(Path, binary_to_list(Blob)),
-            Replicator ! {Ref, do_put(SrcPath, PutUrl)},
+            Replicator ! {Ref, do_put(Blob, SrcPath, PutUrl)},
             replica_server(Master, Root)
     end.
 
--spec do_put(path(), nonempty_string()) -> {'ok', [binary(),...]} | {'error', term()}.
-do_put(SrcPath, PutUrl) ->
+-spec do_put(object_name(), path(), nonempty_string()) ->
+                    {'ok', object_name(), [binary(),...]} | {'error', term()}.
+do_put(Blob, SrcPath, PutUrl) ->
     case ddfs_http:http_put(SrcPath, PutUrl, ?GC_PUT_TIMEOUT) of
         {ok, Body} ->
             case catch mochijson2:decode(Body) of
@@ -177,7 +178,7 @@ do_put(SrcPath, PutUrl) ->
                         not_ddfs ->
                             {error, {server_error, Body}};
                         _ ->
-                            {ok, [Resp]}
+                            {ok, Blob, [Resp]}
                     end;
                 _Err ->
                     {error, {server_error, Body}}
