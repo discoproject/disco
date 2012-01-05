@@ -138,9 +138,7 @@
 -include("ddfs_tag.hrl").
 -include("ddfs_gc.hrl").
 
--define(MAX_TAG_CHECK_RETRIES, 3).
 -define(NODE_RETRY_WAIT, 30000).
--define(GET_TAG_TIMEOUT, 1 * ?MINUTE).
 
 -type rr_next() :: {object_type(), object_name()}.
 -record(state, {
@@ -269,7 +267,7 @@ handle_cast({retry_node, Node}, #state{phase = Phase} = S) ->
     {noreply, S#state{gc_peers = Peers}};
 
 handle_cast({build_map, [T|Tags]}, #state{phase = build_map} = S) ->
-    case catch check_tag(T, S, ?MAX_TAG_CHECK_RETRIES) of
+    case catch check_tag(T, S, ?MAX_TAG_OP_RETRIES) of
         {ok, Sent} ->
             gen_server:cast(self(), {build_map, Tags}),
             Pending = S#state.num_pending_reqs + Sent,
@@ -355,7 +353,7 @@ handle_cast({add_replicas, _Blob, _Result} = M, #state{phase = Phase} = S) ->
     {noreply, S};
 
 handle_cast({rr_tags, [T|Tags]}, #state{phase = rr_tags} = S) ->
-    update_tag(S, T, ?MAX_TAG_CHECK_RETRIES),
+    update_tag(S, T, ?MAX_TAG_OP_RETRIES),
     gen_server:cast(self(), {rr_tags, Tags}),
     {noreply, S};
 handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->

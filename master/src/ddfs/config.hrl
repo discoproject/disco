@@ -127,3 +127,9 @@
 % time frame. To be on the safe side, make the period long
 % enough.
 -define(DELETED_TAG_EXPIRES, 30 * ?DAY).
+
+% How many times a tag operation should be retried before aborting.
+-define(MAX_TAG_OP_RETRIES, 3).
+
+% How long to wait before timing out a tag retrieval.
+-define(GET_TAG_TIMEOUT, 5 * ?MINUTE).

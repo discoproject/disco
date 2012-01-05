@@ -21,6 +21,7 @@
 -define(WEB_PORT, 8011).
 
 -include("config.hrl").
+-include("ddfs.hrl").
 
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -record(state, {nodes :: [node_info()],
@@ -129,6 +130,9 @@ handle_call({get_tags, Mode}, From, #state{nodes = Nodes} = S) ->
     spawn(fun() ->
               gen_server:reply(From, do_get_tags(Mode, [N || {N, _} <- Nodes]))
           end),
+    {noreply, S};
+handle_call({get_hosted_tags, Host}, From, S) ->
+    spawn(fun() -> gen_server:reply(From, ddfs_gc:hosted_tags(Host)) end),
     {noreply, S}.
 
 handle_cast({tag_notify, M, Tag}, S) ->
