@@ -704,7 +704,7 @@ check_is_orphan(S, Type, ObjName, Node, Vol) ->
                 {false, false} ->
                     {RepNodes, _RepVols} = lists:unzip(Recovered),
                     Blacklist = S#state.blacklist,
-                    Usable = lists:usort(RepNodes ++ Present -- Blacklist),
+                    Usable = find_usable(Blacklist, lists:usort(RepNodes ++ Present)),
                     case length(Usable) > MaxReps of
                         true ->
                             {ok, true};
@@ -775,6 +775,17 @@ process_deleted(Tags, Ages) ->
               end
       end, ets:tab2list(Ages)).
 
+%% ===================================================================
+%% blacklist utilities
+
+% This is more dialyzer friendly than an inline call.
+-spec find_usable([node()], [node()]) -> [node()].
+find_usable(BL, Nodes) ->
+    lists:filter(fun(N) -> not lists:member(N, BL) end, Nodes).
+
+-spec find_unusable([node()], [node()]) -> [node()].
+find_unusable(BL, Nodes) ->
+    lists:filter(fun(N) -> lists:member(N, BL) end, Nodes).
 
 %% ===================================================================
 %% blob rereplication
@@ -802,30 +813,25 @@ rereplicate_blob(S, {blob, Blob} = Key) ->
                       -> rep_result().
 rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
     BL = S#state.blacklist,
-    SafePresent = [N || N <- Present, not lists:member(N, BL)],
+    SafePresent = find_usable(BL, Present),
     SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
-    case {Present =:= SafePresent, length(SafePresent), length(SafeRecovered)} of
-        {true, NumPresent, NumRecovered}
-          when NumPresent >= Blobk, NumRecovered =:= 0 ->
-            % No need for replication or tag update.
+    case {length(SafePresent), length(SafeRecovered)} of
+        {NumPresent, NumRecovered}
+          when NumRecovered =:= 0, NumPresent >= Blobk ->
+            % No need for replication or blob update.
             noupdate;
-        {true, NumPresent, NumRecovered}
+        {NumPresent, NumRecovered}
           when NumRecovered > 0, NumPresent + NumRecovered >= Blobk ->
             % No need for new replication; containing tags need updating to
-            % recover lost replicas.
+            % recover lost blob replicas.
             {update, []};
-        {false, NumPresent, NumRecovered}
-          when NumPresent + NumRecovered >= Blobk ->
-            % No need for new replication; containing tags need updating to
-            % remove blacklist and recover any available replicas.
-            {update, []};
-        {_, 0, 0}
+        {0, 0}
           when length(Present) =:= 0, length(Recovered) =:= 0 ->
             % We have no good copies from which to generate new replicas;
             % we have no option but to live with the current information.
             error_logger:warning_report({"GC: all replicas missing!!!", Blob}),
             noupdate;
-        {_, _NumPresent, NumRecovered} ->
+        {_NumPresent, NumRecovered} ->
             % Extra replicas are needed; we generate one new replica at a
             % time, in a single-shot way. We use any available replicas as
             % sources, including those from blacklisted nodes.
@@ -942,48 +948,74 @@ update_tag(S, T, Retries) ->
 update_tag_body(S, Tag, _Id, TagUrls, TagReplicas) ->
     % Collect the blobs that need updating, and compute their new
     % replica locations.
-    Updates = collect_updated_blobs(S, TagUrls),
-    case {Updates, length(TagReplicas)} of
+    Updates = collect_updates(S, TagUrls),
+    UsableTagReplicas = find_usable(S#state.blacklist, TagReplicas),
+    case {Updates, length(UsableTagReplicas)} of
         {[], NumTagReps} when NumTagReps >= S#state.tagk ->
             % There are no blob updates, and there are the requisite
             % number of tag replicas; tag doesn't need update.
             ok;
         _ ->
             % In all other cases, send the tag an update.
-            ddfs_master:tag_notify({gc_rr_update, Updates}, Tag)
+            Msg = {gc_rr_update, Updates, S#state.blacklist},
+            ddfs_master:tag_notify(Msg, Tag)
     end.
 
--spec collect_updated_blobs(state(), [[url()]]) ->
-                                   [{object_name(), [url()]}].
-collect_updated_blobs(S, BlobSets) ->
-    collect_updated_blobs(S, BlobSets, []).
-collect_updated_blobs(_S, [], Updates) ->
+-spec collect_updates(state(), [[url()]]) -> [blob_update()].
+collect_updates(S, BlobSets) ->
+    collect_updates(S, BlobSets, []).
+collect_updates(_S, [], Updates) ->
     Updates;
-collect_updated_blobs(S, [[]|Rest], Updates) ->
-    collect_updated_blobs(S, Rest, Updates);
-collect_updated_blobs(S, [BlobSet|Rest], Updates) ->
-    {[BlobName|_], _Nodes} = lists:unzip([ddfs_url(Url) || Url <- BlobSet]),
+collect_updates(S, [[]|Rest], Updates) ->
+    collect_updates(S, Rest, Updates);
+collect_updates(S, [BlobSet|Rest], Updates) ->
+    {[BlobName|_], Nodes} = lists:unzip([ddfs_url(Url) || Url <- BlobSet]),
     case BlobName of
         ignore ->
-            collect_updated_blobs(S, Rest, Updates);
+            collect_updates(S, Rest, Updates);
         _ ->
             case ets:lookup(gc_objects, {blob, BlobName}) of
                 [] ->
                     % New blob added after GC/RR started.
-                    collect_updated_blobs(S, Rest, Updates);
-                [{_, _P, RecLocs, {update, NewUrls}}] ->
-                    % Merge current state with update.  This assumes
-                    % DDFS_DATA is the same on all nodes.
-                    RecUrls = [ddfs_util:hashdir(BlobName,
-                                                 disco:host(N),
-                                                 "blob",
-                                                 S#state.root,
-                                                 V)
-                               || {N, V} <- RecLocs],
-                    NewUpdates = [{BlobName, RecUrls ++ NewUrls} | Updates],
-                    collect_updated_blobs(S, Rest, NewUpdates);
-                [{_, _P, _R, noupdate}] ->
-                    % No updates for this blob.
-                    collect_updated_blobs(S, Rest, Updates)
+                    collect_updates(S, Rest, Updates);
+                [{_, P, _R, noupdate}] ->
+                    % Check whether blacklist filtering is needed,
+                    % provided we have enough replicas present.  Since
+                    % this is marked noupdate, we have no usable
+                    % recovered replicas.
+                    SafePresent = find_usable(S#state.blacklist, P),
+                    ToFilter = find_unusable(S#state.blacklist, Nodes),
+                    case ((ToFilter =/= [])
+                          andalso (length(SafePresent) >= S#state.blobk)) of
+                        true ->
+                            Update = {BlobName, filter},
+                            collect_updates(S, Rest, [Update | Updates]);
+                        false ->
+                            % Blacklist filtering is not needed, or
+                            % it's not yet safe.
+                            collect_updates(S, Rest, Updates)
+                    end;
+                [{_, _P, R, {update, NewUrls}}] ->
+                    add_blob_update(S, BlobName, R, NewUrls, Updates)
             end
+    end.
+
+-spec add_blob_update(state(), object_name(), [object_location()],
+                      [url()], [blob_update()]) -> [blob_update()].
+add_blob_update(S, BlobName, Recovered, NewUrls, AccUpdates) ->
+    SafeRecovered = [{N, V} || {N, V} <- Recovered,
+                               not lists:member(N, S#state.blacklist)],
+    RecUrls = lists:map(
+                fun({N, V}) ->
+                        {ok, _Local, Url} = ddfs_util:hashdir(BlobName,
+                                                              disco:host(N),
+                                                              "blob",
+                                                              S#state.root,
+                                                              V),
+                        Url
+                end, SafeRecovered),
+    AddedUrls = lists:usort(RecUrls ++ NewUrls),
+    case AddedUrls of
+        [] -> AccUpdates;
+        _  -> [{BlobName, AddedUrls} | AccUpdates]
     end.
