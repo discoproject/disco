@@ -124,12 +124,15 @@ handle_call(get_read_nodes, _F, #state{nodes = Nodes, read_blacklist = RB} = S) 
 handle_call(get_gc_blacklist, _F, #state{gc_blacklist = Nodes} = S) ->
     {reply, {ok, Nodes}, S};
 
-handle_call({choose_write_nodes, K, Exclude}, _, #state{write_blacklist = BL} = S) ->
+handle_call({choose_write_nodes, K, Exclude}, _,
+            #state{write_blacklist = WBL, gc_blacklist = GBL} = S) ->
+    BL = lists:usort(WBL ++ GBL),
     {reply, do_choose_write_nodes(S#state.nodes, K, Exclude, BL), S};
 
-handle_call({new_blob, Obj, K, Exclude}, _, #state{nodes = Nodes,
-                                                   write_blacklist = BL} = S) ->
-    {reply, do_new_blob(Obj, K, Exclude, BL, Nodes), S};
+handle_call({new_blob, Obj, K, Exclude}, _,
+            #state{nodes = N, gc_blacklist = GBL, write_blacklist = WBL} = S) ->
+    BL = lists:usort(WBL ++ GBL),
+    {reply, do_new_blob(Obj, K, Exclude, BL, N), S};
 
 handle_call({tag, _M, _Tag}, _From, #state{nodes = []} = S) ->
     {reply, {error, no_nodes}, S};
