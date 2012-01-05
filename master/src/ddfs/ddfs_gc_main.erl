@@ -686,18 +686,37 @@ check_is_orphan(S, Type, ObjName, Node, Vol) ->
                 {_, true} ->
                     % Re-check of an already recovered object.
                     {ok, false};
+                % Use a fast path for the normal case when there is no
+                % blacklist.
                 {false, false}
-                  when length(Present) + length(Recovered) > MaxReps ->
+                  when S#state.blacklist =:= [],
+                       length(Present) + length(Recovered) > MaxReps ->
                     % This is a newly recovered replica, but we have
                     % more than enough replicas, so we can afford
                     % marking this as an orphan.
                     {ok, true};
-                {false, false} ->
+                {false, false}
+                  when S#state.blacklist =:= [] ->
                     % This is a usable, newly-recovered, lost replica;
                     % record the volume for later use.
                     NewRecovered = lists:sort([{Node, Vol} | Recovered]),
                     ets:update_element(gc_objects, Key, {3, NewRecovered}),
-                    {ok, false}
+                    {ok, false};
+                {false, false} ->
+                    {RepNodes, _RepVols} = lists:unzip(Recovered),
+                    Blacklist = S#state.blacklist,
+                    Usable = lists:usort(RepNodes ++ Present -- Blacklist),
+                    case length(Usable) > MaxReps of
+                        true ->
+                            {ok, true};
+                        false ->
+                            % Note that Node could belong to the blacklist; we
+                            % still record the replica so that we can use it for
+                            % re-replication if needed.
+                            NewRecovered = lists:sort([{Node, Vol} | Recovered]),
+                            ets:update_element(gc_objects, Key, {3, NewRecovered}),
+                            {ok, false}
+                    end
             end
     end.
 
