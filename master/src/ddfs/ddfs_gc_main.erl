@@ -803,28 +803,38 @@ rereplicate_blob(S, {blob, Blob} = Key) ->
                        [object_location()], non_neg_integer())
                       -> rr_update().
 rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
-    case {length(Present), length(Recovered)} of
-        {NumPresent, NumRecovered}
+    BL = S#state.blacklist,
+    SafePresent = [N || N <- Present, not lists:member(N, BL)],
+    SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
+    case {Present =:= SafePresent, length(SafePresent), length(SafeRecovered)} of
+        {true, NumPresent, NumRecovered}
           when NumPresent >= Blobk, NumRecovered =:= 0 ->
             % No need for replication or tag update.
             noupdate;
-        {NumPresent, NumRecovered}
-          when NumPresent + NumRecovered >= Blobk ->
-            % No need for new replication; containing tags need
-            % updating to recover lost replicas.
+        {true, NumPresent, NumRecovered}
+          when NumRecovered > 0, NumPresent + NumRecovered >= Blobk ->
+            % No need for new replication; containing tags need updating to
+            % recover lost replicas.
             {update, []};
-        {0, 0} ->
-            % We have no good copies from which to generate new
-            % replicas; we have no option but to live with the current
-            % information.
+        {false, NumPresent, NumRecovered}
+          when NumPresent + NumRecovered >= Blobk ->
+            % No need for new replication; containing tags need updating to
+            % remove blacklist and recover any available replicas.
+            {update, []};
+        {_, 0, 0}
+          when length(Present) =:= 0, length(Recovered) =:= 0 ->
+            % We have no good copies from which to generate new replicas;
+            % we have no option but to live with the current information.
             error_logger:warning_report({"GC: all replicas missing!!!", Blob}),
             noupdate;
-        {_NumPresent, _NumRecovered} ->
+        {_, _NumPresent, _NumRecovered} ->
             % Extra replicas are needed; we generate one new replica
-            % at a time, in a single-shot way.
+            % at a time, in a single-shot way. We use any available
+            % replicas as sources, including those from blacklisted
+            % nodes.
             {RepNodes, _RepVols} = lists:unzip(Recovered),
             OkNodes = RepNodes ++ Present,
-            case try_put_blob(S, Blob, OkNodes) of
+            case try_put_blob(S, Blob, OkNodes, BL) of
                 {error, _E} ->
                     replica_update(Recovered, error);
                 pending ->
@@ -832,10 +842,10 @@ rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
             end
     end.
 
--spec try_put_blob(state(), object_name(), [node(), ...]) ->
+-spec try_put_blob(state(), object_name(), [node(),...], [node()]) ->
                           'pending' | {'error', term()}.
-try_put_blob(#state{rr_pid = RR} = S, Blob, OkNodes) ->
-    case ddfs_master:new_blob(Blob, 1, OkNodes) of
+try_put_blob(#state{rr_pid = RR} = S, Blob, OkNodes, BL) ->
+    case ddfs_master:new_blob(Blob, 1, OkNodes ++ BL) of
         {ok, [PutUrl]} ->
             Srcs = [{find_peer(S#state.gc_peers, N), N} || N <- OkNodes],
             {SrcPeer, SrcNode} = ddfs_util:choose_random(Srcs),
