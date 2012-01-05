@@ -5,11 +5,13 @@
 -export([get_tags/1,
          get_nodeinfo/1,
          get_read_nodes/0,
+         get_gc_blacklist/0,
          choose_write_nodes/2,
          new_blob/3,
          tag_notify/2,
          tag_operation/2, tag_operation/3,
-         update_nodes/1
+         update_nodes/1,
+         update_gc_blacklist/1
         ]).
 -export([init/1,
          handle_call/3,
@@ -24,11 +26,13 @@
 -include("ddfs.hrl").
 
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
--record(state, {nodes :: [node_info()],
-                tags :: gb_tree(),
-                tag_cache :: 'false' | gb_set(),
-                write_blacklist :: [node()],
-                read_blacklist :: [node()]}).
+-record(state, {tags      = gb_trees:empty() :: gb_tree(),
+                tag_cache = false            :: 'false' | gb_set(),
+
+                nodes           = [] :: [node_info()],
+                write_blacklist = [] :: [node()],
+                read_blacklist  = [] :: [node()],
+                gc_blacklist    = [] :: [node()]}).
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
 
@@ -64,6 +68,10 @@ get_nodeinfo(all) ->
 get_read_nodes() ->
     gen_server:call(?MODULE, get_read_nodes).
 
+-spec get_gc_blacklist() -> {'ok', [node()]}.
+get_gc_blacklist() ->
+    gen_server:call(?MODULE, get_gc_blacklist).
+
 -spec choose_write_nodes(non_neg_integer(), [node()]) -> {'ok', [node()]}.
 choose_write_nodes(K, Exclude) ->
     gen_server:call(?MODULE, {choose_write_nodes, K, Exclude}).
@@ -90,6 +98,10 @@ update_nodestats(NewNodes) ->
 update_tag_cache(TagCache) ->
     gen_server:cast(?MODULE, {update_tag_cache, TagCache}).
 
+-spec update_gc_blacklist([node()]) -> 'ok'.
+update_gc_blacklist(Nodes) ->
+    gen_server:cast(?MODULE, {update_gc_blacklist, Nodes}).
+
 %% ===================================================================
 %% gen_server callbacks
 
@@ -98,11 +110,7 @@ init(_Args) ->
     spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
     spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
-    {ok, #state{tags = gb_trees:empty(),
-                tag_cache = false,
-                nodes = [],
-                write_blacklist = [],
-                read_blacklist = []}}.
+    {ok, #state{}}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -112,6 +120,9 @@ handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
 
 handle_call(get_read_nodes, _F, #state{nodes = Nodes, read_blacklist = RB} = S) ->
     {reply, do_get_readable_nodes(Nodes, RB), S};
+
+handle_call(get_gc_blacklist, _F, #state{gc_blacklist = Nodes} = S) ->
+    {reply, {ok, Nodes}, S};
 
 handle_call({choose_write_nodes, K, Exclude}, _, #state{write_blacklist = BL} = S) ->
     {reply, do_choose_write_nodes(S#state.nodes, K, Exclude, BL), S};
@@ -145,7 +156,10 @@ handle_cast({update_nodes, NewNodes}, S) ->
     {noreply, do_update_nodes(NewNodes, S)};
 
 handle_cast({update_nodestats, NewNodes}, S) ->
-    {noreply, do_update_nodestats(NewNodes, S)}.
+    {noreply, do_update_nodestats(NewNodes, S)};
+
+handle_cast({update_gc_blacklist, Nodes}, S) ->
+    {noreply, S#state{gc_blacklist = Nodes}}.
 
 handle_info({'DOWN', _, _, Pid, _}, S) ->
     {noreply, do_tag_exit(Pid, S)}.

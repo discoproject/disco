@@ -158,6 +158,7 @@
           % static state
           tags              = []      :: [object_name()],
           root              = ""      :: string(),
+          blacklist         = []      :: [node()],
 
           tagmink :: non_neg_integer(),
           tagk    :: non_neg_integer(),
@@ -231,6 +232,7 @@ handle_call(dbg_get_state, _, S) ->
 handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
     error_logger:info_report({"GC: initializing"}),
     {OkNodes, Failed, Tags} = ddfs_master:get_tags(all),
+    {ok, Blacklist} = ddfs_master:get_gc_blacklist(),
     {NumOk, NumFailed} = {length(OkNodes), length(Failed)},
     if NumOk > 0, NumFailed < TagMinK ->
             error_logger:info_report({"GC: building map, with", NumFailed,
@@ -244,7 +246,10 @@ handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
             % way, we can also react to node disconnects during the
             % tag processing.
             gen_server:cast(self(), {build_map, Tags}),
-            {noreply, S#state{phase = Phase, gc_peers = Peers, tags = Tags}};
+            {noreply, S#state{phase = Phase,
+                              gc_peers = Peers,
+                              tags = Tags,
+                              blacklist = Blacklist}};
        true ->
             error_logger:error_report({"GC: stopping, too many failed nodes",
                                        NumFailed, TagMinK, NumOk}),
