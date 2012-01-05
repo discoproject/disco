@@ -827,17 +827,20 @@ rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
             % we have no option but to live with the current information.
             error_logger:warning_report({"GC: all replicas missing!!!", Blob}),
             noupdate;
-        {_, _NumPresent, _NumRecovered} ->
+        {_, _NumPresent, NumRecovered} ->
             % Extra replicas are needed; we generate one new replica
             % at a time, in a single-shot way. We use any available
             % replicas as sources, including those from blacklisted
             % nodes.
             {RepNodes, _RepVols} = lists:unzip(Recovered),
             OkNodes = RepNodes ++ Present,
-            case try_put_blob(S, Blob, OkNodes, BL) of
-                {error, _E} ->
-                    replica_update(Recovered, error);
-                pending ->
+            case {try_put_blob(S, Blob, OkNodes, BL), NumRecovered} of
+                {{error, _E}, 0} ->
+                    noupdate;
+                {{error, _E}, _} ->
+                    % We should record the usable recovered replicas.
+                    {update, []};
+                {pending, _} ->
                     pending
             end
     end.
