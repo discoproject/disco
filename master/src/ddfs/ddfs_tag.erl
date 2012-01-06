@@ -204,8 +204,8 @@ handle_cast({{delete_attrib, _Field, _Token}, ReplyTo}, S) ->
     _ = send_replies(ReplyTo, {error, unknown_attribute}),
     {noreply, S, S#state.timeout};
 
-handle_cast({notify0, {gc_rr_update, Updates, Blacklist}}, S) ->
-    S1 = do_gc_rr_update(S, Updates, Blacklist),
+handle_cast({notify0, {gc_rr_update, Updates, Blacklist, UpdateId}}, S) ->
+    S1 = do_gc_rr_update(S, Updates, Blacklist, UpdateId),
     {noreply, S1, S1#state.timeout};
 
 % Special operations for the +deleted metatag
@@ -342,18 +342,19 @@ send_replies(ReplyToList, Message) ->
     [gen_server:reply(Re, Message) || Re <- ReplyToList].
 
 
--spec do_gc_rr_update(#state{}, [blob_update()], [node()]) -> #state{}.
-do_gc_rr_update(#state{data = {missing, _}} = S, _Updates, _Blacklist) ->
+-spec do_gc_rr_update(#state{}, [blob_update()], [node()], tagid()) -> #state{}.
+do_gc_rr_update(#state{data = {missing, _}} = S, _Updates, _Blacklist, _Id) ->
     % The tag has been deleted, or cannot be found; ignore the update.
     S;
-do_gc_rr_update(#state{data = {error, _}} = S, _Updates, _Blacklist) ->
+do_gc_rr_update(#state{data = {error, _}} = S, _Updates, _Blacklist, _Id) ->
     % Error retrieving tag data; ignore the update.
     S;
 do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
-                Updates, Blacklist) ->
+                Updates, Blacklist, UpdateId) ->
     OldUrls = D#tagcontent.urls,
+    Id = D#tagcontent.id,
     Map = gb_trees:from_orddict(lists:sort(Updates)),
-    NewUrls = gc_update_urls(OldUrls, Map, Blacklist),
+    NewUrls = gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId),
     {ok, NewTagContent} =
         ddfs_tag_util:update_tagcontent(TagName, urls, NewUrls, Tag, null),
     NewTagData = ddfs_tag_util:encode_tagcontent(NewTagContent),
@@ -368,38 +369,45 @@ do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
             S
     end.
 
--spec gc_update_urls([[url()]], gb_tree(), [node()]) -> [[url()]].
-gc_update_urls(OldUrls, Map, Blacklist) ->
-    gc_update_urls(OldUrls, Map, Blacklist, []).
-gc_update_urls([], _Map, _Blacklist, Acc) ->
+-spec gc_update_urls(tagid(), [[url()]], gb_tree(), [node()], tagid())
+                    -> [[url()]].
+gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId) ->
+    gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId, []).
+gc_update_urls(_Id, [], _Map, _Blacklist, _UpdateId, Acc) ->
     lists:reverse(Acc);
-gc_update_urls([[] | Rest], Map, Blacklist, Acc) ->
-    gc_update_urls(Rest, Map, Blacklist, Acc);
-gc_update_urls([[Url|_] = BlobSet | Rest], Map, Blacklist, Acc) ->
+gc_update_urls(Id, [[] | Rest], Map, Blacklist, UpdateId, Acc) ->
+    gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, Acc);
+gc_update_urls(Id, [[Url|_] = BlobSet | Rest], Map, Blacklist, UpdateId, Acc) ->
     case ddfs_util:parse_url(Url) of
         not_ddfs ->
-            gc_update_urls(Rest, Map, Blacklist, [BlobSet|Acc]);
+            gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc]);
         {_, _, _, _, BlobName} ->
             case gb_trees:lookup(BlobName, Map) of
                 none ->
-                    gc_update_urls(Rest, Map, Blacklist, [BlobSet|Acc]);
-                {value, filter} ->
+                    gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc]);
+                {value, filter}
+                  when Id =:= UpdateId ->
                     % Only apply the blacklist filter provided we
                     % still retain at least the minimum number of
-                    % replicas.
+                    % replicas.  This is just a sanity check; the real
+                    % safety check is done by GC/RR.
                     Filtered = filter_blacklist(BlobSet, Blacklist),
                     case length(Filtered) >= get(blobk) of
                         true ->
-                            gc_update_urls(Rest, Map, Blacklist, [Filtered|Acc]);
+                            gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [Filtered|Acc]);
                         false ->
-                            gc_update_urls(Rest, Map, Blacklist, [BlobSet|Acc])
+                            gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc])
                     end;
+                {value, filter} ->
+                    % The tag was modified after the filter safety
+                    % check was done; skip the update.
+                    gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc]);
                 {value, NewUrls_} ->
                     % Ensure that new locations use the same scheme as
                     % the existing locations.
                     NewUrls = rewrite_scheme(Url, NewUrls_),
                     NewBlobSet = lists:usort(NewUrls ++ BlobSet),
-                    gc_update_urls(Rest, Map, Blacklist, [NewBlobSet|Acc])
+                    gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [NewBlobSet|Acc])
             end
     end.
 

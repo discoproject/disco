@@ -943,9 +943,9 @@ update_tag(S, T, Retries) ->
 % RR2) Update tags that contain blobs that were re-replicated, and/or
 %      re-replicate tags that don't have enough replicas.
 
--spec update_tag_body(state(), tagname(), object_name(), [[url()]], [node()])
+-spec update_tag_body(state(), tagname(), tagid(), [[url()]], [node()])
                      -> 'ok'.
-update_tag_body(S, Tag, _Id, TagUrls, TagReplicas) ->
+update_tag_body(S, Tag, Id, TagUrls, TagReplicas) ->
     % Collect the blobs that need updating, and compute their new
     % replica locations.
     Updates = collect_updates(S, TagUrls),
@@ -957,7 +957,7 @@ update_tag_body(S, Tag, _Id, TagUrls, TagReplicas) ->
             ok;
         _ ->
             % In all other cases, send the tag an update.
-            Msg = {gc_rr_update, Updates, S#state.blacklist},
+            Msg = {gc_rr_update, Updates, S#state.blacklist, Id},
             ddfs_master:tag_notify(Msg, Tag)
     end.
 
