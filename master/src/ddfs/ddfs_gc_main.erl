@@ -124,6 +124,63 @@
 %     connections are lost.
 %
 %     RR completes once all blobs and tags are processed.
+%
+%
+% DDFS node removal
+%
+% For a DDFS node to be safely removed from the cluster, the following
+% conditions have to be satisfied:
+%
+% (1) no new data or metadata, or replicas of existing data or
+%     metadata, should be written to the node while the removal is in
+%     progress
+%
+% (2) the data and metadata already on the node needs to be replicated
+%     to the other nodes in the cluster, so that blob and tag replica
+%     quotas can be met without counting the replicas hosted on the
+%     node
+%
+% (3) all references to blobs on the node should be removed from their
+%     containing tags
+%
+% The third step is safety-critical: for instance, it should not
+% result in a reference to the last available blob being removed, in
+% case the other replicas of the blob are on nodes that are currently
+% down.
+%
+% Implementation:
+%
+% A node pending removal is put on a 'blacklist'.  This blacklist is
+% removed from the set of the writable DDFS nodes by ddfs_master when
+% new blobs or tags are created, or when existing ones are
+% re-replicated (1).
+
+% Any blob or tag replicas found on a blacklisted node are not counted
+% towards satisfying their replica quotas (2), and blob and tag
+% replication is initiated if those quotas are not met (in phase
+% rr_blobs and rr_tags).  Once enough backup blob replicas are ensured
+% to be available, a 'filter' update message is sent to the tag (in
+% phase rr_tags) to remove any references to blob replicas hosted on
+% the blacklisted node (3).  The actual removal is performed by the
+% corresponding ddfs_tag.
+%
+% The blacklisted node can be removed by the admin from the config
+% after ensuring that no tag contains references to data hosted on it.
+% After a node is put on the blacklist, there might need to be several
+% runs of GC/RR before the node removal is safe.
+%
+% The blob reference removal requires an invariant: that any operations
+% on a tag do not modify the replica set for a blob in the tag, other
+% than perhaps removing the replica set completely.  This is because
+% the safety computation is not atomic with the reference removal.  If
+% the replica set is modified (e.g. by removing some replicas from the
+% set that were relied on by the safety check) after the safety check
+% but before the reference removal, the removal becomes unsafe.
+%
+% This invariant is ensured by comparing the tag id used for the
+% safety check, with the tag id at the time of the filter operation.
+% If the two differ, the filter operation is not performed.
+
 
 -module(ddfs_gc_main).
 -behaviour(gen_server).
