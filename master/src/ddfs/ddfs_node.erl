@@ -1,13 +1,14 @@
 -module(ddfs_node).
 -behaviour(gen_server).
 
--export([get_vols/0]).
+-export([get_vols/0, gate_get_blob/0, put_blob/1, get_tag_data/3]).
 
 -export([start_link/1, stop/0, init/1, handle_call/3, handle_cast/2,
-        handle_info/2, terminate/2, code_change/3]).
+         handle_info/2, terminate/2, code_change/3]).
 
 -include("config.hrl").
 -include("ddfs.hrl").
+-include("ddfs_tag.hrl").
 
 -record(state, {nodename :: string(),
                 root :: nonempty_string(),
@@ -40,6 +41,22 @@ stop() ->
 -spec get_vols() -> {[volume()], path()}.
 get_vols() ->
     gen_server:call(?MODULE, get_vols).
+
+-spec gate_get_blob() -> 'ok' | 'full'.
+gate_get_blob() ->
+    gen_server:call(?MODULE, get_blob, ?GET_WAIT_TIMEOUT).
+
+-spec put_blob(object_name()) ->
+                      'full' | {'ok', path(), url()} | {'error', path(), term()}
+                          | {'error', 'no_volumes'}.
+put_blob(BlobName) ->
+    gen_server:call(?MODULE, {put_blob, BlobName}, ?PUT_WAIT_TIMEOUT).
+
+
+-spec get_tag_data(node(), tagid(), taginfo()) -> {'ok', binary()} | {'error', term()}.
+get_tag_data(SrcNode, TagId, TagNfo) ->
+    Call = {get_tag_data, TagId, TagNfo},
+    gen_server:call({?MODULE, SrcNode}, Call, ?NODE_TIMEOUT).
 
 init(Config) ->
     {nodename, NodeName} = proplists:lookup(nodename, Config),
@@ -99,8 +116,8 @@ handle_call({put_blob, BlobName}, From, S) ->
 handle_call({get_tag_timestamp, TagName}, _From, S) ->
     {reply, do_get_tag_timestamp(TagName, S), S};
 
-handle_call({get_tag_data, Tag, {_Time, VolName}}, From, State) ->
-    spawn(fun() -> do_get_tag_data(Tag, VolName, From, State) end),
+handle_call({get_tag_data, TagId, {_Time, VolName}}, From, State) ->
+    spawn(fun() -> do_get_tag_data(TagId, VolName, From, State) end),
     {noreply, State};
 
 handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
@@ -189,14 +206,14 @@ do_get_tag_timestamp(TagName, S) ->
             {ok, TagNfo}
     end.
 
--spec do_get_tag_data(binary(), volume_name(), {pid(), _}, #state{}) -> 'ok'.
-do_get_tag_data(Tag, VolName, From, S) ->
-    {ok, TagDir, _Url} = ddfs_util:hashdir(Tag,
+-spec do_get_tag_data(tagid(), volume_name(), {pid(), _}, #state{}) -> 'ok'.
+do_get_tag_data(TagId, VolName, From, S) ->
+    {ok, TagDir, _Url} = ddfs_util:hashdir(TagId,
                                            disco:host(node()),
                                            "tag",
                                            S#state.root,
                                            VolName),
-    TagPath = filename:join(TagDir, binary_to_list(Tag)),
+    TagPath = filename:join(TagDir, binary_to_list(TagId)),
     case prim_file:read_file(TagPath) of
         {ok, Binary} ->
             gen_server:reply(From, {ok, Binary});

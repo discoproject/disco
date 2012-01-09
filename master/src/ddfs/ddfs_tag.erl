@@ -472,8 +472,7 @@ read_tagdata(_TagID, Replicas, Failed, Error)
 
 read_tagdata(TagID, Replicas, Failed, _Error) ->
     {TagNfo, SrcNode} = Chosen = ddfs_util:choose_random(Replicas -- Failed),
-    case catch gen_server:call({ddfs_node, SrcNode},
-            {get_tag_data, TagID, TagNfo}, ?NODE_TIMEOUT) of
+    case catch ddfs_node:get_tag_data(SrcNode, TagID, TagNfo) of
         {ok, Data} ->
             {_, DestNodes} = lists:unzip(Replicas),
             {ok, Data, DestNodes};

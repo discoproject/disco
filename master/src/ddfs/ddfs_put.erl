@@ -31,8 +31,7 @@ loop("/ddfs/" ++ BlobName, Req) ->
     case {Req:get(method),
             valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
         {'PUT', true} ->
-            case catch gen_server:call(ddfs_node,
-                    {put_blob, BlobName}, ?PUT_WAIT_TIMEOUT) of
+            case catch ddfs_node:put_blob(BlobName) of
                 {ok, Path, Url} ->
                     receive_blob(Req, {Path, BlobName}, Url);
                 {error, Path, Error} ->
