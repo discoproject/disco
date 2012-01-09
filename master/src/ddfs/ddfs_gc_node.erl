@@ -83,9 +83,9 @@ handle_file(Obj, _, VolName, Type, _) ->
 
 check_server(Master, Root) ->
     receive
-        {check, Type, ObjName} ->
+        {check_blob, ObjName} ->
             LocalObj = {ObjName, node()},
-            Master ! {check_result, Type, LocalObj, check_object(Type, ObjName)},
+            Master ! {check_blob_result, LocalObj, check_blob(ObjName)},
             check_server(Master, Root);
         start_gc ->
             ok;
@@ -94,9 +94,9 @@ check_server(Master, Root) ->
                           node_request_failed)
     end.
 
--spec check_object(object_type(), object_name()) -> boolean().
-check_object(Type, ObjName) ->
-    ets:update_element(Type, ObjName, {3, true}).
+-spec check_blob(object_name()) -> boolean().
+check_blob(ObjName) ->
+    ets:update_element(blob, ObjName, {3, true}).
 
 % Perform GC
 %

@@ -30,12 +30,12 @@
 %
 % - Build snapshot              (phase = build_map/map_wait)
 %
-%     A map (gc_map) of the current tags and blobs in use (or
-%     referenced) in DDFS is built up.  This map is built on the
-%     master, which iterates over the current list of tags in DDFS,
-%     and checks whether each blob referenced by a tag or tag replica
+%     Two maps (gc_tag_map, gc_blob_map) of the current tags and blobs
+%     in use (or referenced) in DDFS is built up.  These maps are
+%     built on the master, which iterates over the current list of
+%     tags in DDFS, and checks whether each blob referenced by a tag
 %     is present on the node that is supposed to host it.  The node
-%     keeps track of (touches) these in-use tags and blobs.
+%     keeps track of (touches) these in-use blobs.
 %
 %     To handle transient node disconnections, the master keeps state
 %     so that it can resume this process when a node connection comes
@@ -55,7 +55,7 @@
 %     aborts if the snapshot cannot be built.  For simplicity, we also
 %     do not proceed with RR in this case.
 %
-%     Once the gc_map is built, the master notifies the nodes, which
+%     Once the gc maps are built, the master notifies the nodes, which
 %     enter the GC phase.
 %
 % - GC                          (phase = gc)
@@ -246,8 +246,8 @@ node_gc_done(Master) ->
     gen_server:cast(Master, {gc_done, node()}).
 
 -spec add_replicas(pid(), object_name(), [url()]) -> 'ok'.
-add_replicas(Master, Blob, NewUrls) ->
-    gen_server:cast(Master, {add_replicas, Blob, NewUrls}).
+add_replicas(Master, BlobName, NewUrls) ->
+    gen_server:cast(Master, {add_replicas, BlobName, NewUrls}).
 
 
 %% ===================================================================
@@ -264,13 +264,26 @@ init({Root, DeletedAges}) ->
                    tagk = list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS")),
                    blobk = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS"))},
 
-    % We store the map in gc_map while it is under construction.  We
-    % construct a new ETS to store the final map once we enter the GC
-    % phase, and this ETS is then discarded.
+    % In-use blobs and tags are tracked differently.  Blobs are
+    % immutable objects, and need to be explicitly re-replicated.
+    % Tags are mutable objects, whose incarnation ids are updated on
+    % every mutation; they are also implicity re-replicated, since the
+    % storage of every mutation creates the appropriate number of
+    % replicas.
+    %
+    % Since blobs need to be re-replicated explicity, we track all
+    % their current locations.  Since tags are mutable, we don't track
+    % their locations, but track their current incarnation: all older
+    % incarnations will be garbage.  During the rr_tags phase, the
+    % number of tag locations will be used to decide whether they need
+    % re-replication.
 
-    % gc_map: {Key :: {object_type(), {object_name(), node()}},
-    %          State :: 'pending' | 'missing' | 'true' | 'false'}
-    _ = ets:new(gc_map, [named_table, set, private]),
+    % gc_blob_map: {Key :: {object_name(), node()},
+    %               State :: 'pending' | 'missing' | 'true' | 'false'}
+    % gc_tag_map:  {Key :: tagname(),
+    %               Id  :: erlang:timestamp()}
+    _ = ets:new(gc_blob_map, [named_table, set, private]),
+    _ = ets:new(gc_tag_map, [named_table, set, private]),
 
     process_flag(trap_exit, true),
     gen_server:cast(self(), start),
@@ -385,7 +398,7 @@ handle_cast({gc_done, Node}, #state{phase = gc, pending_nodes = Pending} = S) ->
                  error_logger:info_report({"GC: entering rr_blobs phase"}),
                  % We start the first phase of the RR phase.
                  RRPid = start_replicator(self()),
-                 Start = ets:first(gc_objects),
+                 Start = ets:first(gc_blobs),
                  rereplicate_blob(S, Start),
                  S#state{phase = rr_blobs, rr_pid = RRPid};
              _ ->
@@ -405,11 +418,11 @@ handle_cast({rr_blob, '$end_of_table'},
 handle_cast({rr_blob, Next}, #state{phase = rr_blobs} = S) ->
     rereplicate_blob(S, Next),
     {noreply, S};
-handle_cast({add_replicas, Blob, NewUrls}, #state{phase = Phase} = S)
+handle_cast({add_replicas, BlobName, NewUrls}, #state{phase = Phase} = S)
   when Phase =:= rr_blobs; Phase =:= rr_blobs_wait ->
-    update_replicas(S, Blob, NewUrls),
+    update_replicas(S, BlobName, NewUrls),
     {noreply, S};
-handle_cast({add_replicas, _Blob, _NewUrls} = M, #state{phase = Phase} = S) ->
+handle_cast({add_replicas, _BlobName, _NewUrls} = M, #state{phase = Phase} = S) ->
     error_logger:info_report({"GC: ignoring late response", M, Phase}),
     {noreply, S};
 
@@ -422,10 +435,10 @@ handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     error_logger:info_report({"GC: tag update/replication done, done with GC!"}),
     {stop, normal, S}.
 
-handle_info({check_result, Type, LocalObj, Status}, #state{phase = Phase} = S)
+handle_info({check_blob_result, LocalObj, Status}, #state{phase = Phase} = S)
   when Phase =:= build_map, is_boolean(Status);
        Phase =:= map_wait, is_boolean(Status) ->
-    Checked = check_result(Type, LocalObj, Status),
+    Checked = check_blob_result(LocalObj, Status),
     Pending = S#state.num_pending_reqs - Checked,
     % Assert an invariant.
     true = (Pending >= 0),
@@ -555,9 +568,9 @@ update_peer(Peers, Node, Pid) ->
 
 -spec resend_pending(node(), pid()) -> non_neg_integer().
 resend_pending(Node, Pid) ->
-    Objects = lists:flatten(ets:lookup(gc_map, {{'$1', {'$2', Node}}, pending})),
-    lists:foreach(fun([Type, ObjName]) ->
-                          node_send(Pid, {check, Type, ObjName})
+    Objects = lists:flatten(ets:lookup(gc_blob_map, {{'$1', Node}, pending})),
+    lists:foreach(fun([ObjName]) ->
+                          node_send(Pid, {check_blob, ObjName})
                   end, Objects),
     length(Objects).
 
@@ -592,24 +605,25 @@ check_tag(Tag, S, Retries) ->
             E
     end.
 
--spec check_tag(state(), tagname(), object_name(), [[url()]], [node()])
+-spec check_tag(state(), tagname(), tagid(), [[url()]], [node()])
                -> non_neg_integer().
-check_tag(S, _Tag, TagId, TagUrls, TagReplicas) ->
-    Pending = check_tag_replica(S, TagId, TagReplicas, 0),
+check_tag(S, Tag, TagId, TagUrls, TagReplicas) ->
+    record_tag(S, Tag, TagId, TagReplicas),
     lists:foldl(fun(BlobSet, Sent) -> check_blobset(S, BlobSet, Sent) end,
-                Pending, TagUrls).
+                0, TagUrls).
 
--spec check_tag_replica(state(), object_name(), [node()], non_neg_integer())
-                       -> non_neg_integer().
-check_tag_replica(S, TagId, [RepNode|Rest], Pending) ->
-    Sent = check_status(S, tag, {TagId, RepNode}),
-    check_tag_replica(S, TagId, Rest, Pending + Sent);
-check_tag_replica(_S, _TagId, [], Pending) -> Pending.
+-spec record_tag(state(), object_name(), tagid(), [node()]) -> 'ok'.
+record_tag(_S, Tag, TagId, _TagReplicas) ->
+    % Assert that TagId embeds the specified Tag name.
+    {Tag, Tstamp} = ddfs_util:unpack_objname(TagId),
+    % This should be the first and only entry for this tag.
+    true = ets:insert_new(gc_tag_map, {Tag, Tstamp}),
+    ok.
 
 -spec check_blobset(state(), [url()], non_neg_integer())
                    -> non_neg_integer().
 check_blobset(S, [Blob|BlobSet], Pending) ->
-    Sent = check_status(S, blob, ddfs_url(Blob)),
+    Sent = check_blob_status(S, ddfs_url(Blob)),
     check_blobset(S, BlobSet, Pending + Sent);
 check_blobset(_S, [], Pending) -> Pending.
 
@@ -629,34 +643,32 @@ ddfs_url(Url) ->
             end
     end.
 
--spec check_status(state(), object_type(),
-                   {'ignore', 'unknown'} | local_object()) -> non_neg_integer().
-check_status(_S, _, {ignore, _}) -> 0;
-check_status(S, Type, {ObjName, Node} = Obj) ->
-    Key = {Type, Obj},
-    case {find_peer(S#state.gc_peers, Node), ets:lookup(gc_map, Key)} of
+-spec check_blob_status(state(), {'ignore', 'unknown'} | local_object())
+                       -> non_neg_integer().
+check_blob_status(_S, {ignore, _}) -> 0;
+check_blob_status(S, {ObjName, Node} = Key) ->
+    case {find_peer(S#state.gc_peers, Node), ets:lookup(gc_blob_map, Key)} of
         {_, [{_, _}]} ->    % Previously seen object
             0;
         {undefined, []} ->  % Unknown node, new object
-            ets:insert(gc_map, {Key, missing}),
+            ets:insert(gc_blob_map, {Key, missing}),
             0;
         {Pid, []} ->        % Known node, new object
             % Mark the object as pending, and send a status request.
-            ets:insert(gc_map, {Key, pending}),
-            node_send(Pid, {check, Type, ObjName}),
+            ets:insert(gc_blob_map, {Key, pending}),
+            node_send(Pid, {check_blob, ObjName}),
             1
     end.
 
 -spec num_pending_objects() -> non_neg_integer().
 num_pending_objects() ->
-    ets:select_count(gc_map, [{{'_', pending}, [], [true]}]).
+    ets:select_count(gc_blob_map, [{{'_', pending}, [], [true]}]).
 
--spec check_result(object_type(), local_object(), boolean()) -> non_neg_integer().
-check_result(Type, LocalObj, Status) ->
-    Key = {Type, LocalObj},
-    case ets:lookup_element(gc_map, Key, 2) of
+-spec check_blob_result(local_object(), boolean()) -> non_neg_integer().
+check_blob_result(LocalObj, Status) ->
+    case ets:lookup_element(gc_blob_map, LocalObj, 2) of
         pending ->
-            ets:update_element(gc_map, Key, {2, Status}),
+            ets:update_element(gc_blob_map, LocalObj, {2, Status}),
             1;
         _ ->
             0
@@ -671,44 +683,42 @@ start_gc_phase(S) ->
     % We are done with building the in-use map.  Now, we need to
     % collect the nodes that host a replica of each known in-use blob,
     % and also add the nodes that host any recovered replicas.  We
-    % store this in a new ETS, gc_objects, which will store for each
-    % object, (a) the known locations, (b) any recovered locations,
+    % store this in a new ETS, gc_blobs, which will store for each
+    % blob, (a) the known locations, (b) any recovered locations,
     % and (c) for each blob, any new replicated locations.
 
-    % gc_objects: {Key :: {object_type(), object_name()},
-    %              Present :: [node()],
-    %              Recovered :: [object_location()],
-    %              Update :: rep_update()}
-    _ = ets:new(gc_objects, [named_table, set, private]),
+    % gc_blobs: {Key :: object_name(),
+    %            Present :: [node()],
+    %            Recovered :: [object_location()],
+    %            Update :: rep_update()}
+    _ = ets:new(gc_blobs, [named_table, set, private]),
 
     _ = ets:foldl(
           % There is no clause for the 'pending' status, so that we
-          % can assert if we start gc with any still-pending objects.
-          fun({{Type, {ObjName, Node}}, true}, _) ->
-                  Key = {Type, ObjName},
-                  case ets:lookup(gc_objects, Key) of
+          % can assert if we start gc with any still-pending entries.
+          fun({{BlobName, Node}, true}, _) ->
+                  case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {Key, [Node], [], noupdate},
-                          ets:insert(gc_objects, Entry);
+                          Entry = {BlobName, [Node], [], noupdate},
+                          ets:insert(gc_blobs, Entry);
                       [{_, Present, _, _}] ->
                           Acc = [Node | Present],
-                          ets:update_element(gc_objects, Key, {2, Acc})
+                          ets:update_element(gc_blobs, BlobName, {2, Acc})
                   end;
-             ({{Type, {ObjName, _Node}}, Status}, _)
+             ({{BlobName, _Node}, Status}, _)
                 when Status =:= missing; Status =:= false ->
-                  % Create an entry for missing objects.  This allows
+                  % Create an entry for missing blobs.  This allows
                   % us to recover them from other nodes if present
                   % (e.g. after hostname changes).
-                  Key = {Type, ObjName},
-                  case ets:lookup(gc_objects, Key) of
+                  case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {Key, [], [], noupdate},
-                          ets:insert(gc_objects, Entry);
+                          Entry = {BlobName, [], [], noupdate},
+                          ets:insert(gc_blobs, Entry);
                       [{_, _, _, _}] ->
                           true
                   end
-          end, true, gc_map),
-    ets:delete(gc_map),
+          end, true, gc_blob_map),
+    ets:delete(gc_blob_map),
 
     error_logger:info_report({"GC: entering gc phase"}),
     node_broadcast(S#state.gc_peers, start_gc),
@@ -720,16 +730,27 @@ start_gc_phase(S) ->
 
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
                      -> {ok, boolean()}.
-check_is_orphan(S, Type, ObjName, Node, Vol) ->
-    Key = {Type, ObjName},
-    MaxReps = (case Type of tag -> S#state.tagk; blob ->S#state.blobk end
-               + ?NUM_EXTRA_REPLICAS),
+check_is_orphan(_S, tag, Tag, _Node, _Vol) ->
+    {TagName, Tstamp} = ddfs_util:unpack_objname(Tag),
+    case ets:lookup(gc_tag_map, TagName) of
+        [] ->
+            % This is not an in-use tag, hence an orphan.
+            {ok, true};
+        [{_, GcTstamp}] when Tstamp < GcTstamp ->
+            % This is an older incarnation of the tag, hence an orphan.
+            {ok, true};
+        [{_, _GcTstamp}] ->
+            % This is a current or newer incarnation.
+            {ok, false}
+    end;
+check_is_orphan(S, blob, BlobName, Node, Vol) ->
+    MaxReps = S#state.blobk + ?NUM_EXTRA_REPLICAS,
     % The gc mark/in-use protocol is resumable, but the node loses its
     % in-use knowledge when it goes down.  On reconnect, it might
-    % perform orphan-checks on objects that were already marked by the
+    % perform orphan-checks on blobs that were already marked by the
     % master in a previous session with that node.  Similarly, we
-    % might re-recover objects again after a reconnect.
-    case ets:lookup(gc_objects, Key) of
+    % might re-recover blobs again after a reconnect.
+    case ets:lookup(gc_blobs, BlobName) of
         [] ->
             % This is not an in-use object, hence an orphan.
             {ok, true};
@@ -737,10 +758,10 @@ check_is_orphan(S, Type, ObjName, Node, Vol) ->
             case {lists:member(Node, Present),
                   lists:member({Node, Vol}, Recovered)} of
                 {true, _} ->
-                    % Re-check of an already marked object.
+                    % Re-check of an already marked blob.
                     {ok, false};
                 {_, true} ->
-                    % Re-check of an already recovered object.
+                    % Re-check of an already recovered blob.
                     {ok, false};
                 % Use a fast path for the normal case when there is no
                 % blacklist.
@@ -756,7 +777,7 @@ check_is_orphan(S, Type, ObjName, Node, Vol) ->
                     % This is a usable, newly-recovered, lost replica;
                     % record the volume for later use.
                     NewRecovered = lists:sort([{Node, Vol} | Recovered]),
-                    ets:update_element(gc_objects, Key, {3, NewRecovered}),
+                    ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                     {ok, false};
                 {false, false} ->
                     {RepNodes, _RepVols} = lists:unzip(Recovered),
@@ -770,7 +791,7 @@ check_is_orphan(S, Type, ObjName, Node, Vol) ->
                             % still record the replica so that we can use it for
                             % re-replication if needed.
                             NewRecovered = lists:sort([{Node, Vol} | Recovered]),
-                            ets:update_element(gc_objects, Key, {3, NewRecovered}),
+                            ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                             {ok, false}
                     end
             end
@@ -853,14 +874,11 @@ find_unusable(BL, Nodes) ->
 -spec rereplicate_blob(state(), rr_next() | '$end_of_table') -> 'ok'.
 rereplicate_blob(_S, '$end_of_table' = End) ->
     gen_server:cast(self(), {rr_blob, End});
-rereplicate_blob(S, {tag, _T} = Key) ->
-    Next = ets:next(gc_objects, Key),
-    rereplicate_blob(S, Next);
-rereplicate_blob(S, {blob, Blob} = Key) ->
-    [{_, Present, Recovered, _}] = ets:lookup(gc_objects, Key),
-    FinalReps = rereplicate_blob(S, Blob, Present, Recovered, S#state.blobk),
-    ets:update_element(gc_objects, Key, {4, FinalReps}),
-    Next = ets:next(gc_objects, Key),
+rereplicate_blob(S, BlobName) ->
+    [{_, Present, Recovered, _}] = ets:lookup(gc_blobs, BlobName),
+    FinalReps = rereplicate_blob(S, BlobName, Present, Recovered, S#state.blobk),
+    ets:update_element(gc_blobs, BlobName, {4, FinalReps}),
+    Next = ets:next(gc_blobs, BlobName),
     gen_server:cast(self(), {rr_blob, Next}).
 
 % RR1) Re-replicate blobs that don't have enough replicas
@@ -868,7 +886,7 @@ rereplicate_blob(S, {blob, Blob} = Key) ->
 -spec rereplicate_blob(state(), object_name(), [node()],
                        [object_location()], non_neg_integer())
                       -> rep_result().
-rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
+rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
     BL = S#state.blacklist,
     SafePresent = find_usable(BL, Present),
     SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
@@ -886,7 +904,7 @@ rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
           when length(Present) =:= 0, length(Recovered) =:= 0 ->
             % We have no good copies from which to generate new replicas;
             % we have no option but to live with the current information.
-            error_logger:warning_report({"GC: all replicas missing!!!", Blob}),
+            error_logger:warning_report({"GC: all replicas missing!!!", BlobName}),
             noupdate;
         {_NumPresent, NumRecovered} ->
             % Extra replicas are needed; we generate one new replica at a
@@ -894,7 +912,7 @@ rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
             % sources, including those from blacklisted nodes.
             {RepNodes, _RepVols} = lists:unzip(Recovered),
             OkNodes = RepNodes ++ Present,
-            case {try_put_blob(S, Blob, OkNodes, BL), NumRecovered} of
+            case {try_put_blob(S, BlobName, OkNodes, BL), NumRecovered} of
                 {{error, _E}, 0} ->
                     noupdate;
                 {{error, _E}, _} ->
@@ -908,12 +926,12 @@ rereplicate_blob(S, Blob, Present, Recovered, Blobk) ->
 
 -spec try_put_blob(state(), object_name(), [node(),...], [node()]) ->
                           'pending' | {'error', term()}.
-try_put_blob(#state{rr_pid = RR} = S, Blob, OkNodes, BL) ->
-    case ddfs_master:new_blob(Blob, 1, OkNodes ++ BL) of
+try_put_blob(#state{rr_pid = RR} = S, BlobName, OkNodes, BL) ->
+    case ddfs_master:new_blob(BlobName, 1, OkNodes ++ BL) of
         {ok, [PutUrl]} ->
             Srcs = [{find_peer(S#state.gc_peers, N), N} || N <- OkNodes],
             {SrcPeer, SrcNode} = ddfs_util:choose_random(Srcs),
-            RR ! {put_blob, Blob, SrcPeer, SrcNode, PutUrl},
+            RR ! {put_blob, BlobName, SrcPeer, SrcNode, PutUrl},
             pending;
         E ->
             {error, E}
@@ -921,13 +939,12 @@ try_put_blob(#state{rr_pid = RR} = S, Blob, OkNodes, BL) ->
 
 % gen_server update handler.
 -spec update_replicas(state(), object_name(), [url()]) -> 'ok'.
-update_replicas(_S, Blob, NewUrls) ->
-    Key = {blob, Blob},
+update_replicas(_S, BlobName, NewUrls) ->
     % An update can only arrive for a blob that was marked for replication
     % (see rereplicate_blob/5).
-    [{_, _Present, _Recovered, {update, Urls}}] = ets:lookup(gc_objects, Key),
+    [{_, _P, _R, {update, Urls}}] = ets:lookup(gc_blobs, BlobName),
     Update = {update, NewUrls ++ Urls},
-    _ = ets:update_element(gc_objects, Key, {4, Update}),
+    _ = ets:update_element(gc_blobs, BlobName, {4, Update}),
     ok.
 
 
@@ -943,8 +960,8 @@ start_replicator(Master) ->
 -spec replicator(pid(), non_neg_integer()) -> no_return().
 replicator(Master, Ref) ->
     receive
-        {put_blob, Blob, SrcPeer, SrcNode, PutUrl} ->
-            do_put_blob(Master, Ref, Blob, SrcPeer, SrcNode, PutUrl),
+        {put_blob, BlobName, SrcPeer, SrcNode, PutUrl} ->
+            do_put_blob(Master, Ref, BlobName, SrcPeer, SrcNode, PutUrl),
             replicator(Master, Ref + 1);
         rr_end ->
             ok
@@ -957,20 +974,20 @@ stop_replicator(RR) ->
 
 -spec do_put_blob(pid(), non_neg_integer(), object_name(),
                   pid(), node(), binary()) -> 'ok'.
-do_put_blob(Master, Ref, Blob, SrcPeer, SrcNode, PutUrl) ->
-    SrcPeer ! {put_blob, self(), Ref, Blob, PutUrl},
+do_put_blob(Master, Ref, BlobName, SrcPeer, SrcNode, PutUrl) ->
+    SrcPeer ! {put_blob, self(), Ref, BlobName, PutUrl},
     wait_put_blob(Master, Ref, SrcNode).
 
 -spec wait_put_blob(pid(), non_neg_integer(), node()) -> 'ok'.
 wait_put_blob(Master, Ref, SrcNode) ->
     receive
-        {Ref, {ok, Blob, NewUrls}} ->
-            add_replicas(Master, Blob, NewUrls);
+        {Ref, {ok, BlobName, NewUrls}} ->
+            add_replicas(Master, BlobName, NewUrls);
         {Ref, _E} ->
             ok;
-        {_OldRef, {ok, Blob, NewUrls}} ->
+        {_OldRef, {ok, BlobName, NewUrls}} ->
             % Delayed response.
-            add_replicas(Master, Blob, NewUrls),
+            add_replicas(Master, BlobName, NewUrls),
             wait_put_blob(Master, Ref, SrcNode);
         {_OldRef, _OldResult} ->
             wait_put_blob(Master, Ref, SrcNode)
@@ -1031,7 +1048,7 @@ collect_updates(S, [BlobSet|Rest], Updates) ->
         ignore ->
             collect_updates(S, Rest, Updates);
         _ ->
-            case ets:lookup(gc_objects, {blob, BlobName}) of
+            case ets:lookup(gc_blobs, BlobName) of
                 [] ->
                     % New blob added after GC/RR started.
                     collect_updates(S, Rest, Updates);
