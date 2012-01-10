@@ -12,7 +12,7 @@
 
 -record(state, {nodename :: string(),
                 root :: nonempty_string(),
-                vols :: [{diskinfo(), nonempty_string()}],
+                vols :: [volume()],
                 putq :: http_queue:q(),
                 getq :: http_queue:q(),
                 tags :: gb_tree()}).
@@ -46,7 +46,7 @@ get_vols() ->
 gate_get_blob() ->
     gen_server:call(?MODULE, get_blob, ?GET_WAIT_TIMEOUT).
 
--spec put_blob(object_name()) ->
+-spec put_blob(nonempty_string()) ->
                       'full' | {'ok', path(), url()} | {'error', path(), term()}
                           | {'error', 'no_volumes'}.
 put_blob(BlobName) ->
@@ -170,7 +170,8 @@ do_get_diskspace(#state{vols = Vols}) ->
                 end, {0, 0}, Vols).
 
 -spec do_put_blob(nonempty_string(), {pid(), _}, #state{}) ->
-                 {'reply', 'full', #state{}} | {'noreply', #state{}}.
+                 {'reply', 'full' | {'error', 'no_volumes'}, #state{}}
+                             | {'noreply', #state{}}.
 do_put_blob(_BlobName, _From, #state{vols = []} = S) ->
     {reply, {error, no_volumes}, S};
 do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
@@ -196,8 +197,8 @@ do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
             {noreply, S#state{putq = NewQ}}
     end.
 
--spec do_get_tag_timestamp(binary(), #state{}) ->
-                          'notfound' | {'ok', {erlang:timestamp(), binary()}}.
+-spec do_get_tag_timestamp(tagname(), #state{}) ->
+                       'notfound' | {'ok', {erlang:timestamp(), volume_name()}}.
 do_get_tag_timestamp(TagName, S) ->
     case gb_trees:lookup(TagName, S#state.tags) of
         none ->
@@ -222,7 +223,7 @@ do_get_tag_data(TagId, VolName, From, S) ->
             gen_server:reply(From, {error, read_failed})
     end.
 
--spec do_put_tag_data(binary(), binary(), #state{}) -> {'ok', binary()} | {'error', _}.
+-spec do_put_tag_data(tagname(), binary(), #state{}) -> {'ok', volume_name()} | {'error', _}.
 do_put_tag_data(_Tag, _Data, #state{vols = []}) ->
     {error, no_volumes};
 do_put_tag_data(Tag, Data, S) ->
@@ -246,8 +247,8 @@ do_put_tag_data(Tag, Data, S) ->
             E
     end.
 
--spec do_put_tag_commit(binary(), [{node(), binary()}], #state{}) ->
-                       {{'ok', binary()} | {'error', _}, #state{}}.
+-spec do_put_tag_commit(tagname(), [{node(), volume_name()}], #state{}) ->
+                       {{'ok', url()} | {'error', _}, #state{}}.
 do_put_tag_commit(Tag, TagVol, S) ->
     {value, {_, VolName}} = lists:keysearch(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag,
@@ -287,7 +288,7 @@ try_makedir(Dir) ->
     end.
 
 -spec init_vols(path(), [volume_name()]) ->
-                       {'ok', [{diskinfo(), volume_name()}]}.
+                       {'ok', [volume()]}.
 init_vols(Root, VolNames) ->
     _ = [begin
              ok = try_makedir(filename:join([Root, VolName, "blob"])),
@@ -295,8 +296,7 @@ init_vols(Root, VolNames) ->
          end || VolName <- VolNames],
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
--spec find_vols(nonempty_string()) ->
-    'eof' | 'ok' | {'ok', [{diskinfo(), nonempty_string()}]} | {'error', _}.
+-spec find_vols(path()) -> 'eof' | 'ok' | {'ok', [volume()]} | {'error', _}.
 find_vols(Root) ->
     case prim_file:list_dir(Root) of
         {ok, Files} ->
@@ -314,8 +314,7 @@ find_vols(Root) ->
             Error
     end.
 
--spec find_tags(nonempty_string(), [{diskinfo(), nonempty_string()}]) ->
-    {'ok', gb_tree()}.
+-spec find_tags(path(), [volume()]) -> {'ok', gb_tree()}.
 find_tags(Root, Vols) ->
     {ok,
      lists:foldl(fun({_Space, VolName}, Tags) ->
@@ -325,7 +324,7 @@ find_tags(Root, Vols) ->
                                               end, Tags)
                  end, gb_trees:empty(), Vols)}.
 
--spec parse_tag(nonempty_string(), nonempty_string(), gb_tree()) -> gb_tree().
+-spec parse_tag(nonempty_string(), volume_name(), gb_tree()) -> gb_tree().
 parse_tag("!" ++ _, _, Tags) -> Tags;
 parse_tag(Tag, VolName, Tags) ->
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
@@ -338,8 +337,7 @@ parse_tag(Tag, VolName, Tags) ->
             Tags
     end.
 
--spec choose_vol([{diskinfo(), nonempty_string()}]) ->
-                        {diskinfo(), nonempty_string()}.
+-spec choose_vol([volume()]) -> volume().
 choose_vol(Vols) ->
     % Choose the volume with most available space.  Note that the key
     % being sorted is the diskinfo() tuple, which has free-space as
@@ -347,9 +345,7 @@ choose_vol(Vols) ->
     [Vol|_] = lists:reverse(lists:keysort(1, Vols)),
     Vol.
 
--spec monitor_diskspace(nonempty_string(),
-                        [{diskinfo(), nonempty_string()}]) ->
-    no_return().
+-spec monitor_diskspace(path(), [volume()]) -> no_return().
 monitor_diskspace(Root, Vols) ->
     timer:sleep(?DISKSPACE_INTERVAL),
     Fold = fun({_OldSpace, VolName}, VolAcc) ->
@@ -362,8 +358,7 @@ monitor_diskspace(Root, Vols) ->
     gen_server:cast(ddfs_node, {update_vols, NewVols}),
     monitor_diskspace(Root, NewVols).
 
--spec refresh_tags(nonempty_string(), [{diskinfo(), nonempty_string()}]) ->
-    no_return().
+-spec refresh_tags(path(), [volume()]) -> no_return().
 refresh_tags(Root, Vols) ->
     timer:sleep(?FIND_TAGS_INTERVAL),
     {ok, Tags} = find_tags(Root, Vols),
