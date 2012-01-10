@@ -126,12 +126,12 @@ handle_call(get_gc_blacklist, _F, #state{gc_blacklist = Nodes} = S) ->
 
 handle_call({choose_write_nodes, K, Exclude}, _,
             #state{write_blacklist = WBL, gc_blacklist = GBL} = S) ->
-    BL = lists:usort(WBL ++ GBL),
+    BL = lists:umerge(WBL ++ GBL),
     {reply, do_choose_write_nodes(S#state.nodes, K, Exclude, BL), S};
 
 handle_call({new_blob, Obj, K, Exclude}, _,
             #state{nodes = N, gc_blacklist = GBL, write_blacklist = WBL} = S) ->
-    BL = lists:usort(WBL ++ GBL),
+    BL = lists:umerge(WBL ++ GBL),
     {reply, do_new_blob(Obj, K, Exclude, BL, N), S};
 
 handle_call({tag, _M, _Tag}, _From, #state{nodes = []} = S) ->
@@ -162,7 +162,7 @@ handle_cast({update_nodestats, NewNodes}, S) ->
     {noreply, do_update_nodestats(NewNodes, S)};
 
 handle_cast({update_gc_blacklist, Nodes}, S) ->
-    {noreply, S#state{gc_blacklist = Nodes}}.
+    {noreply, S#state{gc_blacklist = lists:sort(Nodes)}}.
 
 handle_info({'DOWN', _, _, Pid, _}, S) ->
     {noreply, do_tag_exit(Pid, S)}.
