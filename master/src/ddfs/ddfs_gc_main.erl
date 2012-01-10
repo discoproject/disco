@@ -267,11 +267,11 @@ init({Root, DeletedAges}) ->
     % In-use blobs and tags are tracked differently.  Blobs are
     % immutable objects, and need to be explicitly re-replicated.
     % Tags are mutable objects, whose incarnation ids are updated on
-    % every mutation; they are also implicity re-replicated, since the
+    % every mutation; they are also implicitly re-replicated, since the
     % storage of every mutation creates the appropriate number of
     % replicas.
     %
-    % Since blobs need to be re-replicated explicity, we track all
+    % Since blobs need to be re-replicated explicitly, we track all
     % their current locations.  Since tags are mutable, we don't track
     % their locations, but track their current incarnation: all older
     % incarnations will be garbage.  During the rr_tags phase, the
@@ -776,7 +776,7 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                   when S#state.blacklist =:= [] ->
                     % This is a usable, newly-recovered, lost replica;
                     % record the volume for later use.
-                    NewRecovered = lists:sort([{Node, Vol} | Recovered]),
+                    NewRecovered = [{Node, Vol} | Recovered],
                     ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                     {ok, false};
                 {false, false} ->
@@ -790,7 +790,7 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                             % Note that Node could belong to the blacklist; we
                             % still record the replica so that we can use it for
                             % re-replication if needed.
-                            NewRecovered = lists:sort([{Node, Vol} | Recovered]),
+                            NewRecovered = [{Node, Vol} | Recovered],
                             ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                             {ok, false}
                     end
@@ -859,11 +859,11 @@ process_deleted(Tags, Ages) ->
 % This is more dialyzer friendly than an inline call.
 -spec find_usable([node()], [node()]) -> [node()].
 find_usable(BL, Nodes) ->
-    lists:filter(fun(N) -> not lists:member(N, BL) end, Nodes).
+    [N || N <- Nodes, not lists:member(N, BL)].
 
 -spec find_unusable([node()], [node()]) -> [node()].
 find_unusable(BL, Nodes) ->
-    lists:filter(fun(N) -> lists:member(N, BL) end, Nodes).
+    [N || N <- Nodes, lists:member(N, BL)].
 
 %% ===================================================================
 %% blob rereplication
