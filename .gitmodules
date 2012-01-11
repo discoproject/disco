@@ -4,3 +4,9 @@
 [submodule "contrib/odisco"]
 	path = contrib/odisco
 	url = git://github.com/pmundkur/odisco.git
+[submodule "contrib/discodb"]
+	path = contrib/discodb
+	url = git://github.com/discoproject/discodb.git
+[submodule "contrib/discodex"]
+	path = contrib/discodex
+	url = git://github.com/discoproject/discodex.git
