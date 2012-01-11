@@ -11,11 +11,11 @@
 % How many replicas by default
 % -define(DEFAULT_REPLICAS, 3).
 
-% How long to wait for replies from nodes
--define(NODE_TIMEOUT, 5 * ?SECOND).
-
 % How long ddfs node startup can take
 -define(NODE_STARTUP, 1 * ?MINUTE).
+
+% How long to wait for replies from nodes
+-define(NODE_TIMEOUT, 10 * ?SECOND).
 
 % How long to wait for a reply from and operation that accesses nodes
 % (>NODE_TIMEOUT)
@@ -60,11 +60,28 @@
 % Time to wait between garbage collection runs
 -define(GC_INTERVAL, ?DAY).
 
+% Time to wait after startup for cluster to stabilize before running
+% first GC.
+-define(GC_INITIAL_WAIT, 5 * ?MINUTE).
+
+% Maximum number of times we try to bring up a node that failed during
+% GC before we abort GC.
+-define(MAX_GC_NODE_FAILURES, 3).
+
+% The longest potential interval between messages in the GC protocol;
+% used to ensure GC makes forward progress.  This can be set to the
+% estimated time to traverse all the volumes on a DDFS node.
+-define(GC_PROGRESS_INTERVAL, 30 * ?MINUTE).
+
 % Tag cache expires in this many milliseconds if tag can't be fetched
 -define(TAG_EXPIRES_ONERROR, 1 * ?SECOND).
 
 % Number of tag replicas: min(length(Nodes), ?TAG_REPLICAS)
 % -define(TAG_REPLICAS, 3).
+
+% Number of extra replicas (i.e. lost replicas recovered during GC) to
+% allow before deleting extra replicas.
+-define(NUM_EXTRA_REPLICAS, 1).
 
 % Permissions for blobs and tags
 -define(FILE_MODE, 8#00400).
@@ -94,19 +111,25 @@
 % Delete !partial leftovers after this many milliseconds
 -define(PARTIAL_EXPIRES, ?DAY).
 
-% When orphaned blob can be deleted 
+% When orphaned blob can be deleted
 -define(ORPHANED_BLOB_EXPIRES, 5 * ?DAY).
 
-% When orphaned tag can be deleted 
+% When orphaned tag can be deleted
 -define(ORPHANED_TAG_EXPIRES, 5 * ?DAY).
 
 % How long a tag has to stay on the deleted list before
 % we can permanently forget it, after all known instances
-% of the tag object have been removed. This quarantine period 
-% ensures that a node that was temporarily unavailable 
+% of the tag object have been removed. This quarantine period
+% ensures that a node that was temporarily unavailable
 % and reactivates can't resurrect deleted tags. You
 % must ensure that all temporarily inactive nodes
 % are reactivated (or cleaned) within the ?DELETED_TAG_EXPIRES
 % time frame. To be on the safe side, make the period long
 % enough.
 -define(DELETED_TAG_EXPIRES, 30 * ?DAY).
+
+% How many times a tag operation should be retried before aborting.
+-define(MAX_TAG_OP_RETRIES, 3).
+
+% How long to wait before timing out a tag retrieval.
+-define(GET_TAG_TIMEOUT, 5 * ?MINUTE).
