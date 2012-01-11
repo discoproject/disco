@@ -169,7 +169,7 @@ you could try changing the input to ``tag://data:bigtxt``,
 and add ``map_reader = disco.worker.classic.func.chain_reader``.
 
 You could follow the :ref:`discodb_tutorial`,
-to learn more about using :ref:`discodb <discodb>` with Disco.
+to learn more about using :mod:`discodb` with Disco.
 
 You could try using :func:`~disco.worker.classic.func.sum_combiner`,
 to make the job more efficient.

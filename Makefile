@@ -72,19 +72,15 @@ RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
 RE_INSTALL_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@$(DISCO_LOG_DIR)@
 RE_LOCAL_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@root/log@
 
-.PHONY: all master clean distclean doc docclean doctest
+.PHONY: master clean dist-clean doc doc-clean doc-test
 .PHONY: install \
 	install-master \
 	install-core \
 	install-node \
-	install-discodb \
-	install-discodex \
 	install-examples \
 	install-tests \
 	uninstall
 .PHONY: test dialyzer typer
-
-all: master
 
 master: $(EAPPCFG) $(ESRC)/disco.app.src Makefile
 	cd master && $(REBAR) get-deps && $(REBAR) compile
@@ -99,30 +95,23 @@ clean:
 	- cd master && $(REBAR) clean
 	- rm -Rf $(ESRC)/disco.app.src $(EBIN) $(ETESTOBJECTS)
 	- rm -Rf lib/build lib/disco.egg-info
-	- rm -Rf doc/.build
 
-distclean: clean
+dist-clean: clean
 	- rm -Rf $(EPLT)
 
 doc:
 	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) html)
 
-docclean:
+doc-clean:
 	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) clean)
 
-doctest:
+doc-test:
 	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) doctest)
 
 install: install-core install-master install-node
 
 install-core:
 	(cd lib && $(PY_INSTALL))
-
-install-discodb:
-	(cd contrib/discodb && $(PY_INSTALL))
-
-install-discodex:
-	(cd contrib/discodex && $(PY_INSTALL))
 
 install-examples: $(TARGETLIB)/examples
 

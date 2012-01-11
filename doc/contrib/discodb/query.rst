@@ -1,2 +1,0 @@
-.. automodule:: discodb.query
-   :members:

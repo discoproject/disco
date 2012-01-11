@@ -36,7 +36,7 @@ master_doc = 'index'
 
 # General substitutions.
 project = 'Disco'
-copyright = '2008-2011, Nokia Corporation and the Disco Project'
+copyright = '2008-2012, Nokia Corporation and the Disco Project'
 
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
@@ -140,7 +140,7 @@ htmlhelp_basename = 'Discodoc'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, document class [howto/manual]).
 latex_documents = [
-  ('index', 'Disco.tex', 'Disco Documentation', 'Ville Tuulos', 'manual'),
+  ('index', 'Disco.tex', 'Disco Documentation', 'Disco Project', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of

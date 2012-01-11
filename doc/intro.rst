@@ -85,6 +85,4 @@ Main features
 - Easy to integrate to larger applications using the standard Disco module
   and the Web APIs.
 
-- Comes with a built-in distributed storage system (:ref:`ddfs`) and
-  a distributed indexing subsystem (:ref:`discodex`), enabling ad-hoc
-  querying of terabytes of data.
+- Comes with a built-in distributed storage system (:ref:`ddfs`).

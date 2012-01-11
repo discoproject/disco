@@ -13,8 +13,7 @@ Disco Distributed Filesystem (DDFS) provides a distributed storage layer
 for Disco. DDFS is designed specifically to support use cases that are
 typical for Disco and :term:`mapreduce` in general: Storage and processing
 of massive amounts of immutable data. This makes it very suitable for
-storing, for instance: log data, large binary objects (photos, videos,
-:ref:`discodb <discodb>` indices),
+storing, for instance: log data, large binary objects (photos, videos, indices),
 or incrementally collected raw data such as web crawls.
 
 In this sense, DDFS is complementary to traditional relational databases
@@ -31,9 +30,7 @@ open-source projects such as `Hadoop Distributed Filesystem (HDFS)
 DDFS is a low-level component in the Disco stack, taking care of data
 *distribution*, *replication*, *persistence*, *addressing* and *access*.
 It does not provide a sophisticated query facility in itself but it is
-**tightly integrated** with Disco :term:`jobs <job>`,
-and used by :ref:`Discodex`,
-which can be used to build application-specific query interfaces.
+**tightly integrated** with Disco :term:`jobs <job>`.
 Disco can store job results to DDFS,
 providing persistence for and easy access to processed data.
 

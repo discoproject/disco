@@ -45,13 +45,3 @@ Reference
    lib/index
    man/disco
    man/ddfs
-
-Batteries Included
-------------------
-
-.. toctree::
-   :titlesonly:
-
-   contrib/discodb/discodb
-   contrib/discodb/query
-   contrib/discodex/index

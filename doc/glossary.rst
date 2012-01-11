@@ -7,9 +7,6 @@ Glossary
    client
         The program which submits a :term:`job` to the :term:`master`.
 
-   conjunctive normal form
-        See `conjunctive normal form <http://en.wikipedia.org/wiki/Conjunctive_normal_form>`_.
-
    blob
         An arbitrary file stored in :ref:`DDFS`.
 
@@ -29,17 +26,8 @@ Glossary
    Erlang
         See `Erlang <http://en.wikipedia.org/wiki/Erlang_(programming_language)>`_.
 
-   ichunk
-        An :term:`immutable` piece of a distributed :term:`index`, stored in a file.
-
    immutable
         See `immutable object <http://en.wikipedia.org/wiki/Immutable_object>`_.
-
-   index
-        A mapping from each key in a set of keys to a multiset of values.
-        Indices provide random access into a set of data.
-        As an example, search engines are usually implemented using a
-        `web index <http://en.wikipedia.org/wiki/Index_(search_engine)>`_.
 
    map
         The first phase of a :term:`job`,
@@ -114,9 +102,6 @@ Glossary
         labelled bins, much like :term:`tags <tag>` in :term:`DDFS`.
         Typically, the output of :term:`map` is partitioned,
         and each :term:`reduce` operates on a single partition.
-
-   persistent
-        See `persistent data structure <http://en.wikipedia.org/wiki/Persistent_data_structure>`_.
 
    pid
         A process identifier.

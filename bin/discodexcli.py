@@ -1,1 +1,0 @@
-../contrib/discodex/bin/discodexcli.py
