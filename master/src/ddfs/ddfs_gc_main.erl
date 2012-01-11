@@ -734,7 +734,9 @@ check_is_orphan(_S, tag, Tag, _Node, _Vol) ->
     {TagName, Tstamp} = ddfs_util:unpack_objname(Tag),
     case ets:lookup(gc_tag_map, TagName) of
         [] ->
-            % This is not an in-use tag, hence an orphan.
+            % This tag was not present in our snapshot, but could have
+            % been newly created.  Mark it as an orphan, but the node
+            % will not delete it if it is recent.
             {ok, true};
         [{_, GcTstamp}] when Tstamp < GcTstamp ->
             % This is an older incarnation of the tag, hence an orphan.
@@ -752,7 +754,9 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
     % might re-recover blobs again after a reconnect.
     case ets:lookup(gc_blobs, BlobName) of
         [] ->
-            % This is not an in-use object, hence an orphan.
+            % This blob was not present in our snapshot, but could
+            % have been newly created.  Mark it as an orphan, but the
+            % node will not delete it if it is recent.
             {ok, true};
         [{_, Present, Recovered, _}] ->
             case {lists:member(Node, Present),
