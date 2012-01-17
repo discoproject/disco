@@ -153,7 +153,7 @@ delete_if_expired(_Path, _Diff, _Expires, _Paranoid) ->
 %% Re-replication  (rr_blobs / rr_blobs_wait)
 %%
 
--spec replica_server(pid(), path()) -> no_return().
+-spec replica_server(pid(), path()) -> 'ok'.
 replica_server(Master, Root) ->
     receive
         {put_blob, Replicator, Ref, Blob, PutUrl} ->
@@ -162,7 +162,9 @@ replica_server(Master, Root) ->
                 ddfs_util:hashdir(Blob, "nonode!", "blob", Root, VolName),
             SrcPath = filename:join(Path, binary_to_list(Blob)),
             Replicator ! {Ref, do_put(Blob, SrcPath, PutUrl)},
-            replica_server(Master, Root)
+            replica_server(Master, Root);
+        end_rr ->
+            ok
     end.
 
 -spec do_put(object_name(), path(), nonempty_string()) ->

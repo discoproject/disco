@@ -433,6 +433,7 @@ handle_cast({rr_tags, [T|Tags]}, #state{phase = rr_tags} = S) ->
 handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     % We are done with the RR phase, and hence with GC!
     error_logger:info_report({"GC: tag update/replication done, done with GC!"}),
+    node_broadcast(S#state.gc_peers, end_rr),
     {stop, normal, S}.
 
 handle_info({check_blob_result, LocalObj, Status}, #state{phase = Phase} = S)
