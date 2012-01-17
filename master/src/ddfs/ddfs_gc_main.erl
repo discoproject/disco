@@ -322,7 +322,7 @@ handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
        true ->
             error_logger:error_report({"GC: stopping, too many failed nodes",
                                        NumFailed, TagMinK, NumOk}),
-            {stop, normal, S}
+            {stop, too_many_failed_nodes, S}
     end;
 
 handle_cast({retry_node, Node}, #state{phase = Phase} = S) ->
@@ -352,7 +352,7 @@ handle_cast({build_map, [T|Tags]}, #state{phase = build_map} = S) ->
             % as orphans and delete them.
             error_logger:error_report({"GC: stopping, unable to get tag",
                                        T, E}),
-            {stop, normal, S}
+            {stop, tag_error, S}
     end;
 handle_cast({build_map, []}, #state{phase = build_map} = S) ->
     S1 = case num_pending_objects() of
@@ -434,7 +434,9 @@ handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     % We are done with the RR phase, and hence with GC!
     error_logger:info_report({"GC: tag update/replication done, done with GC!"}),
     node_broadcast(S#state.gc_peers, end_rr),
-    {stop, normal, S}.
+    % Exit with a non-normal error code to ensure all linked processes
+    % die, especially gc_peers.
+    {stop, done, S}.
 
 handle_info({check_blob_result, LocalObj, Status}, #state{phase = Phase} = S)
   when Phase =:= build_map, is_boolean(Status);
@@ -467,7 +469,7 @@ handle_info(check_progress, #state{phase = Phase} = S)
             % We haven't made progress. Stop GC.
             error_logger:error_report({"GC: progress timeout in phase",
                                        S#state.phase}),
-            {stop, normal, S}
+            {stop, progress_timeout, S}
     end;
 handle_info(check_progress, S) ->
     % We don't need this timer in the RR phases.
@@ -489,7 +491,7 @@ handle_info({'EXIT', Pid, Reason}, #state{phase = Phase, rr_pid = RR} = S)
     % Unexpected exit of RR process; exit.
     error_logger:error_report({"GC: unexpected exit of replicator",
                                Reason, Phase}),
-    {stop, normal, S};
+    {stop, replicator_error, S};
 
 handle_info({'EXIT', Pid, Reason}, #state{phase = Phase} = S) ->
     case find_node(S#state.gc_peers, Pid) of
@@ -514,7 +516,8 @@ handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
 %% ===================================================================
 %% gen_server callback stubs
 
-terminate(normal, _S) ->
+terminate(Reason, _S)
+  when Reason =:= normal; Reason =:= done ->
     ok;
 terminate(Reason, #state{phase = Phase} = _S) ->
     error_logger:warning_report({"GC: dying", Reason, Phase}).
@@ -522,6 +525,8 @@ terminate(Reason, #state{phase = Phase} = _S) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+format_status(_Opt, [_PDict, S]) ->
+    [{data, [{"State", [{phase, S#state.phase}]}]}].
 
 %% ===================================================================
 %% peer connection management and messaging protocol
