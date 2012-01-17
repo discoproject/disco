@@ -21,12 +21,13 @@ start_gc(Root) ->
 start_gc(Root, DeletedAges) ->
     case ddfs_gc_main:start_link(Root, DeletedAges) of
         {ok, Gc} ->
-            Wait = start_gc_wait(Gc, ?GC_INTERVAL),
+            Start = now(),
+            start_gc_wait(Gc, ?GC_INTERVAL),
+            % timer:now_diff() returns microseconds.
+            Wait = round(timer:now_diff(now(), Start) / 1000),
             case ?GC_INTERVAL > Wait of
-                true ->
-                    timer:sleep(?GC_INTERVAL - Wait);
-                false ->
-                    ok
+                true  -> timer:sleep(?GC_INTERVAL - Wait);
+                false -> ok
             end;
         E ->
             error_logger:error_report({"GC: error starting", E}),
@@ -34,21 +35,22 @@ start_gc(Root, DeletedAges) ->
     end,
     start_gc(Root, DeletedAges).
 
--spec start_gc_wait(pid(), timer:time()) -> timer:time().
+-spec start_gc_wait(pid(), timeout()) -> ok.
 start_gc_wait(Pid, Interval) ->
     Start = now(),
     receive
-	{'EXIT', Pid, Reason} ->
-	    error_logger:error_report({"GC: exit", Pid, Reason});
-	{'EXIT', Other, Reason} ->
-	    error_logger:error_report({"GC: unexpected exit", Other, Reason});
-	Other ->
-	    error_logger:error_report({"GC: unexpected msg exit", Other})
+        {'EXIT', Pid, Reason} ->
+            error_logger:error_report({"GC: exit", Pid, Reason});
+        {'EXIT', Other, Reason} ->
+            error_logger:error_report({"GC: unexpected exit", Other, Reason}),
+            start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
+        Other ->
+            error_logger:error_report({"GC: unexpected msg exit", Other}),
+            start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)))
     after Interval ->
-	    error_logger:error_report({"GC: timeout exit"})
-    end,
-    % timer:now_diff() returns microseconds.
-    round(timer:now_diff(now(), Start) / 1000).
+            error_logger:error_report({"GC: timeout exit"}),
+            exit(Pid, force_timeout)
+    end.
 
 -spec hosted_tags(nonempty_string()) -> [object_name()] | {'error', term()}.
 hosted_tags(Host) ->
