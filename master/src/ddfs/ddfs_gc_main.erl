@@ -187,8 +187,8 @@
 
 -export([start_link/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-         terminate/2, code_change/3]).
--export([is_orphan/4, node_gc_done/1]).
+         terminate/2, code_change/3, format_status/2]).
+-export([is_orphan/4, node_gc_done/2]).
 
 -include("config.hrl").
 -include("ddfs.hrl").
@@ -197,7 +197,7 @@
 
 -define(NODE_RETRY_WAIT, 30000).
 
--type rr_next() :: {object_type(), object_name()}.
+-type rr_next() :: object_name().
 -record(state, {
           % dynamic state
           deleted_ages :: ets:tab(),
@@ -241,9 +241,9 @@ start_link(Root, DeletedAges) ->
 is_orphan(Master, Type, ObjName, Vol) ->
     gen_server:call(Master, {is_orphan, Type, ObjName, node(), Vol}).
 
--spec node_gc_done(pid()) -> 'ok'.
-node_gc_done(Master) ->
-    gen_server:cast(Master, {gc_done, node()}).
+-spec node_gc_done(pid(), gc_run_stats()) -> 'ok'.
+node_gc_done(Master, GCStats) ->
+    gen_server:cast(Master, {gc_done, node(), GCStats}).
 
 -spec add_replicas(pid(), object_name(), [url()]) -> 'ok'.
 add_replicas(Master, BlobName, NewUrls) ->
@@ -387,7 +387,9 @@ handle_cast({build_map, []}, #state{phase = build_map} = S) ->
          end,
     {noreply, S1};
 
-handle_cast({gc_done, Node}, #state{phase = gc, pending_nodes = Pending} = S) ->
+handle_cast({gc_done, Node, GCStats}, #state{phase = gc,
+                                             pending_nodes = Pending} = S) ->
+    print_gc_stats(Node, GCStats),
     NewPending = gb_sets:delete(Node, Pending),
     S1 = case gb_sets:size(NewPending) of
              0 ->
@@ -806,6 +808,17 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                     end
             end
     end.
+
+-spec print_gc_stats(node(), gc_run_stats()) -> 'ok'.
+print_gc_stats(Node, {Tags, Blobs}) ->
+    print_obj_stats(Node, tag, Tags),
+    print_obj_stats(Node, blob, Blobs).
+-spec print_obj_stats(node(), object_type(), obj_stats()) -> 'ok'.
+print_obj_stats(Node, Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
+    error_logger:info_report({"Node gc done", Node,
+                              "kept", Type, KeptF, "bytes", KeptB,
+                              "deleted", Type, DelF, "bytes", DelB}).
+
 
 % GC4) Delete old deleted tags from the +deleted metatag
 %

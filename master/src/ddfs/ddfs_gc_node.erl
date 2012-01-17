@@ -21,6 +21,10 @@ gc_node_init(Master, Now, Phase) ->
     process_flag(priority, low),
     {Vols, Root} = ddfs_node:get_vols(),
     {_, VolNames} = lists:unzip(Vols),
+    % obj : {Key    :: object_name(),
+    %        Vol    :: volume_name(),
+    %        Size   :: non_neg_integer(),
+    %        in_use :: 'false' | 'true'}
     _ = ets:new(tag, [named_table, set, private]),
     _ = ets:new(blob, [named_table, set, private]),
     traverse(Now, Root, VolNames, blob),
@@ -73,9 +77,12 @@ handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     Diff = timer:now_diff(Now, Time) / 1000,
     Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
     delete_if_expired(filename:join(Dir, File), Diff, ?PARTIAL_EXPIRES, Paranoid);
-handle_file(Obj, _, VolName, Type, _) ->
-    % We could check a checksum of Obj here
-    ets:insert(Type, {list_to_binary(Obj), VolName, false}).
+handle_file(Obj, Dir, VolName, Type, _) ->
+    Size = case prim_file:read_file_info(filename:join(Dir, Obj)) of
+               {ok, #file_info{size = S}} -> S;
+               _E -> 0
+           end,
+    ets:insert(Type, {list_to_binary(Obj), VolName, Size, false}).
 
 %%
 %% Serve check requests from master (build_map / map_wait)
@@ -96,7 +103,7 @@ check_server(Master, Root) ->
 
 -spec check_blob(object_name()) -> boolean().
 check_blob(ObjName) ->
-    ets:update_element(blob, ObjName, {3, true}).
+    ets:update_element(blob, ObjName, {4, true}).
 
 % Perform GC
 %
@@ -106,8 +113,22 @@ check_blob(ObjName) ->
 local_gc(Master, Now, Root) ->
     delete_orphaned(Master, Now, Root, blob, ?ORPHANED_BLOB_EXPIRES),
     delete_orphaned(Master, Now, Root, tag, ?ORPHANED_TAG_EXPIRES),
-    ddfs_gc_main:node_gc_done(Master),
+    ddfs_gc_main:node_gc_done(Master, gc_run_stats()),
     ok.
+
+-spec obj_stats(object_type()) -> obj_stats().
+obj_stats(Type) ->
+    ets:foldl(fun({_O, _V, Sz, true}, {Kept, Deleted}) ->
+                      {Files, Bytes} = Kept,
+                      {{Files + 1, Bytes + Sz}, Deleted};
+                 ({_O, _V, Sz, false}, {Kept, Deleted}) ->
+                      {Files, Bytes} = Deleted,
+                      {Kept, {Files + 1, Bytes + Sz}}
+              end, {{0, 0}, {0, 0}}, Type).
+
+-spec gc_run_stats() -> gc_run_stats().
+gc_run_stats() ->
+    {obj_stats(tag), obj_stats(blob)}.
 
 -spec delete_orphaned(pid(), erlang:timestamp(), path(), object_type(),
                       non_neg_integer()) -> 'ok'.
@@ -125,9 +146,10 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
                       delete_if_expired(FullPath, Diff, Expires, Paranoid);
                   _E ->
                       % Do not delete if not orphan, timeout or error.
-                      ok
+                      % Mark the object as in-use for stats.
+                      true = ets:update_element(Type, Obj, {4, true})
               end
-      end, ets:match(Type, {'$1', '$2', false})).
+      end, ets:match(Type, {'$1', '$2', '_', false})).
 
 -spec delete_if_expired(file:filename(), float(),
                         non_neg_integer(), boolean()) -> 'ok'.
@@ -157,7 +179,7 @@ delete_if_expired(_Path, _Diff, _Expires, _Paranoid) ->
 replica_server(Master, Root) ->
     receive
         {put_blob, Replicator, Ref, Blob, PutUrl} ->
-            [{_, VolName, _}] = ets:lookup(blob, Blob),
+            [{_, VolName, _, _}] = ets:lookup(blob, Blob),
             {ok, Path, _} =
                 ddfs_util:hashdir(Blob, "nonode!", "blob", Root, VolName),
             SrcPath = filename:join(Path, binary_to_list(Blob)),
