@@ -206,6 +206,7 @@
 
           last_response_time = now()  :: erlang:timestamp(),
           progress_timer              :: 'undefined' | timer:tref(),
+          gc_stats = init_gc_stats()  :: gc_run_stats(),
 
           num_pending_reqs  = 0               :: non_neg_integer(),       % build_map/map_wait
           pending_nodes     = gb_sets:empty() :: gb_set(),                % gc
@@ -387,9 +388,11 @@ handle_cast({build_map, []}, #state{phase = build_map} = S) ->
          end,
     {noreply, S1};
 
-handle_cast({gc_done, Node, GCStats}, #state{phase = gc,
-                                             pending_nodes = Pending} = S) ->
-    print_gc_stats(Node, GCStats),
+handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
+                                               gc_stats = Stats,
+                                               pending_nodes = Pending} = S) ->
+    print_gc_stats(Node, NodeStats),
+    NewStats = add_gc_stats(Stats, NodeStats),
     NewPending = gb_sets:delete(Node, Pending),
     S1 = case gb_sets:size(NewPending) of
              0 ->
@@ -397,16 +400,19 @@ handle_cast({gc_done, Node, GCStats}, #state{phase = gc,
                  % finish GC.  Update the deleted tag.
                  process_deleted(S#state.tags, S#state.deleted_ages),
 
+                 print_gc_stats(all, NewStats),
                  error_logger:info_report({"GC: entering rr_blobs phase"}),
                  % We start the first phase of the RR phase.
                  RRPid = start_replicator(self()),
                  Start = ets:first(gc_blobs),
                  rereplicate_blob(S, Start),
                  S#state{phase = rr_blobs, rr_pid = RRPid};
-             _ ->
+             Remaining ->
+                 error_logger:info_report({"GC: nodes pending in gc", Remaining}),
                  S
          end,
     {noreply, S1#state{pending_nodes = NewPending,
+                       gc_stats = NewStats,
                        last_response_time = now()}};
 
 handle_cast({rr_blob, '$end_of_table'},
@@ -809,15 +815,32 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
             end
     end.
 
+-spec init_gc_stats() -> gc_run_stats().
+init_gc_stats() ->
+    {{{0,0}, {0,0}}, {{0,0}, {0,0}}}.
+-spec add_gc_stats(gc_run_stats(), gc_run_stats()) -> gc_run_stats().
+add_gc_stats({T1, B1}, {T2, B2}) ->
+    {add_obj_stats(T1, T2), add_obj_stats(B1, B2)}.
+-spec add_obj_stats(obj_stats(), obj_stats()) -> obj_stats().
+add_obj_stats({K1, D1}, {K2, D2}) ->
+    {add_gc_stat(K1, K2), add_gc_stat(D1, D2)}.
+-spec add_gc_stat(gc_stat(), gc_stat()) -> gc_stat().
+add_gc_stat({F1, B1}, {F2, B2}) ->
+    {F1 + F2, B1 + B2}.
+
 -spec print_gc_stats(node(), gc_run_stats()) -> 'ok'.
+print_gc_stats(all, {Tags, Blobs}) ->
+    error_logger:info_report({"Total GC Stats"}),
+    print_obj_stats(tag, Tags),
+    print_obj_stats(blob, Blobs);
 print_gc_stats(Node, {Tags, Blobs}) ->
-    print_obj_stats(Node, tag, Tags),
-    print_obj_stats(Node, blob, Blobs).
--spec print_obj_stats(node(), object_type(), obj_stats()) -> 'ok'.
-print_obj_stats(Node, Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
-    error_logger:info_report({"Node gc done", Node,
-                              "kept", Type, KeptF, "bytes", KeptB,
-                              "deleted", Type, DelF, "bytes", DelB}).
+    error_logger:info_report({"Node GC Stats", Node}),
+    print_obj_stats(tag, Tags),
+    print_obj_stats(blob, Blobs).
+-spec print_obj_stats(object_type(), obj_stats()) -> 'ok'.
+print_obj_stats(Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
+    error_logger:info_report({Type, "kept", {KeptF, KeptB},
+                              "deleted", {DelF, DelB}}).
 
 
 % GC4) Delete old deleted tags from the +deleted metatag
