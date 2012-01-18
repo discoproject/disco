@@ -47,9 +47,6 @@
 %     below), before deleting an object, a node needs to check with
 %     the master whether it is in use.
 %
-%     If more than DDFS_GC_MAX_NODE_FAILURES node connections are
-%     lost, then the GC/RR process is aborted.
-%
 %     GC cannot proceed safely unless this snapshot is built, since
 %     otherwise it might delete data that is still in-use.  Hence, GC
 %     aborts if the snapshot cannot be built.  For simplicity, we also
@@ -95,9 +92,6 @@
 %     If a node connection is reestablished during this phase, the
 %     node rebuilds its cache, and treats each object as a potential
 %     orphan.  This will make GC take longer, but is still safe.
-%
-%     If more than DDFS_GC_MAX_NODE_FAILURES node connections are
-%     lost, then the GC/RR process is aborted.
 %
 % - RR                          (phase = rr_blobs/rr_blobs_wait/rr_tags)
 %
@@ -402,7 +396,9 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
 
                  print_gc_stats(all, NewStats),
                  error_logger:info_report({"GC: entering rr_blobs phase"}),
-                 % We start the first phase of the RR phase.
+                 % Start the replicator process which will
+                 % synchronously replicate any blobs it is told to,
+                 % and then iterate over all the blobs.
                  RRPid = start_replicator(self()),
                  Start = ets:first(gc_blobs),
                  rereplicate_blob(S, Start),

@@ -1,6 +1,6 @@
 -module(ddfs_gc_node).
 -export([start_gc_node/4]).
--export([gc_node_init/3]).  % WHY IS THIS NEEDED?
+-export([gc_node_init/3]).
 -include_lib("kernel/include/file.hrl").
 
 -include("config.hrl").
@@ -21,6 +21,9 @@ gc_node_init(Master, Now, Phase) ->
     process_flag(priority, low),
     {Vols, Root} = ddfs_node:get_vols(),
     {_, VolNames} = lists:unzip(Vols),
+
+    % Traverse the volumes and build up a cache of all stored objects
+    % (tags and blobs).
     % obj : {Key    :: object_name(),
     %        Vol    :: volume_name(),
     %        Size   :: non_neg_integer(),
