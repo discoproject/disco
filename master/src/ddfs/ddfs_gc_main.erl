@@ -609,7 +609,6 @@ node_send(Pid, Msg) ->
 check_tag(Tag, S, Retries) ->
     case catch ddfs_master:tag_operation(gc_get, Tag, ?GET_TAG_TIMEOUT) of
         {{missing, deleted}, false} ->
-            error_logger:info_report({"deleted", Tag}),
             {ok,  0};
         {'EXIT', {timeout, _}} when Retries =/= 0 ->
             check_tag(Tag, S, Retries - 1);
@@ -789,11 +788,15 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                     % This is a newly recovered replica, but we have
                     % more than enough replicas, so we can afford
                     % marking this as an orphan.
+                    error_logger:info_report({"GC: discarding replica",
+                                              BlobName, Node, Vol}),
                     {ok, true};
                 {false, false}
                   when S#state.blacklist =:= [] ->
                     % This is a usable, newly-recovered, lost replica;
                     % record the volume for later use.
+                    error_logger:info_report({"GC: recovering replica",
+                                              BlobName, Node, Vol}),
                     NewRecovered = [{Node, Vol} | Recovered],
                     ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                     {ok, false};
@@ -808,6 +811,8 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                             % Note that Node could belong to the blacklist; we
                             % still record the replica so that we can use it for
                             % re-replication if needed.
+                            error_logger:info_report({"GC: recovering replica",
+                                                      BlobName, Node, Vol}),
                             NewRecovered = [{Node, Vol} | Recovered],
                             ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                             {ok, false}
@@ -1078,6 +1083,7 @@ update_tag_body(S, Tag, Id, TagUrls, TagReplicas) ->
         _ ->
             % In all other cases, send the tag an update.
             Msg = {gc_rr_update, Updates, S#state.blacklist, Id},
+            error_logger:info_report({"Updating tag", Msg}),
             ddfs_master:tag_notify(Msg, Tag)
     end.
 
