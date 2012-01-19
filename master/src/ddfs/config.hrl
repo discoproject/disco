@@ -60,6 +60,10 @@
 % Time to wait between garbage collection runs
 -define(GC_INTERVAL, ?DAY).
 
+% Max duration for a GC run.  This should be smaller than
+% min(ORPHANED_{BLOB,TAG}_EXPIRES).
+-define(GC_MAX_DURATION, 3 * ?DAY).
+
 % Time to wait after startup for cluster to stabilize before running
 % first GC.
 -define(GC_INITIAL_WAIT, 5 * ?MINUTE).

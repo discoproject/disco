@@ -15,25 +15,27 @@ start_gc(Root) ->
     % Wait some time for all nodes to start and stabilize.
     timer:sleep(?GC_INITIAL_WAIT),
     process_flag(trap_exit, true),
-    start_gc(Root, ets:new(deleted_ages, [set, public])).
+    GCMaxDuration = lists:min([?GC_MAX_DURATION,
+                               ?ORPHANED_BLOB_EXPIRES,
+                               ?ORPHANED_TAG_EXPIRES]),
+    start_gc(Root, ets:new(deleted_ages, [set, public]), GCMaxDuration).
 
--spec start_gc(string(), ets:tab()) -> no_return().
-start_gc(Root, DeletedAges) ->
+-spec start_gc(string(), ets:tab(), non_neg_integer()) -> no_return().
+start_gc(Root, DeletedAges, GCMaxDuration) ->
     case ddfs_gc_main:start_link(Root, DeletedAges) of
         {ok, Gc} ->
             Start = now(),
-            start_gc_wait(Gc, ?GC_INTERVAL),
+            start_gc_wait(Gc, GCMaxDuration),
             % timer:now_diff() returns microseconds.
             Wait = round(timer:now_diff(now(), Start) / 1000),
-            case ?GC_INTERVAL > Wait of
-                true  -> timer:sleep(?GC_INTERVAL - Wait);
-                false -> ok
-            end;
+            % Wait until the next scheduled gc run slot.
+            Idle = ?GC_INTERVAL - (Wait rem ?GC_INTERVAL),
+            timer:sleep(Idle);
         E ->
             error_logger:error_report({"GC: error starting", E}),
             timer:sleep(?GC_INTERVAL)
     end,
-    start_gc(Root, DeletedAges).
+    start_gc(Root, DeletedAges, GCMaxDuration).
 
 -spec start_gc_wait(pid(), timeout()) -> ok.
 start_gc_wait(Pid, Interval) ->
