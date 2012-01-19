@@ -296,7 +296,7 @@ handle_call(dbg_get_state, _, S) ->
 handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
     error_logger:info_report({"GC: initializing"}),
     {OkNodes, Failed, Tags} = ddfs_master:get_tags(all),
-    {ok, Blacklist} = ddfs_master:get_gc_blacklist(),
+    {ok, Blacklist} = ddfs_master:gc_blacklist(),
     {NumOk, NumFailed} = {length(OkNodes), length(Failed)},
     if NumOk > 0, NumFailed < TagMinK ->
             error_logger:info_report({"GC: building map, with", NumFailed,

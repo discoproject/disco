@@ -5,13 +5,13 @@
 -export([get_tags/1,
          get_nodeinfo/1,
          get_read_nodes/0,
-         get_gc_blacklist/0,
+         gc_blacklist/0,
+         gc_blacklist/1,
          choose_write_nodes/2,
          new_blob/3,
          tag_notify/2,
          tag_operation/2, tag_operation/3,
-         update_nodes/1,
-         update_gc_blacklist/1
+         update_nodes/1
         ]).
 -export([init/1,
          handle_call/3,
@@ -68,9 +68,9 @@ get_nodeinfo(all) ->
 get_read_nodes() ->
     gen_server:call(?MODULE, get_read_nodes).
 
--spec get_gc_blacklist() -> {'ok', [node()]}.
-get_gc_blacklist() ->
-    gen_server:call(?MODULE, get_gc_blacklist).
+-spec gc_blacklist() -> {'ok', [node()]}.
+gc_blacklist() ->
+    gen_server:call(?MODULE, gc_blacklist).
 
 -spec choose_write_nodes(non_neg_integer(), [node()]) -> {'ok', [node()]}.
 choose_write_nodes(K, Exclude) ->
@@ -98,9 +98,9 @@ update_nodestats(NewNodes) ->
 update_tag_cache(TagCache) ->
     gen_server:cast(?MODULE, {update_tag_cache, TagCache}).
 
--spec update_gc_blacklist([node()]) -> 'ok'.
-update_gc_blacklist(Nodes) ->
-    gen_server:cast(?MODULE, {update_gc_blacklist, Nodes}).
+-spec gc_blacklist([node()]) -> 'ok'.
+gc_blacklist(Nodes) ->
+    gen_server:cast(?MODULE, {gc_blacklist, Nodes}).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -121,7 +121,7 @@ handle_call({get_nodeinfo, all}, _From, #state{nodes = Nodes} = S) ->
 handle_call(get_read_nodes, _F, #state{nodes = Nodes, read_blacklist = RB} = S) ->
     {reply, do_get_readable_nodes(Nodes, RB), S};
 
-handle_call(get_gc_blacklist, _F, #state{gc_blacklist = Nodes} = S) ->
+handle_call(gc_blacklist, _F, #state{gc_blacklist = Nodes} = S) ->
     {reply, {ok, Nodes}, S};
 
 handle_call({choose_write_nodes, K, Exclude}, _,
@@ -161,7 +161,7 @@ handle_cast({update_nodes, NewNodes}, S) ->
 handle_cast({update_nodestats, NewNodes}, S) ->
     {noreply, do_update_nodestats(NewNodes, S)};
 
-handle_cast({update_gc_blacklist, Nodes}, S) ->
+handle_cast({gc_blacklist, Nodes}, S) ->
     {noreply, S#state{gc_blacklist = lists:sort(Nodes)}}.
 
 handle_info({'DOWN', _, _, Pid, _}, S) ->
