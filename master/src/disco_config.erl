@@ -1,6 +1,8 @@
 -module(disco_config).
 -behaviour(gen_server).
 
+-include("disco.hrl").
+
 -export([start_link/0, stop/0]).
 -export([get_config_table/0, save_config_table/1, blacklist/1, whitelist/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -8,7 +10,7 @@
 
 -type hostinfo_line() :: [binary(),...].
 -type raw_hosts() :: [[hostinfo_line()]].
--type host_info() :: {nonempty_string(), non_neg_integer()}.
+-type host_info() :: {host_name(), non_neg_integer()}.
 -type config() :: [{binary(), [binary(),...]}].
 
 -export_type([host_info/0]).
@@ -34,11 +36,11 @@ get_config_table() ->
 save_config_table(Json) ->
     gen_server:call(?MODULE, {save_config_table, Json}).
 
--spec blacklist(nonempty_string()) -> 'ok'.
+-spec blacklist(host_name()) -> 'ok'.
 blacklist(Host) ->
     gen_server:call(?MODULE, {blacklist, Host}).
 
--spec whitelist(nonempty_string()) -> 'ok'.
+-spec whitelist(host_name()) -> 'ok'.
 whitelist(Host) ->
     gen_server:call(?MODULE, {whitelist, Host}).
 
@@ -74,7 +76,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% ===================================================================
 %% internal functions
 
--spec expand_range(nonempty_string(), nonempty_string()) -> [nonempty_string()].
+-spec expand_range(nonempty_string(), nonempty_string()) -> [host_name()].
 expand_range(FirstNode, Max) ->
     Len = string:len(FirstNode),
     FieldLen = string:len(Max),
@@ -98,7 +100,7 @@ parse_row([NodeSpecB, InstancesB]) ->
     Instances = string:strip(binary_to_list(InstancesB)),
     add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
--spec update_config_table([host_info()], [nonempty_string()]) -> 'ok'.
+-spec update_config_table([host_info()], [host_name()]) -> 'ok'.
 update_config_table(HostInfo, Blacklist) ->
     disco_server:update_config_table(HostInfo, Blacklist).
 
@@ -123,23 +125,22 @@ get_raw_hosts(Config) ->
 get_host_info(RawHosts) ->
     lists:flatten([parse_row(R) || R <- RawHosts]).
 
--spec get_expanded_hosts(raw_hosts()) -> [nonempty_string()].
+-spec get_expanded_hosts(raw_hosts()) -> [host_name()].
 get_expanded_hosts(RawHosts) ->
     {Hosts, _Cores} = lists:unzip(get_host_info(RawHosts)),
     Hosts.
 
--spec get_blacklist(config()) -> [nonempty_string()].
+-spec get_blacklist(config()) -> [host_name()].
 get_blacklist(Config) ->
     BL = proplists:get_value(<<"blacklist">>, Config),
     lists:map(fun(B) -> binary_to_list(B) end, BL).
 
--spec make_config(raw_hosts(), [nonempty_string()]) -> config().
+-spec make_config(raw_hosts(), [host_name()]) -> config().
 make_config(RawHosts, Blacklist) ->
     RawBlacklist = lists:map(fun(B) -> list_to_binary(B) end, Blacklist),
     [{<<"hosts">>, RawHosts}, {<<"blacklist">>, RawBlacklist}].
 
--spec make_blacklist([nonempty_string()], [nonempty_string()]) ->
-    [nonempty_string()].
+-spec make_blacklist([host_name()], [host_name()]) -> [host_name()].
 make_blacklist(Hosts, Prospects) ->
     lists:usort(lists:filter(fun(P) -> lists:member(P, Hosts) end, Prospects)).
 
@@ -184,7 +185,7 @@ do_save_config_table(RawHosts) ->
             {error, <<"invalid config">>}
     end.
 
--spec do_blacklist(nonempty_string()) -> 'ok'.
+-spec do_blacklist(host_name()) -> 'ok'.
 do_blacklist(Host) ->
     OldConfig = get_full_config(),
     RawHosts = get_raw_hosts(OldConfig),
@@ -195,7 +196,7 @@ do_blacklist(Host) ->
                          mochijson2:encode({struct, NewConfig})),
     disco_server:manual_blacklist(Host, true).
 
--spec do_whitelist(nonempty_string()) -> 'ok'.
+-spec do_whitelist(host_name()) -> 'ok'.
 do_whitelist(Host) ->
     OldConfig = get_full_config(),
     RawHosts = get_raw_hosts(OldConfig),

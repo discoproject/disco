@@ -15,7 +15,7 @@
 
 -type connection_status() :: 'undefined' | 'up' | disco_util:timestamp().
 
--record(dnode, {host :: nonempty_string(),
+-record(dnode, {host :: host_name(),
                 node_mon :: pid(),
                 manual_blacklist :: boolean(),
                 connection_status :: connection_status(),
@@ -63,7 +63,7 @@ start_link() ->
 stop() ->
     gen_server:call(?MODULE, stop).
 
--spec update_config_table([disco_config:host_info()], [nonempty_string()]) -> 'ok'.
+-spec update_config_table([disco_config:host_info()], [host_name()]) -> 'ok'.
 update_config_table(Config, ManualBlacklist) ->
     gen_server:cast(?MODULE, {update_config_table, Config, ManualBlacklist}).
 
@@ -99,11 +99,11 @@ clean_job(JobName) ->
 new_task(Task, Timeout) ->
     gen_server:call(?MODULE, {new_task, Task}, Timeout).
 
--spec connection_status(nonempty_string(), 'up' | 'down') -> 'ok'.
+-spec connection_status(host_name(), 'up' | 'down') -> 'ok'.
 connection_status(Node, Status) ->
     gen_server:call(?MODULE, {connection_status, Node, Status}).
 
--spec manual_blacklist(nonempty_string(), boolean()) -> 'ok'.
+-spec manual_blacklist(host_name(), boolean()) -> 'ok'.
 manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
@@ -261,7 +261,7 @@ update_nodes(Nodes) ->
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
     schedule_next().
 
--spec update_stats(nonempty_string(), 'none'|{'value', dnode()}, _,
+-spec update_stats(host_name(), 'none'|{'value', dnode()}, _,
                    #state{}) -> #state{}.
 update_stats(_Node, none, _ReplyType, S) -> S;
 update_stats(Node, {value, N}, ReplyType, S) ->
@@ -278,7 +278,7 @@ update_stats(Node, {value, N}, ReplyType, S) ->
          end,
     S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}.
 
--spec do_connection_status(nonempty_string(), 'up'|'down', #state{}) -> #state{}.
+-spec do_connection_status(host_name(), 'up'|'down', #state{}) -> #state{}.
 do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
@@ -293,7 +293,7 @@ do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
--spec do_manual_blacklist(nonempty_string(), boolean(), #state{}) -> #state{}.
+-spec do_manual_blacklist(host_name(), boolean(), #state{}) -> #state{}.
 do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
@@ -305,7 +305,7 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
--spec do_update_config_table([disco_config:host_info()], [nonempty_string()],
+-spec do_update_config_table([disco_config:host_info()], [host_name()],
                              #state{}) -> #state{}.
 do_update_config_table(Config, Blacklist, S) ->
     error_logger:info_report([{"Config table update"}]),
@@ -342,7 +342,7 @@ do_update_config_table(Config, Blacklist, S) ->
     update_nodes(NewNodes),
     S#state{nodes = NewNodes}.
 
--spec start_worker(nonempty_string(), pid(), task()) -> pid().
+-spec start_worker(host_name(), pid(), task()) -> pid().
 start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
                        [T#task.mode, T#task.taskid, Node], []),
