@@ -129,6 +129,10 @@ getop("get_blacklist", _Query) ->
     {ok, [list_to_binary(N#nodeinfo.name)
           || N <- Nodes, N#nodeinfo.blacklisted]};
 
+getop("get_gc_blacklist", _Query) ->
+    {ok, Nodes} = ddfs_master:gc_blacklist(),
+    {ok, [list_to_binary(disco:host(N)) || N <- Nodes]};
+
 getop("get_settings", _Query) ->
     L = [max_failure_rate],
     {ok, {struct, lists:filter(fun(X) -> is_tuple(X) end,
@@ -207,6 +211,22 @@ postop("whitelist", Json) ->
                      fun(J) ->
                              Node = binary_to_list(J),
                              disco_config:whitelist(Node),
+                             {ok, <<>>}
+                     end);
+
+postop("gc_blacklist", Json) ->
+    validate_payload("gc_blacklist", string, Json,
+                     fun(J) ->
+                             Node = binary_to_list(J),
+                             disco_config:gc_blacklist(Node),
+                             {ok, <<>>}
+                     end);
+
+postop("gc_whitelist", Json) ->
+    validate_payload("gc_whitelist", string, Json,
+                     fun(J) ->
+                             Node = binary_to_list(J),
+                             disco_config:gc_whitelist(Node),
                              {ok, <<>>}
                      end);
 

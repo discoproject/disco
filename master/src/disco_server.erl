@@ -3,9 +3,9 @@
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0]).
--export([update_config_table/2, get_active/1, get_nodeinfo/1,
+-export([update_config_table/3, get_active/1, get_nodeinfo/1,
          new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
-         new_task/2, connection_status/2, manual_blacklist/2,
+         new_task/2, connection_status/2, manual_blacklist/2, gc_blacklist/1,
          get_worker_jobpack/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -63,9 +63,11 @@ start_link() ->
 stop() ->
     gen_server:call(?MODULE, stop).
 
--spec update_config_table([disco_config:host_info()], [host_name()]) -> 'ok'.
-update_config_table(Config, ManualBlacklist) ->
-    gen_server:cast(?MODULE, {update_config_table, Config, ManualBlacklist}).
+-spec update_config_table([disco_config:host_info()], [host_name()],
+                          [host_name()]) -> 'ok'.
+update_config_table(Config, Blacklist, GCBlacklist) ->
+    gen_server:cast(?MODULE,
+                    {update_config_table, Config, Blacklist, GCBlacklist}).
 
 -spec get_active(nonempty_string() | 'all') ->
     {'ok', [{nonempty_string(), task()}]}.
@@ -107,6 +109,10 @@ connection_status(Node, Status) ->
 manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
+-spec gc_blacklist([host_name()]) -> 'ok'.
+gc_blacklist(Hosts) ->
+    gen_server:call(?MODULE, {gc_blacklist, Hosts}).
+
 % called from remote nodes
 -spec get_worker_jobpack(node(), nonempty_string()) ->
                                 {'ok', {file:io_device(), non_neg_integer()}}.
@@ -123,8 +129,8 @@ init(_Args) ->
                 nodes = gb_trees:empty(),
                 purged = gb_trees:empty()}}.
 
-handle_cast({update_config_table, Config, ManualBlacklist}, S) ->
-    {noreply, do_update_config_table(Config, ManualBlacklist, S)};
+handle_cast({update_config_table, Config, ManualBlacklist, GCBlacklist}, S) ->
+    {noreply, do_update_config_table(Config, ManualBlacklist, GCBlacklist, S)};
 
 handle_cast(schedule_next, S) ->
     {noreply, do_schedule_next(S)};
@@ -168,7 +174,11 @@ handle_call({connection_status, Node, Status}, _From, S) ->
     {reply, ok, do_connection_status(Node, Status, S)};
 
 handle_call({manual_blacklist, Node, True}, _From, S) ->
-    {reply, ok, do_manual_blacklist(Node, True, S)}.
+    {reply, ok, do_manual_blacklist(Node, True, S)};
+
+handle_call({gc_blacklist, Hosts}, _From, S) ->
+    {reply, ok, do_gc_blacklist(Hosts, S)}.
+
 
 % handle late replies to "catch gen_server:call"
 handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
@@ -306,8 +316,8 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     S#state{nodes = UpdatedNodes}.
 
 -spec do_update_config_table([disco_config:host_info()], [host_name()],
-                             #state{}) -> #state{}.
-do_update_config_table(Config, Blacklist, S) ->
+                             [host_name()], #state{}) -> #state{}.
+do_update_config_table(Config, Blacklist, GCBlacklist, S) ->
     error_logger:info_report([{"Config table update"}]),
     NewNodes =
         lists:foldl(fun({Host, Slots}, NewNodes) ->
@@ -340,7 +350,13 @@ do_update_config_table(Config, Blacklist, S) ->
         end, gb_trees:values(S#state.nodes)),
     disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
     update_nodes(NewNodes),
-    S#state{nodes = NewNodes}.
+    S1 = do_gc_blacklist(GCBlacklist, S),
+    S1#state{nodes = NewNodes}.
+
+-spec do_gc_blacklist([host_name()], #state{}) -> #state{}.
+do_gc_blacklist(Hosts, S) ->
+    ddfs_master:gc_blacklist([disco:slave_node(H) || H <- Hosts]),
+    S.
 
 -spec start_worker(host_name(), pid(), task()) -> pid().
 start_worker(Node, NodeMon, T) ->
