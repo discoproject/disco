@@ -1,4 +1,3 @@
-
 -module(disco_web).
 -export([op/3]).
 
@@ -63,9 +62,9 @@ getop("load_config_table", _Query) ->
 
 getop("joblist", _Query) ->
     {ok, Jobs} = gen_server:call(event_server, get_jobs),
-    {ok, [[1000000 * MSec + Sec, list_to_binary(atom_to_list(Status)), Name] ||
-        {Name, Status, {MSec, Sec, _USec}, _Pid}
-            <- lists:reverse(lists:keysort(3, Jobs))]};
+    {ok, [[1000000 * MSec + Sec, list_to_binary(atom_to_list(Status)), Name]
+          || {Name, Status, {MSec, Sec, _USec}, _Pid}
+                 <- lists:reverse(lists:keysort(3, Jobs))]};
 
 getop("jobinfo", {_Query, JobName}) ->
     {ok, Active} = disco_server:get_active(JobName),
@@ -88,11 +87,11 @@ getop("jobevents", {Query, Name}) ->
     {value, {_, NumS}} = lists:keysearch("num", 1, Query),
     Num = list_to_integer(NumS),
     Q = case lists:keysearch("filter", 1, Query) of
-        false -> "";
-        {value, {_, F}} -> string:to_lower(F)
-    end,
+            false -> "";
+            {value, {_, F}} -> string:to_lower(F)
+        end,
     {ok, Ev} = gen_server:call(event_server,
-        {get_job_events, Name, string:to_lower(Q), Num}),
+                               {get_job_events, Name, string:to_lower(Q), Num}),
     {raw, Ev};
 
 getop("nodeinfo", _Query) ->
@@ -128,17 +127,18 @@ getop("nodeinfo", _Query) ->
 getop("get_blacklist", _Query) ->
     {ok, Nodes} = disco_server:get_nodeinfo(all),
     {ok, [list_to_binary(N#nodeinfo.name)
-            || N <- Nodes, N#nodeinfo.blacklisted]};
+          || N <- Nodes, N#nodeinfo.blacklisted]};
 
 getop("get_settings", _Query) ->
     L = [max_failure_rate],
     {ok, {struct, lists:filter(fun(X) -> is_tuple(X) end,
-        lists:map(fun(S) ->
-            case application:get_env(disco, S) of
-                {ok, V} -> {S, V};
-                _ -> false
-            end
-        end, L))}};
+                               lists:map(
+                                 fun(S) ->
+                                     case application:get_env(disco, S) of
+                                         {ok, V} -> {S, V};
+                                         _ -> false
+                                     end
+                                 end, L))}};
 
 getop("get_mapresults", {_Query, Name}) ->
     case gen_server:call(event_server, {get_map_results, Name}) of
@@ -150,7 +150,8 @@ getop("get_mapresults", {_Query, Name}) ->
 
 getop(_, _) -> not_found.
 
--spec validate_payload(nonempty_string(), json_validator:spec(), term(), fun((term()) -> T)) -> T.
+-spec validate_payload(nonempty_string(), json_validator:spec(),
+                       term(), fun((term()) -> T)) -> T.
 validate_payload(_Op, Spec, Payload, Fun) ->
     case json_validator:validate(Spec, Payload) of
         ok -> Fun(Payload);
@@ -160,25 +161,28 @@ validate_payload(_Op, Spec, Payload, Fun) ->
     end.
 
 postop("kill_job", Json) ->
-    validate_payload("kill_job", string, Json, fun(J) ->
-                                           JobName = binary_to_list(J),
-                                           disco_server:kill_job(JobName),
-                                           {ok, <<>>}
-                                   end);
+    validate_payload("kill_job", string, Json,
+                     fun(J) ->
+                             JobName = binary_to_list(J),
+                             disco_server:kill_job(JobName),
+                             {ok, <<>>}
+                     end);
 
 postop("purge_job", Json) ->
-    validate_payload("purge_job", string, Json, fun(J) ->
-                                           JobName = binary_to_list(J),
-                                           disco_server:purge_job(JobName),
-                                           {ok, <<>>}
-                                   end);
+    validate_payload("purge_job", string, Json,
+                     fun(J) ->
+                             JobName = binary_to_list(J),
+                             disco_server:purge_job(JobName),
+                             {ok, <<>>}
+                     end);
 
 postop("clean_job", Json) ->
-    validate_payload("clean_job", string, Json, fun(J) ->
-                                           JobName = binary_to_list(J),
-                                           disco_server:clean_job(JobName),
-                                           {ok, <<>>}
-                                   end);
+    validate_payload("clean_job", string, Json,
+                     fun(J) ->
+                             JobName = binary_to_list(J),
+                             disco_server:clean_job(JobName),
+                             {ok, <<>>}
+                     end);
 
 postop("get_results", Json) ->
     Results = fun(N) -> gen_server:call(event_server, {get_results, N}) end,
@@ -191,18 +195,20 @@ postop("get_results", Json) ->
                      end);
 
 postop("blacklist", Json) ->
-    validate_payload("blacklist", string, Json, fun(J) ->
-                                           Node = binary_to_list(J),
-                                           disco_config:blacklist(Node),
-                                           {ok, <<>>}
-                                   end);
+    validate_payload("blacklist", string, Json,
+                     fun(J) ->
+                             Node = binary_to_list(J),
+                             disco_config:blacklist(Node),
+                             {ok, <<>>}
+                     end);
 
 postop("whitelist", Json) ->
-    validate_payload("whitelist", string, Json, fun(J) ->
-                                           Node = binary_to_list(J),
-                                           disco_config:whitelist(Node),
-                                           {ok, <<>>}
-                                   end);
+    validate_payload("whitelist", string, Json,
+                     fun(J) ->
+                             Node = binary_to_list(J),
+                             disco_config:whitelist(Node),
+                             {ok, <<>>}
+                     end);
 
 postop("save_config_table", Json) ->
     validate_payload("save_config_table", {hom_array, {array, [string, string]}},
@@ -228,7 +234,7 @@ job_file(Name, File) ->
 
 update_setting(<<"max_failure_rate">>, Val, App) ->
     ok = application:set_env(App, max_failure_rate,
-        list_to_integer(binary_to_list(Val)));
+                             list_to_integer(binary_to_list(Val)));
 
 update_setting(Key, Val, _) ->
     error_logger:info_report([{"Unknown setting", Key, Val}]).
@@ -291,11 +297,10 @@ wait_jobs(Jobs, Timeout) ->
     case [erlang:monitor(process, Pid) || {_, {active, Pid}} <- Jobs] of
         [] -> Jobs;
         _ ->
-            receive
-                {'DOWN', _, _, _, _} -> ok
+            receive {'DOWN', _, _, _, _} -> ok
             after Timeout -> ok
             end,
             [{N, gen_server:call(event_server,
-                {get_results, binary_to_list(N)})} ||
-                    {N, _} <- Jobs]
+                                 {get_results, binary_to_list(N)})}
+             || {N, _} <- Jobs]
     end.
