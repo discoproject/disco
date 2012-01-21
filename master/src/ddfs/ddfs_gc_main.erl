@@ -1118,7 +1118,8 @@ collect_updates(S, [BlobSet|Rest], Updates) ->
                             collect_updates(S, Rest, Updates)
                     end;
                 [{_, _P, R, {update, NewUrls}}] ->
-                    add_blob_update(S, BlobName, R, NewUrls, Updates)
+                    AccUpdates = add_blob_update(S, BlobName, R, NewUrls, Updates),
+                    collect_updates(S, Rest, AccUpdates)
             end
     end.
 
