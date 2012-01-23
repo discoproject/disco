@@ -146,7 +146,8 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
               Diff = timer:now_diff(Now, Time) / 1000,
               case catch ddfs_gc_main:is_orphan(Master, Type, Obj, VolName) of
                   {ok, true} ->
-                      delete_if_expired(FullPath, Diff, Expires, Paranoid);
+                      Deleted = delete_if_expired(FullPath, Diff, Expires, Paranoid),
+                      true = ets:update_element(Type, Obj, {4, not Deleted});
                   _E ->
                       % Do not delete if not orphan, timeout or error.
                       % Mark the object as in-use for stats.
@@ -155,7 +156,7 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
       end, ets:match(Type, {'$1', '$2', '_', false})).
 
 -spec delete_if_expired(file:filename(), float(),
-                        non_neg_integer(), boolean()) -> 'ok'.
+                        non_neg_integer(), boolean()) -> boolean().
 delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
     error_logger:info_report({"GC: Deleting expired object (paranoid)", Path}),
     Trash = "!trash." ++ filename:basename(Path),
@@ -164,15 +165,17 @@ delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
     _ = prim_file:write_file_info(Path, #file_info{mode = 8#00600}),
     _ = prim_file:rename(Path, Deleted),
     % Sleep here two prevent master being DDOS'ed by info_reports above
-    timer:sleep(100);
+    timer:sleep(100),
+    true;
 
 delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
     error_logger:info_report({"GC: Deleting expired object", Path}),
     _ = prim_file:delete(Path),
-    timer:sleep(100);
+    timer:sleep(100),
+    true;
 
 delete_if_expired(_Path, _Diff, _Expires, _Paranoid) ->
-    ok.
+    false.
 
 %%
 %% Re-replication  (rr_blobs / rr_blobs_wait)
