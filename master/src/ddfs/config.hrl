@@ -66,7 +66,7 @@
 
 % Time to wait after startup for cluster to stabilize before running
 % first GC.
--define(GC_INITIAL_WAIT, 5 * ?MINUTE).
+-define(GC_DEFAULT_INITIAL_WAIT, 5 * ?MINUTE).
 
 % Maximum number of times we try to bring up a node that failed during
 % GC before we abort GC.

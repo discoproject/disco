@@ -13,7 +13,12 @@ abort(Msg, Code) ->
 -spec start_gc(string()) -> no_return().
 start_gc(Root) ->
     % Wait some time for all nodes to start and stabilize.
-    timer:sleep(?GC_INITIAL_WAIT),
+    InitialWait =
+        case disco:has_setting("DDFS_GC_INITIAL_WAIT") of
+            true -> list_to_integer(disco:get_setting("DDFS_GC_INITIAL_WAIT")) * ?MINUTE;
+            false -> ?GC_DEFAULT_INITIAL_WAIT
+        end,
+    timer:sleep(InitialWait),
     process_flag(trap_exit, true),
     GCMaxDuration = lists:min([?GC_MAX_DURATION,
                                ?ORPHANED_BLOB_EXPIRES,
