@@ -2,12 +2,13 @@
 -export([http_put/3]).
 
 -include_lib("kernel/include/file.hrl").
+-include("ddfs.hrl").
 
 -define(CONNECT_TIMEOUT, 60000).
 -define(BUFFER_SIZE, 8192).
 
--spec http_put(nonempty_string(), nonempty_string(), integer()) ->
-    'ok' | {'error', 'crashed' | 'timeout'}.
+-spec http_put(path(), nonempty_string(), integer()) ->
+                      {'ok', binary()} | {'error', term()}.
 http_put(SrcPath, DstUrl, Timeout) ->
     % We use a middleman process to prevent messages received after timeout
     % reaching the original caller.
@@ -18,20 +19,17 @@ http_put(SrcPath, DstUrl, Timeout) ->
             S = self(),
             spawn_link(fun() -> http_put_conn(SrcPath, DstUrl, S) end),
             receive
-                ok -> P ! {S, ddfs_util, ok}, ok;
-                {'EXIT', _, _} ->
-                    P ! {S, ddfs_util, {error, crashed}}, ok;
+                {'EXIT', _, _} -> P ! {S, ddfs_util, {error, crashed}}, ok;
                 E -> P ! {S, ddfs_util, E}, ok
             after Timeout ->
                 P ! {S, ddfs_util, {error, timeout}}, ok
-            end,
-            exit(die)
+            end
         end),
     receive
         {Pid, ddfs_util, Reply} -> Reply
     end.
 
--spec http_put_conn(nonempty_string(), nonempty_string(), pid()) -> _.
+-spec http_put_conn(path(), nonempty_string(), pid()) -> _.
 http_put_conn(SrcPath, DstUrl, Parent) ->
     {_, Addr, Path, _, _} = mochiweb_util:urlsplit(lists:flatten(DstUrl)),
     {Host, Port} = parse_host(Addr),
@@ -75,7 +73,7 @@ send_body(Socket, IO, {ok, Data}) ->
     send_body(Socket, IO).
 
 -spec read_response(port()) ->
-    {'error', 'invalid_response'} | {'ok', [_]} | {'error', integer(), [_]}.
+    {'error', term()} | {'ok', binary()}.
 read_response(Socket) ->
     {ok, RBin} = recv_all(Socket),
     Resp = binary_to_list(RBin),
@@ -84,9 +82,9 @@ read_response(Socket) ->
     Body = lists:nthtail(H + 3, Resp),
     case string:tokens(Resp, "\r\n") of
         ["HTTP/1.1 201" ++ _|_] ->
-            {ok, Body};
+            {ok, list_to_binary(Body)};
         ["HTTP/1.1 " ++ Code|_] ->
-            {error, list_to_integer(string:sub_word(Code, 1, 32)), Body};
+            {error, {list_to_integer(string:sub_word(Code, 1, 32)), Body}};
         _ ->
             {error, invalid_response}
     end.

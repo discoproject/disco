@@ -3,6 +3,8 @@
 -behaviour(gen_server).
 
 -include("config.hrl").
+-include("ddfs.hrl").
+-include("ddfs_gc.hrl").
 -include("ddfs_tag.hrl").
 
 -export([start/2, init/1, handle_call/3, handle_cast/2,
@@ -49,6 +51,7 @@ init({TagName, false}) ->
 init(TagName, Data, Timeout) ->
     put(min_tagk, list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS"))),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
+    put(blobk, list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS"))),
     {ok, #state{tag = TagName,
                 data = Data,
                 delayed = false,
@@ -66,11 +69,15 @@ init(TagName, Data, Timeout) ->
 % We don't want to cache requests made by garbage collector
 handle_cast({gc_get, ReplyTo}, #state{data = none} = S) ->
     handle_cast({gc_get0, ReplyTo}, S#state{timeout = 100});
+handle_cast({notify, M}, #state{data = none} = S) ->
+    handle_cast({notify0, M}, S#state{timeout = 100});
 
 % On the other hand, if tag is already cached, GC'ing should
 % not trash it
 handle_cast({gc_get, ReplyTo}, S) ->
     handle_cast({gc_get0, ReplyTo}, S);
+handle_cast({notify, M}, S) ->
+    handle_cast({notify0, M}, S);
 
 % First request for this tag: No tag data loaded - load it
 handle_cast(M, #state{data = none} = S) ->
@@ -95,10 +102,9 @@ handle_cast(M, #state{data = none} = S) ->
             {error, _} = E ->
                 {E, false, ?TAG_EXPIRES_ONERROR}
         end,
-    handle_cast(M, S#state{
-                data = Data,
-                replicas = Replicas,
-                timeout = lists:min([Timeout, S#state.timeout])});
+    handle_cast(M, S#state{data = Data,
+                           replicas = Replicas,
+                           timeout = lists:min([Timeout, S#state.timeout])});
 
 % Delayed update with an empty buffer, initialize the buffer and a flush process
 handle_cast({{delayed_update, _, _, _}, _} = M,
@@ -197,6 +203,10 @@ handle_cast({{delete_attrib, Field, Token}, ReplyTo},
 handle_cast({{delete_attrib, _Field, _Token}, ReplyTo}, S) ->
     _ = send_replies(ReplyTo, {error, unknown_attribute}),
     {noreply, S, S#state.timeout};
+
+handle_cast({notify0, {gc_rr_update, Updates, Blacklist, UpdateId}}, S) ->
+    S1 = do_gc_rr_update(S, Updates, Blacklist, UpdateId),
+    {noreply, S1, S1#state.timeout};
 
 % Special operations for the +deleted metatag
 
@@ -331,6 +341,104 @@ send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
 send_replies(ReplyToList, Message) ->
     [gen_server:reply(Re, Message) || Re <- ReplyToList].
 
+
+-spec do_gc_rr_update(#state{}, [blob_update()], [node()], tagid()) -> #state{}.
+do_gc_rr_update(#state{data = {missing, _}} = S, _Updates, _Blacklist, _Id) ->
+    % The tag has been deleted, or cannot be found; ignore the update.
+    S;
+do_gc_rr_update(#state{data = {error, _}} = S, _Updates, _Blacklist, _Id) ->
+    % Error retrieving tag data; ignore the update.
+    S;
+do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
+                Updates, Blacklist, UpdateId) ->
+    OldUrls = D#tagcontent.urls,
+    Id = D#tagcontent.id,
+    Map = gb_trees:from_orddict(lists:sort(Updates)),
+    NewUrls = gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId),
+    {ok, NewTagContent} =
+        ddfs_tag_util:update_tagcontent(TagName, urls, NewUrls, Tag, null),
+    NewTagData = ddfs_tag_util:encode_tagcontent(NewTagContent),
+    TagId = NewTagContent#tagcontent.id,
+    case put_distribute({TagId, NewTagData}) of
+        {ok, DestNodes, _} ->
+            S#state{data = {ok, NewTagContent},
+                    replicas = DestNodes,
+                    url_cache = init_url_cache(NewUrls)};
+        {error, _} = E ->
+            error_logger:error_report({"GC: unable to update tag", TagName, E}),
+            S
+    end.
+
+-spec gc_update_urls(tagid(), [[url()]], gb_tree(), [node()], tagid())
+                    -> [[url()]].
+gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId) ->
+    gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId, []).
+gc_update_urls(_Id, [], _Map, _Blacklist, _UpdateId, Acc) ->
+    lists:reverse(Acc);
+gc_update_urls(Id, [[] | Rest], Map, Blacklist, UpdateId, Acc) ->
+    gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, Acc);
+gc_update_urls(Id, [[Url|_] = BlobSet | Rest], Map, Blacklist, UpdateId, Acc) ->
+    case ddfs_util:parse_url(Url) of
+        not_ddfs ->
+            gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc]);
+        {_, _, _, _, BlobName} ->
+            case gb_trees:lookup(BlobName, Map) of
+                none ->
+                    gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc]);
+                {value, filter}
+                  when Id =:= UpdateId ->
+                    % Only apply the blacklist filter provided we
+                    % still retain at least the minimum number of
+                    % replicas.  This is just a sanity check; the real
+                    % safety check is done by GC/RR.
+                    Filtered = filter_blacklist(BlobSet, Blacklist),
+                    case length(Filtered) >= get(blobk) of
+                        true ->
+                            gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [Filtered|Acc]);
+                        false ->
+                            gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc])
+                    end;
+                {value, filter} ->
+                    % The tag was modified after the filter safety
+                    % check was done; skip the update.
+                    gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc]);
+                {value, NewUrls_} ->
+                    % Ensure that new locations use the same scheme as
+                    % the existing locations.
+                    NewUrls = rewrite_scheme(Url, NewUrls_),
+                    NewBlobSet = lists:usort(NewUrls ++ BlobSet),
+                    gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [NewBlobSet|Acc])
+            end
+    end.
+
+-spec rewrite_scheme(url(), [url()]) -> [url()].
+rewrite_scheme(OrigUrl, Urls) ->
+    {S, _, _, _, _} = mochiweb_util:urlsplit(binary_to_list(OrigUrl)),
+    lists:map(fun(U) ->
+                      U1 = binary_to_list(U),
+                      {_, H, P, Q, F} = mochiweb_util:urlsplit(U1),
+                      NewU = mochiweb_util:urlunsplit({S, H, P, Q, F}),
+                      list_to_binary(NewU)
+              end,
+              Urls).
+
+-spec filter_blacklist([url()], [node()]) -> [url()].
+filter_blacklist(BlobSet, Blacklist) ->
+    lists:foldl(
+      fun(Url, Acc) ->
+              case ddfs_util:parse_url(Url) of
+                  not_ddfs -> [Url | Acc];
+                  {Host, _V, _T, _H, _B} ->
+                      case disco:slave_safe(Host) of
+                          false -> [Url | Acc];
+                          Node -> case lists:member(Node, Blacklist) of
+                                      true -> Acc;
+                                      false -> [Url|Acc]
+                                  end
+                      end
+              end
+      end, [], BlobSet).
+
 -spec get_tagdata(tagname()) -> {'missing', 'notfound'} | {'error', _}
                              | {'ok', binary(), [{replica(), node()}]}.
 get_tagdata(TagName) ->
@@ -364,8 +472,7 @@ read_tagdata(_TagID, Replicas, Failed, Error)
 
 read_tagdata(TagID, Replicas, Failed, _Error) ->
     {TagNfo, SrcNode} = Chosen = ddfs_util:choose_random(Replicas -- Failed),
-    case catch gen_server:call({ddfs_node, SrcNode},
-            {get_tag_data, TagID, TagNfo}, ?NODE_TIMEOUT) of
+    case catch ddfs_node:get_tag_data(SrcNode, TagID, TagNfo) of
         {ok, Data} ->
             {_, DestNodes} = lists:unzip(Replicas),
             {ok, Data, DestNodes};

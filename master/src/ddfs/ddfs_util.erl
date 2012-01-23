@@ -9,7 +9,7 @@
          hashdir/5,
          is_valid_name/1,
          pack_objname/2,
-         replace/3,
+         parse_url/1,
          safe_rename/2,
          startswith/2,
          timestamp/0,
@@ -22,26 +22,15 @@
 -include_lib("kernel/include/file.hrl").
 
 -include("config.hrl").
+-include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
--spec is_valid_name(string()) -> boolean().
+-spec is_valid_name(path()) -> boolean().
 is_valid_name([]) -> false;
 is_valid_name(Name) when length(Name) > ?NAME_MAX -> false;
 is_valid_name(Name) ->
     Ok = ":@-_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
     not lists:any(fun(C) -> string:chr(Ok, C) =:= 0 end, Name).
-
--spec replace(string(), char(), char()) -> string().
-replace(Str, A, B) ->
-    replace(lists:flatten(Str), A, B, []).
-
--spec replace(string(), char(), char(), string()) -> string().
-replace([], _, _, L) ->
-    lists:reverse(L);
-replace([C|R], A, B, L) when C =:= A ->
-    replace(R, A, B, [B|L]);
-replace([C|R], A, B, L) ->
-    replace(R, A, B, [C|L]).
 
 -spec startswith(binary(), binary()) -> boolean().
 startswith(B, Prefix) when size(B) < size(Prefix) ->
@@ -53,20 +42,20 @@ startswith(B, Prefix) ->
 -spec timestamp() -> string().
 timestamp() -> timestamp(now()).
 
--spec timestamp(disco_util:timestamp()) -> string().
+-spec timestamp(erlang:timestamp()) -> string().
 timestamp({X0, X1, X2}) ->
     lists:flatten([to_hex(X0), $-, to_hex(X1), $-, to_hex(X2)]).
 
--spec timestamp_to_time(nonempty_string()) -> disco_util:timestamp().
+-spec timestamp_to_time(nonempty_string()) -> erlang:timestamp().
 timestamp_to_time(T) ->
     list_to_tuple([erlang:list_to_integer(X, 16) ||
         X <- string:tokens(lists:flatten(T), "-")]).
 
--spec pack_objname(tagname(), disco_util:timestamp()) -> tagid().
+-spec pack_objname(tagname(), erlang:timestamp()) -> tagid().
 pack_objname(Name, T) ->
     list_to_binary([Name, "$", timestamp(T)]).
 
--spec unpack_objname(tagid() | string()) -> {binary(), disco_util:timestamp()}.
+-spec unpack_objname(tagid() | string()) -> {binary(), erlang:timestamp()}.
 unpack_objname(Obj) when is_binary(Obj) ->
     unpack_objname(binary_to_list(Obj));
 unpack_objname(Obj) ->
@@ -127,6 +116,21 @@ hashdir(Name, Host, Type, Root, Vol) ->
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
 
+
+-spec parse_url(binary()|string()) ->
+        'not_ddfs' | {host(), volume_name(), object_type(), string(), object_name()}.
+parse_url(Url) when is_binary(Url) ->
+    parse_url(binary_to_list(Url));
+parse_url(Url) when is_list(Url) ->
+    {_S, Host, Path, _Q, _F} = mochiweb_util:urlsplit(Url),
+    case filename:split(Path) of
+        ["/","ddfs","vol" ++ _ = Vol, "blob", Hash, Obj] ->
+            {Host, Vol, blob, Hash, list_to_binary(Obj)};
+        ["/","ddfs","vol" ++ _ = Vol, "tag", Hash, Obj] ->
+            {Host, Vol, tag, Hash, list_to_binary(Obj)};
+        _ -> not_ddfs
+    end.
+
 -spec safe_rename(string(), string()) -> 'ok' | {'error', 'file_exists'
     | {'chmod_failed', _} | {'rename_failed', _}}.
 safe_rename(Src, Dst) ->
@@ -167,7 +171,7 @@ concatenate_do(SrcIO, DstIO) ->
     end.
 
 -spec diskspace(nonempty_string()) ->
-    {'error', 'invalid_output' | 'invalid_path'} | {'ok', ddfs_node:diskinfo()}.
+    {'error', 'invalid_output' | 'invalid_path'} | {'ok', diskinfo()}.
 diskspace(Path) ->
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
         [_, _, Free, Used|_] ->
