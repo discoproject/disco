@@ -96,14 +96,15 @@ op('POST', "/ddfs/tag/" ++ Tag, Req) ->
     Token = parse_auth_token(Req),
     QS = Req:parse_qs(),
     Opt = if_set("update", QS, [nodup], []),
-    tag_update(fun(Urls, _Size) ->
-        case is_set("delayed", QS) of
-            true ->
-                ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token, Opt);
-            false ->
-                ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
-        end
-    end, Req);
+    process_payload(
+      fun(Urls, _Size) ->
+              case is_set("delayed", QS) of
+                  true ->
+                      ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token, Opt);
+                  false ->
+                      ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
+              end
+      end, Req);
 
 op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     % for backward compatibility, return urls if no attribute is specified
@@ -124,7 +125,7 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
                                               Token)
                      end
                  end,
-            tag_update(Op, Req)
+            process_payload(Op, Req)
     end;
 
 op('DELETE', "/ddfs/tag/" ++ TagAttrib, Req) ->
@@ -200,8 +201,8 @@ on_error(E, Req) ->
 okjson(Data, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)}).
 
--spec tag_update(fun(([binary()], non_neg_integer()) -> _), module()) -> _.
-tag_update(Fun, Req) ->
+-spec process_payload(fun(([binary()], non_neg_integer()) -> _), module()) -> _.
+process_payload(Fun, Req) ->
     case catch Req:recv_body(?MAX_TAG_BODY_SIZE) of
         {'EXIT', _} ->
             Req:respond({403, [], ["Invalid request."]});
