@@ -5,6 +5,7 @@
 -export([get_tags/1,
          get_nodeinfo/1,
          get_read_nodes/0,
+         get_hosted_tags/1,
          gc_blacklist/0,
          gc_blacklist/1,
          choose_write_nodes/2,
@@ -73,6 +74,14 @@ get_read_nodes() ->
 gc_blacklist() ->
     gen_server:call(?MODULE, gc_blacklist).
 
+-spec gc_blacklist([node()]) -> 'ok'.
+gc_blacklist(Nodes) ->
+    gen_server:cast(?MODULE, {gc_blacklist, Nodes}).
+
+-spec get_hosted_tags(host()) -> {'ok', [tagname()]} | {'error', term()}.
+get_hosted_tags(Host) ->
+    gen_server:call(?MODULE, {get_hosted_tags, Host}).
+
 -spec choose_write_nodes(non_neg_integer(), [node()]) -> {'ok', [node()]}.
 choose_write_nodes(K, Exclude) ->
     gen_server:call(?MODULE, {choose_write_nodes, K, Exclude}).
@@ -98,10 +107,6 @@ update_nodestats(NewNodes) ->
 -spec update_tag_cache(gb_set()) -> 'ok'.
 update_tag_cache(TagCache) ->
     gen_server:cast(?MODULE, {update_tag_cache, TagCache}).
-
--spec gc_blacklist([node()]) -> 'ok'.
-gc_blacklist(Nodes) ->
-    gen_server:cast(?MODULE, {gc_blacklist, Nodes}).
 
 %% ===================================================================
 %% gen_server callbacks
