@@ -24,6 +24,7 @@
 
 -include("config.hrl").
 -include("ddfs.hrl").
+-include("ddfs_tag.hrl").
 
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -record(state, {tags      = gb_trees:empty() :: gb_tree(),
@@ -48,15 +49,15 @@ start_link() ->
 
 stop() -> not_implemented.
 
--spec tag_operation(term(), nonempty_string() | binary()) -> term().
+-spec tag_operation(term(), tagname()) -> term().
 tag_operation(Op, Tag) ->
     gen_server:call(?MODULE, {tag, Op, Tag}).
--spec tag_operation(term(), nonempty_string() | binary(), non_neg_integer()) ->
+-spec tag_operation(term(), tagname(), non_neg_integer()) ->
                            term().
 tag_operation(Op, Tag, Timeout) ->
     gen_server:call(?MODULE, {tag, Op, Tag}, Timeout).
 
--spec tag_notify(term(), nonempty_string() | binary()) -> 'ok'.
+-spec tag_notify(term(), tagname()) -> 'ok'.
 tag_notify(Op, Tag) ->
     gen_server:cast(?MODULE, {tag_notify, Op, Tag}).
 
@@ -81,7 +82,7 @@ choose_write_nodes(K, Exclude) ->
 get_tags(Mode) ->
     gen_server:call(?MODULE, {get_tags, Mode}).
 
--spec new_blob(string()|binary(), non_neg_integer(), [node()]) ->
+-spec new_blob(string(), non_neg_integer(), [node()]) ->
                       'too_many_replicas' | {'ok', [nonempty_string()]}.
 new_blob(Obj, K, Exclude) ->
     gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
@@ -205,7 +206,7 @@ do_choose_write_nodes(Nodes, K, Exclude, BlackList) ->
             {ok, Secondary}
     end.
 
--spec do_new_blob(string()|binary(), non_neg_integer(), [node()], [node()], [node_info()]) ->
+-spec do_new_blob(string(), non_neg_integer(), [node()], [node()], [node_info()]) ->
                          'too_many_replicas' | {'ok', [nonempty_string()]}.
 do_new_blob(_Obj, K, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;
@@ -218,7 +219,7 @@ do_new_blob(Obj, K, Exclude, BlackList, Nodes) ->
 % Tag request: Start a new tag server if one doesn't exist already. Forward
 % the request to the tag server.
 
--spec get_tag_pid(nonempty_string() | binary(), gb_tree(), 'false' | gb_set()) ->
+-spec get_tag_pid(tagname(), gb_tree(), 'false' | gb_set()) ->
                          {pid(), gb_tree()}.
 get_tag_pid(Tag, Tags, Cache) ->
     case gb_trees:lookup(Tag, Tags) of
@@ -232,7 +233,7 @@ get_tag_pid(Tag, Tags, Cache) ->
             {P, Tags}
     end.
 
--spec do_tag_request(term(), nonempty_string() | binary(), replyto(), state()) ->
+-spec do_tag_request(term(), tagname(), replyto(), state()) ->
                             state().
 do_tag_request(M, Tag, From, #state{tags = Tags, tag_cache = Cache} = S) ->
     {Pid, TagsN} = get_tag_pid(Tag, Tags, Cache),
@@ -240,7 +241,7 @@ do_tag_request(M, Tag, From, #state{tags = Tags, tag_cache = Cache} = S) ->
     S#state{tags = TagsN,
             tag_cache = Cache =/= false andalso gb_sets:add(Tag, Cache)}.
 
--spec do_tag_notify(term(), nonempty_string() | binary(), state()) -> state().
+-spec do_tag_notify(term(), tagname(), state()) -> state().
 do_tag_notify(M, Tag, #state{tags = Tags, tag_cache = Cache} = S) ->
     {Pid, TagsN} = get_tag_pid(Tag, Tags, Cache),
     gen_server:cast(Pid, {notify, M}),
