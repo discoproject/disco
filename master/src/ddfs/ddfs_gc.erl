@@ -3,6 +3,7 @@
 
 -include("config.hrl").
 -include("ddfs.hrl").
+-include("ddfs_tag.hrl").
 -include("ddfs_gc.hrl").
 
 -spec abort(term(), atom()) -> no_return().
@@ -59,11 +60,21 @@ start_gc_wait(Pid, Interval) ->
             exit(Pid, force_timeout)
     end.
 
--spec hosted_tags(nonempty_string()) -> [object_name()] | {'error', term()}.
+-spec hosted_tags(host()) -> {ok, [tagname()]} | {'error', term()}.
 hosted_tags(Host) ->
+    case disco:slave_safe(Host) of
+        false ->
+            {error, unknown_host};
+        Node ->
+            case hosted_tags(Host, Node) of
+                {error, _} = E -> E;
+                Tags -> {ok, Tags}
+            end
+    end.
+-spec hosted_tags(host(), node()) -> [tagname()] | {'error', term()}.
+hosted_tags(Host, Node) ->
     case catch ddfs_master:get_tags(safe) of
         {ok, Tags} ->
-            Node = disco:slave_node(Host),
             lists:foldl(
               fun (_T, {error, _} = E) ->
                       E;
@@ -78,7 +89,7 @@ hosted_tags(Host) ->
             E
     end.
 
--spec tag_is_hosted(object_name(), nonempty_string(), node(), non_neg_integer()) ->
+-spec tag_is_hosted(tagname(), host(), node(), non_neg_integer()) ->
                            boolean() | {'error', term()}.
 tag_is_hosted(T, _Host, _Node, 0) ->
     {error, {get_tag, T}};
@@ -94,7 +105,7 @@ tag_is_hosted(T, Host, Node, Retries) ->
             E
     end.
 
--spec urls_are_hosted([[url()]], nonempty_string(), node())
+-spec urls_are_hosted([[url()]], host(), node())
                      -> boolean() | {'error' | term()}.
 urls_are_hosted([], _Host, _Node) ->
     false;
@@ -103,7 +114,7 @@ urls_are_hosted([[]|Rest], Host, Node) ->
 urls_are_hosted([Urls|Rest], Host, Node) ->
     Hosted =
         lists:foldl(
-          fun (<<"tag://", _/binary>> = T, false) ->
+          fun (<<"tag://", T/binary>>, false) ->
                   tag_is_hosted(T, Host, Node, ?MAX_TAG_OP_RETRIES);
               (Url, false) ->
                   case ddfs_util:parse_url(Url) of
