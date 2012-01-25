@@ -36,6 +36,21 @@ parse_auth_token(Req) ->
     end.
 
 -spec op(atom(), string(), module()) -> _.
+op('POST', "/ddfs/ctrl/hosted_tags", Req) ->
+    Fun =
+        fun(BinHost, _Size) ->
+            Host = binary_to_list(BinHost),
+            case ddfs_master:get_hosted_tags(Host) of
+                {ok, Tags} ->
+                    okjson(Tags, Req);
+                E ->
+                    error_logger:warning_report({"/ddfs/ctrl/hosted_tags", Host,
+                                                 "failed"}),
+                    on_error(E, Req)
+            end
+        end,
+    process_payload(Fun, Req);
+
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     QS = Req:parse_qs(),
@@ -191,6 +206,8 @@ on_error({error, too_many_attributes}, Req) ->
     Req:respond({403, [], ["Too many attributes"]});
 on_error({error, unknown_attribute}, Req) ->
     Req:respond({404, [], ["Tag attribute not found."]});
+on_error({error, unknown_host}, Req) ->
+    Req:respond({404, [], ["Unknown host."]});
 on_error({error, E}, Req) when is_atom(E) ->
     Req:respond({500, [], ["Internal server error: ", atom_to_list(E)]});
 on_error(E, Req) ->
