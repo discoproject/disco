@@ -8,10 +8,12 @@
          get_hosted_tags/1,
          gc_blacklist/0,
          gc_blacklist/1,
+         gc_stats/0,
          choose_write_nodes/2,
          new_blob/3,
          tag_notify/2,
          tag_operation/2, tag_operation/3,
+         update_gc_stats/1,
          update_nodes/1
         ]).
 -export([init/1,
@@ -26,17 +28,23 @@
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
+-include("ddfs_gc.hrl").
 
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
+-type gc_stats() :: 'none' | gc_run_stats().
+
 -record(state, {tags      = gb_trees:empty() :: gb_tree(),
                 tag_cache = false            :: 'false' | gb_set(),
 
-                nodes           = [] :: [node_info()],
-                write_blacklist = [] :: [node()],
-                read_blacklist  = [] :: [node()],
-                gc_blacklist    = [] :: [node()]}).
+                nodes           = []   :: [node_info()],
+                write_blacklist = []   :: [node()],
+                read_blacklist  = []   :: [node()],
+                gc_blacklist    = []   :: [node()],
+                gc_stats        = none :: gc_stats()}).
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
+
+-export_type([gc_stats/0]).
 
 %% ===================================================================
 %% API functions
@@ -78,6 +86,10 @@ gc_blacklist() ->
 gc_blacklist(Nodes) ->
     gen_server:cast(?MODULE, {gc_blacklist, Nodes}).
 
+-spec gc_stats() -> {'ok', gc_stats()} | {'error', term()}.
+gc_stats() ->
+    gen_server:call(?MODULE, gc_stats).
+
 -spec get_hosted_tags(host()) -> {'ok', [tagname()]} | {'error', term()}.
 get_hosted_tags(Host) ->
     gen_server:call(?MODULE, {get_hosted_tags, Host}).
@@ -91,10 +103,14 @@ choose_write_nodes(K, Exclude) ->
 get_tags(Mode) ->
     gen_server:call(?MODULE, {get_tags, Mode}).
 
--spec new_blob(string(), non_neg_integer(), [node()]) ->
+-spec new_blob(string()|object_name(), non_neg_integer(), [node()]) ->
                       'too_many_replicas' | {'ok', [nonempty_string()]}.
 new_blob(Obj, K, Exclude) ->
     gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
+
+-spec update_gc_stats(gc_run_stats()) -> 'ok'.
+update_gc_stats(Stats) ->
+    gen_server:cast(?MODULE, {update_gc_stats, Stats}).
 
 -spec update_nodes([{node(), boolean(), boolean()}]) -> 'ok'.
 update_nodes(DDFSNodes) ->
@@ -130,6 +146,9 @@ handle_call(get_read_nodes, _F, #state{nodes = Nodes, read_blacklist = RB} = S) 
 handle_call(gc_blacklist, _F, #state{gc_blacklist = Nodes} = S) ->
     {reply, {ok, Nodes}, S};
 
+handle_call(gc_stats, _F, #state{gc_stats = Stats} = S) ->
+    {reply, {ok, Stats}, S};
+
 handle_call({choose_write_nodes, K, Exclude}, _,
             #state{write_blacklist = WBL, gc_blacklist = GBL} = S) ->
     BL = lists:umerge(WBL, GBL),
@@ -157,6 +176,9 @@ handle_call({get_hosted_tags, Host}, From, S) ->
 
 handle_cast({tag_notify, M, Tag}, S) ->
     {noreply, do_tag_notify(M, Tag, S)};
+
+handle_cast({update_gc_stats, Stats}, S) ->
+    {noreply, S#state{gc_stats = Stats}};
 
 handle_cast({update_tag_cache, TagCache}, S) ->
     {noreply, S#state{tag_cache = TagCache}};
@@ -211,7 +233,7 @@ do_choose_write_nodes(Nodes, K, Exclude, BlackList) ->
             {ok, Secondary}
     end.
 
--spec do_new_blob(string(), non_neg_integer(), [node()], [node()], [node_info()]) ->
+-spec do_new_blob(string()|object_name(), non_neg_integer(), [node()], [node()], [node_info()]) ->
                          'too_many_replicas' | {'ok', [nonempty_string()]}.
 do_new_blob(_Obj, K, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;

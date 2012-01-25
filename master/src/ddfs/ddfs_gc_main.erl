@@ -395,6 +395,7 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  process_deleted(S#state.tags, S#state.deleted_ages),
 
                  print_gc_stats(all, NewStats),
+                 ddfs_master:update_gc_stats(NewStats),
                  error_logger:info_report({"GC: entering rr_blobs phase"}),
                  % Start the replicator process which will
                  % synchronously replicate any blobs it is told to,

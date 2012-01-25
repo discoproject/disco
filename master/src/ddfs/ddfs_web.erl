@@ -51,6 +51,20 @@ op('POST', "/ddfs/ctrl/hosted_tags", Req) ->
         end,
     process_payload(Fun, Req);
 
+op('GET', "/ddfs/ctrl/gc_stats", Req) ->
+    case ddfs_master:gc_stats() of
+        {ok, none} ->
+            okjson(<<"GC has not yet run.">>, Req);
+        {ok, {{{TKF, TKB},{TDF, TDB}}, {{BKF, BKB}, {BDF,BDB}}}} ->
+            Resp = {struct, [{<<"tag.kept">>, [TKF, TKB]},
+                             {<<"tag.deleted">>, [TDF, TDB]},
+                             {<<"blob.kept">>, [BKF, BKB]},
+                             {<<"blob.deleted">>, [BDF, BDB]}]},
+            okjson(Resp, Req);
+        E ->
+            on_error(E, Req)
+    end;
+
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     QS = Req:parse_qs(),
