@@ -65,6 +65,15 @@ op('GET', "/ddfs/ctrl/gc_stats", Req) ->
             on_error(E, Req)
     end;
 
+op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
+    case ddfs_master:safe_gc_blacklist() of
+        {ok, Nodes} ->
+            Resp = [list_to_binary(disco:name(N)) || N <- Nodes],
+            okjson(Resp, Req);
+        E ->
+            on_error(E, Req)
+    end;
+
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     QS = Req:parse_qs(),
