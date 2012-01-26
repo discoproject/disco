@@ -148,7 +148,7 @@
 % removed from the set of the writable DDFS nodes by ddfs_master when
 % new blobs or tags are created, or when existing ones are
 % re-replicated (1).
-
+%
 % Any blob or tag replicas found on a blacklisted node are not counted
 % towards satisfying their replica quotas (2), and blob and tag
 % replication is initiated if those quotas are not met (in phase
@@ -157,11 +157,6 @@
 % phase rr_tags) to remove any references to blob replicas hosted on
 % the blacklisted node (3).  The actual removal is performed by the
 % corresponding ddfs_tag.
-%
-% The blacklisted node can be removed by the admin from the config
-% after ensuring that no tag contains references to data hosted on it.
-% After a node is put on the blacklist, there might need to be several
-% runs of GC/RR before the node removal is safe.
 %
 % The blob reference removal requires an invariant: that any operations
 % on a tag do not modify the replica set for a blob in the tag, other
@@ -174,7 +169,13 @@
 % This invariant is ensured by comparing the tag id used for the
 % safety check, with the tag id at the time of the filter operation.
 % If the two differ, the filter operation is not performed.
-
+%
+% In the rr_tags phase, as the tags are scanned for updates, we also
+% track whether there exist references to blob replicas on gc
+% blacklisted nodes, and whether sufficient tag replicas exist on
+% non-blacklisted nodes.  At the end of the phase, this helps to
+% compute the set of blacklisted nodes that can be safely removed from
+% DDFS.
 
 -module(ddfs_gc_main).
 -behaviour(gen_server).
@@ -206,6 +207,7 @@
           pending_nodes     = gb_sets:empty() :: gb_set(),                % gc
           rr_next           = undefined       :: 'undefined' | rr_next(), % rr_blobs
           rr_pid            = undefined       :: 'undefined' | pid(),     % rr_blobs
+          safe_blacklist    = gb_sets:empty() :: gb_set(),                % rr_tags
 
           % static state
           tags              = []      :: [object_name()],
@@ -432,13 +434,16 @@ handle_cast({add_replicas, _BlobName, _NewUrls} = M, #state{phase = Phase} = S) 
     {noreply, S};
 
 handle_cast({rr_tags, [T|Tags]}, #state{phase = rr_tags} = S) ->
-    update_tag(S, T, ?MAX_TAG_OP_RETRIES),
+    S1 = update_tag(S, T, ?MAX_TAG_OP_RETRIES),
     gen_server:cast(self(), {rr_tags, Tags}),
-    {noreply, S};
+    {noreply, S1};
 handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     % We are done with the RR phase, and hence with GC!
     error_logger:info_report({"GC: tag update/replication done, done with GC!"}),
     node_broadcast(S#state.gc_peers, end_rr),
+
+    % TODO: Update ddfs_master with the safe_blacklist here.
+
     % Exit with a non-normal error code to ensure all linked processes
     % die, especially gc_peers.
     {stop, done, S}.
@@ -487,10 +492,13 @@ handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
 handle_info({'EXIT', Pid, normal}, #state{phase = rr_blobs_wait, rr_pid = RR} = S)
   when Pid == RR  ->
     % The RR process has finished normally, and we can proceed to the
-    % second phase of RR: start updating the tags.
+    % second phase of RR: start updating the tags.  Also, we
+    % initialize the safe blacklist here.
     error_logger:info_report({"GC: done with blob replication, entering rr_tags"}),
     gen_server:cast(self(), {rr_tags, S#state.tags}),
-    {noreply, S#state{rr_pid = undefined, phase = rr_tags}};
+    {noreply, S#state{rr_pid = undefined,
+                      safe_blacklist = gb_sets:from_list(S#state.blacklist),
+                      phase = rr_tags}};
 handle_info({'EXIT', Pid, Reason}, #state{phase = Phase, rr_pid = RR} = S)
   when Pid == RR  ->
     % Unexpected exit of RR process; exit.
@@ -1047,60 +1055,70 @@ wait_put_blob(Master, Ref, SrcNode) ->
 %% ===================================================================
 %% tag updates
 
--spec update_tag(state(), object_name(), non_neg_integer()) -> 'ok'.
-update_tag(_S, _T, 0) ->
-    ok;
+-spec update_tag(state(), object_name(), non_neg_integer()) -> state().
+update_tag(S, _T, 0) ->
+    S;
 update_tag(S, T, Retries) ->
     case catch ddfs_master:tag_operation(gc_get, T, ?GET_TAG_TIMEOUT) of
         {{missing, deleted}, false} ->
-            ok;
+            S;
         {'EXIT', {timeout, _}} ->
             update_tag(S, T, Retries - 1);
         {TagId, TagUrls, TagReplicas} ->
             update_tag_body(S, T, TagId, TagUrls, TagReplicas);
         _E ->
-            ok
+            % If there is any error, we cannot ensure safety in
+            % removing any blacklisted nodes; reset the safe
+            % blacklist.
+            error_logger:info_report({"GC: Unable to retrieve tag (rr_tags)", T}),
+            S#state{safe_blacklist = gb_sets:empty()}
     end.
 
 % RR2) Update tags that contain blobs that were re-replicated, and/or
 %      re-replicate tags that don't have enough replicas.
 
 -spec update_tag_body(state(), tagname(), tagid(), [[url()]], [node()])
-                     -> 'ok'.
+                     -> state().
 update_tag_body(S, Tag, Id, TagUrls, TagReplicas) ->
     % Collect the blobs that need updating, and compute their new
     % replica locations.
-    Updates = collect_updates(S, TagUrls),
+    {Updates, SBL1} = collect_updates(S, TagUrls, S#state.safe_blacklist),
     UsableTagReplicas = find_usable(S#state.blacklist, TagReplicas),
     case {Updates, length(UsableTagReplicas)} of
         {[], NumTagReps} when NumTagReps >= S#state.tagk ->
             % There are no blob updates, and there are the requisite
             % number of tag replicas; tag doesn't need update.
-            ok;
+            S#state{safe_blacklist = SBL1};
         _ ->
-            % In all other cases, send the tag an update.
+            % In all other cases, send the tag an update, and update
+            % the safe_blacklist.
+            SBL2 = gb_sets:subtract(SBL1, gb_sets:from_list(TagReplicas)),
             Msg = {gc_rr_update, Updates, S#state.blacklist, Id},
             error_logger:info_report({"Updating tag", Msg}),
-            ddfs_master:tag_notify(Msg, Tag)
+            ddfs_master:tag_notify(Msg, Tag),
+            S#state{safe_blacklist = SBL2}
     end.
 
--spec collect_updates(state(), [[url()]]) -> [blob_update()].
-collect_updates(S, BlobSets) ->
-    collect_updates(S, BlobSets, []).
-collect_updates(_S, [], Updates) ->
-    Updates;
-collect_updates(S, [[]|Rest], Updates) ->
-    collect_updates(S, Rest, Updates);
-collect_updates(S, [BlobSet|Rest], Updates) ->
+-spec collect_updates(state(), [[url()]], gb_set()) -> {[blob_update()], gb_set()}.
+collect_updates(S, BlobSets, SafeBlacklist) ->
+    collect(S, BlobSets, {[], SafeBlacklist}).
+collect(_S, [], {_Updates, _SBL} = Result) ->
+    Result;
+collect(S, [[]|Rest], {_Updates, _SBL} = Acc) ->
+    collect(S, Rest, Acc);
+collect(S, [BlobSet|Rest], {Updates, SBL} = Acc) ->
     {[BlobName|_], Nodes} = lists:unzip([ddfs_url(Url) || Url <- BlobSet]),
     case BlobName of
         ignore ->
-            collect_updates(S, Rest, Updates);
+            collect(S, Rest, Acc);
         _ ->
+            % Any referenced nodes are not safe to be removed from DDFS.
+            NewSBL = gb_sets:subtract(SBL, gb_sets:from_list(Nodes)),
+
             case ets:lookup(gc_blobs, BlobName) of
                 [] ->
                     % New blob added after GC/RR started.
-                    collect_updates(S, Rest, Updates);
+                    collect(S, Rest, {Updates, NewSBL});
                 [{_, P, _R, noupdate}] ->
                     % Check whether blacklist filtering is needed,
                     % provided we have enough replicas present.  Since
@@ -1112,15 +1130,15 @@ collect_updates(S, [BlobSet|Rest], Updates) ->
                           andalso (length(SafePresent) >= S#state.blobk)) of
                         true ->
                             Update = {BlobName, filter},
-                            collect_updates(S, Rest, [Update | Updates]);
+                            collect(S, Rest, {[Update | Updates], NewSBL});
                         false ->
                             % Blacklist filtering is not needed, or
                             % it's not yet safe.
-                            collect_updates(S, Rest, Updates)
+                            collect(S, Rest, {Updates, NewSBL})
                     end;
                 [{_, _P, R, {update, NewUrls}}] ->
                     AccUpdates = add_blob_update(S, BlobName, R, NewUrls, Updates),
-                    collect_updates(S, Rest, AccUpdates)
+                    collect(S, Rest, {AccUpdates, NewSBL})
             end
     end.
 
