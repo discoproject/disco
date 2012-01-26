@@ -6,11 +6,11 @@
          get_nodeinfo/1,
          get_read_nodes/0,
          get_hosted_tags/1,
-         gc_blacklist/0,
-         gc_blacklist/1,
+         gc_blacklist/0, gc_blacklist/1,
          gc_stats/0,
          choose_write_nodes/2,
          new_blob/3,
+         safe_gc_blacklist/0, safe_gc_blacklist/1,
          tag_notify/2,
          tag_operation/2, tag_operation/3,
          update_gc_stats/1,
@@ -36,11 +36,12 @@
 -record(state, {tags      = gb_trees:empty() :: gb_tree(),
                 tag_cache = false            :: 'false' | gb_set(),
 
-                nodes           = []   :: [node_info()],
-                write_blacklist = []   :: [node()],
-                read_blacklist  = []   :: [node()],
-                gc_blacklist    = []   :: [node()],
-                gc_stats        = none :: gc_stats()}).
+                nodes             = []                :: [node_info()],
+                write_blacklist   = []                :: [node()],
+                read_blacklist    = []                :: [node()],
+                gc_blacklist      = []                :: [node()],
+                safe_gc_blacklist = gb_sets:empty()   :: [node()],
+                gc_stats          = none              :: gc_stats()}).
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
 
@@ -108,6 +109,14 @@ get_tags(Mode) ->
 new_blob(Obj, K, Exclude) ->
     gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
 
+-spec safe_gc_blacklist() -> {'ok', [node()]}.
+safe_gc_blacklist() ->
+    gen_server:call(?MODULE, safe_gc_blacklist).
+
+-spec safe_gc_blacklist(gb_set()) -> 'ok'.
+safe_gc_blacklist(SafeGCBlacklist) ->
+    gen_server:cast(?MODULE, {safe_gc_blacklist, SafeGCBlacklist}).
+
 -spec update_gc_stats(gc_run_stats()) -> 'ok'.
 update_gc_stats(Stats) ->
     gen_server:cast(?MODULE, {update_gc_stats, Stats}).
@@ -170,12 +179,26 @@ handle_call({get_tags, Mode}, From, #state{nodes = Nodes} = S) ->
               gen_server:reply(From, do_get_tags(Mode, [N || {N, _} <- Nodes]))
           end),
     {noreply, S};
+
 handle_call({get_hosted_tags, Host}, From, S) ->
     spawn(fun() -> gen_server:reply(From, ddfs_gc:hosted_tags(Host)) end),
-    {noreply, S}.
+    {noreply, S};
+
+handle_call(safe_gc_blacklist, _From, #state{safe_gc_blacklist = SBL} = S) ->
+    {reply, {ok, gb_sets:to_list(SBL)}, S}.
 
 handle_cast({tag_notify, M, Tag}, S) ->
     {noreply, do_tag_notify(M, Tag, S)};
+
+handle_cast({gc_blacklist, Nodes}, #state{safe_gc_blacklist = SBL} = S) ->
+    BLSet = gb_sets:from_list(Nodes),
+    NewSBL  = gb_sets:intersection(BLSet, SBL),
+    {noreply, S#state{gc_blacklist = gb_sets:to_list(BLSet),
+                      safe_gc_blacklist = NewSBL}};
+
+handle_cast({safe_gc_blacklist, SafeBlacklist}, #state{gc_blacklist = BL} = S) ->
+    SBL = gb_sets:intersection(SafeBlacklist, gb_sets:from_list(BL)),
+    {noreply, S#state{safe_gc_blacklist = SBL}};
 
 handle_cast({update_gc_stats, Stats}, S) ->
     {noreply, S#state{gc_stats = Stats}};
@@ -187,10 +210,7 @@ handle_cast({update_nodes, NewNodes}, S) ->
     {noreply, do_update_nodes(NewNodes, S)};
 
 handle_cast({update_nodestats, NewNodes}, S) ->
-    {noreply, do_update_nodestats(NewNodes, S)};
-
-handle_cast({gc_blacklist, Nodes}, S) ->
-    {noreply, S#state{gc_blacklist = lists:sort(Nodes)}}.
+    {noreply, do_update_nodestats(NewNodes, S)}.
 
 handle_info({'DOWN', _, _, Pid, _}, S) ->
     {noreply, do_tag_exit(Pid, S)}.

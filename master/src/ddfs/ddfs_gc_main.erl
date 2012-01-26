@@ -441,9 +441,8 @@ handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     % We are done with the RR phase, and hence with GC!
     error_logger:info_report({"GC: tag update/replication done, done with GC!"}),
     node_broadcast(S#state.gc_peers, end_rr),
-
-    % TODO: Update ddfs_master with the safe_blacklist here.
-
+    % Update ddfs_master with the safe_blacklist.
+    ddfs_master:safe_gc_blacklist(S#state.safe_blacklist),
     % Exit with a non-normal error code to ensure all linked processes
     % die, especially gc_peers.
     {stop, done, S}.
