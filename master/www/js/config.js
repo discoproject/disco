@@ -26,11 +26,14 @@ function update_blacklist(data){
     $(".bnode").click(whitelist);
 }
 
-function update_gc_blacklist(data){
-    $("#gc_blacklist").html($.map(data, function(item, i){
-        return $.create("div", {"class": "bnode"}, [item]);
-    }));
-    $(".bnode").click(gc_whitelist);
+function update_gc_blacklist(blacklist){
+    $.getJSON("/ddfs/ctrl/safe_gc_blacklist", function(safe){
+        $("#gc_blacklist").html($.map(blacklist, function(item, i){
+            var c = Array.prototype.indexOf.call(safe, item) < 0 ? "bnode" : "bnode_safe";
+            return $.create("div", {"class": c}, [item]);
+        }));
+        $(".bnode").click(gc_whitelist);
+    });
 }
 
 function whitelist(){
