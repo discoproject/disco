@@ -91,7 +91,13 @@ function send_table(){
         return JSON.stringify(arr);
     });
     jsonTable = ("[" + $.makeArray(table).join(",") + "]");
-    post_req("/disco/ctrl/save_config_table", jsonTable);
+    post_req("/disco/ctrl/save_config_table",
+             jsonTable,
+             // Update the blacklists to handle removed nodes.
+             function(){
+                 $.getJSON("/disco/ctrl/get_blacklist", update_blacklist);
+                 $.getJSON("/disco/ctrl/get_gc_blacklist", update_gc_blacklist);
+             });
 }
 
 function check_cell(val, orig, ev){
