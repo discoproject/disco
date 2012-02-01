@@ -52,7 +52,7 @@ function update_settings(data){
 
 function add_to_blacklist(){
     post_req("/disco/ctrl/blacklist",
-             JSON.stringify($("#jobname").val()),
+             JSON.stringify($("#blackname").val()),
              function(){
                  $.getJSON("/disco/ctrl/get_blacklist", update_blacklist);
              });
