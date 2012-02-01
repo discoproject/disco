@@ -1,5 +1,6 @@
 $(document).ready(function(){
     $.getJSON("/disco/ctrl/nodeinfo", update_nodeboxes);
+    $.getJSON("/ddfs/ctrl/gc_stats", update_gcstats);
 });
 
 function Node(host, info){
@@ -58,4 +59,21 @@ function update_nodeboxes(data){
     setTimeout(function(){
         $.getJSON("/disco/ctrl/nodeinfo", update_nodeboxes);
     }, 10000);
+}
+
+function update_gcstats(data) {
+    $("#gcstats").empty();
+    if (typeof(data) === "string")
+        $("#gcstats").text(data);
+    else {
+        var thd = $("<thead><tr><td/> <td>Files</td> <td>Bytes</td></tr></thead>");
+        var tbd = $.create("tbody", {}, []);
+        $.each(data, function(typ, stats){
+            $(tbd).append($.create("tr", {"class": "gcstat"},
+                                   [$.create("td", {}, [String(typ)]),
+                                    $.create("td", {}, [String(stats[0])]),
+                                    $.create("td", {}, [String(stats[1])])]));
+        });
+        $("#gcstats").append($($("<table class='gcstats_table'/>")).append(thd, tbd));
+    }
 }

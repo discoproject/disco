@@ -56,10 +56,10 @@ op('GET', "/ddfs/ctrl/gc_stats", Req) ->
         {ok, none} ->
             okjson(<<"GC has not yet run.">>, Req);
         {ok, {{{TKF, TKB},{TDF, TDB}}, {{BKF, BKB}, {BDF,BDB}}}} ->
-            Resp = {struct, [{<<"tag.kept">>, [TKF, TKB]},
-                             {<<"tag.deleted">>, [TDF, TDB]},
-                             {<<"blob.kept">>, [BKF, BKB]},
-                             {<<"blob.deleted">>, [BDF, BDB]}]},
+            Resp = {struct, [{<<"Tags kept">>, [TKF, TKB]},
+                             {<<"Tags deleted">>, [TDF, TDB]},
+                             {<<"Blobs kept">>, [BKF, BKB]},
+                             {<<"Blobs deleted">>, [BDF, BDB]}]},
             okjson(Resp, Req);
         E ->
             on_error(E, Req)

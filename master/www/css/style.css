@@ -345,3 +345,24 @@ h3 {
 table td input {
     background: #eee;
 }
+
+#gcinfo {
+    margin-top: 10px;
+
+    padding-top: 10px;
+    text-align: center;
+    margin-right: 10px;
+    padding-bottom: 10px;
+}
+
+.gcstats_table td {
+    padding-left: 5px;
+    padding-right: 5px;
+    border: 1px solid #666;
+}
+
+.gcstats_table thead {
+    background: #333;
+    color: white;
+    padding-left: 5px;
+}
