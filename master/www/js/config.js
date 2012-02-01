@@ -6,9 +6,11 @@ $(document).ready(function(){
     });
     $("#save_table").click(send_table);
     $("#add_to_bl").click(add_to_blacklist);
+    $("#add_to_gc_bl").click(add_to_gc_blacklist);
     $("#save_settings").click(save_settings);
     $.getJSON("/disco/ctrl/load_config_table", new_table);
     $.getJSON("/disco/ctrl/get_blacklist", update_blacklist);
+    $.getJSON("/disco/ctrl/get_gc_blacklist", update_gc_blacklist);
     $.getJSON("/disco/ctrl/get_settings", update_settings);
     $('tbody').click(function(event){	// event delegation - to hook event handlers for dynamic contents
         var $real_target = $(event.target);
@@ -24,11 +26,26 @@ function update_blacklist(data){
     $(".bnode").click(whitelist);
 }
 
+function update_gc_blacklist(data){
+    $("#gc_blacklist").html($.map(data, function(item, i){
+        return $.create("div", {"class": "bnode"}, [item]);
+    }));
+    $(".bnode").click(gc_whitelist);
+}
+
 function whitelist(){
     post_req("/disco/ctrl/whitelist",
              JSON.stringify($(this).text()),
              function(){
                  $.getJSON("/disco/ctrl/get_blacklist", update_blacklist);
+             });
+}
+
+function gc_whitelist(){
+    post_req("/disco/ctrl/gc_whitelist",
+             JSON.stringify($(this).text()),
+             function(){
+                 $.getJSON("/disco/ctrl/get_gc_blacklist", update_gc_blacklist);
              });
 }
 
@@ -55,6 +72,14 @@ function add_to_blacklist(){
              JSON.stringify($("#blackname").val()),
              function(){
                  $.getJSON("/disco/ctrl/get_blacklist", update_blacklist);
+             });
+}
+
+function add_to_gc_blacklist(){
+    post_req("/disco/ctrl/gc_blacklist",
+             JSON.stringify($("#gc_blackname").val()),
+             function(){
+                 $.getJSON("/disco/ctrl/get_gc_blacklist", update_gc_blacklist);
              });
 }
 
