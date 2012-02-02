@@ -1,18 +1,35 @@
 -module(ddfs_gc).
--export([start_gc/1, abort/2, hosted_tags/1]).
+-export([start_gc/1, gc_status/0, hosted_tags/1]).
+
+% GC internal api.
+-export([abort/2]).
 
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 -include("ddfs_gc.hrl").
 
+-define(CALL_TIMEOUT, 30 * ?SECOND).
+
+-spec gc_status() -> {ok, not_running | phase()} | {error, term()}.
+gc_status() ->
+    ?MODULE ! {self(), gc_status},
+    receive
+        R -> R
+    after ?CALL_TIMEOUT ->
+            {error, timeout}
+    end.
+
+
 -spec abort(term(), atom()) -> no_return().
 abort(Msg, Code) ->
     error_logger:warning_report({"GC: aborted", Msg}),
     exit(Code).
 
+
 -spec start_gc(string()) -> no_return().
 start_gc(Root) ->
+    true = register(?MODULE, self()),
     % Wait some time for all nodes to start and stabilize.
     InitialWait =
         case disco:has_setting("DDFS_GC_INITIAL_WAIT") of
@@ -36,12 +53,27 @@ start_gc(Root, DeletedAges, GCMaxDuration) ->
             Wait = round(timer:now_diff(now(), Start) / 1000),
             % Wait until the next scheduled gc run slot.
             Idle = ?GC_INTERVAL - (Wait rem ?GC_INTERVAL),
-            timer:sleep(Idle);
+            idle(Idle);
         E ->
             error_logger:error_report({"GC: error starting", E}),
-            timer:sleep(?GC_INTERVAL)
+            idle(?GC_INTERVAL)
     end,
     start_gc(Root, DeletedAges, GCMaxDuration).
+
+-spec idle(timeout()) -> ok.
+idle(Timeout) ->
+    Start = now(),
+    receive
+        {From, gc_status} ->
+            From ! {ok, not_running},
+            Wait = round(timer:now_diff(now(), Start) / 1000),
+            idle(Wait);
+        _Other ->
+            Wait = round(timer:now_diff(now(), Start) / 1000),
+            idle(Wait)
+    after Timeout ->
+            ok
+    end.
 
 -spec start_gc_wait(pid(), timeout()) -> ok.
 start_gc_wait(Pid, Interval) ->
@@ -51,6 +83,9 @@ start_gc_wait(Pid, Interval) ->
             error_logger:error_report({"GC: exit", Pid, Reason});
         {'EXIT', Other, Reason} ->
             error_logger:error_report({"GC: unexpected exit", Other, Reason}),
+            start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
+        {From, gc_status} when is_pid(From) ->
+            ddfs_gc_main:gc_status(Pid, From),
             start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
         Other ->
             error_logger:error_report({"GC: unexpected msg exit", Other}),

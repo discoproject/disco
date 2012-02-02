@@ -65,6 +65,17 @@ op('GET', "/ddfs/ctrl/gc_stats", Req) ->
             on_error(E, Req)
     end;
 
+op('GET', "/ddfs/ctrl/gc_status", Req) ->
+    case ddfs_gc:gc_status() of
+        {ok, not_running} ->
+            okjson(<<"">>, Req);
+        {ok, Phase} ->
+            okjson(list_to_binary("GC is currently running in phase "
+                                  ++ atom_to_list(Phase) ++ "."), Req);
+        E ->
+            on_error(E, Req)
+    end;
+
 op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
     case ddfs_master:safe_gc_blacklist() of
         {ok, Nodes} ->

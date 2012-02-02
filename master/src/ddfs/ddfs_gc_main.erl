@@ -180,7 +180,7 @@
 -module(ddfs_gc_main).
 -behaviour(gen_server).
 
--export([start_link/2]).
+-export([start_link/2, gc_status/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3, format_status/2]).
 -export([is_orphan/4, node_gc_done/2]).
@@ -222,7 +222,7 @@
 -type object_location() :: {node(), volume_name()}.
 
 %% ===================================================================
-%% launch entry point
+%% external API
 
 -spec start_link(string(), ets:tab()) -> {ok, pid()} | {error, term()}.
 start_link(Root, DeletedAges) ->
@@ -232,6 +232,13 @@ start_link(Root, DeletedAges) ->
         E ->
             E
     end.
+
+-spec gc_status(pid(), pid()) -> 'ok'.
+gc_status(Master, From) ->
+    gen_server:cast(Master, {gc_status, From}).
+
+%% ===================================================================
+%% internal API
 
 -spec is_orphan(pid(), object_type(), object_name(), volume_name())
                -> {ok, boolean()}.
@@ -294,6 +301,9 @@ handle_call({is_orphan, Type, ObjName, Node, Vol}, _, S) ->
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S}.
 
+handle_cast({gc_status, From}, #state{phase = P} = S) when is_pid(From) ->
+    From ! {ok, P},
+    {noreply, S};
 
 handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
     error_logger:info_report({"GC: initializing"}),
