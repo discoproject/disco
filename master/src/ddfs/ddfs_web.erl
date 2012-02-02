@@ -54,7 +54,7 @@ op('POST', "/ddfs/ctrl/hosted_tags", Req) ->
 op('GET', "/ddfs/ctrl/gc_stats", Req) ->
     case ddfs_master:gc_stats() of
         {ok, none} ->
-            okjson(<<"GC has not yet run.">>, Req);
+            okjson(<<"GC has not yet completed a run.">>, Req);
         {ok, {{{TKF, TKB},{TDF, TDB}}, {{BKF, BKB}, {BDF,BDB}}}} ->
             Resp = {struct, [{<<"Tags kept">>, [TKF, TKB]},
                              {<<"Tags deleted">>, [TDF, TDB]},
