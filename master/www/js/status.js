@@ -1,6 +1,7 @@
 $(document).ready(function(){
     $.getJSON("/disco/ctrl/nodeinfo", update_nodeboxes);
     $.getJSON("/ddfs/ctrl/gc_stats", update_gcstats);
+    $.getJSON("/ddfs/ctrl/gc_status", update_gcstatus);
 });
 
 function Node(host, info){
@@ -76,4 +77,16 @@ function update_gcstats(data) {
         });
         $("#gcstats").append($($("<table class='gcstats_table'/>")).append(thd, tbd));
     }
+
+    setTimeout(function(){
+        $.getJSON("/disco/ctrl/gc_stats", update_gcstats);
+    }, 10000);
+}
+
+function update_gcstatus(data) {
+    $("#gcstatus").text(data);
+
+    setTimeout(function(){
+        $.getJSON("/disco/ctrl/gc_status", update_gcstatus);
+    }, 10000);
 }
