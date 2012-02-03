@@ -73,7 +73,7 @@ function update_gcstats(data) {
             $(tbd).append($.create("tr", {"class": "gcstat"},
                                    [$.create("td", {}, [String(typ)]),
                                     $.create("td", {}, [String(stats[0])]),
-                                    $.create("td", {}, [String(stats[1])])]));
+                                    $.create("td", {}, [String(format_size(stats[1]/1000))])]));
         });
         $("#gcstats").append($($("<table class='gcstats_table'/>")).append(thd, tbd));
     }
