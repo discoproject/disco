@@ -307,7 +307,7 @@ handle_cast({gc_status, From}, #state{phase = P} = S) when is_pid(From) ->
 
 handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
     error_logger:info_report({"GC: initializing"}),
-    {OkNodes, Failed, Tags} = ddfs_master:get_tags(all),
+    {OkNodes, Failed, Tags} = get_all_tags(),
     {ok, Blacklist} = ddfs_master:gc_blacklist(),
     {NumOk, NumFailed} = {length(OkNodes), length(Failed)},
     if NumOk > 0, NumFailed < TagMinK ->
@@ -617,6 +617,22 @@ node_send(Pid, Msg) ->
 
 %% ===================================================================
 %% build_map and map_wait phases
+
+-spec get_all_tags() -> {[node()], [node()], [tagname()]} | {'error', term()}.
+get_all_tags() ->
+    get_all_tags(?MAX_TAG_OP_RETRIES).
+
+get_all_tags(Retries) ->
+    case catch ddfs_master:get_tags(all) of
+        {'EXIT', {timeout, _}} when Retries =/= 0 ->
+            get_all_tags(Retries - 1);
+        {'EXIT', {timeout, _}} ->
+            {error, timeout};
+        {_OkNodes, _Failed, _Tags} = AllTagsInfo ->
+            AllTagsInfo;
+        E ->
+            E
+    end.
 
 -spec check_tag(tagname(), state(), non_neg_integer()) ->
                        {'ok', non_neg_integer()} | {'error', term()}.
