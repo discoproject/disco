@@ -40,8 +40,8 @@
                 write_blacklist   = []                :: [node()],
                 read_blacklist    = []                :: [node()],
                 gc_blacklist      = []                :: [node()],
-                safe_gc_blacklist = gb_sets:empty()   :: [node()],
-                gc_stats          = none              :: gc_stats()}).
+                safe_gc_blacklist = gb_sets:empty()   :: gb_set(),
+                gc_stats          = none              :: 'none' | {gc_stats(), erlang:timestamp()}}).
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
 
@@ -87,7 +87,7 @@ gc_blacklist() ->
 gc_blacklist(Nodes) ->
     gen_server:cast(?MODULE, {gc_blacklist, Nodes}).
 
--spec gc_stats() -> {'ok', gc_stats()} | {'error', term()}.
+-spec gc_stats() -> {'ok', 'none' | {gc_stats(), erlang:timestamp()}} | {'error', term()}.
 gc_stats() ->
     gen_server:call(?MODULE, gc_stats).
 
@@ -201,7 +201,7 @@ handle_cast({safe_gc_blacklist, SafeBlacklist}, #state{gc_blacklist = BL} = S) -
     {noreply, S#state{safe_gc_blacklist = SBL}};
 
 handle_cast({update_gc_stats, Stats}, S) ->
-    {noreply, S#state{gc_stats = Stats}};
+    {noreply, S#state{gc_stats = {Stats, now()}}};
 
 handle_cast({update_tag_cache, TagCache}, S) ->
     {noreply, S#state{tag_cache = TagCache}};

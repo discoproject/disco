@@ -67,9 +67,10 @@ function update_gcstats(data) {
     if (typeof(data) === "string")
         $("#gcstats").text(data);
     else {
+        $("#gcstats").append(String("At: " + data["timestamp"]));
         var thd = $("<thead><tr><td/> <td>Files</td> <td>Bytes</td></tr></thead>");
         var tbd = $.create("tbody", {}, []);
-        $.each(data, function(typ, stats){
+        $.each(data["stats"], function(typ, stats){
             $(tbd).append($.create("tr", {"class": "gcstat"},
                                    [$.create("td", {}, [String(typ)]),
                                     $.create("td", {}, [String(stats[0])]),

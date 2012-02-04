@@ -55,11 +55,13 @@ op('GET', "/ddfs/ctrl/gc_stats", Req) ->
     case ddfs_master:gc_stats() of
         {ok, none} ->
             okjson(<<"GC has not yet completed a run.">>, Req);
-        {ok, {{{TKF, TKB},{TDF, TDB}}, {{BKF, BKB}, {BDF,BDB}}}} ->
-            Resp = {struct, [{<<"Tags kept">>, [TKF, TKB]},
-                             {<<"Tags deleted">>, [TDF, TDB]},
-                             {<<"Blobs kept">>, [BKF, BKB]},
-                             {<<"Blobs deleted">>, [BDF, BDB]}]},
+        {ok, {{{{TKF, TKB},{TDF, TDB}}, {{BKF, BKB}, {BDF,BDB}}}, TStamp}} ->
+            When = disco_util:format_timestamp(TStamp),
+            Resp = {struct, [{<<"timestamp">>, When},
+                             {<<"stats">>, [{<<"Tags kept">>, [TKF, TKB]},
+                                            {<<"Tags deleted">>, [TDF, TDB]},
+                                            {<<"Blobs kept">>, [BKF, BKB]},
+                                            {<<"Blobs deleted">>, [BDF, BDB]}]}]},
             okjson(Resp, Req);
         E ->
             on_error(E, Req)
