@@ -366,6 +366,10 @@ table td input {
     padding-left: 5px;
 }
 
+.gcstat td {
+    text-align: right;
+}
+
 #gc_blacklist .bnode {
     margin-top: 2px;
     background: #eee;
