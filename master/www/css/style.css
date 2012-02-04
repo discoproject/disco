@@ -347,11 +347,19 @@ table td input {
 }
 
 #gcinfo {
-    margin-top: 10px;
+    margin-top: 50px;
     margin-right: 10px;
     text-align: center;
     padding-top: 10px;
     padding-bottom: 10px;
+}
+
+#gcinfo h3 {
+    text-align: left;
+}
+
+#gcstats {
+    text-align: left;
 }
 
 .gcstats_table td {
