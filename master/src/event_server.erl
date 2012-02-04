@@ -145,7 +145,7 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _MsgBuf} = S) ->
             Results = event_filter(ready, EventList),
             Ready = event_filter(task_ready, EventList),
             Failed = event_filter(task_failed, EventList),
-            Start = format_timestamp(JobStart),
+            Start = disco_util:format_timestamp(JobStart),
             {reply, {ok, {Start, Pid, JobNfo, Results, Ready, Failed}}, S}
     end.
 
@@ -209,15 +209,9 @@ process_status(Pid) ->
 event_filter(Key, EventList) ->
     [V || {K, V} <- EventList, K == Key].
 
-format_timestamp(TimeStamp) ->
-    {Date, Time} = calendar:now_to_local_time(TimeStamp),
-    DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
-    TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
-    list_to_binary([DateStr, TimeStr]).
-
 add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
-    Time = format_timestamp(now()),
+    Time = disco_util:format_timestamp(now()),
     Host = list_to_binary(Host0),
     Line = <<"[\"",
         Time/binary, "\",\"",
