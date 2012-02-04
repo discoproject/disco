@@ -102,7 +102,7 @@ choose_write_nodes(K, Exclude) ->
 -spec get_tags('all') -> {[node()], [node()], [binary()]};
               ('safe') -> {'ok', [binary()]} | 'too_many_failed_nodes'.
 get_tags(Mode) ->
-    gen_server:call(?MODULE, {get_tags, Mode}).
+    gen_server:call(?MODULE, {get_tags, Mode}, ?GET_TAG_TIMEOUT).
 
 -spec new_blob(string()|object_name(), non_neg_integer(), [node()]) ->
                       'too_many_replicas' | {'ok', [nonempty_string()]}.
