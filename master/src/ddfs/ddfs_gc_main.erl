@@ -283,7 +283,7 @@ init({Root, DeletedAges}) ->
     % re-replication.
 
     % gc_blob_map: {Key :: {object_name(), node()},
-    %               State :: 'pending' | 'missing' | 'true' | 'false'}
+    %               State :: 'pending' | 'missing' | check_blob_result()}
     % gc_tag_map:  {Key :: tagname(),
     %               Id  :: erlang:timestamp()}
     _ = ets:new(gc_blob_map, [named_table, set, private]),
@@ -458,8 +458,8 @@ handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     {stop, done, S}.
 
 handle_info({check_blob_result, LocalObj, Status}, #state{phase = Phase} = S)
-  when Phase =:= build_map, is_boolean(Status);
-       Phase =:= map_wait, is_boolean(Status) ->
+  when Phase =:= build_map;
+       Phase =:= map_wait ->
     Checked = check_blob_result(LocalObj, Status),
     Pending = S#state.num_pending_reqs - Checked,
     % Assert an invariant.
@@ -707,7 +707,7 @@ check_blob_status(S, {ObjName, Node} = Key) ->
 num_pending_objects() ->
     ets:select_count(gc_blob_map, [{{'_', pending}, [], [true]}]).
 
--spec check_blob_result(local_object(), boolean()) -> non_neg_integer().
+-spec check_blob_result(local_object(), check_blob_result()) -> non_neg_integer().
 check_blob_result(LocalObj, Status) ->
     case ets:lookup_element(gc_blob_map, LocalObj, 2) of
         pending ->
@@ -731,7 +731,7 @@ start_gc_phase(S) ->
     % and (c) for each blob, any new replicated locations.
 
     % gc_blobs: {Key :: object_name(),
-    %            Present :: [node()],
+    %            Present :: [object_location()],
     %            Recovered :: [object_location()],
     %            Update :: rep_update()}
     _ = ets:new(gc_blobs, [named_table, set, private]),
@@ -739,13 +739,13 @@ start_gc_phase(S) ->
     _ = ets:foldl(
           % There is no clause for the 'pending' status, so that we
           % can assert if we start gc with any still-pending entries.
-          fun({{BlobName, Node}, true}, _) ->
+          fun({{BlobName, Node}, {true, Vol}}, _) ->
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {BlobName, [Node], [], noupdate},
+                          Entry = {BlobName, [{Node, Vol}], [], noupdate},
                           ets:insert(gc_blobs, Entry);
                       [{_, Present, _, _}] ->
-                          Acc = [Node | Present],
+                          Acc = [{Node, Vol} | Present],
                           ets:update_element(gc_blobs, BlobName, {2, Acc})
                   end;
              ({{BlobName, _Node}, Status}, _)
@@ -802,7 +802,8 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
             % node will not delete it if it is recent.
             {ok, true};
         [{_, Present, Recovered, _}] ->
-            case {lists:member(Node, Present),
+            PresentNodes = [N || {N, _V} <- Present],
+            case {lists:member(Node, PresentNodes),
                   lists:member({Node, Vol}, Recovered)} of
                 {true, _} ->
                     % Re-check of an already marked blob.
@@ -833,7 +834,7 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                 {false, false} ->
                     {RepNodes, _RepVols} = lists:unzip(Recovered),
                     Blacklist = S#state.blacklist,
-                    Usable = find_usable(Blacklist, lists:usort(RepNodes ++ Present)),
+                    Usable = find_usable(Blacklist, lists:usort(RepNodes ++ PresentNodes)),
                     case length(Usable) > MaxReps of
                         true ->
                             {ok, true};
@@ -964,12 +965,13 @@ rereplicate_blob(S, BlobName) ->
 
 % RR1) Re-replicate blobs that don't have enough replicas
 
--spec rereplicate_blob(state(), object_name(), [node()],
+-spec rereplicate_blob(state(), object_name(), [object_location()],
                        [object_location()], non_neg_integer())
                       -> rep_result().
 rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
     BL = S#state.blacklist,
-    SafePresent = find_usable(BL, Present),
+    PresentNodes = [N || {N, _V} <- Present],
+    SafePresent = find_usable(BL, PresentNodes),
     SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
     case {length(SafePresent), length(SafeRecovered)} of
         {NumPresent, NumRecovered}
@@ -992,7 +994,7 @@ rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
             % time, in a single-shot way. We use any available replicas as
             % sources, including those from blacklisted nodes.
             {RepNodes, _RepVols} = lists:unzip(Recovered),
-            OkNodes = RepNodes ++ Present,
+            OkNodes = RepNodes ++ PresentNodes,
             case {try_put_blob(S, BlobName, OkNodes, BL), NumRecovered} of
                 {{error, _E}, 0} ->
                     noupdate;
@@ -1168,18 +1170,18 @@ usable_locations(S, BlobName) ->
         [] ->
             % New blob added after GC/RR started.
             [];
-        [{_, _P, R, noupdate}] ->
-            usable_locations(S, BlobName, R, []);
-        [{_, _P, R, {update, NewUrls}}] ->
-            usable_locations(S, BlobName, R, NewUrls)
+        [{_, P, R, noupdate}] ->
+            usable_locations(S, BlobName, P ++ R, []);
+        [{_, P, R, {update, NewUrls}}] ->
+            usable_locations(S, BlobName, P ++ R, NewUrls)
     end.
 
 -spec usable_locations(state(), object_name(), [object_location()],
                        [url()]) -> [url()].
-usable_locations(S, BlobName, Recovered, NewUrls) ->
-    SafeRecovered = [{N, V} || {N, V} <- Recovered,
-                               not lists:member(N, S#state.blacklist)],
-    RecUrls = lists:map(
+usable_locations(S, BlobName, Locations, NewUrls) ->
+    Current = [{N, V} || {N, V} <- Locations,
+                      not lists:member(N, S#state.blacklist)],
+    CurUrls = lists:map(
                 fun({N, V}) ->
                         {ok, _Local, Url} = ddfs_util:hashdir(BlobName,
                                                               disco:host(N),
@@ -1187,5 +1189,5 @@ usable_locations(S, BlobName, Recovered, NewUrls) ->
                                                               S#state.root,
                                                               V),
                         Url
-                end, SafeRecovered),
-    lists:usort(RecUrls ++ NewUrls).
+                end, Current),
+    lists:usort(CurUrls ++ NewUrls).

@@ -5,6 +5,8 @@
 
 -type blob_update() :: {object_name(), 'filter' | [url()]}.
 
+-type check_blob_result() :: 'false' | {'true', volume_name()}.
+
 % GC statistics
 
 % {Files, Bytes}
