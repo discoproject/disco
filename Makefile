@@ -43,12 +43,16 @@ RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
 WWW   = master/www
 EBIN  = master/ebin
 ESRC  = master/src
+EDEP  = master/deps
 ETEST = master/test
 
-ELIBS    = $(ESRC) $(ESRC)/ddfs $(ESRC)/mochiweb
+ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
-EOBJECTS = $(addprefix $(EBIN)/, $(notdir $(ESOURCES:.erl=.beam) disco.app))
-ETARGETS = $(foreach object,$(EOBJECTS),$(TARGETLIB)/$(object))
+EOBJECTS = $(addprefix $(EBIN)/,$(notdir $(ESOURCES:.erl=.beam) disco.app))
+ETARGETS = $(addprefix $(TARGETLIB)/,$(EOBJECTS))
+
+EDEPS        = $(foreach dep,$(wildcard $(EDEP)/*), $(notdir $(dep))/ebin)
+ETARGETDEPS  = $(addprefix $(TARGETLIB)/$(EDEP)/,$(EDEPS))
 
 ETESTSOURCES = $(wildcard $(ETEST)/*.erl)
 ETESTOBJECTS = $(ETESTSOURCES:.erl=.beam)
@@ -63,13 +67,14 @@ EPLT  = .dialyzer_plt
 	install-discodb \
 	install-discodex \
 	install-examples \
-	install-tests
+	install-tests \
+	uninstall
 .PHONY: test dialyzer typer
 
 all: master
 
-master $(EOBJECTS): $(ESRC)/disco.app.src
-	cd master && $(REBAR) compile
+master: $(ESRC)/disco.app.src
+	cd master && $(REBAR) get-deps && $(REBAR) compile
 
 $(ESRC)/disco.app.src: $(ESRC)/disco.app.src.src
 	- $(RE_VERSION) $< > $@
@@ -111,7 +116,7 @@ install-master: master \
 	$(TARGETCFG)/settings.py \
 	$(TARGETSRV)/ddfs
 
-install-node: master $(ETARGETS)
+install-node: master $(ETARGETS) $(ETARGETDEPS)
 
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
@@ -149,10 +154,21 @@ $(TARGETCFG)/settings.py: | $(TARGETCFG)
 	(TARGETLIB=$(TARGETLIB) TARGETSRV=$(TARGETSRV) \
 	 conf/gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
 
+$(TARGETLIB)/$(EBIN):
+	$(INSTALL) -d $@
+
 $(TARGETLIB)/$(EBIN)/%: $(EBIN)/% | $(TARGETLIB)/$(EBIN)
 	$(INSTALL_DATA) $< $@
 
+ $(TARGETLIB)/$(EDEP):
+	$(INSTALL) -d $@
+
+$(TARGETLIB)/$(EDEP)/%: $(EDEP)/% | $(TARGETLIB)/$(EDEP)
+	$(INSTALL) -d `$(DIRNAME) $@`
+	$(INSTALL_TREE) $< `$(DIRNAME) $@`
+
 $(TARGETLIB)/%: % | $(TARGETLIB)
+	$(INSTALL) -d `$(DIRNAME) $@`
 	$(INSTALL_TREE) $< `$(DIRNAME) $@`
 
 $(TARGETSRV)/ddfs:

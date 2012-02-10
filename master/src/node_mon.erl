@@ -72,7 +72,9 @@ slave_env() ->
     Home = disco:get_setting("DISCO_MASTER_HOME"),
     lists:flatten([?SLAVE_ARGS,
                    [io_lib:format(" -pa ~s/ebin/~s", [Home, Dir])
-                    || Dir <- ["", "mochiweb", "ddfs"]],
+                    || Dir <- [""]],
+                   [io_lib:format(" -pa ~s/deps/~s/ebin", [Home, Dir])
+                    || Dir <- ["mochiweb"]],
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 

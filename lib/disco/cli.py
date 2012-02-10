@@ -195,16 +195,16 @@ class Master(clx.server.Server):
     @property
     def basic_args(self):
         settings = self.settings
-        ebin = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'ebin', d)
+        ebin = os.path.join(settings['DISCO_MASTER_HOME'], 'ebin')
+        edep = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'deps', d, 'ebin')
         return settings['DISCO_ERLANG'].split() + \
                ['+K', 'true',
                 '+P', '10000000',
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
                 '-sname', self.name,
-                '-pa', ebin(''),
-                '-pa', ebin('mochiweb'),
-                '-pa', ebin('ddfs'),
+                '-pa', ebin,
+                '-pa', edep('mochiweb'),
                 '-eval', 'application:start(disco)']
 
     @property
