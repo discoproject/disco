@@ -1140,36 +1140,43 @@ collect(S, [BlobSet|Rest], {Updates, SBL} = Acc) ->
             % Any referenced nodes are not safe to be removed from DDFS.
             NewSBL = gb_sets:subtract(SBL, gb_sets:from_list(Nodes)),
 
-            case ets:lookup(gc_blobs, BlobName) of
-                [] ->
-                    % New blob added after GC/RR started.
+            NewLocations = usable_locations(S, BlobName) -- BlobSet,
+            BListed = find_unusable(S#state.blacklist, Nodes),
+            Usable  = find_usable(S#state.blacklist, Nodes),
+            CanFilter = [] =/= BListed andalso length(Usable) >= S#state.blobk,
+            case {NewLocations, CanFilter} of
+                {[], false} ->
+                    % Blacklist filtering is not needed, and there are
+                    % no updates.
                     collect(S, Rest, {Updates, NewSBL});
-                [{_, P, _R, noupdate}] ->
-                    % Check whether blacklist filtering is needed,
-                    % provided we have enough replicas present.  Since
-                    % this is marked noupdate, we have no usable
-                    % recovered replicas.
-                    SafePresent = find_usable(S#state.blacklist, P),
-                    ToFilter = find_unusable(S#state.blacklist, Nodes),
-                    case ((ToFilter =/= [])
-                          andalso (length(SafePresent) >= S#state.blobk)) of
-                        true ->
-                            Update = {BlobName, filter},
-                            collect(S, Rest, {[Update | Updates], NewSBL});
-                        false ->
-                            % Blacklist filtering is not needed, or
-                            % it's not yet safe.
-                            collect(S, Rest, {Updates, NewSBL})
-                    end;
-                [{_, _P, R, {update, NewUrls}}] ->
-                    AccUpdates = add_blob_update(S, BlobName, R, NewUrls, Updates),
-                    collect(S, Rest, {AccUpdates, NewSBL})
+                {[], true} ->
+                    % Safely remove blacklisted nodes from the
+                    % blobset.  (The tag will perform another safety
+                    % check before removal using the tag id.)
+                    Update = {BlobName, filter},
+                    collect(S, Rest, {[Update | Updates], NewSBL});
+                {[_|_], _} ->
+                    % There are new usable locations for the blobset.
+                    Update = {BlobName, NewLocations},
+                    collect(S, Rest, {[Update | Updates], NewSBL})
             end
     end.
 
--spec add_blob_update(state(), object_name(), [object_location()],
-                      [url()], [blob_update()]) -> [blob_update()].
-add_blob_update(S, BlobName, Recovered, NewUrls, AccUpdates) ->
+-spec usable_locations(state(), object_name()) -> [url()].
+usable_locations(S, BlobName) ->
+    case ets:lookup(gc_blobs, BlobName) of
+        [] ->
+            % New blob added after GC/RR started.
+            [];
+        [{_, _P, R, noupdate}] ->
+            usable_locations(S, BlobName, R, []);
+        [{_, _P, R, {update, NewUrls}}] ->
+            usable_locations(S, BlobName, R, NewUrls)
+    end.
+
+-spec usable_locations(state(), object_name(), [object_location()],
+                       [url()]) -> [url()].
+usable_locations(S, BlobName, Recovered, NewUrls) ->
     SafeRecovered = [{N, V} || {N, V} <- Recovered,
                                not lists:member(N, S#state.blacklist)],
     RecUrls = lists:map(
@@ -1181,8 +1188,4 @@ add_blob_update(S, BlobName, Recovered, NewUrls, AccUpdates) ->
                                                               V),
                         Url
                 end, SafeRecovered),
-    AddedUrls = lists:usort(RecUrls ++ NewUrls),
-    case AddedUrls of
-        [] -> AccUpdates;
-        _  -> [{BlobName, AddedUrls} | AccUpdates]
-    end.
+    lists:usort(RecUrls ++ NewUrls).
