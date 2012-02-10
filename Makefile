@@ -14,6 +14,7 @@ INSTALL         = /usr/bin/install -c
 INSTALL_PROGRAM = $(INSTALL)
 INSTALL_DATA    = $(INSTALL) -m 644
 INSTALL_TREE    = cp -r
+DIRNAME         = dirname
 
 # installation directories
 TARGETBIN = $(DESTDIR)$(bindir)
@@ -29,6 +30,7 @@ SPHINXOPTS = "-D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)"
 UNAME = $(shell uname)
 
 # utilities used for building disco
+REBAR      = ./rebar    # relative to ./master
 ERL        = erl
 ERLC       = erlc
 EOPT       = -W
@@ -45,9 +47,7 @@ ETEST = master/test
 
 ELIBS    = $(ESRC) $(ESRC)/ddfs $(ESRC)/mochiweb
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
-EHEADERS = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.hrl))
-EAPPS    = $(subst $(ESRC),$(EBIN),$(ELIBS))
-EOBJECTS = $(subst $(ESRC),$(EBIN),$(ESOURCES:.erl=.beam))
+EOBJECTS = $(addprefix $(EBIN)/, $(notdir $(ESOURCES:.erl=.beam) disco.app))
 ETARGETS = $(foreach object,$(EOBJECTS),$(TARGETLIB)/$(object))
 
 ETESTSOURCES = $(wildcard $(ETEST)/*.erl)
@@ -68,10 +68,15 @@ EPLT  = .dialyzer_plt
 
 all: master
 
-master: $(EBIN)/disco.app $(EOBJECTS)
+master $(EOBJECTS): $(ESRC)/disco.app.src
+	cd master && $(REBAR) compile
+
+$(ESRC)/disco.app.src: $(ESRC)/disco.app.src.src
+	- $(RE_VERSION) $< > $@
 
 clean:
-	- rm -Rf $(EBIN) $(ETESTOBJECTS)
+	- cd master && $(REBAR) clean
+	- rm -Rf $(ESRC)/disco.app.src $(EBIN) $(ETESTOBJECTS)
 	- rm -Rf lib/build lib/disco.egg-info
 	- rm -Rf doc/.build
 
@@ -104,7 +109,6 @@ install-master: master \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETLIB)/$(WWW) \
 	$(TARGETCFG)/settings.py \
-	$(TARGETLIB)/$(EBIN)/disco.app \
 	$(TARGETSRV)/ddfs
 
 install-node: master $(ETARGETS)
@@ -116,7 +120,7 @@ uninstall:
 	- rm -Rf $(TARGETCFG) $(TARGETLIB) $(TARGETSRV)
 
 test: master $(ETESTOBJECTS)
-	$(ERL) -noshell -pa $(ETEST) $(EAPPS) -s master_tests main -s init stop
+	$(ERL) -noshell -pa $(ETEST) -s master_tests main -s init stop
 
 dialyzer: EOPT = -W +debug_info
 dialyzer: $(EPLT)
@@ -125,15 +129,6 @@ dialyzer: $(EPLT)
 typer: $(EPLT)
 	$(TYPER) --plt $(EPLT) -r $(ESRC)
 
-$(EBIN):
-	mkdir $(EAPPS)
-
-$(EBIN)/disco.app: $(ESRC)/disco.app | $(EBIN)
-	- $(RE_VERSION) $< > $@
-
-$(EBIN)/%.beam: $(ESRC)/%.erl $(EHEADERS) | $(EBIN)
-	$(ERLC) $(EOPT) -o $(dir $@) $<
-
 $(ETEST)/%.beam: $(ETEST)/%.erl
 	$(ERLC) $(EOPT) -o $(dir $@) $<
 
@@ -141,8 +136,8 @@ $(EPLT):
 	$(DIALYZER) --build_plt --output_plt $(EPLT) \
 		    --apps stdlib kernel erts mnesia compiler crypto inets xmerl ssl syntax_tools
 
-$(TARGETBIN):
-	$(INSTALL) -d $(TARGETBIN)
+$(TARGETBIN) $(TARGETLIB):
+	$(INSTALL) -d $@
 
 $(TARGETBIN)/%: bin/% | $(TARGETBIN)
 	$(INSTALL_PROGRAM) $< $@
@@ -154,14 +149,11 @@ $(TARGETCFG)/settings.py: | $(TARGETCFG)
 	(TARGETLIB=$(TARGETLIB) TARGETSRV=$(TARGETSRV) \
 	 conf/gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
 
-$(TARGETLIB):
-	$(INSTALL) -d $(addprefix $(TARGETLIB)/,$(EAPPS))
-
-$(TARGETLIB)/$(EBIN)/%: $(EBIN)/% | $(TARGETLIB)
+$(TARGETLIB)/$(EBIN)/%: $(EBIN)/% | $(TARGETLIB)/$(EBIN)
 	$(INSTALL_DATA) $< $@
 
 $(TARGETLIB)/%: % | $(TARGETLIB)
-	$(INSTALL_TREE) $< $@
+	$(INSTALL_TREE) $< `$(DIRNAME) $@`
 
 $(TARGETSRV)/ddfs:
 	$(INSTALL) -d $(TARGETSRV)/ddfs
