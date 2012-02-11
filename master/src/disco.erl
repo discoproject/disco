@@ -47,7 +47,7 @@ get_setting(SettingName) ->
             Val
     end.
 
--spec has_setting(nonempty_string()) -> bool().
+-spec has_setting(nonempty_string()) -> boolean().
 has_setting(SettingName) ->
     case os:getenv(SettingName) of
         false -> false;
@@ -213,6 +213,7 @@ ensure_dir(F) ->
             end
     end.
 
+-spec is_dir(file:filename()) -> boolean().
 is_dir(Dir) ->
     case prim_file:read_file_info(Dir) of
         {ok, #file_info{type=directory}} ->
@@ -221,6 +222,7 @@ is_dir(Dir) ->
             false
     end.
 
+-spec is_file(file:filename()) -> boolean().
 is_file(Dir) ->
     case prim_file:read_file_info(Dir) of
         {ok, #file_info{type=regular}} ->

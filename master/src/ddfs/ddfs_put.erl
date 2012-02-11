@@ -25,16 +25,13 @@ loop("/proxy/" ++ Path, Req) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
     loop([$/|RealPath], Req);
-
 loop("/ddfs/" ++ BlobName, Req) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
-
     case {Req:get(method),
             valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
         {'PUT', true} ->
-            case catch gen_server:call(ddfs_node,
-                    {put_blob, BlobName}, ?PUT_WAIT_TIMEOUT) of
+            case catch ddfs_node:put_blob(BlobName) of
                 {ok, Path, Url} ->
                     receive_blob(Req, {Path, BlobName}, Url);
                 {error, Path, Error} ->
@@ -46,18 +43,16 @@ loop("/ddfs/" ++ BlobName, Req) ->
                     Req:respond({503, [],
                         ["Maximum number of uploaders reached. ",
                          "Try again later"]})
-
             end;
         {'PUT', _} ->
             Req:respond({403, [], ["Invalid blob name"]});
         _ ->
             Req:respond({501, [], ["Method not supported"]})
     end;
-
 loop(_, Req) ->
     Req:not_found().
 
--spec valid_blob({'EXIT' | binary(),_}) -> bool().
+-spec valid_blob({'EXIT' | binary(),_}) -> boolean().
 valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).

@@ -120,7 +120,7 @@ test: master $(ETESTOBJECTS)
 
 dialyzer: EOPT = -W +debug_info
 dialyzer: $(EPLT)
-	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling -Wbehaviours --plt $(EPLT) --src -r $(ESRC)
+	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) --src -r $(ESRC)
 
 typer: $(EPLT)
 	$(TYPER) --plt $(EPLT) -r $(ESRC)

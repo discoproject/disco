@@ -166,11 +166,11 @@ delete_tagattrib(TagName, {user, Key}, Tag) ->
     User = lists:keydelete(Key, 1, Tag#tagcontent.user),
     update_tagcontent(TagName, Tag#tagcontent{user = User}).
 
--spec validate_urls([[_]]) -> bool().
+-spec validate_urls([[_]]) -> boolean().
 validate_urls(Urls) ->
     [] =:= (catch lists:flatten([[1 || X <- L, not is_binary(X)] || L <- Urls])).
 
--spec validate_value(attrib(), _) -> bool().
+-spec validate_value(attrib(), _) -> boolean().
 validate_value(urls, Value) ->
     validate_urls(Value);
 validate_value(read_token, Value) ->
