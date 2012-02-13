@@ -192,7 +192,7 @@ replica_server(Master, Root) ->
             {ok, Path, _} =
                 ddfs_util:hashdir(Blob, "nonode!", "blob", Root, VolName),
             SrcPath = filename:join(Path, binary_to_list(Blob)),
-            Replicator ! {Ref, do_put(Blob, SrcPath, PutUrl)},
+            Replicator ! {Ref, Blob, PutUrl, do_put(Blob, SrcPath, PutUrl)},
             replica_server(Master, Root);
         end_rr ->
             ok

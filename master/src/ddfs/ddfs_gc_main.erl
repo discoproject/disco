@@ -1064,15 +1064,17 @@ do_put_blob(Master, Ref, BlobName, SrcPeer, SrcNode, PutUrl) ->
 -spec wait_put_blob(pid(), non_neg_integer(), node()) -> 'ok'.
 wait_put_blob(Master, Ref, SrcNode) ->
     receive
-        {Ref, {ok, BlobName, NewUrls}} ->
+        {Ref, _B, _PU, {ok, BlobName, NewUrls}} ->
             add_replicas(Master, BlobName, NewUrls);
-        {Ref, _E} ->
+        {Ref, B, PU, E} ->
+            error_logger:info_report({"Replication error:", B, PU, E}),
             ok;
-        {_OldRef, {ok, BlobName, NewUrls}} ->
+        {_OldRef, _B, _PU, {ok, BlobName, NewUrls}} ->
             % Delayed response.
             add_replicas(Master, BlobName, NewUrls),
             wait_put_blob(Master, Ref, SrcNode);
-        {_OldRef, _OldResult} ->
+        {_OldRef, B, PU, OldResult} ->
+            error_logger:info_report({"Replication error:", B, PU, OldResult}),
             wait_put_blob(Master, Ref, SrcNode)
     after ?GC_PUT_TIMEOUT ->
             ok
@@ -1101,6 +1103,16 @@ update_tag(S, T, Retries) ->
             S#state{safe_blacklist = gb_sets:empty()}
     end.
 
+-spec log_blacklist_change(tagname(), gb_set(), gb_set()) -> ok.
+log_blacklist_change(Tag, Old, New) ->
+    case gb_sets:size(Old) =:= gb_sets:size(New) of
+        true ->
+            ok;
+        false ->
+            error_logger:info_report({"GC: safe blacklist shrunk while processing",
+                                      Tag, gb_sets:to_list(Old), gb_sets:to_list(New)})
+    end.
+
 % RR2) Update tags that contain blobs that were re-replicated, and/or
 %      re-replicate tags that don't have enough replicas.
 
@@ -1115,6 +1127,7 @@ update_tag_body(S, Tag, Id, TagUrls, TagReplicas) ->
         {[], NumTagReps} when NumTagReps >= S#state.tagk ->
             % There are no blob updates, and there are the requisite
             % number of tag replicas; tag doesn't need update.
+            log_blacklist_change(Tag, S#state.safe_blacklist, SBL1),
             S#state{safe_blacklist = SBL1};
         _ ->
             % In all other cases, send the tag an update, and update
@@ -1123,6 +1136,7 @@ update_tag_body(S, Tag, Id, TagUrls, TagReplicas) ->
             Msg = {gc_rr_update, Updates, S#state.blacklist, Id},
             error_logger:info_report({"Updating tag", Msg}),
             ddfs_master:tag_notify(Msg, Tag),
+            log_blacklist_change(Tag, S#state.safe_blacklist, SBL2),
             S#state{safe_blacklist = SBL2}
     end.
 
