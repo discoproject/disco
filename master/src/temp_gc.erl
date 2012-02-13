@@ -25,11 +25,13 @@ loop() ->
                     Active = gb_sets:from_list(
                         [Name || {Name, active, _Start, _Pid} <- Jobs]),
                     process_dir(Dirs, gb_sets:from_ordset(Purged), Active);
-                _ ->
+                E ->
                     % fresh install, try again after GC_INTERVAL
+                    error_logger:info_report({"Tempgc: listing error", E}),
                     ok
             end;
-        _ ->
+        E ->
+            error_logger:info_report({"Tempgc: master error", E}),
             % master busy, try again after GC_INTERVAL
             ok
     end,
