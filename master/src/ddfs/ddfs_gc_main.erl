@@ -1036,17 +1036,24 @@ update_replicas(_S, BlobName, NewUrls) ->
 % to the main gen_server.  If a peer goes down during the transfer, it
 % is not retried, but a timeout error is reported instead.
 
+-record(rep_state, {
+          master       :: pid(),
+          ref      = 0 :: non_neg_integer(),
+          timeouts = 0 :: non_neg_integer()}).
+-type rep_state() :: #rep_state{}.
+
 -spec start_replicator(pid()) -> pid().
 start_replicator(Master) ->
-    spawn_link(fun() -> replicator(Master, 0) end).
+    spawn_link(fun() -> replicator(#rep_state{master = Master}) end).
 
--spec replicator(pid(), non_neg_integer()) -> no_return().
-replicator(Master, Ref) ->
+-spec replicator(rep_state()) -> no_return().
+replicator(#rep_state{ref = Ref, timeouts = TO} = S) ->
     receive
         {put_blob, BlobName, SrcPeer, SrcNode, PutUrl} ->
-            do_put_blob(Master, Ref, BlobName, SrcPeer, SrcNode, PutUrl),
-            replicator(Master, Ref + 1);
+            S1 = do_put_blob(S, BlobName, SrcPeer, SrcNode, PutUrl),
+            replicator(S1#rep_state{ref = Ref + 1});
         rr_end ->
+            error_logger:info_report({"GC: replication ending with Ref/TO:", Ref, TO}),
             ok
     end.
 
@@ -1055,29 +1062,32 @@ stop_replicator(RR) ->
     RR ! rr_end,
     ok.
 
--spec do_put_blob(pid(), non_neg_integer(), object_name(),
-                  pid(), node(), binary()) -> 'ok'.
-do_put_blob(Master, Ref, BlobName, SrcPeer, SrcNode, PutUrl) ->
+-spec do_put_blob(rep_state(), object_name(), pid(), node(), binary())
+                 -> rep_state().
+do_put_blob(#rep_state{ref = Ref} = S, BlobName, SrcPeer, SrcNode, PutUrl) ->
     SrcPeer ! {put_blob, self(), Ref, BlobName, PutUrl},
-    wait_put_blob(Master, Ref, SrcNode).
+    wait_put_blob(S, SrcNode, PutUrl).
 
--spec wait_put_blob(pid(), non_neg_integer(), node()) -> 'ok'.
-wait_put_blob(Master, Ref, SrcNode) ->
+-spec wait_put_blob(rep_state(), node(), url()) -> rep_state().
+wait_put_blob(#rep_state{ref = Ref, timeouts = TO} = S, SrcNode, PutUrl) ->
     receive
         {Ref, _B, _PU, {ok, BlobName, NewUrls}} ->
-            add_replicas(Master, BlobName, NewUrls);
+            add_replicas(S#rep_state.master, BlobName, NewUrls),
+            S;
         {Ref, B, PU, E} ->
-            error_logger:info_report({"Replication error:", B, PU, E}),
-            ok;
-        {_OldRef, _B, _PU, {ok, BlobName, NewUrls}} ->
+            error_logger:info_report({"GC: replication error:", B, PU, E}),
+            S;
+        {_OldRef, _B, PU, {ok, BlobName, NewUrls}} ->
             % Delayed response.
-            add_replicas(Master, BlobName, NewUrls),
-            wait_put_blob(Master, Ref, SrcNode);
+            error_logger:info_report({"GC: delayed replication:", BlobName, PU, NewUrls}),
+            add_replicas(S#rep_state.master, BlobName, NewUrls),
+            wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl);
         {_OldRef, B, PU, OldResult} ->
-            error_logger:info_report({"Replication error:", B, PU, OldResult}),
-            wait_put_blob(Master, Ref, SrcNode)
+            error_logger:info_report({"GC: replication error:", B, PU, OldResult}),
+            wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl)
     after ?GC_PUT_TIMEOUT ->
-            ok
+            error_logger:info_report({"GC: replication timeout:", SrcNode, PutUrl}),
+            S#rep_state{timeouts = TO + 1}
     end.
 
 
