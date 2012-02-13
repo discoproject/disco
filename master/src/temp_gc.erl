@@ -70,6 +70,16 @@ process_dir([Dir|R], Purged, Active) ->
 ifdead(Job, Active) ->
     not gb_sets:is_member(list_to_binary(Job), Active).
 
+% Perform purge in one function so that gen_server errors can be
+% caught by callers.
+-spec purge_job(string(), string()) -> 'ok'.
+purge_job(Job, JobPath) ->
+    % Perform ddfs_delete before removing JobPath, so that in case
+    % there are errors in deleting oob_name, we fail fast and leave
+    % JobPath around for the next scan to find and retry.
+    ddfs_delete(disco:oob_name(Job)),
+    _ = os:cmd("rm -Rf " ++ JobPath).
+
 -spec process_job(string(), gb_set()) -> 'ok'.
 process_job(JobPath, Purged) ->
     case prim_file:read_file_info(JobPath) of
@@ -80,12 +90,13 @@ process_job(JobPath, Purged) ->
             IsPurged = gb_sets:is_member(list_to_binary(Job), Purged),
             GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
             if IsPurged; Now - T > GCAfter ->
-                ddfs_delete(disco:oob_name(Job)),
-                _ = os:cmd("rm -Rf " ++ JobPath),
-                ok;
+                %error_logger:info_report({"Tempgc: purging", JobPath}),
+                catch purge_job(Job, JobPath);
             true ->
                 ok
-            end;
-        _ ->
-            ok
+            end,
+            % Sleep here to prevent master and disk being DDOS'ed
+            timer:sleep(10);
+        E ->
+            error_logger:info_report({"Tempgc: file error", E})
     end.
