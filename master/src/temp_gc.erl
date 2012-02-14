@@ -1,10 +1,11 @@
 -module(temp_gc).
 
 -include_lib("kernel/include/file.hrl").
+-include("config.hrl").
 
 -export([start_link/1]).
 
--define(GC_INTERVAL, 600000).
+-define(GC_INTERVAL, 2 * ?DAY).
 
 -spec start_link(pid()) -> no_return().
 start_link(Master) ->
@@ -35,6 +36,7 @@ loop() ->
             % master busy, try again after GC_INTERVAL
             ok
     end,
+    error_logger:info_report({"Tempgc: one pass completed"}),
     timer:sleep(?GC_INTERVAL),
     flush(),
     loop().
@@ -96,7 +98,7 @@ process_job(JobPath, Purged) ->
                 ok
             end,
             % Sleep here to prevent master and disk being DDOS'ed
-            timer:sleep(10);
+            timer:sleep(100);
         E ->
             error_logger:info_report({"Tempgc: file error", E})
     end.
