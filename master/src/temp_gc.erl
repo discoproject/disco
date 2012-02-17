@@ -10,8 +10,7 @@
 -spec start_link(node()) -> no_return().
 start_link(Master) ->
     case catch register(temp_gc, self()) of
-        {'EXIT', {badarg, _}} ->
-            exit(already_started);
+        {'EXIT', {badarg, _}} -> exit(already_started);
         _ -> ok
     end,
     put(master, Master),
@@ -24,7 +23,7 @@ loop() ->
             case prim_file:list_dir(disco:data_root(node())) of
                 {ok, Dirs} ->
                     Active = gb_sets:from_list(
-                        [Name || {Name, active, _Start, _Pid} <- Jobs]),
+                               [Name || {Name, active, _Start, _Pid} <- Jobs]),
                     process_dir(Dirs, gb_sets:from_ordset(Purged), Active);
                 E ->
                     % fresh install, try again after GC_INTERVAL
@@ -43,11 +42,8 @@ loop() ->
 
 % gen_server calls below may timeout, so we need to purge late replies
 flush() ->
-    receive
-        _ ->
-            flush()
-    after 0 ->
-        ok
+    receive _ -> flush()
+    after 0 -> ok
     end.
 
 ddfs_delete(Tag) ->
@@ -60,22 +56,22 @@ get_purged() ->
 get_jobs() ->
     gen_server:call({event_server, get(master)}, get_jobs).
 
--spec process_dir([string()], gb_set(), gb_set()) -> 'ok'.
+-spec process_dir([nonempty_string()], gb_set(), gb_set()) -> 'ok'.
 process_dir([], _Purged, _Active) -> ok;
 process_dir([Dir|R], Purged, Active) ->
     Path = disco:data_path(node(), Dir),
     {ok, Jobs} = prim_file:list_dir(Path),
-    _ = [process_job(filename:join(Path, Job), Purged) ||
-            Job <- Jobs, ifdead(Job, Active)],
+    _ = [process_job(filename:join(Path, Job), Purged)
+         || Job <- Jobs, ifdead(Job, Active)],
     process_dir(R, Purged, Active).
 
--spec ifdead(string(), gb_set()) -> boolean().
+-spec ifdead(nonempty_string(), gb_set()) -> boolean().
 ifdead(Job, Active) ->
     not gb_sets:is_member(list_to_binary(Job), Active).
 
 % Perform purge in one function so that gen_server errors can be
 % caught by callers.
--spec purge_job(string(), string()) -> 'ok'.
+-spec purge_job(nonempty_string(), nonempty_string()) -> 'ok'.
 purge_job(Job, JobPath) ->
     % Perform ddfs_delete before removing JobPath, so that in case
     % there are errors in deleting oob_name, we fail fast and leave
@@ -83,7 +79,7 @@ purge_job(Job, JobPath) ->
     ddfs_delete(disco:oob_name(Job)),
     _ = os:cmd("rm -Rf " ++ JobPath).
 
--spec process_job(string(), gb_set()) -> 'ok'.
+-spec process_job(nonempty_string(), gb_set()) -> string().
 process_job(JobPath, Purged) ->
     case prim_file:read_file_info(JobPath) of
         {ok, #file_info{type = directory, mtime = TStamp}} ->
