@@ -66,7 +66,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
             Tstamp = ddfs_util:timestamp(),
             Partial = lists:flatten(["!partial-", Tstamp, ".", Fname]),
             Dst = filename:join(Path, Partial),
-            case file:open(Dst, [write, raw, binary]) of
+            case prim_file:open(Dst, [write, raw, binary]) of
                 {ok, IO} -> receive_blob(Req, IO, Dst, Url);
                 Error -> error_reply(Req, "Opening file failed", Dst, Error)
             end;
@@ -78,7 +78,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
     nonempty_string()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
     error_logger:info_report({"PUT BLOB", Req:get(path), Req:get_header_value("content-length")}),
-    case receive_body(Req, IO) of
+    case catch receive_body(Req, IO) of
         ok ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
@@ -104,18 +104,22 @@ receive_blob(Req, IO, Dst, Url) ->
 
 -spec receive_body(module(), file:io_device()) -> _.
 receive_body(Req, IO) ->
-    R0 = Req:stream_body(?MAX_RECV_BODY, fun
-            ({_, Buf}, ok) -> file:write(IO, Buf);
-            (_, S) -> S
-        end, ok),
+    R0 = Req:stream_body(?MAX_RECV_BODY,
+                         fun ({BufLen, Buf}, BodyLen) ->
+                                 file:write(IO, Buf),
+                                 BodyLen + BufLen
+                         end, 0),
     case R0 of
         % R == <<>> or undefined if body is empty
-        R when R =:= ok; R =:= <<>>; R =:= undefined ->
+        R when is_integer(R); R =:= <<>>; R =:= undefined ->
+            error_logger:info_report({"PUT BLOB: receive_body done", Req:get(path), R}),
             case [file:sync(IO), file:close(IO)] of
                 [ok, ok] -> ok;
                 E -> hd([X || X <- E, X =/= ok])
             end;
-        Error -> Error
+        Error ->
+            error_logger:info_report({"PUT BLOB: receive_body error", Req:get(path), Error}),
+            Error
     end.
 
 -spec error_reply(module(), nonempty_string(), nonempty_string(), _) -> _.
