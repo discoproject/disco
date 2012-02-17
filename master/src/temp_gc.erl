@@ -7,7 +7,7 @@
 
 -define(GC_INTERVAL, 2 * ?DAY).
 
--spec start_link(pid()) -> no_return().
+-spec start_link(node()) -> no_return().
 start_link(Master) ->
     case catch register(temp_gc, self()) of
         {'EXIT', {badarg, _}} ->
@@ -53,8 +53,9 @@ flush() ->
 ddfs_delete(Tag) ->
     ddfs:delete({ddfs_master, get(master)}, Tag, internal).
 
+-spec get_purged() -> [binary()].
 get_purged() ->
-    gen_server:call({disco_server, get(master)}, get_purged).
+    disco_server:get_purged(get(master)).
 
 get_jobs() ->
     gen_server:call({event_server, get(master)}, get_jobs).
