@@ -20,14 +20,15 @@ start_link(Master) ->
 loop() ->
     case catch {get_purged(), get_jobs()} of
         {{ok, Purged}, {ok, Jobs}} ->
-            case prim_file:list_dir(disco:data_root(node())) of
+            DataRoot = disco:data_root(node()),
+            case prim_file:list_dir(DataRoot) of
                 {ok, Dirs} ->
                     Active = gb_sets:from_list(
                                [Name || {Name, active, _Start, _Pid} <- Jobs]),
                     process_dir(Dirs, gb_sets:from_ordset(Purged), Active);
                 E ->
                     % fresh install, try again after GC_INTERVAL
-                    error_logger:info_report({"Tempgc: listing error", E}),
+                    error_logger:info_report({"Tempgc: listing error", DataRoot, E}),
                     ok
             end;
         E ->
