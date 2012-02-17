@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0]).
--export([update_config_table/3, get_active/1, get_nodeinfo/1,
+-export([update_config_table/3, get_active/1, get_nodeinfo/1, get_purged/1,
          new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
          new_task/2, connection_status/2, manual_blacklist/2, gc_blacklist/1,
          get_worker_jobpack/2]).
@@ -118,6 +118,10 @@ gc_blacklist(Hosts) ->
                                 {'ok', {file:io_device(), non_neg_integer()}}.
 get_worker_jobpack(Master, JobName) ->
     gen_server:call({?MODULE, Master}, {jobpack, JobName}).
+
+-spec get_purged(node()) -> [binary()].
+get_purged(Master) ->
+    gen_server:call({?MODULE, Master}, get_purged).
 
 %% ===================================================================
 %% gen_server callbacks

@@ -283,7 +283,7 @@ init({Root, DeletedAges}) ->
     % re-replication.
 
     % gc_blob_map: {Key :: {object_name(), node()},
-    %               State :: 'pending' | 'missing' | 'true' | 'false'}
+    %               State :: 'pending' | 'missing' | check_blob_result()}
     % gc_tag_map:  {Key :: tagname(),
     %               Id  :: erlang:timestamp()}
     _ = ets:new(gc_blob_map, [named_table, set, private]),
@@ -458,8 +458,8 @@ handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     {stop, done, S}.
 
 handle_info({check_blob_result, LocalObj, Status}, #state{phase = Phase} = S)
-  when Phase =:= build_map, is_boolean(Status);
-       Phase =:= map_wait, is_boolean(Status) ->
+  when Phase =:= build_map;
+       Phase =:= map_wait ->
     Checked = check_blob_result(LocalObj, Status),
     Pending = S#state.num_pending_reqs - Checked,
     % Assert an invariant.
@@ -707,7 +707,7 @@ check_blob_status(S, {ObjName, Node} = Key) ->
 num_pending_objects() ->
     ets:select_count(gc_blob_map, [{{'_', pending}, [], [true]}]).
 
--spec check_blob_result(local_object(), boolean()) -> non_neg_integer().
+-spec check_blob_result(local_object(), check_blob_result()) -> non_neg_integer().
 check_blob_result(LocalObj, Status) ->
     case ets:lookup_element(gc_blob_map, LocalObj, 2) of
         pending ->
@@ -731,7 +731,7 @@ start_gc_phase(S) ->
     % and (c) for each blob, any new replicated locations.
 
     % gc_blobs: {Key :: object_name(),
-    %            Present :: [node()],
+    %            Present :: [object_location()],
     %            Recovered :: [object_location()],
     %            Update :: rep_update()}
     _ = ets:new(gc_blobs, [named_table, set, private]),
@@ -739,13 +739,13 @@ start_gc_phase(S) ->
     _ = ets:foldl(
           % There is no clause for the 'pending' status, so that we
           % can assert if we start gc with any still-pending entries.
-          fun({{BlobName, Node}, true}, _) ->
+          fun({{BlobName, Node}, {true, Vol}}, _) ->
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {BlobName, [Node], [], noupdate},
+                          Entry = {BlobName, [{Node, Vol}], [], noupdate},
                           ets:insert(gc_blobs, Entry);
                       [{_, Present, _, _}] ->
-                          Acc = [Node | Present],
+                          Acc = [{Node, Vol} | Present],
                           ets:update_element(gc_blobs, BlobName, {2, Acc})
                   end;
              ({{BlobName, _Node}, Status}, _)
@@ -802,7 +802,8 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
             % node will not delete it if it is recent.
             {ok, true};
         [{_, Present, Recovered, _}] ->
-            case {lists:member(Node, Present),
+            PresentNodes = [N || {N, _V} <- Present],
+            case {lists:member(Node, PresentNodes),
                   lists:member({Node, Vol}, Recovered)} of
                 {true, _} ->
                     % Re-check of an already marked blob.
@@ -833,7 +834,7 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                 {false, false} ->
                     {RepNodes, _RepVols} = lists:unzip(Recovered),
                     Blacklist = S#state.blacklist,
-                    Usable = find_usable(Blacklist, lists:usort(RepNodes ++ Present)),
+                    Usable = find_usable(Blacklist, lists:usort(RepNodes ++ PresentNodes)),
                     case length(Usable) > MaxReps of
                         true ->
                             {ok, true};
@@ -964,12 +965,13 @@ rereplicate_blob(S, BlobName) ->
 
 % RR1) Re-replicate blobs that don't have enough replicas
 
--spec rereplicate_blob(state(), object_name(), [node()],
+-spec rereplicate_blob(state(), object_name(), [object_location()],
                        [object_location()], non_neg_integer())
                       -> rep_result().
 rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
     BL = S#state.blacklist,
-    SafePresent = find_usable(BL, Present),
+    PresentNodes = [N || {N, _V} <- Present],
+    SafePresent = find_usable(BL, PresentNodes),
     SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
     case {length(SafePresent), length(SafeRecovered)} of
         {NumPresent, NumRecovered}
@@ -992,7 +994,7 @@ rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
             % time, in a single-shot way. We use any available replicas as
             % sources, including those from blacklisted nodes.
             {RepNodes, _RepVols} = lists:unzip(Recovered),
-            OkNodes = RepNodes ++ Present,
+            OkNodes = RepNodes ++ PresentNodes,
             case {try_put_blob(S, BlobName, OkNodes, BL), NumRecovered} of
                 {{error, _E}, 0} ->
                     noupdate;
@@ -1034,17 +1036,24 @@ update_replicas(_S, BlobName, NewUrls) ->
 % to the main gen_server.  If a peer goes down during the transfer, it
 % is not retried, but a timeout error is reported instead.
 
+-record(rep_state, {
+          master       :: pid(),
+          ref      = 0 :: non_neg_integer(),
+          timeouts = 0 :: non_neg_integer()}).
+-type rep_state() :: #rep_state{}.
+
 -spec start_replicator(pid()) -> pid().
 start_replicator(Master) ->
-    spawn_link(fun() -> replicator(Master, 0) end).
+    spawn_link(fun() -> replicator(#rep_state{master = Master}) end).
 
--spec replicator(pid(), non_neg_integer()) -> no_return().
-replicator(Master, Ref) ->
+-spec replicator(rep_state()) -> no_return().
+replicator(#rep_state{ref = Ref, timeouts = TO} = S) ->
     receive
         {put_blob, BlobName, SrcPeer, SrcNode, PutUrl} ->
-            do_put_blob(Master, Ref, BlobName, SrcPeer, SrcNode, PutUrl),
-            replicator(Master, Ref + 1);
+            S1 = do_put_blob(S, BlobName, SrcPeer, SrcNode, PutUrl),
+            replicator(S1#rep_state{ref = Ref + 1});
         rr_end ->
+            error_logger:info_report({"GC: replication ending with Ref/TO:", Ref, TO}),
             ok
     end.
 
@@ -1053,27 +1062,32 @@ stop_replicator(RR) ->
     RR ! rr_end,
     ok.
 
--spec do_put_blob(pid(), non_neg_integer(), object_name(),
-                  pid(), node(), binary()) -> 'ok'.
-do_put_blob(Master, Ref, BlobName, SrcPeer, SrcNode, PutUrl) ->
+-spec do_put_blob(rep_state(), object_name(), pid(), node(), binary())
+                 -> rep_state().
+do_put_blob(#rep_state{ref = Ref} = S, BlobName, SrcPeer, SrcNode, PutUrl) ->
     SrcPeer ! {put_blob, self(), Ref, BlobName, PutUrl},
-    wait_put_blob(Master, Ref, SrcNode).
+    wait_put_blob(S, SrcNode, PutUrl).
 
--spec wait_put_blob(pid(), non_neg_integer(), node()) -> 'ok'.
-wait_put_blob(Master, Ref, SrcNode) ->
+-spec wait_put_blob(rep_state(), node(), url()) -> rep_state().
+wait_put_blob(#rep_state{ref = Ref, timeouts = TO} = S, SrcNode, PutUrl) ->
     receive
-        {Ref, {ok, BlobName, NewUrls}} ->
-            add_replicas(Master, BlobName, NewUrls);
-        {Ref, _E} ->
-            ok;
-        {_OldRef, {ok, BlobName, NewUrls}} ->
+        {Ref, _B, _PU, {ok, BlobName, NewUrls}} ->
+            add_replicas(S#rep_state.master, BlobName, NewUrls),
+            S;
+        {Ref, B, PU, E} ->
+            error_logger:info_report({"GC: replication error:", B, PU, E}),
+            S;
+        {_OldRef, _B, PU, {ok, BlobName, NewUrls}} ->
             % Delayed response.
-            add_replicas(Master, BlobName, NewUrls),
-            wait_put_blob(Master, Ref, SrcNode);
-        {_OldRef, _OldResult} ->
-            wait_put_blob(Master, Ref, SrcNode)
+            error_logger:info_report({"GC: delayed replication:", BlobName, PU, NewUrls}),
+            add_replicas(S#rep_state.master, BlobName, NewUrls),
+            wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl);
+        {_OldRef, B, PU, OldResult} ->
+            error_logger:info_report({"GC: replication error:", B, PU, OldResult}),
+            wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl)
     after ?GC_PUT_TIMEOUT ->
-            ok
+            error_logger:info_report({"GC: replication timeout:", SrcNode, PutUrl}),
+            S#rep_state{timeouts = TO + 1}
     end.
 
 
@@ -1099,6 +1113,16 @@ update_tag(S, T, Retries) ->
             S#state{safe_blacklist = gb_sets:empty()}
     end.
 
+-spec log_blacklist_change(tagname(), gb_set(), gb_set()) -> ok.
+log_blacklist_change(Tag, Old, New) ->
+    case gb_sets:size(Old) =:= gb_sets:size(New) of
+        true ->
+            ok;
+        false ->
+            error_logger:info_report({"GC: safe blacklist shrunk while processing",
+                                      Tag, gb_sets:to_list(Old), gb_sets:to_list(New)})
+    end.
+
 % RR2) Update tags that contain blobs that were re-replicated, and/or
 %      re-replicate tags that don't have enough replicas.
 
@@ -1113,6 +1137,7 @@ update_tag_body(S, Tag, Id, TagUrls, TagReplicas) ->
         {[], NumTagReps} when NumTagReps >= S#state.tagk ->
             % There are no blob updates, and there are the requisite
             % number of tag replicas; tag doesn't need update.
+            log_blacklist_change(Tag, S#state.safe_blacklist, SBL1),
             S#state{safe_blacklist = SBL1};
         _ ->
             % In all other cases, send the tag an update, and update
@@ -1121,6 +1146,7 @@ update_tag_body(S, Tag, Id, TagUrls, TagReplicas) ->
             Msg = {gc_rr_update, Updates, S#state.blacklist, Id},
             error_logger:info_report({"Updating tag", Msg}),
             ddfs_master:tag_notify(Msg, Tag),
+            log_blacklist_change(Tag, S#state.safe_blacklist, SBL2),
             S#state{safe_blacklist = SBL2}
     end.
 
@@ -1140,39 +1166,46 @@ collect(S, [BlobSet|Rest], {Updates, SBL} = Acc) ->
             % Any referenced nodes are not safe to be removed from DDFS.
             NewSBL = gb_sets:subtract(SBL, gb_sets:from_list(Nodes)),
 
-            case ets:lookup(gc_blobs, BlobName) of
-                [] ->
-                    % New blob added after GC/RR started.
+            NewLocations = usable_locations(S, BlobName) -- BlobSet,
+            BListed = find_unusable(S#state.blacklist, Nodes),
+            Usable  = find_usable(S#state.blacklist, Nodes),
+            CanFilter = [] =/= BListed andalso length(Usable) >= S#state.blobk,
+            case {NewLocations, CanFilter} of
+                {[], false} ->
+                    % Blacklist filtering is not needed, and there are
+                    % no updates.
                     collect(S, Rest, {Updates, NewSBL});
-                [{_, P, _R, noupdate}] ->
-                    % Check whether blacklist filtering is needed,
-                    % provided we have enough replicas present.  Since
-                    % this is marked noupdate, we have no usable
-                    % recovered replicas.
-                    SafePresent = find_usable(S#state.blacklist, P),
-                    ToFilter = find_unusable(S#state.blacklist, Nodes),
-                    case ((ToFilter =/= [])
-                          andalso (length(SafePresent) >= S#state.blobk)) of
-                        true ->
-                            Update = {BlobName, filter},
-                            collect(S, Rest, {[Update | Updates], NewSBL});
-                        false ->
-                            % Blacklist filtering is not needed, or
-                            % it's not yet safe.
-                            collect(S, Rest, {Updates, NewSBL})
-                    end;
-                [{_, _P, R, {update, NewUrls}}] ->
-                    AccUpdates = add_blob_update(S, BlobName, R, NewUrls, Updates),
-                    collect(S, Rest, {AccUpdates, NewSBL})
+                {[], true} ->
+                    % Safely remove blacklisted nodes from the
+                    % blobset.  (The tag will perform another safety
+                    % check before removal using the tag id.)
+                    Update = {BlobName, filter},
+                    collect(S, Rest, {[Update | Updates], NewSBL});
+                {[_|_], _} ->
+                    % There are new usable locations for the blobset.
+                    Update = {BlobName, NewLocations},
+                    collect(S, Rest, {[Update | Updates], NewSBL})
             end
     end.
 
--spec add_blob_update(state(), object_name(), [object_location()],
-                      [url()], [blob_update()]) -> [blob_update()].
-add_blob_update(S, BlobName, Recovered, NewUrls, AccUpdates) ->
-    SafeRecovered = [{N, V} || {N, V} <- Recovered,
-                               not lists:member(N, S#state.blacklist)],
-    RecUrls = lists:map(
+-spec usable_locations(state(), object_name()) -> [url()].
+usable_locations(S, BlobName) ->
+    case ets:lookup(gc_blobs, BlobName) of
+        [] ->
+            % New blob added after GC/RR started.
+            [];
+        [{_, P, R, noupdate}] ->
+            usable_locations(S, BlobName, P ++ R, []);
+        [{_, P, R, {update, NewUrls}}] ->
+            usable_locations(S, BlobName, P ++ R, NewUrls)
+    end.
+
+-spec usable_locations(state(), object_name(), [object_location()],
+                       [url()]) -> [url()].
+usable_locations(S, BlobName, Locations, NewUrls) ->
+    Current = [{N, V} || {N, V} <- Locations,
+                      not lists:member(N, S#state.blacklist)],
+    CurUrls = lists:map(
                 fun({N, V}) ->
                         {ok, _Local, Url} = ddfs_util:hashdir(BlobName,
                                                               disco:host(N),
@@ -1180,9 +1213,5 @@ add_blob_update(S, BlobName, Recovered, NewUrls, AccUpdates) ->
                                                               S#state.root,
                                                               V),
                         Url
-                end, SafeRecovered),
-    AddedUrls = lists:usort(RecUrls ++ NewUrls),
-    case AddedUrls of
-        [] -> AccUpdates;
-        _  -> [{BlobName, AddedUrls} | AccUpdates]
-    end.
+                end, Current),
+    lists:usort(CurUrls ++ NewUrls).

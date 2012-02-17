@@ -110,7 +110,7 @@
 -define(TAG_UPDATE_TIMEOUT, ?DAY).
 
 % Timeout for re-replicating a single blob over HTTP PUT
--define(GC_PUT_TIMEOUT, 10 * ?MINUTE).
+-define(GC_PUT_TIMEOUT, 180 * ?MINUTE).
 
 % Delete !partial leftovers after this many milliseconds
 -define(PARTIAL_EXPIRES, ?DAY).

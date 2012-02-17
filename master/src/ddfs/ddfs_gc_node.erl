@@ -104,9 +104,12 @@ check_server(Master, Root) ->
                           node_request_failed)
     end.
 
--spec check_blob(object_name()) -> boolean().
+-spec check_blob(object_name()) -> check_blob_result().
 check_blob(ObjName) ->
-    ets:update_element(blob, ObjName, {4, true}).
+    case ets:update_element(blob, ObjName, {4, true}) of
+        false -> false;
+        true  -> {true, ets:lookup_element(blob, ObjName, 2)}
+    end.
 
 % Perform GC
 %
@@ -189,7 +192,7 @@ replica_server(Master, Root) ->
             {ok, Path, _} =
                 ddfs_util:hashdir(Blob, "nonode!", "blob", Root, VolName),
             SrcPath = filename:join(Path, binary_to_list(Blob)),
-            Replicator ! {Ref, do_put(Blob, SrcPath, PutUrl)},
+            Replicator ! {Ref, Blob, PutUrl, do_put(Blob, SrcPath, PutUrl)},
             replica_server(Master, Root);
         end_rr ->
             ok

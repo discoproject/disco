@@ -19,7 +19,7 @@ http_put(SrcPath, DstUrl, Timeout) ->
             S = self(),
             spawn_link(fun() -> http_put_conn(SrcPath, DstUrl, S) end),
             receive
-                {'EXIT', _, _} -> P ! {S, ddfs_util, {error, crashed}}, ok;
+                {'EXIT', _, _} = E -> P ! {S, ddfs_util, {error, E}}, ok;
                 E -> P ! {S, ddfs_util, E}, ok
             after Timeout ->
                 P ! {S, ddfs_util, {error, timeout}}, ok
