@@ -22,6 +22,8 @@ TARGETLIB = $(DESTDIR)$(libdir)/disco
 TARGETCFG = $(DESTDIR)$(sysconfdir)/disco
 TARGETSRV = $(DESTDIR)$(localstatedir)/disco
 
+DISCO_LOG_DIR = $(TARGETSRV)/log
+
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
 SPHINXOPTS = "-D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)"
@@ -39,7 +41,9 @@ TYPER      = typer
 PYTHON     = python
 PY_INSTALL = $(PYTHONENVS) $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix)
 RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
+RE_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@$(DISCO_LOG_DIR)@
 
+EHOME = master
 WWW   = master/www
 EBIN  = master/ebin
 ESRC  = master/src
@@ -50,9 +54,11 @@ ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
 EOBJECTS = $(addprefix $(EBIN)/,$(notdir $(ESOURCES:.erl=.beam) disco.app))
 ETARGETS = $(addprefix $(TARGETLIB)/,$(EOBJECTS))
+EAPPCFG  = $(EHOME)/app.config
 
-EDEPS        = $(foreach dep,$(wildcard $(EDEP)/*), $(notdir $(dep))/ebin)
-ETARGETDEPS  = $(addprefix $(TARGETLIB)/$(EDEP)/,$(EDEPS))
+EDEPS         = $(foreach dep,$(wildcard $(EDEP)/*),$(notdir $(dep))/ebin)
+ETARGETDEPS   = $(addprefix $(TARGETLIB)/$(EDEP)/,$(EDEPS))
+ETARGETAPPCFG = $(TARGETLIB)/$(EAPPCFG)
 
 ETESTSOURCES = $(wildcard $(ETEST)/*.erl)
 ETESTOBJECTS = $(ETESTSOURCES:.erl=.beam)
@@ -78,6 +84,9 @@ master: $(ESRC)/disco.app.src
 
 $(ESRC)/disco.app.src: $(ESRC)/disco.app.src.src
 	- $(RE_VERSION) $< > $@
+
+$(EAPPCFG): $(EAPPCFG).src
+	- $(RE_LOG_DIR) $< > $@
 
 clean:
 	- cd master && $(REBAR) clean
@@ -114,7 +123,8 @@ install-master: master \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETLIB)/$(WWW) \
 	$(TARGETCFG)/settings.py \
-	$(TARGETSRV)/ddfs
+	$(TARGETSRV)/ddfs \
+	$(ETARGETAPPCFG)
 
 install-node: master $(ETARGETS) $(ETARGETDEPS)
 
@@ -153,6 +163,10 @@ $(TARGETCFG):
 $(TARGETCFG)/settings.py: | $(TARGETCFG)
 	(TARGETLIB=$(TARGETLIB) TARGETSRV=$(TARGETSRV) \
 	 conf/gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
+
+$(ETARGETAPPCFG): $(EAPPCFG)
+	$(INSTALL) -d `$(DIRNAME) $@`
+	$(INSTALL_DATA) $< $@
 
 $(TARGETLIB)/$(EBIN):
 	$(INSTALL) -d $@

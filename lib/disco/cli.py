@@ -188,9 +188,7 @@ class Master(clx.server.Server):
 
     @property
     def args(self):
-        return self.basic_args + ['-detached',
-                                  '-heart',
-                                  '-kernel', 'error_logger', '{file, "%s"}' % self.log_file]
+        return self.basic_args + ['-detached', '-heart', '-kernel']
 
     @property
     def basic_args(self):
@@ -203,6 +201,7 @@ class Master(clx.server.Server):
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
                 '-sname', self.name,
+                '-config', epath('app.config'),
                 '-pa', epath('ebin'),
                 '-pa', edep('mochiweb'),
                 '-pa', edep('lager'),
