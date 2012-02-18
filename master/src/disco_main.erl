@@ -7,8 +7,6 @@
 
 -include("config.hrl").
 
--compile([verbose, report_errors, report_warnings, trace, debug_info]).
-
 -define(MAX_R, 10).
 -define(MAX_T, 60).
 
