@@ -205,6 +205,7 @@ class Master(clx.server.Server):
                 '-sname', self.name,
                 '-pa', epath('ebin'),
                 '-pa', edep('mochiweb'),
+                '-pa', edep('lager'),
                 '-eval', 'application:start(disco)']
 
     @property
