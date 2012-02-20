@@ -1,21 +1,31 @@
 #!/bin/bash
-# This file is used by Debian packaging.
+# This file is used by "make install" on Linux.
 
-cat << EOF
+cat <<EOF
 # Disco settings
 
-DISCO_USER = "disco"
-DISCO_HOME = "/usr/lib/disco"
+EOF
+
+if [ "${DISCO_USER}" != "" ]; then
+    echo DISCO_USER = "\"${DISCO_USER}\""
+    echo ""
+fi
+
+cat <<EOF
+DISCO_HOME = "${DISCO_HOME}"
 
 # Root directory for Disco data.
-DISCO_ROOT = "/srv/disco/"
+DISCO_ROOT = "${DISCO_ROOT}"
 
-# Root directory for Disco logs.
-DISCO_LOG_DIR = "/var/log/disco/"
+EOF
 
-# Root directory for the Disco PID file.
-DISCO_PID_DIR = "/var/run/disco/"
+if [ "${DISCO_PID_DIR}" != "" ]; then
+    echo '# Root directory for the Disco PID file.'
+    echo DISCO_PID_DIR = "\"${DISCO_PID_DIR}\""
+    echo
+fi
 
+cat <<EOF
 # --
 # -- Variables below this line rarely need to be modified
 # --
