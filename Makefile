@@ -22,14 +22,9 @@ TARGETLIB = $(DESTDIR)$(libdir)/disco
 TARGETCFG = $(DESTDIR)$(sysconfdir)/disco
 TARGETSRV = $(DESTDIR)$(localstatedir)/disco
 
-DISCO_LOG_DIR = $(TARGETSRV)/log
-
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
 SPHINXOPTS = "-D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)"
-
-# used to choose which conf file will be generated
-UNAME = $(shell uname)
 
 # utilities used for building disco
 REBAR      = ./rebar    # relative to ./master
@@ -40,8 +35,6 @@ DIALYZER   = dialyzer
 TYPER      = typer
 PYTHON     = python
 PY_INSTALL = $(PYTHONENVS) $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix)
-RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
-RE_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@$(DISCO_LOG_DIR)@
 
 EHOME = master
 WWW   = master/www
@@ -65,6 +58,20 @@ ETESTOBJECTS = $(ETESTSOURCES:.erl=.beam)
 
 EPLT  = .dialyzer_plt
 
+# used to override default installation settings
+UNAME = $(shell uname)
+-include mk/mk.$(UNAME)
+# default settings to be generated for installation
+DISCO_HOME ?= $(TARGETLIB)
+DISCO_ROOT ?= $(TARGETSRV)
+DISCO_LOG_DIR ?= $(TARGETSRV)/log
+DISCO_RUN_DIR ?= $(DISCO_ROOT)/run
+
+# installation utilities
+RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
+RE_INSTALL_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@$(DISCO_LOG_DIR)@
+RE_LOCAL_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@root/log@
+
 .PHONY: all master clean distclean doc docclean doctest
 .PHONY: install \
 	install-master \
@@ -79,14 +86,14 @@ EPLT  = .dialyzer_plt
 
 all: master
 
-master: $(ESRC)/disco.app.src
+master: $(EAPPCFG) $(ESRC)/disco.app.src Makefile
 	cd master && $(REBAR) get-deps && $(REBAR) compile
 
 $(ESRC)/disco.app.src: $(ESRC)/disco.app.src.src
 	- $(RE_VERSION) $< > $@
 
 $(EAPPCFG): $(EAPPCFG).src
-	- $(RE_LOG_DIR) $< > $@
+	$(RE_LOCAL_LOG_DIR) $< > $(EAPPCFG)
 
 clean:
 	- cd master && $(REBAR) clean
@@ -160,13 +167,17 @@ $(TARGETBIN)/%: bin/% | $(TARGETBIN)
 $(TARGETCFG):
 	$(INSTALL) -d $(TARGETCFG)
 
-$(TARGETCFG)/settings.py: | $(TARGETCFG)
-	(TARGETLIB=$(TARGETLIB) TARGETSRV=$(TARGETSRV) \
-	 conf/gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
+$(TARGETCFG)/settings.py: conf/gen.settings | $(TARGETCFG)
+	(DISCO_HOME=$(DISCO_HOME) \
+	 DISCO_ROOT=$(DISCO_ROOT) \
+	 DISCO_USER=$(DISCO_USER) \
+	 DISCO_PID_DIR=$(DISCO_PID_DIR) \
+	 DISCO_RUN_DIR=$(DISCO_RUN_DIR) \
+	 conf/gen.settings > $@ && chmod 644 $@)
 
-$(ETARGETAPPCFG): $(EAPPCFG)
+$(ETARGETAPPCFG): $(EAPPCFG).src
 	$(INSTALL) -d `$(DIRNAME) $@`
-	$(INSTALL_DATA) $< $@
+	- $(RE_INSTALL_LOG_DIR) $< > $@
 
 $(TARGETLIB)/$(EBIN):
 	$(INSTALL) -d $@
