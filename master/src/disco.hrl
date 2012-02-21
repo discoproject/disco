@@ -1,3 +1,4 @@
+-type host_name() :: nonempty_string().
 
 -record(jobinfo, {jobname :: nonempty_string(),
                   jobfile :: nonempty_string(),

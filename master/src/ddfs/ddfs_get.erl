@@ -56,7 +56,7 @@ send_file(Req, Path, Root) ->
         {true, undefined} ->
             Req:not_found();
         {true, SafePath} ->
-            case catch gen_server:call(ddfs_node, get_blob, ?GET_WAIT_TIMEOUT) of
+            case catch ddfs_node:gate_get_blob() of
                 ok ->
                     send_file(Req, filename:join(Root, SafePath));
                 {'EXIT', {noproc, _}} ->

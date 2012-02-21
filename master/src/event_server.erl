@@ -145,7 +145,7 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _MsgBuf} = S) ->
             Results = event_filter(ready, EventList),
             Ready = event_filter(task_ready, EventList),
             Failed = event_filter(task_failed, EventList),
-            Start = format_timestamp(JobStart),
+            Start = disco_util:format_timestamp(JobStart),
             {reply, {ok, {Start, Pid, JobNfo, Results, Ready, Failed}}, S}
     end.
 
@@ -194,7 +194,7 @@ tail_log(JobName, N) ->
 grep_log(JobName, Query, N) ->
     % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
     % only whitelisted characters are allowed in the query
-    {ok, CQ, _} = re:replace(Query, "[^a-zA-Z0-9:-_!@]", "", [global, {return, list}]),
+    CQ = re:replace(Query, "[^a-zA-Z0-9:-_!@]", "", [global, {return, list}]),
     Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ",
                                   event_log(JobName),
                                   " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
@@ -209,15 +209,9 @@ process_status(Pid) ->
 event_filter(Key, EventList) ->
     [V || {K, V} <- EventList, K == Key].
 
-format_timestamp(TimeStamp) ->
-    {Date, Time} = calendar:now_to_local_time(TimeStamp),
-    DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
-    TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
-    list_to_binary([DateStr, TimeStr]).
-
 add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
-    Time = format_timestamp(now()),
+    Time = disco_util:format_timestamp(now()),
     Host = list_to_binary(Host0),
     Line = <<"[\"",
         Time/binary, "\",\"",

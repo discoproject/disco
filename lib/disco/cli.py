@@ -188,23 +188,23 @@ class Master(clx.server.Server):
 
     @property
     def args(self):
-        return self.basic_args + ['-detached',
-                                  '-heart',
-                                  '-kernel', 'error_logger', '{file, "%s"}' % self.log_file]
+        return self.basic_args + ['-detached', '-heart', '-kernel']
 
     @property
     def basic_args(self):
         settings = self.settings
-        ebin = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'ebin', d)
+        epath = lambda p: os.path.join(settings['DISCO_MASTER_HOME'], p)
+        edep = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'deps', d, 'ebin')
         return settings['DISCO_ERLANG'].split() + \
                ['+K', 'true',
                 '+P', '10000000',
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
                 '-sname', self.name,
-                '-pa', ebin(''),
-                '-pa', ebin('mochiweb'),
-                '-pa', ebin('ddfs'),
+                '-config', epath('app.config'),
+                '-pa', epath('ebin'),
+                '-pa', edep('mochiweb'),
+                '-pa', edep('lager'),
                 '-eval', 'application:start(disco)']
 
     @property

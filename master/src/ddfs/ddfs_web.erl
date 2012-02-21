@@ -36,6 +36,57 @@ parse_auth_token(Req) ->
     end.
 
 -spec op(atom(), string(), module()) -> _.
+op('POST', "/ddfs/ctrl/hosted_tags", Req) ->
+    Fun =
+        fun(BinHost, _Size) ->
+            Host = binary_to_list(BinHost),
+            case ddfs_master:get_hosted_tags(Host) of
+                {ok, Tags} ->
+                    okjson(Tags, Req);
+                E ->
+                    error_logger:warning_report({"/ddfs/ctrl/hosted_tags", Host,
+                                                 "failed"}),
+                    on_error(E, Req)
+            end
+        end,
+    process_payload(Fun, Req);
+
+op('GET', "/ddfs/ctrl/gc_stats", Req) ->
+    case ddfs_master:gc_stats() of
+        {ok, none} ->
+            okjson(<<"GC has not yet completed a run.">>, Req);
+        {ok, {{{{TKF, TKB},{TDF, TDB}}, {{BKF, BKB}, {BDF,BDB}}}, TStamp}} ->
+            When = disco_util:format_timestamp(TStamp),
+            Resp = {struct, [{<<"timestamp">>, When},
+                             {<<"stats">>, [{<<"Tags kept">>, [TKF, TKB]},
+                                            {<<"Tags deleted">>, [TDF, TDB]},
+                                            {<<"Blobs kept">>, [BKF, BKB]},
+                                            {<<"Blobs deleted">>, [BDF, BDB]}]}]},
+            okjson(Resp, Req);
+        E ->
+            on_error(E, Req)
+    end;
+
+op('GET', "/ddfs/ctrl/gc_status", Req) ->
+    case ddfs_gc:gc_status() of
+        {ok, not_running} ->
+            okjson(<<"">>, Req);
+        {ok, Phase} ->
+            okjson(list_to_binary("GC is currently running in phase "
+                                  ++ atom_to_list(Phase) ++ "."), Req);
+        E ->
+            on_error(E, Req)
+    end;
+
+op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
+    case ddfs_master:safe_gc_blacklist() of
+        {ok, Nodes} ->
+            Resp = [list_to_binary(disco:name(N)) || N <- Nodes],
+            okjson(Resp, Req);
+        E ->
+            on_error(E, Req)
+    end;
+
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     QS = Req:parse_qs(),
@@ -96,14 +147,15 @@ op('POST', "/ddfs/tag/" ++ Tag, Req) ->
     Token = parse_auth_token(Req),
     QS = Req:parse_qs(),
     Opt = if_set("update", QS, [nodup], []),
-    tag_update(fun(Urls, _Size) ->
-        case is_set("delayed", QS) of
-            true ->
-                ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token, Opt);
-            false ->
-                ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
-        end
-    end, Req);
+    process_payload(
+      fun(Urls, _Size) ->
+              case is_set("delayed", QS) of
+                  true ->
+                      ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token, Opt);
+                  false ->
+                      ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
+              end
+      end, Req);
 
 op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     % for backward compatibility, return urls if no attribute is specified
@@ -124,7 +176,7 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
                                               Token)
                      end
                  end,
-            tag_update(Op, Req)
+            process_payload(Op, Req)
     end;
 
 op('DELETE', "/ddfs/tag/" ++ TagAttrib, Req) ->
@@ -190,6 +242,8 @@ on_error({error, too_many_attributes}, Req) ->
     Req:respond({403, [], ["Too many attributes"]});
 on_error({error, unknown_attribute}, Req) ->
     Req:respond({404, [], ["Tag attribute not found."]});
+on_error({error, unknown_host}, Req) ->
+    Req:respond({404, [], ["Unknown host."]});
 on_error({error, E}, Req) when is_atom(E) ->
     Req:respond({500, [], ["Internal server error: ", atom_to_list(E)]});
 on_error(E, Req) ->
@@ -200,8 +254,8 @@ on_error(E, Req) ->
 okjson(Data, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)}).
 
--spec tag_update(fun(([binary()], non_neg_integer()) -> _), module()) -> _.
-tag_update(Fun, Req) ->
+-spec process_payload(fun(([binary()], non_neg_integer()) -> _), module()) -> _.
+process_payload(Fun, Req) ->
     case catch Req:recv_body(?MAX_TAG_BODY_SIZE) of
         {'EXIT', _} ->
             Req:respond({403, [], ["Invalid request."]});

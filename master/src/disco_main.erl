@@ -7,8 +7,6 @@
 
 -include("config.hrl").
 
--compile([verbose, report_errors, report_warnings, trace, debug_info]).
-
 -define(MAX_R, 10).
 -define(MAX_T, 60).
 
@@ -35,6 +33,7 @@ write_pid(PidFile) ->
 
 -spec start(_, _) -> {'ok', pid()} | {'error', term()}.
 start(_Type, _Args) ->
+    application:start(lager),
     init_settings(),
     write_pid(disco:get_setting("DISCO_MASTER_PID")),
     Port = disco:get_setting("DISCO_PORT"),

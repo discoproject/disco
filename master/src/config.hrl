@@ -1,4 +1,7 @@
-
+-define(SECOND, 1000).
+-define(MINUTE, 60 * ?SECOND).
+-define(HOUR, 60 * ?MINUTE).
+-define(DAY, 24 * ?HOUR).
 -define(MB, 1024 * 1024).
 
 -define(MAX_JSON_POST, 32 * ?MB).

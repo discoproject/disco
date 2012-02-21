@@ -222,6 +222,11 @@ Settings used by DDFS:
                 The default write authorization token to use.
                 Default is ``None``.
 
+        .. envvar:: DDFS_GC_INITIAL_WAIT
+
+                The amount of time to wait after startup before running GC (in minutes).
+                Default is ``''``, which triggers an internal default of 5 minutes.
+
         .. envvar:: DDFS_PARANOID_DELETE
 
                 Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_DATA = "/srv/disco/ddfs"``)::
@@ -307,7 +312,8 @@ class DiscoSettings(Settings):
         'DDFS_TAG_MIN_REPLICAS': "1",
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
-        'DDFS_PARANOID_DELETE':  "''"
+        'DDFS_PARANOID_DELETE':  "''",
+        'DDFS_GC_INITIAL_WAIT':  "''"
         }
 
     globals = globals()
