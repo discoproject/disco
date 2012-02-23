@@ -80,7 +80,8 @@ purge_job(Job, JobPath) ->
     % there are errors in deleting oob_name, we fail fast and leave
     % JobPath around for the next scan to find and retry.
     ddfs_delete(disco:oob_name(Job)),
-    _ = os:cmd("rm -Rf " ++ JobPath).
+    _ = os:cmd("rm -Rf " ++ JobPath),
+    ok.
 
 -spec process_job(string(), gb_set()) -> 'ok'.
 process_job(JobPath, Purged) ->
