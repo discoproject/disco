@@ -329,7 +329,8 @@ handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
        true ->
             error_logger:error_report({"GC: stopping, too many failed nodes",
                                        NumFailed, TagMinK, NumOk}),
-            {stop, too_many_failed_nodes, S}
+            cleanup_for_exit(S),
+            {stop, shutdown, S}
     end;
 
 handle_cast({retry_node, Node}, #state{phase = Phase} = S) ->
@@ -359,7 +360,8 @@ handle_cast({build_map, [T|Tags]}, #state{phase = build_map} = S) ->
             % as orphans and delete them.
             error_logger:error_report({"GC: stopping, unable to get tag",
                                        T, E}),
-            {stop, tag_error, S}
+            cleanup_for_exit(S),
+            {stop, shutdown, S}
     end;
 handle_cast({build_map, []}, #state{phase = build_map} = S) ->
     S1 = case num_pending_objects() of
@@ -453,9 +455,8 @@ handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     node_broadcast(S#state.gc_peers, end_rr),
     % Update ddfs_master with the safe_blacklist.
     ddfs_master:safe_gc_blacklist(S#state.safe_blacklist),
-    % Exit with a non-normal error code to ensure all linked processes
-    % die, especially gc_peers.
-    {stop, done, S}.
+    cleanup_for_exit(S),
+    {stop, shutdown, S}.
 
 handle_info({check_blob_result, LocalObj, Status}, #state{phase = Phase} = S)
   when Phase =:= build_map;
@@ -488,7 +489,8 @@ handle_info(check_progress, #state{phase = Phase} = S)
             % We haven't made progress. Stop GC.
             error_logger:error_report({"GC: progress timeout in phase",
                                        S#state.phase}),
-            {stop, progress_timeout, S}
+            cleanup_for_exit(S),
+            {stop, shutdown, S}
     end;
 handle_info(check_progress, S) ->
     % We don't need this timer in the RR phases.
@@ -496,6 +498,7 @@ handle_info(check_progress, S) ->
 
 handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
     error_logger:warning_report({"GC: dying on error!", Reason}),
+    cleanup_for_exit(S),
     {stop, stop_requested, S};
 
 handle_info({'EXIT', Pid, normal}, #state{phase = rr_blobs_wait, rr_pid = RR} = S)
@@ -513,7 +516,8 @@ handle_info({'EXIT', Pid, Reason}, #state{phase = Phase, rr_pid = RR} = S)
     % Unexpected exit of RR process; exit.
     error_logger:error_report({"GC: unexpected exit of replicator",
                                Reason, Phase}),
-    {stop, replicator_error, S};
+    cleanup_for_exit(S),
+    {stop, shutdown, S};
 
 handle_info({'EXIT', Pid, Reason}, #state{phase = Phase} = S) ->
     case find_node(S#state.gc_peers, Pid) of
@@ -522,8 +526,8 @@ handle_info({'EXIT', Pid, Reason}, #state{phase = Phase} = S) ->
         {Node, Failures} when Failures > ?MAX_GC_NODE_FAILURES ->
             error_logger:error_report({"GC: too many failures",
                                        Node, Failures, Phase}),
-
-            {stop, {too_many_failures, Node}, S};
+            cleanup_for_exit(S),
+            {stop, shutdown, S};
         {Node, Failures} ->
             error_logger:warning_report({"GC: Node disconnected",
                                          Node, Failures, Reason, Phase}),
@@ -538,11 +542,7 @@ handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
 %% ===================================================================
 %% gen_server callback stubs
 
-terminate(Reason, _S)
-  when Reason =:= normal; Reason =:= done ->
-    ok;
-terminate(Reason, #state{phase = Phase} = _S) ->
-    error_logger:warning_report({"GC: dying", Reason, Phase}).
+terminate(_Reason, _S) -> ok.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -614,6 +614,16 @@ node_send(Pid, Msg) ->
     Pid ! Msg,
     ok.
 
+-spec cleanup_for_exit(state()) -> 'ok'.
+cleanup_for_exit(#state{gc_peers = Peers, progress_timer = Timer, rr_pid = RR}) ->
+    lists:foreach(fun({Pid, _}) -> exit(Pid, terminate)
+                  end, gb_trees:values(Peers)),
+    case is_pid(RR) of
+        true -> exit(RR, terminate);
+        _ -> ok
+    end,
+    _ = timer:cancel(Timer),
+    ok.
 
 %% ===================================================================
 %% build_map and map_wait phases
