@@ -195,13 +195,13 @@
 -type rr_next() :: object_name().
 -record(state, {
           % dynamic state
-          deleted_ages :: ets:tab(),
+          deleted_ages                :: ets:tab(),
           phase    = start            :: phase(),
           gc_peers = gb_trees:empty() :: gb_tree(),
 
-          last_response_time = now()  :: erlang:timestamp(),
-          progress_timer              :: 'undefined' | timer:tref(),
-          gc_stats = init_gc_stats()  :: gc_run_stats(),
+          last_response_time = now()          :: erlang:timestamp(),
+          progress_timer    = undefined       :: 'undefined' | timer:tref(),
+          gc_stats          = init_gc_stats() :: gc_run_stats(),
 
           num_pending_reqs  = 0               :: non_neg_integer(),       % build_map/map_wait
           pending_nodes     = gb_sets:empty() :: gb_set(),                % gc
@@ -211,7 +211,7 @@
 
           % static state
           tags              = []      :: [object_name()],
-          root              = ""      :: string(),
+          root                        :: string(),
           blacklist         = []      :: [node()],
 
           tagmink :: non_neg_integer(),
