@@ -276,10 +276,10 @@ def parse_dir(dir, partition=None):
     # XXX: guarantee indices are read in the same order (task/labels) (for redundancy)
     return [url for id, url in sorted(read_index(dir)) if partition in (None, id)]
 
-def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
+def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET'):
     if proxy:
         scheme, (host, port), path = urlsplit(url)
-        return '%s/disco/node/%s/%s' % (proxy, host, path)
+        return '%s/proxy/%s/%s/%s' % (proxy, host, meth, path)
     return url
 
 def read_index(dir):
