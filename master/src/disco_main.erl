@@ -44,6 +44,8 @@ start(_Type, _Args) ->
 init([Port]) ->
     error_logger:info_report([{"DISCO BOOTS"}]),
     {ok, {{one_for_one, ?MAX_R, ?MAX_T}, [
+         {disco_proxy, {disco_proxy, start, []},
+            permanent, 10, worker, dynamic},
          {ddfs_master, {ddfs_master, start_link, []},
             permanent, 10, worker, dynamic},
          {event_server, {event_server, start_link, []},
@@ -53,8 +55,6 @@ init([Port]) ->
          {disco_server, {disco_server, start_link, []},
             permanent, 10, worker, dynamic},
          {mochi_server, {web_server, start, [Port]},
-            permanent, 10, worker, dynamic},
-         {disco_proxy, {disco_proxy, start, []},
             permanent, 10, worker, dynamic}
         ]
     }}.

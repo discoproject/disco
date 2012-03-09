@@ -81,7 +81,7 @@ op('GET', "/ddfs/ctrl/gc_status", Req) ->
 op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
     case ddfs_master:safe_gc_blacklist() of
         {ok, Nodes} ->
-            Resp = [list_to_binary(disco:name(N)) || N <- Nodes],
+            Resp = [list_to_binary(disco:host(N)) || N <- Nodes],
             okjson(Resp, Req);
         E ->
             on_error(E, Req)

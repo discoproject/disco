@@ -19,7 +19,7 @@ from disco.error import CommError
 from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.settings import DiscoSettings
 from disco.util import isiterable, iterify, listify, partition
-from disco.util import urljoin, urlsplit, urlresolve, urltoken
+from disco.util import urljoin, urlsplit, urlresolve, urltoken, proxy_url
 
 unsafe_re = re.compile(r'[^A-Za-z0-9_\-@:]')
 
@@ -360,12 +360,6 @@ class DDFS(object):
             dst.write(b)
         return s
 
-    def _maybe_proxy(self, url, method='GET'):
-        if self.proxy:
-            scheme, (host, port), path = urlsplit(url)
-            return '%s/proxy/%s/%s/%s' % (self.proxy, host, method, path)
-        return url
-
     def _push(self, (source, target), replicas=None, exclude=[], **kwargs):
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
@@ -401,12 +395,14 @@ class DDFS(object):
         return urlresolve(url, master=self.master)
 
     def _download(self, url, data=None, token=None, method='GET'):
-        return json.loads(download(self._resolve(url),
+        return json.loads(download(self._resolve(proxy_url(url,
+                                                           proxy=self.proxy,
+                                                           meth=method)),
                                    data=data,
                                    method=method,
                                    token=self._token(url, token, method)))
 
     def _upload(self, urls, source, token=None, **kwargs):
-        urls = [self._resolve(self._maybe_proxy(url, method='PUT'))
+        urls = [self._resolve(proxy_url(url, proxy=self.proxy, meth='PUT'))
                 for url in iterify(urls)]
         return upload(urls, source, token=self._token(url, token, 'PUT'), **kwargs)
