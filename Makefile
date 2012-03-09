@@ -50,6 +50,7 @@ ETARGETS = $(addprefix $(TARGETLIB)/,$(EOBJECTS))
 EAPPCFG  = $(EHOME)/app.config
 
 EDEPS         = $(foreach dep,$(wildcard $(EDEP)/*),$(notdir $(dep))/ebin)
+ETESTDEPS     = $(foreach dep,$(EDEPS),-pa $(EDEP)/$(dep))
 ETARGETDEPS   = $(addprefix $(TARGETLIB)/$(EDEP)/,$(EDEPS))
 ETARGETAPPCFG = $(TARGETLIB)/$(EAPPCFG)
 
@@ -142,7 +143,7 @@ uninstall:
 	- rm -Rf $(TARGETCFG) $(TARGETLIB) $(TARGETSRV)
 
 test: master $(ETESTOBJECTS)
-	$(ERL) -noshell -pa $(ETEST) -s master_tests main -s init stop
+	$(ERL) -noshell -pa $(ETEST) -pa $(EBIN) $(ETESTDEPS) -s master_tests main -s init stop
 
 dialyzer: EOPT = -W +debug_info
 dialyzer: $(EPLT)
