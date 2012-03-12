@@ -52,6 +52,9 @@ def resolveuri(baseuri, uri):
 def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
 
+    if data is not None:
+        data = bytearray(data)
+
     try:
         conn = HTTPConnection(str(netloc))
         conn.request(method, '/%s' % path, body=data, headers=headers)
