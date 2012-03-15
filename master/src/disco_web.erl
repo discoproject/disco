@@ -52,10 +52,7 @@ reply({file, File, Docroot}, Req) ->
 reply(not_found, Req) ->
     Req:not_found();
 reply({error, E}, Req) ->
-    Req:respond({400, [], mochijson2:encode(E)});
-reply(E, Req) ->
-    error_logger:error_report({"500 Error", E}),
-    Req:respond({500, [], ["Internal server error"]}).
+    Req:respond({400, [], mochijson2:encode(E)}).
 
 getop("load_config_table", _Query) ->
     disco_config:get_config_table();
