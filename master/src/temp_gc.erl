@@ -81,7 +81,7 @@ purge_job(Job, JobPath) ->
     _ = os:cmd("rm -Rf " ++ JobPath),
     ok.
 
--spec process_job(nonempty_string(), gb_set()) -> string().
+-spec process_job(nonempty_string(), gb_set()) -> ok.
 process_job(JobPath, Purged) ->
     case prim_file:read_file_info(JobPath) of
         {ok, #file_info{type = directory, mtime = TStamp}} ->
