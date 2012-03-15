@@ -106,8 +106,10 @@ receive_blob(Req, IO, Dst, Url) ->
 receive_body(Req, IO) ->
     R0 = Req:stream_body(?MAX_RECV_BODY,
                          fun ({BufLen, Buf}, BodyLen) ->
-                                 file:write(IO, Buf),
-                                 BodyLen + BufLen
+                                 case file:write(IO, Buf) of
+                                     ok -> BodyLen + BufLen;
+                                     {error, E} -> throw(E) % caught in receive_blob/4.
+                                 end
                          end, 0),
     case R0 of
         % R == <<>> or undefined if body is empty
