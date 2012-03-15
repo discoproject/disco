@@ -6,6 +6,8 @@
 
 -export([op/3]).
 
+-type json() :: binary() | [binary()] | {'struct', [{binary(), json()}]}.
+
 -spec parse_tag_attribute(string(), atom()) ->
     {nonempty_string(), attrib() | 'all' | 'unknown_attribute'}.
 parse_tag_attribute(TagAttrib, DefaultAttrib) ->
@@ -250,7 +252,7 @@ on_error(E, Req) ->
     Msg = ["Internal server error: ", io_lib:format("~p", [E])],
     Req:respond({500, [], Msg}).
 
--spec okjson([binary()], module()) -> _.
+-spec okjson(json(), module()) -> _.
 okjson(Data, Req) ->
     Req:ok({"application/json", [], mochijson2:encode(Data)}).
 
