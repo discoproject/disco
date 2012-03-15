@@ -145,8 +145,8 @@ test: master $(ETESTOBJECTS)
 	$(ERL) -noshell -pa $(ETEST) -s master_tests main -s init stop
 
 dialyzer: EOPT = -W +debug_info
-dialyzer: $(EPLT)
-	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) --src -r $(ESRC)
+dialyzer: $(EPLT) master
+	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
 
 typer: $(EPLT)
 	$(TYPER) --plt $(EPLT) -r $(ESRC)
