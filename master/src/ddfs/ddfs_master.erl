@@ -109,7 +109,7 @@ get_tags(Mode) ->
 new_blob(Obj, K, Exclude) ->
     gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
 
--spec safe_gc_blacklist() -> {'ok', [node()]}.
+-spec safe_gc_blacklist() -> {'ok', [node()]} | {'error', term()}.
 safe_gc_blacklist() ->
     gen_server:call(?MODULE, safe_gc_blacklist).
 
