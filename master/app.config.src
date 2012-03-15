@@ -1,9 +1,0 @@
-[{lager,
-  [{handlers,
-    [{lager_console_backend,info},
-     {lager_file_backend,
-      [{"%DISCO_LOG_DIR%/error.log",error,10485760,"$D0",5},
-       {"%DISCO_LOG_DIR%/console.log",debug,10485760,"$D0",5}]}]},
-   {crash_log,"%DISCO_LOG_DIR%/crash.log"}
-  ]}
-].

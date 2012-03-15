@@ -27,7 +27,6 @@ PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
 SPHINXOPTS = "-D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)"
 
 # utilities used for building disco
-REBAR      = ./rebar    # relative to ./master
 ERL        = erl
 ERLC       = erlc
 EOPT       = -W
@@ -47,11 +46,9 @@ ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
 EOBJECTS = $(addprefix $(EBIN)/,$(notdir $(ESOURCES:.erl=.beam) disco.app))
 ETARGETS = $(addprefix $(TARGETLIB)/,$(EOBJECTS))
-EAPPCFG  = $(EHOME)/app.config
 
 EDEPS         = $(foreach dep,$(wildcard $(EDEP)/*),$(notdir $(dep))/ebin)
 ETARGETDEPS   = $(addprefix $(TARGETLIB)/$(EDEP)/,$(EDEPS))
-ETARGETAPPCFG = $(TARGETLIB)/$(EAPPCFG)
 
 ETESTSOURCES = $(wildcard $(ETEST)/*.erl)
 ETESTOBJECTS = $(ETESTSOURCES:.erl=.beam)
@@ -67,11 +64,6 @@ DISCO_ROOT ?= $(TARGETSRV)
 DISCO_LOG_DIR ?= $(TARGETSRV)/log
 DISCO_RUN_DIR ?= $(DISCO_ROOT)/run
 
-# installation utilities
-RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
-RE_INSTALL_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@$(DISCO_LOG_DIR)@
-RE_LOCAL_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@root/log@
-
 .PHONY: master clean dist-clean doc doc-clean doc-test
 .PHONY: install \
 	install-master \
@@ -82,18 +74,12 @@ RE_LOCAL_LOG_DIR = sed -e s@%DISCO_LOG_DIR%@root/log@
 	uninstall
 .PHONY: test dialyzer typer
 
-master: $(EAPPCFG) $(ESRC)/disco.app.src Makefile
-	cd master && $(REBAR) get-deps && $(REBAR) compile
-
-$(ESRC)/disco.app.src: $(ESRC)/disco.app.src.src
-	- $(RE_VERSION) $< > $@
-
-$(EAPPCFG): $(EAPPCFG).src
-	$(RE_LOCAL_LOG_DIR) $< > $(EAPPCFG)
+master: Makefile
+	(cd master && ./rebar get-deps && ./rebar compile)
 
 clean:
-	- cd master && $(REBAR) clean
-	- rm -Rf $(ESRC)/disco.app.src $(EBIN) $(ETESTOBJECTS)
+	@ (cd master && ./rebar clean)
+	- rm -Rf $(EBIN) $(ETESTOBJECTS)
 	- rm -Rf lib/build lib/disco.egg-info
 
 dist-clean: clean
@@ -119,8 +105,7 @@ install-master: master \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETLIB)/$(WWW) \
 	$(TARGETCFG)/settings.py \
-	$(TARGETSRV)/ddfs \
-	$(ETARGETAPPCFG)
+	$(TARGETSRV)/ddfs
 
 install-node: master $(ETARGETS) $(ETARGETDEPS)
 
@@ -163,10 +148,6 @@ $(TARGETCFG)/settings.py: conf/gen.settings | $(TARGETCFG)
 	 DISCO_PID_DIR=$(DISCO_PID_DIR) \
 	 DISCO_RUN_DIR=$(DISCO_RUN_DIR) \
 	 conf/gen.settings > $@ && chmod 644 $@)
-
-$(ETARGETAPPCFG): $(EAPPCFG).src
-	$(INSTALL) -d `$(DIRNAME) $@`
-	- $(RE_INSTALL_LOG_DIR) $< > $@
 
 $(TARGETLIB)/$(EBIN):
 	$(INSTALL) -d $@

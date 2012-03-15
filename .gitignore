@@ -4,6 +4,7 @@
 *.pid
 *.pyc
 *.dialyzer_plt
+master/deps
 master/ebin
 conf/settings.py
 doc/.build/

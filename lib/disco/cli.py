@@ -195,13 +195,20 @@ class Master(clx.server.Server):
         settings = self.settings
         epath = lambda p: os.path.join(settings['DISCO_MASTER_HOME'], p)
         edep = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'deps', d, 'ebin')
+        def lager_config(log_dir):
+            return ['-lager', 'handlers',
+                    '[{lager_console_backend, info},'
+                     '{lager_file_backend,'
+                      '[{"%s/error.log", error, 10485760, "$D0", 5},'
+                       '{"%s/console.log", debug, 10485760, "$D0", 5}]}]' % (log_dir, log_dir),
+                    '-lager', 'crash_log', '"%s/crash.log"' % (log_dir)]
         return settings['DISCO_ERLANG'].split() + \
+               lager_config(settings['DISCO_LOG_DIR']) + \
                ['+K', 'true',
                 '+P', '10000000',
                 '-rsh', 'ssh',
                 '-connect_all', 'false',
                 '-sname', self.name,
-                '-config', epath('app.config'),
                 '-pa', epath('ebin'),
                 '-pa', edep('mochiweb'),
                 '-pa', edep('lager'),
