@@ -28,10 +28,11 @@
 
 -record(state, {workers :: gb_tree(),
                 nodes :: gb_tree(),
-                purged :: gb_tree()}).
+                purged :: gb_tree(),
+                jobpack_queue :: pid()}).
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
-
+-define(NUM_ACTIVE_JOBPACK_SENDERS, 1).
 
 % Note! Many parallel calls to get_worker_jobpack can cause master
 % to run out of file descriptors. If master did not close file descriptors
@@ -129,9 +130,11 @@ get_purged(Master) ->
 init(_Args) ->
     process_flag(trap_exit, true),
     {ok, _} = fair_scheduler:start_link(),
+    JobPackQ = work_queue:start_link(?NUM_ACTIVE_JOBPACK_SENDERS),
     {ok, #state{workers = gb_trees:empty(),
                 nodes = gb_trees:empty(),
-                purged = gb_trees:empty()}}.
+                purged = gb_trees:empty(),
+                jobpack_queue = JobPackQ}}.
 
 handle_cast({update_config_table, Config, ManualBlacklist, GCBlacklist}, S) ->
     {noreply, do_update_config_table(Config, ManualBlacklist, GCBlacklist, S)};
@@ -164,9 +167,10 @@ handle_call(get_purged, _, S) ->
 handle_call(get_num_cores, _, S) ->
     {reply, do_get_num_cores(S), S};
 
-handle_call({jobpack, JobName}, From, State) ->
-    spawn(fun() -> do_send_jobpack(JobName, From) end),
-    {noreply, State};
+handle_call({jobpack, JobName}, From, #state{jobpack_queue = Q} = S) ->
+    Sender = fun() -> do_send_jobpack(JobName, From) end,
+    work_queue:add_work(Q, Sender),
+    {noreply, S};
 
 handle_call({kill_job, JobName}, _From, S) ->
     {reply, do_kill_job(JobName), S};
@@ -478,14 +482,17 @@ do_clean_job(JobName) ->
     gen_server:cast(event_server, {clean_job, JobName}),
     ok.
 
+% This is executed in its own process.
 -spec do_send_jobpack(nonempty_string(), {pid(), reference()}) -> 'ok'.
 do_send_jobpack(JobName, From) ->
     JobFile = jobpack:jobfile(disco:jobhome(JobName)),
     case prim_file:read_file_info(JobFile) of
         {ok, #file_info{size = Size}} ->
             {ok, File} = file:open(JobFile, [binary, read]),
-            gen_server:reply(From, {ok, {File, Size}}),
-            timer:sleep(?JOBPACK_HANDLE_TIMEOUT),
+            gen_server:reply(From, {ok, {File, Size, self()}}),
+            receive done -> ok
+            after ?JOBPACK_HANDLE_TIMEOUT -> ok
+            end,
             file:close(File);
         {error, _} = E ->
             gen_server:reply(From, E)
