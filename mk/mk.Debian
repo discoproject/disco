@@ -1,5 +1,0 @@
-DISCO_USER = disco
-DISCO_HOME = /usr/lib/disco
-DISCO_ROOT = /srv/disco/
-DISCO_PID_DIR = /var/run/disco/
-DISCO_LOG_DIR = /var/log/disco
