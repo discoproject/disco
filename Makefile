@@ -56,14 +56,14 @@ EPLT  = .dialyzer_plt
 .PHONY: dialyzer typer
 
 master: Makefile
-	@ (cd master && ./rebar get-deps && ./rebar compile)
+	@ (cd master && ./rebar get-deps compile)
 
 clean:
 	@ (cd master && ./rebar clean)
 	- rm -Rf lib/build lib/disco.egg-info
 
 test:
-	@ (cd master && ./rebar -C eunit.config eunit)
+	@ (cd master && ./rebar -C eunit.config get-deps eunit)
 
 dist-clean: clean
 	- rm -Rf $(EPLT)
