@@ -32,15 +32,13 @@
                 jobpack_queue :: pid()}).
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
--define(NUM_ACTIVE_JOBPACK_SENDERS, 1).
 
-% Note! Many parallel calls to get_worker_jobpack can cause master
-% to run out of file descriptors. If master did not close file descriptors
-% after JOBPACK_HANDLE_TIMEOUT, it is possible that unsuccessful
-% disco_workers would leak file descriptors, making the issue even worse.
-%
-% If the issue becomes serious, it should be relatively straightforward to
-% implement throttling to limit the maximum number of concurrent downloaders.
+% This controls the max number of simultaneously open file
+% descriptors that can be open to service jobpack requestors.
+-define(NUM_ACTIVE_JOBPACK_SENDERS, 1024).
+
+% This specifies the maximum amount of time to wait for a completion
+% ack from a jobpack requestor, in milliseconds.
 -define(JOBPACK_HANDLE_TIMEOUT, 10 * 60 * 1000).
 
 %% ===================================================================
@@ -490,8 +488,10 @@ do_send_jobpack(JobName, From) ->
         {ok, #file_info{size = Size}} ->
             {ok, File} = file:open(JobFile, [binary, read]),
             gen_server:reply(From, {ok, {File, Size, self()}}),
-            receive done -> ok
-            after ?JOBPACK_HANDLE_TIMEOUT -> ok
+            receive
+                done -> ok
+            after ?JOBPACK_HANDLE_TIMEOUT ->
+                ok
             end,
             file:close(File);
         {error, _} = E ->
