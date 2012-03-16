@@ -45,7 +45,6 @@ do_add_work(#q{max_active = MaxA, active = A, next_id = Id} = Q, Fun)
     spawn(fun() -> catch Fun(), end_work(Srv, Id) end),
     Q#q{active = [Id | A], next_id = Id + 1};
 do_add_work(#q{waiting = W, next_id = Id} = Q, Fun) ->
-
     Q#q{waiting = [{Id, Fun} | W], next_id = Id + 1}.
 
 -spec do_end_work(q(), workid()) -> q().
