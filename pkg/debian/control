@@ -29,7 +29,7 @@ Description: Disco node
 
 Package: disco-master
 Architecture: all
-Depends: ${misc:Depends}, disco-node (= ${source:Version}), python-disco (= ${source:Version})
+Depends: ${misc:Depends}, python-disco (= ${source:Version})
 Description: Disco master
  This is Disco master.
 

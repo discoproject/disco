@@ -19,7 +19,7 @@ export DH_OPTIONS
 DESTDIR=$(CURDIR)/debian/disco-master
 NODEDEST=$(CURDIR)/debian/disco-node
 PYDISCODEST=$(CURDIR)/debian/python-disco
-PYDISCODBDEST=$(CURDIR)/debian/python-discodb
+#PYDISCODBDEST=$(CURDIR)/debian/python-discodb
 DISCOMAKE=cd ..; make
 
 clean:
@@ -39,7 +39,7 @@ install:
 	$(DISCOMAKE) install-master UNAME=Debian prefix=/usr DESTDIR=$(DESTDIR)
 	$(DISCOMAKE) install-core UNAME=Debian prefix=/usr DESTDIR=$(PYDISCODEST)
 	$(DISCOMAKE) install-node UNAME=Debian prefix=/usr DESTDIR=$(NODEDEST)
-	$(DISCOMAKE) install-discodb UNAME=Debian prefix=/usr DESTDIR=$(PYDISCODBDEST)
+#	$(DISCOMAKE) install-discodb UNAME=Debian prefix=/usr DESTDIR=$(PYDISCODBDEST)
 
 	dh_install -A
 
