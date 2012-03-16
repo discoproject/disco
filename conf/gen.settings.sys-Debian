@@ -1,0 +1,21 @@
+#!/bin/bash
+# This file is used by Debian packaging.
+
+cat << EOF
+# Disco settings
+
+DISCO_USER = "disco"
+DISCO_HOME = "/usr/lib/disco"
+
+# Root directory for Disco data.
+DISCO_ROOT = "/srv/disco/"
+
+# Root directory for Disco logs.
+DISCO_LOG_DIR = "/var/log/disco/"
+
+# Root directory for the Disco PID file.
+DISCO_PID_DIR = "/var/run/disco/"
+
+EOF
+
+cat settings.py
