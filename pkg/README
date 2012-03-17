@@ -1,11 +1,17 @@
-Build Debian packages for Disco by running
+First, update the changelog::
 
-dpkg-buildpackage
+        emacs debian/changelog
 
-in this directory.
+From this directory, build Debian packages using::
 
-Optionally update a local Debian repository as follows
+        dpkg-buildpackage
 
-mv *.deb /var/www/debian/testing
-cd /var/www/debian/testing
-dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz
+Check the packages with lintian::
+
+        lintian ../*.deb
+
+Optionally update a local Debian repository as follows::
+
+        mv ../*.deb /var/www/debian/testing
+        cd /var/www/debian/testing
+        dpkg-scanpackages . /dev/null | gzip -9c > Packages.gz

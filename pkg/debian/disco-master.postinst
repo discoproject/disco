@@ -1,28 +1,25 @@
 #!/bin/sh
-# postinst script for disco-master
+# postinst script for disco-{master,node}
 #
-# see: dh_installdeb(1)
+# For details, see http://www.debian.org/doc/debian-policy/
+# or the debian-policy package
 
 set -e
 
-# summary of how this script can be called:
-#        * <postinst> `configure' <most-recently-configured-version>
-#        * <old-postinst> `abort-upgrade' <new version>
-#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
-#          <new-version>
-#        * <postinst> `abort-remove'
-#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
-#          <failed-install-package> <version> `removing'
-#          <conflicting-package> <version>
-# for details, see http://www.debian.org/doc/debian-policy/ or
-# the debian-policy package
-
+DISCO_HOME = /usr/lib/disco
+DISCO_ROOT = /usr/var/disco
 
 case "$1" in
     configure)
-        adduser --system --shell /bin/bash --no-create-home --home /srv/disco\
-                --disabled-password --quiet --group disco
-        chown disco:disco /var/run/disco /var/log/disco /srv/disco /srv/disco/data
+        adduser \
+            --system \
+            --quiet \
+            --group disco \
+            --disabled-password \
+            --shell /bin/bash \
+            --home $DISCO_HOME \
+            --no-create-home
+        chown disco:disco -R $DISCO_HOME $DISCO_ROOT
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

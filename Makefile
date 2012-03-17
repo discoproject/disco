@@ -1,3 +1,5 @@
+export
+
 DISCO_VERSION = 0.4.1
 DISCO_RELEASE = 0.4.1
 
@@ -6,6 +8,8 @@ sysconfdir    = /etc
 prefix        = /usr/local
 exec_prefix   = $(prefix)
 localstatedir = $(prefix)/var
+datarootdir   = $(prefix)/share
+datadir       = $(datarootdir)
 bindir        = $(exec_prefix)/bin
 libdir        = $(exec_prefix)/lib
 
@@ -18,6 +22,7 @@ INSTALL_TREE    = cp -r
 # installation directories
 TARGETBIN = $(DESTDIR)$(bindir)
 TARGETLIB = $(DESTDIR)$(libdir)/disco
+TARGETDAT = $(DESTDIR)$(datadir)/disco
 TARGETCFG = $(DESTDIR)$(sysconfdir)/disco
 TARGETSRV = $(DESTDIR)$(localstatedir)/disco
 
@@ -32,7 +37,7 @@ UNAME = $(shell uname)
 DIALYZER   = dialyzer
 TYPER      = typer
 PYTHON     = python
-PY_INSTALL = $(PYTHONENVS) $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix)
+PY_INSTALL = $(PYTHONENVS) $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix) $(PY_INSTALL_OPTS)
 
 WWW   = master/www
 EBIN  = master/ebin
@@ -46,7 +51,7 @@ ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
 
 EPLT  = .dialyzer_plt
 
-.PHONY: master clean test dist-clean doc doc-clean doc-test dep-clean
+.PHONY: master clean contrib test dist-clean doc doc-clean doc-test dep-clean
 .PHONY: install \
 	install-master \
 	install-core \
@@ -69,6 +74,10 @@ dep-clean:
 test:
 	@ (cd master && ./rebar -C eunit.config get-deps eunit)
 
+contrib: .gitmodules
+	git submodule init
+	git submodule update
+
 dist-clean: clean
 	- rm -Rf $(EPLT)
 
@@ -86,10 +95,13 @@ install: install-core install-node install-master
 install-core:
 	(cd lib && $(PY_INSTALL))
 
+install-discodb: contrib
+	$(MAKE) -C contrib/discodb install
+
 install-examples: $(TARGETLIB)/examples
 
-install-master: master \
-	$(TARGETLIB)/$(WWW) \
+install-master: install-node \
+	$(TARGETDAT)/$(WWW) \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETCFG)/settings.py \
 	$(TARGETSRV)/ddfs
@@ -102,7 +114,8 @@ install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
 uninstall:
 	- rm -f  $(TARGETBIN)/disco $(TARGETBIN)/ddfs
-	- rm -Rf $(TARGETCFG) $(TARGETLIB) $(TARGETSRV)
+	- rm -Rf $(TARGETLIB) $(TARGETDAT)
+	- rm -Ri $(TARGETCFG) $(TARGETSRV)
 
 dialyzer: $(EPLT) master
 	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
@@ -114,7 +127,7 @@ $(EPLT):
 	$(DIALYZER) --build_plt --output_plt $(EPLT) \
 		    --apps stdlib kernel erts mnesia compiler crypto inets xmerl ssl syntax_tools
 
-$(TARGETLIB)/%: %
+$(TARGETDAT)/% $(TARGETLIB)/%: %
 	$(INSTALL) -d $(@D)
 	$(INSTALL_TREE) $< $(@D)
 
@@ -124,7 +137,7 @@ $(TARGETBIN)/%: bin/%
 
 $(TARGETCFG)/settings.py:
 	$(INSTALL) -d $(@D)
-	(cd conf && TARGETLIB=$(TARGETLIB) TARGETSRV=$(TARGETSRV) ./gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
+	(cd conf && ./gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
 
 $(TARGETSRV)/ddfs:
 	$(INSTALL) -d $@
