@@ -9,13 +9,14 @@ Vcs-Git: git://github.com/discoproject/disco.git
 Homepage: http://www.discoproject.org
 
 Package: disco-master
-Architecture: any
+Architecture: all
 Depends: ${misc:Depends}, erlang-base (>= 1:13.b-dfsg1), adduser, python (>= 2.6.6), python-disco (= ${source:Version})
+Replaces: disco-node (= ${source:Version})
 Description: Disco master
  This is Disco master.
 
 Package: disco-node
-Architecture: any
+Architecture: all
 Depends: ${misc:Depends}, erlang-base (>= 1:13.b-dfsg1), adduser
 Description: Disco node
  This is Disco node.

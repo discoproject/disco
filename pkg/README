@@ -2,7 +2,7 @@ First, update the changelog::
 
         emacs debian/changelog
 
-From this directory, build Debian packages using::
+From the parent directory, build Debian packages using::
 
         dpkg-buildpackage
 

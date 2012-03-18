@@ -7,4 +7,4 @@ DISCO_USER = "disco"
 
 EOF
 
-. settings.sh
+. gen.settings.sh

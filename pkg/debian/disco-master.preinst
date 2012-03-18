@@ -1,5 +1,0 @@
-#!/bin/sh
-
-set -e
-
-[ -e /etc/init.d/disco-master ] && invoke-rc.d disco-master stop

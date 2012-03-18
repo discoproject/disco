@@ -60,8 +60,9 @@ EPLT  = .dialyzer_plt
 	install-tests \
 	uninstall
 .PHONY: dialyzer typer
+.PHONY: debian debian-clean
 
-master: Makefile
+master:
 	@ (cd master && ./rebar get-deps compile)
 
 clean:
@@ -74,7 +75,7 @@ dep-clean:
 test:
 	@ (cd master && ./rebar -C eunit.config get-deps eunit)
 
-contrib: .gitmodules
+contrib:
 	git submodule init
 	git submodule update
 
@@ -82,13 +83,13 @@ dist-clean: clean
 	- rm -Rf $(EPLT)
 
 doc:
-	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) html)
+	$(MAKE) -C doc html
 
 doc-clean:
-	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) clean)
+	$(MAKE) -C doc clean
 
 doc-test:
-	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) doctest)
+	$(MAKE) -C doc doctest
 
 install: install-core install-node install-master
 
@@ -103,12 +104,12 @@ install-examples: $(TARGETLIB)/examples
 install-master: install-node \
 	$(TARGETDAT)/$(WWW) \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
-	$(TARGETCFG)/settings.py \
-	$(TARGETSRV)/ddfs
+	$(TARGETCFG)/settings.py
 
 install-node: master \
 	$(TARGETLIB)/$(EBIN) \
-	$(addprefix $(TARGETLIB)/,$(EDEPS))
+	$(addprefix $(TARGETLIB)/,$(EDEPS)) \
+	$(TARGETSRV)
 
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
@@ -139,5 +140,11 @@ $(TARGETCFG)/settings.py:
 	$(INSTALL) -d $(@D)
 	(cd conf && ./gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
 
-$(TARGETSRV)/ddfs:
+$(TARGETSRV):
 	$(INSTALL) -d $@
+
+debian:
+	$(MAKE) -C pkg debian debian-check build/debian/Packages.gz
+
+debian-clean:
+	$(MAKE) -C pkg debian-clean
