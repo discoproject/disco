@@ -7,8 +7,8 @@ set -e
 
 case "\$1" in
     configure)
-        adduser --system --quiet --group disco --disabled-password --shell /bin/bash --home ${TARGETSRV} --no-create-home
-        chown disco:disco -R ${TARGETSRV}
+        adduser --system --quiet --group disco --disabled-password --shell /bin/bash --home ${RELSRV} --no-create-home
+        chown disco:disco -R ${RELSRV}
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

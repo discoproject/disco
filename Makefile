@@ -19,6 +19,13 @@ INSTALL_PROGRAM = $(INSTALL)
 INSTALL_DATA    = $(INSTALL) -m 644
 INSTALL_TREE    = cp -r
 
+# relative directory paths
+RELBIN = $(bindir)
+RELLIB = $(libdir)/disco
+RELDAT = $(datadir)/disco
+RELCFG = $(sysconfdir)/disco
+RELSRV = $(localstatedir)/disco
+
 # installation directories
 TARGETBIN = $(DESTDIR)$(bindir)
 TARGETLIB = $(DESTDIR)$(libdir)/disco
@@ -79,7 +86,13 @@ contrib:
 	git submodule init
 	git submodule update
 
-dist-clean: clean
+debian:
+	$(MAKE) -C pkg/debian
+
+debian-clean:
+	$(MAKE) -C pkg/debian clean
+
+dist-clean: clean debian-clean
 	- rm -Rf $(EPLT)
 
 doc:
@@ -144,7 +157,7 @@ $(TARGETSRV):
 	$(INSTALL) -d $@
 
 debian:
-	$(MAKE) -C pkg debian debian-check build/debian/Packages.gz
+	$(MAKE) -C pkg build/debian/Packages.gz
 
 debian-clean:
 	$(MAKE) -C pkg debian-clean

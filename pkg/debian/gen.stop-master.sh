@@ -2,5 +2,10 @@
 
 cat << EOF
 #!/bin/sh
-invoke-rc.d --quiet disco-master stop || exit 0
+
+set -e
+
+invoke-rc.d --quiet disco-master stop || true
+
+exit 0
 EOF

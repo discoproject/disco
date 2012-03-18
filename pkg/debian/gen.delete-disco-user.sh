@@ -8,10 +8,10 @@ set -e
 case "\$1" in
     purge)
         # we *do* delete the disco user, since we created it
-        # we also delete *everything* the users owns
+        # we also delete the home (data) directory
         # but we should pay attention as the discussion unfolds:
         # http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=621833
-	deluser --quiet --system disco --remove-all-files > /dev/null || true
+	deluser --quiet --system disco --remove-home > /dev/null || true
     ;;
 
     remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)

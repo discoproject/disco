@@ -14,28 +14,28 @@ cat << EOF
 
 . /lib/lsb/init-functions
 
-[ -x ${TARGETBIN}/disco ] || exit 5
+[ -x ${RELBIN}/disco ] || exit 5
 
 running() {
-    [ -z "\$(${TARGETBIN}/disco status | grep stopped)" ]
+    [ -z "\$(${RELBIN}/disco status | grep stopped)" ]
     errcode=\$?
     return \$errcode
 }
 
 start_server() {
-        ${TARGETBIN}/disco start
+        ${RELBIN}/disco start
         errcode=\$?
 	return \$errcode
 }
 
 stop_server() {
-        ${TARGETBIN}/disco stop
+        ${RELBIN}/disco stop
         errcode=\$?
 	return \$errcode
 }
 
 restart_server() {
-        ${TARGETBIN}/disco restart
+        ${RELBIN}/disco restart
         errcode=\$?
         return \$errcode
 }

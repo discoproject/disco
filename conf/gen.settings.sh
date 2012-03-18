@@ -7,13 +7,13 @@ cat << EOF
 # The defaults should be pretty sane, so be careful changing them.
 
 # Home of the Disco libraries
-DISCO_HOME = "${TARGETLIB}"
+DISCO_HOME = "${RELLIB}"
 
 # Root directory for Disco data
-DISCO_ROOT = "${TARGETSRV}"
+DISCO_ROOT = "${RELSRV}"
 
 # Where the master's web docroot lives
-DISCO_WWW_ROOT = "${TARGETDAT}/${WWW}"
+DISCO_WWW_ROOT = "${RELDAT}/${WWW}"
 
 # HTTP server for master and nodes runs on this port
 # disco://host URIs are mapped to http://host:DISCO_PORT

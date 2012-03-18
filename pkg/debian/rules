@@ -4,7 +4,7 @@
 export DH_VERBOSE = 1
 
 PKGDIR = $(CURDIR)/debian
-D_MAKE = $(MAKE) -C .. prefix=/usr UNAME=Debian PY_INSTALL_OPTS="--install-layout=deb --no-compile"
+D_MAKE = $(MAKE) -C .. UNAME=Debian PY_INSTALL_OPTS="--install-layout=deb --no-compile"
 
 %:
 	dh $@ --with-python2

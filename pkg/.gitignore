@@ -1,5 +1,0 @@
-build/
-debian/disco-master*
-debian/disco-node*
-debian/python-disco*
-debian/python-discodb*
