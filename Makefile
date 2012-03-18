@@ -155,9 +155,3 @@ $(TARGETCFG)/settings.py:
 
 $(TARGETSRV):
 	$(INSTALL) -d $@
-
-debian:
-	$(MAKE) -C pkg build/debian/Packages.gz
-
-debian-clean:
-	$(MAKE) -C pkg debian-clean
