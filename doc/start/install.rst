@@ -37,6 +37,7 @@ On each server the following are required:
  * `Erlang/OTP R13B or newer <http://www.erlang.org>`_
  * `Python 2.5 or newer <http://www.python.org>`_
  * `simplejson <http://pypi.python.org/pypi/simplejson/>`_ (for Python < 2.6)
+ * `pymongo`
 
 Optionally, ``DISCO_PROXY`` needs one of
 
