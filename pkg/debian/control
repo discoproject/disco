@@ -13,7 +13,7 @@ Architecture: all
 Depends: ${misc:Depends}, erlang-base (>= 1:13.b-dfsg1), adduser, python (>= 2.6.6), python-disco (= ${source:Version})
 Replaces: disco-node
 Provides: disco-node
-Breaks: disco-node
+Conflicts: disco-node
 Description: Disco master
  This is Disco master.
 

@@ -3,6 +3,7 @@
 
 export DH_VERBOSE = 1
 
+PYTHON = $(addprefix python,$(shell pyversions -vr))
 PKGDIR = $(CURDIR)/debian
 D_MAKE = $(MAKE) -C .. UNAME=Debian PY_INSTALL_OPTS="--install-layout=deb --no-compile"
 
@@ -12,5 +13,7 @@ D_MAKE = $(MAKE) -C .. UNAME=Debian PY_INSTALL_OPTS="--install-layout=deb --no-c
 override_dh_auto_install:
 	$(D_MAKE) install-master   DESTDIR=$(PKGDIR)/disco-master
 	$(D_MAKE) install-node     DESTDIR=$(PKGDIR)/disco-node
-	$(D_MAKE) install-core     DESTDIR=$(PKGDIR)/python-disco
-	$(D_MAKE) install-discodb  DESTDIR=$(PKGDIR)/python-discodb
+	for python in $(PYTHON); do \
+		$(D_MAKE) install-core    DESTDIR=$(PKGDIR)/python-disco   PYTHON=$$python; \
+		$(D_MAKE) install-discodb DESTDIR=$(PKGDIR)/python-discodb PYTHON=$$python; \
+	done

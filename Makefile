@@ -69,8 +69,11 @@ EPLT  = .dialyzer_plt
 .PHONY: dialyzer typer
 .PHONY: debian debian-clean
 
-master:
-	@ (cd master && ./rebar get-deps compile)
+master: master/deps
+	@ (cd master && ./rebar compile)
+
+master/deps:
+	@ (cd master && ./rebar get-deps)
 
 clean:
 	@ (cd master && ./rebar clean)
