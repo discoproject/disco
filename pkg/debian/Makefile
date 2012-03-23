@@ -14,7 +14,7 @@ clean:
 	(rm -f $(MAINTAINER_SCRIPTS))
 	(cd ../.. && rm -f *.changes *.dsc *.deb *.gz)
 
-../../Packages.gz: $(MAINTAINER_SCRIPTS)
+../../Packages.gz: $(MAINTAINER_SCRIPTS) changelog compat control copyright rules
 	(cd .. && dpkg-buildpackage -d)
 	(cd ../.. && dpkg-scanpackages . /dev/null | gzip -9c > $(@F))
 
