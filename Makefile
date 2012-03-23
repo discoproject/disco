@@ -39,7 +39,8 @@ EBIN  = master/ebin
 ESRC  = master/src
 EDEP  = master/deps
 
-EDEPS    = $(shell find $(EDEP) -name ebin)
+DEPS     = mochiweb lager
+EDEPS    = $(foreach dep,$(DEPS),$(EDEP)/$(dep)/ebin)
 ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
 
