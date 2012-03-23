@@ -82,13 +82,39 @@ Removing nodes from Disco
 
 You probably went through the process of adding a node to the cluster
 when you configured the Disco cluster in :ref:`confignodes`. Removing
-a node is a very similar process, except that you need to click
-``remove`` next to the node(s) you wish to remove, and then click
-``save table`` when you are done.  If any DDFS tags or blobs were
-hosted on the removed nodes, and the number of replicas for any of
-tags or blobs falls below the configured minimum
-(``DDFS_BLOB_REPLICAS``), then DDFS will start re-replicating them
-from the existing replicas on the other nodes as described in
-:ref:`ddfs`.  Note that it is never a good idea to remove more than
-``DDFS_BLOB_REPLICAS`` nodes at a time, since you may lose any data all
-of whose replicas were hosted on those nodes.
+a node from the Disco configuration is a very similar process, except
+that you need to click ``remove`` next to the node(s) you wish to
+remove, and then click ``save table`` when you are done.
+
+There are a couple of options to removing a node that hosts DDFS data
+from the Disco cluster.
+
+   * The node could be physically removed from the cluster, but left
+     in the Disco configuration.  In this case, it counts as a failed
+     node, which reduces by one the number of additional node failures
+     that could be safely tolerated.  :ref:`gcrr` will attempt the
+     replication of any missing live blobs and tags.
+
+   * The node could be physically removed from the cluster as well as
+     the Disco configuration.  In this case, Disco treats the missing
+     node as an unknown node instead of as a failed node, and the
+     number of additional node failures tolerated by DDFS does not
+     change.  However, this voids safety, since Disco might allow more
+     nodes hosting DDFS data to fail than is safe.  If this happens,
+     :ref:`gcrr` might not suffice to replicate the missing blobs and
+     tags, and some data might be permanently lost.
+
+The drawback of both of these approaches is that there is no
+indication provided by Disco as to when, if ever, DDFS is in a
+consistent state again with respect to the data that was hosted on the
+removed node.
+
+DDFS now allows scheduling the removal of a node from DDFS, by putting
+the node on a DDFS *blacklist*.  If the node is alive but scheduled
+for removal, the number of additional node failures that can be safely
+tolerated does not change.  In addition, DDFS now provides an
+indication when all the data and metadata that was hosted on that node
+has been re-replicated on other cluster nodes, so that that node can
+be safely removed from the Disco cluster with a guarantee that no data
+has been lost.  The indication is provided by the node entry being
+highlighted in green in the blacklist.
