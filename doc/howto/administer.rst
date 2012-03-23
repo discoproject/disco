@@ -34,10 +34,15 @@ non-recoverable errors.  Since a crashing task also causes its job to
 fail, this number also indicates the number of jobs that failed due to
 tasks crashing on this node.
 
-The job listing along the right side of the page shows running jobs in
+The job listing along the top right side of the page shows running jobs in
 yellow, completed jobs in green, and crashed or killed jobs in pink.
 Hovering over a running job highlights the cores that the tasks of the
 job are using on each node in light blue.
+
+Below the job listing on the right is some information from the last
+DDFS garbage collection run.  A table mentions the number of tags and
+blobs that were kept after the last GC run and their total sizes in
+bytes, along with similar information for deleted blobs and tags.
 
 Blacklisting a node
 -------------------

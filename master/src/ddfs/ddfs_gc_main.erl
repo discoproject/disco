@@ -7,10 +7,11 @@
 %
 % GC performs the following operations:
 %
-% GC1) Remove leftover !partial. files
+% GC1) Remove leftover !partial. files (from failed PUT operations)
 % GC2) Remove orphaned tags (old versions and deleted tags)
 % GC3) Remove orphaned blobs (blobs not referred by any tag)
-% GC4) Delete old deleted tags from the +deleted metatag
+% GC4) Recover lost replicas for non-orphaned blobs (from lost tag updates)
+% GC5) Delete old deleted tags from the +deleted metatag
 %
 % while RR does the following:
 %
@@ -82,11 +83,11 @@
 %     any RR of an in-use blob.  However, if the master goes down
 %     after a blob RR, but before the tag is updated, then the blob RR
 %     is lost.  Having the node check with the master before deleting
-%     a blob allows the recovery of such lost blob replicas.
+%     a blob allows the recovery of such lost blob replicas (GC4).
 %
 %     Once a node is done processing its potential orphans, it informs
 %     the master.  Once all nodes are done with GC, the master then
-%     deletes old items from the +deleted metatag (GC4), and proceeds
+%     deletes old tags from the +deleted metatag (GC5), and proceeds
 %     to RR.
 %
 %     If a node connection is reestablished during this phase, the
@@ -892,7 +893,7 @@ obj_stats(Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
     {Type, "kept", {KeptF, KeptB}, "deleted", {DelF, DelB}}.
 
 
-% GC4) Delete old deleted tags from the +deleted metatag
+% GC5) Delete old deleted tags from the +deleted metatag
 %
 % We don't want to accumulate deleted tags in the +deleted list
 % infinitely.  The downside of removing a tag from the list too early

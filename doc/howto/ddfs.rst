@@ -413,12 +413,12 @@ architecture.
 
 All operations manipulating a tag are serialized, although many distinct
 tags can be processed concurrently. Serialization is achieved by handling
-each tag in a separate `gen_server` process, in ``ddfs_tag.erl`` (tag
+each tag in a separate `gen_server` process, in ``ddfs/ddfs_tag.erl`` (tag
 server). Tag servers are instantiated on demand basis, and killed after
 a period of inactivity. Together, tag servers implement the master cache.
 
 To get a tag, tag server queries all storage nodes to find all
-instances of the tag (see ``ddfs_tag:get_tagdata()``). From the list of
+instances of the tag (see ``ddfs/ddfs_tag:get_tagdata()``). From the list of
 all available instances, it finds replicas of the latest tag version,
 chooses one of them randomly, and retrieves the tag data. It is not safe
 to get tag data if more than *K - 1* nodes are unavailable, as in this
@@ -462,7 +462,7 @@ DDFS uses a special tag (metatag) ``+deleted`` (inaccessible to the
 user due to the plus sign), to list deleted tags. Each tag operation
 checks whether the requested tag exists on this list, to hide deleted
 tags from the user. Actual deletion is handled by garbage collector in
-``ddfs_gc:process_deleted()``.
+``ddfs/ddfs_gc_main:process_deleted()``.
 
 The deleted tag is kept on the ``+deleted`` list until all known instances of
 the tag have been garbage collected, and a sufficient quarantine period has
@@ -473,20 +473,30 @@ Due to this mechanism, it is critical that no node stays unavailable for more
 than ``?DELETED_TAG_EXPIRES`` (see ``ddfs/config.hrl``) days before restarting.
 The period is currently one month.
 
-Garbage collection
-''''''''''''''''''
+.. _gcrr:
 
-Garbage collector is a central background process ensuring consistency and
-persistence of data and metadata in DDFS. It takes care of the following tasks:
+Garbage collection and Re-replication
+'''''''''''''''''''''''''''''''''''''
 
-   * Remove leftover !partial. files (failed PUT operations).
+A central background process implements garbage collection and
+re-replication, ensuring the consistency and persistence of data and
+metadata in DDFS. It takes care of the following tasks:
+
+   * Remove leftover !partial. files (from failed PUT operations).
    * Remove orphaned tags (old versions and deleted tags).
    * Remove orphaned blobs (blobs not referred by any tag).
+   * Recover lost replicas for non-orphaned blobs (from lost tag updates)
+   * Deleted old deleted tags from the ``+deleted`` metatag.
    * Re-replicate blobs that do not have enough replicas.
-   * Re-replicate tags that do not have enough replicas.
-   * Deleted old items from the ``+deleted`` metatag.
+   * Update tags that contain blobs that were re-replicated, and/or
+     re-replicate tags that don't have enough replicas.
 
-These operations are extensively documented in the beginning of ``ddfs_gc.erl``.
+Garbage collection and re-replication are documented at the beginning
+of ``ddfs/ddfs_gc_main.erl``.  They are performed only when the
+cluster is in a safe state with respect to :ref:`ft`, i.e. there are
+fewer than *K* failed nodes in the cluster.
+
+.. _ft:
 
 Fault tolerance
 '''''''''''''''
@@ -507,5 +517,5 @@ One possible solution to this issue is to restrict node operations to a subset
 of nodes instead of all of them. This would mean that the *K - 1* limit of
 failed nodes is imposed on a fixed subset of nodes, which is a very reasonable
 assumption on a cluster of any size. The node space could be partitioned using a
-consistent hashing mechanism, which could be integrated to ``ddfs_tag`` without
-major changes in the overall architecture of DDFS.
+consistent hashing mechanism, which could be integrated to ``ddfs/ddfs_tag.erl``
+without major changes in the overall architecture of DDFS.
