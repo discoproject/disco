@@ -2,6 +2,44 @@
 Release notes
 =============
 
+Disco 0.4.2 (pending)
+---------------------
+
+New features
+''''''''''''
+
+- New fault-tolerant garbage collection and re-replication (GC/RR)
+  implemented.
+- Allow scheduling of nodes for safe removal from DDFS (#201).
+- Some useful GC statistics are now shown in the UI.
+- Many dialyzer-related cleanups.  Thanks to Kostis Sagonas.
+
+Changes
+'''''''
+
+- Discodb and Discodex separated out into submodule repositories.
+- Master/Erlang build switched to rebar, with source tree re-organized
+  appropriately.
+- Master logging switched to lager.  Note that the format of the logs
+  has changed as a result.
+- Cleanup of debian package build.
+
+Bugfixes
+''''''''
+
+- The new GC/RR closes #254, where a concurrent update to a tag was
+  not handled at some points during GC.
+- The new GC/RR also closes #256, where lost tag updates for
+  re-replicated blobs caused later re-replication failures.
+- Fix a case when the master node could run out of file descriptors
+  when servicing an unexpectedly large number of jobpack requests from
+  worker nodes (20d8fbe, 10a33b9, 0f7eaeb).
+- Fixes to make DISCO_PROXY usable again (#269).  Thanks to Dmitrijs
+  Milajevs.
+- Fix a crash due to an already started lock server (64096a3).
+- Handle an existing disco user on package install (4f04e14).  Thanks
+  to Pedro Larroy.
+
 Disco 0.4.1 (Sep 23rd 2011)
 ---------------------------
 
