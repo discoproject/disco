@@ -165,6 +165,13 @@ Once you have entered a value, click the cell again to save it.
     (e.g. you should be relying on DNS to resolve hostnames,
     **not** `/etc/hosts` on an individual machine).
 
+    Hostnames used by Disco are shortnames, and not fully qualified
+    hostnames.  DNS must be configured to correctly resolve the
+    shortnames of the hostnames in the cluster.
+
+    Disco cannot currently use raw IP addresses for hostnames.  Short
+    DNS hostnames must be used to name cluster nodes.
+
     A relatively common mistake is that ``master`` is just an alias for the loopback address,
     such as ``localhost``, provided in `/etc/hosts` on the master machine.
     In such cases, some nodes may **not** be able to resolve the master properly:

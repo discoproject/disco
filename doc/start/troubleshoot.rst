@@ -193,6 +193,14 @@ Disco requires a number of ports to be accessible to function properly.
    use. However, the current version of Disco does not, so you must open up the
    entire port range.
 
+Is your DNS configured correctly?
+---------------------------------
+
+Disco uses short DNS names of cluster nodes in its configuration.
+Please ensure that short hostnames were entered in the
+:ref:`confignodes` step, and that DNS resolves these short names
+correctly across all nodes in the cluster.
+
 Do workers run?
 ---------------
 
