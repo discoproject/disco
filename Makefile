@@ -78,14 +78,14 @@ doc-clean:
 doc-test:
 	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) doctest)
 
-install: install-core install-master
+install: install-core install-node install-master
 
 install-core:
 	(cd lib && $(PY_INSTALL))
 
 install-examples: $(TARGETLIB)/examples
 
-install-master: install-node \
+install-master: master \
 	$(TARGETLIB)/$(WWW) \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETCFG)/settings.py \
