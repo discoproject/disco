@@ -414,10 +414,10 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  % Start the replicator process which will
                  % synchronously replicate any blobs it is told to,
                  % and then iterate over all the blobs.
-                 RRPid = start_replicator(self()),
+                 Sr = S#state{rr_pid = start_replicator(self())},
                  Start = ets:first(gc_blobs),
-                 rereplicate_blob(S#state{rr_pid = RRPid}, Start),
-                 S#state{phase = rr_blobs, rr_pid = RRPid};
+                 rereplicate_blob(Sr, Start),
+                 Sr#state{phase = rr_blobs};
              Remaining ->
                  error_logger:info_report({"GC: nodes pending in gc", Remaining}),
                  S
