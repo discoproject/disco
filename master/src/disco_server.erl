@@ -114,7 +114,7 @@ gc_blacklist(Hosts) ->
 
 % called from remote nodes
 -spec get_worker_jobpack(node(), nonempty_string()) ->
-                                {'ok', {file:io_device(), non_neg_integer()}}.
+                                {'ok', {file:io_device(), non_neg_integer(), pid()}}.
 get_worker_jobpack(Master, JobName) ->
     gen_server:call({?MODULE, Master}, {jobpack, JobName}).
 
