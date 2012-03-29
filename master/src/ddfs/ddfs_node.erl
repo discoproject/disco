@@ -1,7 +1,7 @@
 -module(ddfs_node).
 -behaviour(gen_server).
 
--export([get_vols/0, gate_get_blob/0, put_blob/1, get_tag_data/3]).
+-export([get_vols/0, gate_get_blob/0, put_blob/1, get_tag_data/3, rescan_tags/0]).
 
 -export([start_link/1, stop/0, init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
@@ -15,7 +15,8 @@
                 vols :: [volume()],
                 putq :: http_queue:q(),
                 getq :: http_queue:q(),
-                tags :: gb_tree()}).
+                tags :: gb_tree(),
+                scanner :: pid()}).
 
 -spec start_link(term()) -> no_return().
 start_link(Config) ->
@@ -52,6 +53,9 @@ gate_get_blob() ->
 put_blob(BlobName) ->
     gen_server:call(?MODULE, {put_blob, BlobName}, ?PUT_WAIT_TIMEOUT).
 
+-spec rescan_tags() -> 'ok'.
+rescan_tags() ->
+    gen_server:cast(?MODULE, rescan_tags).
 
 -spec get_tag_data(node(), tagid(), taginfo()) -> {'ok', binary()} | {'error', term()}.
 get_tag_data(SrcNode, TagId, TagNfo) ->
@@ -88,7 +92,7 @@ init(Config) ->
             ok
     end,
 
-    spawn_link(fun() -> refresh_tags(DdfsRoot, Vols) end),
+    Scanner = spawn_link(fun() -> refresh_tags(DdfsRoot, Vols) end),
     spawn_link(fun() -> monitor_diskspace(DdfsRoot, Vols) end),
 
     {ok, #state{nodename = NodeName,
@@ -96,7 +100,8 @@ init(Config) ->
                 vols = Vols,
                 tags = Tags,
                 putq = http_queue:new(PutMax, ?HTTP_QUEUE_LENGTH),
-                getq = http_queue:new(GetMax, ?HTTP_QUEUE_LENGTH)}}.
+                getq = http_queue:new(GetMax, ?HTTP_QUEUE_LENGTH),
+                scanner = Scanner}}.
 
 handle_call(get_tags, _, #state{tags = Tags} = S) ->
     {reply, gb_trees:keys(Tags), S};
@@ -126,6 +131,10 @@ handle_call({put_tag_data, {Tag, Data}}, _From, S) ->
 handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
     {Reply, S1} = do_put_tag_commit(Tag, TagVol, S),
     {reply, Reply, S1}.
+
+handle_cast(rescan_tags, #state{scanner = Scanner} = S) ->
+    Scanner ! rescan,
+    {noreply, S};
 
 handle_cast({update_vols, NewVols}, #state{vols = Vols} = S) ->
     {noreply, S#state{vols = lists:ukeymerge(2, NewVols, Vols)}};
@@ -360,7 +369,12 @@ monitor_diskspace(Root, Vols) ->
 
 -spec refresh_tags(path(), [volume()]) -> no_return().
 refresh_tags(Root, Vols) ->
-    timer:sleep(?FIND_TAGS_INTERVAL),
+    receive
+        rescan ->
+            ok
+    after ?FIND_TAGS_INTERVAL ->
+            ok
+    end,
     {ok, Tags} = find_tags(Root, Vols),
     gen_server:cast(ddfs_node, {update_tags, Tags}),
     refresh_tags(Root, Vols).

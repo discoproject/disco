@@ -120,6 +120,7 @@ local_gc(Master, Now, Root) ->
     delete_orphaned(Master, Now, Root, blob, ?ORPHANED_BLOB_EXPIRES),
     delete_orphaned(Master, Now, Root, tag, ?ORPHANED_TAG_EXPIRES),
     ddfs_gc_main:node_gc_done(Master, gc_run_stats()),
+    ddfs_node:rescan_tags(),  % update local node cache
     ok.
 
 -spec obj_stats(object_type()) -> obj_stats().
