@@ -46,6 +46,12 @@
 % cache. It doesn't harm to have a long interval).
 -define(TAG_CACHE_INTERVAL, 10 * ?MINUTE).
 
+% Tag cache expires in this many milliseconds if tag can't be fetched
+-define(TAG_EXPIRES_ONERROR, 1 * ?SECOND).
+
+% How often node should refresh its tag cache from disk
+-define(FIND_TAGS_INTERVAL, ?DAY).
+
 % How often buffered (delayed) updates need to be flushed. Tradeoff: The
 % longer the interval, the more updates are bundled in a single commit.
 % On the other hand, in the worst case the requester has to wait for the
@@ -74,9 +80,6 @@
 % estimated time to traverse all the volumes on a DDFS node.
 -define(GC_PROGRESS_INTERVAL, 30 * ?MINUTE).
 
-% Tag cache expires in this many milliseconds if tag can't be fetched
--define(TAG_EXPIRES_ONERROR, 1 * ?SECOND).
-
 % Number of extra replicas (i.e. lost replicas recovered during GC) to
 % allow before deleting extra replicas.
 -define(NUM_EXTRA_REPLICAS, 1).
@@ -86,9 +89,6 @@
 
 % Interval for checking available disk space in ddfs_node
 -define(DISKSPACE_INTERVAL, 10 * ?SECOND).
-
-% How often node should refresh its tag cache from disk
--define(FIND_TAGS_INTERVAL, ?DAY).
 
 % /dfs/tag/ requests can be ?MAX_TAG_BODY_SIZE bytes at most
 -define(MAX_TAG_BODY_SIZE, (512 * ?MB)).
