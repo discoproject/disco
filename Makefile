@@ -14,6 +14,7 @@ INSTALL         = /usr/bin/install -c
 INSTALL_PROGRAM = $(INSTALL)
 INSTALL_DATA    = $(INSTALL) -m 644
 INSTALL_TREE    = cp -r
+DIRNAME         = dirname
 
 # installation directories
 TARGETBIN = $(DESTDIR)$(bindir)
@@ -112,7 +113,7 @@ $(EPLT):
 
 $(TARGETLIB)/%: %
 	$(INSTALL) -d $(@D)
-	$(INSTALL_TREE) $< $@
+	$(INSTALL_TREE) $< `$(DIRNAME) $@`
 
 $(TARGETBIN)/%: bin/%
 	$(INSTALL) -d $(@D)
