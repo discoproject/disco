@@ -307,12 +307,9 @@ handle_cast({gc_status, From}, #state{phase = P} = S) when is_pid(From) ->
 
 handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
     error_logger:info_report({"GC: initializing"}),
-    {OkNodes, Failed, Tags} = get_all_tags(),
     {ok, Blacklist} = ddfs_master:gc_blacklist(),
-    {NumOk, NumFailed} = {length(OkNodes), length(Failed)},
-    if NumOk > 0, NumFailed < TagMinK ->
-            error_logger:info_report({"GC: building map, with", NumFailed,
-                                      "failed nodes"}),
+    case get_all_tags() of
+        {ok, Tags, OkNodes} ->
             Phase = build_map,
             Peers = start_gc_peers(OkNodes, self(), now(), Phase),
             % We iterate over the tags by messaging ourselves, so that
@@ -326,9 +323,8 @@ handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
                               gc_peers = Peers,
                               tags = Tags,
                               blacklist = Blacklist}};
-       true ->
-            error_logger:error_report({"GC: stopping, too many failed nodes",
-                                       NumFailed, TagMinK, NumOk}),
+        E ->
+            error_logger:error_report({"GC: stopping", E}),
             cleanup_for_exit(S),
             {stop, shutdown, S}
     end;
@@ -628,18 +624,18 @@ cleanup_for_exit(#state{gc_peers = Peers, progress_timer = Timer, rr_pid = RR}) 
 %% ===================================================================
 %% build_map and map_wait phases
 
--spec get_all_tags() -> {[node()], [node()], [tagname()]} | {'error', term()}.
+-spec get_all_tags() -> {'ok', [tagname()], [node()]} | {'error', term()}.
 get_all_tags() ->
     get_all_tags(?MAX_TAG_OP_RETRIES).
 
 get_all_tags(Retries) ->
-    case catch ddfs_master:get_tags(all) of
+    case catch ddfs_master:get_tags(gc) of
         {'EXIT', {timeout, _}} when Retries =/= 0 ->
             get_all_tags(Retries - 1);
         {'EXIT', {timeout, _}} ->
             {error, timeout};
-        {_OkNodes, _Failed, _Tags} = AllTagsInfo ->
-            AllTagsInfo;
+        {ok, _Tags, _OkNodes} = AllTags ->
+            AllTags;
         E ->
             E
     end.
@@ -660,6 +656,11 @@ check_tag(Tag, S, Retries) ->
 
 -spec check_tag(state(), tagname(), tagid(), [[url()]], [node()])
                -> non_neg_integer().
+check_tag(S, <<"+deleted">> = Tag, TagId, _TagUrls, TagReplicas) ->
+    record_tag(S, Tag, TagId, TagReplicas),
+    % Optimize out the list traversal over TagUrls, since it contains
+    % tag:// urls only.
+    0;
 check_tag(S, Tag, TagId, TagUrls, TagReplicas) ->
     record_tag(S, Tag, TagId, TagReplicas),
     lists:foldl(fun(BlobSet, Sent) -> check_blobset(S, BlobSet, Sent) end,

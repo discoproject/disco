@@ -99,7 +99,7 @@ get_hosted_tags(Host) ->
 choose_write_nodes(K, Exclude) ->
     gen_server:call(?MODULE, {choose_write_nodes, K, Exclude}).
 
--spec get_tags('all') -> {[node()], [node()], [binary()]};
+-spec get_tags('gc') -> {'ok', [tagname()], [node()]} | 'too_many_failed_nodes';
               ('safe') -> {'ok', [binary()]} | 'too_many_failed_nodes'.
 get_tags(Mode) ->
     gen_server:call(?MODULE, {get_tags, Mode}, ?GET_TAG_TIMEOUT).
@@ -341,7 +341,8 @@ do_tag_exit(Pid, S) ->
     S#state{tags = gb_trees:from_orddict(NewTags)}.
 
 -spec do_get_tags('all' | 'filter', [node()]) -> {[node()], [node()], [binary()]};
-                 ('safe', [node()]) -> {'ok', [binary()]} | 'too_many_failed_nodes'.
+                 ('safe', [node()]) -> {'ok', [binary()]} | 'too_many_failed_nodes';
+                 ('gc', [node()]) -> {'ok', [binary()], [node()]} | 'too_many_failed_nodes'.
 do_get_tags(all, Nodes) ->
     {Replies, Failed} =
         gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
@@ -367,6 +368,24 @@ do_get_tags(safe, Nodes) ->
             {ok, Tags};
         _ ->
             too_many_failed_nodes
+    end;
+
+% The returned tag list may include +deleted.
+do_get_tags(gc, Nodes) ->
+    {OkNodes, Failed, Tags} = do_get_tags(all, Nodes),
+    TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
+    case length(Failed) < TagMinK of
+        false ->
+            too_many_failed_nodes;
+        true ->
+            case tag_operation(get_tagnames, <<"+deleted">>, ?NODEOP_TIMEOUT) of
+                {ok, Deleted} ->
+                    TagSet = gb_sets:from_ordset(Tags),
+                    NotDeleted = gb_sets:subtract(TagSet, Deleted),
+                    {ok, gb_sets:to_list(NotDeleted), OkNodes};
+                E ->
+                    E
+            end
     end.
 
 -spec monitor_diskspace() -> no_return().
