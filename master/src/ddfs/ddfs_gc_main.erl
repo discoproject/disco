@@ -214,7 +214,6 @@
           root                        :: string(),
           blacklist         = []      :: [node()],
 
-          tagmink :: non_neg_integer(),
           tagk    :: non_neg_integer(),
           blobk   :: non_neg_integer()}).
 -type state() :: #state{}.
@@ -264,7 +263,6 @@ init({Root, DeletedAges}) ->
     register(gc_lock, self()),
     State = #state{deleted_ages = DeletedAges,
                    root = Root,
-                   tagmink = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
                    tagk = list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS")),
                    blobk = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS"))},
 
@@ -305,7 +303,7 @@ handle_cast({gc_status, From}, #state{phase = P} = S) when is_pid(From) ->
     From ! {ok, P},
     {noreply, S};
 
-handle_cast(start, #state{phase = start, tagmink = TagMinK} = S) ->
+handle_cast(start, #state{phase = start} = S) ->
     error_logger:info_report({"GC: initializing"}),
     {ok, Blacklist} = ddfs_master:gc_blacklist(),
     case get_all_tags() of
