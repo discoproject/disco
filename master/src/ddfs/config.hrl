@@ -8,9 +8,6 @@
 % Maximum length of tag/blob prefix
 -define(NAME_MAX, 511).
 
-% How many replicas by default
-% -define(DEFAULT_REPLICAS, 3).
-
 % How long ddfs node startup can take
 -define(NODE_STARTUP, 1 * ?MINUTE).
 
@@ -79,9 +76,6 @@
 
 % Tag cache expires in this many milliseconds if tag can't be fetched
 -define(TAG_EXPIRES_ONERROR, 1 * ?SECOND).
-
-% Number of tag replicas: min(length(Nodes), ?TAG_REPLICAS)
-% -define(TAG_REPLICAS, 3).
 
 % Number of extra replicas (i.e. lost replicas recovered during GC) to
 % allow before deleting extra replicas.
