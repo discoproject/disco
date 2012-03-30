@@ -401,9 +401,13 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  % This was the last node we were waiting for to
                  % finish GC.  Update the deleted tag.
                  process_deleted(S#state.tags, S#state.deleted_ages),
-
+                 % Due to tag deletion by GC, we might be able to free
+                 % up some entries from the tag cache in ddfs_master.
+                 ddfs_master:refresh_tag_cache(),
+                 % Update stats.
                  print_gc_stats(all, NewStats),
                  ddfs_master:update_gc_stats(NewStats),
+
                  error_logger:info_report({"GC: entering rr_blobs phase"}),
                  % Start the replicator process which will
                  % synchronously replicate any blobs it is told to,

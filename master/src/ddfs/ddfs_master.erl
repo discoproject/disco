@@ -11,6 +11,7 @@
          choose_write_nodes/2,
          new_blob/3,
          safe_gc_blacklist/0, safe_gc_blacklist/1,
+         refresh_tag_cache/0,
          tag_notify/2,
          tag_operation/2, tag_operation/3,
          update_gc_stats/1,
@@ -35,6 +36,7 @@
 
 -record(state, {tags      = gb_trees:empty() :: gb_tree(),
                 tag_cache = false            :: 'false' | gb_set(),
+                cache_refresher              :: pid(),
 
                 nodes             = []                :: [node_info()],
                 write_blacklist   = []                :: [node()],
@@ -133,15 +135,19 @@ update_nodestats(NewNodes) ->
 update_tag_cache(TagCache) ->
     gen_server:cast(?MODULE, {update_tag_cache, TagCache}).
 
+-spec refresh_tag_cache() -> 'ok'.
+refresh_tag_cache() ->
+    gen_server:cast(?MODULE, refresh_tag_cache).
+
 %% ===================================================================
 %% gen_server callbacks
 
 init(_Args) ->
     spawn_link(fun() -> monitor_diskspace() end),
     spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
-    spawn_link(fun() -> refresh_tag_cache_proc() end),
+    Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
-    {ok, #state{}}.
+    {ok, #state{cache_refresher = Refresher}}.
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -205,6 +211,10 @@ handle_cast({update_gc_stats, Stats}, S) ->
 
 handle_cast({update_tag_cache, TagCache}, S) ->
     {noreply, S#state{tag_cache = TagCache}};
+
+handle_cast(refresh_tag_cache, #state{cache_refresher = Refresher} = S) ->
+    Refresher ! refresh,
+    {noreply, S};
 
 handle_cast({update_nodes, NewNodes}, S) ->
     {noreply, do_update_nodes(NewNodes, S)};
@@ -403,7 +413,12 @@ monitor_diskspace() ->
 refresh_tag_cache_proc() ->
     {ok, ReadableNodes, RBSize} = get_read_nodes(),
     refresh_tag_cache(ReadableNodes, RBSize),
-    timer:sleep(?TAG_CACHE_INTERVAL),
+    receive
+        refresh ->
+            ok
+    after ?TAG_CACHE_INTERVAL ->
+            ok
+    end,
     refresh_tag_cache_proc().
 
 -spec refresh_tag_cache([node()], non_neg_integer()) -> 'ok'.
