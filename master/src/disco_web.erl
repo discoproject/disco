@@ -19,7 +19,7 @@ op('POST', "/disco/job/" ++ _, Req) ->
                 reply({ok, [<<"ok">>, list_to_binary(JobName)]}, Req);
             Error ->
                 ErrorString = disco:format("Job failed to start: ~p", [Error]),
-                error_logger:warning_report(ErrorString),
+                lager:warning("Job failed to start: ~p", [Error]),
                 reply({ok, [<<"error">>, list_to_binary(ErrorString)]}, Req)
         end
     end;
@@ -254,7 +254,7 @@ update_setting(<<"max_failure_rate">>, Val, App) ->
                              list_to_integer(binary_to_list(Val)));
 
 update_setting(Key, Val, _) ->
-    error_logger:info_report([{"Unknown setting", Key, Val}]).
+    lager:info("Unknown setting: ~p = ~p", [Key, Val]).
 
 count_maps(L) ->
     {M, N} = lists:foldl(fun ("map", {M, N}) ->

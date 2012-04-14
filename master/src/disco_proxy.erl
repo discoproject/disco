@@ -43,10 +43,10 @@
 start() ->
     Proxy = disco:get_setting("DISCO_PROXY_ENABLED"),
     if Proxy =:= "" ->
-        error_logger:info_report({"Disco proxy disabled"}),
+        lager:info("Disco proxy disabled"),
         ignore;
     true ->
-        error_logger:info_report({"Disco proxy enabled"}),
+        lager:info("Disco proxy enabled"),
         case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
             {ok, Server} -> {ok, Server};
             {error, {already_started, Server}} -> {ok, Server}
@@ -81,17 +81,17 @@ handle_cast({update_nodes, Nodes}, ProxyMonitor) ->
     {noreply, Monitor}.
 
 handle_info({'EXIT', ProxyMonitor, Reason}, ProxyMonitor) ->
-    error_logger:warning_report({"Proxy monitor exited", Reason}),
+    lager:warning("Proxy monitor exited: ~p", [Reason]),
     Monitor = spawn_link(fun() -> proxy_monitor(start_proxy()) end),
     {noreply, Monitor};
 handle_info({'EXIT', _Other, config_change}, S) ->
     {noreply, S};
 handle_info({'EXIT', Other, Reason}, S) ->
-    error_logger:warning_report({"Proxy: received unknown exit:", Other, Reason}),
+    lager:warning("Proxy: received unknown exit from ~p: ~p", [Other, Reason]),
     {noreply, S}.
 
 terminate(Reason, _State) ->
-    error_logger:warning_report({"Disco config dies", Reason}).
+    lager:warning("Disco config dies: ~p", [Reason]).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
@@ -109,14 +109,14 @@ do_update_nodes(Nodes) ->
 proxy_monitor(Pid) ->
     case catch string:str(os:cmd(["ps -p", Pid]), Pid) of
         {'EXIT', {emfile, _}} ->
-            error_logger:warning_report({"Out of file descriptors! Sleeping.."}),
+            lager:warning("Out of file descriptors! Sleeping.."),
             sleep(?PROXY_CHECK_INTERVAL),
             proxy_monitor(Pid);
         {'EXIT', Error} ->
-            error_logger:warning_report({"ps failed", Error}),
+            lager:warning("ps failed: ~p", [Error]),
             exit(ps_failed);
         0 ->
-            error_logger:warning_report({"Proxy died. PID", Pid}),
+            lager:warning("Proxy at pid ~p died", [Pid]),
             sleep(?PROXY_RESTART_DELAY),
             exit(proxy_died);
         _ ->
@@ -125,24 +125,24 @@ proxy_monitor(Pid) ->
     end.
 
 start_proxy() ->
-    error_logger:info_report({"Starting proxy"}),
     kill_proxy(),
     Out = os:cmd(disco:get_setting("DISCO_HTTPD")),
     sleep(5000),
     case get_pid() of
         {ok, Pid} when Pid =/= [] ->
-            error_logger:info_report({"PID", Pid}),
+            lager:info("Starting proxy at pid ~p", [Pid]),
             Pid;
         _ ->
-            error_logger:warning_report(
-                {"Could not start proxy (PID file not found or empty)", Out}),
+            lager:warning(
+              "Could not start proxy ~p (pid file not found or empty)",
+              [Out]),
             exit(proxy_init_failed)
     end.
 
 kill_proxy() ->
     case get_pid() of
         {ok, Pid} ->
-            error_logger:info_report({"Killing PID", Pid}),
+            lager:info("Killing pid ~p", [Pid]),
             _ = os:cmd(["kill -9 ", Pid]),
             sleep(1000);
         _ -> ok
@@ -159,7 +159,7 @@ get_pid() ->
 sleep(Timeout) ->
     receive
         {'EXIT', _, Reason} ->
-            error_logger:info_report({"dying", Reason}),
+            lager:info("proxy dying: ~p", [Reason]),
             kill_proxy(),
             exit(Reason)
     after Timeout ->
@@ -179,7 +179,7 @@ resolve_node(Node, Method) ->
                 ),
             {Ip, Port};
         _ ->
-            error_logger:warning_report({"Proxy could not resolve", Node}),
+            lager:warning("Proxy could not resolve node ~p", [Node]),
             false
     end.
 
@@ -220,8 +220,8 @@ make_config("varnishd", Nodes, _Port, DiscoPort, _PidFile) ->
         lists:flatten([CondGet|CondPut])]);
 
 make_config(Type, _Nodes, _Port, _DiscoPort, _PidFile) ->
-    error_logger:warning_report({"Unsupported proxy ", Type}),
-    error_logger:warning_report({"DISCO_HTTPD should be either lighttpd or varnishd!"}),
+    lager:warning("Unsupported proxy type ~p", [Type]),
+    lager:warning("DISCO_HTTPD should be either lighttpd or varnishd!"),
     [].
 
 varnish_name(Node, Method) ->

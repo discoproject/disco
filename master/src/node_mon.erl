@@ -32,11 +32,10 @@ spawn_node(Host, IsMaster) ->
         {_, {error, {already_running, Node}}} ->
             node_monitor(Host, Node, {not(IsMaster), true});
         {_, {error, timeout}} ->
-            error_logger:info_report({"Connection timed out to", Host}),
+            lager:info("Connection timed out to", [Host]),
             disco_server:connection_status(Host, down);
         Error ->
-            error_logger:warning_report(
-                {"Spawning node @", Host, "failed for unknown reason", Error}),
+            lager:warning("Spawning node at ~p failed: ~p", [Host, Error]),
             disco_server:connection_status(Host, down)
     end,
     timer:sleep(?RESTART_DELAY).
@@ -58,14 +57,14 @@ wait(Node) ->
             Pid ! node_ready,
             wait(Node);
         {'EXIT', _, already_started} ->
-            error_logger:info_report({"Already started", Node, self()}),
+            lager:info("Node already started at ~p", [Node]),
             wait(Node);
         {'EXIT', _, Reason} ->
-            error_logger:info_report({"Node failed", Node, Reason});
+            lager:info("Node failed at ~p: ~p", [Node, Reason]);
         {nodedown, _Node} ->
-            error_logger:info_report({"Node", Node, "down"});
+            lager:info("Node ~p down", [Node]);
         E ->
-            error_logger:info_report({"Erroneous message (node_mon)", E})
+            lager:info("Unexpected message: ~p", [E])
     end.
 
 slave_env() ->
@@ -80,7 +79,7 @@ slave_env() ->
 
 -spec slave_start(host()) -> {'ok', node()} | {'error', _}.
 slave_start(Host) ->
-    error_logger:info_report({"starting node @", Host}),
+    lager:info("Starting node at ~p", [Host]),
     slave:start(Host,
                 disco:slave_name(),
                 slave_env(),
@@ -100,7 +99,7 @@ is_master(Host) ->
             false;
         R ->
             % retry the connection, after a while.
-            error_logger:warning_report({"net_adm:names() failed", Host, R}),
+            lager:warning("net_adm:names() failed for ~p: ~p", [Host, R]),
             timer:sleep(?RPC_RETRY_TIMEOUT),
             is_master(Host)
     end.

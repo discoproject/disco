@@ -42,7 +42,7 @@ init({JobName, JobCoord}) ->
                     gb_trees:empty()),
                   gb_trees:empty(), []}};
         R ->
-            error_logger:info_report({"Linking failed", R}),
+            lager:info("Linking failed: ~p", [R]),
             {stop, normal}
     end.
 
@@ -69,7 +69,7 @@ schedule(Mode, Job, Jobs, AvailableNodes) ->
             Empty = all_empty_nodes(Jobs, AvailableNodes),
             schedule(schedule_remote, Job, Jobs, Empty);
         {'EXIT', {timeout, _}} = Error ->
-            error_logger:warning_report({"Scheduling timeout!", Error}),
+            lager:warning("Scheduling timeout error ~p!", [Error]),
             gen_server:cast(Job, {die, "Scheduling timeout (system busy?)"}),
             none;
         {'EXIT', _} ->

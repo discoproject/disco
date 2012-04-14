@@ -11,13 +11,13 @@ start(Port) ->
             {name, web_server},
             {max, ?MAX_HTTP_CONNECTIONS},
             {port, Port}],
-    error_logger:info_report({"web_server starts"}),
+    lager:info("web_server starts"),
     case catch mochiweb_http:start(Conf) of
         {ok, Pid} ->
-            error_logger:info_report({"mochiweb starts"}),
+            lager:info("mochiweb starts"),
             {ok, Pid};
         {_Error, E} ->
-            error_logger:error_report({"Starting web server failed:", E}),
+            lager:error("Starting web server failed: ~p", [E]),
             {error, E}
     end.
 
@@ -49,10 +49,10 @@ dispatch(Req, Module, Path) ->
     erlang:put(mochiweb_request_force_close, true),
     case catch Module:op(Req:get(method), Path, Req) of
         {'EXIT', E} ->
-            error_logger:error_report({"Request failed", Req:get(path), E}),
+            lager:error("Request ~p failed: ~p", [Req:get(path), E]),
             Req:respond({500, [], ["Internal server error"]});
         invalid_utf8 ->
-            error_logger:error_report({"Request failed", Req:get(path), invalid_utf8}),
+            lager:error("Request ~p failed: ~p", [Req:get(path), invalid_utf8]),
             Req:respond({400, [], ["Invalid UTF8"]});
         _ ->
             ok

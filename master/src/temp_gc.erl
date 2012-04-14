@@ -28,15 +28,15 @@ loop() ->
                     process_dir(Dirs, gb_sets:from_ordset(Purged), Active);
                 E ->
                     % fresh install, try again after GC_INTERVAL
-                    error_logger:info_report({"Tempgc: listing error", DataRoot, E}),
+                    lager:info("Tempgc: error listing ~p: ~p", [DataRoot, E]),
                     ok
             end;
         E ->
-            error_logger:info_report({"Tempgc: master error", E}),
+            lager:info("Tempgc: master error", [E]),
             % master busy, try again after GC_INTERVAL
             ok
     end,
-    error_logger:info_report({"Tempgc: one pass completed"}),
+    lager:info("Tempgc: one pass completed"),
     timer:sleep(?GC_INTERVAL),
     flush(),
     loop().
@@ -91,7 +91,7 @@ process_job(JobPath, Purged) ->
             IsPurged = gb_sets:is_member(list_to_binary(Job), Purged),
             GCAfter = list_to_integer(disco:get_setting("DISCO_GC_AFTER")),
             if IsPurged; Now - T > GCAfter ->
-                %error_logger:info_report({"Tempgc: purging", JobPath}),
+                lager:info("Tempgc: purging ~p", [JobPath]),
                 catch purge_job(Job, JobPath);
             true ->
                 ok
@@ -99,5 +99,5 @@ process_job(JobPath, Purged) ->
             % Sleep here to prevent master and disk being DDOS'ed
             timer:sleep(100);
         E ->
-            error_logger:info_report({"Tempgc: file error", E})
+            lager:info("Tempgc: error processing ~p: ~p", [JobPath, E])
     end.

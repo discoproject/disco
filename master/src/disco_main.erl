@@ -42,7 +42,7 @@ start(_Type, _Args) ->
 -spec init([non_neg_integer()]) ->
         {'ok', {{'one_for_one', ?MAX_R, ?MAX_T}, [supervisor:child_spec()]}}.
 init([Port]) ->
-    error_logger:info_report([{"DISCO BOOTS"}]),
+    lager:info("DISCO BOOTS"),
     {ok, {{one_for_one, ?MAX_R, ?MAX_T}, [
          {disco_proxy, {disco_proxy, start, []},
             permanent, 10, worker, dynamic},

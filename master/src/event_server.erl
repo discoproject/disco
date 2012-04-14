@@ -34,7 +34,7 @@ end_job(JobName) ->
     gen_server:cast(?MODULE, {job_done, JobName}).
 
 start_link() ->
-    error_logger:info_report([{"Event server starts"}]),
+    lager:info("Event server starts"),
     case gen_server:start_link({local, event_server}, event_server, [], []) of
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
@@ -179,7 +179,7 @@ handle_cast({clean_job, JobName}, {Events, _MsgBuf} = S) ->
     {noreply, {dict:erase(JobName, Events), MsgBufN}}.
 
 handle_info(Msg, State) ->
-    error_logger:warning_report(["Unknown message received: ", Msg]),
+    lager:warning("Unknown message received: ~p", [Msg]),
     {noreply, State}.
 
 event_log(JobName) ->
@@ -326,8 +326,7 @@ job_event_handler_do(File, Buf, BufSize) ->
             flush_buffer(File, Buf),
             file:close(File);
         E ->
-            error_logger:warning_report(
-                {"Unknown message in job_event_handler", E}),
+            lager:warning("Unknown job_event msg ~p", [E]),
             file:close(File)
     end.
 

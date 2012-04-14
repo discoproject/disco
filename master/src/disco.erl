@@ -40,8 +40,7 @@
 get_setting(SettingName) ->
     case os:getenv(SettingName) of
         false ->
-            error_logger:warning_report(
-              {"Required setting", SettingName, "missing!"}),
+            lager:warning("Required setting ~p missing!", [SettingName]),
             exit(["Must specify ", SettingName]);
         Val ->
             Val

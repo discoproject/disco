@@ -45,7 +45,7 @@
 %% API functions
 
 start_link() ->
-    error_logger:info_report([{"DISCO SERVER STARTS"}]),
+    lager:info("DISCO SERVER STARTS"),
     case gen_server:start_link({local, ?MODULE}, ?MODULE,
                                [], disco:debug_flags("disco_server")) of
         {ok, Server} ->
@@ -53,7 +53,7 @@ start_link() ->
                 {ok, _Config} ->
                     {ok, Server};
                 E ->
-                    error_logger:warning_report({"Parsing config failed", E})
+                    lager:warning("Parsing config failed: ~p", [E])
             end;
         {error, {already_started, Server}} ->
             {ok, Server}
@@ -191,7 +191,7 @@ handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
     {noreply, S};
 
 handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
-    error_logger:warning_report(["Disco server dies on error!", Reason]),
+    lager:warning("Disco server dies on error: ~p", [Reason]),
     {stop, stop_requested, S};
 
 handle_info({'EXIT', Pid, {shutdown, Results}}, S) ->
@@ -210,7 +210,7 @@ handle_info({'EXIT', Pid, Reason}, S) ->
 %% gen_server callback stubs
 
 terminate(Reason, _State) ->
-    error_logger:warning_report({"Disco server dies", Reason}).
+    lager:warning("Disco server dies: ~p", [Reason]).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
@@ -236,7 +236,7 @@ nodemon_exit(Pid, S) ->
     nodemon_exit(Pid, S, gb_trees:next(Iter)).
 
 nodemon_exit(Pid, S, {Host, N, _Iter}) when N#dnode.node_mon =:= Pid ->
-    error_logger:warning_report({"Restarting monitor for", Host}),
+    lager:warning("Restarting monitor for ~p", [Host]),
     N1 = N#dnode{node_mon = node_mon:start_link(Host)},
     S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},
     {noreply, do_connection_status(Host, down, S1)};
@@ -245,7 +245,7 @@ nodemon_exit(Pid, S, {_Host, _N, Iter}) ->
     nodemon_exit(Pid, S, gb_trees:next(Iter));
 
 nodemon_exit(Pid, S, none) ->
-    error_logger:warning_report({"Unknown PID exits", Pid}),
+    lager:warning("Unknown pid ~p exits", [Pid]),
     {noreply, S}.
 
 %% ===================================================================
@@ -324,7 +324,7 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
 -spec do_update_config_table([disco_config:host_info()], [host_name()],
                              [host_name()], #state{}) -> #state{}.
 do_update_config_table(Config, Blacklist, GCBlacklist, S) ->
-    error_logger:info_report([{"Config table update"}]),
+    lager:info("Config table updated"),
     NewNodes =
         lists:foldl(fun({Host, Slots}, NewNodes) ->
             NewNode =

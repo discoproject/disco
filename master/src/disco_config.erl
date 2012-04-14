@@ -21,7 +21,7 @@
 %% API functions
 
 start_link() ->
-    error_logger:info_report([{"Disco config starts"}]),
+    lager:info("Disco config starts"),
     case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
@@ -85,7 +85,7 @@ handle_info(_, S) ->
     {noreply, S}.
 
 terminate(Reason, _State) ->
-    error_logger:warning_report({"Disco config dies", Reason}).
+    lager:warning("Disco config dies: ~p", [Reason]).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
@@ -191,8 +191,7 @@ do_save_config_table(RawHosts) ->
             {get_host_info(RawHosts), get_expanded_hosts(RawHosts)}
         catch
             _:_ ->
-                error_logger:warning_report({"Disco config: parse error",
-                                             RawHosts}),
+                lager:warning("Disco config: error parsing ~p", [RawHosts]),
                 parse_error
         end,
     case ParsedConfig of
