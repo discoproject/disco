@@ -39,7 +39,8 @@ EBIN  = master/ebin
 ESRC  = master/src
 EDEP  = master/deps
 
-EDEPS    = $(shell find $(EDEP) -name ebin)
+DEPS     = mochiweb lager
+EDEPS    = $(foreach dep,$(DEPS),$(EDEP)/$(dep)/ebin)
 ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
 
@@ -77,14 +78,14 @@ doc-clean:
 doc-test:
 	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) doctest)
 
-install: install-core install-master
+install: install-core install-node install-master
 
 install-core:
 	(cd lib && $(PY_INSTALL))
 
 install-examples: $(TARGETLIB)/examples
 
-install-master: install-node \
+install-master: master \
 	$(TARGETLIB)/$(WWW) \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETCFG)/settings.py \
