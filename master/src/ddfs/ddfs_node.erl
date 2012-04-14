@@ -21,7 +21,7 @@
 -spec start_link(term()) -> no_return().
 start_link(Config) ->
     process_flag(trap_exit, true),
-    error_logger:info_report([{"DDFS node starts"}]),
+    lager:info("DDFS node starts"),
     case catch gen_server:start_link(
             {local, ddfs_node}, ddfs_node, Config, [{timeout, ?NODE_STARTUP}]) of
         {ok, _Server} ->
@@ -228,7 +228,7 @@ do_get_tag_data(TagId, VolName, From, S) ->
         {ok, Binary} ->
             gen_server:reply(From, {ok, Binary});
         {error, Reason} ->
-            error_logger:warning_report({"Read failed", TagPath, Reason}),
+            lager:warning("Read failed at ~p: ~p", [TagPath, Reason]),
             gen_server:reply(From, {error, read_failed})
     end.
 
@@ -289,10 +289,9 @@ try_makedir(Dir) ->
         {error, eexist} ->
             ok;
         Error ->
-            error_logger:warning_report({
-                "Error initializing directory. This volume will be ignored!",
-                Dir,
-               Error}),
+            lager:warning(
+              "Error initializing directory ~p: ~p. This volume will be ignored!",
+              [Dir, Error]),
             error
     end.
 
@@ -318,8 +317,7 @@ find_vols(Root) ->
                     init_vols(Root, VolNames)
             end;
         Error ->
-            error_logger:warning_report(
-                {"Invalid root directory", Root, Error}),
+            lager:warning("Invalid root directory ~p: ~p", [Root, Error]),
             Error
     end.
 

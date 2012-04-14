@@ -304,7 +304,7 @@ handle_cast({gc_status, From}, #state{phase = P} = S) when is_pid(From) ->
     {noreply, S};
 
 handle_cast(start, #state{phase = start} = S) ->
-    error_logger:info_report({"GC: initializing"}),
+    lager:info("GC: initializing"),
     {ok, Blacklist} = ddfs_master:gc_blacklist(),
     case get_all_tags() of
         {ok, Tags, OkNodes} ->
@@ -322,13 +322,13 @@ handle_cast(start, #state{phase = start} = S) ->
                               tags = Tags,
                               blacklist = Blacklist}};
         E ->
-            error_logger:error_report({"GC: stopping", E}),
+            lager:error("GC: unable to start: ~p", [E]),
             cleanup_for_exit(S),
             {stop, shutdown, S}
     end;
 
 handle_cast({retry_node, Node}, #state{phase = Phase} = S) ->
-    error_logger:info_report({"GC: restarting connection to", Node, Phase}),
+    lager:info("GC: retrying connection to ~p (in phase ~p)", [Node, Phase]),
     Pid = ddfs_gc_node:start_gc_node(Node, self(), now(), Phase),
     Peers = update_peer(S#state.gc_peers, Node, Pid),
     case Phase of
@@ -352,8 +352,7 @@ handle_cast({build_map, [T|Tags]}, #state{phase = build_map} = S) ->
             % We failed to handle this tag; we cannot safely proceed
             % since otherwise we might erroneously consider its blobs
             % as orphans and delete them.
-            error_logger:error_report({"GC: stopping, unable to get tag",
-                                       T, E}),
+            lager:error("GC: stopping, unable to get tag ~p: ~p", [T, E]),
             cleanup_for_exit(S),
             {stop, shutdown, S}
     end;
@@ -379,8 +378,7 @@ handle_cast({build_map, []}, #state{phase = build_map} = S) ->
                  %
                  % Initialize last_response_time, which will now be
                  % updated whenever we get a gc protocol message.
-                 error_logger:info_report({"GC: all build_map requests sent,",
-                                           "entering map_wait"}),
+                 lager:info("GC: all build_map requests sent, entering map_wait"),
                  {ok, ProgressTimer} =
                      timer:send_after(?GC_PROGRESS_INTERVAL, check_progress),
                  S#state{phase = map_wait,
@@ -408,7 +406,7 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  print_gc_stats(all, NewStats),
                  ddfs_master:update_gc_stats(NewStats),
 
-                 error_logger:info_report({"GC: entering rr_blobs phase"}),
+                 lager:info("GC: entering rr_blobs phase"),
                  % Start the replicator process which will
                  % synchronously replicate any blobs it is told to,
                  % and then iterate over all the blobs.
@@ -417,7 +415,7 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  rereplicate_blob(Sr, Start),
                  Sr#state{phase = rr_blobs};
              Remaining ->
-                 error_logger:info_report({"GC: nodes pending in gc", Remaining}),
+                 lager:info("GC: ~p nodes pending in gc", [Remaining]),
                  S
          end,
     {noreply, S1#state{pending_nodes = NewPending,
@@ -428,8 +426,7 @@ handle_cast({rr_blob, '$end_of_table'},
             #state{phase = rr_blobs, rr_pid = RR} = S) ->
     % We are done with sending replication requests; we now wait for
     % the replicator to terminate.
-    error_logger:info_report({"GC: done sending blob replication requests",
-                              "entering rr_blobs_wait"}),
+    lager:info("GC: done sending blob replication requests, entering rr_blobs_wait"),
     stop_replicator(RR),
     {noreply, S#state{phase = rr_blobs_wait}};
 handle_cast({rr_blob, Next}, #state{phase = rr_blobs} = S) ->
@@ -440,7 +437,7 @@ handle_cast({add_replicas, BlobName, NewUrls}, #state{phase = Phase} = S)
     update_replicas(S, BlobName, NewUrls),
     {noreply, S};
 handle_cast({add_replicas, _BlobName, _NewUrls} = M, #state{phase = Phase} = S) ->
-    error_logger:info_report({"GC: ignoring late response", M, Phase}),
+    lager:info("GC: ignoring late response ~p (~p)", [M, Phase]),
     {noreply, S};
 
 handle_cast({rr_tags, [T|Tags]}, #state{phase = rr_tags} = S) ->
@@ -449,7 +446,7 @@ handle_cast({rr_tags, [T|Tags]}, #state{phase = rr_tags} = S) ->
     {noreply, S1};
 handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
     % We are done with the RR phase, and hence with GC!
-    error_logger:info_report({"GC: tag update/replication done, done with GC!"}),
+    lager:info("GC: tag update/replication done, done with GC!"),
     node_broadcast(S#state.gc_peers, end_rr),
     % Update ddfs_master with the safe_blacklist.
     ddfs_master:safe_gc_blacklist(S#state.safe_blacklist),
@@ -485,8 +482,7 @@ handle_info(check_progress, #state{phase = Phase} = S)
             {noreply, S#state{progress_timer = T}};
         false ->
             % We haven't made progress. Stop GC.
-            error_logger:error_report({"GC: progress timeout in phase",
-                                       S#state.phase}),
+            lager:error("GC: progress timeout in ~p", [S#state.phase]),
             cleanup_for_exit(S),
             {stop, shutdown, S}
     end;
@@ -495,7 +491,7 @@ handle_info(check_progress, S) ->
     {noreply, S#state{progress_timer = undefined}};
 
 handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
-    error_logger:warning_report({"GC: dying on error!", Reason}),
+    lager:error("GC: dying on error: ~p", [Reason]),
     cleanup_for_exit(S),
     {stop, stop_requested, S};
 
@@ -504,7 +500,7 @@ handle_info({'EXIT', Pid, normal}, #state{phase = rr_blobs_wait, rr_pid = RR} = 
     % The RR process has finished normally, and we can proceed to the
     % second phase of RR: start updating the tags.  Also, we
     % initialize the safe blacklist here.
-    error_logger:info_report({"GC: done with blob replication, entering rr_tags"}),
+    lager:info("GC: done with blob replication, entering rr_tags"),
     gen_server:cast(self(), {rr_tags, S#state.tags}),
     {noreply, S#state{rr_pid = undefined,
                       safe_blacklist = gb_sets:from_list(S#state.blacklist),
@@ -512,8 +508,7 @@ handle_info({'EXIT', Pid, normal}, #state{phase = rr_blobs_wait, rr_pid = RR} = 
 handle_info({'EXIT', Pid, Reason}, #state{phase = Phase, rr_pid = RR} = S)
   when Pid == RR  ->
     % Unexpected exit of RR process; exit.
-    error_logger:error_report({"GC: unexpected exit of replicator",
-                               Reason, Phase}),
+    lager:error("GC: unexpected exit of replicator in ~p: ~p", [Phase, Reason]),
     cleanup_for_exit(S),
     {stop, shutdown, S};
 
@@ -522,13 +517,13 @@ handle_info({'EXIT', Pid, Reason}, #state{phase = Phase} = S) ->
         undefined ->
             {noreply, S};
         {Node, Failures} when Failures > ?MAX_GC_NODE_FAILURES ->
-            error_logger:error_report({"GC: too many failures",
-                                       Node, Failures, Phase}),
+            lager:error("GC: too many failures (~p) on node ~p (~p)",
+                        [Failures, Node, Phase]),
             cleanup_for_exit(S),
             {stop, shutdown, S};
         {Node, Failures} ->
-            error_logger:warning_report({"GC: Node disconnected",
-                                         Node, Failures, Reason, Phase}),
+            lager:warning({"GC: Node ~p disconnected (~p): ~p (~p)",
+                           Node, Failures, Reason, Phase}),
             schedule_retry(Node),
             {noreply, S}
     end;
@@ -692,7 +687,7 @@ ddfs_url(Url) ->
         {Host, _Vol, _Type, _Hash, BlobName} ->
             case disco:slave_safe(Host) of
                 false ->
-                    error_logger:warning_report({"GC: Unknown host", Host}),
+                    lager:warning("GC: Unknown host ~p", [Host]),
                     {BlobName, unknown};
                 Node ->
                     {BlobName, Node}
@@ -776,7 +771,7 @@ start_gc_phase(S) ->
           end, true, gc_blob_map),
     ets:delete(gc_blob_map),
 
-    error_logger:info_report({"GC: entering gc phase"}),
+    lager:info("GC: entering gc phase"),
     node_broadcast(S#state.gc_peers, start_gc),
     % Update the last_response_time to indicate forward progress.
     S#state{num_pending_reqs  = 0,
@@ -832,15 +827,15 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                     % This is a newly recovered replica, but we have
                     % more than enough replicas, so we can afford
                     % marking this as an orphan.
-                    error_logger:info_report({"GC: discarding replica",
-                                              BlobName, Node, Vol}),
+                    lager:info("GC: discarding replica of ~p on ~p/~p",
+                               [BlobName, Node, Vol]),
                     {ok, true};
                 {false, false}
                   when S#state.blacklist =:= [] ->
                     % This is a usable, newly-recovered, lost replica;
                     % record the volume for later use.
-                    error_logger:info_report({"GC: recovering replica",
-                                              BlobName, Node, Vol}),
+                    lager:info("GC: recovering replica of ~p from ~p/~p",
+                               [BlobName, Node, Vol]),
                     NewRecovered = [{Node, Vol} | Recovered],
                     ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                     {ok, false};
@@ -855,8 +850,8 @@ check_is_orphan(S, blob, BlobName, Node, Vol) ->
                             % Note that Node could belong to the blacklist; we
                             % still record the replica so that we can use it for
                             % re-replication if needed.
-                            error_logger:info_report({"GC: recovering replica",
-                                                      BlobName, Node, Vol}),
+                            lager:info("GC: recovering replica of ~p from ~p/~p",
+                                       [BlobName, Node, Vol]),
                             NewRecovered = [{Node, Vol} | Recovered],
                             ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                             {ok, false}
@@ -879,17 +874,14 @@ add_gc_stat({F1, B1}, {F2, B2}) ->
 
 -spec print_gc_stats(node(), gc_run_stats()) -> 'ok'.
 print_gc_stats(all, {Tags, Blobs}) ->
-    error_logger:info_report({"Total GC Stats"}),
-    print_obj_stats(tag, Tags),
-    print_obj_stats(blob, Blobs);
+    lager:info("Total GC Stats: ~p  ~p",
+               [obj_stats(tag, Tags), obj_stats(blob, Blobs)]);
 print_gc_stats(Node, {Tags, Blobs}) ->
-    error_logger:info_report({"Node GC Stats", Node}),
-    print_obj_stats(tag, Tags),
-    print_obj_stats(blob, Blobs).
--spec print_obj_stats(object_type(), obj_stats()) -> 'ok'.
-print_obj_stats(Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
-    error_logger:info_report({Type, "kept", {KeptF, KeptB},
-                              "deleted", {DelF, DelB}}).
+    lager:info("Node GC Stats for ~p: ~p  ~p",
+               [Node, obj_stats(tag, Tags), obj_stats(blob, Blobs)]).
+-spec obj_stats(object_type(), obj_stats()) -> term().
+obj_stats(Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
+    {Type, "kept", {KeptF, KeptB}, "deleted", {DelF, DelB}}.
 
 
 % GC4) Delete old deleted tags from the +deleted metatag
@@ -912,7 +904,7 @@ print_obj_stats(Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
 
 -spec process_deleted([object_name()], ets:tab()) -> 'ok'.
 process_deleted(Tags, Ages) ->
-    error_logger:info_report({"GC: Pruning +deleted"}),
+    lager:info("GC: Pruning +deleted"),
     Now = now(),
 
     % Let's start with the current list of deleted tags
@@ -937,7 +929,7 @@ process_deleted(Tags, Ages) ->
                       ets:delete(Ages, Tag);
                   true when Diff > ?DELETED_TAG_EXPIRES ->
                       % Tag ready to be removed from +deleted
-                      error_logger:info_report({"REMOVE DELETED", Tag}),
+                      lager:info("REMOVED ~p from +DELETED", [Tag]),
                       ddfs_master:tag_operation({delete_tagname, Tag},
                                                 <<"+deleted">>,
                                                 ?TAG_UPDATE_TIMEOUT);
@@ -1000,7 +992,7 @@ rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
           when length(Present) =:= 0, length(Recovered) =:= 0 ->
             % We have no good copies from which to generate new replicas;
             % we have no option but to live with the current information.
-            error_logger:warning_report({"GC: all replicas missing!!!", BlobName}),
+            lager:warning("GC: all replicas missing for ~p!!!", [BlobName]),
             noupdate;
         {_NumPresent, NumRecovered} ->
             % Extra replicas are needed; we generate one new replica at a
@@ -1066,7 +1058,7 @@ replicator(#rep_state{ref = Ref, timeouts = TO} = S) ->
             S1 = do_put_blob(S, BlobName, SrcPeer, SrcNode, PutUrl),
             replicator(S1#rep_state{ref = Ref + 1});
         rr_end ->
-            error_logger:info_report({"GC: replication ending with Ref/TO:", Ref, TO}),
+            lager:info("GC: replication ending with Ref ~p, TO ~p", [Ref, TO]),
             ok
     end.
 
@@ -1088,18 +1080,18 @@ wait_put_blob(#rep_state{ref = Ref, timeouts = TO} = S, SrcNode, PutUrl) ->
             add_replicas(S#rep_state.master, BlobName, NewUrls),
             S;
         {Ref, B, PU, E} ->
-            error_logger:info_report({"GC: replication error:", B, PU, E}),
+            lager:info("GC: error replicating ~p to ~p: ~p", [B, PU, E]),
             S;
         {_OldRef, _B, PU, {ok, BlobName, NewUrls}} ->
             % Delayed response.
-            error_logger:info_report({"GC: delayed replication:", BlobName, PU, NewUrls}),
+            lager:info("GC: delayed replication of ~p to ~p: ~p", [BlobName, PU, NewUrls]),
             add_replicas(S#rep_state.master, BlobName, NewUrls),
             wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl);
         {_OldRef, B, PU, OldResult} ->
-            error_logger:info_report({"GC: replication error:", B, PU, OldResult}),
+            lager:info("GC: error replicating ~p to ~p: ~p", [B, PU, OldResult]),
             wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl)
     after ?GC_PUT_TIMEOUT ->
-            error_logger:info_report({"GC: replication timeout:", SrcNode, PutUrl}),
+            lager:info("GC: replication timeout on ~p for ~p", [SrcNode, PutUrl]),
             S#rep_state{timeouts = TO + 1}
     end.
 
@@ -1122,7 +1114,7 @@ update_tag(S, T, Retries) ->
             % If there is any error, we cannot ensure safety in
             % removing any blacklisted nodes; reset the safe
             % blacklist.
-            error_logger:info_report({"GC: Unable to retrieve tag (rr_tags)", T}),
+            lager:info("GC: Unable to retrieve tag ~p (rr_tags)", [T]),
             S#state{safe_blacklist = gb_sets:empty()}
     end.
 
@@ -1132,8 +1124,8 @@ log_blacklist_change(Tag, Old, New) ->
         true ->
             ok;
         false ->
-            error_logger:info_report({"GC: safe blacklist shrunk while processing",
-                                      Tag, gb_sets:to_list(Old), gb_sets:to_list(New)})
+            lager:info("GC: safe blacklist shrunk from ~p to ~p while processing ~p",
+                       [gb_sets:to_list(Old), gb_sets:to_list(New), Tag])
     end.
 
 % RR2) Update tags that contain blobs that were re-replicated, and/or
@@ -1157,7 +1149,8 @@ update_tag_body(S, Tag, Id, TagUrls, TagReplicas) ->
             % the safe_blacklist.
             SBL2 = gb_sets:subtract(SBL1, gb_sets:from_list(TagReplicas)),
             Msg = {gc_rr_update, Updates, S#state.blacklist, Id},
-            error_logger:info_report({"Updating tag", Msg}),
+            lager:info("Updating tag ~p with ~p (blacklist ~p)",
+                       [Id, Updates, S#state.blacklist]),
             ddfs_master:tag_notify(Msg, Tag),
             log_blacklist_change(Tag, S#state.safe_blacklist, SBL2),
             S#state{safe_blacklist = SBL2}

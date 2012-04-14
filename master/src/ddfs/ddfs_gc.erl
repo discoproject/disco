@@ -23,7 +23,7 @@ gc_status() ->
 
 -spec abort(term(), atom()) -> no_return().
 abort(Msg, Code) ->
-    error_logger:warning_report({"GC: aborted", Msg}),
+    lager:warning("GC: aborted with ~p", [Msg]),
     exit(Code).
 
 
@@ -55,7 +55,7 @@ start_gc(Root, DeletedAges, GCMaxDuration) ->
             Idle = ?GC_INTERVAL - (Wait rem ?GC_INTERVAL),
             idle(Idle);
         E ->
-            error_logger:error_report({"GC: error starting", E}),
+            lager:error("GC: unable to start due to ~p", [E]),
             idle(?GC_INTERVAL)
     end,
     start_gc(Root, DeletedAges, GCMaxDuration).
@@ -80,18 +80,18 @@ start_gc_wait(Pid, Interval) ->
     Start = now(),
     receive
         {'EXIT', Pid, Reason} ->
-            error_logger:error_report({"GC: exit", Pid, Reason});
+            lager:error("GC: exited with ~p", [Reason]);
         {'EXIT', Other, Reason} ->
-            error_logger:error_report({"GC: unexpected exit", Other, Reason}),
+            lager:error("GC: got unexpected exit of ~p: ~p", [Other, Reason]),
             start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
         {From, gc_status} when is_pid(From) ->
             ddfs_gc_main:gc_status(Pid, From),
             start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
         Other ->
-            error_logger:error_report({"GC: unexpected msg exit", Other}),
+            lager:error("GC: got unexpected msg ~p", [Other]),
             start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)))
     after Interval ->
-            error_logger:error_report({"GC: timeout exit"}),
+            lager:error("GC: completion timed out"),
             exit(Pid, force_timeout)
     end.
 

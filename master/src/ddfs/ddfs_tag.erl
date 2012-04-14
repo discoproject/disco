@@ -365,7 +365,7 @@ do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
                     replicas = DestNodes,
                     url_cache = init_url_cache(NewUrls)};
         {error, _} = E ->
-            error_logger:error_report({"GC: unable to update tag", TagName, E}),
+            lager:error("GC: unable to update tag ~p: ~p", [TagName, E]),
             S
     end.
 

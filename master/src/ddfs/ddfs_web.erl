@@ -46,8 +46,7 @@ op('POST', "/ddfs/ctrl/hosted_tags", Req) ->
                 {ok, Tags} ->
                     okjson(Tags, Req);
                 E ->
-                    error_logger:warning_report({"/ddfs/ctrl/hosted_tags", Host,
-                                                 "failed"}),
+                    lager:warning("/ddfs/ctrl/hosted_tags failed for ~p", [Host]),
                     on_error(E, Req)
             end
         end,
@@ -107,7 +106,7 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
         {ok, Urls} ->
             okjson([list_to_binary(U) || U <- Urls], Req);
         E ->
-            error_logger:warning_report({"/ddfs/new_blob failed", E}),
+            lager:warning("/ddfs/new_blob failed: ~p", [E]),
             on_error(E, Req)
     end;
 

@@ -53,7 +53,7 @@
 %% API functions
 
 start_link() ->
-    error_logger:info_report([{"DDFS master starts"}]),
+    lager:info("DDFS master starts"),
     case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
@@ -229,7 +229,7 @@ handle_info({'DOWN', _, _, Pid, _}, S) ->
 %% gen_server callback stubs
 
 terminate(Reason, _State) ->
-    error_logger:warning_report({"DDFS master dies", Reason}).
+    lager:warning("DDFS master died: ~p", [Reason]).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
@@ -307,7 +307,6 @@ do_tag_notify(M, Tag, #state{tags = Tags, tag_cache = Cache} = S) ->
 
 -spec do_update_nodes([{node(), boolean(), boolean()}], state()) -> state().
 do_update_nodes(NewNodes, #state{nodes = Nodes, tags = Tags} = S) ->
-    error_logger:info_report({"DDFS UPDATE NODES", NewNodes}),
     WriteBlacklist = lists:sort([Node || {Node, false, _} <- NewNodes]),
     ReadBlacklist = lists:sort([Node || {Node, _, false} <- NewNodes]),
     OldNodes = gb_trees:from_orddict(Nodes),

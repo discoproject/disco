@@ -32,8 +32,8 @@ gc_node_init(Master, Now, Phase) ->
     _ = ets:new(blob, [named_table, set, private]),
     traverse(Now, Root, VolNames, blob),
     traverse(Now, Root, VolNames, tag),
-    error_logger:info_report({"GC: # blobs", ets:info(blob, size)}),
-    error_logger:info_report({"GC: # tags", ets:info(tag, size)}),
+    lager:info("GC: # blobs ~p", [ets:info(blob, size)]),
+    lager:info("GC: # tags ~p", [ets:info(tag, size)]),
 
     % Now, dispatch to the phase that is running on the master.
     gc_node(Master, Now, Root, Phase).
@@ -162,7 +162,7 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
 -spec delete_if_expired(file:filename(), float(),
                         non_neg_integer(), boolean()) -> boolean().
 delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
-    error_logger:info_report({"GC: Deleting expired object (paranoid)", Path}),
+    lager:info("GC: Deleting expired object (paranoid) at ~p", [Path]),
     Trash = "!trash." ++ filename:basename(Path),
     Deleted = filename:join(filename:dirname(Path), Trash),
     % Chmod u+w deleted files, so they can removed safely with rm without -f
@@ -173,7 +173,7 @@ delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
     true;
 
 delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
-    error_logger:info_report({"GC: Deleting expired object", Path}),
+    lager:info("GC: Deleting expired object at ~p", [Path]),
     _ = prim_file:delete(Path),
     timer:sleep(100),
     true;
