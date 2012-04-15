@@ -32,7 +32,7 @@ spawn_node(Host, IsMaster) ->
         {_, {error, {already_running, Node}}} ->
             node_monitor(Host, Node, {not(IsMaster), true});
         {_, {error, timeout}} ->
-            lager:info("Connection timed out to", [Host]),
+            lager:info("Connection timed out to ~p", [Host]),
             disco_server:connection_status(Host, down);
         Error ->
             lager:warning("Spawning node at ~p failed: ~p", [Host, Error]),
