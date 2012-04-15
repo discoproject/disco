@@ -46,7 +46,7 @@ ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
 
 EPLT  = .dialyzer_plt
 
-.PHONY: master clean test dist-clean doc doc-clean doc-test
+.PHONY: master clean test dist-clean doc doc-clean doc-test dep-clean
 .PHONY: install \
 	install-master \
 	install-core \
@@ -62,6 +62,9 @@ master: Makefile
 clean:
 	@ (cd master && ./rebar clean)
 	- rm -Rf lib/build lib/disco.egg-info
+
+dep-clean:
+	- rm -Rf master/deps
 
 test:
 	@ (cd master && ./rebar -C eunit.config get-deps eunit)
