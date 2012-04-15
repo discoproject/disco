@@ -32,7 +32,7 @@ loop() ->
                     ok
             end;
         E ->
-            lager:info("Tempgc: master error", [E]),
+            lager:info("Tempgc: master error: ~p", [E]),
             % master busy, try again after GC_INTERVAL
             ok
     end,
