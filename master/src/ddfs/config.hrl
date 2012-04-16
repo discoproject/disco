@@ -1,28 +1,28 @@
 
 -define(SECOND, 1000).
--define(MINUTE, 60 * ?SECOND).
--define(HOUR, 60 * ?MINUTE).
--define(DAY, 24 * ?HOUR).
--define(MB, 1024 * 1024).
+-define(MINUTE, (60 * ?SECOND)).
+-define(HOUR, (60 * ?MINUTE)).
+-define(DAY, (24 * ?HOUR)).
+-define(MB, (1024 * 1024)).
 
 % Maximum length of tag/blob prefix
 -define(NAME_MAX, 511).
 
 % How long ddfs node startup can take.  The most time-consuming part
 % is the scanning of the tag objects in the node's DDFS volumes.
--define(NODE_STARTUP, 1 * ?MINUTE).
+-define(NODE_STARTUP, (1 * ?MINUTE)).
 
 % How long to wait on the master for replies from nodes.
--define(NODE_TIMEOUT, 10 * ?SECOND).
+-define(NODE_TIMEOUT, (10 * ?SECOND)).
 
 % How long to wait for a reply from an operation coordinated by the
 % master that accesses nodes.  This value should be larger than
 % NODE_TIMEOUT.
--define(NODEOP_TIMEOUT, 1 * ?MINUTE).
+-define(NODEOP_TIMEOUT, (1 * ?MINUTE)).
 
 % The minimum amount of free space a node must have, to be considered
 % a primary candidate host for a new blob.
--define(MIN_FREE_SPACE, 1024 * ?MB).
+-define(MIN_FREE_SPACE, (1024 * ?MB)).
 
 % The maximum number of HTTP connections to queue up on a busy system.
 -define(HTTP_QUEUE_LENGTH, 100).
@@ -34,24 +34,24 @@
 -define(HTTP_MAX_CONNS, 128).
 
 % How long to keep a PUT request in queue if the system is busy.
--define(PUT_WAIT_TIMEOUT, 1 * ?MINUTE).
+-define(PUT_WAIT_TIMEOUT, (1 * ?MINUTE)).
 
 % How long to keep a GET request in queue if the system is busy.
--define(GET_WAIT_TIMEOUT, 1 * ?MINUTE).
+-define(GET_WAIT_TIMEOUT, (1 * ?MINUTE)).
 
 % An unused loaded tag expires in TAG_EXPIRES milliseconds.  Note that
 % if TAG_EXPIRES is not smaller than GC_INTERVAL, tags will never
 % expire from the memory cache and will always take up memory.
--define(TAG_EXPIRES, 10 * ?HOUR).
+-define(TAG_EXPIRES, (10 * ?HOUR)).
 
 % How often the master's cache of all known tag names is refreshed.
 % This refresh is only needed to purge deleted tags eventually from
 % the tag cache. It doesn't harm to have a long interval.
--define(TAG_CACHE_INTERVAL, 10 * ?MINUTE).
+-define(TAG_CACHE_INTERVAL, (10 * ?MINUTE)).
 
 % How soon a tag object initialized in memory expires if it's content
 % cannot be fetched from the cluster.
--define(TAG_EXPIRES_ONERROR, 1 * ?SECOND).
+-define(TAG_EXPIRES_ONERROR, (1 * ?SECOND)).
 
 % How often a DDFS node should refresh its tag cache from disk.
 -define(FIND_TAGS_INTERVAL, ?DAY).
@@ -63,18 +63,18 @@
 % reply. A long interval also increases the likelihood that the server
 % crashes before the commit has finished successfully, making requests
 % more unreliable.
--define(DELAYED_FLUSH_INTERVAL, 1 * ?SECOND).
+-define(DELAYED_FLUSH_INTERVAL, (1 * ?SECOND)).
 
 % How long to wait between garbage collection runs.
 -define(GC_INTERVAL, ?DAY).
 
 % Max duration for a GC run.  This should be smaller than
 % min(ORPHANED_{BLOB,TAG}_EXPIRES).
--define(GC_MAX_DURATION, 3 * ?DAY).
+-define(GC_MAX_DURATION, (3 * ?DAY)).
 
 % How long to wait after startup for cluster to stabilize before
 % starting the first GC run.
--define(GC_DEFAULT_INITIAL_WAIT, 5 * ?MINUTE).
+-define(GC_DEFAULT_INITIAL_WAIT, (5 * ?MINUTE)).
 
 % Maximum number of times we try to bring up a node that failed during
 % GC before we abort GC.
@@ -83,7 +83,7 @@
 % The longest potential interval between messages in the GC protocol;
 % used to ensure GC makes forward progress.  This can be set to the
 % estimated time to traverse all the volumes on a DDFS node.
--define(GC_PROGRESS_INTERVAL, 30 * ?MINUTE).
+-define(GC_PROGRESS_INTERVAL, (30 * ?MINUTE)).
 
 % Number of extra replicas (i.e. lost replicas recovered during GC) to
 % allow before deleting extra replicas.
@@ -93,7 +93,7 @@
 -define(FILE_MODE, 8#00400).
 
 % How often to check available disk space in ddfs_node.
--define(DISKSPACE_INTERVAL, 10 * ?SECOND).
+-define(DISKSPACE_INTERVAL, (10 * ?SECOND)).
 
 % The maximum size of payloads of HTTP requests to the /ddfs/tag/
 % prefix.
@@ -112,7 +112,7 @@
 % Timeout for re-replicating a single blob over HTTP PUT.  This
 % depends on the largest blobs hosted by DDFS, and the speed of the
 % cluster network.
--define(GC_PUT_TIMEOUT, 180 * ?MINUTE).
+-define(GC_PUT_TIMEOUT, (180 * ?MINUTE)).
 
 % Delete !partial files after this many milliseconds.
 -define(PARTIAL_EXPIRES, ?DAY).
@@ -120,10 +120,10 @@
 % When orphaned blob can be deleted.  This should be large enough that
 % you can upload all the new blobs of a tag and perform the tag update
 % within this time.
--define(ORPHANED_BLOB_EXPIRES, 5 * ?DAY).
+-define(ORPHANED_BLOB_EXPIRES, (5 * ?DAY)).
 
 % When orphaned tag can be deleted.
--define(ORPHANED_TAG_EXPIRES, 5 * ?DAY).
+-define(ORPHANED_TAG_EXPIRES, (5 * ?DAY)).
 
 % How long a tag has to stay on the deleted list before
 % we can permanently forget it, after all known instances
@@ -137,7 +137,7 @@
 % This value _must_ be larger than the other time-related DDFS
 % parameters listed in this file.  In particular, it must be larger
 % than ORPHANED_TAG_EXPIRES.
--define(DELETED_TAG_EXPIRES, 30 * ?DAY).
+-define(DELETED_TAG_EXPIRES, (30 * ?DAY)).
 
 % How many times a tag operation should be retried before aborting.
 -define(MAX_TAG_OP_RETRIES, 3).
@@ -145,4 +145,4 @@
 % How long to wait before timing out a tag retrieval.  This should be
 % large enough to read a large tag object off the disk and send it
 % over the network.
--define(GET_TAG_TIMEOUT, 5 * ?MINUTE).
+-define(GET_TAG_TIMEOUT, (5 * ?MINUTE)).
