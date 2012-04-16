@@ -72,6 +72,8 @@ op('GET', "/ddfs/ctrl/gc_status", Req) ->
     case ddfs_gc:gc_status() of
         {ok, not_running} ->
             okjson(<<"">>, Req);
+        {ok, init_wait} ->
+            okjson(<<"GC is waiting for cluster to stabilize after startup.">>, Req);
         {ok, Phase} ->
             okjson(list_to_binary("GC is currently running in phase "
                                   ++ atom_to_list(Phase) ++ "."), Req);

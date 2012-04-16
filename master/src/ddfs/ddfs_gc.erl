@@ -11,7 +11,7 @@
 
 -define(CALL_TIMEOUT, 30 * ?SECOND).
 
--spec gc_status() -> {ok, not_running | phase()} | {error, term()}.
+-spec gc_status() -> {ok, init_wait | not_running | phase()} | {error, term()}.
 gc_status() ->
     ?MODULE ! {self(), gc_status},
     receive
@@ -36,12 +36,30 @@ start_gc(Root) ->
             true -> list_to_integer(disco:get_setting("DDFS_GC_INITIAL_WAIT")) * ?MINUTE;
             false -> ?GC_DEFAULT_INITIAL_WAIT
         end,
-    timer:sleep(InitialWait),
+    initial_wait(InitialWait),
     process_flag(trap_exit, true),
     GCMaxDuration = lists:min([?GC_MAX_DURATION,
                                ?ORPHANED_BLOB_EXPIRES,
                                ?ORPHANED_TAG_EXPIRES]),
     start_gc(Root, ets:new(deleted_ages, [set, public]), GCMaxDuration).
+
+-spec initial_wait(timeout()) -> ok.
+initial_wait(InitialWait)
+  when InitialWait =< 0 -> ok;
+initial_wait(InitialWait) ->
+    Start = now(),
+    receive
+        {From, gc_status} ->
+            From ! {ok, init_wait},
+            Wait = round(timer:now_diff(now(), Start) / 1000),
+            initial_wait(InitialWait - Wait);
+        Other ->
+            lager:error("GC: got unexpected msg ~p", [Other]),
+            Wait = round(timer:now_diff(now(), Start) / 1000),
+            initial_wait(InitialWait - Wait)
+    after InitialWait ->
+            ok
+    end.
 
 -spec start_gc(string(), ets:tab(), non_neg_integer()) -> no_return().
 start_gc(Root, DeletedAges, GCMaxDuration) ->
@@ -61,6 +79,8 @@ start_gc(Root, DeletedAges, GCMaxDuration) ->
     start_gc(Root, DeletedAges, GCMaxDuration).
 
 -spec idle(timeout()) -> ok.
+idle(Timeout)
+  when Timeout =< 0 -> ok;
 idle(Timeout) ->
     Start = now(),
     receive
