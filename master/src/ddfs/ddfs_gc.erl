@@ -53,11 +53,11 @@ initial_wait(InitialWait) ->
     receive
         {From, _Req} ->
             From ! {ok, init_wait},
-            Wait = round(timer:now_diff(now(), Start) / 1000),
+            Wait = timer:now_diff(now(), Start) div 1000,
             initial_wait(InitialWait - Wait);
         Other ->
             lager:error("GC: got unexpected msg ~p", [Other]),
-            Wait = round(timer:now_diff(now(), Start) / 1000),
+            Wait = timer:now_diff(now(), Start) div 1000,
             initial_wait(InitialWait - Wait)
     after InitialWait ->
             ok
@@ -65,12 +65,12 @@ initial_wait(InitialWait) ->
 
 -spec start_gc(string(), ets:tab(), non_neg_integer()) -> no_return().
 start_gc(Root, DeletedAges, GCMaxDuration) ->
+    Start = now(),
     case ddfs_gc_main:start_link(Root, DeletedAges) of
         {ok, Gc} ->
-            Start = now(),
             start_gc_wait(Gc, GCMaxDuration),
             % timer:now_diff() returns microseconds.
-            Wait = round(timer:now_diff(now(), Start) / 1000),
+            Wait = timer:now_diff(now(), Start) div 1000,
             % Wait until the next scheduled gc run slot.
             Idle = ?GC_INTERVAL - (Wait rem ?GC_INTERVAL),
             idle(Idle);
@@ -88,10 +88,10 @@ idle(Timeout) ->
     receive
         {From, status} ->
             From ! {ok, not_running},
-            Wait = round(timer:now_diff(now(), Start) / 1000),
+            Wait = Timeout - timer:now_diff(now(), Start) div 1000,
             idle(Wait);
         _Other ->
-            Wait = round(timer:now_diff(now(), Start) / 1000),
+            Wait = Timeout - timer:now_diff(now(), Start) div 1000,
             idle(Wait)
     after Timeout ->
             ok
@@ -105,13 +105,13 @@ start_gc_wait(Pid, Interval) ->
             lager:error("GC: exited with ~p", [Reason]);
         {'EXIT', Other, Reason} ->
             lager:error("GC: got unexpected exit of ~p: ~p", [Other, Reason]),
-            start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
+            start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000));
         {From, status} when is_pid(From) ->
             ddfs_gc_main:gc_status(Pid, From),
-            start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
+            start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000));
         Other ->
             lager:error("GC: got unexpected msg ~p", [Other]),
-            start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)))
+            start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000))
     after Interval ->
             lager:error("GC: completion timed out"),
             exit(Pid, force_timeout)
