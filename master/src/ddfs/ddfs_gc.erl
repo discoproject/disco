@@ -47,8 +47,6 @@ start_gc(Root) ->
     start_gc(Root, ets:new(deleted_ages, [set, public]), GCMaxDuration).
 
 -spec initial_wait(timeout()) -> ok.
-initial_wait(InitialWait)
-  when InitialWait =< 0 -> ok;
 initial_wait(InitialWait) ->
     Start = now(),
     receive
@@ -82,8 +80,6 @@ start_gc(Root, DeletedAges, GCMaxDuration) ->
     start_gc(Root, DeletedAges, GCMaxDuration).
 
 -spec idle(timeout()) -> ok.
-idle(Timeout)
-  when Timeout =< 0 -> ok;
 idle(Timeout) ->
     Start = now(),
     receive
