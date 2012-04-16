@@ -1,5 +1,5 @@
 -module(ddfs_gc).
--export([start_gc/1, gc_status/0, hosted_tags/1]).
+-export([start_gc/1, gc_request/1, hosted_tags/1]).
 
 % GC internal api.
 -export([abort/2]).
@@ -11,9 +11,11 @@
 
 -define(CALL_TIMEOUT, 5 * ?SECOND).
 
--spec gc_status() -> {ok, init_wait | not_running | phase()} | {error, term()}.
-gc_status() ->
-    ?MODULE ! {self(), gc_status},
+-type status() :: init_wait | not_running | phase().
+
+-spec gc_request(status) -> {ok, status()} | {error, term()}.
+gc_request(Request) ->
+    ?MODULE ! {self(), Request},
     receive
         R -> R
     after ?CALL_TIMEOUT ->
@@ -49,7 +51,7 @@ initial_wait(InitialWait)
 initial_wait(InitialWait) ->
     Start = now(),
     receive
-        {From, gc_status} ->
+        {From, _Req} ->
             From ! {ok, init_wait},
             Wait = round(timer:now_diff(now(), Start) / 1000),
             initial_wait(InitialWait - Wait);
@@ -84,7 +86,7 @@ idle(Timeout)
 idle(Timeout) ->
     Start = now(),
     receive
-        {From, gc_status} ->
+        {From, status} ->
             From ! {ok, not_running},
             Wait = round(timer:now_diff(now(), Start) / 1000),
             idle(Wait);
@@ -104,7 +106,7 @@ start_gc_wait(Pid, Interval) ->
         {'EXIT', Other, Reason} ->
             lager:error("GC: got unexpected exit of ~p: ~p", [Other, Reason]),
             start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
-        {From, gc_status} when is_pid(From) ->
+        {From, status} when is_pid(From) ->
             ddfs_gc_main:gc_status(Pid, From),
             start_gc_wait(Pid, round(Interval - (timer:now_diff(now(), Start) / 1000)));
         Other ->

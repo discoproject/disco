@@ -69,7 +69,7 @@ op('GET', "/ddfs/ctrl/gc_stats", Req) ->
     end;
 
 op('GET', "/ddfs/ctrl/gc_status", Req) ->
-    case ddfs_gc:gc_status() of
+    case ddfs_gc:gc_request(status) of
         {ok, not_running} ->
             okjson(<<"">>, Req);
         {ok, init_wait} ->
