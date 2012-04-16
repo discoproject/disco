@@ -80,7 +80,7 @@ function update_gcstats(data) {
     }
 
     setTimeout(function(){
-        $.getJSON("/disco/ctrl/gc_stats", update_gcstats);
+        $.getJSON("/ddfs/ctrl/gc_stats", update_gcstats);
     }, 10000);
 }
 
@@ -88,6 +88,6 @@ function update_gcstatus(data) {
     $("#gcstatus").text(data);
 
     setTimeout(function(){
-        $.getJSON("/disco/ctrl/gc_status", update_gcstatus);
+        $.getJSON("/ddfs/ctrl/gc_status", update_gcstatus);
     }, 10000);
 }
