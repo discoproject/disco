@@ -8,7 +8,7 @@
          add/3]).
 
 -record(input, {url :: binary(),
-                failed :: disco_util:timestamp()}).
+                failed :: erlang:timestamp()}).
 -type input() :: #input{}.
 -type input_id() :: non_neg_integer().
 -type replica_id() :: non_neg_integer().
@@ -50,7 +50,7 @@ exclude(Exc, S) ->
 all(S) ->
     include(all_iids(S), S).
 
--spec replicas(input_id(), replica_id(), [{disco_util:timestamp(), labeled_rep()}],
+-spec replicas(input_id(), replica_id(), [{erlang:timestamp(), labeled_rep()}],
                state()) -> [labeled_rep()].
 replicas(Iid, Rid, Replicas, {T, _MaxIid} = S) ->
     case gb_trees:lookup({Iid, Rid}, T) of

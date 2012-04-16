@@ -6,7 +6,7 @@
 -record(state, {task :: task(),
                 inputs,
                 master :: node(),
-                start_time :: disco_util:timestamp(),
+                start_time :: erlang:timestamp(),
                 child_pid :: 'none' | non_neg_integer(),
                 persisted_outputs :: [string()],
                 output_filename :: 'none' | string(),

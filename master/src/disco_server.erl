@@ -13,7 +13,7 @@
 -include_lib("kernel/include/file.hrl").
 -include("disco.hrl").
 
--type connection_status() :: 'undefined' | 'up' | disco_util:timestamp().
+-type connection_status() :: 'undefined' | 'up' | erlang:timestamp().
 
 -record(dnode, {host :: host_name(),
                 node_mon :: pid(),

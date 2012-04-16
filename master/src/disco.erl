@@ -163,7 +163,7 @@ format_time(Ms) when is_integer(Ms) ->
 format_time(Ms, Second, Minute, Hour) ->
     format("~B:~2.10.0B:~2.10.0B.~3.10.0B", [Hour, Minute, Second, Ms]).
 
--spec format_time_since(disco_util:timestamp()) -> nonempty_string().
+-spec format_time_since(erlang:timestamp()) -> nonempty_string().
 format_time_since(Time) ->
     format_time(timer:now_diff(now(), Time)).
 

@@ -1,10 +1,6 @@
 -module(disco_util).
 -export([groupby/2, join/2, format_timestamp/1]).
 
-% Define locally since this is not exported from stdlib/timer.erl or erts/erlang.erl.
--type timestamp() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
--export_type([timestamp/0]).
-
 -spec format_timestamp(erlang:timestamp()) -> binary().
 format_timestamp(TimeStamp) ->
     {Date, Time} = calendar:now_to_local_time(TimeStamp),
