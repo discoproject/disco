@@ -81,6 +81,16 @@ op('GET', "/ddfs/ctrl/gc_status", Req) ->
             on_error(E, Req)
     end;
 
+op('GET', "/ddfs/ctrl/gc_start", Req) ->
+    case ddfs_gc:gc_request(start) of
+        {ok, init_wait} ->
+            okjson(<<"">>, Req);
+        ok ->
+            okjson(<<"">>, Req);
+        E ->
+            on_error(E, Req)
+    end;
+
 op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
     case ddfs_master:safe_gc_blacklist() of
         {ok, Nodes} ->

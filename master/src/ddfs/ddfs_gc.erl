@@ -13,7 +13,8 @@
 
 -type status() :: init_wait | not_running | phase().
 
--spec gc_request(status) -> {ok, status()} | {error, term()}.
+-spec gc_request(status) -> {ok, status()} | {error, term()};
+                (start)  -> ok | {ok, init_wait} | {error, term()}.
 gc_request(Request) ->
     ?MODULE ! {self(), Request},
     receive
@@ -90,6 +91,8 @@ idle(Timeout) ->
             From ! {ok, not_running},
             Wait = Timeout - timer:now_diff(now(), Start) div 1000,
             idle(Wait);
+        {From, start} ->
+            From ! ok;
         _Other ->
             Wait = Timeout - timer:now_diff(now(), Start) div 1000,
             idle(Wait)
@@ -108,6 +111,9 @@ start_gc_wait(Pid, Interval) ->
             start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000));
         {From, status} when is_pid(From) ->
             ddfs_gc_main:gc_status(Pid, From),
+            start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000));
+        {From, start} when is_pid(From) ->
+            From ! ok,
             start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000));
         Other ->
             lager:error("GC: got unexpected msg ~p", [Other]),
