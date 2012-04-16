@@ -55,7 +55,7 @@ op('POST', "/ddfs/ctrl/hosted_tags", Req) ->
 op('GET', "/ddfs/ctrl/gc_stats", Req) ->
     case ddfs_master:gc_stats() of
         {ok, none} ->
-            okjson(<<"GC has not yet completed a run.">>, Req);
+            okjson(<<"">>, Req);
         {ok, {{{{TKF, TKB},{TDF, TDB}}, {{BKF, BKB}, {BDF,BDB}}}, TStamp}} ->
             When = disco_util:format_timestamp(TStamp),
             Resp = {struct, [{<<"timestamp">>, When},
@@ -73,7 +73,7 @@ op('GET', "/ddfs/ctrl/gc_status", Req) ->
         {ok, not_running} ->
             okjson(<<"">>, Req);
         {ok, init_wait} ->
-            okjson(<<"GC is waiting for cluster to stabilize after startup.">>, Req);
+            okjson(<<"GC is waiting for the cluster to stabilize after startup.">>, Req);
         {ok, Phase} ->
             okjson(list_to_binary("GC is currently running in phase "
                                   ++ atom_to_list(Phase) ++ "."), Req);
