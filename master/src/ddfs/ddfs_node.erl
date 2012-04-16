@@ -21,7 +21,7 @@
 -spec start_link(term()) -> no_return().
 start_link(Config) ->
     process_flag(trap_exit, true),
-    lager:info("DDFS node starts"),
+    lager:info("DDFS node starts on ~p", [node()]),
     case catch gen_server:start_link(
             {local, ddfs_node}, ddfs_node, Config, [{timeout, ?NODE_STARTUP}]) of
         {ok, _Server} ->
