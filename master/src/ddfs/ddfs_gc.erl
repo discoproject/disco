@@ -9,7 +9,7 @@
 -include("ddfs_tag.hrl").
 -include("ddfs_gc.hrl").
 
--define(CALL_TIMEOUT, 30 * ?SECOND).
+-define(CALL_TIMEOUT, 5 * ?SECOND).
 
 -spec gc_status() -> {ok, init_wait | not_running | phase()} | {error, term()}.
 gc_status() ->
