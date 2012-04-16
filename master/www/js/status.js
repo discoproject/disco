@@ -85,24 +85,18 @@ function update_gcstats(data){
 }
 
 function update_gcstatus(data){
-    $("#gcstatus").empty();
-    if (data === "") {
-        $("#gcstatus").append('<a href="#">Start GC</a>').click(start_gc);
-    } else {
-        $("#gcstatus").unbind('click').text(data);
-        setTimeout(function(){
-            $.getJSON("/ddfs/ctrl/gc_status", update_gcstatus);
-        }, 10000);
-    }
+    $("#gcstatus").unbind('click').empty();
+    if (data === "")
+        $("#gcstatus").append('<a href="#">Start GC</a>').show().click(start_gc);
+    else
+        $("#gcstatus").text(data);
+    setTimeout(function(){
+        $.getJSON("/ddfs/ctrl/gc_status", update_gcstatus);
+    }, 10000);
 }
 
 function start_gc(){
     $.getJSON("/ddfs/ctrl/gc_start", function(resp){
-        if (resp === "")
-            update_gcstatus("Starting GC");
-        else {
-            $("#gclog-msg").text(resp).show().fadeOut(2000);
-            update_gcstatus("");
-        }
+        $("#gcstatus").unbind('click').text(resp).show().fadeOut(2000);
     });
 }

@@ -84,9 +84,9 @@ op('GET', "/ddfs/ctrl/gc_status", Req) ->
 op('GET', "/ddfs/ctrl/gc_start", Req) ->
     case ddfs_gc:gc_request(start) of
         {ok, init_wait} ->
-            okjson(<<"">>, Req);
+            okjson(<<"GC is waiting">>, Req);
         ok ->
-            okjson(<<"">>, Req);
+            okjson(<<"GC has started">>, Req);
         E ->
             on_error(E, Req)
     end;
