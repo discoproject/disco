@@ -989,7 +989,7 @@ rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
             % recover lost blob replicas.
             {update, []};
         {0, 0}
-          when length(Present) =:= 0, length(Recovered) =:= 0 ->
+          when Present =:= [], Recovered =:= [] ->
             % We have no good copies from which to generate new replicas;
             % we have no option but to live with the current information.
             lager:warning("GC: all replicas missing for ~p!!!", [BlobName]),
