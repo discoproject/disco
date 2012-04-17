@@ -58,29 +58,26 @@ ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
 
 EPLT  = .dialyzer_plt
 
-.PHONY: master clean contrib test dist-clean doc doc-clean doc-test dep-clean
-.PHONY: install \
-	install-master \
+.PHONY: master clean test \
+	contrib \
+	dep dep-clean \
+	debian debian-clean \
+	doc doc-clean doc-test
+.PHONY: install uninstall \
 	install-core \
-	install-node \
+	install-discodb \
 	install-examples \
-	install-tests \
-	uninstall
-.PHONY: dialyzer typer
-.PHONY: debian debian-clean
+	install-master \
+	install-node \
+	install-tests
+.PHONY: dialyzer dialyzer-clean typer
 
-master: master/deps
+master: dep
 	@ (cd master && ./rebar compile)
-
-master/deps:
-	@ (cd master && ./rebar get-deps)
 
 clean:
 	@ (cd master && ./rebar clean)
 	- rm -Rf lib/build lib/disco.egg-info
-
-dep-clean:
-	- rm -Rf master/deps
 
 test:
 	@ (cd master && ./rebar -C eunit.config get-deps eunit)
@@ -89,14 +86,17 @@ contrib:
 	git submodule init
 	git submodule update
 
+dep:
+	@ (cd master && ./rebar get-deps)
+
+dep-clean:
+	- rm -Rf master/deps
+
 debian:
 	$(MAKE) -C pkg/debian
 
 debian-clean:
 	$(MAKE) -C pkg/debian clean
-
-dist-clean: clean debian-clean
-	- rm -Rf $(EPLT)
 
 doc:
 	$(MAKE) -C doc html
@@ -108,6 +108,11 @@ doc-test:
 	$(MAKE) -C doc doctest
 
 install: install-core install-node install-master
+
+uninstall:
+	- rm -f  $(TARGETBIN)/disco $(TARGETBIN)/ddfs
+	- rm -Rf $(TARGETLIB) $(TARGETDAT)
+	- rm -Ri $(TARGETCFG) $(TARGETSRV)
 
 install-core:
 	(cd lib && $(PY_INSTALL))
@@ -129,13 +134,12 @@ install-node: master \
 
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
-uninstall:
-	- rm -f  $(TARGETBIN)/disco $(TARGETBIN)/ddfs
-	- rm -Rf $(TARGETLIB) $(TARGETDAT)
-	- rm -Ri $(TARGETCFG) $(TARGETSRV)
-
 dialyzer: $(EPLT) master
 	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
+
+
+dialyzer-clean:
+	- rm -Rf $(EPLT)
 
 typer: $(EPLT)
 	$(TYPER) --plt $(EPLT) -r $(ESRC)
