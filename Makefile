@@ -122,7 +122,7 @@ install-discodb: contrib
 
 install-examples: $(TARGETLIB)/examples
 
-install-master: install-node \
+install-master: master \
 	$(TARGETDAT)/$(WWW) \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETCFG)/settings.py
