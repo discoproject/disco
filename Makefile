@@ -27,11 +27,11 @@ RELCFG = $(sysconfdir)/disco
 RELSRV = $(localstatedir)/disco
 
 # installation directories
-TARGETBIN = $(DESTDIR)$(bindir)
-TARGETLIB = $(DESTDIR)$(libdir)/disco
-TARGETDAT = $(DESTDIR)$(datadir)/disco
-TARGETCFG = $(DESTDIR)$(sysconfdir)/disco
-TARGETSRV = $(DESTDIR)$(localstatedir)/disco
+TARGETBIN = $(DESTDIR)$(RELBIN)
+TARGETLIB = $(DESTDIR)$(RELLIB)
+TARGETDAT = $(DESTDIR)$(RELDAT)
+TARGETCFG = $(DESTDIR)$(RELCFG)
+TARGETSRV = $(DESTDIR)$(RELSRV)
 
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
