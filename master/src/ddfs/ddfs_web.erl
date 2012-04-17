@@ -75,8 +75,7 @@ op('GET', "/ddfs/ctrl/gc_status", Req) ->
         {ok, init_wait} ->
             okjson(<<"GC is waiting for the cluster to stabilize after startup.">>, Req);
         {ok, Phase} ->
-            okjson(list_to_binary("GC is currently running in phase "
-                                  ++ atom_to_list(Phase) ++ "."), Req);
+            okjson(gc_phase_msg(Phase), Req);
         E ->
             on_error(E, Req)
     end;
@@ -237,6 +236,21 @@ if_set(Flag, QS, True, False) ->
         false ->
             False
     end.
+
+gc_phase_msg(start) ->
+    <<"GC is initializing (phase start).">>;
+gc_phase_msg(build_map) ->
+    <<"GC is scanning DDFS (phase build_map).">>;
+gc_phase_msg(map_wait) ->
+    <<"GC is scanning DDFS (phase map_wait).">>;
+gc_phase_msg(gc) ->
+    <<"GC is performing garbage collection (phase gc).">>;
+gc_phase_msg(rr_blobs) ->
+    <<"GC is re-replicating blobs (phase rr_blobs).">>;
+gc_phase_msg(rr_blobs_wait) ->
+    <<"GC is re-replicating blobs (phase rr_blobs_wait).">>;
+gc_phase_msg(rr_tags) ->
+    <<"GC is re-replicating tags (phase rr_tags).">>.
 
 -spec on_error(_, module()) -> _.
 on_error(timeout, Req) ->
