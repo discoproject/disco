@@ -523,7 +523,7 @@ handle_info({'EXIT', Pid, Reason}, #state{phase = Phase} = S) ->
             {stop, shutdown, S};
         {Node, Failures} ->
             lager:warning("GC: Node ~p disconnected (~p): ~p (~p)",
-                          Node, Failures, Reason, Phase),
+                          [Node, Failures, Reason, Phase]),
             schedule_retry(Node),
             {noreply, S}
     end;
