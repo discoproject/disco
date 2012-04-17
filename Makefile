@@ -67,8 +67,8 @@ EPLT  = .dialyzer_plt
 	install-core \
 	install-discodb \
 	install-examples \
-	install-master \
-	install-node \
+	install-master uninstall-master \
+	install-node uninstall-node \
 	install-tests
 .PHONY: dialyzer dialyzer-clean typer
 
@@ -109,10 +109,7 @@ doc-test:
 
 install: install-core install-node install-master
 
-uninstall:
-	- rm -f  $(TARGETBIN)/disco $(TARGETBIN)/ddfs
-	- rm -Rf $(TARGETLIB) $(TARGETDAT)
-	- rm -Ri $(TARGETCFG) $(TARGETSRV)
+uninstall: uninstall-master uninstall-node
 
 install-core:
 	(cd lib && $(PY_INSTALL))
@@ -127,16 +124,23 @@ install-master: master \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETCFG)/settings.py
 
+uninstall-master:
+	- rm -Rf $(TARGETDAT)
+	- rm -f  $(TARGETBIN)/disco $(TARGETBIN)/ddfs
+	- rm -Ri $(TARGETCFG)
+
 install-node: master \
 	$(TARGETLIB)/$(EBIN) \
 	$(addprefix $(TARGETLIB)/,$(EDEPS)) \
 	$(TARGETSRV)
 
+uninstall-node:
+	- rm -Rf $(TARGETLIB) $(TARGETSRV)
+
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
 dialyzer: $(EPLT) master
 	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
-
 
 dialyzer-clean:
 	- rm -Rf $(EPLT)
