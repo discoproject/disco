@@ -8,7 +8,7 @@
 -export([start/2, serve_ddfs_file/2, serve_disco_file/2]).
 
 start(MochiConfig, Roots) ->
-    lager:info("Starting ~p: ~p", [?MODULE, self()]),
+    error_logger:info_msg("Starting ~p on ~p", [?MODULE, node()]),
     mochiweb_http:start([
         {name, ddfs_get},
         {max, ?HTTP_MAX_CONNS},
