@@ -32,9 +32,8 @@ gc_node_init(Master, Now, Phase) ->
     _ = ets:new(blob, [named_table, set, private]),
     traverse(Now, Root, VolNames, blob),
     traverse(Now, Root, VolNames, tag),
-    error_logger:info_msg("GC: # blobs ~p on ~p", [ets:info(blob, size), node()]),
-    error_logger:info_msg("GC: # tags ~p on ~p", [ets:info(tag, size), node()]),
-
+    error_logger:info_msg("GC: found ~p blob, ~p tag candidates on ~p",
+                          [ets:info(blob, size), ets:info(tag, size), node()]),
     % Now, dispatch to the phase that is running on the master.
     gc_node(Master, Now, Root, Phase).
 

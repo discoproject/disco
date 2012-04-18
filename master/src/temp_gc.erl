@@ -28,11 +28,13 @@ loop() ->
                     process_dir(Dirs, gb_sets:from_ordset(Purged), Active);
                 E ->
                     % fresh install, try again after GC_INTERVAL
-                    error_logger:info_msg("Tempgc: error listing ~p: ~p", [DataRoot, E]),
+                    error_logger:info_msg("Tempgc: error listing ~p: ~p",
+                                          [DataRoot, E]),
                     ok
             end;
         E ->
-            error_logger:info_msg("Tempgc: master error: ~p", [E]),
+            error_logger:info_msg("Tempgc: error contacting master from ~p: ~p",
+                                  [node(), E]),
             % master busy, try again after GC_INTERVAL
             ok
     end,
@@ -99,5 +101,6 @@ process_job(JobPath, Purged) ->
             % Sleep here to prevent master and disk being DDOS'ed
             timer:sleep(100);
         E ->
-            error_logger:info_msg("Tempgc: error processing ~p: ~p", [JobPath, E])
+            error_logger:info_msg("Tempgc: error processing ~p: ~p",
+                                  [JobPath, E])
     end.

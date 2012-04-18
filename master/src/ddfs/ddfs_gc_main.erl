@@ -994,19 +994,31 @@ rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
             % we have no option but to live with the current information.
             lager:warning("GC: all replicas missing for ~p!!!", [BlobName]),
             noupdate;
-        {_NumPresent, NumRecovered} ->
+        {NumPresent, NumRecovered} ->
             % Extra replicas are needed; we generate one new replica at a
             % time, in a single-shot way. We use any available replicas as
             % sources, including those from blacklisted nodes.
             {RepNodes, _RepVols} = lists:unzip(Recovered),
             OkNodes = RepNodes ++ PresentNodes,
             case {try_put_blob(S, BlobName, OkNodes, BL), NumRecovered} of
-                {{error, _E}, 0} ->
+                {{error, E}, 0} ->
+                    lager:info("GC: rr for ~p "
+                               "(with ~p replicas recorded) "
+                               "failed: ~p",
+                               [BlobName, NumPresent, E]),
                     noupdate;
-                {{error, _E}, _} ->
+                {{error, E}, _} ->
+                    lager:info("GC: rr for ~p "
+                               "(with ~p/~p replicas recorded/recovered) "
+                               "failed: ~p",
+                               [BlobName, NumPresent, NumRecovered, E]),
                     % We should record the usable recovered replicas.
                     {update, []};
                 {pending, _} ->
+                    lager:info("GC: rr for ~p "
+                               "(with ~p/~p replicas recorded/recovered) "
+                               "initiated",
+                               [BlobName, NumPresent, NumRecovered]),
                     % Mark the blob as updatable (see update_replicas/3).
                     {update, []}
             end
