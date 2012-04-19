@@ -179,18 +179,18 @@ do_get_diskspace(#state{vols = Vols}) ->
                 end, {0, 0}, Vols).
 
 -spec do_put_blob(nonempty_string(), {pid(), _}, #state{}) ->
-                 {'reply', 'full' | {'error', 'no_volumes'}, #state{}}
+                         {'reply', 'full' | {'error', 'no_volumes'}, #state{}}
                              | {'noreply', #state{}}.
 do_put_blob(_BlobName, _From, #state{vols = []} = S) ->
     {reply, {error, no_volumes}, S};
-do_put_blob(BlobName, {Pid, _Ref} = From, #state{putq = Q} = S) ->
+do_put_blob(BlobName, {Pid, _Ref} = From,
+            #state{putq = Q, nodename = NodeName,
+                   root = Root, vols = Vols} = S) ->
     Reply = fun() ->
-                    {_Space, VolName} = choose_vol(S#state.vols),
+                    {_Space, VolName} = choose_vol(Vols),
                     {ok, Local, Url} = ddfs_util:hashdir(list_to_binary(BlobName),
-                                                         S#state.nodename,
-                                                         "blob",
-                                                         S#state.root,
-                                                         VolName),
+                                                         NodeName, "blob",
+                                                         Root, VolName),
                     case ddfs_util:ensure_dir(Local) of
                         ok ->
                             gen_server:reply(From, {ok, Local, Url});
@@ -259,7 +259,7 @@ do_put_tag_data(Tag, Data, S) ->
 -spec do_put_tag_commit(tagname(), [{node(), volume_name()}], #state{}) ->
                        {{'ok', url()} | {'error', _}, #state{}}.
 do_put_tag_commit(Tag, TagVol, S) ->
-    {value, {_, VolName}} = lists:keysearch(node(), 1, TagVol),
+    {_, VolName} = lists:keyfind(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag,
                                          S#state.nodename,
                                          "tag",
