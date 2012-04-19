@@ -327,26 +327,29 @@ handle_cast(start, #state{phase = start} = S) ->
             {stop, shutdown, S}
     end;
 
-handle_cast({retry_node, Node}, #state{phase = Phase} = S) ->
+handle_cast({retry_node, Node},
+	    #state{phase = Phase, gc_peers = GC_Peers,
+		   num_pending_reqs = Num_pending_reqs} = S) ->
     lager:info("GC: retrying connection to ~p (in phase ~p)", [Node, Phase]),
     Pid = ddfs_gc_node:start_gc_node(Node, self(), now(), Phase),
-    Peers = update_peer(S#state.gc_peers, Node, Pid),
+    Peers = update_peer(GC_Peers, Node, Pid),
     case Phase of
         P when P =:= build_map; P =:= map_wait ->
             Pending = resend_pending(Node, Pid),
             % Assert an invariant.
-            true = (Pending =< S#state.num_pending_reqs),
+            true = (Pending =< Num_pending_reqs),
             ok;
         _ ->
             ok
     end,
     {noreply, S#state{gc_peers = Peers}};
 
-handle_cast({build_map, [T|Tags]}, #state{phase = build_map} = S) ->
+handle_cast({build_map, [T|Tags]},
+	    #state{phase = build_map, num_pending_reqs = Pending_reqs} = S) ->
     case catch check_tag(T, S, ?MAX_TAG_OP_RETRIES) of
         {ok, Sent} ->
             gen_server:cast(self(), {build_map, Tags}),
-            Pending = S#state.num_pending_reqs + Sent,
+            Pending = Pending_reqs + Sent,
             {noreply, S#state{num_pending_reqs = Pending}};
         E ->
             % We failed to handle this tag; we cannot safely proceed
@@ -390,7 +393,9 @@ handle_cast({build_map, []}, #state{phase = build_map} = S) ->
 
 handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                                                gc_stats = Stats,
-                                               pending_nodes = Pending} = S) ->
+                                               pending_nodes = Pending,
+					       deleted_ages = DeletedAges,
+					       tags = Tags} = S) ->
     print_gc_stats(Node, NodeStats),
     NewStats = add_gc_stats(Stats, NodeStats),
     NewPending = gb_sets:delete(Node, Pending),
@@ -398,7 +403,7 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
              0 ->
                  % This was the last node we were waiting for to
                  % finish GC.  Update the deleted tag.
-                 process_deleted(S#state.tags, S#state.deleted_ages),
+                 process_deleted(Tags, DeletedAges),
                  % Due to tag deletion by GC, we might be able to free
                  % up some entries from the tag cache in ddfs_master.
                  ddfs_master:refresh_tag_cache(),
@@ -444,20 +449,22 @@ handle_cast({rr_tags, [T|Tags]}, #state{phase = rr_tags} = S) ->
     S1 = update_tag(S, T, ?MAX_TAG_OP_RETRIES),
     gen_server:cast(self(), {rr_tags, Tags}),
     {noreply, S1};
-handle_cast({rr_tags, []}, #state{phase = rr_tags} = S) ->
+handle_cast({rr_tags, []}, #state{phase = rr_tags, gc_peers = GC_Peers,
+				  safe_blacklist = Blacklist} = S) ->
     % We are done with the RR phase, and hence with GC!
     lager:info("GC: tag update/replication done, done with GC!"),
-    node_broadcast(S#state.gc_peers, end_rr),
+    node_broadcast(GC_Peers, end_rr),
     % Update ddfs_master with the safe_blacklist.
-    ddfs_master:safe_gc_blacklist(S#state.safe_blacklist),
+    ddfs_master:safe_gc_blacklist(Blacklist),
     cleanup_for_exit(S),
     {stop, shutdown, S}.
 
-handle_info({check_blob_result, LocalObj, Status}, #state{phase = Phase} = S)
+handle_info({check_blob_result, LocalObj, Status},
+	    #state{phase = Phase, num_pending_reqs = NumPendingReqs} = S)
   when Phase =:= build_map;
        Phase =:= map_wait ->
     Checked = check_blob_result(LocalObj, Status),
-    Pending = S#state.num_pending_reqs - Checked,
+    Pending = NumPendingReqs - Checked,
     % Assert an invariant.
     true = (Pending >= 0),
     S1 = case Pending of
@@ -471,9 +478,9 @@ handle_info({check_blob_result, LocalObj, Status}, #state{phase = Phase} = S)
          end,
     {noreply, S1};
 
-handle_info(check_progress, #state{phase = Phase} = S)
+handle_info(check_progress, #state{phase = Phase, last_response_time = LRT} = S)
   when Phase =:= build_map; Phase =:= map_wait; Phase =:= gc ->
-    Since = timer:now_diff(now(), S#state.last_response_time),
+    Since = timer:now_diff(now(), LRT),
     case Since < ?GC_PROGRESS_INTERVAL of
         true ->
             % We have been making forward progress, restart the
@@ -490,30 +497,31 @@ handle_info(check_progress, S) ->
     % We don't need this timer in the RR phases.
     {noreply, S#state{progress_timer = undefined}};
 
-handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
+handle_info({'EXIT', Pid, Reason}, S) when Pid =:= self() ->
     lager:error("GC: dying on error: ~p", [Reason]),
     cleanup_for_exit(S),
     {stop, stop_requested, S};
 
-handle_info({'EXIT', Pid, normal}, #state{phase = rr_blobs_wait, rr_pid = RR} = S)
-  when Pid == RR  ->
+handle_info({'EXIT', RR, normal},
+	    #state{phase = rr_blobs_wait, rr_pid = RR,
+		   blacklist = BlackList, tags = Tags} = S) ->
     % The RR process has finished normally, and we can proceed to the
     % second phase of RR: start updating the tags.  Also, we
     % initialize the safe blacklist here.
     lager:info("GC: done with blob replication, entering rr_tags"),
-    gen_server:cast(self(), {rr_tags, S#state.tags}),
+    gen_server:cast(self(), {rr_tags, Tags}),
     {noreply, S#state{rr_pid = undefined,
-                      safe_blacklist = gb_sets:from_list(S#state.blacklist),
+                      safe_blacklist = gb_sets:from_list(BlackList),
                       phase = rr_tags}};
-handle_info({'EXIT', Pid, Reason}, #state{phase = Phase, rr_pid = RR} = S)
-  when Pid == RR  ->
+handle_info({'EXIT', RR, Reason}, #state{phase = Phase, rr_pid = RR} = S) ->
     % Unexpected exit of RR process; exit.
     lager:error("GC: unexpected exit of replicator in ~p: ~p", [Phase, Reason]),
     cleanup_for_exit(S),
     {stop, shutdown, S};
 
-handle_info({'EXIT', Pid, Reason}, #state{phase = Phase} = S) ->
-    case find_node(S#state.gc_peers, Pid) of
+handle_info({'EXIT', Pid, Reason},
+	    #state{phase = Phase, gc_peers = GC_Peers} = S) ->
+    case find_node(GC_Peers, Pid) of
         undefined ->
             {noreply, S};
         {Node, Failures} when Failures > ?MAX_GC_NODE_FAILURES ->
@@ -1026,10 +1034,10 @@ rereplicate_blob(S, BlobName, Present, Recovered, Blobk) ->
 
 -spec try_put_blob(state(), object_name(), [node(),...], [node()]) ->
                           'pending' | {'error', term()}.
-try_put_blob(#state{rr_pid = RR} = S, BlobName, OkNodes, BL) ->
+try_put_blob(#state{rr_pid = RR, gc_peers = GC_Peers}, BlobName, OkNodes, BL) ->
     case ddfs_master:new_blob(BlobName, 1, OkNodes ++ BL) of
         {ok, [PutUrl]} ->
-            Srcs = [{find_peer(S#state.gc_peers, N), N} || N <- OkNodes],
+            Srcs = [{find_peer(GC_Peers, N), N} || N <- OkNodes],
             {SrcPeer, SrcNode} = ddfs_util:choose_random(Srcs),
             RR ! {put_blob, BlobName, SrcPeer, SrcNode, PutUrl},
             pending;
@@ -1086,10 +1094,11 @@ do_put_blob(#rep_state{ref = Ref} = S, BlobName, SrcPeer, SrcNode, PutUrl) ->
     wait_put_blob(S, SrcNode, PutUrl).
 
 -spec wait_put_blob(rep_state(), node(), url()) -> rep_state().
-wait_put_blob(#rep_state{ref = Ref, timeouts = TO} = S, SrcNode, PutUrl) ->
+wait_put_blob(#rep_state{ref = Ref, timeouts = TO, master = Master} = S,
+	      SrcNode, PutUrl) ->
     receive
         {Ref, _B, _PU, {ok, BlobName, NewUrls}} ->
-            add_replicas(S#rep_state.master, BlobName, NewUrls),
+            add_replicas(Master, BlobName, NewUrls),
             S;
         {Ref, B, PU, E} ->
             lager:info("GC: error replicating ~p to ~p: ~p", [B, PU, E]),
@@ -1097,7 +1106,7 @@ wait_put_blob(#rep_state{ref = Ref, timeouts = TO} = S, SrcNode, PutUrl) ->
         {_OldRef, _B, PU, {ok, BlobName, NewUrls}} ->
             % Delayed response.
             lager:info("GC: delayed replication of ~p to ~p: ~p", [BlobName, PU, NewUrls]),
-            add_replicas(S#rep_state.master, BlobName, NewUrls),
+            add_replicas(Master, BlobName, NewUrls),
             wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl);
         {_OldRef, B, PU, OldResult} ->
             lager:info("GC: error replicating ~p to ~p: ~p", [B, PU, OldResult]),
@@ -1220,16 +1229,12 @@ usable_locations(S, BlobName) ->
 
 -spec usable_locations(state(), object_name(), [object_location()],
                        [url()]) -> [url()].
-usable_locations(S, BlobName, Locations, NewUrls) ->
-    Current = [{N, V} || {N, V} <- Locations,
-                      not lists:member(N, S#state.blacklist)],
-    CurUrls = lists:map(
-                fun({N, V}) ->
-                        {ok, _Local, Url} = ddfs_util:hashdir(BlobName,
-                                                              disco:host(N),
-                                                              "blob",
-                                                              S#state.root,
-                                                              V),
-                        Url
-                end, Current),
+usable_locations(#state{blacklist = BL, root = Root},
+		 BlobName, Locations, NewUrls) ->
+    CurUrls = [url(N, V, BlobName, Root) || {N, V} <- Locations,
+					    not lists:member(N, BL)], 
     lists:usort(CurUrls ++ NewUrls).
+
+url(N, V, Blob, Root) ->
+    {ok, _Local, Url} = ddfs_util:hashdir(Blob, disco:host(N), "blob", Root, V),
+    Url.

@@ -71,7 +71,7 @@ encode_tagcontent_secure(D) ->
         ]})).
 
 lookup(Key, List) ->
-   {value, {_, Value}} = lists:keysearch(Key, 1, List),
+   {_, Value} = lists:keyfind(Key, 1, List),
    Value.
 lookup(Key, Default, List) ->
     proplists:get_value(Key, List, Default).

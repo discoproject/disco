@@ -110,7 +110,7 @@ to_hex(Int, L) ->
 hashdir(Name, Host, Type, Root, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
     D1 = to_hex(D0),
-    Dir = lists:flatten([if length(D1) == 1 -> "0"; true -> "" end, D1]),
+    Dir = lists:flatten([case D1 of [_] -> "0"; _ -> "" end, D1]),
     Path = filename:join([Vol, Type, Dir]),
     Url = list_to_binary(["disco://", Host, "/ddfs/", Path, "/", Name]),
     Local = filename:join(Root, Path),

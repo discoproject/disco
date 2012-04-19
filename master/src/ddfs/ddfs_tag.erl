@@ -80,21 +80,21 @@ handle_cast({notify, M}, S) ->
     handle_cast({notify0, M}, S);
 
 % First request for this tag: No tag data loaded - load it
-handle_cast(M, #state{data = none} = S) ->
+handle_cast(M, #state{data = none, tag = Tag, timeout = T} = S) ->
     {Data, Replicas, Timeout} =
         case is_tag_deleted(S#state.tag) of
             true ->
                 {{missing, deleted}, false, ?TAG_EXPIRES_ONERROR};
             false ->
-                case get_tagdata(S#state.tag) of
+                case get_tagdata(Tag) of
                     {ok, TagData, Repl} ->
                         case ddfs_tag_util:decode_tagcontent(TagData) of
                             {ok, Content} ->
-                                {{ok, Content}, Repl, S#state.timeout};
+                                {{ok, Content}, Repl, T};
                             {error, _} = E ->
                                 {E, false, ?TAG_EXPIRES_ONERROR}
                         end;
-                    {missing, notfound} = E->
+                    {missing, notfound} = E ->
                         {E, false, ?TAG_EXPIRES_ONERROR};
                     {error, _} = E ->
                         {E, false, ?TAG_EXPIRES_ONERROR}
@@ -104,14 +104,14 @@ handle_cast(M, #state{data = none} = S) ->
         end,
     handle_cast(M, S#state{data = Data,
                            replicas = Replicas,
-                           timeout = lists:min([Timeout, S#state.timeout])});
+                           timeout = lists:min([Timeout, T])});
 
 % Delayed update with an empty buffer, initialize the buffer and a flush process
 handle_cast({{delayed_update, _, _, _}, _} = M,
-            #state{data = {ok, _}, delayed = false} = S) ->
+            #state{data = {ok, _}, delayed = false, tag = Tag} = S) ->
     spawn(fun() ->
         timer:sleep(?DELAYED_FLUSH_INTERVAL),
-        ddfs:get_tag(ddfs_master, binary_to_list(S#state.tag), all, internal)
+        ddfs:get_tag(ddfs_master, binary_to_list(Tag), all, internal)
     end),
     handle_cast(M, S#state{delayed = gb_trees:empty()});
 
@@ -157,18 +157,19 @@ handle_cast({{get, Attrib, Token}, ReplyTo}, #state{data = {ok, D}} = S) ->
     S1 = authorize(read, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
 
-handle_cast({{get, _, _}, ReplyTo}, S) ->
-    gen_server:reply(ReplyTo, S#state.data),
-    {noreply, S, S#state.timeout};
+handle_cast({{get, _, _}, ReplyTo}, #state{data = Data, timeout = T} = S) ->
+    gen_server:reply(ReplyTo, Data),
+    {noreply, S, T};
 
-handle_cast({_, ReplyTo}, #state{data = {error, _}} = S) ->
-    gen_server:reply(ReplyTo, S#state.data),
-    {noreply, S, S#state.timeout};
+handle_cast({_, ReplyTo}, #state{data = {error, _} = Data, timeout = T} = S) ->
+    gen_server:reply(ReplyTo, Data),
+    {noreply, S, T};
 
-handle_cast({gc_get0, ReplyTo}, #state{data = {ok, D}} = S) ->
-    R = {D#tagcontent.id, D#tagcontent.urls, S#state.replicas},
+handle_cast({gc_get0, ReplyTo},
+	    #state{data = {ok, D}, replicas = Replicas, timeout = T} = S) ->
+    R = {D#tagcontent.id, D#tagcontent.urls, Replicas},
     gen_server:reply(ReplyTo, R),
-    {noreply, S, S#state.timeout};
+    {noreply, S, T};
 
 handle_cast({gc_get0, ReplyTo}, S) ->
     gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
@@ -217,13 +218,15 @@ handle_cast(M, #state{url_cache = false, data = {ok, Data}} = S) ->
     Urls = Data#tagcontent.urls,
     handle_cast(M, S#state{url_cache = init_url_cache(Urls)});
 
-handle_cast({{has_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
+handle_cast({{has_tagname, Name}, ReplyTo},
+	    #state{url_cache = Cache, timeout = Timeout} = S) ->
     gen_server:reply(ReplyTo, gb_sets:is_member(Name, Cache)),
-    {noreply, S, S#state.timeout};
+    {noreply, S, Timeout};
 
-handle_cast({get_tagnames, ReplyTo}, #state{url_cache = Cache} = S) ->
+handle_cast({get_tagnames, ReplyTo},
+	    #state{url_cache = Cache, timeout = Timeout} = S) ->
     gen_server:reply(ReplyTo, {ok, Cache}),
-    {noreply, S, S#state.timeout};
+    {noreply, S, Timeout};
 
 handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
     NewDel = gb_sets:delete_any(Name, Cache),
@@ -341,7 +344,6 @@ send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
 send_replies(ReplyToList, Message) ->
     [gen_server:reply(Re, Message) || Re <- ReplyToList].
 
-
 -spec do_gc_rr_update(#state{}, [blob_update()], [node()], tagid()) -> #state{}.
 do_gc_rr_update(#state{data = {missing, _}} = S, _Updates, _Blacklist, _Id) ->
     % The tag has been deleted, or cannot be found; ignore the update.
@@ -414,13 +416,13 @@ gc_update_urls(Id, [[Url|_] = BlobSet | Rest], Map, Blacklist, UpdateId, Acc) ->
 -spec rewrite_scheme(url(), [url()]) -> [url()].
 rewrite_scheme(OrigUrl, Urls) ->
     {S, _, _, _, _} = mochiweb_util:urlsplit(binary_to_list(OrigUrl)),
-    lists:map(fun(U) ->
-                      U1 = binary_to_list(U),
-                      {_, H, P, Q, F} = mochiweb_util:urlsplit(U1),
-                      NewU = mochiweb_util:urlunsplit({S, H, P, Q, F}),
-                      list_to_binary(NewU)
-              end,
-              Urls).
+    [rewrite_url(U, S) || U <- Urls].
+
+rewrite_url(Url, S) ->
+    U1 = binary_to_list(Url),
+    {_, H, P, Q, F} = mochiweb_util:urlsplit(U1),
+    NewUrl = mochiweb_util:urlunsplit({S, H, P, Q, F}),
+    list_to_binary(NewUrl).
 
 -spec filter_blacklist([url()], [node()]) -> [url()].
 filter_blacklist(BlobSet, Blacklist) ->

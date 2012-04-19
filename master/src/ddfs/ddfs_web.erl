@@ -102,9 +102,9 @@ op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
     BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     QS = Req:parse_qs(),
-    K = case lists:keysearch("replicas", 1, QS) of
+    K = case lists:keyfind("replicas", 1, QS) of
             false -> BlobK;
-            {value, {_, X}} -> list_to_integer(X)
+            {_, X} -> list_to_integer(X)
     end,
     Exc = parse_exclude(lists:keysearch("exclude", 1, QS)),
     case ddfs:new_blob(ddfs_master, BlobName, K, Exc) of
@@ -222,8 +222,8 @@ op(_, _, Req) ->
     Req:not_found().
 
 is_set(Flag, QS) ->
-    case lists:keysearch(Flag, 1, QS) of
-        {value, {_, [_|_]}} ->
+    case lists:keyfind(Flag, 1, QS) of
+        {_, [_|_]} ->
             true;
         _ ->
             false
