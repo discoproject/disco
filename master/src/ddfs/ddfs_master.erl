@@ -165,9 +165,9 @@ handle_call(gc_stats, _F, #state{gc_stats = Stats} = S) ->
     {reply, {ok, Stats}, S};
 
 handle_call({choose_write_nodes, K, Exclude}, _,
-            #state{write_blacklist = WBL, gc_blacklist = GBL} = S) ->
+            #state{nodes = N, write_blacklist = WBL, gc_blacklist = GBL} = S) ->
     BL = lists:umerge(WBL, GBL),
-    {reply, do_choose_write_nodes(S#state.nodes, K, Exclude, BL), S};
+    {reply, do_choose_write_nodes(N, K, Exclude, BL), S};
 
 handle_call({new_blob, Obj, K, Exclude}, _,
             #state{nodes = N, gc_blacklist = GBL, write_blacklist = WBL} = S) ->

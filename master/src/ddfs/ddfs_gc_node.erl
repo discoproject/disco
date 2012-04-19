@@ -1,6 +1,6 @@
 -module(ddfs_gc_node).
 -export([start_gc_node/4]).
--export([gc_node_init/3]).
+
 -include_lib("kernel/include/file.hrl").
 
 -include("config.hrl").
@@ -12,7 +12,7 @@
 
 -spec start_gc_node(node(), pid(), erlang:timestamp(), phase()) -> pid().
 start_gc_node(Node, Master, Now, Phase) ->
-    spawn_link(Node, ?MODULE, gc_node_init, [Master, Now, Phase]).
+    spawn_link(Node, fun () -> gc_node_init(Master, Now, Phase) end).
 
 -spec gc_node_init(pid(), erlang:timestamp(), phase()) -> 'ok'.
 gc_node_init(Master, Now, Phase) ->
