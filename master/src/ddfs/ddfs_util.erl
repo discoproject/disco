@@ -62,6 +62,7 @@ unpack_objname(Obj) ->
     [Name, Tstamp] = string:tokens(Obj, "$"),
     {list_to_binary(Name), timestamp_to_time(Tstamp)}.
 
+-spec url_to_name(binary()) -> binary() | 'false'.
 url_to_name(<<"tag://", Name/binary>>) ->
     Name;
 url_to_name(Url) ->
@@ -116,8 +117,7 @@ hashdir(Name, Host, Type, Root, Vol) ->
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
 
-
--spec parse_url(binary()|string()) ->
+-spec parse_url(binary() | string()) ->
         'not_ddfs' | {host(), volume_name(), object_type(), string(), object_name()}.
 parse_url(Url) when is_binary(Url) ->
     parse_url(binary_to_list(Url));
