@@ -235,7 +235,7 @@ nodemon_exit(Pid, S) ->
     Iter = gb_trees:iterator(S#state.nodes),
     nodemon_exit(Pid, S, gb_trees:next(Iter)).
 
-nodemon_exit(Pid, S, {Host, N, _Iter}) when N#dnode.node_mon =:= Pid ->
+nodemon_exit(Pid, S, {Host, #dnode{node_mon = Pid} = N, _Iter}) ->
     lager:warning("Restarting monitor for ~p", [Host]),
     N1 = N#dnode{node_mon = node_mon:start_link(Host)},
     S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},

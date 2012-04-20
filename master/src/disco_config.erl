@@ -159,12 +159,13 @@ get_blacklist(Config, blacklist) ->
     get_blacklist(proplists:get_value(<<"blacklist">>, Config));
 get_blacklist(Config, gc_blacklist) ->
     get_blacklist(proplists:get_value(<<"gc_blacklist">>, Config)).
+
 get_blacklist(Blacklist) ->
-    lists:map(fun(B) -> binary_to_list(B) end, Blacklist).
+    [binary_to_list(B) || B <- Blacklist].
 
 -spec make_config(raw_hosts(), [host_name()], [host_name()]) -> config().
 make_config(RawHosts, Blacklist, GCBlacklist) ->
-    BinarizeList = fun(L) -> lists:map(fun(B) -> list_to_binary(B) end, L) end,
+    BinarizeList = fun(L) -> [list_to_binary(B) || B <- L] end,
     RawBlacklist = BinarizeList(Blacklist),
     RawGCBlacklist = BinarizeList(GCBlacklist),
     [{<<"hosts">>, RawHosts},
@@ -173,7 +174,7 @@ make_config(RawHosts, Blacklist, GCBlacklist) ->
 
 -spec make_blacklist([host_name()], [host_name()]) -> [host_name()].
 make_blacklist(Hosts, Prospects) ->
-    lists:usort(lists:filter(fun(P) -> lists:member(P, Hosts) end, Prospects)).
+    lists:usort([P || P <- Prospects, lists:member(P, Hosts)]).
 
 -spec do_get_config_table() -> {'ok', raw_hosts()}.
 do_get_config_table() ->
@@ -200,7 +201,7 @@ do_save_config_table(RawHosts) ->
             Sorted = lists:sort(Hosts),
             USorted = lists:usort(Hosts),
             if
-                length(Sorted) == length(USorted) ->
+                length(Sorted) =:= length(USorted) ->
                     % Retrieve and update old blacklist
                     OldConfig = get_full_config(),
                     OldBL = get_blacklist(OldConfig, blacklist),

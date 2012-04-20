@@ -414,7 +414,7 @@ do_list_dir(F, Options) ->
 %% Print zip directory in short form
 
 t(F) when is_pid(F) -> zip_t(F);
-t(F) when is_record(F, openzip) -> openzip_t(F);
+t(#openzip{} = F) -> openzip_t(F);
 t(F) -> t(F, fun raw_short_print_info_etc/5).
 
 t(F, RawPrint) ->
@@ -434,7 +434,7 @@ do_t(F, RawPrint) ->
 %% Print zip directory in long form (like ls -l)
 
 tt(F) when is_pid(F) -> zip_tt(F);
-tt(F) when is_record(F, openzip) -> openzip_tt(F);
+tt(#openzip{} = F) -> openzip_tt(F);
 tt(F) -> t(F, fun raw_long_print_info_etc/5).
 
 
@@ -785,11 +785,11 @@ raw_name_only(EOCD, _, _Comment, _, Acc) when is_record(EOCD, eocd) ->
     Acc.
 
 %% for printing directory (t/1)
-raw_short_print_info_etc(CD, FileName, _FileComment, _BExtraField, Acc)
-  when is_record(CD, cd_file_header) ->
+raw_short_print_info_etc(#cd_file_header{}, FileName,
+			 _FileComment, _BExtraField, Acc) ->
     print_file_name(FileName),
     Acc;
-raw_short_print_info_etc(EOCD, X, Comment, Y, Acc) when is_record(EOCD, eocd) ->
+raw_short_print_info_etc(#eocd{} = EOCD, X, Comment, Y, Acc) ->
     raw_long_print_info_etc(EOCD, X, Comment, Y, Acc).
 
 print_file_name(FileName) ->
@@ -805,7 +805,7 @@ raw_long_print_info_etc(#cd_file_header{comp_size = CompSize,
     MTime = dos_date_time_to_datetime(LMDate, LMTime),
     print_header(CompSize, MTime, UncompSize, FileName, FileComment),
     Acc;
-raw_long_print_info_etc(EOCD, _, Comment, _, Acc) when is_record(EOCD, eocd) ->
+raw_long_print_info_etc(#eocd{}, _, Comment, _, Acc) ->
     print_comment(Comment),
     Acc.
 

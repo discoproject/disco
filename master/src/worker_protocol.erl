@@ -32,9 +32,8 @@ parse(Buffer, new_message) ->
         more_data ->
             {cont, Buffer, new_message}
     end;
-
 parse(Buffer, {parse_length, Type} = State) ->
-    TypeLen = size(Type) + 1,
+    TypeLen = byte_size(Type) + 1,
     <<_:TypeLen/binary, Rest/binary>> = Buffer,
     case head(Rest) of
         {ok, LengthStr} ->
@@ -46,7 +45,7 @@ parse(Buffer, {parse_length, Type} = State) ->
                 Length when Length > ?MAX_MESSAGE_LENGTH ->
                     {error, message_too_big};
                 Length ->
-                    Total = size(Type) + size(LengthStr) + Length + 3,
+                    Total = byte_size(Type) + byte_size(LengthStr) + Length + 3,
                     parse(Buffer, {parse_body, Type, LengthStr, Total})
             end;
         head_missing ->
@@ -54,13 +53,11 @@ parse(Buffer, {parse_length, Type} = State) ->
         more_data ->
             {cont, Buffer, State}
     end;
-
 parse(Buffer, {parse_body, _Type, _LengthStr, Total} = State)
-        when size(Buffer) < Total ->
+        when byte_size(Buffer) < Total ->
     {cont, Buffer, State};
-
 parse(Buffer, {parse_body, Type, LengthStr, Total}) ->
-    HeadLen = size(Type) + size(LengthStr) + 2,
+    HeadLen = byte_size(Type) + byte_size(LengthStr) + 2,
     BodyLen = Total - HeadLen - 1,
     case Buffer of
         <<_:HeadLen/binary, Body:BodyLen/binary, $\n, Rest/binary>> ->
@@ -80,5 +77,5 @@ head(<<Head:7/binary, 32, _/binary>>) -> {ok, Head};
 head(<<Head:8/binary, 32, _/binary>>) -> {ok, Head};
 head(<<Head:9/binary, 32, _/binary>>) -> {ok, Head};
 head(<<Head:10/binary, 32, _/binary>>) -> {ok, Head};
-head(Buffer) when size(Buffer) >= 10 -> head_missing;
+head(Buffer) when byte_size(Buffer) >= 10 -> head_missing;
 head(_) -> more_data.
