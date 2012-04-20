@@ -110,7 +110,7 @@ start_temp_gc(Node) ->
 
 -spec start_lock_server(node()) -> pid().
 start_lock_server(Node) ->
-    spawn_link(Node, lock_server, start_link, []).
+    spawn_link(Node, fun lock_server:start_link/0).
 
 -spec start_ddfs_node(node(), {boolean(), boolean()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->

@@ -14,7 +14,7 @@
 % takes care of coordinating the whole map-reduce show, including
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
--spec new(binary()) -> {'ok', _}.
+-spec new(binary()) -> {'ok', jobname()}.
 new(JobPack) ->
     Self = self(),
     process_flag(trap_exit, true),
@@ -74,7 +74,7 @@ job_coordinator(#jobinfo{jobname = JobName} = Job) ->
             kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", [Error]})
     end.
 
--spec kill_job(nonempty_string(), tuple()) -> no_return().
+-spec kill_job(jobname(), tuple()) -> no_return().
 kill_job(JobName, {EventFormat, Args, Params} = Error) ->
     job_event(JobName, {"ERROR: " ++ EventFormat, Args, Params}),
     disco_server:kill_job(JobName, 30000),
@@ -93,8 +93,8 @@ kill_job(JobName, {EventFormat, Args}) ->
            gb_tree()) ->
     {'ok', gb_tree()}.
 
-%. 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
-%  not reached.
+% 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
+% not reached.
 work([{TaskID, Input}|Inputs], Mode, N, Job, Res) when N < Job#jobinfo.max_cores ->
     Task = #task{from = self(),
                  taskblack = [],
@@ -113,7 +113,7 @@ work([{TaskID, Input}|Inputs], Mode, N, Job, Res) when N < Job#jobinfo.max_cores
 % 2. Tasks to distribute but the maximum number of tasks are already running.
 % Wait for tasks to return. Note that wait_workers() may return with the same
 % number of tasks still running, i.e. N = M.
-work([_|_] = IArg, Mode, N, Job, Res) when N >= Job#jobinfo.max_cores ->
+work([_|_] = IArg, Mode, N, #jobinfo{max_cores = Max} = Job, Res) when N >= Max ->
     {M, NRes} = wait_workers(N, Res, Mode),
     work(IArg, Mode, M, Job, NRes);
 
@@ -192,7 +192,7 @@ handle_data_error(Task, Host) ->
                end).
 
 -spec check_failure_rate(task(), non_neg_integer()) -> 'ok'.
-check_failure_rate(Task, MaxFail) when Task#task.fail_count + 1 < MaxFail ->
+check_failure_rate(#task{fail_count = Fail}, MaxFail) when Fail + 1 < MaxFail ->
     ok;
 check_failure_rate(Task, MaxFail) ->
     Message = disco:format("Task failed ~B times. At most ~B failures are allowed.",
@@ -217,7 +217,7 @@ map(Inputs, #jobinfo{map = false}) ->
 map(Inputs, Job) ->
     run_phase(map_input(Inputs), "map", Job).
 
--spec shuffle(nonempty_string(), nonempty_string(), [{node(), binary()}]) -> {'ok', [binary()]}.
+-spec shuffle(jobname(), nonempty_string(), [{node(), binary()}]) -> {'ok', [binary()]}.
 shuffle(_JobName, _Mode, []) ->
     {ok, []};
 shuffle(JobName, Mode, DirUrls) ->

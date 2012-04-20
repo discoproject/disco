@@ -228,7 +228,7 @@ pop_busiest_node(Tasks, Nodes) ->
 % 2) that doesn't contain any input of the task, if force_remote == true
 % unless force_local == true. Otherwise return false.
 -spec choose_node(task(), [node()]) -> 'false' | {'ok', node()}.
-choose_node(Task, _) when Task#task.force_local -> false;
+choose_node(#task{force_local = true}, _) -> false;
 choose_node(Task, AvailableNodes) ->
     case AvailableNodes -- Task#task.taskblack of
         [] -> false;
@@ -267,12 +267,11 @@ find_suitable([T|R], Node, RestNodes, Tasks, AvailableNodes) ->
     end.
 
 % return nodes that don't have any local tasks assigned to them
-
 -spec empty_nodes(gb_tree(), [node()]) -> [node()].
 empty_nodes(Tasks, AvailableNodes) ->
     filter_nodes(Tasks, AvailableNodes, false).
 
-% return nodes that have at least one local tasks assigned to them
+% return nodes that have at least one local task assigned to them
 -spec datalocal_nodes(gb_tree(), [node()]) -> [node()].
 datalocal_nodes(Tasks, AvailableNodes) ->
     filter_nodes(Tasks, AvailableNodes, true).
@@ -281,9 +280,9 @@ datalocal_nodes(Tasks, AvailableNodes) ->
 filter_nodes(Tasks, AvailableNodes, Local) ->
     [Node || Node <- AvailableNodes,
 		 case gb_trees:lookup(Node, Tasks) of
-            none -> false =:= Local;
-            {value, {0, _, _}} -> false =:= Local;
-            _ -> true =:= Local
+		     none -> false =:= Local;
+		     {value, {0, _, _}} -> false =:= Local;
+		     _ -> true =:= Local
 		 end].
 
 -spec on_error(task(), nonempty_string()) -> no_return().
@@ -312,19 +311,19 @@ assign_task(Task, NodeStats, Tasks, Nodes) ->
     end.
 
 -spec assign_task0(task(), [load()], gb_tree(), [node()]) -> gb_tree().
-assign_task0(Task, _NodeStats, Tasks, Nodes) when Task#task.force_remote ->
-    case Nodes -- [N || {_, N} <- Task#task.input] of
+assign_task0(#task{force_remote = true, input = Input} = Task,
+	     _NodeStats, Tasks, Nodes) ->
+    case Nodes -- [N || {_, N} <- Input] of
         [] ->
             on_error(Task, "remote");
         _ ->
             assign_nopref(Task, Tasks, Nodes)
     end;
-
 assign_task0(Task, NodeStats, Tasks, Nodes) ->
     findpref(Task, NodeStats, Tasks, Nodes).
 
 -spec assign_nopref(task(), gb_tree(), [node()]) -> gb_tree().
-assign_nopref(Task, _Tasks, _Nodes) when Task#task.force_local ->
+assign_nopref(#task{force_local = true} = Task, _Tasks, _Nodes) ->
     on_error(Task, "local");
 
 assign_nopref(Task, Tasks, _Nodes) ->

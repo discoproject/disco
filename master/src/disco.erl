@@ -56,8 +56,8 @@ has_setting(SettingName) ->
 
 -spec settings() -> [nonempty_string()].
 settings() ->
-    lists:filter(fun has_setting/1,
-                 string:tokens(get_setting("DISCO_SETTINGS"), ",")).
+    [T || T <- string:tokens(get_setting("DISCO_SETTINGS"), ","),
+	  has_setting(T)].
 
 -spec host(node()) -> string().
 host(Node) ->

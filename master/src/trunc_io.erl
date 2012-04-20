@@ -70,7 +70,7 @@ print(<<>>, _Max) ->
     {"<<>>", 4};
 
 print(Binary, Max) when is_binary(Binary) ->
-    B = binary_to_list(Binary, 1, lists:min([Max, size(Binary)])),
+    B = binary_to_list(Binary, 1, lists:min([Max, byte_size(Binary)])),
     {L, Len} = alist_start(B, Max-4),
     {["<<", L, ">>"], Len};
 

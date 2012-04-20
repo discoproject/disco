@@ -44,8 +44,8 @@ encode_decode_check() ->
 token_check(T) ->
     D = ddfs_tag_util:encode_tagcontent_secure(T),
     {struct, J} = mochijson2:decode(D),
-    (false =:= lists:keysearch(<<"read-token">>, 1, J))
-        and (false =:= lists:keysearch(<<"write-token">>, 1, J)).
+    (false =:= lists:keyfind(<<"read-token">>, 1, J))
+        andalso (false =:= lists:keyfind(<<"write-token">>, 1, J)).
 
 api_token_test() ->
     % This does not really need to be a FORALL, just a single instance

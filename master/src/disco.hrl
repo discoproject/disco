@@ -1,6 +1,7 @@
+-type jobname() :: nonempty_string().
 -type host_name() :: nonempty_string().
 
--record(jobinfo, {jobname :: nonempty_string(),
+-record(jobinfo, {jobname :: jobname(),
                   jobfile :: nonempty_string(),
                   jobenvs :: [{nonempty_string(), string()}],
                   force_local :: boolean(),
@@ -31,7 +32,7 @@
                input :: [{binary(), nonempty_string()}],
                jobenvs :: [{nonempty_string(), string()}],
                worker :: binary(),
-               jobname :: nonempty_string(),
+               jobname :: jobname(),
                mode :: nonempty_string(), %"map" | "reduce"
                taskid :: non_neg_integer(),
                taskblack :: list(),
