@@ -25,11 +25,11 @@
 
 -include("disco.hrl").
 
--spec new_job(nonempty_string(), pid()) -> {'ok', nonempty_string()}.
+-spec new_job(nonempty_string(), pid()) -> {'ok', jobname()}.
 new_job(Prefix, JobCoordinator) ->
     gen_server:call(?MODULE, {new_job, Prefix, JobCoordinator}, 10000).
 
--spec end_job(nonempty_string()) -> 'ok'.
+-spec end_job(jobname()) -> 'ok'.
 end_job(JobName) ->
     gen_server:cast(?MODULE, {job_done, JobName}).
 
@@ -198,7 +198,7 @@ grep_log(JobName, Query, N) ->
     Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ",
                                   event_log(JobName),
                                   " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
-    lists:map(fun erlang:list_to_binary/1, lists:reverse(Lines)).
+    [list_to_binary(L) || L <- lists:reverse(Lines)].
 
 process_status(Pid) ->
     case is_process_alive(Pid) of
@@ -239,15 +239,15 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
              MsgBufN}
     end.
 
-%-spec event(nonempty_string(), nonempty_string(), [_], [_]) -> _.
+%-spec event(jobname(), nonempty_string(), [_], [_]) -> _.
 event(JobName, Format, Args, Params) ->
     event("master", JobName, Format, Args, Params).
 
-%-spec event(nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
+%-spec event(nonempty_string(), jobname(), nonempty_string(), [_], [_]) -> _.
 event(Host, JobName, Format, Args, Params) ->
     event(event_server, Host, JobName, Format, Args, Params).
 
-%-spec event(atom(), nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
+%-spec event(atom(), nonempty_string(), jobname(), nonempty_string(), [_], [_]) -> _.
 event(EventServer, Host, JobName, Format, Args, Params) ->
     SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 1000000 of
                  true -> trunc_io:fprint(X, 1000000);

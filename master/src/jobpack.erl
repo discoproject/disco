@@ -115,7 +115,7 @@ copy_bytes(_Src, _Dst, 0) -> ok;
 copy_bytes(Src, Dst, Left) ->
     {ok, Buf} = file:read(Src, ?COPY_BUFFER_SIZE),
     ok = prim_file:write(Dst, Buf),
-    copy_bytes(Src, Dst, Left - size(Buf)).
+    copy_bytes(Src, Dst, Left - byte_size(Buf)).
 
 tempname(JobHome) ->
     {MegaSecs, Secs, MicroSecs} = now(),
@@ -184,7 +184,7 @@ valid(<<?MAGIC:16/big,
        JobEnvsOffset > JobDictOffset,
        JobHomeOffset >= JobEnvsOffset,
        JobDataOffset >= JobHomeOffset,
-       size(JobPack) >= JobDataOffset ->
+       byte_size(JobPack) >= JobDataOffset ->
     case catch jobenvs(JobPack) of
         {'EXIT', _} -> {error, invalid_dicts_or_envs};
         {error, E} -> {error, E};
