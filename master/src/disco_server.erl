@@ -488,7 +488,7 @@ do_send_jobpack(JobName, From) ->
         {ok, #file_info{size = Size}} ->
             {ok, File} = file:open(JobFile, [binary, read]),
             {Worker, _Tag} = From,
-            monitor(process, Worker),
+            erlang:monitor(process, Worker),
             gen_server:reply(From, {ok, {File, Size, self()}}),
             receive
                 done -> ok;
