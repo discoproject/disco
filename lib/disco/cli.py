@@ -199,8 +199,8 @@ class Master(clx.server.Server):
             return ['-lager', 'handlers',
                     '[{lager_console_backend, info},'
                      '{lager_file_backend,'
-                      '[{"%s/error.log", error, 10485760, "$D0", 5},'
-                       '{"%s/console.log", debug, 10485760, "$D0", 5}]}]' % (log_dir, log_dir),
+                      '[{"%s/error.log", error, 1048576000, "$D0", 5},'
+                       '{"%s/console.log", debug, 104857600, "$D0", 5}]}]' % (log_dir, log_dir),
                     '-lager', 'crash_log', '"%s/crash.log"' % (log_dir)]
         return settings['DISCO_ERLANG'].split() + \
                lager_config(settings['DISCO_LOG_DIR']) + \
