@@ -1,87 +1,19 @@
 #!/usr/bin/make -f
 # -*- makefile -*-
-# Sample debian/rules that uses debhelper.
-#
-# This file was originally written by Joey Hess and Craig Small.
-# As a special exception, when this file is copied by dh-make into a
-# dh-make output file, you may use that output file without restriction.
-# This special exception was added by Craig Small in version 0.37 of dh-make.
-#
-# Modified to make a template file for a multi-binary package with separated
-# build-arch and build-indep targets  by Bill Allombert 2001
 
-# Uncomment this to turn on verbose mode.
-export DH_VERBOSE=1
+export DH_VERBOSE = 1
 
-# This has to be exported to make some magic below work.
-export DH_OPTIONS
+PYTHON = $(addprefix python,$(shell pyversions -vr))
+PKGDIR = $(CURDIR)/debian
+D_MAKE = $(MAKE) -C .. UNAME=Debian PY_INSTALL_OPTS="--install-layout=deb --no-compile"
 
-DESTDIR=$(CURDIR)/debian/disco-master
-NODEDEST=$(CURDIR)/debian/disco-node
-PYDISCODEST=$(CURDIR)/debian/python-disco
-#PYDISCODBDEST=$(CURDIR)/debian/python-discodb
-DISCOMAKE=cd ..; make
+%:
+	dh $@ --with-python2
 
-clean:
-	dh_testdir
-	dh_testroot
-	rm -f build-arch-stamp build-indep-stamp configure-stamp
-
-	$(DISCOMAKE) clean
-	dh_clean
-
-install:
-	dh_testdir
-	dh_testroot
-	dh_clean -k -A
-	dh_installdirs -A
-
-	$(DISCOMAKE) install-master UNAME=Debian prefix=/usr DESTDIR=$(DESTDIR)
-	$(DISCOMAKE) install-core UNAME=Debian prefix=/usr DESTDIR=$(PYDISCODEST)
-	$(DISCOMAKE) install-node UNAME=Debian prefix=/usr DESTDIR=$(NODEDEST)
-#	$(DISCOMAKE) install-discodb UNAME=Debian prefix=/usr DESTDIR=$(PYDISCODBDEST)
-
-	dh_install -A
-
-
-# Must not depend on anything. This is to be called by
-# binary-arch/binary-indep
-# in another 'make' thread.
-binary-common:
-	dh_testdir -A
-	dh_testroot -A
-	dh_installchangelogs -A
-	dh_installdocs -A
-	dh_installexamples -A
-	dh_pysupport -A
-#	dh_installmenu
-#	dh_installdebconf
-#	dh_installlogrotate
-#	dh_installemacsen
-#	dh_installpam
-#	dh_installmime
-#	dh_python
-	dh_installinit -A
-#	dh_installcron
-#	dh_installinfo
-	dh_installman -A
-	dh_link -A
-	dh_strip -A
-	dh_compress -A
-	dh_fixperms -A
-#	dh_perl
-	dh_makeshlibs -A
-	dh_installdeb -A
-	dh_shlibdeps -A
-	dh_gencontrol -A
-	dh_md5sums -A
-	dh_builddeb -A
-
-binary-indep:
-
-binary-arch: install
-	$(MAKE) -f debian/rules binary-common
-
-binary: binary-arch binary-indep
-
-.PHONY: build clean binary-indep binary-arch binary install install-indep install-arch configure
+override_dh_auto_install:
+	$(D_MAKE) install-master   DESTDIR=$(PKGDIR)/disco-master
+	$(D_MAKE) install-node     DESTDIR=$(PKGDIR)/disco-node
+	for python in $(PYTHON); do \
+		$(D_MAKE) install-core    DESTDIR=$(PKGDIR)/python-disco   PYTHON=$$python; \
+		$(D_MAKE) install-discodb DESTDIR=$(PKGDIR)/python-discodb PYTHON=$$python; \
+	done

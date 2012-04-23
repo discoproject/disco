@@ -1,5 +1,9 @@
 *.beam
+*.changes
+*.deb
+*.dsc
 *.dump
+*.gz
 *.log
 *.pid
 *.pyc
@@ -9,5 +13,6 @@ master/deps
 master/ebin
 doc/.build/
 lib/build/
+pkg/debian/
 root/
 tests/test_external

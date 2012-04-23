@@ -1,35 +1,36 @@
 Source: disco
 Section: admin
 Priority: extra
-Maintainer: Ville Tuulos <ville.h.tuulos@nokia.com>
-Build-depends: debhelper (>= 7), python-support (>= 0.5.3), erlang-dev (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1), python-all-dev, gcc, libcmph-dev (>= 0.9)
-Standards-Version: 3.7.3
+Maintainer: Jared Flatow <jared.flatow@nokia.com>
+Build-Depends: debhelper (>= 7), erlang-dev (>= 1:14.a-dfsg1), python-all-dev (>= 2.6.6), libcmph-dev (>= 0.9)
+Standards-Version: 3.9.3
+Vcs-Browser: https://github.com/discoproject/disco
+Vcs-Git: git://github.com/discoproject/disco.git
 Homepage: http://www.discoproject.org
+
+Package: disco-master
+Architecture: all
+Depends: ${misc:Depends}, disco-node (= ${source:Version}), python-disco (= ${source:Version}), python (>= 2.6.6)
+Description: Disco master
+ This is Disco master.
+
+Package: disco-node
+Architecture: any
+Depends: ${misc:Depends}, erlang-base (>= 1:14.a-dfsg1), adduser
+Description: Disco node
+ This is Disco node.
 
 Package: python-disco
 Architecture: all
 Section: python
-Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.6)
+Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.6.6)
 Recommends: python-pycurl
 Description: Disco client
  This is Disco client.
 
 Package: python-discodb
-Architecture: amd64
+Architecture: any
 Section: python
-Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.6), libcmph0 (>= 0.9)
+Depends: ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}, python (>= 2.6.6), libcmph0 (>= 0.9)
 Description: DiscoDB
  This is DiscoDB.
-
-Package: disco-node
-Architecture: all
-Depends: ${misc:Depends}, adduser, erlang-base (>= 1:13.b-dfsg1), erlang-nox (>= 1:13.b-dfsg1)
-Description: Disco node
- This is Disco node.
-
-Package: disco-master
-Architecture: all
-Depends: ${misc:Depends}, python-disco (= ${source:Version}), disco-node (= ${source:Version})
-Description: Disco master
- This is Disco master.
-

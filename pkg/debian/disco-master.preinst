@@ -1,5 +1,0 @@
-#!/bin/sh
-
-[ -e /etc/init.d/disco-node ] && invoke-rc.d disco-node stop
-[ -e /etc/init.d/disco-master ] && invoke-rc.d disco-master stop
-exit 0

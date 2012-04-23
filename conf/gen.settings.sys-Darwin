@@ -1,17 +1,4 @@
 #!/bin/bash
 # This file is used by "make install" on Darwin (i.e. Mac OS X).
 
-cat << EOF
-# Disco settings
-# --
-# -- You can modify these directories as you wish
-# --
-
-DISCO_HOME = "${TARGETLIB}"
-
-# Root directory for Disco data.
-DISCO_ROOT = "${TARGETSRV}"
-
-EOF
-
-cat settings.py
+. gen.settings.sh
