@@ -397,21 +397,45 @@ do_get_tags(gc, Nodes) ->
             end
     end.
 
+% Timeouts in this call by the below processes can cause ddfs_master
+% itself to crash, since the processes are linked to it.
+-spec safe_get_read_nodes() -> {ok, [node()], non_neg_integer()} | error.
+safe_get_read_nodes() ->
+    try get_read_nodes() of
+        {ok, _ReadableNodes, _RBSize} = RN ->
+            RN;
+        E ->
+            lager:error("unexpected response retrieving readable nodes: ~p", [E]),
+            error
+    catch
+        K:E ->
+            lager:error("error retrieving readable nodes: ~p:~p", [K, E]),
+            error
+    end.
+
 -spec monitor_diskspace() -> no_return().
 monitor_diskspace() ->
-    {ok, ReadableNodes, _RBSize} = get_read_nodes(),
-    {Space, _F} = gen_server:multi_call(ReadableNodes,
-                                        ddfs_node,
-                                        get_diskspace,
-                                        ?NODE_TIMEOUT),
-    update_nodestats(gb_trees:from_orddict(lists:keysort(1, Space))),
+    case safe_get_read_nodes() of
+        {ok, ReadableNodes, _RBSize} ->
+            {Space, _F} = gen_server:multi_call(ReadableNodes,
+                                                ddfs_node,
+                                                get_diskspace,
+                                                ?NODE_TIMEOUT),
+            update_nodestats(gb_trees:from_orddict(lists:keysort(1, Space)));
+        error ->
+            ok
+    end,
     timer:sleep(?DISKSPACE_INTERVAL),
     monitor_diskspace().
 
 -spec refresh_tag_cache_proc() -> no_return().
 refresh_tag_cache_proc() ->
-    {ok, ReadableNodes, RBSize} = get_read_nodes(),
-    refresh_tag_cache(ReadableNodes, RBSize),
+    case safe_get_read_nodes() of
+        {ok, ReadableNodes, RBSize} ->
+            refresh_tag_cache(ReadableNodes, RBSize);
+        error ->
+            ok
+    end,
     receive
         refresh ->
             ok
