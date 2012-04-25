@@ -37,11 +37,10 @@ providing persistence for and easy access to processed data.
 DDFS is a **tag-based** filesystem: Instead of having to organize data
 to directory hierarchies, you can tag sets of objects with arbitrary
 names and retrieve them later based on the given :term:`tags <tag>`.
-For instance,
-tags can be used to timestamp different versions of data,
-or denote the source or owner of data.
-Tags can contain links to other tags,
-which form a network or a directed **graph of metadata**.
+For instance, tags can be used to timestamp different versions of
+data, or denote the source or owner of data.  Tags can contain links
+to other tags, and data can be referred to by multiple tags; tags
+hence form a network or a directed **graph of metadata**.
 This provides a flexible way to **manage terabytes** of data assets.
 DDFS also provides a mechanism to store arbitrary attributes with the tags,
 for instance, to denote data type.
@@ -77,8 +76,10 @@ DDFS operates on two concepts: :ref:`blobs` and :ref:`tags`.
 
 Blobs
 '''''
+
 Blobs are arbitrary objects (files) that have been pushed to DDFS.
-They are distributed to storage nodes and stored on their local filesystems.
+They are distributed to storage nodes and stored on their local
+filesystems.  Multiple copies or replicas are stored for each blob.
 
 .. _tags:
 
@@ -86,13 +87,14 @@ Tags
 ''''
 
 Tags contain metadata about blobs. Most importantly, a tag contains a
-list of URLs that refer to blobs that have been assigned this tag. Tag
-may also contain links to other tags. It may also include user-defined
-metadata.
+list of URLs (one for each replica) that refer to blobs that have been
+assigned this tag. Tag may also contain links to other tags. It may
+also include user-defined metadata.
 
-Next section describes the role of tags and blobs more closely. It
-also shows how they relate to the five main tasks of DDFS, data
-*distribution*, *replication*, *persistence*, *addressing* and *access*.
+The next section describes the role of tags and blobs in more
+detail. It also shows how they relate to the five main tasks of DDFS,
+data *distribution*, *replication*, *persistence*, *addressing* and
+*access*.
 
 Overview
 --------
@@ -395,21 +397,31 @@ Another non-trivial part of DDFS is re-replication and garbage
 collection of tags and blobs. These issues are discussed in more detail
 below.
 
-In contrast, operations on blobs are reasonably simple: ``new_blob``
-returns a list of URLs, based on the available disk space. The client is
-responsible for pushing data to storage nodes, using HTTP PUT requests.
+Blob operations
+'''''''''''''''
+
+Operations on blobs are reasonably simple.  The client is responsible
+for pushing data to storage nodes, using HTTP PUT requests.
+``new_blob`` returns a list of URLs, based on the available disk
+space, to which the blob data can be PUT.  A node receiving data via a
+PUT first creates a temporary !partial file into which the blob is
+received, and then renames the file into the blobname on successful
+completion.
+
 Getting a blob is just a matter of making a normal HTTP GET request.
 
 Tag operations
 ''''''''''''''
 
-Tags are the only mutable data type in DDFS. Updating data in a
+Tags are the only mutable data type in DDFS. Each tag update creates a
+new version of the tag; the latest version of the tag is used to get
+the current contents of the tag. Updating data in a
 distributed system is a non-trivial task. Classical solutions
 include centralized lock servers, various methods based on
 eventual consistency and consensus protocols such as `Paxos
 <http://en.wikipedia.org/wiki/Paxos_algorithm>`_. Currently DDFS takes the
-first approach, which is straightforward to implement in a single-master
-architecture.
+first centralized approach, which is straightforward to implement in a
+single-master architecture.
 
 All operations manipulating a tag are serialized, although many distinct
 tags can be processed concurrently. Serialization is achieved by handling
@@ -418,8 +430,8 @@ server). Tag servers are instantiated on demand basis, and killed after
 a period of inactivity. Together, tag servers implement the master cache.
 
 To get a tag, tag server queries all storage nodes to find all
-instances of the tag (see ``ddfs/ddfs_tag:get_tagdata()``). From the list of
-all available instances, it finds replicas of the latest tag version,
+versions of the tag (see ``ddfs/ddfs_tag:get_tagdata()``). From the list of
+all available versions, it finds replicas of the latest tag version,
 chooses one of them randomly, and retrieves the tag data. It is not safe
 to get tag data if more than *K - 1* nodes are unavailable, as in this
 case not all versions of the tag might be available.
@@ -464,9 +476,9 @@ checks whether the requested tag exists on this list, to hide deleted
 tags from the user. Actual deletion is handled by garbage collector in
 ``ddfs/ddfs_gc_main:process_deleted()``.
 
-The deleted tag is kept on the ``+deleted`` list until all known instances of
+The deleted tag is kept on the ``+deleted`` list until all known versions of
 the tag have been garbage collected, and a sufficient quarantine period has
-passed since the last seen instance, to ensure that all nodes which might be
+passed since the last seen version, to ensure that all nodes which might be
 temporarily unavailable have been restarted.
 
 Due to this mechanism, it is critical that no node stays unavailable for more

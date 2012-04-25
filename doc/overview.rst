@@ -21,7 +21,7 @@ Disco is based on the master-slave architecture.
 
  * Once files are stored in the Disco cluster,
    Disco tries to maintain :term:`data locality` by scheduling tasks
-   which use those files as input on the same nodes that they are stored on.
+   which use those files as input on the same nodes that the files are stored on.
    Disco runs an HTTP server on each node so that data can be accessed remotely,
    when a worker cannot be run on the same node that its input is located.
 

@@ -44,8 +44,10 @@ DDFS garbage collection run.  A table mentions the number of tags and
 blobs that were kept after the last GC run and their total sizes in
 bytes, along with similar information for deleted blobs and tags.
 
-Blacklisting a node
--------------------
+.. _discoblacklist:
+
+Blacklisting a Disco node
+-------------------------
 
 You may decide that you need to reduce the load on a node if it is not
 performing well or for some other reason.  In this case, you can
@@ -53,11 +55,12 @@ blacklist a node, which informs Disco that the node should not be used
 for running any tasks or storing any new DDFS data.  However, Disco
 will still use the node for reading any DDFS data already stored on
 that node.  Note that blacklisting a node will not trigger
-re-replication of data away from the node.
+re-replication of data away from the node (however, see below on
+blacklisting a DDFS node).
 
 Blacklisting a node is done on the configuration page, accessible by
 clicking ``configure`` on the top right side of any page.  Type the
-name of the node in the text entry box under ``Blacklisted nodes``,
+name of the node in the text entry box under ``Blacklisted nodes for Disco``,
 and press enter.  The node should now show up above the text entry box
 in the list of blacklisted nodes.  Any node in this list can be
 clicked to whitelist it.
@@ -86,8 +89,15 @@ a node from the Disco configuration is a very similar process, except
 that you need to click ``remove`` next to the node(s) you wish to
 remove, and then click ``save table`` when you are done.
 
-There are a couple of options to removing a node that hosts DDFS data
-from the Disco cluster.
+
+.. _ddfsblacklist:
+
+Blacklisting a DDFS node
+------------------------
+
+There are various ways of removing a node that hosts DDFS data from
+the Disco cluster, with differing implications for safety and data
+availability.
 
    * The node could be physically removed from the cluster, but left
      in the Disco configuration.  In this case, it counts as a failed
@@ -100,9 +110,14 @@ from the Disco cluster.
      node as an unknown node instead of as a failed node, and the
      number of additional node failures tolerated by DDFS does not
      change.  However, this voids safety, since Disco might allow more
-     nodes hosting DDFS data to fail than is safe.  If this happens,
-     :ref:`gcrr` might not suffice to replicate the missing blobs and
-     tags, and some data might be permanently lost.
+     nodes hosting DDFS data to fail than is safe.  For example, if
+     the replication factor is set to 3, Disco might treat two
+     additional node failures as safe, whereas actually those two
+     nodes might be hosting the last two remaining replicas of a blob,
+     the third replica being lost when the first node was removed from
+     the configuration.  If this happens, :ref:`gcrr` will not suffice
+     to replicate the missing blobs and tags, and some data might be
+     permanently lost.
 
 The drawback of both of these approaches is that there is no
 indication provided by Disco as to when, if ever, DDFS is in a
@@ -110,11 +125,20 @@ consistent state again with respect to the data that was hosted on the
 removed node.
 
 DDFS now allows scheduling the removal of a node from DDFS, by putting
-the node on a DDFS *blacklist*.  If the node is alive but scheduled
-for removal, the number of additional node failures that can be safely
-tolerated does not change.  In addition, DDFS now provides an
-indication when all the data and metadata that was hosted on that node
-has been re-replicated on other cluster nodes, so that that node can
-be safely removed from the Disco cluster with a guarantee that no data
-has been lost.  The indication is provided by the node entry being
-highlighted in green in the blacklist.
+the node on a DDFS *blacklist*, which is specified using the text
+entry box labeled ``Blacklisted nodes for DDFS``.  This makes
+:ref:`gcrr` actively replicate data away from that node; that is,
+additional replicas are created to replace the blobs hosted on a
+blacklisted node, and when safe, references to the blobs on that node
+are removed from any referring tags.  DDFS data on the blacklisted
+node is however not deleted.
+
+In addition, DDFS now provides an indication when all the data and
+metadata that was hosted on that node has been re-replicated on other
+cluster nodes, so that that node can be safely removed from the Disco
+cluster (both physically, as well as from the configuration) with a
+guarantee that no data has been lost.  The indication is provided by
+the node entry being highlighted in green in the blacklist.  It may
+require several runs of :ref:`gcrr` to re-replicate data away from a
+node; since by default it runs once a day, several days may be needed
+before a DDFS blacklisted node becomes safe for removal.
