@@ -26,6 +26,13 @@ Glossary
    Erlang
         See `Erlang <http://en.wikipedia.org/wiki/Erlang_(programming_language)>`_.
 
+   garbage collection (GC)
+        DDFS has a tag-based filesystem, which means that a given blob
+        could be addressed via multiple tags.  This means that blobs
+        can only be deleted once the last reference to it is deleted.
+        DDFS uses a garbage collection procedure to detect and delete
+        such unreferenced data.
+
    immutable
         See `immutable object <http://en.wikipedia.org/wiki/Immutable_object>`_.
 
@@ -117,6 +124,16 @@ Glossary
         which usually has access to all values for a given key
         produced by the :term:`map` phase.
         Grouping data for reduce is achieved via :term:`partitioning`.
+
+   replica
+        Multiple copies (or replicas) of blobs are stored on different
+        cluster nodes so that blobs are still available inspite of a
+        small number of nodes going down.
+
+   re-replication
+        When a node goes down, the system tries to create additional
+        replicas to replace copies that were lost at the loss of the
+        node.
 
    SSH
         Network protocol used by :term:`Erlang` to start :term:`slaves <slave>`.
