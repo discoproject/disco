@@ -8,11 +8,9 @@ Disco 0.4.2 (pending)
 New features
 ''''''''''''
 
-- New fault-tolerant garbage collection and re-replication (GC/RR)
-  implemented.
+- New fault-tolerant garbage collector and re-replicator (GC/RR).
 - Allow scheduling of nodes for safe removal from DDFS (#201).
 - Some useful GC statistics are now shown in the UI.
-- Many dialyzer-related cleanups.  Thanks to Kostis Sagonas.
 
 Changes
 '''''''
@@ -22,6 +20,7 @@ Changes
   appropriately.
 - Master logging switched to lager.  Note that the format of the logs
   has changed as a result.
+- Many dialyzer-related cleanups.  Thanks to Kostis Sagonas.
 - Cleanup of debian package build.
 
 Bugfixes
@@ -39,6 +38,8 @@ Bugfixes
 - Fix a crash due to an already started lock server (64096a3).
 - Handle an existing disco user on package install (4f04e14).  Thanks
   to Pedro Larroy.
+- Fix a crash of ddfs_master due to timeouts in linked processes (#312).
+
 
 Disco 0.4.1 (Sep 23rd 2011)
 ---------------------------
