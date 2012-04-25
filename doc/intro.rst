@@ -41,6 +41,9 @@ extremely compact Python API -- typically only two functions are needed --
 as well as a REST-style Web API for job control and a easy-to-use Web
 interface for status monitoring.
 
+Disco also exposes a simple worker protocol, allowing jobs to be
+written in any language that implements the protocol.
+
 Distributed computing made easy
 -------------------------------
 
@@ -59,7 +62,7 @@ maintains an 800-core cluster running Disco using this setup.
 Main features
 -------------
 
-- Proven to scale to hundreds of CPUs and tens of thousands of simulataneous
+- Proven to scale to hundreds of CPUs and tens of thousands of simultaneous
   tasks.
 
 - Used to process datasets in the scale of tens of terabytes.
@@ -67,9 +70,8 @@ Main features
 - Extremely simple to use: A typical tasks consists of two functions written
   in Python and two calls to the Disco API.
 
-- Tasks can be specified in any other language as well, via a simple external
-  interface based on standard input and output streams. Bindings for C are
-  provided as an example.
+- Tasks can be specified in any other language as well, by
+  implementing the Disco worker protocol.
 
 - Input data can be in any format, even binary data such as images. The
   data can be located on any source that is accesible by HTTP or it can
