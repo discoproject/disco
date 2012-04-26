@@ -35,7 +35,7 @@ TARGETSRV = $(DESTDIR)$(RELSRV)
 
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
-SPHINXOPTS = "-D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)"
+SPHINXOPTS = -D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)
 
 # used to choose which conf file will be generated
 UNAME = $(shell uname)
@@ -99,13 +99,13 @@ debian-clean:
 	$(MAKE) -C pkg/debian clean
 
 doc:
-	$(MAKE) -C doc html
+	$(MAKE) -C doc html -e
 
 doc-clean:
-	$(MAKE) -C doc clean
+	$(MAKE) -C doc clean -e
 
 doc-test:
-	$(MAKE) -C doc doctest
+	$(MAKE) -C doc doctest -e
 
 install: install-core install-node install-master
 
