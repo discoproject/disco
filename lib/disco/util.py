@@ -16,6 +16,9 @@ import functools, gzip
 from cStringIO import StringIO
 from itertools import chain, groupby, repeat
 from urllib import urlencode
+from bson.son import SON
+from bson import json_util
+import json
 
 from disco.error import DiscoError, DataError, CommError
 from disco.settings import DiscoSettings
@@ -326,3 +329,8 @@ def format_size(num):
         if num < 1024.:
             return "%3.1f%s" % (num, unit)
         num /= 1024.
+
+def encode_mongo_url(hostname, port, dbname, collection_name, query):
+    q = json.dumps(SON({'$query': query}), default=json_util.default)
+    return 'mongodb://%s:%s/%s/%s/%s' % (hostname, port, dbname, 
+                                         collection_name, q)
