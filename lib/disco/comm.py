@@ -158,10 +158,15 @@ class Connection(object):
                 yield line
             chunk = last + next_chunk
 
-    def __len__(self):
+    def _contentsize(self):
         if 'content-range' in self.headers:
             return int(self.headers['content-range'].split('/')[1])
         return int(self.headers.get('content-length', 0))
+    __len__ = _contentsize # backwards compatibility
+
+    def __nonzero__(self):
+        # need to override so it doesn't fall back to __len__
+        return True
 
     def close(self):
         pass
@@ -181,8 +186,8 @@ class Connection(object):
             if self.eof:
                 return ''
             self.i = 0
-            if len(self):
-                end = min(len(self), self.offset + CHUNK_SIZE) - 1
+            if self._contentsize():
+                end = min(self._contentsize(), self.offset + CHUNK_SIZE) - 1
             else:
                 end = self.offset + CHUNK_SIZE - 1
             headers = auth_header(self.token)
@@ -194,7 +199,7 @@ class Connection(object):
             self.headers = dict(response.getheaders())
             self.orig_offset = self.offset
             self.offset += len(self.buf)
-            if len(self) and self.offset >= len(self):
+            if self._contentsize() and self.offset >= self._contentsize():
                 self.eof = True
             elif self.buf == '':
                 self.eof = True
@@ -211,7 +216,7 @@ class Connection(object):
         elif mode == 1:
             self.offset = self.tell() + pos
         else:
-            self.offset = len(self) - pos
+            self.offset = self._contentsize() - pos
         self.eof = False
         self.buf = None
         self.orig_offset = self.offset
