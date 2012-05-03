@@ -277,8 +277,8 @@ def parse_dir(dir, partition=None):
     return [url for id, url in sorted(read_index(dir)) if partition in (None, id)]
 
 def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET'):
-    if proxy:
-        scheme, (host, port), path = urlsplit(url)
+    scheme, (host, port), path = urlsplit(url)
+    if proxy and scheme != "tag":
         return '%s/proxy/%s/%s/%s' % (proxy, host, meth, path)
     return url
 
