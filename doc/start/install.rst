@@ -36,7 +36,8 @@ On each server the following are required:
  * `SSH daemon and client <http://www.openssh.com>`_
  * `Erlang/OTP R14A or newer <http://www.erlang.org>`_
  * `Python 2.6 or newer <http://www.python.org>`_
- * `simplejson <http://pypi.python.org/pypi/simplejson/>`_ (for Python < 2.6)
+
+The same version of Erlang should be installed on all servers.
 
 Optionally, ``DISCO_PROXY`` needs one of
 
