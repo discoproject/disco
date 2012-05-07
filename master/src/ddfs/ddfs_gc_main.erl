@@ -256,7 +256,7 @@ add_replicas(Master, BlobName, NewUrls) ->
 
 %% ===================================================================
 %% gen_server callbacks
-
+-spec init({string(), ets:tab()}) -> {ok, state()}.
 init({Root, DeletedAges}) ->
     % Ensure only one gc process is running at a time.  We don't use a
     % named process to implement uniqueness so that our message queue
@@ -292,7 +292,10 @@ init({Root, DeletedAges}) ->
     gen_server:cast(self(), start),
     {ok, State}.
 
-
+-type is_orphan_msg() :: {is_orphan, object_type(), object_name(),
+                          node(), volume_name()}.
+-spec handle_call(is_orphan_msg(), from(), state()) -> {reply, boolean(), state()};
+                 (dbg_state_msg(), from(), state()) -> {reply, state(), state()}.
 handle_call({is_orphan, Type, ObjName, Node, Vol}, _, S) ->
     S1 = S#state{last_response_time = now()},
     {reply, check_is_orphan(S, Type, ObjName, Node, Vol), S1};
@@ -300,6 +303,19 @@ handle_call({is_orphan, Type, ObjName, Node, Vol}, _, S) ->
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S}.
 
+-type gc_status_msg()     :: {gc_status, pid()}.
+-type retry_node_msg()    :: {retry_node, node()}.
+-type build_map_msg()     ::  {build_map, [tagname()]}.
+-type gc_done_msg()       :: {gc_done, node(), gc_run_stats()}.
+-type rr_blob_msg()       :: {rr_blob, term()}.
+-type add_replicas_msg()  :: {add_replicas, object_name(), [url()]}.
+-type rr_tags_msg()       :: {rr_tags, [tagname()]}.
+
+-spec handle_cast(gc_status_msg() | retry_node_msg() | build_map_msg()
+                  | gc_done_msg() | rr_blob_msg()    | add_replicas_msg()
+                  | rr_tags_msg(),
+                  state()) -> {noreply, state()}
+                                  | {stop, stop_requested | shutdown, state()}.
 handle_cast({gc_status, From}, #state{phase = P} = S) when is_pid(From) ->
     From ! {ok, P},
     {noreply, S};
@@ -460,6 +476,12 @@ handle_cast({rr_tags, []}, #state{phase = rr_tags, gc_peers = Peers,
     cleanup_for_exit(S),
     {stop, shutdown, S}.
 
+-type check_blob_result_msg() :: {check_blob_result, local_object(),
+                                  check_blob_result()}.
+-spec handle_info(check_blob_result_msg() | check_progress
+                  | {'EXIT', pid(), term()} | {reference(), term()},
+                  state()) -> {noreply, state()} | {stop, shutdown, state()}.
+
 handle_info({check_blob_result, LocalObj, Status},
             #state{phase = Phase, num_pending_reqs = NumPendingReqs} = S)
   when Phase =:= build_map;
@@ -544,11 +566,14 @@ handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
 %% ===================================================================
 %% gen_server callback stubs
 
+-spec terminate(term(), state()) -> ok.
 terminate(_Reason, _S) -> ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+-spec format_status(term(), [term()]) -> [term()].
 format_status(_Opt, [_PDict, S]) ->
     [{data, [{"State", [{phase, S#state.phase}]}]}].
 
