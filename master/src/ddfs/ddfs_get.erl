@@ -4,6 +4,7 @@
 -include_lib("kernel/include/file.hrl").
 
 -include("config.hrl").
+-include("ddfs.hrl").
 
 -export([start/2, serve_ddfs_file/2, serve_disco_file/2]).
 

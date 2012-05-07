@@ -1,6 +1,7 @@
 -module(ddfs).
 
 -include("config.hrl").
+-include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
 -export([new_blob/4, tags/2, get_tag/4, update_tag/5, update_tag_delayed/5,

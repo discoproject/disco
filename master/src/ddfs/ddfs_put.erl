@@ -4,6 +4,7 @@
 -include_lib("kernel/include/file.hrl").
 
 -include("config.hrl").
+-include("ddfs.hrl").
 
 -export([start/1]).
 
