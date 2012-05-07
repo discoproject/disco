@@ -2,6 +2,7 @@
 -module(ddfs_web).
 
 -include("config.hrl").
+-include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
 -export([op/3]).

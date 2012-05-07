@@ -1,5 +1,6 @@
 -module(ddfs_tag_util).
 
+-include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 -include("config.hrl").
 
