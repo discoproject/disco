@@ -24,6 +24,7 @@
                 replicas :: 'false' | 'too_many_failed_nodes'
                     | [{replica(), node()}],
                 url_cache :: 'false' | gb_set()}).
+-type state() :: #state{}.
 
 % THOUGHT: Eventually we want to partition tag keyspace instead
 % of using a single global keyspace. This can be done relatively
@@ -59,6 +60,17 @@ init(TagName, Data, Timeout) ->
                 url_cache = false,
                 timeout = Timeout}}.
 
+-type msg() :: get_msg() | put_msg() | update_msg() | delayed_update_msg()
+             | delete_attrib_msg() | delete_msg()
+             | has_tagname_msg() | get_tagnames_msg() | delete_tagname_msg()
+             | gc_get_msg()
+               %% internal messages:
+             | gc_get0.
+
+-type notify() :: notify_msg()
+                  %% internal messages:
+                | {notify0, term()}.
+
 %%% Note to the reader!
 %%%
 %%% handle_casts below form a state machine. The order in which the functions
@@ -66,6 +78,8 @@ init(TagName, Data, Timeout) ->
 %%% machine is to follow the logic from the top to the bottom.
 %%%
 
+-spec handle_cast({msg(), from()} | {die, none} | notify(), state()) ->
+        {noreply, state(), non_neg_integer()} | {stop, normal, state()}.
 % We don't want to cache requests made by garbage collector
 handle_cast({gc_get, ReplyTo}, #state{data = none} = S) ->
     handle_cast({gc_get0, ReplyTo}, S#state{timeout = 100});
@@ -238,21 +252,25 @@ handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
                 S#state{url_cache = NewDel}),
     {noreply, S1, S1#state.timeout}.
 
+-spec handle_call(term(), from(), state()) -> {reply, ok | state(), state()}.
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
 handle_call(_, _, S) -> {reply, ok, S}.
 
+-spec handle_info(timeout, state()) -> {noreply, state(), non_neg_integer()} | {stop, normal, state()};
+                 ({reference(), term()}, state()) -> {noreply, state()}.
 handle_info(timeout, S) ->
     handle_cast({die, none}, S);
-
 % handle late replies to "catch gen_server:call"
 handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
     {noreply, S}.
 
 % callback stubs
-terminate(_Reason, _State) -> {}.
+-spec terminate(term(), state()) -> ok.
+terminate(_Reason, _State) -> ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 
