@@ -11,12 +11,13 @@
 -include("ddfs_tag.hrl").
 
 -record(state, {nodename :: string(),
-                root :: nonempty_string(),
+                root :: path(),
                 vols :: [volume()],
                 putq :: http_queue:q(),
                 getq :: http_queue:q(),
                 tags :: gb_tree(),
                 scanner :: pid()}).
+-type state() :: #state{}.
 
 -spec start_link(term()) -> no_return().
 start_link(Config) ->
@@ -36,6 +37,7 @@ start_link(Config) ->
             exit(Reason0)
     end.
 
+-spec stop() -> ok.
 stop() ->
     gen_server:call(ddfs_node, stop).
 
@@ -62,6 +64,7 @@ get_tag_data(SrcNode, TagId, TagNfo) ->
     Call = {get_tag_data, TagId, TagNfo},
     gen_server:call({?MODULE, SrcNode}, Call, ?NODE_TIMEOUT).
 
+-spec init(proplists:proplist()) -> {ok, state()}.
 init(Config) ->
     {nodename, NodeName} = proplists:lookup(nodename, Config),
     {ddfs_root, DdfsRoot} = proplists:lookup(ddfs_root, Config),
@@ -103,6 +106,31 @@ init(Config) ->
                 getq = http_queue:new(GetMax, ?HTTP_QUEUE_LENGTH),
                 scanner = Scanner}}.
 
+-type put_blob_msg() :: {put_blob, nonempty_string()}.
+-type get_tag_ts_msg() :: {get_tag_timestamp, tagname()}.
+-type get_tag_data_msg() :: {get_tag_data, tagid(),
+                             {erlang:timestamp(), volume_name()}}.
+-type put_tag_data_msg() :: {put_tag_data, {tagid(), binary()}}.
+-type put_tag_commit_msg() :: {put_tag_commit, tagname(),
+                               [{node(), volume_name()}]}.
+
+-spec handle_call(get_tags, from(), state()) ->
+                         {reply, [tagname()], state()};
+                 (get_vols, from(), state()) ->
+                         {reply, {[volume()], path()}, state()};
+                 (get_blob, from(), state()) ->
+                         {reply, full, state()} | {noreply, state()};
+                 (get_diskspace, from(), state()) ->
+                         {reply, diskinfo(), state()};
+                 (put_blob_msg(), from(), state()) ->
+                         {reply, put_blob_result(), state()} | {noreply, state()};
+                 (get_tag_ts_msg(), from(), state()) ->
+                         {reply, tag_ts(), state()};
+                 (get_tag_data_msg(), from(), state()) -> {noreply, state()};
+                 (put_tag_data_msg(), from(), state()) ->
+                         {reply, put_tag_data_result(), state()};
+                 (put_tag_commit_msg(), from(), state()) ->
+                         {reply, {ok, url()} | {error, _}, state()}.
 handle_call(get_tags, _, #state{tags = Tags} = S) ->
     {reply, gb_trees:keys(Tags), S};
 
@@ -132,6 +160,10 @@ handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
     {Reply, S1} = do_put_tag_commit(Tag, TagVol, S),
     {reply, Reply, S1}.
 
+-type casts() :: rescan_tags
+               | {update_vols, [volume()]}
+               | {update_tags, gb_tree()}.
+-spec handle_cast(casts(), state()) -> {noreply, state()}.
 handle_cast(rescan_tags, #state{scanner = Scanner} = S) ->
     Scanner ! rescan,
     {noreply, S};
@@ -142,6 +174,7 @@ handle_cast({update_vols, NewVols}, #state{vols = Vols} = S) ->
 handle_cast({update_tags, Tags}, S) ->
     {noreply, S#state{tags = Tags}}.
 
+-spec handle_info({'DOWN', _, _, pid(), _}, state()) -> {noreply, state()}.
 handle_info({'DOWN', _, _, Pid, _}, #state{putq = PutQ, getq = GetQ} = S) ->
     % We don't know if Pid refers to a put or get request.
     % We can safely try to remove it from both the queues: it can exist in
@@ -151,9 +184,10 @@ handle_info({'DOWN', _, _, Pid, _}, #state{putq = PutQ, getq = GetQ} = S) ->
     {noreply, S#state{putq = NewPutQ, getq = NewGetQ}}.
 
 % callback stubs
-terminate(_Reason, _State) ->
-    {}.
+-spec terminate(term(), state()) -> ok.
+terminate(_Reason, _State) -> ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -178,9 +212,10 @@ do_get_diskspace(#state{vols = Vols}) ->
                         {TotalFree + Free, TotalUsed + Used}
                 end, {0, 0}, Vols).
 
+-type put_blob_result() :: full | {error, no_volumes}.
 -spec do_put_blob(nonempty_string(), {pid(), _}, #state{}) ->
-                         {'reply', 'full' | {'error', 'no_volumes'}, #state{}}
-                             | {'noreply', #state{}}.
+                         {reply, put_blob_result(), #state{}}
+                         | {noreply, #state{}}.
 do_put_blob(_BlobName, _From, #state{vols = []} = S) ->
     {reply, {error, no_volumes}, S};
 do_put_blob(BlobName, {Pid, _Ref} = From,
@@ -206,8 +241,8 @@ do_put_blob(BlobName, {Pid, _Ref} = From,
             {noreply, S#state{putq = NewQ}}
     end.
 
--spec do_get_tag_timestamp(tagname(), #state{}) ->
-                       'notfound' | {'ok', {erlang:timestamp(), volume_name()}}.
+-type tag_ts() :: not_found | {ok, {erlang:timestamp(), volume_name()}}.
+-spec do_get_tag_timestamp(tagname(), #state{}) -> tag_ts().
 do_get_tag_timestamp(TagName, S) ->
     case gb_trees:lookup(TagName, S#state.tags) of
         none ->
@@ -232,7 +267,8 @@ do_get_tag_data(TagId, VolName, From, S) ->
             gen_server:reply(From, {error, read_failed})
     end.
 
--spec do_put_tag_data(tagname(), binary(), #state{}) -> {'ok', volume_name()} | {'error', _}.
+-type put_tag_data_result() :: {'ok', volume_name()} | {'error', _}.
+-spec do_put_tag_data(tagname(), binary(), #state{}) -> put_tag_data_result().
 do_put_tag_data(_Tag, _Data, #state{vols = []}) ->
     {error, no_volumes};
 do_put_tag_data(Tag, Data, S) ->
