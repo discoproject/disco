@@ -30,6 +30,7 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 -include("ddfs_gc.hrl").
+-include("gs_util.hrl").
 
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -type gc_stats() :: 'none' | gc_run_stats().
@@ -154,27 +155,27 @@ init(_Args) ->
 -type new_blob_msg() :: {new_blob, string() | object_name(), non_neg_integer(), [node()]}.
 -type tag_msg() :: {tag, ddfs_tag:call_msg(), tagname()}.
 -spec handle_call(dbg_state_msg(), from(), state()) ->
-                         {reply, state(), state()};
+                         gs_reply(state());
                  ({get_nodeinfo, all}, from(), state()) ->
-                         {reply, {ok, [node_info()]}, state()};
+                         gs_reply({ok, [node_info()]});
                  (get_read_nodes, from(), state()) ->
-                         {reply, {ok, [node()], non_neg_integer}, state()};
+                         gs_reply({ok, [node()], non_neg_integer});
                  (gc_blacklist, from(), state()) ->
-                         {reply, {ok, [node()]}, state()};
+                         gs_reply({ok, [node()]});
                  (gc_stats, from(), state()) ->
-                         {reply, {ok, gc_stats(), erlang:timestamp()}, state()};
+                         gs_reply({ok, gc_stats(), erlang:timestamp()});
                  (choose_write_nodes_msg(), from(), state()) ->
-                         {reply, {ok, [node()]}, state()};
+                         gs_reply({ok, [node()]});
                  (new_blob_msg(), from(), state()) ->
-                         {reply, new_blob_result(), state()};
+                         gs_reply(new_blob_result());
                  (tag_msg(), from(), state()) ->
-                         {reply, {error, nonodes}, state()} | {noreply, state()};
+                         gs_reply({error, nonodes}) | gs_noreply();
                  ({get_tags, gc | safe}, from(), state()) ->
-                         {noreply, state()};
+                         gs_noreply();
                  ({get_hosted_tags, host()}, from(), state()) ->
-                         {noreply, state()};
+                         gs_noreply();
                  (safe_gc_blacklist, from(), state()) ->
-                         {reply, {ok, [node()]}, state()}.
+                         gs_reply({ok, [node()]}).
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
@@ -227,7 +228,7 @@ handle_call(safe_gc_blacklist, _From, #state{safe_gc_blacklist = SBL} = S) ->
                   | refresh_tag_cache
                   | {update_nodes, nodes_update()}
                   | {update_nodestats, gb_tree()},
-                  state()) -> {noreply, state()}.
+                  state()) -> gs_noreply().
 handle_cast({tag_notify, M, Tag}, S) ->
     {noreply, do_tag_notify(M, Tag, S)};
 
@@ -257,7 +258,7 @@ handle_cast({update_nodes, NewNodes}, S) ->
 handle_cast({update_nodestats, NewNodes}, S) ->
     {noreply, do_update_nodestats(NewNodes, S)}.
 
--spec handle_info({'DOWN', _, _, pid(), _}, state()) -> {noreply, state()}.
+-spec handle_info({'DOWN', _, _, pid(), _}, state()) -> gs_noreply().
 handle_info({'DOWN', _, _, Pid, _}, S) ->
     {noreply, do_tag_exit(Pid, S)}.
 

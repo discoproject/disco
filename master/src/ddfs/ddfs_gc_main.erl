@@ -190,6 +190,7 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 -include("ddfs_gc.hrl").
+-include("gs_util.hrl").
 
 -define(NODE_RETRY_WAIT, 30000).
 
@@ -294,8 +295,8 @@ init({Root, DeletedAges}) ->
 
 -type is_orphan_msg() :: {is_orphan, object_type(), object_name(),
                           node(), volume_name()}.
--spec handle_call(is_orphan_msg(), from(), state()) -> {reply, boolean(), state()};
-                 (dbg_state_msg(), from(), state()) -> {reply, state(), state()}.
+-spec handle_call(is_orphan_msg(), from(), state()) -> gs_reply(boolean());
+                 (dbg_state_msg(), from(), state()) -> gs_reply(state()).
 handle_call({is_orphan, Type, ObjName, Node, Vol}, _, S) ->
     S1 = S#state{last_response_time = now()},
     {reply, check_is_orphan(S, Type, ObjName, Node, Vol), S1};
@@ -314,8 +315,7 @@ handle_call(dbg_get_state, _, S) ->
 -spec handle_cast(gc_status_msg() | retry_node_msg() | build_map_msg()
                   | gc_done_msg() | rr_blob_msg()    | add_replicas_msg()
                   | rr_tags_msg(),
-                  state()) -> {noreply, state()}
-                                  | {stop, stop_requested | shutdown, state()}.
+                  state()) -> gs_noreply() | gs_stop(stop_requested | shutdown).
 handle_cast({gc_status, From}, #state{phase = P} = S) when is_pid(From) ->
     From ! {ok, P},
     {noreply, S};
@@ -480,7 +480,7 @@ handle_cast({rr_tags, []}, #state{phase = rr_tags, gc_peers = Peers,
                                   check_blob_result()}.
 -spec handle_info(check_blob_result_msg() | check_progress
                   | {'EXIT', pid(), term()} | {reference(), term()},
-                  state()) -> {noreply, state()} | {stop, shutdown, state()}.
+                  state()) -> gs_noreply() | gs_stop(shutdown).
 
 handle_info({check_blob_result, LocalObj, Status},
             #state{phase = Phase, num_pending_reqs = NumPendingReqs} = S)

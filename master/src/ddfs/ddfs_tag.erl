@@ -6,6 +6,7 @@
 -include("ddfs.hrl").
 -include("ddfs_gc.hrl").
 -include("ddfs_tag.hrl").
+-include("gs_util.hrl").
 
 -export([start/2, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
@@ -25,6 +26,33 @@
                     | [{replica(), node()}],
                 url_cache :: 'false' | gb_set()}).
 -type state() :: #state{}.
+
+% API messages.
+-type get_msg() :: {get, attrib() | all, token()}.
+-type put_msg() :: {put, attrib(), string(), token()}.
+-type update_msg() :: {update, [url()], token(), proplists:proplist()}.
+-type delayed_update_msg() :: {delayed_update, [url()], token(), proplists:proplist()}.
+-type delete_attrib_msg()  :: {delete_attrib, attrib(), token()}.
+-type delete_msg() :: {delete, token()}.
+
+% Special msg for GC.
+-type gc_get_msg() :: gc_get.
+
+% Special messages for the +deleted tag.
+-type has_tagname_msg() :: {has_tagname, tagname()}.
+-type get_tagnames_msg() :: get_tagnames.
+-type delete_tagname_msg() :: {delete_tagname, tagname()}.
+
+% Notifications.
+-type notify_msg() :: {notify, term()}.
+
+-type call_msg() :: get_msg() | put_msg() | update_msg() | delayed_update_msg()
+                  | delete_attrib_msg() | delete_msg()
+                  | has_tagname_msg() | get_tagnames_msg() | delete_tagname_msg()
+                  | gc_get_msg().
+-type cast_msg() :: notify_msg().
+
+-export_type([call_msg/0, cast_msg/0]).
 
 % THOUGHT: Eventually we want to partition tag keyspace instead
 % of using a single global keyspace. This can be done relatively
@@ -60,10 +88,7 @@ init(TagName, Data, Timeout) ->
                 url_cache = false,
                 timeout = Timeout}}.
 
--type msg() :: get_msg() | put_msg() | update_msg() | delayed_update_msg()
-             | delete_attrib_msg() | delete_msg()
-             | has_tagname_msg() | get_tagnames_msg() | delete_tagname_msg()
-             | gc_get_msg()
+-type msg() :: call_msg()
                %% internal messages:
              | gc_get0.
 
@@ -78,8 +103,8 @@ init(TagName, Data, Timeout) ->
 %%% machine is to follow the logic from the top to the bottom.
 %%%
 
--spec handle_cast({msg(), from()} | {die, none} | notify(), state()) ->
-        {noreply, state(), non_neg_integer()} | {stop, normal, state()}.
+-spec handle_cast({msg(), from()} | {die, none} | notify(), state())
+                 -> gs_noreply() | gs_stop(normal).
 % We don't want to cache requests made by garbage collector
 handle_cast({gc_get, ReplyTo}, #state{data = none} = S) ->
     handle_cast({gc_get0, ReplyTo}, S#state{timeout = 100});
@@ -252,14 +277,14 @@ handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
                 S#state{url_cache = NewDel}),
     {noreply, S1, S1#state.timeout}.
 
--spec handle_call(term(), from(), state()) -> {reply, ok | state(), state()}.
+-spec handle_call(term(), from(), state()) -> gs_reply(ok | state()).
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
 handle_call(_, _, S) -> {reply, ok, S}.
 
--spec handle_info(timeout, state()) -> {noreply, state(), non_neg_integer()} | {stop, normal, state()};
-                 ({reference(), term()}, state()) -> {noreply, state()}.
+-spec handle_info(timeout, state()) -> gs_noreply_t() | gs_stop(normal);
+                 ({reference(), term()}, state()) -> gs_noreply().
 handle_info(timeout, S) ->
     handle_cast({die, none}, S);
 % handle late replies to "catch gen_server:call"
