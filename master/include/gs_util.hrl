@@ -6,3 +6,7 @@
 -type gs_noreply() :: {noreply, state()}.
 -type gs_noreply_t() :: {noreply, state(), non_neg_integer()}.
 -type gs_stop(T) :: {stop, (T), state()}.
+
+% Generic utilities.
+-type from() :: {pid(), term()}.
+-type dbg_state_msg() :: dbg_get_state.

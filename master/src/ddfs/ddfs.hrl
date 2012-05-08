@@ -10,7 +10,3 @@
 -type object_name() :: binary().
 -type url() :: binary().
 -type taginfo() :: {erlang:timestamp(), volume_name()}.
-
-% Generic utilities.
--type from() :: {pid(), term()}.
--type dbg_state_msg() :: dbg_get_state.
