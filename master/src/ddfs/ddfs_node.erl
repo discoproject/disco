@@ -9,6 +9,7 @@
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
+-include("gs_util.hrl").
 
 -record(state, {nodename :: string(),
                 root :: path(),
@@ -115,22 +116,23 @@ init(Config) ->
                                [{node(), volume_name()}]}.
 
 -spec handle_call(get_tags, from(), state()) ->
-                         {reply, [tagname()], state()};
+                         gs_reply([tagname()]);
                  (get_vols, from(), state()) ->
-                         {reply, {[volume()], path()}, state()};
+                         gs_reply({[volume()], path()});
                  (get_blob, from(), state()) ->
-                         {reply, full, state()} | {noreply, state()};
+                         gs_reply(full) | gs_noreply();
                  (get_diskspace, from(), state()) ->
-                         {reply, diskinfo(), state()};
+                         gs_reply(diskinfo());
                  (put_blob_msg(), from(), state()) ->
-                         {reply, put_blob_result(), state()} | {noreply, state()};
+                         gs_reply(put_blob_result()) | gs_noreply();
                  (get_tag_ts_msg(), from(), state()) ->
-                         {reply, tag_ts(), state()};
-                 (get_tag_data_msg(), from(), state()) -> {noreply, state()};
+                         gs_reply(tag_ts());
+                 (get_tag_data_msg(), from(), state()) ->
+                         gs_noreply();
                  (put_tag_data_msg(), from(), state()) ->
-                         {reply, put_tag_data_result(), state()};
+                         gs_reply(put_tag_data_result());
                  (put_tag_commit_msg(), from(), state()) ->
-                         {reply, {ok, url()} | {error, _}, state()}.
+                         gs_reply({ok, url()} | {error, _}).
 handle_call(get_tags, _, #state{tags = Tags} = S) ->
     {reply, gb_trees:keys(Tags), S};
 
@@ -163,7 +165,7 @@ handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
 -type casts() :: rescan_tags
                | {update_vols, [volume()]}
                | {update_tags, gb_tree()}.
--spec handle_cast(casts(), state()) -> {noreply, state()}.
+-spec handle_cast(casts(), state()) -> gs_noreply().
 handle_cast(rescan_tags, #state{scanner = Scanner} = S) ->
     Scanner ! rescan,
     {noreply, S};
@@ -174,7 +176,7 @@ handle_cast({update_vols, NewVols}, #state{vols = Vols} = S) ->
 handle_cast({update_tags, Tags}, S) ->
     {noreply, S#state{tags = Tags}}.
 
--spec handle_info({'DOWN', _, _, pid(), _}, state()) -> {noreply, state()}.
+-spec handle_info({'DOWN', _, _, pid(), _}, state()) -> gs_noreply().
 handle_info({'DOWN', _, _, Pid, _}, #state{putq = PutQ, getq = GetQ} = S) ->
     % We don't know if Pid refers to a put or get request.
     % We can safely try to remove it from both the queues: it can exist in
