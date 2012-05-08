@@ -3,7 +3,7 @@
 
 -include("disco.hrl").
 
--export([start_link/0, stop/0]).
+-export([start_link/0]).
 -export([get_config_table/0, save_config_table/1,
          blacklist/1, whitelist/1,
          gc_blacklist/1, gc_whitelist/1]).
@@ -26,9 +26,6 @@ start_link() ->
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
     end.
-
-stop() ->
-    gen_server:call(?MODULE, stop).
 
 -spec get_config_table() -> {'ok', raw_hosts()}.
 get_config_table() ->

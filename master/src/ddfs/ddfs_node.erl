@@ -3,7 +3,7 @@
 
 -export([get_vols/0, gate_get_blob/0, put_blob/1, get_tag_data/3, rescan_tags/0]).
 
--export([start_link/1, stop/0, init/1, handle_call/3, handle_cast/2,
+-export([start_link/1, init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
 -include("config.hrl").
@@ -37,10 +37,6 @@ start_link(Config) ->
         {'EXIT', _, Reason0} ->
             exit(Reason0)
     end.
-
--spec stop() -> ok.
-stop() ->
-    gen_server:call(ddfs_node, stop).
 
 -spec get_vols() -> {[volume()], path()}.
 get_vols() ->

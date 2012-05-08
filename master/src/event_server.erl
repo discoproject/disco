@@ -15,7 +15,6 @@
          task_event/4,
          task_event/5]).
 -export([start_link/0,
-         stop/0,
          init/1,
          handle_call/3,
          handle_cast/2,
@@ -39,9 +38,6 @@ start_link() ->
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
     end.
-
-stop() ->
-    gen_server:call(event_server, stop).
 
 init(_Args) ->
     _ = ets:new(event_files, [named_table]),

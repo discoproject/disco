@@ -1,7 +1,7 @@
 -module(disco_proxy).
 -behaviour(gen_server).
 
--export([start/0, stop/0, update_nodes/1]).
+-export([start/0, update_nodes/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
@@ -51,12 +51,6 @@ start() ->
             {ok, Server} -> {ok, Server};
             {error, {already_started, Server}} -> {ok, Server}
         end
-    end.
-
-stop() ->
-    case whereis(?MODULE) of
-        undefined -> ok;
-        _Pid -> gen_server:call(?MODULE, stop)
     end.
 
 -spec update_nodes([nonempty_string()]) -> 'ok'.
