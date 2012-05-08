@@ -94,8 +94,7 @@ init({Master, Task}) ->
 handle_cast(start, #state{task = Task, master = Master} = State) ->
     JobName = Task#task.jobname,
     Fun = fun() -> make_jobhome(JobName, Master) end,
-    case catch gen_server:call(lock_server,
-                               {wait, JobName, Fun}, ?JOBHOME_TIMEOUT) of
+    case catch lock_server:lock(JobName, Fun, ?JOBHOME_TIMEOUT) of
         ok ->
             gen_server:cast(self(), work),
             {noreply, State};
