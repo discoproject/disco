@@ -2,7 +2,7 @@
 -module(disco_server).
 -behaviour(gen_server).
 
--export([start_link/0, stop/0]).
+-export([start_link/0]).
 -export([update_config_table/3, get_active/1, get_nodeinfo/1, get_purged/1,
          new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
          new_task/2, connection_status/2, manual_blacklist/2, gc_blacklist/1,
@@ -58,9 +58,6 @@ start_link() ->
         {error, {already_started, Server}} ->
             {ok, Server}
     end.
-
-stop() ->
-    gen_server:call(?MODULE, stop).
 
 -spec update_config_table([disco_config:host_info()], [host_name()],
                           [host_name()]) -> 'ok'.
