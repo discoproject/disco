@@ -13,6 +13,7 @@
          event/3]).
 
 -include("disco.hrl").
+-include("gs_util.hrl").
 
 -record(state, {master :: node(),
                 task :: task(),
@@ -24,6 +25,10 @@
                 runtime :: worker_runtime:state(),
                 throttle :: worker_throttle:state()}).
 -type state() :: #state{}.
+
+-type shutdown() :: {error | fatal, term()}.
+-type event() :: {binary(), term()}.
+-export_type([shutdown/0, event/0]).
 
 -define(JOBHOME_TIMEOUT, 5 * 60 * 1000).
 -define(PID_TIMEOUT, 30 * 1000).
@@ -91,6 +96,7 @@ init({Master, Task}) ->
             throttle = worker_throttle:init()}
     }.
 
+-spec handle_cast(start | work, state()) -> gs_noreply().
 handle_cast(start, #state{task = Task, master = Master} = State) ->
     JobName = Task#task.jobname,
     Fun = fun() -> make_jobhome(JobName, Master) end,
@@ -106,7 +112,6 @@ handle_cast(start, #state{task = Task, master = Master} = State) ->
         {'EXIT', {timeout, _}} ->
             {stop, {shutdown, {error, "Job initialization timeout"}}, State}
     end;
-
 handle_cast(work, #state{task = Task, port = none} = State) ->
     JobHome = jobhome(Task#task.jobname),
     Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
@@ -123,6 +128,11 @@ handle_cast(work, #state{task = Task, port = none} = State) ->
     SendPid = spawn_link(fun() -> worker_send(Port) end),
     {noreply, State#state{port = Port, worker_send = SendPid}, ?PID_TIMEOUT}.
 
+
+-type port_msg() :: timeout | {port(), {data, binary()}}
+                  | {port(), {exit_status, non_neg_integer()}}
+                  | {'DOWN', _, _, _, _}.
+-spec handle_info(port_msg(), state()) -> gs_noreply() | gs_stop(shutdown()).
 handle_info({_Port, {data, Data}},
             #state{error_output = true, buffer = Buffer} = State)
             when size(Buffer) < ?MAX_ERROR_BUFFER_SIZE ->
@@ -155,9 +165,11 @@ handle_info({_Port, {exit_status, Code}}, S) ->
 handle_info({'DOWN', _, _, _, Info}, State) ->
     {stop, {shutdown, {fatal, Info}}, State}.
 
+-spec handle_call(term(), from(), state()) -> gs_noreply().
 handle_call(_Req, _From, State) ->
     {noreply, State}.
 
+-spec terminate(term(), state()) -> ok.
 terminate(_Reason, #state{port = none} = _State) ->
     ok;
 terminate(_Reason, S) ->
@@ -172,6 +184,7 @@ terminate(_Reason, S) ->
             _ = os:cmd(["kill -9 ",  PidStr])
     end.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -262,6 +275,7 @@ jobhome(JobName) ->
 warning(Msg, #state{master = Master, task = Task}) ->
     event({<<"WARNING">>, iolist_to_binary(Msg)}, Task, Master).
 
+-spec event(event(), task(), node()) -> ok.
 event(Event, Task, Master) ->
     Host = disco:host(node()),
     event_server:task_event(Task, Event, {}, Host, {event_server, Master}).
