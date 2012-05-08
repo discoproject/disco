@@ -1,6 +1,9 @@
 -module(disco_proxy).
 -behaviour(gen_server).
 
+-include("disco.hrl").
+-include("gs_util.hrl").
+
 -export([start/0, update_nodes/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -40,6 +43,7 @@
     "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 ).
 
+-spec start() -> ignore | {ok, pid()}.
 start() ->
     Proxy = disco:get_setting("DISCO_PROXY_ENABLED"),
     if Proxy =:= "" ->
@@ -53,27 +57,33 @@ start() ->
         end
     end.
 
--spec update_nodes([nonempty_string()]) -> 'ok'.
+-spec update_nodes([host_name()]) -> ok.
 update_nodes(Nodes) ->
     case disco:get_setting("DISCO_PROXY_ENABLED") of
         "" -> ok;
         _ -> gen_server:cast(?MODULE, {update_nodes, Nodes})
     end.
 
+-type state() :: pid().
+
+-spec init(_) -> {ok, state()}.
 init(_Args) ->
     process_flag(trap_exit, true),
     ProxyMonitor = spawn_link(fun() -> proxy_monitor(start_proxy()) end),
     {ok, ProxyMonitor}.
 
+-spec handle_call(term(), from(), state()) -> gs_noreply().
 handle_call(_Req, _From, S) ->
     {noreply, S}.
 
+-spec handle_cast({update_nodes, [host_name()]}, state()) -> gs_noreply().
 handle_cast({update_nodes, Nodes}, ProxyMonitor) ->
     do_update_nodes(Nodes),
     exit(ProxyMonitor, config_change),
     Monitor = spawn_link(fun() -> proxy_monitor(start_proxy()) end),
     {noreply, Monitor}.
 
+-spec handle_info({'EXIT', pid(), term()}, state()) -> gs_noreply().
 handle_info({'EXIT', ProxyMonitor, Reason}, ProxyMonitor) ->
     lager:warning("Proxy monitor exited: ~p", [Reason]),
     Monitor = spawn_link(fun() -> proxy_monitor(start_proxy()) end),
@@ -84,9 +94,11 @@ handle_info({'EXIT', Other, Reason}, S) ->
     lager:warning("Proxy: received unknown exit from ~p: ~p", [Other, Reason]),
     {noreply, S}.
 
+-spec terminate(term(), state()) -> ok.
 terminate(Reason, _State) ->
     lager:warning("Disco config dies: ~p", [Reason]).
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 -spec do_update_nodes([nonempty_string()]) -> 'ok'.
