@@ -25,7 +25,7 @@ start_link(Config) ->
     process_flag(trap_exit, true),
     error_logger:info_msg("DDFS node starts on ~p", [node()]),
     case catch gen_server:start_link(
-            {local, ddfs_node}, ddfs_node, Config, [{timeout, ?NODE_STARTUP}]) of
+                 {local, ?MODULE}, ?MODULE, Config, [{timeout, ?NODE_STARTUP}]) of
         {ok, _Server} ->
             ok;
         {error, {already_started, _Server}} ->
