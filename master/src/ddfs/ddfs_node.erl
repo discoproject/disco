@@ -241,8 +241,8 @@ do_put_blob(BlobName, {Pid, _Ref} = From,
 
 -type tag_ts() :: not_found | {ok, {erlang:timestamp(), volume_name()}}.
 -spec do_get_tag_timestamp(tagname(), #state{}) -> tag_ts().
-do_get_tag_timestamp(TagName, S) ->
-    case gb_trees:lookup(TagName, S#state.tags) of
+do_get_tag_timestamp(TagName, #state{tags = Tags}) ->
+    case gb_trees:lookup(TagName, Tags) of
         none ->
             notfound;
         {value, {_Time, _VolName} = TagNfo} ->
@@ -250,11 +250,11 @@ do_get_tag_timestamp(TagName, S) ->
     end.
 
 -spec do_get_tag_data(tagid(), volume_name(), {pid(), _}, #state{}) -> 'ok'.
-do_get_tag_data(TagId, VolName, From, S) ->
+do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
     {ok, TagDir, _Url} = ddfs_util:hashdir(TagId,
                                            disco:host(node()),
                                            "tag",
-                                           S#state.root,
+                                           Root,
                                            VolName),
     TagPath = filename:join(TagDir, binary_to_list(TagId)),
     case prim_file:read_file(TagPath) of
@@ -269,12 +269,14 @@ do_get_tag_data(TagId, VolName, From, S) ->
 -spec do_put_tag_data(tagname(), binary(), #state{}) -> put_tag_data_result().
 do_put_tag_data(_Tag, _Data, #state{vols = []}) ->
     {error, no_volumes};
-do_put_tag_data(Tag, Data, S) ->
-    {_Space, VolName} = choose_vol(S#state.vols),
+do_put_tag_data(Tag, Data, #state{nodename = NodeName,
+                                  vols = Vols,
+                                  root = Root}) ->
+    {_Space, VolName} = choose_vol(Vols),
     {ok, Local, _} = ddfs_util:hashdir(Tag,
-                                       S#state.nodename,
+                                       NodeName,
                                        "tag",
-                                       S#state.root,
+                                       Root,
                                        VolName),
     case ddfs_util:ensure_dir(Local) of
         ok ->
@@ -292,12 +294,14 @@ do_put_tag_data(Tag, Data, S) ->
 
 -spec do_put_tag_commit(tagname(), [{node(), volume_name()}], #state{}) ->
                        {{'ok', url()} | {'error', _}, #state{}}.
-do_put_tag_commit(Tag, TagVol, S) ->
+do_put_tag_commit(Tag, TagVol, #state{nodename = NodeName,
+                                      root = Root,
+                                      tags = Tags} = S) ->
     {_, VolName} = lists:keyfind(node(), 1, TagVol),
     {ok, Local, Url} = ddfs_util:hashdir(Tag,
-                                         S#state.nodename,
+                                         NodeName,
                                          "tag",
-                                         S#state.root,
+                                         Root,
                                          VolName),
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
 
@@ -307,9 +311,7 @@ do_put_tag_commit(Tag, TagVol, S) ->
     case ddfs_util:safe_rename(Src, Dst) of
         ok ->
             {{ok, Url},
-             S#state{tags = gb_trees:enter(TagName,
-                                           {Time, VolName},
-                                           S#state.tags)}};
+             S#state{tags = gb_trees:enter(TagName, {Time, VolName}, Tags)}};
         {error, _} = E ->
             {E, S}
     end.
