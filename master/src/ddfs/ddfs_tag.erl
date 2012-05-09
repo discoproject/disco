@@ -119,9 +119,9 @@ handle_cast({notify, M}, S) ->
     handle_cast({notify0, M}, S);
 
 % First request for this tag: No tag data loaded - load it
-handle_cast(M, #state{data = none, tag = Tag, timeout = T} = S) ->
+handle_cast(M, #state{data = none, tag = Tag, timeout = TO} = S) ->
     {Data, Replicas, Timeout} =
-        case is_tag_deleted(S#state.tag) of
+        case is_tag_deleted(Tag) of
             true ->
                 {{missing, deleted}, false, ?TAG_EXPIRES_ONERROR};
             false ->
@@ -129,7 +129,7 @@ handle_cast(M, #state{data = none, tag = Tag, timeout = T} = S) ->
                     {ok, TagData, Repl} ->
                         case ddfs_tag_util:decode_tagcontent(TagData) of
                             {ok, Content} ->
-                                {{ok, Content}, Repl, T};
+                                {{ok, Content}, Repl, TO};
                             {error, _} = E ->
                                 {E, false, ?TAG_EXPIRES_ONERROR}
                         end;
@@ -143,7 +143,7 @@ handle_cast(M, #state{data = none, tag = Tag, timeout = T} = S) ->
         end,
     handle_cast(M, S#state{data = Data,
                            replicas = Replicas,
-                           timeout = lists:min([Timeout, T])});
+                           timeout = lists:min([Timeout, TO])});
 
 % Delayed update with an empty buffer, initialize the buffer and a flush process
 handle_cast({{delayed_update, _, _, _}, _} = M,
@@ -196,30 +196,32 @@ handle_cast({{get, Attrib, Token}, ReplyTo}, #state{data = {ok, D}} = S) ->
     S1 = authorize(read, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
 
-handle_cast({{get, _, _}, ReplyTo}, #state{data = Data, timeout = T} = S) ->
+handle_cast({{get, _, _}, ReplyTo}, #state{data = Data, timeout = TO} = S) ->
     gen_server:reply(ReplyTo, Data),
-    {noreply, S, T};
+    {noreply, S, TO};
 
-handle_cast({_, ReplyTo}, #state{data = {error, _} = Data, timeout = T} = S) ->
+handle_cast({_, ReplyTo}, #state{data = {error, _} = Data, timeout = TO} = S) ->
     gen_server:reply(ReplyTo, Data),
-    {noreply, S, T};
+    {noreply, S, TO};
 
 handle_cast({gc_get0, ReplyTo},
-            #state{data = {ok, D}, replicas = Replicas, timeout = T} = S) ->
+            #state{data = {ok, D}, replicas = Replicas, timeout = TO} = S) ->
     R = {D#tagcontent.id, D#tagcontent.urls, Replicas},
     gen_server:reply(ReplyTo, R),
-    {noreply, S, T};
+    {noreply, S, TO};
 
-handle_cast({gc_get0, ReplyTo}, S) ->
-    gen_server:reply(ReplyTo, {S#state.data, S#state.replicas}),
-    {noreply, S, S#state.timeout};
+handle_cast({gc_get0, ReplyTo}, #state{data = Data,
+                                       replicas = Replicas,
+                                       timeout = TO} = S) ->
+    gen_server:reply(ReplyTo, {Data, Replicas}),
+    {noreply, S, TO};
 
 handle_cast({{update, Urls, Token, Opt}, ReplyTo}, S) ->
     Do = fun(TokenInfo) -> do_update(TokenInfo, Urls, Opt, ReplyTo, S) end,
     S1 = authorize(write, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
 
-handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
+handle_cast({{put, Field, Value, Token}, ReplyTo}, #state{timeout = TO} = S) ->
     case ddfs_tag_util:validate_value(Field, Value) of
         true ->
             Do =
@@ -231,7 +233,7 @@ handle_cast({{put, Field, Value, Token}, ReplyTo}, S) ->
             {noreply, S1, S1#state.timeout};
         false ->
             _ = send_replies(ReplyTo, {error, invalid_attribute_value}),
-            {noreply, S, S#state.timeout}
+            {noreply, S, TO}
     end;
 
 handle_cast({{delete_attrib, Field, Token}, ReplyTo},
@@ -240,9 +242,10 @@ handle_cast({{delete_attrib, Field, Token}, ReplyTo},
     S1 = authorize(write, Token, ReplyTo, S, Do),
     {noreply, S1, S1#state.timeout};
 
-handle_cast({{delete_attrib, _Field, _Token}, ReplyTo}, S) ->
+handle_cast({{delete_attrib, _Field, _Token}, ReplyTo},
+            #state{timeout = TO} = S) ->
     _ = send_replies(ReplyTo, {error, unknown_attribute}),
-    {noreply, S, S#state.timeout};
+    {noreply, S, TO};
 
 handle_cast({notify0, {gc_rr_update, Updates, Blacklist, UpdateId}}, S) ->
     S1 = do_gc_rr_update(S, Updates, Blacklist, UpdateId),
@@ -258,14 +261,14 @@ handle_cast(M, #state{url_cache = false, data = {ok, Data}} = S) ->
     handle_cast(M, S#state{url_cache = init_url_cache(Urls)});
 
 handle_cast({{has_tagname, Name}, ReplyTo},
-            #state{url_cache = Cache, timeout = Timeout} = S) ->
+            #state{url_cache = Cache, timeout = TO} = S) ->
     gen_server:reply(ReplyTo, gb_sets:is_member(Name, Cache)),
-    {noreply, S, Timeout};
+    {noreply, S, TO};
 
 handle_cast({get_tagnames, ReplyTo},
-            #state{url_cache = Cache, timeout = Timeout} = S) ->
+            #state{url_cache = Cache, timeout = TO} = S) ->
     gen_server:reply(ReplyTo, {ok, Cache}),
-    {noreply, S, Timeout};
+    {noreply, S, TO};
 
 handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
     NewDel = gb_sets:delete_any(Name, Cache),
@@ -328,14 +331,15 @@ do_update(TokenInfo, Urls, Opt, ReplyTo, #state{data = {ok, D}} = S) ->
     OldUrls = D#tagcontent.urls,
     do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls, S).
 
-do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls, S) ->
+do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls,
+          #state{url_cache = OldCache} = S) ->
     case ddfs_tag_util:validate_urls(Urls) of
         true ->
             NoDup = proplists:is_defined(nodup, Opt),
             {Cache, Merged} = merge_urls(Urls,
                                          OldUrls,
                                          NoDup,
-                                         S#state.url_cache),
+                                         OldCache),
             do_put(TokenInfo,
                    urls,
                    Merged,
@@ -680,8 +684,8 @@ put_commit(TagID, TagVol) ->
     end.
 
 -spec do_delete(replyto(), #state{}) -> #state{}.
-do_delete(ReplyTo, S) ->
-    case add_to_deleted(S#state.tag) of
+do_delete(ReplyTo, #state{tag = Tag} = S) ->
+    case add_to_deleted(Tag) of
         {ok, _} ->
             gen_server:reply(ReplyTo, ok),
             gen_server:cast(self(), {die, none});
