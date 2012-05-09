@@ -7,7 +7,8 @@
             next_id = 0  :: workid(),
             active  = [] :: [T],
             waiting = [] :: [{T, work()}]}).
--type q() :: #q{}.
+-opaque q() :: #q{}.
+-export_type([q/0]).
 
 -spec start_link(non_neg_integer()) -> pid().
 start_link(QueueSize) ->

@@ -48,7 +48,7 @@
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
 
--export_type([gc_stats/0]).
+-export_type([gc_stats/0, node_info/0]).
 
 %% ===================================================================
 %% API functions
