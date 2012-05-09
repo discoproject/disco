@@ -156,10 +156,12 @@ do_handle({<<"OUTPUT">>, Results}, S) ->
 do_handle({<<"PING">>, _Body}, S) ->
     {ok, {"OK", <<"pong">>}, S};
 
-do_handle({<<"DONE">>, _Body}, #state{task = Task, master = Master} = S) ->
+do_handle({<<"DONE">>, _Body}, #state{task = Task,
+                                      master = Master,
+                                      start_time = ST} = S) ->
     case close_output(S) of
         ok ->
-            Time = disco:format_time_since(S#state.start_time),
+            Time = disco:format_time_since(ST),
             Msg = ["Task finished in ", Time],
             disco_worker:event({<<"DONE">>, Msg}, Task, Master),
             {stop, {done, results(S)}};
@@ -192,10 +194,9 @@ results(#state{task = Task,
     {local_results(Task, FileName), Outputs}.
 
 -spec add_output(list(), #state{}) -> {ok, state()} | {error, term()}.
-add_output([Tag, <<"tag">>], S) ->
+add_output([Tag, <<"tag">>], #state{persisted_outputs = PO} = S) ->
     Result = list_to_binary(io_lib:format("tag://~s", [Tag])),
-    Outputs = [Result | S#state.persisted_outputs],
-    {ok, S#state{persisted_outputs = Outputs}};
+    {ok, S#state{persisted_outputs = [Result | PO]}};
 
 add_output(RL, #state{task = Task, output_file = none} = S) ->
     ResultsFileName = results_filename(Task),
