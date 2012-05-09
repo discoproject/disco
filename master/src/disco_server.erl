@@ -12,15 +12,16 @@
 
 -include_lib("kernel/include/file.hrl").
 -include("disco.hrl").
+-include("gs_util.hrl").
 
--type connection_status() :: 'undefined' | 'up' | erlang:timestamp().
+-type connection_status() :: undefined | up | erlang:timestamp().
 
 -record(dnode, {host :: host_name(),
                 node_mon :: pid(),
                 manual_blacklist :: boolean(),
                 connection_status :: connection_status(),
-                slots :: non_neg_integer(),
-                num_running :: non_neg_integer(),
+                slots :: cores(),
+                num_running :: cores(),
                 stats_ok :: non_neg_integer(),
                 stats_failed :: non_neg_integer(),
                 stats_crashed :: non_neg_integer()}).
@@ -30,6 +31,7 @@
                 nodes :: gb_tree(),
                 purged :: gb_tree(),
                 jobpack_queue :: pid()}).
+-type state() :: #state{}.
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
 
@@ -44,6 +46,7 @@
 %% ===================================================================
 %% API functions
 
+-spec start_link() -> {ok, pid()}.
 start_link() ->
     lager:info("DISCO SERVER STARTS"),
     case gen_server:start_link({local, ?MODULE}, ?MODULE,
@@ -60,58 +63,58 @@ start_link() ->
     end.
 
 -spec update_config_table([disco_config:host_info()], [host_name()],
-                          [host_name()]) -> 'ok'.
+                          [host_name()]) -> ok.
 update_config_table(Config, Blacklist, GCBlacklist) ->
     gen_server:cast(?MODULE,
                     {update_config_table, Config, Blacklist, GCBlacklist}).
 
--spec get_active(nonempty_string() | 'all') ->
-    {'ok', [{nonempty_string(), task()}]}.
+-type active_tasks() :: [{host_name(), task()}].
+-spec get_active(nonempty_string() | all) -> {ok, active_tasks()}.
 get_active(JobName) ->
     gen_server:call(?MODULE, {get_active, JobName}).
 
--spec get_nodeinfo('all') -> {'ok', [nodeinfo()]}.
+-spec get_nodeinfo(all) -> {ok, [nodeinfo()]}.
 get_nodeinfo(Spec) ->
     gen_server:call(?MODULE, {get_nodeinfo, Spec}).
 
--spec new_job(nonempty_string(), pid(), non_neg_integer()) -> 'ok'.
+-spec new_job(jobname(), pid(), non_neg_integer()) -> ok.
 new_job(JobName, JobCoord, Timeout) ->
     gen_server:call(?MODULE, {new_job, JobName, JobCoord}, Timeout).
 
--spec kill_job(nonempty_string()) -> 'ok'.
+-spec kill_job(jobname()) -> ok.
 kill_job(JobName) ->
     gen_server:call(?MODULE, {kill_job, JobName}).
--spec kill_job(nonempty_string(), non_neg_integer()) -> 'ok'.
+-spec kill_job(jobname(), non_neg_integer()) -> ok.
 kill_job(JobName, Timeout) ->
     gen_server:call(?MODULE, {kill_job, JobName}, Timeout).
 
--spec purge_job(nonempty_string()) -> 'ok'.
+-spec purge_job(jobname()) -> ok.
 purge_job(JobName) ->
     gen_server:cast(?MODULE, {purge_job, JobName}).
 
--spec clean_job(nonempty_string()) -> 'ok'.
+-spec clean_job(jobname()) -> ok.
 clean_job(JobName) ->
     gen_server:call(?MODULE, {clean_job, JobName}).
 
--spec new_task(task(), non_neg_integer()) -> 'ok' | 'failed'.
+-spec new_task(task(), non_neg_integer()) -> ok | failed.
 new_task(Task, Timeout) ->
     gen_server:call(?MODULE, {new_task, Task}, Timeout).
 
--spec connection_status(host_name(), 'up' | 'down') -> 'ok'.
+-spec connection_status(host_name(), up | down) -> ok.
 connection_status(Node, Status) ->
     gen_server:call(?MODULE, {connection_status, Node, Status}).
 
--spec manual_blacklist(host_name(), boolean()) -> 'ok'.
+-spec manual_blacklist(host_name(), boolean()) -> ok.
 manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
--spec gc_blacklist([host_name()]) -> 'ok'.
+-spec gc_blacklist([host_name()]) -> ok.
 gc_blacklist(Hosts) ->
     gen_server:call(?MODULE, {gc_blacklist, Hosts}).
 
 % called from remote nodes
--spec get_worker_jobpack(node(), nonempty_string()) ->
-                                {'ok', {file:io_device(), non_neg_integer(), pid()}}.
+-spec get_worker_jobpack(node(), jobname())
+                        -> {ok, {file:io_device(), non_neg_integer(), pid()}}.
 get_worker_jobpack(Master, JobName) ->
     gen_server:call({?MODULE, Master}, {jobpack, JobName}).
 
@@ -122,6 +125,7 @@ get_purged(Master) ->
 %% ===================================================================
 %% gen_server callbacks
 
+-spec init(_) -> {ok, state()}.
 init(_Args) ->
     process_flag(trap_exit, true),
     {ok, _} = fair_scheduler:start_link(),
@@ -131,6 +135,10 @@ init(_Args) ->
                 purged = gb_trees:empty(),
                 jobpack_queue = JobPackQ}}.
 
+-type update_config_msg() :: {update_config_table, [disco_config:host_info()],
+                              [host_name()], [host_name()]}.
+-spec handle_cast(update_config_msg() | schedule_next | {purge_job, jobname()},
+                  state()) -> gs_noreply().
 handle_cast({update_config_table, Config, ManualBlacklist, GCBlacklist}, S) ->
     {noreply, do_update_config_table(Config, ManualBlacklist, GCBlacklist, S)};
 
@@ -140,6 +148,19 @@ handle_cast(schedule_next, S) ->
 handle_cast({purge_job, JobName}, S) ->
     {noreply, do_purge_job(JobName, S)}.
 
+-spec handle_call(dbg_state_msg(), from(), state()) -> gs_reply(state());
+                 ({new_job, jobname(), pid()}, from(), state()) -> gs_reply(ok);
+                 ({new_task, task()}, from(), state()) -> gs_reply(ok | failed);
+                 ({get_active, jobname()}, from(), state()) ->
+                         gs_reply({ok, active_tasks()});
+                 ({get_nodeinfo, all}, from(), state()) ->
+                         gs_reply({ok, [nodeinfo()]});
+                 (get_purged, from(), state()) -> gs_reply({ok, [binary()]});
+                 (get_num_cores, from(), state()) -> gs_reply({ok, cores()});
+                 ({jobpack, jobname()}, from(), state()) -> gs_noreply();
+                 ({kill_job, jobname()} | {clean_job, jobname()}
+                  | connection_status | manual_blacklist | gc_blacklist,
+                  from(), state()) -> gs_reply(ok).
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
@@ -183,6 +204,8 @@ handle_call({gc_blacklist, Hosts}, _From, S) ->
     {reply, ok, do_gc_blacklist(Hosts, S)}.
 
 
+-spec handle_info({reference(), term()} | {'EXIT', pid(), term()}, state())
+                 -> gs_noreply() | gs_stop(stop_requested).
 % handle late replies to "catch gen_server:call"
 handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
     {noreply, S};
@@ -206,9 +229,11 @@ handle_info({'EXIT', Pid, Reason}, S) ->
 %% ===================================================================
 %% gen_server callback stubs
 
+-spec terminate(term(), state()) -> ok.
 terminate(Reason, _State) ->
     lager:warning("Disco server dies: ~p", [Reason]).
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% ===================================================================
@@ -228,6 +253,7 @@ process_exit(Pid, {Type, _} = Results, S) ->
                                    S#state{workers = UWorkers})}
     end.
 
+-spec nodemon_exit(pid(), state()) -> gs_noreply().
 nodemon_exit(Pid, S) ->
     Iter = gb_trees:iterator(S#state.nodes),
     nodemon_exit(Pid, S, gb_trees:next(Iter)).
@@ -264,7 +290,7 @@ allow_read(#dnode{}) ->
 -spec allow_task(#dnode{}) -> boolean().
 allow_task(#dnode{} = N) -> allow_write(N).
 
--spec update_nodes(gb_tree()) -> 'ok'.
+-spec update_nodes(gb_tree()) -> ok.
 update_nodes(Nodes) ->
     WhiteNodes = [{N#dnode.host, N#dnode.slots}
                   || N <- gb_trees:values(Nodes), allow_task(N)],
@@ -274,8 +300,8 @@ update_nodes(Nodes) ->
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
     schedule_next().
 
--spec update_stats(host_name(), 'none'|{'value', dnode()}, _,
-                   #state{}) -> #state{}.
+-spec update_stats(host_name(), none | {value, dnode()}, _,
+                   state()) -> state().
 update_stats(_Node, none, _ReplyType, S) -> S;
 update_stats(Node, {value, N}, ReplyType, S) ->
     M = N#dnode{num_running = N#dnode.num_running - 1},
@@ -291,7 +317,7 @@ update_stats(Node, {value, N}, ReplyType, S) ->
          end,
     S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}.
 
--spec do_connection_status(host_name(), 'up'|'down', #state{}) -> #state{}.
+-spec do_connection_status(host_name(), up | down, state()) -> state().
 do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
@@ -306,7 +332,7 @@ do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
--spec do_manual_blacklist(host_name(), boolean(), #state{}) -> #state{}.
+-spec do_manual_blacklist(host_name(), boolean(), state()) -> state().
 do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
@@ -319,7 +345,7 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     S#state{nodes = UpdatedNodes}.
 
 -spec do_update_config_table([disco_config:host_info()], [host_name()],
-                             [host_name()], #state{}) -> #state{}.
+                             [host_name()], state()) -> state().
 do_update_config_table(Config, Blacklist, GCBlacklist, S) ->
     lager:info("Config table updated"),
     NewNodes =
@@ -356,7 +382,7 @@ do_update_config_table(Config, Blacklist, GCBlacklist, S) ->
     S1 = do_gc_blacklist(GCBlacklist, S),
     S1#state{nodes = NewNodes}.
 
--spec do_gc_blacklist([host_name()], #state{}) -> #state{}.
+-spec do_gc_blacklist([host_name()], state()) -> state().
 do_gc_blacklist(Hosts, S) ->
     ddfs_master:gc_blacklist([disco:slave_node(H) || H <- Hosts]),
     S.
@@ -367,11 +393,11 @@ start_worker(Node, NodeMon, T) ->
                        [T#task.mode, T#task.taskid, Node], []),
     spawn_link(disco_worker, start_link_remote, [Node, NodeMon, T]).
 
--spec schedule_next() -> 'ok'.
+-spec schedule_next() -> ok.
 schedule_next() ->
     gen_server:cast(?MODULE, schedule_next).
 
--spec do_schedule_next(#state{}) -> #state{}.
+-spec do_schedule_next(state()) -> state().
 do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
     Running = [{Y, N} || #dnode{slots = X, num_running = Y, host = N} = Node
                              <- gb_trees:values(Nodes), X > Y, allow_task(Node)],
@@ -394,9 +420,9 @@ do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
        true -> S
     end.
 
--spec do_purge_job(nonempty_string(), #state{}) -> #state{}.
+-spec do_purge_job(jobname(), state()) -> state().
 do_purge_job(JobName, #state{purged = Purged} = S) ->
-    _ = handle_call({clean_job, JobName}, none, S),
+    _ = handle_call({clean_job, JobName}, {self(), none}, S),
     % NB! next line disabled for 0.3.1, ISSUE #227
     %ddfs:delete(ddfs_master, disco:oob_name(JobName), internal),
     Key = list_to_binary(JobName),
@@ -410,11 +436,11 @@ do_purge_job(JobName, #state{purged = Purged} = S) ->
     S#state{purged = NPurged}.
 
 
--spec do_new_job(nonempty_string(), pid(), #state{}) -> 'ok'.
+-spec do_new_job(jobname(), pid(), state()) -> ok.
 do_new_job(JobName, JobCoord, _S) ->
     catch gen_server:call(scheduler, {new_job, JobName, JobCoord}).
 
--spec do_new_task(task(), #state{}) -> 'ok' | 'failed'.
+-spec do_new_task(task(), state()) -> ok | failed.
 do_new_task(Task, S) ->
     NodeStats = [case gb_trees:lookup(Node, S#state.nodes) of
                      none -> {false, Input};
@@ -429,8 +455,7 @@ do_new_task(Task, S) ->
             failed
     end.
 
--spec do_get_active(nonempty_string() | 'all', #state{}) ->
-    {'ok', [{nonempty_string(), task()}]}.
+-spec do_get_active(jobname() | all, state()) -> {ok, active_tasks()}.
 do_get_active(all, #state{workers = Workers}) ->
     {ok, gb_trees:values(Workers)};
 do_get_active(JobName, #state{workers = Workers}) ->
@@ -438,7 +463,7 @@ do_get_active(JobName, #state{workers = Workers}) ->
                                   <- gb_trees:values(Workers), N == JobName],
     {ok, Active}.
 
--spec do_get_nodeinfo(#state{}) -> {'ok', [nodeinfo()]}.
+-spec do_get_nodeinfo(state()) -> {ok, [nodeinfo()]}.
 do_get_nodeinfo(#state{nodes = Nodes}) ->
     Info = [#nodeinfo{name = N#dnode.host,
                       slots = N#dnode.slots,
@@ -451,7 +476,7 @@ do_get_nodeinfo(#state{nodes = Nodes}) ->
             || N <- gb_trees:values(Nodes)],
     {ok, Info}.
 
--spec do_get_purged(#state{}) -> {{'ok', [binary()]}, #state{}}.
+-spec do_get_purged(state()) -> {{ok, [binary()]}, state()}.
 do_get_purged(#state{purged = Purged} = S) ->
     Now = now(),
     NPurgedList =
@@ -460,25 +485,25 @@ do_get_purged(#state{purged = Purged} = S) ->
     NPurged = gb_trees:from_orddict(NPurgedList),
     {{ok, gb_trees:keys(NPurged)}, S#state{purged = NPurged}}.
 
--spec do_get_num_cores(#state{}) -> {'ok', non_neg_integer()}.
+-spec do_get_num_cores(state()) -> {ok, cores()}.
 do_get_num_cores(#state{nodes = Nodes}) ->
     {ok, lists:sum([N#dnode.slots || N <- gb_trees:values(Nodes)])}.
 
--spec do_kill_job(nonempty_string()) -> 'ok'.
+-spec do_kill_job(jobname()) -> ok.
 do_kill_job(JobName) ->
     event_server:event(JobName, "WARN: Job killed", [], []),
     % Make sure that scheduler don't accept new tasks from this job
     gen_server:cast(scheduler, {job_done, JobName}),
     ok.
 
--spec do_clean_job(nonempty_string()) -> 'ok'.
+-spec do_clean_job(jobname()) -> ok.
 do_clean_job(JobName) ->
     do_kill_job(JobName),
     gen_server:cast(event_server, {clean_job, JobName}),
     ok.
 
 % This is executed in its own process.
--spec do_send_jobpack(nonempty_string(), {pid(), reference()}) -> 'ok'.
+-spec do_send_jobpack(jobname(), {pid(), reference()}) -> ok.
 do_send_jobpack(JobName, From) ->
     JobFile = jobpack:jobfile(disco:jobhome(JobName)),
     case prim_file:read_file_info(JobFile) of
