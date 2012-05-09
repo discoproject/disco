@@ -3,12 +3,12 @@
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with your Erlang distribution. If not, it can be
 %% retrieved via the world wide web at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% The Initial Developer of the Original Code is Corelatus AB.
 %% Portions created by Corelatus are Copyright 2003, Corelatus
 %% AB. All Rights Reserved.''
@@ -29,14 +29,16 @@
 -export([print/2, fprint/2, safe/2]).               % interface functions
 -export([perf/0, perf/3, perf1/0, test/0, test/2]). % testing functions
 
+%% Specs added by Discoproject based on version of trunc_io in lager by Basho.
 
 %% Returns an flattened list containing the ASCII representation of the given
 %% term.
-fprint(T, Max) -> 
+-spec fprint(term(), pos_integer()) -> string().
+fprint(T, Max) ->
     {L, _} = print(T, Max),
     lists:flatten(L).
 
-%% Same as print, but never crashes. 
+%% Same as print, but never crashes.
 %%
 %% This is a bit of a tradeoff. Print might conceivably crash if it's
 %% asked to print something it doesn't understand, for example some new
@@ -44,21 +46,23 @@ fprint(T, Max) ->
 %% back to io_lib to format the term, but then the formatting is
 %% depth-limited instead of length limited, so you might run out
 %% memory printing it. Out of the frying pan and into the fire.
-%% 
+%%
+-spec safe(term(), pos_integer()) -> {string(), pos_integer()} | {string()}.
 safe(What, Len) ->
     case catch print(What, Len) of
 	{L, Used} when is_list(L) -> {L, Used};
 	_ -> {"unable to print" ++ io_lib:write(What, 99)}
-    end.	     
+    end.
 
 %% Returns {List, Length}
+-spec print(term(), pos_integer()) -> {iolist(), pos_integer()}.
 print(_, Max) when Max < 0 -> {"...", 3};
-print(Tuple, Max) when is_tuple(Tuple) -> 
+print(Tuple, Max) when is_tuple(Tuple) ->
     {TC, Len} = tuple_contents(Tuple, Max-2),
     {[${, TC, $}], Len + 2};
 
-%% We assume atoms, floats, funs, integers, PIDs, ports and refs never need 
-%% to be truncated. This isn't strictly true, someone could make an 
+%% We assume atoms, floats, funs, integers, PIDs, ports and refs never need
+%% to be truncated. This isn't strictly true, someone could make an
 %% arbitrarily long bignum. Let's assume that won't happen unless someone
 %% is being malicious.
 %%
@@ -109,7 +113,7 @@ tuple_contents(Tuple, Max) ->
 %% Returns {List, Length}
 list_body([], _) -> {[], 0};
 list_body(_, Max) when Max < 4 -> {"...", 3};
-list_body([H|T], Max) -> 
+list_body([H|T], Max) ->
     {List, Len} = print(H, Max),
     {Final, FLen} = list_bodyc(T, Max-Len-1),
     {[List|Final], FLen + Len + 1};
@@ -119,7 +123,7 @@ list_body(X, Max) ->  %% improper list
 
 list_bodyc([], _) -> {[], 0};
 list_bodyc(_, Max) when Max < 4 -> {"...", 3};
-list_bodyc([H|T], Max) -> 
+list_bodyc([H|T], Max) ->
     {List, Len} = print(H, Max),
     {Final, FLen} = list_bodyc(T, Max-Len-1),
     {[$,, List|Final], FLen + Len + 1};
@@ -161,9 +165,11 @@ alist(L, Max) ->
 
 %%--------------------
 %% The start of a test suite. So far, it only checks for not crashing.
+-spec test() -> ok.
 test() ->
     test(trunc_io, print).
 
+-spec test(atom(), atom()) -> ok.
 test(Mod, Func) ->
     Simple_items = [atom, 1234, 1234.0, {tuple}, [], [list], "string", self(),
 		    <<1,2,3>>, make_ref(), fun() -> ok end],
@@ -179,31 +185,34 @@ test(Mod, Func) ->
 		    _ -> ok
 		end
 	end,
-    
+
     lists:foreach(G, Simple_items),
-    
+
     Tuples = [ {1,2,3,a,b,c}, {"abc", def, 1234},
 	       {{{{a},b,c,{d},e}},f}],
-    
+
     Lists = [ [1,2,3,4,5,6,7], lists:seq(1,1000),
 	      [{a}, {a,b}, {a, [b,c]}, "def"], [a|b], [$a|$b] ],
-    
-    
+
+
     lists:foreach(G, Tuples),
     lists:foreach(G, Lists).
-    
+
+-spec perf() -> ok.
 perf() ->
     {New, _} = timer:tc(trunc_io, perf, [trunc_io, print, 1000]),
     {Old, _} = timer:tc(trunc_io, perf, [io_lib, write, 1000]),
     io:fwrite("New code took ~p us, old code ~p\n", [New, Old]).
 
+-spec perf(atom(), atom(), integer()) -> done.
 perf(M, F, Reps) when Reps > 0 ->
     test(M,F),
     perf(M,F,Reps-1);
 perf(_,_,_) ->
-    done.    
+    done.
 
 %% Performance test. Needs a particularly large term I saved as a binary...
+-spec perf1() -> {non_neg_integer(), non_neg_integer()}.
 perf1() ->
     {ok, Bin} = file:read_file("bin"),
     A = binary_to_term(Bin),
