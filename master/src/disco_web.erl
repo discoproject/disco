@@ -4,6 +4,7 @@
 -include("disco.hrl").
 -include("config.hrl").
 
+-spec op(atom(), string(), module()) -> _.
 op('GET', "/disco/version", Req) ->
     {ok, Vsn} = application:get_key(vsn),
     reply({ok, list_to_binary(Vsn)}, Req);

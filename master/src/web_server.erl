@@ -1,4 +1,3 @@
-
 -module(web_server).
 
 -export([start/1]).
@@ -6,6 +5,7 @@
 
 -include("config.hrl").
 
+-spec start(string()) -> {ok, pid()} | {error, term()}.
 start(Port) ->
     Conf = [{loop, fun loop/1},
             {name, web_server},
