@@ -8,6 +8,7 @@ format_timestamp(TimeStamp) ->
     TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
     list_to_binary([DateStr, TimeStr]).
 
+-spec groupby(pos_integer(), [tuple()]) -> [[tuple()]].
 groupby(N, TupleList) ->
     groupby(N, TupleList, []).
 
