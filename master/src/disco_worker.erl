@@ -26,7 +26,7 @@
                 throttle :: worker_throttle:state()}).
 -type state() :: #state{}.
 
--type shutdown() :: {error | fatal, term()}.
+-type shutdown() :: {error | fatal | done, term()}.
 -type event() :: {binary(), term()}.
 -export_type([shutdown/0, event/0]).
 
@@ -188,7 +188,7 @@ terminate(_Reason, S) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
--spec update(state()) -> {'noreply', state()} | {'stop', term(), state()}.
+-spec update(state()) -> {'noreply', state()} | {'stop', shutdown(), state()}.
 % Note that size(Buffer) =:= 0 is here to avoid binary matching
 % which would force expensive copying of Buffer. See
 % http://www.erlang.org/doc/efficiency_guide/binaryhandling.html

@@ -1,6 +1,8 @@
 -type jobname() :: nonempty_string().
 -type host_name() :: nonempty_string().
 
+-type cores() :: non_neg_integer().
+
 -record(jobinfo, {jobname :: jobname(),
                   jobfile :: nonempty_string(),
                   jobenvs :: [{nonempty_string(), string()}],
@@ -10,7 +12,7 @@
                   inputs :: [binary()] | [[binary()]],
                   worker :: binary(),
                   map :: boolean(),
-                  max_cores :: non_neg_integer(),
+                  max_cores :: cores(),
                   nr_reduce :: non_neg_integer(),
                   reduce :: boolean()}).
 -type jobinfo() :: #jobinfo{}.
@@ -18,7 +20,7 @@
 -record(nodeinfo, {name :: nonempty_string(),
                    connected :: boolean(),
                    blacklisted :: boolean(),
-                   slots :: non_neg_integer(),
+                   slots :: cores(),
                    num_running :: non_neg_integer(),
                    stats_ok :: non_neg_integer(),
                    stats_failed :: non_neg_integer(),
