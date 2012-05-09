@@ -67,7 +67,7 @@
 
 -spec start(tagname(), boolean()) -> 'ignore' | {'error',_} | {'ok',pid()}.
 start(TagName, NotFound) ->
-    gen_server:start(ddfs_tag, {TagName, NotFound}, []).
+    gen_server:start(?MODULE, {TagName, NotFound}, []).
 
 -spec init({tagname(), boolean()}) -> {'ok', #state{}}.
 init({TagName, true}) ->

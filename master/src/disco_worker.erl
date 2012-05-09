@@ -72,7 +72,7 @@ wait_for_exit() ->
 -spec start_link({pid(), node(), task()}) -> no_return().
 start_link({Parent, Master, Task}) ->
     process_flag(trap_exit, true),
-    {ok, Server} = gen_server:start_link(disco_worker, {Master, Task}, []),
+    {ok, Server} = gen_server:start_link(?MODULE, {Master, Task}, []),
     gen_server:cast(Server, start),
     Parent ! ok,
     wait_for_exit().
