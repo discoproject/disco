@@ -136,14 +136,14 @@ handle_cast(work, #state{task = Task, port = none} = State) ->
 handle_info({_Port, {data, Data}},
             #state{error_output = true, buffer = Buffer} = State)
             when size(Buffer) < ?MAX_ERROR_BUFFER_SIZE ->
-    Buffer1 = <<(State#state.buffer)/binary, Data/binary>>,
+    Buffer1 = <<Buffer/binary, Data/binary>>,
     {noreply, State#state{buffer = Buffer1}, ?ERROR_TIMEOUT};
 
 handle_info({_Port, {data, _Data}}, #state{error_output = true} = State) ->
     exit_on_error(State);
 
-handle_info({_Port, {data, Data}}, S) ->
-    update(S#state{buffer = <<(S#state.buffer)/binary, Data/binary>>});
+handle_info({_Port, {data, Data}}, #state{buffer = Buffer} = S) ->
+    update(S#state{buffer = <<Buffer/binary, Data/binary>>});
 
 handle_info(timeout, #state{error_output = false, runtime = Runtime} = S) ->
     case worker_runtime:get_pid(Runtime) of
@@ -172,8 +172,8 @@ handle_call(_Req, _From, State) ->
 -spec terminate(term(), state()) -> ok.
 terminate(_Reason, #state{port = none} = _State) ->
     ok;
-terminate(_Reason, S) ->
-    case worker_runtime:get_pid(S#state.runtime) of
+terminate(_Reason, #state{runtime = Runtime} = S) ->
+    case worker_runtime:get_pid(Runtime) of
         none ->
             warning("PID unknown: worker could not be killed", S);
         Pid ->
@@ -194,18 +194,22 @@ code_change(_OldVsn, State, _Extra) ->
 % http://www.erlang.org/doc/efficiency_guide/binaryhandling.html
 update(#state{buffer = Buffer} = S) when size(Buffer) =:= 0 ->
     {noreply, S};
-update(S) ->
-    case worker_protocol:parse(S#state.buffer, S#state.parser) of
+update(#state{buffer = B,
+              parser = P,
+              runtime = RT,
+              worker_send = WS,
+              throttle = T} = S) ->
+    case worker_protocol:parse(B, P) of
         {ok, Request, Buffer, PState} ->
             S1 = S#state{buffer = Buffer},
-            case catch worker_runtime:handle(Request, S#state.runtime) of
+            case catch worker_runtime:handle(Request, RT) of
                 {ok, Reply, RState} ->
-                    S#state.worker_send ! {Reply, 0},
+                    WS ! {Reply, 0},
                     update(S1#state{parser = PState, runtime = RState});
                 {ok, Reply, RState, rate_limit} ->
-                    case worker_throttle:handle(S#state.throttle) of
+                    case worker_throttle:handle(T) of
                         {ok, Delay, TState} ->
-                            S#state.worker_send ! {Reply, Delay},
+                            WS ! {Reply, Delay},
                             update(S1#state{parser = PState,
                                             runtime = RState,
                                             throttle = TState});
