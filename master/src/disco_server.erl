@@ -33,6 +33,8 @@
                 jobpack_queue :: pid()}).
 -type state() :: #state{}.
 
+-export_type([connection_status/0]).
+
 -define(PURGE_TIMEOUT, 86400000). % 24h
 
 % This controls the max number of simultaneously open file
