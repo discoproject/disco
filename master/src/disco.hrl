@@ -17,7 +17,7 @@
                   reduce :: boolean()}).
 -type jobinfo() :: #jobinfo{}.
 
--record(nodeinfo, {name :: nonempty_string(),
+-record(nodeinfo, {name :: host_name(),
                    connected :: boolean(),
                    blacklisted :: boolean(),
                    slots :: cores(),
@@ -31,7 +31,7 @@
                force_local :: boolean(),
                force_remote :: boolean(),
                from :: pid(),
-               input :: [{binary(), nonempty_string()}],
+               input :: [{binary(), host_name()}],
                jobenvs :: [{nonempty_string(), string()}],
                worker :: binary(),
                jobname :: jobname(),
@@ -40,4 +40,3 @@
                taskblack :: list(),
                fail_count :: non_neg_integer()}).
 -type task() :: #task{}.
-
