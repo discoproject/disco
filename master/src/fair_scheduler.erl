@@ -1,19 +1,40 @@
+% This module implements the global task scheduler (GTS).  It is
+% called by disco_server on any event that indicates a new task could
+% perhaps be scheduled on the cluster.  The selection of this task is
+% split into two phases:
+%
+% . First, a candidate job is selected according to the scheduler
+%   policy (omitting from consideration any jobs who do not have any
+%   tasks that can be scheduled currently on the available cluster
+%   nodes).
+%
+% . Next, the job's task scheduler (JTS) in fair_scheduler_job.erl is
+%   called with the list of cluster nodes which have available
+%   computing slots.  The task returned by the JTS is then returned by
+%   the GTS.  If the job's JTS does not have a candidate task, we
+%   re-run the previous step with this job added to the omit list.
+
 -module(fair_scheduler).
 -behaviour(gen_server).
 
 -export([start_link/0, init/1, handle_call/3, handle_cast/2,
-    handle_info/2, terminate/2, code_change/3]).
+         handle_info/2, terminate/2, code_change/3]).
 
 -include("disco.hrl").
+-include("gs_util.hrl").
 
+-type state() :: [node()].
+
+-spec start_link() -> {ok, pid()}.
 start_link() ->
     lager:info("Fair scheduler starts"),
     case gen_server:start_link({local, scheduler}, fair_scheduler, [],
             disco:debug_flags("fair_scheduler")) of
-        {ok, Server} -> {ok, Server};
+        {ok, _Server} = Ret -> Ret;
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
+-spec init([]) -> {ok, state()}.
 init([]) ->
     {ok, _ } =
         case application:get_env(scheduler_opt) of
@@ -27,6 +48,8 @@ init([]) ->
     _ = ets:new(jobs, [private, named_table]),
     {ok, []}.
 
+-spec handle_cast({update_nodes, [node()]} | {job_done, jobname}, state())
+                 -> gs_noreply().
 handle_cast({update_nodes, NewNodes}, _) ->
     gen_server:cast(sched_policy, {update_nodes, NewNodes}),
     NNodes = [Name || {Name, _NumCores} <- NewNodes],
@@ -46,6 +69,14 @@ handle_cast({job_done, JobName}, Nodes) ->
             exit(JobCoord, kill_worker),
             {noreply, Nodes}
     end.
+
+-type nodestat() :: {false | non_neg_integer(), task_input()}.
+-spec handle_call({new_job, jobname(), pid()}, from(), state()) -> gs_reply(ok);
+                 ({new_task, task(), [nodestat()]}, from(), state()) ->
+                         gs_reply(ok);
+                 (dbg_state_msg(), from(), state()) -> gs_reply(state());
+                 ({next_task, [host_name()]}, from(), state()) ->
+                         gs_reply(nojobs | {ok, {pid(), task()}}).
 
 handle_call({new_job, JobName, JobCoord}, _, Nodes) ->
     {ok, JobPid} = fair_scheduler_job:start(JobName, JobCoord),
@@ -77,20 +108,22 @@ handle_call({next_task, AvailableNodes}, _From, Nodes) ->
 next_task(AvailableNodes, Jobs, NotJobs) ->
     case gen_server:call(sched_policy, {next_job, NotJobs}) of
         {ok, JobPid} ->
-            case fair_scheduler_job:next_task(
-                    JobPid, Jobs, AvailableNodes) of
+            case fair_scheduler_job:next_task(JobPid, Jobs, AvailableNodes) of
                 {ok, Task} ->
                     {ok, {JobPid, Task}};
                 none ->
-                    next_task(AvailableNodes,
-                        Jobs, [JobPid|NotJobs])
+                    next_task(AvailableNodes, Jobs, [JobPid|NotJobs])
             end;
         nojobs -> nojobs
     end.
 
+-spec handle_info(term(), state()) -> gs_noreply().
 handle_info(_Msg, State) -> {noreply, State}.
 
+-spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) ->
-    [exit(JobPid, kill) || {_, {JobPid, _}} <- ets:tab2list(jobs)].
+    _ = [exit(JobPid, kill) || {_, {JobPid, _}} <- ets:tab2list(jobs)],
+    ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

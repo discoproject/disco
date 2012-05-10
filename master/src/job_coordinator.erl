@@ -6,7 +6,7 @@
 
 -type input() :: binary() | [binary()].
 -type host() :: nonempty_string() | 'false'.
--type task_input() :: {non_neg_integer(), [{input(), host()}]}.
+-type phase_input() :: {non_neg_integer(), [{input(), host()}]}.
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
@@ -203,7 +203,7 @@ check_failure_rate(Task, MaxFail) ->
 map_reduce(#jobinfo{inputs = Inputs} = Job) ->
     {ok, reduce(map(Inputs, Job), Job)}.
 
--spec map_input([input()]) -> [task_input()].
+-spec map_input([input()]) -> [phase_input()].
 map_input(Inputs) ->
     disco:enum([case Input of
                     List when is_list(List) ->
@@ -228,7 +228,7 @@ shuffle(JobName, Mode, DirUrls) ->
                         [disco:format_time_since(Started)]}),
     Ret.
 
--spec reduce_input([input()], non_neg_integer()) -> [task_input()].
+-spec reduce_input([input()], non_neg_integer()) -> [phase_input()].
 reduce_input(Inputs, NRed) ->
     Hosts = lists:usort([case Input of
                              List when is_list(List) andalso length(List) > 1 ->
@@ -254,7 +254,7 @@ reduce(Inputs, Job) ->
               Job#jobinfo{force_local = false,
                           force_remote = false}).
 
--spec run_phase([task_input()], nonempty_string(), jobinfo()) -> [input()].
+-spec run_phase([phase_input()], nonempty_string(), jobinfo()) -> [input()].
 run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
     job_event(JobName, {"Starting ~s phase", [Mode]}),
     Started = now(),
