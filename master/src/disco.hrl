@@ -27,11 +27,13 @@
                    stats_crashed :: non_neg_integer()}).
 -type nodeinfo() :: #nodeinfo{}.
 
+-type task_input() :: {binary(), host_name()}.
+
 -record(task, {chosen_input :: binary() | [binary()],
                force_local :: boolean(),
                force_remote :: boolean(),
                from :: pid(),
-               input :: [{binary(), host_name()}],
+               input :: [task_input()],
                jobenvs :: [{nonempty_string(), string()}],
                worker :: binary(),
                jobname :: jobname(),
