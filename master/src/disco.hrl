@@ -39,6 +39,6 @@
                jobname :: jobname(),
                mode :: nonempty_string(), %"map" | "reduce"
                taskid :: non_neg_integer(),
-               taskblack :: list(),
+               taskblack :: [host_name()],
                fail_count :: non_neg_integer()}).
 -type task() :: #task{}.
