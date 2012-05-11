@@ -170,7 +170,7 @@ submit_task(Task) ->
 % handle_data_error() schedules the failed task for a retry, with the
 % failing node in its blacklist. If a task fails too many times, as
 % determined by check_failure_rate(), the whole job will be terminated.
--spec handle_data_error(task(), node()) -> pid().
+-spec handle_data_error(task(), host_name()) -> pid().
 handle_data_error(Task, Host) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     check_failure_rate(Task, MaxFail),
@@ -186,7 +186,7 @@ handle_data_error(Task, Host) ->
                          "~s:~B Task failed for the ~Bth time. "
                          "Sleeping ~B seconds before retrying.",
                          [Task#task.mode, Task#task.taskid, C, round(S / 1000)],
-                         []),
+                         {}),
                        timer:sleep(S),
                        submit_task(Task#task{taskblack = [Host|T], fail_count = C})
                end).

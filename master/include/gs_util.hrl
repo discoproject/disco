@@ -9,5 +9,8 @@
 -type gs_stop(T)     :: {stop, (T), state()}.
 
 % Generic utilities.
--type from() :: {pid(), term()}.
+
+-type server() :: pid() | atom() | {atom(), node()}.
+-type from()   :: {pid(), term()}.
+
 -type dbg_state_msg() :: dbg_get_state.
