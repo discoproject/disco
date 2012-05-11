@@ -127,7 +127,7 @@ get_purged(Master) ->
 %% ===================================================================
 %% gen_server callbacks
 
--spec init(_) -> {ok, state()}.
+-spec init(_) -> gs_init().
 init(_Args) ->
     process_flag(trap_exit, true),
     {ok, _} = fair_scheduler:start_link(),

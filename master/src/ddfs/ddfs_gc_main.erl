@@ -257,7 +257,7 @@ add_replicas(Master, BlobName, NewUrls) ->
 
 %% ===================================================================
 %% gen_server callbacks
--spec init({string(), ets:tab()}) -> {ok, state()}.
+-spec init({string(), ets:tab()}) -> gs_init().
 init({Root, DeletedAges}) ->
     % Ensure only one gc process is running at a time.  We don't use a
     % named process to implement uniqueness so that our message queue

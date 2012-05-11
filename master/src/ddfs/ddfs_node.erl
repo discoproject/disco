@@ -42,26 +42,26 @@ start_link(Config) ->
 get_vols() ->
     gen_server:call(?MODULE, get_vols).
 
--spec gate_get_blob() -> 'ok' | 'full'.
+-spec gate_get_blob() -> ok | full.
 gate_get_blob() ->
     gen_server:call(?MODULE, get_blob, ?GET_WAIT_TIMEOUT).
 
 -spec put_blob(nonempty_string()) ->
-                      'full' | {'ok', path(), url()} | {'error', path(), term()}
-                          | {'error', 'no_volumes'}.
+                      full | {ok, path(), url()} | {error, path(), term()}
+                          | {error, no_volumes}.
 put_blob(BlobName) ->
     gen_server:call(?MODULE, {put_blob, BlobName}, ?PUT_WAIT_TIMEOUT).
 
--spec rescan_tags() -> 'ok'.
+-spec rescan_tags() -> ok.
 rescan_tags() ->
     gen_server:cast(?MODULE, rescan_tags).
 
--spec get_tag_data(node(), tagid(), taginfo()) -> {'ok', binary()} | {'error', term()}.
+-spec get_tag_data(node(), tagid(), taginfo()) -> {ok, binary()} | {error, term()}.
 get_tag_data(SrcNode, TagId, TagNfo) ->
     Call = {get_tag_data, TagId, TagNfo},
     gen_server:call({?MODULE, SrcNode}, Call, ?NODE_TIMEOUT).
 
--spec init(proplists:proplist()) -> {ok, state()}.
+-spec init(proplists:proplist()) -> gs_init().
 init(Config) ->
     {nodename, NodeName} = proplists:lookup(nodename, Config),
     {ddfs_root, DdfsRoot} = proplists:lookup(ddfs_root, Config),
@@ -192,8 +192,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% ===================================================================
 %% internal functions
 
--spec do_get_blob({pid(), _}, #state{}) ->
-                 {'reply', 'full', #state{}} | {'noreply', #state{}}.
+-spec do_get_blob({pid(), _}, state()) -> gs_reply(full) | gs_noreply().
 do_get_blob({Pid, _Ref} = From, #state{getq = Q} = S) ->
     Reply = fun() -> gen_server:reply(From, ok) end,
     case http_queue:add({Pid, Reply}, Q) of
@@ -204,16 +203,15 @@ do_get_blob({Pid, _Ref} = From, #state{getq = Q} = S) ->
             {noreply, S#state{getq = NewQ}}
     end.
 
--spec do_get_diskspace(#state{}) -> diskinfo().
+-spec do_get_diskspace(state()) -> diskinfo().
 do_get_diskspace(#state{vols = Vols}) ->
     lists:foldl(fun ({{Free, Used}, _VolName}, {TotalFree, TotalUsed}) ->
                         {TotalFree + Free, TotalUsed + Used}
                 end, {0, 0}, Vols).
 
 -type put_blob_result() :: full | {error, no_volumes}.
--spec do_put_blob(nonempty_string(), {pid(), _}, #state{}) ->
-                         {reply, put_blob_result(), #state{}}
-                         | {noreply, #state{}}.
+-spec do_put_blob(nonempty_string(), {pid(), _}, state())
+                 -> gs_reply(put_blob_result()) | gs_noreply().
 do_put_blob(_BlobName, _From, #state{vols = []} = S) ->
     {reply, {error, no_volumes}, S};
 do_put_blob(BlobName, {Pid, _Ref} = From,
@@ -240,7 +238,7 @@ do_put_blob(BlobName, {Pid, _Ref} = From,
     end.
 
 -type tag_ts() :: not_found | {ok, {erlang:timestamp(), volume_name()}}.
--spec do_get_tag_timestamp(tagname(), #state{}) -> tag_ts().
+-spec do_get_tag_timestamp(tagname(), state()) -> tag_ts().
 do_get_tag_timestamp(TagName, #state{tags = Tags}) ->
     case gb_trees:lookup(TagName, Tags) of
         none ->
@@ -249,7 +247,7 @@ do_get_tag_timestamp(TagName, #state{tags = Tags}) ->
             {ok, TagNfo}
     end.
 
--spec do_get_tag_data(tagid(), volume_name(), {pid(), _}, #state{}) -> 'ok'.
+-spec do_get_tag_data(tagid(), volume_name(), {pid(), _}, state()) -> ok.
 do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
     {ok, TagDir, _Url} = ddfs_util:hashdir(TagId,
                                            disco:host(node()),
@@ -265,8 +263,8 @@ do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
             gen_server:reply(From, {error, read_failed})
     end.
 
--type put_tag_data_result() :: {'ok', volume_name()} | {'error', _}.
--spec do_put_tag_data(tagname(), binary(), #state{}) -> put_tag_data_result().
+-type put_tag_data_result() :: {ok, volume_name()} | {error, _}.
+-spec do_put_tag_data(tagname(), binary(), state()) -> put_tag_data_result().
 do_put_tag_data(_Tag, _Data, #state{vols = []}) ->
     {error, no_volumes};
 do_put_tag_data(Tag, Data, #state{nodename = NodeName,
@@ -292,8 +290,8 @@ do_put_tag_data(Tag, Data, #state{nodename = NodeName,
             E
     end.
 
--spec do_put_tag_commit(tagname(), [{node(), volume_name()}], #state{}) ->
-                       {{'ok', url()} | {'error', _}, #state{}}.
+-spec do_put_tag_commit(tagname(), [{node(), volume_name()}], state())
+                       -> {{ok, url()} | {error, _}, state()}.
 do_put_tag_commit(Tag, TagVol, #state{nodename = NodeName,
                                       root = Root,
                                       tags = Tags} = S) ->
@@ -331,8 +329,7 @@ try_makedir(Dir) ->
             error
     end.
 
--spec init_vols(path(), [volume_name()]) ->
-                       {'ok', [volume()]}.
+-spec init_vols(path(), [volume_name()]) -> {ok, [volume()]}.
 init_vols(Root, VolNames) ->
     _ = [begin
              ok = try_makedir(filename:join([Root, VolName, "blob"])),
@@ -340,7 +337,7 @@ init_vols(Root, VolNames) ->
          end || VolName <- VolNames],
     {ok, [{{0, 0}, VolName} || VolName <- lists:sort(VolNames)]}.
 
--spec find_vols(path()) -> 'eof' | 'ok' | {'ok', [volume()]} | {'error', _}.
+-spec find_vols(path()) -> eof | ok | {ok, [volume()]} | {error, _}.
 find_vols(Root) ->
     case prim_file:list_dir(Root) of
         {ok, Files} ->
@@ -357,7 +354,7 @@ find_vols(Root) ->
             Error
     end.
 
--spec find_tags(path(), [volume()]) -> {'ok', gb_tree()}.
+-spec find_tags(path(), [volume()]) -> {ok, gb_tree()}.
 find_tags(Root, Vols) ->
     {ok,
      lists:foldl(fun({_Space, VolName}, Tags) ->

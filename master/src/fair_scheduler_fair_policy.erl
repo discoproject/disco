@@ -39,7 +39,7 @@ start_link() ->
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
--spec init(_) -> {ok, state()}.
+-spec init(_) -> gs_init().
 init(_) ->
     register(fairy, spawn_link(fun() -> fairness_fairy(0) end)),
     {ok, {gb_trees:empty(), [], 0}}.

@@ -58,7 +58,7 @@ gc_whitelist(Host) ->
 
 -type state() :: undefined.
 
--spec init(_) -> {ok, state()}.
+-spec init(_) -> gs_init().
 init(_Args) ->
     {ok, undefined}.
 

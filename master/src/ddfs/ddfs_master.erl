@@ -143,7 +143,7 @@ refresh_tag_cache() ->
 %% ===================================================================
 %% gen_server callbacks
 
--spec init(_) -> {ok, state()}.
+-spec init(_) -> gs_init().
 init(_Args) ->
     spawn_link(fun() -> monitor_diskspace() end),
     spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),

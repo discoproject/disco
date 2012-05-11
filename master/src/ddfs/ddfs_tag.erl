@@ -20,11 +20,11 @@
                         {missing, deleted} |
                         {error, _} |
                         {ok, #tagcontent{}},
-                delayed :: 'false' | gb_tree(),
+                delayed :: false | gb_tree(),
                 timeout :: non_neg_integer(),
-                replicas :: 'false' | 'too_many_failed_nodes'
+                replicas :: false | too_many_failed_nodes
                     | [{replica(), node()}],
-                url_cache :: 'false' | gb_set()}).
+                url_cache :: false | gb_set()}).
 -type state() :: #state{}.
 
 % API messages.
@@ -65,18 +65,17 @@
 % Correspondingly GC'ing must ensure that K replicas for a tag
 % are found within its partition rather than globally.
 
--spec start(tagname(), boolean()) -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start(tagname(), boolean()) -> ignore | {error,_} | {ok,pid()}.
 start(TagName, NotFound) ->
     gen_server:start(?MODULE, {TagName, NotFound}, []).
 
--spec init({tagname(), boolean()}) -> {'ok', #state{}}.
+-spec init({tagname(), boolean()}) -> gs_init().
 init({TagName, true}) ->
     init(TagName, {missing, notfound}, ?TAG_EXPIRES_ONERROR);
 init({TagName, false}) ->
     init(TagName, none, ?TAG_EXPIRES).
 
--spec init(tagname(), none | {missing, notfound},
-            non_neg_integer()) -> {'ok', #state{}}.
+-spec init(tagname(), none | {missing, notfound}, non_neg_integer()) -> gs_init().
 init(TagName, Data, Timeout) ->
     put(min_tagk, list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS"))),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
@@ -302,8 +301,8 @@ terminate(_Reason, _State) -> ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 
--spec authorize(tokentype(), binary(), replyto(), #state{},
-                fun((tokentype()) -> #state{})) -> #state{}.
+-spec authorize(tokentype(), binary(), replyto(), state(),
+                fun((tokentype()) -> state())) -> state().
 authorize(TokenType,
           Token,
           ReplyTo,
@@ -382,16 +381,16 @@ init_url_cache(Urls) ->
     gb_sets:from_list([ddfs_util:url_to_name(Url) || [Url|_] <- Urls]).
 
 -spec send_replies(replyto() | [replyto()],
-                   {'error', 'commit_failed' | 'invalid_attribute_value' |
-                             'invalid_url_object' | 'unknown_attribute' |
-                             'replication_failed' | 'unauthorized'} |
-                   {'ok', [binary(),...]} | 'ok') -> [any()].
+                   {error, commit_failed | invalid_attribute_value |
+                           invalid_url_object | unknown_attribute |
+                           replication_failed | unauthorized} |
+                   {ok, [binary(),...]} | ok) -> [any()].
 send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
     send_replies([ReplyTo], Message);
 send_replies(ReplyToList, Message) ->
     [gen_server:reply(Re, Message) || Re <- ReplyToList].
 
--spec do_gc_rr_update(#state{}, [blob_update()], [node()], tagid()) -> #state{}.
+-spec do_gc_rr_update(state(), [blob_update()], [node()], tagid()) -> state().
 do_gc_rr_update(#state{data = {missing, _}} = S, _Updates, _Blacklist, _Id) ->
     % The tag has been deleted, or cannot be found; ignore the update.
     S;
@@ -488,8 +487,8 @@ filter_blacklist(BlobSet, Blacklist) ->
               end
       end, [], BlobSet).
 
--spec get_tagdata(tagname()) -> {'missing', 'notfound'} | {'error', _}
-                             | {'ok', binary(), [{replica(), node()}]}.
+-spec get_tagdata(tagname()) -> {missing, notfound} | {error, _}
+                             | {ok, binary(), [{replica(), node()}]}.
 get_tagdata(TagName) ->
     {ok, ReadableNodes, RBSize} = ddfs_master:get_read_nodes(),
     TagMinK = get(min_tagk),
@@ -530,7 +529,7 @@ read_tagdata(TagID, Replicas, Failed, _Error) ->
     end.
 
 -spec do_delayed_update([[binary()]], [term()], replyto(),
-                        gb_tree(), #state{}) -> #state{}.
+                        gb_tree(), state()) -> state().
 do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
     % We must handle updates with different set of options separately.
     % Thus requests are indexed by the normalized set of options (OptKey)
@@ -557,7 +556,7 @@ jsonbin(X) ->
     iolist_to_binary(mochijson2:encode(X)).
 
 -spec do_get({tokentype(), token()}, attrib() | all, tagcontent()) ->
-             {'ok', binary()} | {'error','unauthorized' | 'unknown_attribute'}.
+             {ok, binary()} | {error, unauthorized | unknown_attribute}.
 do_get(_TokenInfo, all, D) ->
     {ok, ddfs_tag_util:encode_tagcontent_secure(D)};
 
@@ -579,8 +578,8 @@ do_get(_TokenInfo, {user, A}, D) ->
         _ -> {error, unknown_attribute}
     end.
 
--spec do_put({tokentype(), token()}, attrib(), string(), replyto(), #state{})
-            -> #state{}.
+-spec do_put({tokentype(), token()}, attrib(), string(), replyto(), state())
+            -> state().
 do_put({_, Token},
        Field,
        Value,
@@ -632,7 +631,7 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
 -spec put_distribute({tagid(),binary()}) ->
-    {'error', 'commit_failed' | 'replication_failed'} | {'ok', [node()], [binary(),...]}.
+    {error, commit_failed | replication_failed} | {ok, [node()], [binary(),...]}.
 put_distribute({TagID, _} = Msg) ->
     case put_distribute(Msg, get(tagk), [], []) of
         {ok, TagVol} ->
@@ -669,7 +668,7 @@ put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
     end.
 
 -spec put_commit(tagid(), [{node(), binary()}]) ->
-    {'error', 'commit_failed'} | {'ok', [node()], [binary(), ...]}.
+    {error, commit_failed} | {ok, [node()], [binary(), ...]}.
 put_commit(TagID, TagVol) ->
     {Nodes, _} = lists:unzip(TagVol),
     {NodeUrls, _} = gen_server:multi_call(Nodes,
@@ -683,7 +682,7 @@ put_commit(TagID, TagVol) ->
             {ok, Nodes, Urls}
     end.
 
--spec do_delete(replyto(), #state{}) -> #state{}.
+-spec do_delete(replyto(), state()) -> state().
 do_delete(ReplyTo, #state{tag = Tag} = S) ->
     case add_to_deleted(Tag) of
         {ok, _} ->

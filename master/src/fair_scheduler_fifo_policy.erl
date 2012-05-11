@@ -28,7 +28,7 @@ start_link() ->
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
--spec init(_) -> {ok, state()}.
+-spec init(_) -> gs_init().
 init(_) ->
     {ok, queue:new()}.
 

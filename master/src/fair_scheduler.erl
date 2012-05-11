@@ -35,7 +35,7 @@ start_link() ->
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
--spec init([]) -> {ok, state()}.
+-spec init([]) -> gs_init().
 init([]) ->
     {ok, _ } =
         case application:get_env(scheduler_opt) of

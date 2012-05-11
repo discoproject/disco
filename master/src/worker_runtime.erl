@@ -7,10 +7,10 @@
                 inputs,
                 master :: node(),
                 start_time :: erlang:timestamp(),
-                child_pid :: 'none' | non_neg_integer(),
+                child_pid :: none | non_neg_integer(),
                 persisted_outputs :: [string()],
-                output_filename :: 'none' | string(),
-                output_file :: 'none' | file:io_device()}).
+                output_filename :: none | string(),
+                output_file :: none | file:io_device()}).
 -type state() :: #state{}.
 -export_type([state/0]).
 
@@ -25,7 +25,7 @@ init(Task, Master) ->
            output_filename = none,
            output_file = none}.
 
--spec get_pid(state()) -> 'none' | non_neg_integer().
+-spec get_pid(state()) -> none | non_neg_integer().
 get_pid(#state{child_pid = Pid}) ->
     Pid.
 
@@ -54,10 +54,10 @@ payload_type(_Type) -> none.
 
 -type worker_msg() :: {nonempty_string(), term()}.
 
--type do_handle() :: {'ok', worker_msg(), state()}
-                   | {'error', {'fatal', term()}, state()}
-                   | {'stop', {'error' | 'fatal' | 'done', term()}}.
--type handle() :: do_handle() | {'error', {'fatal', term()}}.
+-type do_handle() :: {ok, worker_msg(), state()}
+                   | {error, {fatal, term()}, state()}
+                   | {stop, {error | fatal | done, term()}}.
+-type handle() :: do_handle() | {error, {fatal, term()}}.
 
 -spec handle({binary(), binary()}, state()) -> handle().
 handle({Type, Body}, S) ->
@@ -185,7 +185,7 @@ local_results(Task, FileName) ->
                            [Host, url_path(Task, Host, FileName)]),
     list_to_binary(Output).
 
--spec results(state()) -> {'none' | binary(), [string()]}.
+-spec results(state()) -> {none | binary(), [string()]}.
 results(#state{output_filename = none, persisted_outputs = Outputs}) ->
     {none, Outputs};
 results(#state{task = Task,
@@ -193,7 +193,7 @@ results(#state{task = Task,
                persisted_outputs = Outputs}) ->
     {local_results(Task, FileName), Outputs}.
 
--spec add_output(list(), #state{}) -> {ok, state()} | {error, term()}.
+-spec add_output(list(), state()) -> {ok, state()} | {error, term()}.
 add_output([Tag, <<"tag">>], #state{persisted_outputs = PO} = S) ->
     Result = list_to_binary(io_lib:format("tag://~s", [Tag])),
     {ok, S#state{persisted_outputs = [Result | PO]}};
@@ -238,7 +238,7 @@ format_output_line(#state{task = Task}, [LocalFile, Type, Label]) ->
                                                binary_to_list(LocalFile))]).
 
 
--spec close_output(#state{}) -> 'ok' | {error, term()}.
+-spec close_output(state()) -> ok | {error, term()}.
 close_output(#state{output_file = none}) -> ok;
 close_output(#state{output_file = File}) ->
     case {prim_file:sync(File), prim_file:close(File)} of
