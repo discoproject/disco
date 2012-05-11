@@ -30,6 +30,7 @@
          is_dir/1]).
 
 -include_lib("kernel/include/file.hrl").
+-include("disco.hrl").
 
 -define(MILLISECOND, 1000).
 -define(SECOND, (1000 * ?MILLISECOND)).
@@ -59,11 +60,11 @@ settings() ->
     [T || T <- string:tokens(get_setting("DISCO_SETTINGS"), ","),
 	  has_setting(T)].
 
--spec host(node()) -> string().
+-spec host(node()) -> host_name().
 host(Node) ->
     string:sub_word(atom_to_list(Node), 2, $@).
 
--spec name(node()) -> string().
+-spec name(node()) -> host_name().
 name(Node) ->
     string:sub_word(atom_to_list(Node), 1, $@).
 
@@ -71,7 +72,7 @@ name(Node) ->
 master_name() ->
     get_setting("DISCO_NAME") ++ "_master".
 
--spec master_node(string()) -> atom().
+-spec master_node(host_name()) -> atom().
 master_node(Host) ->
     list_to_atom(master_name() ++ "@" ++ Host).
 
@@ -79,11 +80,11 @@ master_node(Host) ->
 slave_name() ->
     get_setting("DISCO_NAME") ++ "_slave".
 
--spec slave_node(string()) -> node().
+-spec slave_node(host_name()) -> node().
 slave_node(Host) ->
     list_to_atom(slave_name() ++ "@" ++ Host).
 
--spec slave_safe(string()) -> 'false' | node().
+-spec slave_safe(host_name()) -> 'false' | node().
 slave_safe(Host) ->
     case catch list_to_existing_atom(slave_name() ++ "@" ++ Host) of
         {'EXIT', _Reason} ->
@@ -92,7 +93,7 @@ slave_safe(Host) ->
             Node
     end.
 
--spec oob_name(nonempty_string()) -> nonempty_string().
+-spec oob_name(jobname()) -> nonempty_string().
 oob_name(JobName) ->
     lists:flatten(["disco:job:oob:", JobName]).
 
@@ -103,15 +104,15 @@ hexhash(Path) ->
     <<Hash:8, _/binary>> = erlang:md5(Path),
     lists:flatten(io_lib:format("~2.16.0b", [Hash])).
 
--spec jobhome(nonempty_string()) -> nonempty_string().
+-spec jobhome(jobname()) -> nonempty_string().
 jobhome(JobName) ->
     jobhome(JobName, get_setting("DISCO_MASTER_ROOT")).
 
--spec jobhome(nonempty_string(), nonempty_string()) -> nonempty_string().
+-spec jobhome(jobname(), nonempty_string()) -> nonempty_string().
 jobhome(JobName, Root) ->
     filename:join([Root, hexhash(JobName), JobName]).
 
--spec joburl(nonempty_string(), nonempty_string()) -> nonempty_string().
+-spec joburl(host_name(), jobname()) -> nonempty_string().
 joburl(Host, JobName) ->
     filename:join(["disco", Host, hexhash(JobName), JobName]).
 
@@ -121,8 +122,7 @@ data_root(Node) when is_atom(Node) ->
 data_root(Host) ->
     filename:join(get_setting("DISCO_DATA"), Host).
 
--spec data_path(node() | nonempty_string(), nonempty_string()) ->
-                       nonempty_string().
+-spec data_path(node() | host_name(), nonempty_string()) -> nonempty_string().
 data_path(NodeOrHost, Path) ->
     filename:join(data_root(NodeOrHost), Path).
 
