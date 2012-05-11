@@ -38,7 +38,7 @@ start_link() ->
 lock(JobName, Proc, Timeout) ->
     gen_server:call(?MODULE, {wait, JobName, Proc}, Timeout).
 
--spec init(_) -> {ok, state()}.
+-spec init(_) -> gs_init().
 init(_Args) ->
     process_flag(trap_exit, true),
     {ok, #state{waiters = gb_trees:empty(),

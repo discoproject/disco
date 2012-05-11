@@ -53,7 +53,7 @@ start_link_remote(Host, NodeMon, Task) ->
     end,
     wait_for_exit().
 
--spec wait_until_node_ready(pid(), nonempty_string()) -> 'ok'.
+-spec wait_until_node_ready(pid(), nonempty_string()) -> ok.
 wait_until_node_ready(NodeMon, Host) ->
     NodeMon ! {is_ready, self()},
     receive
@@ -77,7 +77,7 @@ start_link({Parent, Master, Task}) ->
     Parent ! ok,
     wait_for_exit().
 
--spec init({node(), task()}) -> {'ok', state()}.
+-spec init({node(), task()}) -> gs_init().
 init({Master, Task}) ->
     % Note! Worker is killed implicitely by killing its job_coordinator
     % which should be noticed by the monitor below. If the DOWN message
@@ -250,7 +250,7 @@ worker_send(Port) ->
             worker_send(Port)
     end.
 
--spec make_jobhome(nonempty_string(), node()) -> 'ok'.
+-spec make_jobhome(nonempty_string(), node()) -> ok.
 make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
     case jobpack:extracted(JobHome) of

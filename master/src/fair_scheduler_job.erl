@@ -37,8 +37,7 @@ start(JobName, JobCoord) ->
 
 -type state() :: {gb_tree(), gb_tree(), [node()]}.
 
--spec init({nonempty_string(), pid()})
-          -> {ok, {gb_tree(), gb_tree(), []}} | {stop, normal}.
+-spec init({nonempty_string(), pid()}) -> gs_init() | {stop, normal}.
 init({JobName, JobCoord}) ->
     process_flag(trap_exit, true),
     put(jobname, JobName),

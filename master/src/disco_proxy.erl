@@ -66,7 +66,7 @@ update_nodes(Nodes) ->
 
 -type state() :: pid().
 
--spec init(_) -> {ok, state()}.
+-spec init(_) -> gs_init().
 init(_Args) ->
     process_flag(trap_exit, true),
     ProxyMonitor = spawn_link(fun() -> proxy_monitor(start_proxy()) end),
