@@ -22,6 +22,7 @@
 
 -include("disco.hrl").
 -include("gs_util.hrl").
+-include("fair_scheduler.hrl").
 
 -type state() :: [node()].
 
@@ -48,7 +49,7 @@ init([]) ->
     _ = ets:new(jobs, [private, named_table]),
     {ok, []}.
 
--spec handle_cast({update_nodes, [node()]} | {job_done, jobname}, state())
+-spec handle_cast(update_nodes_msg() | {job_done, jobname}, state())
                  -> gs_noreply().
 handle_cast({update_nodes, NewNodes}, _) ->
     gen_server:cast(sched_policy, {update_nodes, NewNodes}),
@@ -70,10 +71,8 @@ handle_cast({job_done, JobName}, Nodes) ->
             {noreply, Nodes}
     end.
 
--type nodestat() :: {false | non_neg_integer(), task_input()}.
 -spec handle_call({new_job, jobname(), pid()}, from(), state()) -> gs_reply(ok);
-                 ({new_task, task(), [nodestat()]}, from(), state()) ->
-                         gs_reply(ok);
+                 (new_task_msg(), from(), state()) -> gs_reply(ok);
                  (dbg_state_msg(), from(), state()) -> gs_reply(state());
                  ({next_task, [host_name()]}, from(), state()) ->
                          gs_reply(nojobs | {ok, {pid(), task()}}).

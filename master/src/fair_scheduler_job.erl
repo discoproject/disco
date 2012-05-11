@@ -2,19 +2,23 @@
 -module(fair_scheduler_job).
 -behaviour(gen_server).
 
--export([start/2, init/1, next_task/3, handle_call/3, handle_cast/2,
-    handle_info/2, terminate/2, code_change/3]).
+-export([start/2, next_task/3]).
+-export([init/1, handle_call/3, handle_cast/2,
+         handle_info/2, terminate/2, code_change/3]).
 
 -define(SCHEDULE_TIMEOUT, 30000).
 
 -include("disco.hrl").
+-include("gs_util.hrl").
+-include("fair_scheduler.hrl").
 
 -type load() :: {non_neg_integer(), {binary(), node()}}.
 
+-spec start(jobname(), pid()) -> {ok, pid()} | {error, _}.
 start(JobName, JobCoord) ->
     case gen_server:start(fair_scheduler_job, {JobName, JobCoord},
             disco:debug_flags("fair_scheduler_job-" ++ JobName)) of
-        {ok, Server} -> {ok, Server};
+        {ok, _Server} = Ret -> Ret;
         Error ->
             % This happens mainly if the job coordinator has
             % already died.
@@ -31,16 +35,18 @@ start(JobName, JobCoord) ->
             end
     end.
 
--spec init({nonempty_string(), pid()}) ->
-    {'ok', {gb_tree(), gb_tree(), []}} | {'stop', 'normal'}.
+-type state() :: {gb_tree(), gb_tree(), [node()]}.
+
+-spec init({nonempty_string(), pid()})
+          -> {ok, {gb_tree(), gb_tree(), []}} | {stop, normal}.
 init({JobName, JobCoord}) ->
     process_flag(trap_exit, true),
     put(jobname, JobName),
     case catch link(JobCoord) of
         true ->
-            {ok, {gb_trees:insert(nopref, {0, []},
-                    gb_trees:empty()),
-                  gb_trees:empty(), []}};
+            {ok, {gb_trees:insert(nopref, {0, []}, gb_trees:empty()),
+                  gb_trees:empty(),
+                  []}};
         R ->
             lager:info("Linking failed: ~p", [R]),
             {stop, normal}
@@ -48,13 +54,13 @@ init({JobName, JobCoord}) ->
 
 % MAIN FUNCTION:
 % Return a next task to be executed from this Job.
--spec next_task(jobinfo(), [jobinfo()], [node()]) ->
-    {'ok', {node(), task()}} | 'none'.
+-spec next_task(jobinfo(), [jobinfo()], [node()])
+               -> {ok, {node(), task()}} | none.
 next_task(Job, Jobs, AvailableNodes) ->
     schedule(schedule_local, Job, Jobs, AvailableNodes).
 
--spec schedule('schedule_local' | 'schedule_remote', jobinfo(), [jobinfo()], [node()]) ->
-    {'ok', {node(), task()}} | 'none'.
+-spec schedule(schedule_local | schedule_remote, jobinfo(),
+               [jobinfo()], [node()]) -> {ok, {node(), task()}} | none.
 schedule(Mode, Job, Jobs, AvailableNodes) ->
     % First try to find a node-local or remote task to execute
     case catch gen_server:call(Job, {Mode, AvailableNodes}, ?SCHEDULE_TIMEOUT) of
@@ -89,6 +95,11 @@ all_empty_nodes([Job|Jobs], AvailableNodes) ->
         _ -> all_empty_nodes(Jobs, AvailableNodes)
     end.
 
+-type cast_msgs() :: new_task_msg() | update_nodes_msg()
+                   | {task_started, host_name(), pid()}.
+-spec handle_cast(cast_msgs(), state()) -> gs_noreply();
+                 ({die, string()}, state()) -> gs_stop(normal).
+
 % Assign a new task to this job.
 handle_cast({new_task, Task, NodeStats}, {Tasks, Running, Nodes}) ->
     NewTasks = assign_task(Task, NodeStats, Tasks, Nodes),
@@ -109,6 +120,15 @@ handle_cast({die, Msg}, S) ->
     event_server:event(get(jobname),
         "ERROR: Job killed due to an internal exception: ~s", [Msg], {}),
     {stop, normal, S}.
+
+-type stats() :: {non_neg_integer(), non_neg_integer()}.
+-type schedule_result() :: nolocal | nonodes | {run, node(), task()}.
+-spec handle_call(dbg_state_msg(), from(), state()) -> gs_reply(state());
+                 (get_stats, from(), state()) -> gs_reply({ok, stats()});
+                 ({get_empty_nodes, [node()]}, from(), state()) ->
+                         gs_reply({ok, [node()]});
+                 ({schedule_local, [node()]}, from(), state()) ->
+                         gs_reply(schedule_result()).
 
 handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
@@ -141,10 +161,11 @@ handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
 % no tasks assigned to them by any job. Pick a task from
 % If ForceLocal, always fail.
 handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
-    {Reply, UpdatedTasks} = pop_and_switch_node(Tasks,
-        datalocal_nodes(Tasks, gb_trees:keys(Tasks)),
-            FreeNodes),
+    LocalNodes = datalocal_nodes(Tasks, gb_trees:keys(Tasks)),
+    {Reply, UpdatedTasks} = pop_and_switch_node(Tasks, LocalNodes, FreeNodes),
     {reply, Reply, {UpdatedTasks, Running, Nodes}}.
+
+-spec handle_info(term(), state()) -> gs_noreply() | gs_stop(normal).
 
 % Task done. Remove it from the list of running tasks. (for the fairness fairy)
 handle_info({'DOWN', _, _, Worker, _}, {Tasks, Running, Nodes}) ->
@@ -161,8 +182,7 @@ handle_info({'EXIT', _, _}, S) ->
 handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
     {noreply, S}.
 
--spec schedule_local(gb_tree(), [node()]) -> {'nolocal', gb_tree()}
-    | {'nonodes', gb_tree()} | {{'run', node(), task()}, gb_tree()}.
+-spec schedule_local(gb_tree(), [node()]) -> {schedule_result(), gb_tree()}.
 schedule_local(Tasks, AvailableNodes) ->
     % Does the job have any local tasks to be run on AvailableNodes?
     case datalocal_nodes(Tasks, AvailableNodes) of
@@ -189,8 +209,8 @@ schedule_local(Tasks, AvailableNodes) ->
             {{run, Node, Task}, gb_trees:update(Node, {N - 1, C, R}, Tasks)}
     end.
 
--spec pop_and_switch_node(gb_tree(), [node()], [node()]) ->
-    {'nonodes', gb_tree()} | {{'run', node(), task()}, gb_tree()}.
+-spec pop_and_switch_node(gb_tree(), [node()], [node()])
+                         -> {schedule_result(), gb_tree()}.
 pop_and_switch_node(Tasks, _, []) -> {nonodes, Tasks};
 pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
     case pop_busiest_node(Tasks, Nodes) of
@@ -215,8 +235,7 @@ pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
 
 % pop_busiest_node defines the policy for choosing the next task from a chosen
 % set of Nodes. Pick the task from the longest list.
--spec pop_busiest_node(gb_tree(), [node()]) ->
-    {'nonodes', gb_tree()} | {{'run', node(), task()}, gb_tree()}.
+-spec pop_busiest_node(gb_tree(), [node()]) -> {schedule_result(), gb_tree()}.
 pop_busiest_node(Tasks, []) -> {nonodes, Tasks};
 pop_busiest_node(Tasks, Nodes) ->
     {{N, C, [Task|R]}, MaxNode} = lists:max(
@@ -227,7 +246,7 @@ pop_busiest_node(Tasks, Nodes) ->
 % 1) that is not in the taskblack list
 % 2) that doesn't contain any input of the task, if force_remote == true
 % unless force_local == true. Otherwise return false.
--spec choose_node(task(), [node()]) -> 'false' | {'ok', node()}.
+-spec choose_node(task(), [node()]) -> false | {ok, node()}.
 choose_node(#task{force_local = true}, _) -> false;
 choose_node(Task, AvailableNodes) ->
     case AvailableNodes -- Task#task.taskblack of
@@ -241,8 +260,7 @@ choose_node(Task, AvailableNodes) ->
     end.
 
 % Pop the first task in Nodes that can be run
--spec pop_suitable(gb_tree(), [node()], [node()]) ->
-    {'nonodes', gb_tree()} | {{'run', node(), task()}, gb_tree()}.
+-spec pop_suitable(gb_tree(), [node()], [node()]) -> {schedule_result(), gb_tree()}.
 pop_suitable(Tasks, Nodes, AvailableNodes) ->
     case find_suitable([], none, Nodes, Tasks, AvailableNodes) of
         false -> {nonodes, Tasks};
@@ -255,7 +273,7 @@ pop_suitable(Tasks, Nodes, AvailableNodes) ->
 % Find first task from any node in Nodes that can be run,
 % i.e. choose_node() =/= false
 -spec find_suitable([task()], node(), [node()], gb_tree(), [node()]) ->
-    {'ok', task(), node(), node()} | 'false'.
+    {ok, task(), node(), node()} | false.
 find_suitable([], _, [], _, _) -> false;
 find_suitable([], _, [Node|R], Tasks, AvailableNodes) ->
     {_, _, L} = gb_trees:get(Node, Tasks),
@@ -379,6 +397,8 @@ get_default(Key, Tree, Default) ->
         {value, Val} -> Val
     end.
 
+-spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) -> ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
