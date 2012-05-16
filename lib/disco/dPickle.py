@@ -11,7 +11,7 @@ def dumps(obj, protocol=None):
     return file.getvalue()
 
 def is_std(module, stdlib=(dirname(getfile(pickle)),)):
-    return module.__name__ != '__main__' and dirname(getfile(module)) in stdlib
+    return module and module.__name__ != '__main__' and dirname(getfile(module)) in stdlib
 
 def unfunc(packed, globals={'__builtins__': __builtins__}):
     code, defs = marshal.loads(packed)
