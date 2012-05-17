@@ -26,6 +26,9 @@ Unless otherwise specified, `Erlang Programming Rules`_ apply.
 
 .. _Erlang Programming Rules: http://www.erlang.se/doc/programming_rules.shtml
 
+Also, the use of -spec annotations and Dialyzer is highly recommended
+before checking in commits.
+
 Python
 ------
 

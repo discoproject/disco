@@ -145,7 +145,7 @@ def parse_function(function):
 def recurse_module(module, path):
     finder = modulefinder.ModuleFinder(path=list(user_paths()))
     finder.run_script(path)
-    return dict((name, module.__file__) for name, module in finder.modules.iteritems()
+    return dict((name, os.path.realpath(module.__file__)) for name, module in finder.modules.iteritems()
                 if name != '__main__' and module.__file__)
 
 def locate_modules(modules, recurse=True, include_sys=False):

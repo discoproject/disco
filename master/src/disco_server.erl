@@ -3,9 +3,9 @@
 -behaviour(gen_server).
 
 -export([start_link/0, stop/0]).
--export([update_config_table/2, get_active/1, get_nodeinfo/1,
+-export([update_config_table/3, get_active/1, get_nodeinfo/1, get_purged/1,
          new_job/3, kill_job/1, kill_job/2, purge_job/1, clean_job/1,
-         new_task/2, connection_status/2, manual_blacklist/2,
+         new_task/2, connection_status/2, manual_blacklist/2, gc_blacklist/1,
          get_worker_jobpack/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -13,11 +13,11 @@
 -include_lib("kernel/include/file.hrl").
 -include("disco.hrl").
 
--type connection_status() :: 'undefined' | 'up' | disco_util:timestamp().
+-type connection_status() :: 'undefined' | 'up' | erlang:timestamp().
 
--record(dnode, {host :: nonempty_string(),
+-record(dnode, {host :: host_name(),
                 node_mon :: pid(),
-                manual_blacklist :: bool(),
+                manual_blacklist :: boolean(),
                 connection_status :: connection_status(),
                 slots :: non_neg_integer(),
                 num_running :: non_neg_integer(),
@@ -28,25 +28,24 @@
 
 -record(state, {workers :: gb_tree(),
                 nodes :: gb_tree(),
-                purged :: gb_tree()}).
+                purged :: gb_tree(),
+                jobpack_queue :: pid()}).
 
 -define(PURGE_TIMEOUT, 86400000). % 24h
 
+% This controls the max number of simultaneously open file
+% descriptors that can be open to service jobpack requestors.
+-define(NUM_ACTIVE_JOBPACK_SENDERS, 1024).
 
-% Note! Many parallel calls to get_worker_jobpack can cause master
-% to run out of file descriptors. If master did not close file descriptors
-% after JOBPACK_HANDLE_TIMEOUT, it is possible that unsuccessful
-% disco_workers would leak file descriptors, making the issue even worse.
-%
-% If the issue becomes serious, it should be relatively straightforward to
-% implement throttling to limit the maximum number of concurrent downloaders.
+% This specifies the maximum amount of time to wait for a completion
+% ack from a jobpack requestor, in milliseconds.
 -define(JOBPACK_HANDLE_TIMEOUT, 10 * 60 * 1000).
 
 %% ===================================================================
 %% API functions
 
 start_link() ->
-    error_logger:info_report([{"DISCO SERVER STARTS"}]),
+    lager:info("DISCO SERVER STARTS"),
     case gen_server:start_link({local, ?MODULE}, ?MODULE,
                                [], disco:debug_flags("disco_server")) of
         {ok, Server} ->
@@ -54,7 +53,7 @@ start_link() ->
                 {ok, _Config} ->
                     {ok, Server};
                 E ->
-                    error_logger:warning_report({"Parsing config failed", E})
+                    lager:warning("Parsing config failed: ~p", [E])
             end;
         {error, {already_started, Server}} ->
             {ok, Server}
@@ -63,9 +62,11 @@ start_link() ->
 stop() ->
     gen_server:call(?MODULE, stop).
 
--spec update_config_table([disco_config:host_info()], [nonempty_string()]) -> 'ok'.
-update_config_table(Config, ManualBlacklist) ->
-    gen_server:cast(?MODULE, {update_config_table, Config, ManualBlacklist}).
+-spec update_config_table([disco_config:host_info()], [host_name()],
+                          [host_name()]) -> 'ok'.
+update_config_table(Config, Blacklist, GCBlacklist) ->
+    gen_server:cast(?MODULE,
+                    {update_config_table, Config, Blacklist, GCBlacklist}).
 
 -spec get_active(nonempty_string() | 'all') ->
     {'ok', [{nonempty_string(), task()}]}.
@@ -99,19 +100,27 @@ clean_job(JobName) ->
 new_task(Task, Timeout) ->
     gen_server:call(?MODULE, {new_task, Task}, Timeout).
 
--spec connection_status(nonempty_string(), 'up' | 'down') -> 'ok'.
+-spec connection_status(host_name(), 'up' | 'down') -> 'ok'.
 connection_status(Node, Status) ->
     gen_server:call(?MODULE, {connection_status, Node, Status}).
 
--spec manual_blacklist(nonempty_string(), bool()) -> 'ok'.
+-spec manual_blacklist(host_name(), boolean()) -> 'ok'.
 manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
+-spec gc_blacklist([host_name()]) -> 'ok'.
+gc_blacklist(Hosts) ->
+    gen_server:call(?MODULE, {gc_blacklist, Hosts}).
+
 % called from remote nodes
 -spec get_worker_jobpack(node(), nonempty_string()) ->
-                                {'ok', {file:io_device(), non_neg_integer()}}.
+                                {'ok', {file:io_device(), non_neg_integer(), pid()}}.
 get_worker_jobpack(Master, JobName) ->
     gen_server:call({?MODULE, Master}, {jobpack, JobName}).
+
+-spec get_purged(node()) -> [binary()].
+get_purged(Master) ->
+    gen_server:call({?MODULE, Master}, get_purged).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -119,12 +128,14 @@ get_worker_jobpack(Master, JobName) ->
 init(_Args) ->
     process_flag(trap_exit, true),
     {ok, _} = fair_scheduler:start_link(),
+    JobPackQ = work_queue:start_link(?NUM_ACTIVE_JOBPACK_SENDERS),
     {ok, #state{workers = gb_trees:empty(),
                 nodes = gb_trees:empty(),
-                purged = gb_trees:empty()}}.
+                purged = gb_trees:empty(),
+                jobpack_queue = JobPackQ}}.
 
-handle_cast({update_config_table, Config, ManualBlacklist}, S) ->
-    {noreply, do_update_config_table(Config, ManualBlacklist, S)};
+handle_cast({update_config_table, Config, ManualBlacklist, GCBlacklist}, S) ->
+    {noreply, do_update_config_table(Config, ManualBlacklist, GCBlacklist, S)};
 
 handle_cast(schedule_next, S) ->
     {noreply, do_schedule_next(S)};
@@ -154,9 +165,10 @@ handle_call(get_purged, _, S) ->
 handle_call(get_num_cores, _, S) ->
     {reply, do_get_num_cores(S), S};
 
-handle_call({jobpack, JobName}, From, State) ->
-    spawn(fun() -> do_send_jobpack(JobName, From) end),
-    {noreply, State};
+handle_call({jobpack, JobName}, From, #state{jobpack_queue = Q} = S) ->
+    Sender = fun() -> do_send_jobpack(JobName, From) end,
+    work_queue:add_work(Q, Sender),
+    {noreply, S};
 
 handle_call({kill_job, JobName}, _From, S) ->
     {reply, do_kill_job(JobName), S};
@@ -168,14 +180,18 @@ handle_call({connection_status, Node, Status}, _From, S) ->
     {reply, ok, do_connection_status(Node, Status, S)};
 
 handle_call({manual_blacklist, Node, True}, _From, S) ->
-    {reply, ok, do_manual_blacklist(Node, True, S)}.
+    {reply, ok, do_manual_blacklist(Node, True, S)};
+
+handle_call({gc_blacklist, Hosts}, _From, S) ->
+    {reply, ok, do_gc_blacklist(Hosts, S)}.
+
 
 % handle late replies to "catch gen_server:call"
 handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
     {noreply, S};
 
 handle_info({'EXIT', Pid, Reason}, S) when Pid == self() ->
-    error_logger:warning_report(["Disco server dies on error!", Reason]),
+    lager:warning("Disco server dies on error: ~p", [Reason]),
     {stop, stop_requested, S};
 
 handle_info({'EXIT', Pid, {shutdown, Results}}, S) ->
@@ -194,7 +210,7 @@ handle_info({'EXIT', Pid, Reason}, S) ->
 %% gen_server callback stubs
 
 terminate(Reason, _State) ->
-    error_logger:warning_report({"Disco server dies", Reason}).
+    lager:warning("Disco server dies: ~p", [Reason]).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
@@ -219,8 +235,8 @@ nodemon_exit(Pid, S) ->
     Iter = gb_trees:iterator(S#state.nodes),
     nodemon_exit(Pid, S, gb_trees:next(Iter)).
 
-nodemon_exit(Pid, S, {Host, N, _Iter}) when N#dnode.node_mon =:= Pid ->
-    error_logger:warning_report({"Restarting monitor for", Host}),
+nodemon_exit(Pid, S, {Host, #dnode{node_mon = Pid} = N, _Iter}) ->
+    lager:warning("Restarting monitor for ~p", [Host]),
     N1 = N#dnode{node_mon = node_mon:start_link(Host)},
     S1 = S#state{nodes = gb_trees:update(Host, N1, S#state.nodes)},
     {noreply, do_connection_status(Host, down, S1)};
@@ -229,26 +245,26 @@ nodemon_exit(Pid, S, {_Host, _N, Iter}) ->
     nodemon_exit(Pid, S, gb_trees:next(Iter));
 
 nodemon_exit(Pid, S, none) ->
-    error_logger:warning_report({"Unknown PID exits", Pid}),
+    lager:warning("Unknown pid ~p exits", [Pid]),
     {noreply, S}.
 
 %% ===================================================================
 %% internal functions
 
--spec allow_write(#dnode{}) -> bool().
+-spec allow_write(#dnode{}) -> boolean().
 allow_write(#dnode{connection_status = up,
                    manual_blacklist = false}) ->
     true;
 allow_write(#dnode{}) ->
     false.
 
--spec allow_read(#dnode{}) -> bool().
+-spec allow_read(#dnode{}) -> boolean().
 allow_read(#dnode{connection_status = up}) ->
     true;
 allow_read(#dnode{}) ->
     false.
 
--spec allow_task(#dnode{}) -> bool().
+-spec allow_task(#dnode{}) -> boolean().
 allow_task(#dnode{} = N) -> allow_write(N).
 
 -spec update_nodes(gb_tree()) -> 'ok'.
@@ -261,7 +277,7 @@ update_nodes(Nodes) ->
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
     schedule_next().
 
--spec update_stats(nonempty_string(), 'none'|{'value', dnode()}, _,
+-spec update_stats(host_name(), 'none'|{'value', dnode()}, _,
                    #state{}) -> #state{}.
 update_stats(_Node, none, _ReplyType, S) -> S;
 update_stats(Node, {value, N}, ReplyType, S) ->
@@ -278,7 +294,7 @@ update_stats(Node, {value, N}, ReplyType, S) ->
          end,
     S#state{nodes = gb_trees:update(Node, M0, S#state.nodes)}.
 
--spec do_connection_status(nonempty_string(), 'up'|'down', #state{}) -> #state{}.
+-spec do_connection_status(host_name(), 'up'|'down', #state{}) -> #state{}.
 do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
@@ -293,7 +309,7 @@ do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
--spec do_manual_blacklist(nonempty_string(), bool(), #state{}) -> #state{}.
+-spec do_manual_blacklist(host_name(), boolean(), #state{}) -> #state{}.
 do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
@@ -305,10 +321,10 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
--spec do_update_config_table([disco_config:host_info()], [nonempty_string()],
-                             #state{}) -> #state{}.
-do_update_config_table(Config, Blacklist, S) ->
-    error_logger:info_report([{"Config table update"}]),
+-spec do_update_config_table([disco_config:host_info()], [host_name()],
+                             [host_name()], #state{}) -> #state{}.
+do_update_config_table(Config, Blacklist, GCBlacklist, S) ->
+    lager:info("Config table updated"),
     NewNodes =
         lists:foldl(fun({Host, Slots}, NewNodes) ->
             NewNode =
@@ -340,9 +356,15 @@ do_update_config_table(Config, Blacklist, S) ->
         end, gb_trees:values(S#state.nodes)),
     disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
     update_nodes(NewNodes),
-    S#state{nodes = NewNodes}.
+    S1 = do_gc_blacklist(GCBlacklist, S),
+    S1#state{nodes = NewNodes}.
 
--spec start_worker(nonempty_string(), pid(), task()) -> pid().
+-spec do_gc_blacklist([host_name()], #state{}) -> #state{}.
+do_gc_blacklist(Hosts, S) ->
+    ddfs_master:gc_blacklist([disco:slave_node(H) || H <- Hosts]),
+    S.
+
+-spec start_worker(host_name(), pid(), task()) -> pid().
 start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
                        [T#task.mode, T#task.taskid, Node], []),
@@ -458,14 +480,22 @@ do_clean_job(JobName) ->
     gen_server:cast(event_server, {clean_job, JobName}),
     ok.
 
+% This is executed in its own process.
 -spec do_send_jobpack(nonempty_string(), {pid(), reference()}) -> 'ok'.
 do_send_jobpack(JobName, From) ->
     JobFile = jobpack:jobfile(disco:jobhome(JobName)),
     case prim_file:read_file_info(JobFile) of
         {ok, #file_info{size = Size}} ->
             {ok, File} = file:open(JobFile, [binary, read]),
-            gen_server:reply(From, {ok, {File, Size}}),
-            timer:sleep(?JOBPACK_HANDLE_TIMEOUT),
+            {Worker, _Tag} = From,
+            erlang:monitor(process, Worker),
+            gen_server:reply(From, {ok, {File, Size, self()}}),
+            receive
+                done -> ok;
+                {'DOWN', _, _, _, _} -> ok
+            after ?JOBPACK_HANDLE_TIMEOUT ->
+                ok
+            end,
             file:close(File);
         {error, _} = E ->
             gen_server:reply(From, E)

@@ -44,11 +44,11 @@ find(Key, Dict, Default) ->
 jobfile(JobHome) ->
     filename:join(JobHome, "jobfile").
 
--spec exists(nonempty_string()) -> bool().
+-spec exists(nonempty_string()) -> boolean().
 exists(JobHome) ->
     disco:is_file(jobfile(JobHome)).
 
--spec extract(binary(), nonempty_string()) -> 'ok'.
+-spec extract(binary(), nonempty_string()) -> [file:name()].
 extract(JobPack, JobHome) ->
     JobZip = jobzip(JobPack),
     case discozip:extract(JobZip, [{cwd, JobHome}]) of
@@ -60,7 +60,7 @@ extract(JobPack, JobHome) ->
             exit({"Couldn't extract jobhome", JobHome, Reason})
     end.
 
--spec extracted(nonempty_string()) -> bool().
+-spec extracted(nonempty_string()) -> boolean().
 extracted(JobHome) ->
     disco:is_file(filename:join(JobHome, ".jobhome")).
 
@@ -95,23 +95,27 @@ save(JobPack, JobHome) ->
             throw({"Couldn't save jobpack", TmpFile, Reason})
     end.
 
--spec copy({file:io_device(), non_neg_integer()}, nonempty_string()) ->
+-spec copy({file:io_device(), non_neg_integer(), pid()}, nonempty_string()) ->
                   {'ok', nonempty_string()}.
-copy({Src, Size}, JobHome) ->
+copy({Src, Size, Sender}, JobHome) ->
+    CopyResult = (catch try_copy(Src, Size, JobHome)),
+    _ = file:close(Src),
+    Sender ! done,
+    CopyResult.
+try_copy(Src, Size, JobHome) ->
     TmpFile = tempname(JobHome),
     JobFile = jobfile(JobHome),
     {ok, Dst} = prim_file:open(TmpFile, [raw, binary, write]),
-    ok = copy(Src, Dst, Size),
+    ok = copy_bytes(Src, Dst, Size),
     ok = prim_file:close(Dst),
-    _ = file:close(Src),
     ok = prim_file:rename(TmpFile, JobFile),
     {ok, JobFile}.
 
-copy(_Src, _Dst, 0) -> ok;
-copy(Src, Dst, Left) ->
+copy_bytes(_Src, _Dst, 0) -> ok;
+copy_bytes(Src, Dst, Left) ->
     {ok, Buf} = file:read(Src, ?COPY_BUFFER_SIZE),
     ok = prim_file:write(Dst, Buf),
-    copy(Src, Dst, Left - size(Buf)).
+    copy_bytes(Src, Dst, Left - byte_size(Buf)).
 
 tempname(JobHome) ->
     {MegaSecs, Secs, MicroSecs} = now(),
@@ -180,7 +184,7 @@ valid(<<?MAGIC:16/big,
        JobEnvsOffset > JobDictOffset,
        JobHomeOffset >= JobEnvsOffset,
        JobDataOffset >= JobHomeOffset,
-       size(JobPack) >= JobDataOffset ->
+       byte_size(JobPack) >= JobDataOffset ->
     case catch jobenvs(JobPack) of
         {'EXIT', _} -> {error, invalid_dicts_or_envs};
         {error, E} -> {error, E};

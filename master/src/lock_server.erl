@@ -19,6 +19,8 @@ start_link() ->
     case catch gen_server:start_link({local, lock_server}, lock_server, [], []) of
         {ok, _Server} ->
             ok;
+	{error, {already_started, _Server}} ->
+	    exit(already_started);
         {'EXIT', Reason} ->
             exit(Reason)
     end,

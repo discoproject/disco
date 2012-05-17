@@ -13,8 +13,7 @@ Disco Distributed Filesystem (DDFS) provides a distributed storage layer
 for Disco. DDFS is designed specifically to support use cases that are
 typical for Disco and :term:`mapreduce` in general: Storage and processing
 of massive amounts of immutable data. This makes it very suitable for
-storing, for instance: log data, large binary objects (photos, videos,
-:ref:`discodb <discodb>` indices),
+storing, for instance: log data, large binary objects (photos, videos, indices),
 or incrementally collected raw data such as web crawls.
 
 In this sense, DDFS is complementary to traditional relational databases
@@ -31,20 +30,17 @@ open-source projects such as `Hadoop Distributed Filesystem (HDFS)
 DDFS is a low-level component in the Disco stack, taking care of data
 *distribution*, *replication*, *persistence*, *addressing* and *access*.
 It does not provide a sophisticated query facility in itself but it is
-**tightly integrated** with Disco :term:`jobs <job>`,
-and used by :ref:`Discodex`,
-which can be used to build application-specific query interfaces.
+**tightly integrated** with Disco :term:`jobs <job>`.
 Disco can store job results to DDFS,
 providing persistence for and easy access to processed data.
 
 DDFS is a **tag-based** filesystem: Instead of having to organize data
 to directory hierarchies, you can tag sets of objects with arbitrary
 names and retrieve them later based on the given :term:`tags <tag>`.
-For instance,
-tags can be used to timestamp different versions of data,
-or denote the source or owner of data.
-Tags can contain links to other tags,
-which form a network or a directed **graph of metadata**.
+For instance, tags can be used to timestamp different versions of
+data, or denote the source or owner of data.  Tags can contain links
+to other tags, and data can be referred to by multiple tags; tags
+hence form a network or a directed **graph of metadata**.
 This provides a flexible way to **manage terabytes** of data assets.
 DDFS also provides a mechanism to store arbitrary attributes with the tags,
 for instance, to denote data type.
@@ -80,8 +76,10 @@ DDFS operates on two concepts: :ref:`blobs` and :ref:`tags`.
 
 Blobs
 '''''
+
 Blobs are arbitrary objects (files) that have been pushed to DDFS.
-They are distributed to storage nodes and stored on their local filesystems.
+They are distributed to storage nodes and stored on their local
+filesystems.  Multiple copies or replicas are stored for each blob.
 
 .. _tags:
 
@@ -89,13 +87,14 @@ Tags
 ''''
 
 Tags contain metadata about blobs. Most importantly, a tag contains a
-list of URLs that refer to blobs that have been assigned this tag. Tag
-may also contain links to other tags. It may also include user-defined
-metadata.
+list of URLs (one for each replica) that refer to blobs that have been
+assigned this tag. Tag may also contain links to other tags. It may
+also include user-defined metadata.
 
-Next section describes the role of tags and blobs more closely. It
-also shows how they relate to the five main tasks of DDFS, data
-*distribution*, *replication*, *persistence*, *addressing* and *access*.
+The next section describes the role of tags and blobs in more
+detail. It also shows how they relate to the five main tasks of DDFS,
+data *distribution*, *replication*, *persistence*, *addressing* and
+*access*.
 
 Overview
 --------
@@ -398,31 +397,41 @@ Another non-trivial part of DDFS is re-replication and garbage
 collection of tags and blobs. These issues are discussed in more detail
 below.
 
-In contrast, operations on blobs are reasonably simple: ``new_blob``
-returns a list of URLs, based on the available disk space. The client is
-responsible for pushing data to storage nodes, using HTTP PUT requests.
+Blob operations
+'''''''''''''''
+
+Operations on blobs are reasonably simple.  The client is responsible
+for pushing data to storage nodes, using HTTP PUT requests.
+``new_blob`` returns a list of URLs, based on the available disk
+space, to which the blob data can be PUT.  A node receiving data via a
+PUT first creates a temporary !partial file into which the blob is
+received, and then renames the file into the blobname on successful
+completion.
+
 Getting a blob is just a matter of making a normal HTTP GET request.
 
 Tag operations
 ''''''''''''''
 
-Tags are the only mutable data type in DDFS. Updating data in a
+Tags are the only mutable data type in DDFS. Each tag update creates a
+new version of the tag; the latest version of the tag is used to get
+the current contents of the tag. Updating data in a
 distributed system is a non-trivial task. Classical solutions
 include centralized lock servers, various methods based on
 eventual consistency and consensus protocols such as `Paxos
 <http://en.wikipedia.org/wiki/Paxos_algorithm>`_. Currently DDFS takes the
-first approach, which is straightforward to implement in a single-master
-architecture.
+first centralized approach, which is straightforward to implement in a
+single-master architecture.
 
 All operations manipulating a tag are serialized, although many distinct
 tags can be processed concurrently. Serialization is achieved by handling
-each tag in a separate `gen_server` process, in ``ddfs_tag.erl`` (tag
+each tag in a separate `gen_server` process, in ``ddfs/ddfs_tag.erl`` (tag
 server). Tag servers are instantiated on demand basis, and killed after
 a period of inactivity. Together, tag servers implement the master cache.
 
 To get a tag, tag server queries all storage nodes to find all
-instances of the tag (see ``ddfs_tag:get_tagdata()``). From the list of
-all available instances, it finds replicas of the latest tag version,
+versions of the tag (see ``ddfs/ddfs_tag:get_tagdata()``). From the list of
+all available versions, it finds replicas of the latest tag version,
 chooses one of them randomly, and retrieves the tag data. It is not safe
 to get tag data if more than *K - 1* nodes are unavailable, as in this
 case not all versions of the tag might be available.
@@ -465,31 +474,41 @@ DDFS uses a special tag (metatag) ``+deleted`` (inaccessible to the
 user due to the plus sign), to list deleted tags. Each tag operation
 checks whether the requested tag exists on this list, to hide deleted
 tags from the user. Actual deletion is handled by garbage collector in
-``ddfs_gc:process_deleted()``.
+``ddfs/ddfs_gc_main:process_deleted()``.
 
-The deleted tag is kept on the ``+deleted`` list until all known instances of
+The deleted tag is kept on the ``+deleted`` list until all known versions of
 the tag have been garbage collected, and a sufficient quarantine period has
-passed since the last seen instance, to ensure that all nodes which might be
+passed since the last seen version, to ensure that all nodes which might be
 temporarily unavailable have been restarted.
 
 Due to this mechanism, it is critical that no node stays unavailable for more
 than ``?DELETED_TAG_EXPIRES`` (see ``ddfs/config.hrl``) days before restarting.
 The period is currently one month.
 
-Garbage collection
-''''''''''''''''''
+.. _gcrr:
 
-Garbage collector is a central background process ensuring consistency and
-persistence of data and metadata in DDFS. It takes care of the following tasks:
+Garbage collection and Re-replication
+'''''''''''''''''''''''''''''''''''''
 
-   * Remove leftover !partial. files (failed PUT operations).
+A central background process implements garbage collection and
+re-replication, ensuring the consistency and persistence of data and
+metadata in DDFS. It takes care of the following tasks:
+
+   * Remove leftover !partial. files (from failed PUT operations).
    * Remove orphaned tags (old versions and deleted tags).
    * Remove orphaned blobs (blobs not referred by any tag).
+   * Recover lost replicas for non-orphaned blobs (from lost tag updates)
+   * Deleted old deleted tags from the ``+deleted`` metatag.
    * Re-replicate blobs that do not have enough replicas.
-   * Re-replicate tags that do not have enough replicas.
-   * Deleted old items from the ``+deleted`` metatag.
+   * Update tags that contain blobs that were re-replicated, and/or
+     re-replicate tags that don't have enough replicas.
 
-These operations are extensively documented in the beginning of ``ddfs_gc.erl``.
+Garbage collection and re-replication are documented at the beginning
+of ``ddfs/ddfs_gc_main.erl``.  They are performed only when the
+cluster is in a safe state with respect to :ref:`ft`, i.e. there are
+fewer than *K* failed nodes in the cluster.
+
+.. _ft:
 
 Fault tolerance
 '''''''''''''''
@@ -510,5 +529,5 @@ One possible solution to this issue is to restrict node operations to a subset
 of nodes instead of all of them. This would mean that the *K - 1* limit of
 failed nodes is imposed on a fixed subset of nodes, which is a very reasonable
 assumption on a cluster of any size. The node space could be partitioned using a
-consistent hashing mechanism, which could be integrated to ``ddfs_tag`` without
-major changes in the overall architecture of DDFS.
+consistent hashing mechanism, which could be integrated to ``ddfs/ddfs_tag.erl``
+without major changes in the overall architecture of DDFS.

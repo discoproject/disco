@@ -57,7 +57,7 @@ Message Format
 
 Messages in the protocol, both from and to the worker, are in the format:
 
-         *<name>* 'SP' *<payload-len>* 'SP' *<payload>* '\n'
+         *<name>* 'SP' *<payload-len>* 'SP' *<payload>* '\\n'
 
 where 'SP' denotes a single space character, and *<name>* is one of:
 
@@ -78,6 +78,9 @@ where 'SP' denotes a single space character, and *<name>* is one of:
 
 *<payload-len>* is the length of the *<payload>* in bytes,
 and *<payload>* is a :term:`JSON` formatted term.
+
+Note that messages that have no payload (see below) actually
+contain an empty JSON string *<payload> = ""* and *<payload-len> = 2*.
 
 Messages from the Worker to Disco
 =================================
@@ -193,12 +196,24 @@ INPUT
    each such location is called a `replica`.  A `rep_id` is an integer
    identifying the replica.
 
-   The `replica_location` is specified as a URL.  The protocol scheme
-   used for the `replica_location` could be one of `http`, `disco`, or
-   `raw`.  A URL with the `disco` scheme is to be accessed using HTTP
-   at the `disco_port` specified in the `TASK` response from Disco.
+   The `replica_location` is specified as a URL. The protocol scheme
+   used for the `replica_location` could be one of `http`, `disco`,
+   `dir` or `raw`. A URL with the `disco` scheme is to be accessed using
+   HTTP at the `disco_port` specified in the `TASK` response from Disco.
    The `raw` scheme denotes that the URL itself (minus the scheme) is
-   the data for the task.
+   the data for the task. The data needs to be properly URL encoded,
+   for instance using Base64 encoding. The `dir` is like the `disco`
+   scheme, except that the file pointed to contains lines of the form
+
+   *<label>* 'SP' *<url>* '\\n'
+
+   The `'label'` comes from the `'label'` specified in an `OUTPUT`
+   message by a task, while the `'url'` points to a file containing
+   output data generated with that label.  This is currently how
+   labeled output data is communicated by upstream tasks to downstream
+   ones, e.g. from map tasks to reduce tasks, or from tasks in the
+   final phase of a previous job to the tasks in the first phase of a
+   subsequent job (see :ref:`dataflow`).
 
    One important optimization is to use the local filesystem instead
    of HTTP for accessing inputs when they are local.  This can be
@@ -360,7 +375,7 @@ Messages from Disco to the Worker
 OK
 --
 
-   A generic response from Disco.  This message has no payload.
+   A generic response from Disco.  This message has the payload `"ok"`.
 
 .. _FAIL:
 

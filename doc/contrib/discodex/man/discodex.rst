@@ -1,2 +1,0 @@
-.. automodule:: discodexcli
-   :members:

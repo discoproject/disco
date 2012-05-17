@@ -8,7 +8,7 @@
 -export([start/2, serve_ddfs_file/2, serve_disco_file/2]).
 
 start(MochiConfig, Roots) ->
-    error_logger:info_report({"START", ?MODULE, self()}),
+    error_logger:info_msg("Starting ~p on ~p", [?MODULE, node()]),
     mochiweb_http:start([
         {name, ddfs_get},
         {max, ?HTTP_MAX_CONNS},
@@ -40,15 +40,23 @@ loop("/ddfs/" ++ Path, Req, {DdfsRoot, _DiscoRoot}) ->
 loop("/disco/" ++ Path, Req, {_DdfsRoot, DiscoRoot}) ->
     send_file(Req, Path, DiscoRoot).
 
+allowed_method('GET') ->
+    true;
+allowed_method('HEAD') ->
+    true;
+allowed_method(_) ->
+    false.
+
 -spec send_file(module(), nonempty_string(), nonempty_string()) -> _.
 send_file(Req, Path, Root) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
-    case {Req:get(method), mochiweb_util:safe_relative_path(Path)} of
-        {'GET', undefined} ->
+    case {allowed_method(Req:get(method)),
+          mochiweb_util:safe_relative_path(Path)} of
+        {true, undefined} ->
             Req:not_found();
-        {'GET', SafePath} ->
-            case catch gen_server:call(ddfs_node, get_blob, ?GET_WAIT_TIMEOUT) of
+        {true, SafePath} ->
+            case catch ddfs_node:gate_get_blob() of
                 ok ->
                     send_file(Req, filename:join(Root, SafePath));
                 {'EXIT', {noproc, _}} ->

@@ -6,7 +6,7 @@
 -record(state, {task :: task(),
                 inputs,
                 master :: node(),
-                start_time :: disco_util:timestamp(),
+                start_time :: erlang:timestamp(),
                 child_pid :: 'none' | non_neg_integer(),
                 persisted_outputs :: [string()],
                 output_filename :: 'none' | string(),
@@ -84,12 +84,12 @@ handle({Type, Body}, S) ->
 -spec do_handle({binary(), term()}, state()) -> do_handle().
 
 do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
-    {value, {_, Pid}} = lists:keysearch(<<"pid">>, 1, Worker),
+    {_, Pid} = lists:keyfind(<<"pid">>, 1, Worker),
     S1 = S#state{child_pid = Pid},
-    case lists:keysearch(<<"version">>, 1, Worker) of
-        {value, {_, <<"1.0">>}} ->
+    case lists:keyfind(<<"version">>, 1, Worker) of
+        {_, <<"1.0">>} ->
             {ok, {"OK", <<"ok">>}, S1};
-        {value, {_, Ver}} ->
+        {_, Ver} ->
             VerMsg = io_lib:format("~p", [Ver]),
             {error, {fatal, ["Invalid worker version: ", VerMsg]}, S1};
         _ ->
@@ -207,7 +207,7 @@ add_output(RL, #state{task = Task, output_file = none} = S) ->
             add_output(RL, S#state{output_filename = ResultsFileName,
                                    output_file = ResultsFile});
         {error, Reason} ->
-            {error, ioerror(["Opening index file at ", Path, " failed"], Reason)}
+            {error, ioerror("Opening index file at "++Path++" failed", Reason)}
     end;
 
 add_output(RL, #state{output_file = RF} = S) ->
@@ -248,6 +248,6 @@ close_output(#state{output_file = File}) ->
             {error, ioerror("Closing index file failed", Reason)}
     end.
 
--spec ioerror(list(), atom()) -> term().
+-spec ioerror(nonempty_string(), atom()) -> nonempty_string().
 ioerror(Msg, Reason) ->
-    [Msg, ": ", atom_to_list(Reason)].
+    Msg ++ ": " ++ atom_to_list(Reason).

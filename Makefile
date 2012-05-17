@@ -1,11 +1,15 @@
-DISCO_VERSION = 0.4
-DISCO_RELEASE = 0.4
+export
+
+DISCO_VERSION = 0.4.2
+DISCO_RELEASE = 0.4.2
 
 # standard make installation variables
 sysconfdir    = /etc
 prefix        = /usr/local
 exec_prefix   = $(prefix)
 localstatedir = $(prefix)/var
+datarootdir   = $(prefix)/share
+datadir       = $(datarootdir)
 bindir        = $(exec_prefix)/bin
 libdir        = $(exec_prefix)/lib
 
@@ -15,153 +19,150 @@ INSTALL_PROGRAM = $(INSTALL)
 INSTALL_DATA    = $(INSTALL) -m 644
 INSTALL_TREE    = cp -r
 
+# relative directory paths
+RELBIN = $(bindir)
+RELLIB = $(libdir)/disco
+RELDAT = $(datadir)/disco
+RELCFG = $(sysconfdir)/disco
+RELSRV = $(localstatedir)/disco
+
 # installation directories
-TARGETBIN = $(DESTDIR)$(bindir)
-TARGETLIB = $(DESTDIR)$(libdir)/disco
-TARGETCFG = $(DESTDIR)$(sysconfdir)/disco
-TARGETSRV = $(DESTDIR)$(localstatedir)/disco
+TARGETBIN = $(DESTDIR)$(RELBIN)
+TARGETLIB = $(DESTDIR)$(RELLIB)
+TARGETDAT = $(DESTDIR)$(RELDAT)
+TARGETCFG = $(DESTDIR)$(RELCFG)
+TARGETSRV = $(DESTDIR)$(RELSRV)
 
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
-SPHINXOPTS = "-D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)"
+SPHINXOPTS = -D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)
 
 # used to choose which conf file will be generated
 UNAME = $(shell uname)
 
 # utilities used for building disco
-ERL        = erl
-ERLC       = erlc
-EOPT       = -W
 DIALYZER   = dialyzer
 TYPER      = typer
 PYTHON     = python
-PY_INSTALL = $(PYTHONENVS) $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix)
-RE_VERSION = sed -e s/%DISCO_VERSION%/$(DISCO_VERSION)/
+PY_INSTALL = $(PYTHONENVS) $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix) $(PY_INSTALL_OPTS)
 
 WWW   = master/www
 EBIN  = master/ebin
 ESRC  = master/src
-ETEST = master/test
+EDEP  = master/deps
 
-ELIBS    = $(ESRC) $(ESRC)/ddfs $(ESRC)/mochiweb
+DEPS     = mochiweb lager
+EDEPS    = $(foreach dep,$(DEPS),$(EDEP)/$(dep)/ebin)
+ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
-EHEADERS = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.hrl))
-EAPPS    = $(subst $(ESRC),$(EBIN),$(ELIBS))
-EOBJECTS = $(subst $(ESRC),$(EBIN),$(ESOURCES:.erl=.beam))
-ETARGETS = $(foreach object,$(EOBJECTS),$(TARGETLIB)/$(object))
-
-ETESTSOURCES = $(wildcard $(ETEST)/*.erl)
-ETESTOBJECTS = $(ETESTSOURCES:.erl=.beam)
 
 EPLT  = .dialyzer_plt
 
-.PHONY: all master clean distclean doc docclean doctest
-.PHONY: install \
-	install-master \
+.PHONY: master clean test \
+	contrib \
+	dep dep-clean \
+	debian debian-clean \
+	doc doc-clean doc-test
+.PHONY: install uninstall \
 	install-core \
-	install-node \
 	install-discodb \
-	install-discodex \
 	install-examples \
+	install-master uninstall-master \
+	install-node uninstall-node \
 	install-tests
-.PHONY: test dialyzer typer
+.PHONY: dialyzer dialyzer-clean typer
 
-all: master
-
-master: $(EBIN)/disco.app $(EOBJECTS)
+master: dep
+	@ (cd master && ./rebar compile)
 
 clean:
-	- rm -Rf $(EBIN) $(ETESTOBJECTS)
+	@ (cd master && ./rebar clean)
 	- rm -Rf lib/build lib/disco.egg-info
-	- rm -Rf doc/.build
 
-distclean: clean
-	- rm -Rf $(EPLT)
+test:
+	@ (cd master && ./rebar -C eunit.config get-deps eunit)
+
+contrib:
+	git submodule init
+	git submodule update
+
+dep:
+	@ (cd master && ./rebar get-deps)
+
+dep-clean:
+	- rm -Rf master/deps
+
+debian:
+	$(MAKE) -C pkg/debian
+
+debian-clean:
+	$(MAKE) -C pkg/debian clean
 
 doc:
-	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) html)
+	$(MAKE) -C doc html -e
 
-docclean:
-	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) clean)
+doc-clean:
+	$(MAKE) -C doc clean -e
 
-doctest:
-	(cd doc && $(MAKE) SPHINXOPTS=$(SPHINXOPTS) doctest)
+doc-test:
+	$(MAKE) -C doc doctest -e
 
-install: install-core install-master install-node
+install: install-core install-node install-master
+
+uninstall: uninstall-master uninstall-node
 
 install-core:
 	(cd lib && $(PY_INSTALL))
 
-install-discodb:
-	(cd contrib/discodb && $(PY_INSTALL))
-
-install-discodex:
-	(cd contrib/discodex && $(PY_INSTALL))
+install-discodb: contrib
+	$(MAKE) -C contrib/discodb install
 
 install-examples: $(TARGETLIB)/examples
 
 install-master: master \
+	$(TARGETDAT)/$(WWW) \
 	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
-	$(TARGETLIB)/$(WWW) \
-	$(TARGETCFG)/settings.py \
-	$(TARGETLIB)/$(EBIN)/disco.app \
-	$(TARGETSRV)/ddfs
+	$(TARGETCFG)/settings.py
 
-install-node: master $(ETARGETS)
+uninstall-master:
+	- rm -Rf $(TARGETDAT)
+	- rm -f  $(TARGETBIN)/disco $(TARGETBIN)/ddfs
+	- rm -Ri $(TARGETCFG)
+
+install-node: master \
+	$(TARGETLIB)/$(EBIN) \
+	$(addprefix $(TARGETLIB)/,$(EDEPS)) \
+	$(TARGETSRV)
+
+uninstall-node:
+	- rm -Rf $(TARGETLIB) $(TARGETSRV)
 
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
-uninstall:
-	- rm -f  $(TARGETBIN)/disco $(TARGETBIN)/ddfs
-	- rm -Rf $(TARGETCFG) $(TARGETLIB) $(TARGETSRV)
+dialyzer: $(EPLT) master
+	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
 
-test: master $(ETESTOBJECTS)
-	$(ERL) -noshell -pa $(ETEST) $(EAPPS) -s master_tests main -s init stop
-
-dialyzer: EOPT = -W +debug_info
-dialyzer: $(EPLT)
-	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling -Wbehaviours --plt $(EPLT) --src -r $(ESRC)
+dialyzer-clean:
+	- rm -Rf $(EPLT)
 
 typer: $(EPLT)
 	$(TYPER) --plt $(EPLT) -r $(ESRC)
-
-$(EBIN):
-	mkdir $(EAPPS)
-
-$(EBIN)/disco.app: $(ESRC)/disco.app | $(EBIN)
-	- $(RE_VERSION) $< > $@
-
-$(EBIN)/%.beam: $(ESRC)/%.erl $(EHEADERS) | $(EBIN)
-	$(ERLC) $(EOPT) -o $(dir $@) $<
-
-$(ETEST)/%.beam: $(ETEST)/%.erl
-	$(ERLC) $(EOPT) -o $(dir $@) $<
 
 $(EPLT):
 	$(DIALYZER) --build_plt --output_plt $(EPLT) \
 		    --apps stdlib kernel erts mnesia compiler crypto inets xmerl ssl syntax_tools
 
-$(TARGETBIN):
-	$(INSTALL) -d $(TARGETBIN)
+$(TARGETDAT)/% $(TARGETLIB)/%: %
+	$(INSTALL) -d $(@D)
+	$(INSTALL_TREE) $< $(@D)
 
-$(TARGETBIN)/%: bin/% | $(TARGETBIN)
+$(TARGETBIN)/%: bin/%
+	$(INSTALL) -d $(@D)
 	$(INSTALL_PROGRAM) $< $@
 
-$(TARGETCFG):
-	$(INSTALL) -d $(TARGETCFG)
+$(TARGETCFG)/settings.py:
+	$(INSTALL) -d $(@D)
+	(cd conf && ./gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
 
-$(TARGETCFG)/settings.py: | $(TARGETCFG)
-	(TARGETLIB=$(TARGETLIB) TARGETSRV=$(TARGETSRV) \
-	 conf/gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
-
-$(TARGETLIB):
-	$(INSTALL) -d $(addprefix $(TARGETLIB)/,$(EAPPS))
-
-$(TARGETLIB)/$(EBIN)/%: $(EBIN)/% | $(TARGETLIB)
-	$(INSTALL_DATA) $< $@
-
-$(TARGETLIB)/%: % | $(TARGETLIB)
-	$(INSTALL_TREE) $< $@
-
-$(TARGETSRV)/ddfs:
-	$(INSTALL) -d $(TARGETSRV)/ddfs
+$(TARGETSRV):
+	$(INSTALL) -d $@

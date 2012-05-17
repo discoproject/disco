@@ -6,7 +6,7 @@
     handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
-    error_logger:info_report([{"Fair scheduler: FIFO policy"}]),
+    lager:info("Fair scheduler: FIFO policy"),
     case gen_server:start_link({local, sched_policy},
             fair_scheduler_fifo_policy, [],
             disco:debug_flags("fair_scheduler_fifo_policy")) of

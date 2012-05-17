@@ -146,6 +146,11 @@ My input files are stored in CSV / XML / XYZ format. What is the easiest to use 
 
 See :func:`disco.worker.classic.func.input_stream`.
 
+For `CSV <http://en.wikipedia.org/wiki/Comma-separated_values>`_ files
+you can also have a look at
+`the csv module <http://docs.python.org/library/csv.html>`_ shipped in
+the Python standard library.
+
 Why not `Hadoop <http://hadoop.apache.org>`_?
 '''''''''''''''''''''''''''''''''''''''''''''
 
@@ -161,11 +166,11 @@ the task than Java. We feel much more productive with Python than with
 Java. We also feel that Erlang is a perfect match for the Disco core
 that needs to handle tens of thousands of tasks in parallel.
 
-Thanks to Erlang, the Disco core is remarkably compact, currently less
-than 6000 lines of code. It is relatively easy to understand how
-the core works, and start experimenting with it or adapt it to new
-environments. Thanks to Python, it is easy to add new features around
-the core which ensures that Disco can respond quickly to real-world needs.
+Thanks to Erlang, the Disco core is remarkably compact.  It is
+relatively easy to understand how the core works, and start
+experimenting with it or adapt it to new environments. Thanks to
+Python, it is easy to add new features around the core which ensures
+that Disco can respond quickly to real-world needs.
 
 .. _ec2:
 

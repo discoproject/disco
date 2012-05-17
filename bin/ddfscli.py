@@ -119,7 +119,7 @@ def chunk(program, tag, *urls):
     from itertools import chain
     from disco.util import reify
 
-    tags, urls = program.separate_tags(*urls)
+    tags, urls = program.separate_tags(*program.input(*urls))
     stream = reify(program.options.stream)
     reader = reify(program.options.reader or 'None')
     tag, blobs = program.ddfs.chunk(tag,
@@ -387,7 +387,7 @@ def xcat(program, *urls):
     from disco.core import classic_iterator
     from disco.util import iterify, reify
 
-    tags, urls = program.separate_tags(*urls)
+    tags, urls = program.separate_tags(*program.input(*urls))
     stream = reify(program.options.stream)
     reader = program.options.reader
     reader = reify('disco.func.chain_reader' if reader is None else reader)

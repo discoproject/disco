@@ -1,3 +1,0 @@
-#!/bin/sh
-
-invoke-rc.d disco-master stop

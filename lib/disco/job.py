@@ -261,7 +261,7 @@ class PackedJobPack(JobPack):
     def jobenvs(self):
         dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
         self.jobfile.seek(envs_offset)
-        return json.loads(self.jobfile.read(home_offset - dict_offset))
+        return json.loads(self.jobfile.read(home_offset - envs_offset))
 
     @property
     def jobhome(self):

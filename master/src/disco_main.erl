@@ -1,15 +1,14 @@
 -module(disco_main).
+
+-export([init/1, start/2, stop/1]).
+
 -behaviour(supervisor).
 -behaviour(application).
 
--include_lib("kernel/include/inet.hrl").
 -include("config.hrl").
 
--compile([verbose, report_errors, report_warnings, trace, debug_info]).
 -define(MAX_R, 10).
 -define(MAX_T, 60).
-
--export([init/1, start/2, stop/1]).
 
 set_env(Key, Default) ->
     Val =
@@ -32,16 +31,21 @@ write_pid(PidFile) ->
             exit(["Could not write PID to ", PidFile, ":", Error])
     end.
 
+-spec start(_, _) -> {'ok', pid()} | {'error', term()}.
 start(_Type, _Args) ->
+    ok = application:start(lager),
     init_settings(),
     write_pid(disco:get_setting("DISCO_MASTER_PID")),
     Port = disco:get_setting("DISCO_PORT"),
     supervisor:start_link(disco_main, [list_to_integer(Port)]).
 
--spec init([non_neg_integer()]) -> {'ok', any()}.
+-spec init([non_neg_integer()]) ->
+        {'ok', {{'one_for_one', ?MAX_R, ?MAX_T}, [supervisor:child_spec()]}}.
 init([Port]) ->
-    error_logger:info_report([{"DISCO BOOTS"}]),
+    lager:info("DISCO BOOTS"),
     {ok, {{one_for_one, ?MAX_R, ?MAX_T}, [
+         {disco_proxy, {disco_proxy, start, []},
+            permanent, 10, worker, dynamic},
          {ddfs_master, {ddfs_master, start_link, []},
             permanent, 10, worker, dynamic},
          {event_server, {event_server, start_link, []},
@@ -51,12 +55,11 @@ init([Port]) ->
          {disco_server, {disco_server, start_link, []},
             permanent, 10, worker, dynamic},
          {mochi_server, {web_server, start, [Port]},
-            permanent, 10, worker, dynamic},
-         {disco_proxy, {disco_proxy, start, []},
             permanent, 10, worker, dynamic}
         ]
     }}.
 
+-spec stop(_) -> 'ok'.
 stop(_State) ->
     ok.
 

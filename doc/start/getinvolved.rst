@@ -4,7 +4,7 @@ Get Involved
 Develop Disco
 -------------
 
-:doc:`download` from `github <http://github.com/tuulos/disco>`_.
+:doc:`download` from `github <http://github.com/discoproject/disco>`_.
 You can easily fork a repository of your own (just click "fork").
 You can :doc:`set up a development environment <install>` on a single machine or a cluster.
 
@@ -30,6 +30,6 @@ If you haven't used IRC before, see `here`__ how to get started.
 Roadmap / Wiki
 --------------
 
-We are using the `issues list <http://github.com/tuulos/disco/issues>`_ as a roadmap for Disco.
+We are using the `issues list <http://github.com/discoproject/disco/issues>`_ as a roadmap for Disco.
 You can report bugs and wishlist features for Disco there.
-Also see the `wiki <http://wiki.github.com/tuulos/disco/>`_ for other miscellaneous information.
+Also see the `wiki <http://wiki.github.com/discoproject/disco/>`_ for other miscellaneous information.

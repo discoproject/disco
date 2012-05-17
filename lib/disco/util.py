@@ -45,6 +45,30 @@ class netloc(tuple):
 def chainify(iterable):
     return list(chain(*iterable))
 
+def dsorted(iterable, buffer_size=1e6, tempdir='.'):
+    from cPickle import dump, load
+    from heapq import merge
+    from itertools import islice
+    from tempfile import TemporaryFile
+    def read(handle):
+        while True:
+            try:
+                yield load(handle)
+            except EOFError:
+                return
+    iterator = iter(iterable)
+    subiters = []
+    while True:
+        buffer = sorted(islice(iterator, buffer_size))
+        handle = TemporaryFile(dir=tempdir)
+        for item in buffer:
+            dump(item, handle, -1)
+        handle.seek(0)
+        subiters.append(read(handle))
+        if len(buffer) < buffer_size:
+            break
+    return merge(*subiters)
+
 def flatten(iterable):
     for item in iterable:
         if isiterable(item):
@@ -252,10 +276,10 @@ def parse_dir(dir, partition=None):
     # XXX: guarantee indices are read in the same order (task/labels) (for redundancy)
     return [url for id, url in sorted(read_index(dir)) if partition in (None, id)]
 
-def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY']):
-    if proxy:
-        scheme, (host, port), path = urlsplit(url)
-        return '%s/disco/node/%s/%s' % (proxy, host, path)
+def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET'):
+    scheme, (host, port), path = urlsplit(url)
+    if proxy and scheme != "tag":
+        return '%s/proxy/%s/%s/%s' % (proxy, host, meth, path)
     return url
 
 def read_index(dir):

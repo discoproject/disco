@@ -25,16 +25,16 @@
 
 -include("disco.hrl").
 
--spec new_job(nonempty_string(), pid()) -> {'ok', nonempty_string()}.
+-spec new_job(nonempty_string(), pid()) -> {'ok', jobname()}.
 new_job(Prefix, JobCoordinator) ->
     gen_server:call(?MODULE, {new_job, Prefix, JobCoordinator}, 10000).
 
--spec end_job(nonempty_string()) -> 'ok'.
+-spec end_job(jobname()) -> 'ok'.
 end_job(JobName) ->
     gen_server:cast(?MODULE, {job_done, JobName}).
 
 start_link() ->
-    error_logger:info_report([{"Event server starts"}]),
+    lager:info("Event server starts"),
     case gen_server:start_link({local, event_server}, event_server, [], []) of
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
@@ -145,7 +145,7 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _MsgBuf} = S) ->
             Results = event_filter(ready, EventList),
             Ready = event_filter(task_ready, EventList),
             Failed = event_filter(task_failed, EventList),
-            Start = format_timestamp(JobStart),
+            Start = disco_util:format_timestamp(JobStart),
             {reply, {ok, {Start, Pid, JobNfo, Results, Ready, Failed}}, S}
     end.
 
@@ -179,7 +179,7 @@ handle_cast({clean_job, JobName}, {Events, _MsgBuf} = S) ->
     {noreply, {dict:erase(JobName, Events), MsgBufN}}.
 
 handle_info(Msg, State) ->
-    error_logger:warning_report(["Unknown message received: ", Msg]),
+    lager:warning("Unknown message received: ~p", [Msg]),
     {noreply, State}.
 
 event_log(JobName) ->
@@ -194,11 +194,11 @@ tail_log(JobName, N) ->
 grep_log(JobName, Query, N) ->
     % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
     % only whitelisted characters are allowed in the query
-    {ok, CQ, _} = regexp:gsub(Query, "[^a-zA-Z0-9:-_!@]", ""),
+    CQ = re:replace(Query, "[^a-zA-Z0-9:-_!@]", "", [global, {return, list}]),
     Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ",
                                   event_log(JobName),
                                   " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
-    lists:map(fun erlang:list_to_binary/1, lists:reverse(Lines)).
+    [list_to_binary(L) || L <- lists:reverse(Lines)].
 
 process_status(Pid) ->
     case is_process_alive(Pid) of
@@ -209,15 +209,9 @@ process_status(Pid) ->
 event_filter(Key, EventList) ->
     [V || {K, V} <- EventList, K == Key].
 
-format_timestamp(TimeStamp) ->
-    {Date, Time} = calendar:now_to_local_time(TimeStamp),
-    DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
-    TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
-    list_to_binary([DateStr, TimeStr]).
-
 add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
-    Time = format_timestamp(now()),
+    Time = disco_util:format_timestamp(now()),
     Host = list_to_binary(Host0),
     Line = <<"[\"",
         Time/binary, "\",\"",
@@ -245,15 +239,15 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
              MsgBufN}
     end.
 
-%-spec event(nonempty_string(), nonempty_string(), [_], [_]) -> _.
+%-spec event(jobname(), nonempty_string(), [_], [_]) -> _.
 event(JobName, Format, Args, Params) ->
     event("master", JobName, Format, Args, Params).
 
-%-spec event(nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
+%-spec event(nonempty_string(), jobname(), nonempty_string(), [_], [_]) -> _.
 event(Host, JobName, Format, Args, Params) ->
     event(event_server, Host, JobName, Format, Args, Params).
 
-%-spec event(atom(), nonempty_string(), nonempty_string(), nonempty_string(), [_], [_]) -> _.
+%-spec event(atom(), nonempty_string(), jobname(), nonempty_string(), [_], [_]) -> _.
 event(EventServer, Host, JobName, Format, Args, Params) ->
     SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 1000000 of
                  true -> trunc_io:fprint(X, 1000000);
@@ -332,8 +326,7 @@ job_event_handler_do(File, Buf, BufSize) ->
             flush_buffer(File, Buf),
             file:close(File);
         E ->
-            error_logger:warning_report(
-                {"Unknown message in job_event_handler", E}),
+            lager:warning("Unknown job_event msg ~p", [E]),
             file:close(File)
     end.
 

@@ -72,6 +72,7 @@ start_link({Parent, Master, Task}) ->
     Parent ! ok,
     wait_for_exit().
 
+-spec init({node(), task()}) -> {'ok', state()}.
 init({Master, Task}) ->
     % Note! Worker is killed implicitely by killing its job_coordinator
     % which should be noticed by the monitor below. If the DOWN message
@@ -135,8 +136,8 @@ handle_info({_Port, {data, _Data}}, #state{error_output = true} = State) ->
 handle_info({_Port, {data, Data}}, S) ->
     update(S#state{buffer = <<(S#state.buffer)/binary, Data/binary>>});
 
-handle_info(timeout, #state{error_output = false} = S) ->
-    case worker_runtime:get_pid(S#state.runtime) of
+handle_info(timeout, #state{error_output = false, runtime = Runtime} = S) ->
+    case worker_runtime:get_pid(Runtime) of
         none ->
             warning("Worker did not send its PID in 30 seconds", S);
         _ ->
@@ -181,7 +182,6 @@ code_change(_OldVsn, State, _Extra) ->
 % http://www.erlang.org/doc/efficiency_guide/binaryhandling.html
 update(#state{buffer = Buffer} = S) when size(Buffer) =:= 0 ->
     {noreply, S};
-
 update(S) ->
     case worker_protocol:parse(S#state.buffer, S#state.parser) of
         {ok, Request, Buffer, PState} ->
@@ -228,7 +228,7 @@ worker_send(Port) ->
             timer:sleep(Delay),
             Type = list_to_binary(MsgName),
             Body = list_to_binary(mochijson2:encode(Payload)),
-            Length = list_to_binary(integer_to_list(size(Body))),
+            Length = list_to_binary(integer_to_list(byte_size(Body))),
             Msg = <<Type/binary, " ", Length/binary, " ", Body/binary, "\n">>,
             port_command(Port, Msg),
             worker_send(Port)
@@ -272,12 +272,10 @@ exit_on_error(S) ->
 
 exit_on_error(Type, #state{buffer = <<>>} = S) ->
     {stop, {shutdown, {Type, "Worker died without output"}}, S};
-
 exit_on_error(Type, #state{buffer = Buffer} = S)
-              when size(Buffer) > ?MAX_ERROR_BUFFER_SIZE ->
+  when byte_size(Buffer) > ?MAX_ERROR_BUFFER_SIZE ->
     <<Buffer1:(?MAX_ERROR_BUFFER_SIZE - 3)/binary, _/binary>> = Buffer,
     exit_on_error(Type, S#state{buffer = <<Buffer1/binary, "...">>});
-
 exit_on_error(Type, #state{buffer = Buffer} = S) ->
     Msg = ["Worker died. Last words:\n", Buffer],
     {stop, {shutdown, {Type, Msg}}, S}.

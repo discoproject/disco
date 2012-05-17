@@ -11,7 +11,7 @@
 -define(MAX_RECV_BODY, (1024*1024*1024*1024)).
 
 start(MochiConfig) ->
-    error_logger:info_report({"START", ?MODULE, self()}),
+    error_logger:info_msg("Starting ~p on ~p", [?MODULE, node()]),
     mochiweb_http:start([
         {name, ddfs_put},
         {max, ?HTTP_MAX_CONNS},
@@ -25,16 +25,13 @@ loop("/proxy/" ++ Path, Req) ->
     {_Node, Rest} = mochiweb_util:path_split(Path),
     {_Method, RealPath} = mochiweb_util:path_split(Rest),
     loop([$/|RealPath], Req);
-
 loop("/ddfs/" ++ BlobName, Req) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
-
     case {Req:get(method),
             valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
         {'PUT', true} ->
-            case catch gen_server:call(ddfs_node,
-                    {put_blob, BlobName}, ?PUT_WAIT_TIMEOUT) of
+            case catch ddfs_node:put_blob(BlobName) of
                 {ok, Path, Url} ->
                     receive_blob(Req, {Path, BlobName}, Url);
                 {error, Path, Error} ->
@@ -46,18 +43,16 @@ loop("/ddfs/" ++ BlobName, Req) ->
                     Req:respond({503, [],
                         ["Maximum number of uploaders reached. ",
                          "Try again later"]})
-
             end;
         {'PUT', _} ->
             Req:respond({403, [], ["Invalid blob name"]});
         _ ->
             Req:respond({501, [], ["Method not supported"]})
     end;
-
 loop(_, Req) ->
     Req:not_found().
 
--spec valid_blob({'EXIT' | binary(),_}) -> bool().
+-spec valid_blob({'EXIT' | binary(),_}) -> boolean().
 valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
@@ -71,7 +66,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
             Tstamp = ddfs_util:timestamp(),
             Partial = lists:flatten(["!partial-", Tstamp, ".", Fname]),
             Dst = filename:join(Path, Partial),
-            case file:open(Dst, [write, raw, binary]) of
+            case prim_file:open(Dst, [write, raw, binary]) of
                 {ok, IO} -> receive_blob(Req, IO, Dst, Url);
                 Error -> error_reply(Req, "Opening file failed", Dst, Error)
             end;
@@ -82,8 +77,9 @@ receive_blob(Req, {Path, Fname}, Url) ->
 -spec receive_blob(module(), file:io_device(), nonempty_string(),
     nonempty_string()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
-    error_logger:info_report({"PUT BLOB", Req:get(path), Req:get_header_value("content-length")}),
-    case receive_body(Req, IO) of
+    error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p",
+                          [Req:get(path), Req:get_header_value("content-length"), node()]),
+    case catch receive_body(Req, IO) of
         ok ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
@@ -109,22 +105,31 @@ receive_blob(Req, IO, Dst, Url) ->
 
 -spec receive_body(module(), file:io_device()) -> _.
 receive_body(Req, IO) ->
-    R0 = Req:stream_body(?MAX_RECV_BODY, fun
-            ({_, Buf}, ok) -> file:write(IO, Buf);
-            (_, S) -> S
-        end, ok),
+    R0 = Req:stream_body(?MAX_RECV_BODY,
+                         fun ({BufLen, Buf}, BodyLen) ->
+                                 case file:write(IO, Buf) of
+                                     ok -> BodyLen + BufLen;
+                                     {error, E} -> throw(E) % caught in receive_blob/4.
+                                 end
+                         end, 0),
     case R0 of
         % R == <<>> or undefined if body is empty
-        R when R =:= ok; R =:= <<>>; R =:= undefined ->
+        R when is_integer(R); R =:= <<>>; R =:= undefined ->
+            error_logger:info_msg("PUT BLOB done with ~p (~p) on ~p",
+                                  [Req:get(path), R, node()]),
             case [file:sync(IO), file:close(IO)] of
                 [ok, ok] -> ok;
                 E -> hd([X || X <- E, X =/= ok])
             end;
-        Error -> Error
+        Error ->
+            error_logger:info_msg("PUT BLOB error for ~p on ~p: ~p",
+                                  [Req:get(path), node(), Error]),
+            Error
     end.
 
 -spec error_reply(module(), nonempty_string(), nonempty_string(), _) -> _.
 error_reply(Req, Msg, Dst, Err) ->
     M = io_lib:format("~s (path: ~s): ~p", [Msg, Dst, Err]),
-    error_logger:warning_report(M),
+    error_logger:warning_msg("Error response for ~p on ~p: ~p (error ~p)",
+                             [Dst, node(), Msg, Err]),
     Req:respond({500, [], M}).

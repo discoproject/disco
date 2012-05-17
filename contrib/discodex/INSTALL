@@ -1,7 +1,0 @@
-ln -s `pwd`/lib/discodex <PYTHON_LIB>/site-packages/
-ln -s `pwd`/bin/discodex /usr/local/bin/
-
-discodex help
-discodex start
-
-Alernatively, use setup.py which copies the module.

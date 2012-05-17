@@ -57,7 +57,7 @@ You can try with a larger file to see that chunks are created as needed.
    Disco includes an `example`_ of how to do this,
    which should work unmodified for most use cases.
 
-.. _example: https://github.com/tuulos/disco/blob/master/examples/util/chunk.py
+.. _example: https://github.com/discoproject/disco/blob/master/examples/util/chunk.py
 
 2. Write job functions
 ----------------------
@@ -169,7 +169,7 @@ you could try changing the input to ``tag://data:bigtxt``,
 and add ``map_reader = disco.worker.classic.func.chain_reader``.
 
 You could follow the :ref:`discodb_tutorial`,
-to learn more about using :ref:`discodb <discodb>` with Disco.
+to learn more about using :mod:`discodb` with Disco.
 
 You could try using :func:`~disco.worker.classic.func.sum_combiner`,
 to make the job more efficient.

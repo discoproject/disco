@@ -345,3 +345,44 @@ h3 {
 table td input {
     background: #eee;
 }
+
+#gcinfo {
+    margin-top: 50px;
+    margin-right: 10px;
+    text-align: center;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+#gcinfo h3 {
+    text-align: left;
+}
+
+#gcstats {
+    text-align: left;
+}
+
+.gcstats_table td {
+    padding-left: 5px;
+    padding-right: 5px;
+    border: 1px solid #666;
+}
+
+.gcstats_table thead {
+    background: #333;
+    color: white;
+    padding-left: 5px;
+}
+
+.gcstat td {
+    text-align: right;
+}
+
+#gc_blacklist .bnode {
+    margin-top: 2px;
+    background: #eee;
+}
+
+#gc_blacklist .bnode_safe {
+    background: #6e6;
+}

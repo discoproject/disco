@@ -68,9 +68,7 @@ validate({value, Value}, Payload) -> {error, {unexpected_value, Value, Payload}}
 
 % union types
 validate({opt, Types}, Payload) ->
-    case lists:any(fun(V) -> V =:= ok end,
-                   lists:map(fun(T) -> validate(T, Payload) end,
-                             Types)) of
+    case lists:any(fun(T) -> validate(T, Payload) =:= ok end, Types) of
         true -> ok;
         false -> {error, {all_options_failed, Types, Payload}}
     end.

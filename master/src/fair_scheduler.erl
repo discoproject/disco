@@ -7,7 +7,7 @@
 -include("disco.hrl").
 
 start_link() ->
-    error_logger:info_report([{"Fair scheduler starts"}]),
+    lager:info("Fair scheduler starts"),
     case gen_server:start_link({local, scheduler}, fair_scheduler, [],
             disco:debug_flags("fair_scheduler")) of
         {ok, Server} -> {ok, Server};
@@ -18,12 +18,10 @@ init([]) ->
     {ok, _ } =
         case application:get_env(scheduler_opt) of
             {ok, "fifo"} ->
-                error_logger:info_report(
-                  [{"Scheduler uses fifo policy"}]),
+                lager:info("Scheduler uses fifo policy"),
                 fair_scheduler_fifo_policy:start_link();
             _ ->
-                error_logger:info_report(
-                  [{"Scheduler uses fair policy"}]),
+                lager:info("Scheduler uses fair policy"),
                 fair_scheduler_fair_policy:start_link()
         end,
     _ = ets:new(jobs, [private, named_table]),

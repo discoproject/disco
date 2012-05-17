@@ -6,15 +6,18 @@
 -define(RPC_CALL_TIMEOUT, 30000).
 -define(RPC_RETRY_TIMEOUT, 120000).
 
+-type host() :: nonempty_string().
+
+-spec start_link(host()) -> pid().
 start_link(Host) ->
     spawn_link(fun() -> spawn_node(Host) end).
 
--spec spawn_node(nonempty_string()) -> no_return().
+-spec spawn_node(host()) -> 'ok'.
 spawn_node(Host) ->
     process_flag(trap_exit, true),
     spawn_node(Host, is_master(Host)).
 
--spec spawn_node(nonempty_string(), bool()) -> no_return().
+-spec spawn_node(host(), boolean()) -> 'ok'.
 spawn_node(Host, IsMaster) ->
     case {IsMaster, catch slave_start(Host)} of
         {true, {ok, Node}} ->
@@ -29,16 +32,15 @@ spawn_node(Host, IsMaster) ->
         {_, {error, {already_running, Node}}} ->
             node_monitor(Host, Node, {not(IsMaster), true});
         {_, {error, timeout}} ->
-            error_logger:info_report({"Connection timed out to", Host}),
+            lager:info("Connection timed out to ~p", [Host]),
             disco_server:connection_status(Host, down);
         Error ->
-            error_logger:warning_report(
-                {"Spawning node @", Host, "failed for unknown reason", Error}),
+            lager:warning("Spawning node at ~p failed: ~p", [Host, Error]),
             disco_server:connection_status(Host, down)
     end,
     timer:sleep(?RESTART_DELAY).
 
--spec node_monitor(nonempty_string(), node(), {bool(), bool()}) -> _.
+-spec node_monitor(host(), node(), {boolean(), boolean()}) -> 'ok'.
 node_monitor(Host, Node, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, WebConfig),
@@ -48,41 +50,43 @@ node_monitor(Host, Node, WebConfig) ->
     wait(Node),
     disco_server:connection_status(Host, down).
 
--spec wait(node()) -> _.
+-spec wait(node()) -> 'ok'.
 wait(Node) ->
     receive
         {is_ready, Pid} ->
             Pid ! node_ready,
             wait(Node);
         {'EXIT', _, already_started} ->
-            error_logger:info_report({"Already started", Node, self()}),
+            lager:info("Node already started at ~p", [Node]),
             wait(Node);
         {'EXIT', _, Reason} ->
-            error_logger:info_report({"Node failed", Node, Reason});
+            lager:info("Node failed at ~p: ~p", [Node, Reason]);
         {nodedown, _Node} ->
-            error_logger:info_report({"Node", Node, "down"});
+            lager:info("Node ~p down", [Node]);
         E ->
-            error_logger:info_report({"Erroneous message (node_mon)", E})
+            lager:info("Unexpected message: ~p", [E])
     end.
 
 slave_env() ->
     Home = disco:get_setting("DISCO_MASTER_HOME"),
     lists:flatten([?SLAVE_ARGS,
                    [io_lib:format(" -pa ~s/ebin/~s", [Home, Dir])
-                    || Dir <- ["", "mochiweb", "ddfs"]],
+                    || Dir <- [""]],
+                   [io_lib:format(" -pa ~s/deps/~s/ebin", [Home, Dir])
+                    || Dir <- ["mochiweb", "lager"]],
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 
--spec slave_start(nonempty_string()) -> {'ok', node()} | {'error', _}.
+-spec slave_start(host()) -> {'ok', node()} | {'error', _}.
 slave_start(Host) ->
-    error_logger:info_report({"starting node @", Host}),
+    lager:info("Starting node at ~p", [Host]),
     slave:start(Host,
                 disco:slave_name(),
                 slave_env(),
                 self(),
                 disco:get_setting("DISCO_ERLANG")).
 
--spec is_master(nonempty_string()) -> bool().
+-spec is_master(host()) -> boolean().
 is_master(Host) ->
     % the underlying tcp connection used by net_adm:names() may hang,
     % so we use a timed rpc.
@@ -95,20 +99,20 @@ is_master(Host) ->
             false;
         R ->
             % retry the connection, after a while.
-            error_logger:warning_report({"net_adm:names() failed", Host, R}),
+            lager:warning("net_adm:names() failed for ~p: ~p", [Host, R]),
             timer:sleep(?RPC_RETRY_TIMEOUT),
             is_master(Host)
     end.
 
 -spec start_temp_gc(node()) -> pid().
 start_temp_gc(Node) ->
-    spawn_link(Node, temp_gc, start_link, [whereis(disco_server)]).
+    spawn_link(Node, temp_gc, start_link, [node(whereis(disco_server))]).
 
 -spec start_lock_server(node()) -> pid().
 start_lock_server(Node) ->
-    spawn_link(Node, lock_server, start_link, []).
+    spawn_link(Node, fun lock_server:start_link/0).
 
--spec start_ddfs_node(node(), {bool(), bool()}) -> pid().
+-spec start_ddfs_node(node(), {boolean(), boolean()}) -> pid().
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
     DdfsRoot = disco:get_setting("DDFS_DATA"),
     DiscoRoot = disco:get_setting("DISCO_DATA"),

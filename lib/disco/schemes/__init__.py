@@ -36,3 +36,7 @@ def input_stream(stream, size, url, params, globals=globals()):
 
 def open(url, task=None):
     return import_scheme(url).open(url, task=task)
+
+def open_chain(url, task=None):
+    from disco.worker.classic.func import chain_reader
+    return chain_reader(open(url, task=task), None, url)
