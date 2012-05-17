@@ -223,7 +223,7 @@ class DDFS(object):
                 random.shuffle(repl)
                 for url in repl:
                     try:
-                        yield open_remote(url)
+                        yield open_remote(proxy_url(url,proxy=self.proxy))
                         break
                     except CommError, error:
                         continue
