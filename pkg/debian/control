@@ -2,7 +2,7 @@ Source: disco
 Section: admin
 Priority: extra
 Maintainer: Jared Flatow <jared.flatow@nokia.com>
-Build-Depends: debhelper (>= 7), erlang-dev (>= 1:14.a-dfsg1), python-all-dev (>= 2.6.6), libcmph-dev (>= 0.9)
+Build-Depends: debhelper (>= 7), erlang-dev (>= 1:14.a-dfsg1), python-all-dev (>= 2.6), libcmph-dev (>= 0.9)
 Standards-Version: 3.9.3
 Vcs-Browser: https://github.com/discoproject/disco
 Vcs-Git: git://github.com/discoproject/disco.git
@@ -10,7 +10,7 @@ Homepage: http://www.discoproject.org
 
 Package: disco-master
 Architecture: all
-Depends: ${misc:Depends}, disco-node (= ${source:Version}), python-disco (= ${source:Version}), python (>= 2.6.6)
+Depends: ${misc:Depends}, disco-node (= ${source:Version}), python-disco (= ${source:Version}), python (>= 2.6)
 Description: Disco master
  This is Disco master.
 
@@ -23,7 +23,7 @@ Description: Disco node
 Package: python-disco
 Architecture: all
 Section: python
-Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.6.6)
+Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.6)
 Recommends: python-pycurl
 Description: Disco client
  This is Disco client.
@@ -31,6 +31,6 @@ Description: Disco client
 Package: python-discodb
 Architecture: any
 Section: python
-Depends: ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}, python (>= 2.6.6), libcmph0 (>= 0.9)
+Depends: ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}, python (>= 2.6), libcmph0 (>= 0.9)
 Description: DiscoDB
  This is DiscoDB.
