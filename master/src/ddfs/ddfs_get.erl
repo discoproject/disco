@@ -39,7 +39,10 @@ loop("/ddfs/" ++ Path, Req, {DdfsRoot, _DiscoRoot}) ->
     send_file(Req, Path, DdfsRoot);
 
 loop("/disco/" ++ Path, Req, {_DdfsRoot, DiscoRoot}) ->
-    send_file(Req, Path, DiscoRoot).
+    send_file(Req, Path, DiscoRoot);
+
+loop(_Path, Req, _Roots) ->
+    Req:not_found().
 
 allowed_method('GET') ->
     true;
