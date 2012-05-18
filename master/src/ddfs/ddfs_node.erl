@@ -349,6 +349,10 @@ find_vols(Root) ->
                 VolNames ->
                     init_vols(Root, VolNames)
             end;
+        {error, enoent} ->
+            error_logger:info_msg("Creating new root directory ~p", [Root]),
+            ok = try_makedir(Root),
+            find_vols(Root);
         Error ->
             error_logger:warning_msg("Invalid root directory ~p: ~p", [Root, Error]),
             Error
