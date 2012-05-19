@@ -86,11 +86,8 @@ slave_node(Host) ->
 
 -spec slave_safe(host_name()) -> 'false' | node().
 slave_safe(Host) ->
-    case catch list_to_existing_atom(slave_name() ++ "@" ++ Host) of
-        {'EXIT', _Reason} ->
-            false;
-        Node ->
-            Node
+    try list_to_existing_atom(slave_name() ++ "@" ++ Host)
+    catch _:_ -> false
     end.
 
 -spec oob_name(jobname()) -> nonempty_string().

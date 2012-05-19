@@ -24,7 +24,7 @@ dict({struct, List}) ->
 
 -spec find(binary(), dict()) -> term().
 find(Key, Dict) ->
-    case catch dict:find(Key, Dict) of
+    case dict:find(Key, Dict) of
         {ok, Field} ->
             Field;
         error ->
@@ -33,7 +33,7 @@ find(Key, Dict) ->
 
 -spec find(binary(), dict(), T) -> T.
 find(Key, Dict, Default) ->
-    case catch dict:find(Key, Dict) of
+    case dict:find(Key, Dict) of
         {ok, Field} ->
             Field;
         error ->

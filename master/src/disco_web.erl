@@ -12,17 +12,19 @@ op('GET', "/disco/version", Req) ->
 op('POST', "/disco/job/" ++ _, Req) ->
     BodySize = list_to_integer(Req:get_header_value("content-length")),
     if BodySize > ?MAX_JOB_PACKET ->
-        Req:respond({413, [], ["Job packet too large"]});
+            Req:respond({413, [], ["Job packet too large"]});
     true ->
-        Body = Req:recv_body(?MAX_JOB_PACKET),
-        case catch job_coordinator:new(Body) of
-            {ok, JobName} ->
-                reply({ok, [<<"ok">>, list_to_binary(JobName)]}, Req);
-            Error ->
-                ErrorString = disco:format("Job failed to start: ~p", [Error]),
-                lager:warning("Job failed to start: ~p", [Error]),
-                reply({ok, [<<"error">>, list_to_binary(ErrorString)]}, Req)
-        end
+            Body = Req:recv_body(?MAX_JOB_PACKET),
+            Reply =
+                try
+                    {ok, JobName} = job_coordinator:new(Body),
+                    [<<"ok">>, list_to_binary(JobName)]
+                catch K:E ->
+                        ErrorString = disco:format("Job failed to start: ~p:~p", [K, E]),
+                        lager:warning("Job failed to start: ~p:~p", [K, E]),
+                        [<<"error">>, list_to_binary(ErrorString)]
+                end,
+            reply({ok, Reply}, Req)
     end;
 
 op('POST', "/disco/ctrl/" ++ Op, Req) ->
