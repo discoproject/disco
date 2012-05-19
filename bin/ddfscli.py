@@ -72,7 +72,7 @@ def cat(program, *urls):
     from itertools import chain
     from subprocess import call
     from disco.comm import download
-    from disco.util import deref
+    from disco.util import deref, urlresolve, proxy_url
 
     ignore_missing = program.options.ignore_missing
     tags, urls     = program.separate_tags(*urls)
@@ -80,7 +80,7 @@ def cat(program, *urls):
     def curl(replicas):
         for replica in replicas:
             try:
-                return download(replica)
+                return download(proxy_url(urlresolve(replica, master=program.ddfs.master)))
             except Exception, e:
                 sys.stderr.write("%s\n" % e)
         if not ignore_missing:
@@ -385,14 +385,15 @@ def xcat(program, *urls):
     """
     from itertools import chain
     from disco.core import classic_iterator
-    from disco.util import iterify, reify
+    from disco.util import iterify, reify, urlresolve, proxy_url
 
     tags, urls = program.separate_tags(*program.input(*urls))
     stream = reify(program.options.stream)
     reader = program.options.reader
     reader = reify('disco.func.chain_reader' if reader is None else reader)
-
-    for record in classic_iterator(chain(urls, program.blobs(*tags)),
+    bloburls = [[proxy_url(urlresolve(u)) for u in repset]
+                for repset in chain(urls, program.blobs(*tags))]
+    for record in classic_iterator(bloburls,
                                    input_stream=stream,
                                    reader=reader):
         print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()
