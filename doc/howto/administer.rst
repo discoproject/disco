@@ -44,6 +44,35 @@ DDFS garbage collection run.  A table mentions the number of tags and
 blobs that were kept after the last GC run and their total sizes in
 bytes, along with similar information for deleted blobs and tags.
 
+.. _proxy_config:
+
+Using a proxy
+-------------
+
+A cluster is sometimes configured with a few head nodes visible to its
+users, but most of the worker nodes hidden behind a firewall.  Disco
+can be configured to work in this environment using a HTTP proxy,
+provided the node running the Disco master is configured as one of the
+head nodes, and the port used by the proxy is accessible to the Disco
+users.
+
+To use this mode, the Disco settings on the master (in the
+``/etc/disco/settings.py`` file) should set ``DISCO_PROXY_ENABLED`` to
+``"True"``.  Disco then starts a HTTP proxy specified by
+``DISCO_HTTPD`` (defaulting to `lighttpd`) on port
+``DISCO_PROXY_PORT`` (defaulting to ``8999``) with a configuration
+that proxies HTTP access to the Disco worker nodes.  Currently, Disco
+supports generating configurations for the `lighttpd` and `varnish`
+proxies.  The Disco master needs to be restarted for any changes in
+these settings to take effect.
+
+To use this proxy from the client side, i.e. in order to use the
+``disco`` and ``ddfs`` commands, the users need to set ``DISCO_PROXY``
+in their environment, or in their local ``/etc/disco/settings.py``
+file.  The value of this should be in the format
+``http://<proxy-host>:<proxy-port>``, with ``<proxy-host>`` and
+``<proxy-port>`` specifying how the proxy is accessible to the user.
+
 .. _discoblacklist:
 
 Blacklisting a Disco node
