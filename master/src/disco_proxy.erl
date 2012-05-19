@@ -113,21 +113,20 @@ do_update_nodes(Nodes) ->
     ok = file:write_file(Config, Body).
 
 proxy_monitor(Pid) ->
-    case catch string:str(os:cmd(["ps -p", Pid]), Pid) of
-        {'EXIT', {emfile, _}} ->
-            lager:warning("Out of file descriptors! Sleeping.."),
-            sleep(?PROXY_CHECK_INTERVAL),
-            proxy_monitor(Pid);
-        {'EXIT', Error} ->
-            lager:warning("ps failed: ~p", [Error]),
-            exit(ps_failed);
-        0 ->
-            lager:warning("Proxy at pid ~p died", [Pid]),
-            sleep(?PROXY_RESTART_DELAY),
-            exit(proxy_died);
-        _ ->
-            sleep(?PROXY_CHECK_INTERVAL),
-            proxy_monitor(Pid)
+    try
+        case string:str(os:cmd(["ps -p", Pid]), Pid) of
+            0 ->
+                lager:warning("Proxy at pid ~p died", [Pid]),
+                sleep(?PROXY_RESTART_DELAY),
+                exit(proxy_died);
+            _ ->
+                sleep(?PROXY_CHECK_INTERVAL),
+                proxy_monitor(Pid)
+        end
+    catch
+        K:E ->
+            lager:warning("ps failed: ~p:~p", [K, E]),
+            exit(ps_failed)
     end.
 
 start_proxy() ->

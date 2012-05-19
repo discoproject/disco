@@ -9,9 +9,8 @@
 
 -spec start_link(node()) -> no_return().
 start_link(Master) ->
-    case catch register(temp_gc, self()) of
-        {'EXIT', {badarg, _}} -> exit(already_started);
-        _ -> ok
+    try register(temp_gc, self())
+    catch _:_ -> exit(already_started)
     end,
     put(master, Master),
     loop().

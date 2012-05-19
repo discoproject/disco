@@ -54,11 +54,10 @@ start_link() ->
     case gen_server:start_link({local, ?MODULE}, ?MODULE,
                                [], disco:debug_flags("disco_server")) of
         {ok, Server} ->
-            case catch disco_config:get_config_table() of
-                {ok, _Config} ->
-                    {ok, Server};
-                E ->
-                    lager:warning("Parsing config failed: ~p", [E])
+            try
+                {ok, _Config} = disco_config:get_config_table(),
+                {ok, Server}
+            catch K:E -> lager:warning("Parsing config failed: ~p:~p", [K, E])
             end;
         {error, {already_started, Server}} ->
             {ok, Server}
@@ -455,6 +454,7 @@ do_new_task(Task, #state{nodes = Nodes}) ->
                      none -> {false, Input};
                      {value, N} -> {N#dnode.num_running, Input}
                  end || {_Url, Node} = Input <- Task#task.input],
+    %% FIXME: remove case catch
     case catch gen_server:call(scheduler, {new_task, Task, NodeStats}) of
         ok ->
             schedule_next(),
