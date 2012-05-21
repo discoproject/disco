@@ -263,7 +263,7 @@ nodemon_exit(Pid, #state{nodes = Nodes} = S) ->
 nodemon_exit(Pid, #state{nodes = Nodes} = S,
              {Host, #dnode{node_mon = Pid} = N, _Iter}) ->
     lager:warning("Restarting monitor for ~p", [Host]),
-    N1 = N#dnode{node_mon = node_mon:start_link(Host)},
+    N1 = N#dnode{node_mon = node_mon:start_link(Host, node_spec(Host))},
     S1 = S#state{nodes = gb_trees:update(Host, N1, Nodes)},
     {noreply, do_connection_status(Host, down, S1)};
 
@@ -276,6 +276,20 @@ nodemon_exit(Pid, S, none) ->
 
 %% ===================================================================
 %% internal functions
+
+-spec node_spec(host_name()) -> node_spec().
+node_spec(Host) ->
+    SlaveName = disco:slave_name(),
+    DiscoRoot = disco:get_setting("DISCO_DATA"),
+    DdfsRoot = disco:get_setting("DDFS_DATA"),
+    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
+    GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
+    #node_spec{host = Host,
+               slave_name = SlaveName,
+               disco_root = DiscoRoot,
+               ddfs_root = DdfsRoot,
+               put_port = PutPort,
+               get_port = GetPort}.
 
 -spec allow_write(#dnode{}) -> boolean().
 allow_write(#dnode{connection_status = up,
@@ -362,7 +376,7 @@ do_update_config_table(Config, Blacklist, GCBlacklist,
                 case gb_trees:lookup(Host, Nodes) of
                     none ->
                         #dnode{host = Host,
-                               node_mon = node_mon:start_link(Host),
+                               node_mon = node_mon:start_link(Host, node_spec(Host)),
                                manual_blacklist = lists:member(Host, Blacklist),
                                connection_status = undefined,
                                slots = Slots,
