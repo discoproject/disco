@@ -66,8 +66,6 @@ init(Config) ->
     {nodename, NodeName} = proplists:lookup(nodename, Config),
     {ddfs_root, DdfsRoot} = proplists:lookup(ddfs_root, Config),
     {disco_root, DiscoRoot} = proplists:lookup(disco_root, Config),
-    {put_max, PutMax} = proplists:lookup(put_max, Config),
-    {get_max, GetMax} = proplists:lookup(get_max, Config),
     {put_port, PutPort} = proplists:lookup(put_port, Config),
     {get_port, GetPort} = proplists:lookup(get_port, Config),
     {get_enabled, GetEnabled} = proplists:lookup(get_enabled, Config),
@@ -99,8 +97,8 @@ init(Config) ->
                 root = DdfsRoot,
                 vols = Vols,
                 tags = Tags,
-                putq = http_queue:new(PutMax, ?HTTP_QUEUE_LENGTH),
-                getq = http_queue:new(GetMax, ?HTTP_QUEUE_LENGTH),
+                putq = http_queue:new(?HTTP_MAX_ACTIVE, ?HTTP_QUEUE_LENGTH),
+                getq = http_queue:new(?HTTP_MAX_ACTIVE, ?HTTP_QUEUE_LENGTH),
                 scanner = Scanner}}.
 
 -type put_blob_msg() :: {put_blob, nonempty_string()}.
