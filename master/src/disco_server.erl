@@ -70,7 +70,7 @@ update_config_table(Config, Blacklist, GCBlacklist) ->
                     {update_config_table, Config, Blacklist, GCBlacklist}).
 
 -type active_tasks() :: [{host_name(), task()}].
--spec get_active(nonempty_string() | all) -> {ok, active_tasks()}.
+-spec get_active(jobname() | all) -> {ok, active_tasks()}.
 get_active(JobName) ->
     gen_server:call(?MODULE, {get_active, JobName}).
 
