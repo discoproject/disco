@@ -5,8 +5,6 @@
          settings/0,
          host/1,
          name/1,
-         master_name/0,
-         master_node/1,
          slave_name/0,
          slave_node/1,
          slave_safe/1,
@@ -67,14 +65,6 @@ host(Node) ->
 -spec name(node()) -> host_name().
 name(Node) ->
     string:sub_word(atom_to_list(Node), 1, $@).
-
--spec master_name() -> nonempty_string().
-master_name() ->
-    get_setting("DISCO_NAME") ++ "_master".
-
--spec master_node(host_name()) -> atom().
-master_node(Host) ->
-    list_to_atom(master_name() ++ "@" ++ Host).
 
 -spec slave_name() -> nonempty_string().
 slave_name() ->
