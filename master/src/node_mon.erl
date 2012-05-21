@@ -45,7 +45,7 @@ spawn_node(Host, Spec, IsMaster) ->
 node_monitor(Host, Node, Spec, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Node, Spec, WebConfig),
-    start_temp_gc(Node),
+    start_temp_gc(Host, Node, Spec),
     start_lock_server(Node),
     disco_server:connection_status(Host, up),
     wait(Node),
@@ -105,9 +105,10 @@ is_master(Host) ->
             is_master(Host)
     end.
 
--spec start_temp_gc(node()) -> pid().
-start_temp_gc(Node) ->
-    spawn_link(Node, temp_gc, start_link, [node(whereis(disco_server))]).
+-spec start_temp_gc(host_name(), node(), node_spec()) -> pid().
+start_temp_gc(Host, Node, #node_spec{disco_root = DiscoRoot}) ->
+    DataRoot = filename:join(DiscoRoot, Host),
+    spawn_link(Node, temp_gc, start_link, [node(), DataRoot]).
 
 -spec start_lock_server(node()) -> pid().
 start_lock_server(Node) ->
