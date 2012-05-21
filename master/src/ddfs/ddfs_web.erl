@@ -215,9 +215,11 @@ op('DELETE', "/ddfs/tag/" ++ TagAttrib, Req) ->
     end;
 
 op('GET', Path, Req) ->
-    ddfs_get:serve_ddfs_file(Path, Req);
+    DdfsRoot = disco:get_setting("DDFS_DATA"),
+    ddfs_get:serve_ddfs_file(DdfsRoot, Path, Req);
 op('HEAD', Path, Req) ->
-    ddfs_get:serve_ddfs_file(Path, Req);
+    DdfsRoot = disco:get_setting("DDFS_DATA"),
+    ddfs_get:serve_ddfs_file(DdfsRoot, Path, Req);
 
 op(_, _, Req) ->
     Req:not_found().

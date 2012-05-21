@@ -41,7 +41,8 @@ op('GET', "/disco/ctrl/" ++ Op, Req) ->
     reply(getop(Op, {Query, Name}), Req);
 
 op('GET', Path, Req) ->
-    ddfs_get:serve_disco_file(Path, Req);
+    DiscoRoot = disco:get_setting("DISCO_DATA"),
+    ddfs_get:serve_disco_file(DiscoRoot, Path, Req);
 
 op(_, _, Req) ->
     Req:not_found().
