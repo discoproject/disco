@@ -6,7 +6,7 @@
 -include("config.hrl").
 -include("ddfs.hrl").
 
--export([start/2, serve_ddfs_file/2, serve_disco_file/2]).
+-export([start/2, serve_ddfs_file/3, serve_disco_file/3]).
 
 -spec start(term(), {path(), path()}) -> {ok, pid()} | {error, term()}.
 start(MochiConfig, Roots) ->
@@ -19,14 +19,12 @@ start(MochiConfig, Roots) ->
                 end}
         | MochiConfig]).
 
--spec serve_ddfs_file(path(), module()) -> _.
-serve_ddfs_file(Path, Req) ->
-    DdfsRoot = disco:get_setting("DDFS_DATA"),
+-spec serve_ddfs_file(path(), path(), module()) -> _.
+serve_ddfs_file(DdfsRoot, Path, Req) ->
     loop(Path, Req, {DdfsRoot, none}).
 
--spec serve_disco_file(path(), module()) -> _.
-serve_disco_file(Path, Req) ->
-    DiscoRoot = disco:get_setting("DISCO_DATA"),
+-spec serve_disco_file(path(), path(), module()) -> _.
+serve_disco_file(DiscoRoot, Path, Req) ->
     loop(Path, Req, {none, DiscoRoot}).
 
 -spec loop(path(), module(), {path() | none, path() | none}) -> _.
