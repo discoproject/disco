@@ -24,7 +24,11 @@
 % a primary candidate host for a new blob.
 -define(MIN_FREE_SPACE, (1024 * ?MB)).
 
-% The maximum number of HTTP connections to queue up on a busy system.
+% The maximum number of active HTTP connections on a system (this
+% applies separately for GET and PUT operations).
+-define(HTTP_MAX_ACTIVE, 3).
+
+% The maximum number of waiting HTTP connections to queue up on a busy system.
 -define(HTTP_QUEUE_LENGTH, 100).
 
 % The maximum number of simultaneous HTTP connections. Note that

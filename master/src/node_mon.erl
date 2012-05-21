@@ -116,13 +116,10 @@ start_lock_server(Node) ->
 start_ddfs_node(Node, {GetEnabled, PutEnabled}) ->
     DdfsRoot = disco:get_setting("DDFS_DATA"),
     DiscoRoot = disco:get_setting("DISCO_DATA"),
-    PutMax = list_to_integer(disco:get_setting("DDFS_PUT_MAX")),
-    GetMax = list_to_integer(disco:get_setting("DDFS_GET_MAX")),
     PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
     GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
     Args = [{nodename, disco:host(Node)},
             {ddfs_root, DdfsRoot}, {disco_root, DiscoRoot},
-            {put_max, PutMax}, {get_max, GetMax},
             {put_port, PutPort}, {get_port, GetPort},
             {get_enabled, GetEnabled},
             {put_enabled, PutEnabled}],
