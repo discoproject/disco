@@ -3,28 +3,27 @@
 -include_lib("kernel/include/file.hrl").
 -include("config.hrl").
 
--export([start_link/1]).
+-export([start_link/2]).
 
 -define(GC_INTERVAL, 2 * ?DAY).
 
--spec start_link(node()) -> no_return().
-start_link(Master) ->
+-spec start_link(node(), nonempty_string()) -> no_return().
+start_link(Master, DataRoot) ->
     try register(temp_gc, self())
     catch _:_ -> exit(already_started)
     end,
     put(master, Master),
-    loop().
+    loop(DataRoot).
 
--spec loop() -> no_return().
-loop() ->
+-spec loop(nonempty_string()) -> no_return().
+loop(DataRoot) ->
     case catch {get_purged(), get_jobs()} of
         {{ok, Purged}, {ok, Jobs}} ->
-            DataRoot = disco:data_root(node()),
             case prim_file:list_dir(DataRoot) of
                 {ok, Dirs} ->
                     Active = gb_sets:from_list(
                                [Name || {Name, active, _Start, _Pid} <- Jobs]),
-                    process_dir(Dirs, gb_sets:from_ordset(Purged), Active);
+                    process_dir(DataRoot, Dirs, gb_sets:from_ordset(Purged), Active);
                 E ->
                     % fresh install, try again after GC_INTERVAL
                     error_logger:info_msg("Tempgc: error listing ~p: ~p",
@@ -40,7 +39,7 @@ loop() ->
     error_logger:info_msg("Tempgc: one pass completed on ~p", [node()]),
     timer:sleep(?GC_INTERVAL),
     flush(),
-    loop().
+    loop(DataRoot).
 
 % gen_server calls below may timeout, so we need to purge late replies
 flush() ->
@@ -58,14 +57,14 @@ get_purged() ->
 get_jobs() ->
     gen_server:call({event_server, get(master)}, get_jobs).
 
--spec process_dir([nonempty_string()], gb_set(), gb_set()) -> 'ok'.
-process_dir([], _Purged, _Active) -> ok;
-process_dir([Dir|R], Purged, Active) ->
-    Path = disco:data_path(node(), Dir),
+-spec process_dir(nonempty_string(), [nonempty_string()], gb_set(), gb_set()) -> 'ok'.
+process_dir(_DataRoot, [], _Purged, _Active) -> ok;
+process_dir(DataRoot, [Dir|R], Purged, Active) ->
+    Path = filename:join(DataRoot, Dir),
     {ok, Jobs} = prim_file:list_dir(Path),
     _ = [process_job(filename:join(Path, Job), Purged)
          || Job <- Jobs, ifdead(Job, Active)],
-    process_dir(R, Purged, Active).
+    process_dir(DataRoot, R, Purged, Active).
 
 -spec ifdead(nonempty_string(), gb_set()) -> boolean().
 ifdead(Job, Active) ->
