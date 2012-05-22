@@ -27,10 +27,20 @@
                 stats_crashed :: non_neg_integer()}).
 -type dnode() :: #dnode{}.
 
+% cluster-in-a-box state:  {NextPort, {host_name() -> {GetPort, PutPort}}}.
+-type port_map() :: none | {non_neg_integer(), gb_tree()}.
+
 -record(state, {workers :: gb_tree(),
                 nodes :: gb_tree(),
                 purged :: gb_tree(),
-                jobpack_queue :: pid()}).
+                jobpack_queue :: pid(),
+
+                % The below are only used in cluster-in-a-box mode.
+                % The main purpose is to track the get/put port
+                % assignments for the simulated hosts.  Get/Put ports
+                % are allocated sequentially, starting from
+                % DISCO_PORT.
+                box_port_map  :: port_map()}).
 -type state() :: #state{}.
 
 -export_type([connection_status/0]).
@@ -131,10 +141,16 @@ init(_Args) ->
     process_flag(trap_exit, true),
     {ok, _} = fair_scheduler:start_link(),
     JobPackQ = work_queue:start_link(?NUM_ACTIVE_JOBPACK_SENDERS),
+    PortMap = case disco:cluster_in_a_box_mode() of
+                  true -> {list_to_integer(disco:get_setting("DISCO_PORT")) + 2,
+                           gb_trees:empty()};
+                  false -> none
+              end,
     {ok, #state{workers = gb_trees:empty(),
                 nodes = gb_trees:empty(),
                 purged = gb_trees:empty(),
-                jobpack_queue = JobPackQ}}.
+                jobpack_queue = JobPackQ,
+                box_port_map = PortMap}}.
 
 -type update_config_msg() :: {update_config_table, [disco_config:host_info()],
                               [host_name()], [host_name()]}.
@@ -260,10 +276,10 @@ nodemon_exit(Pid, #state{nodes = Nodes} = S) ->
     Iter = gb_trees:iterator(Nodes),
     nodemon_exit(Pid, S, gb_trees:next(Iter)).
 
-nodemon_exit(Pid, #state{nodes = Nodes} = S,
+nodemon_exit(Pid, #state{nodes = Nodes, box_port_map = PortMap} = S,
              {Host, #dnode{node_mon = Pid} = N, _Iter}) ->
     lager:warning("Restarting monitor for ~p", [Host]),
-    N1 = N#dnode{node_mon = node_mon:start_link(Host, node_spec(Host))},
+    N1 = N#dnode{node_mon = node_mon:start_link(Host, node_spec(Host, PortMap))},
     S1 = S#state{nodes = gb_trees:update(Host, N1, Nodes)},
     {noreply, do_connection_status(Host, down, S1)};
 
@@ -277,19 +293,25 @@ nodemon_exit(Pid, S, none) ->
 %% ===================================================================
 %% internal functions
 
--spec node_spec(host_name()) -> node_spec().
-node_spec(Host) ->
+-spec node_spec(host_name(), port_map()) -> node_spec().
+node_spec(Host, none) ->
+    GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
+    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
+    node_spec(Host, GetPort, PutPort);
+node_spec(Host, {_NextPort, PortMap}) ->
+    {GetPort, PutPort} = gb_trees:get(Host, PortMap),
+    node_spec(Host, GetPort, PutPort).
+
+node_spec(Host, GetPort, PutPort) ->
     SlaveName = disco:slave_name(),
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     DdfsRoot = disco:get_setting("DDFS_DATA"),
-    PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
-    GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
     #node_spec{host = Host,
                slave_name = SlaveName,
                disco_root = DiscoRoot,
-               ddfs_root = DdfsRoot,
-               put_port = PutPort,
-               get_port = GetPort}.
+               ddfs_root  = DdfsRoot,
+               get_port   = GetPort,
+               put_port   = PutPort}.
 
 -spec allow_write(#dnode{}) -> boolean().
 allow_write(#dnode{connection_status = up,
@@ -365,31 +387,48 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
+-spec init_port_map(port_map()) -> port_map().
+init_port_map(none) -> none;
+init_port_map({NextPort, _OldMap}) -> {NextPort, gb_trees:empty()}.
+
+-spec update_port_map(port_map(), host_name()) -> port_map().
+update_port_map(none, _Host) ->
+    none;
+update_port_map({NextPort, Map}, Host) ->
+    GetPort = NextPort,
+    PutPort = NextPort + 1,
+    {NextPort + 2, gb_trees:insert(Host, {GetPort, PutPort}, Map)}.
+
 -spec do_update_config_table([disco_config:host_info()], [host_name()],
                              [host_name()], state()) -> state().
 do_update_config_table(Config, Blacklist, GCBlacklist,
-                       #state{nodes = Nodes} = S) ->
+                       #state{nodes = Nodes, box_port_map = OldPortMap} = S) ->
     lager:info("Config table updated"),
-    NewNodes =
-        lists:foldl(fun({Host, Slots}, NewNodes) ->
-            NewNode =
-                case gb_trees:lookup(Host, Nodes) of
-                    none ->
-                        #dnode{host = Host,
-                               node_mon = node_mon:start_link(Host, node_spec(Host)),
-                               manual_blacklist = lists:member(Host, Blacklist),
-                               connection_status = undefined,
-                               slots = Slots,
-                               num_running = 0,
-                               stats_ok = 0,
-                               stats_failed = 0,
-                               stats_crashed = 0};
-                    {value, N} ->
-                        N#dnode{slots = Slots,
-                                manual_blacklist = lists:member(Host, Blacklist)}
-                end,
-            gb_trees:insert(Host, NewNode, NewNodes)
-        end, gb_trees:empty(), Config),
+    {NewNodes, NewPortMap} =
+        lists:foldl(
+          fun({Host, Slots}, {NewNodes, PortMap}) ->
+                  {NewNode, NewMap} =
+                      case gb_trees:lookup(Host, Nodes) of
+                          none ->
+                              NewPortMap = update_port_map(PortMap, Host),
+                              NodeSpec = node_spec(Host, NewPortMap),
+                              {#dnode{host = Host,
+                                      node_mon = node_mon:start_link(Host, NodeSpec),
+                                      manual_blacklist = lists:member(Host, Blacklist),
+                                      connection_status = undefined,
+                                      slots = Slots,
+                                      num_running = 0,
+                                      stats_ok = 0,
+                                      stats_failed = 0,
+                                      stats_crashed = 0},
+                               NewPortMap};
+                          {value, N} ->
+                              {N#dnode{slots = Slots,
+                                       manual_blacklist = lists:member(Host, Blacklist)},
+                               PortMap}
+                      end,
+                  {gb_trees:insert(Host, NewNode, NewNodes), NewMap}
+          end, {gb_trees:empty(), init_port_map(OldPortMap)}, Config),
     lists:foreach(
       fun(#dnode{host = Host, node_mon = NodeMon}) ->
               case gb_trees:lookup(Host, NewNodes) of
@@ -402,7 +441,7 @@ do_update_config_table(Config, Blacklist, GCBlacklist,
     disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
     update_nodes(NewNodes),
     S1 = do_gc_blacklist(GCBlacklist, S),
-    S1#state{nodes = NewNodes}.
+    S1#state{nodes = NewNodes, box_port_map = NewPortMap}.
 
 -spec do_gc_blacklist([host_name()], state()) -> state().
 do_gc_blacklist(Hosts, S) ->

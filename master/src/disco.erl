@@ -16,6 +16,7 @@
          data_root/1,
          data_path/2,
          debug_flags/1,
+         cluster_in_a_box_mode/0,
          disco_url_path/1,
          enum/1,
          format/2,
@@ -121,6 +122,13 @@ debug_flags(Server) ->
             [{debug, [{log_to_file,
                 filename:join(Root, Server ++ "_trace.log")}]}];
         _ -> []
+    end.
+
+-spec cluster_in_a_box_mode() -> boolean().
+cluster_in_a_box_mode() ->
+    case os:getenv("DISCO_CLUSTER_IN_A_BOX") of
+        false -> false;
+        _ -> true
     end.
 
 -spec disco_url_path(file:filename()) -> [nonempty_string()].
