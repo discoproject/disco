@@ -27,9 +27,6 @@
                 stats_crashed :: non_neg_integer()}).
 -type dnode() :: #dnode{}.
 
-% cluster-in-a-box state:  {NextPort, {host_name() -> {GetPort, PutPort}}}.
--type port_map() :: none | {non_neg_integer(), gb_tree()}.
-
 -record(state, {workers :: gb_tree(),
                 nodes :: gb_tree(),
                 purged :: gb_tree(),
@@ -388,6 +385,11 @@ update_port_map({NextPort, Map}, Host) ->
     GetPort = NextPort,
     PutPort = NextPort + 1,
     {NextPort + 2, gb_trees:insert(Host, {GetPort, PutPort}, Map)}.
+-spec update_port_map(host_name(), port_map(), port_map()) -> port_map().
+update_port_map(_Host, none, none) ->
+    none;
+update_port_map(Host, {_, OldMap}, {NP, CurMap}) ->
+    {NP, gb_trees:insert(Host, gb_trees:get(Host, OldMap), CurMap)}.
 
 -spec do_update_config_table([disco_config:host_info()], [host_name()],
                              [host_name()], state()) -> state().
@@ -416,7 +418,7 @@ do_update_config_table(Config, Blacklist, GCBlacklist,
                           {value, N} ->
                               {N#dnode{slots = Slots,
                                        manual_blacklist = lists:member(Host, Blacklist)},
-                               PortMap}
+                               update_port_map(Host, OldPortMap, PortMap)}
                       end,
                   {gb_trees:insert(Host, NewNode, NewNodes), NewMap}
           end, {gb_trees:empty(), init_port_map(OldPortMap)}, Config),
@@ -430,7 +432,7 @@ do_update_config_table(Config, Blacklist, GCBlacklist,
                   _ -> ok
               end
       end, gb_trees:values(Nodes)),
-    disco_proxy:update_nodes(gb_trees:keys(NewNodes)),
+    disco_proxy:update_nodes(gb_trees:keys(NewNodes), NewPortMap),
     update_nodes(NewNodes),
     S1 = do_gc_blacklist(GCBlacklist, S),
     S1#state{nodes = NewNodes, port_map = NewPortMap}.

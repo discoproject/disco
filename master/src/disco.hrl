@@ -17,10 +17,6 @@
                   reduce :: boolean()}).
 -type jobinfo() :: #jobinfo{}.
 
--record(node_ports, {get_port :: non_neg_integer(),
-                     put_port :: non_neg_integer()}).
--type node_ports() :: #node_ports{}.
-
 -record(nodeinfo, {name :: host_name(),
                    connected :: boolean(),
                    blacklisted :: boolean(),
@@ -46,3 +42,12 @@
                taskblack :: [host_name()],
                fail_count :: non_neg_integer()}).
 -type task() :: #task{}.
+
+% types used for local-cluster mode
+
+%                          {NextPort, {host_name() -> {GetPort, PutPort}}}.
+-type port_map() :: none | {non_neg_integer(), gb_tree()}.
+
+-record(node_ports, {get_port :: non_neg_integer(),
+                     put_port :: non_neg_integer()}).
+-type node_ports() :: #node_ports{}.
