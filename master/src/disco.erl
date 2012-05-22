@@ -5,7 +5,7 @@
          settings/0,
          host/1,
          name/1,
-         slave_name/0,
+         slave_name/1,
          slave_node/1,
          slave_safe/1,
          oob_name/1,
@@ -15,8 +15,9 @@
          joburl/2,
          data_root/1,
          data_path/2,
+         ddfs_root/2,
          debug_flags/1,
-         cluster_in_a_box_mode/0,
+         local_cluster/0,
          disco_url_path/1,
          enum/1,
          format/2,
@@ -59,26 +60,53 @@ settings() ->
     [T || T <- string:tokens(get_setting("DISCO_SETTINGS"), ","),
 	  has_setting(T)].
 
--spec host(node()) -> host_name().
-host(Node) ->
-    string:sub_word(atom_to_list(Node), 2, $@).
-
 -spec name(node()) -> host_name().
 name(Node) ->
     string:sub_word(atom_to_list(Node), 1, $@).
 
--spec slave_name() -> nonempty_string().
-slave_name() ->
+default_slave_name() ->
     get_setting("DISCO_NAME") ++ "_slave".
+
+-define(DLMTR_STR, "_at_").
+
+box_slave_name(Host) ->
+    default_slave_name() ++ ?DLMTR_STR ++ Host.
+
+-spec slave_name(host_name()) -> nonempty_string().
+slave_name(Host) ->
+    case local_cluster() of
+        false -> default_slave_name();
+        true  -> box_slave_name(Host)
+    end.
 
 -spec slave_node(host_name()) -> node().
 slave_node(Host) ->
-    list_to_atom(slave_name() ++ "@" ++ Host).
+    case local_cluster() of
+        false -> list_to_atom(default_slave_name() ++ "@" ++ Host);
+        true ->  list_to_atom(box_slave_name(Host) ++ "@localhost")
+    end.
 
--spec slave_safe(host_name()) -> 'false' | node().
+-spec slave_safe(host_name()) -> false | node().
 slave_safe(Host) ->
-    try list_to_existing_atom(slave_name() ++ "@" ++ Host)
+    try
+        case local_cluster() of
+            false -> list_to_existing_atom(default_slave_name() ++ "@" ++ Host);
+            true  -> list_to_existing_atom(box_slave_name(Host) ++ "@localhost")
+        end
     catch _:_ -> false
+    end.
+
+-spec host(node()) -> host_name().
+host(Node) ->
+    case local_cluster() of
+        false ->
+            string:sub_word(atom_to_list(Node), 2, $@);
+        true  ->
+            Prefix = string:sub_word(atom_to_list(Node), 1, $@),
+            Regex = default_slave_name() ++ ?DLMTR_STR ++ "(.*)",
+            Capture = [{capture, all_but_first, list}],
+            {match, [Host]} = re:run(Prefix, Regex, Capture),
+            Host
     end.
 
 -spec oob_name(jobname()) -> nonempty_string().
@@ -114,6 +142,13 @@ data_root(Host) ->
 data_path(NodeOrHost, Path) ->
     filename:join(data_root(NodeOrHost), Path).
 
+-spec ddfs_root(nonempty_string(), host_name()) -> nonempty_string().
+ddfs_root(DdfsRoot, Host) ->
+    case local_cluster() of
+        false -> DdfsRoot;
+        true  -> filename:join(DdfsRoot, Host)
+    end.
+
 -spec debug_flags(nonempty_string()) -> [term()].
 debug_flags(Server) ->
     case os:getenv("DISCO_DEBUG") of
@@ -124,9 +159,9 @@ debug_flags(Server) ->
         _ -> []
     end.
 
--spec cluster_in_a_box_mode() -> boolean().
-cluster_in_a_box_mode() ->
-    case os:getenv("DISCO_CLUSTER_IN_A_BOX") of
+-spec local_cluster() -> boolean().
+local_cluster() ->
+    case os:getenv("DISCO_LOCAL_CLUSTER") of
         false -> false;
         _ -> true
     end.

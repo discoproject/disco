@@ -17,13 +17,9 @@
                   reduce :: boolean()}).
 -type jobinfo() :: #jobinfo{}.
 
--record(node_spec, {host :: host_name(),
-                    slave_name :: nonempty_string(),
-                    disco_root :: nonempty_string(),
-                    ddfs_root  :: nonempty_string(),
-                    put_port :: non_neg_integer(),
-                    get_port :: non_neg_integer()}).
--type node_spec() :: #node_spec{}.
+-record(node_ports, {get_port :: non_neg_integer(),
+                     put_port :: non_neg_integer()}).
+-type node_ports() :: #node_ports{}.
 
 -record(nodeinfo, {name :: host_name(),
                    connected :: boolean(),
