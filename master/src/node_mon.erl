@@ -90,7 +90,7 @@ slave_env() ->
 -spec slave_start(host_name(), host_name()) -> {'ok', node()} | {'error', _}.
 slave_start(Host, RealHost) ->
     SlaveName = disco:slave_name(Host),
-    lager:info("Starting node ~p", [Host]),
+    lager:info("Starting node ~p on ~p (~p)", [SlaveName, Host, RealHost]),
     slave:start(RealHost,
                 SlaveName,
                 slave_env(),
