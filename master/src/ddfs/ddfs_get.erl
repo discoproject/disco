@@ -10,14 +10,17 @@
 
 -spec start(term(), {path(), path()}) -> {ok, pid()} | {error, term()}.
 start(MochiConfig, Roots) ->
-    error_logger:info_msg("Starting ~p on ~p", [?MODULE, node()]),
-    mochiweb_http:start([
-        {name, ddfs_get},
-        {max, ?HTTP_MAX_CONNS},
-        {loop, fun(Req) ->
-                    loop(Req:get(raw_path), Req, Roots)
-                end}
-        | MochiConfig]).
+    Ret = mochiweb_http:start([{name, ddfs_get},
+                               {max, ?HTTP_MAX_CONNS},
+                               {loop, fun(Req) ->
+                                              loop(Req:get(raw_path), Req, Roots)
+                                      end}
+                               | MochiConfig]),
+    case Ret of
+        {ok, _Pid} -> error_logger:info_msg("Started ~p on ~p", [?MODULE, node()]);
+        E ->          error_logger:error_msg("~p failed on ~p: ~p", [?MODULE, node(), E])
+    end,
+    Ret.
 
 -spec serve_ddfs_file(path(), path(), module()) -> _.
 serve_ddfs_file(DdfsRoot, Path, Req) ->
