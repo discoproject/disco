@@ -13,14 +13,17 @@
 
 -spec start(term()) -> {ok, pid()} | {error, term()}.
 start(MochiConfig) ->
-    error_logger:info_msg("Starting ~p on ~p", [?MODULE, node()]),
-    mochiweb_http:start([
-        {name, ddfs_put},
-        {max, ?HTTP_MAX_CONNS},
-        {loop, fun(Req) ->
-                    loop(Req:get(path), Req)
-                end}
-        | MochiConfig]).
+    Ret = mochiweb_http:start([{name, ddfs_put},
+                               {max, ?HTTP_MAX_CONNS},
+                               {loop, fun(Req) ->
+                                              loop(Req:get(path), Req)
+                                      end}
+                               | MochiConfig]),
+    case Ret of
+        {ok, _Pid} -> error_logger:info_msg("Started ~p on ~p", [?MODULE, node()]);
+        E ->          error_logger:error_msg("~p failed on ~p: ~p", [?MODULE, node(), E])
+    end,
+    Ret.
 
 -spec loop(path(), module()) -> _.
 loop("/proxy/" ++ Path, Req) ->
