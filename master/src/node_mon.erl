@@ -56,25 +56,29 @@ node_monitor(Host, Node, DiscoRoot, Ports, WebConfig) ->
     start_ddfs_node(Host, Node, DiscoRoot, Ports, WebConfig),
     start_temp_gc(Host, Node, DiscoRoot),
     start_lock_server(Node),
-    disco_server:connection_status(Host, up),
-    wait(Node),
+    wait(Host, Node),
     disco_server:connection_status(Host, down).
 
--spec wait(node()) -> 'ok'.
-wait(Node) ->
+-spec wait(host_name(), node()) -> 'ok'.
+wait(Host, Node) ->
     receive
+        {node_ready, RNode} ->
+            lager:info("Node started at ~p (reporting as ~p) on ~p",
+                       [Node, RNode, Host]),
+            disco_server:connection_status(Host, up),
+            wait(Host, Node);
         {is_ready, Pid} ->
             Pid ! node_ready,
-            wait(Node);
+            wait(Host, Node);
         {'EXIT', _, already_started} ->
-            lager:info("Node already started at ~p", [Node]),
-            wait(Node);
+            lager:info("Node already started at ~p on ~p", [Node, Host]),
+            wait(Host, Node);
         {'EXIT', _, Reason} ->
-            lager:info("Node failed at ~p: ~p", [Node, Reason]);
+            lager:info("Node failed at ~p on ~p: ~p", [Node, Reason, Host]);
         {nodedown, _Node} ->
-            lager:info("Node ~p down", [Node]);
+            lager:info("Node ~p on ~p down", [Node, Host]);
         E ->
-            lager:info("Unexpected message: ~p", [E])
+            lager:info("Unexpected message to node_mon for ~p: ~p", [Node, E])
     end.
 
 slave_env() ->
@@ -134,4 +138,4 @@ start_ddfs_node(Host, Node, DiscoRoot,
             {disco_root, DiscoRoot}, {ddfs_root, DdfsRoot},
             {get_port, GetPort}, {put_port, PutPort},
             {get_enabled, GetEnabled}, {put_enabled, PutEnabled}],
-    spawn_link(Node, ddfs_node, start_link, [Args]).
+    spawn_link(Node, ddfs_node, start_link, [Args, self()]).
