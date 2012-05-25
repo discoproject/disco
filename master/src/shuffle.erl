@@ -7,7 +7,7 @@
 -type msg() :: {node(), [term()]}.
 -type promise() :: {pid(), msg()}.
 
--spec combine_tasks(jobname(), nonempty_string(), [msg()]) -> {ok, [binary()]}.
+-spec combine_tasks(jobname(), task_mode(), [msg()]) -> {ok, [binary()]}.
 combine_tasks(JobName, Mode, DirUrls) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
     NodeGroups = disco_util:groupby(1, lists:keysort(1, DirUrls)),
@@ -61,7 +61,7 @@ wait_replies(Name, {Promises, FailCount}, Results) ->
 % combine_tasks_node are running in parallel on a single node. Thus, all
 % operations it performs on shared resources should be atomic.
 
--spec combine_tasks_node(path(), jobname(), nonempty_string(),
+-spec combine_tasks_node(path(), jobname(), task_mode(),
                          [nonempty_string()]) -> {ok, binary()}.
 combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     Host = disco:host(node()),
@@ -74,7 +74,7 @@ combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     PartPath = filename:join(ResultsHome, PartDir),
     PartUrl = ["disco://", ResultsLink, "/", PartDir],
 
-    IndexFile = lists:flatten([Mode, "-index.txt.gz"]),
+    IndexFile = lists:flatten([atom_to_list(Mode), "-index.txt.gz"]),
     IndexPath = filename:join(ResultsHome, IndexFile),
     IndexUrl = ["dir://", ResultsLink, "/", IndexFile],
 
