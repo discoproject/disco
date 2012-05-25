@@ -6,10 +6,11 @@
 -export([start_link/2, init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
+-include("gs_util.hrl").
+-include("common_types.hrl").
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
--include("gs_util.hrl").
 
 -record(state, {nodename :: string(),
                 root :: path(),

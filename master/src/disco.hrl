@@ -1,5 +1,4 @@
 -type jobname() :: nonempty_string().
--type host_name() :: nonempty_string().
 
 -type cores() :: non_neg_integer().
 
@@ -17,7 +16,7 @@
                   reduce :: boolean()}).
 -type jobinfo() :: #jobinfo{}.
 
--record(nodeinfo, {name :: host_name(),
+-record(nodeinfo, {name :: host(),
                    connected :: boolean(),
                    blacklisted :: boolean(),
                    slots :: cores(),
@@ -27,7 +26,7 @@
                    stats_crashed :: non_neg_integer()}).
 -type nodeinfo() :: #nodeinfo{}.
 
--type task_input() :: {binary(), host_name()}.
+-type task_input() :: {binary(), host()}.
 
 -record(task, {chosen_input :: binary() | [binary()],
                force_local :: boolean(),
@@ -39,13 +38,13 @@
                jobname :: jobname(),
                mode :: nonempty_string(), %"map" | "reduce"
                taskid :: non_neg_integer(),
-               taskblack :: [host_name()],
+               taskblack :: [host()],
                fail_count :: non_neg_integer()}).
 -type task() :: #task{}.
 
 % types used for local-cluster mode
 
-%                          {NextPort, {host_name() -> {GetPort, PutPort}}}.
+%                          {NextPort, {host() -> {GetPort, PutPort}}}.
 -type port_map() :: none | {non_neg_integer(), gb_tree()}.
 
 -record(node_ports, {get_port :: non_neg_integer(),

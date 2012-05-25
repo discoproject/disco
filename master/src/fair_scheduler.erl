@@ -20,8 +20,9 @@
 -export([start_link/0, init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
--include("disco.hrl").
+-include("common_types.hrl").
 -include("gs_util.hrl").
+-include("disco.hrl").
 -include("fair_scheduler.hrl").
 
 -type state() :: [node()].
@@ -74,7 +75,7 @@ handle_cast({job_done, JobName}, Nodes) ->
 -spec handle_call({new_job, jobname(), pid()}, from(), state()) -> gs_reply(ok);
                  (new_task_msg(), from(), state()) -> gs_reply(ok);
                  (dbg_state_msg(), from(), state()) -> gs_reply(state());
-                 ({next_task, [host_name()]}, from(), state()) ->
+                 ({next_task, [host()]}, from(), state()) ->
                          gs_reply(nojobs | {ok, {pid(), task()}}).
 
 handle_call({new_job, JobName, JobCoord}, _, Nodes) ->

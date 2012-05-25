@@ -1,6 +1,7 @@
 -module(disco_web).
 -export([op/3]).
 
+-include("common_types.hrl").
 -include("disco.hrl").
 -include("config.hrl").
 

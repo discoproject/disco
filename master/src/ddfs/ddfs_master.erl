@@ -26,11 +26,12 @@
 
 -define(WEB_PORT, 8011).
 
+-include("common_types.hrl").
+-include("gs_util.hrl").
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 -include("ddfs_gc.hrl").
--include("gs_util.hrl").
 
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -type gc_stats() :: 'none' | gc_run_stats().

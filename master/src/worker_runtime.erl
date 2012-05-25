@@ -1,6 +1,7 @@
 -module(worker_runtime).
 -export([init/2, handle/2, get_pid/1]).
 
+-include("common_types.hrl").
 -include("disco.hrl").
 
 -record(state, {task :: task(),
@@ -173,12 +174,12 @@ do_handle({<<"DONE">>, _Body}, #state{task = Task,
 input_reply(Inputs) ->
     {"INPUT", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
 
--spec url_path(task(), nonempty_string(), nonempty_string()) -> file:filename().
+-spec url_path(task(), host(), path()) -> file:filename().
 url_path(Task, Host, LocalFile) ->
     LocationPrefix = disco:joburl(Host, Task#task.jobname),
     filename:join(LocationPrefix, LocalFile).
 
--spec local_results(task(), nonempty_string()) -> binary().
+-spec local_results(task(), path()) -> binary().
 local_results(Task, FileName) ->
     Host = disco:host(node()),
     Output = io_lib:format("dir://~s/~s",
@@ -219,7 +220,7 @@ add_output(RL, #state{output_file = RF} = S) ->
             {error, ioerror("Writing to index file failed", Reason)}
     end.
 
--spec results_filename(task()) -> nonempty_string().
+-spec results_filename(task()) -> path().
 results_filename(Task) ->
     TimeStamp = timer:now_diff(now(), {0,0,0}),
     FileName = io_lib:format("~s-~B-~B.results", [Task#task.mode,

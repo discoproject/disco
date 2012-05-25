@@ -22,8 +22,9 @@
          terminate/2,
          code_change/3]).
 
--include("disco.hrl").
+-include("common_types.hrl").
 -include("gs_util.hrl").
+-include("disco.hrl").
 
 -spec new_job(jobname(), pid()) -> {ok, jobname()}.
 new_job(Prefix, JobCoordinator) ->
@@ -261,11 +262,11 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
 event(JobName, Format, Args, Params) ->
     event("master", JobName, Format, Args, Params).
 
--spec event(host_name(), jobname(), nonempty_string(), list(), tuple()) -> ok.
+-spec event(host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
 event(Host, JobName, Format, Args, Params) ->
     event(event_server, Host, JobName, Format, Args, Params).
 
--spec event(server(), host_name(), jobname(), nonempty_string(), list(), tuple()) -> ok.
+-spec event(server(), host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
 event(EventServer, Host, JobName, Format, Args, Params) ->
     SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 1000000 of
                  true -> trunc_io:fprint(X, 1000000);
@@ -291,11 +292,11 @@ task_event(Task, Event) ->
 task_event(Task, Event, Params) ->
     task_event(Task, Event, Params, "master").
 
--spec task_event(task(), term(), tuple(), host_name()) -> ok.
+-spec task_event(task(), term(), tuple(), host()) -> ok.
 task_event(Task, Event, Params, Host) ->
     task_event(Task, Event, Params, Host, event_server).
 
--spec task_event(task(), term(), tuple(), host_name(), server()) -> ok.
+-spec task_event(task(), term(), tuple(), host(), server()) -> ok.
 task_event(Task, {Type, Message}, Params, Host, EventServer) ->
     event(EventServer,
           Host,

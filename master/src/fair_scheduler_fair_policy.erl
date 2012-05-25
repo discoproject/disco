@@ -7,8 +7,9 @@
 -module(fair_scheduler_fair_policy).
 -behaviour(gen_server).
 
--include("disco.hrl").
+-include("common_types.hrl").
 -include("gs_util.hrl").
+-include("disco.hrl").
 -include("fair_scheduler.hrl").
 
 -export([start_link/0, init/1, handle_call/3, handle_cast/2,
@@ -171,7 +172,7 @@ fairness_fairy(NumCores) ->
             fairness_fairy(NumCores)
     end.
 
--spec update_priorities(priority(), non_neg_integer()) -> 'ok'.
+-spec update_priorities(priority(), non_neg_integer()) -> ok.
 update_priorities(_, 0) -> ok;
 update_priorities(Alpha, NumCores) ->
     {ok, Jobs} = gen_server:call(sched_policy, priv_get_jobs),

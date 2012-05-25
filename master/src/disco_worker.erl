@@ -12,8 +12,9 @@
          jobhome/1,
          event/3]).
 
--include("disco.hrl").
+-include("common_types.hrl").
 -include("gs_util.hrl").
+-include("disco.hrl").
 
 -record(state, {master :: node(),
                 task :: task(),
@@ -36,7 +37,7 @@
 -define(MESSAGE_TIMEOUT, 30 * 1000).
 -define(MAX_ERROR_BUFFER_SIZE, 100 * 1024).
 
--spec start_link_remote(nonempty_string(), pid(), task()) -> no_return().
+-spec start_link_remote(host(), pid(), task()) -> no_return().
 start_link_remote(Host, NodeMon, Task) ->
     Node = disco:slave_node(Host),
     wait_until_node_ready(NodeMon, Host),
@@ -53,7 +54,7 @@ start_link_remote(Host, NodeMon, Task) ->
     end,
     wait_for_exit().
 
--spec wait_until_node_ready(pid(), nonempty_string()) -> ok.
+-spec wait_until_node_ready(pid(), host()) -> ok.
 wait_until_node_ready(NodeMon, Host) ->
     NodeMon ! {is_ready, self()},
     receive
@@ -250,7 +251,7 @@ worker_send(Port) ->
             worker_send(Port)
     end.
 
--spec make_jobhome(nonempty_string(), node()) -> ok.
+-spec make_jobhome(jobname(), node()) -> ok.
 make_jobhome(JobName, Master) ->
     JobHome = jobhome(JobName),
     case jobpack:extracted(JobHome) of
@@ -271,7 +272,7 @@ make_jobhome(JobName, Master) ->
             jobpack:extract(JobPack, JobHome)
     end.
 
--spec jobhome(nonempty_string()) -> nonempty_string().
+-spec jobhome(jobname()) -> path().
 jobhome(JobName) ->
     Home = filename:join(disco:get_setting("DISCO_DATA"), disco:host(node())),
     disco:jobhome(JobName, Home).

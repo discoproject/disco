@@ -3,6 +3,7 @@
 
 -include_lib("kernel/include/file.hrl").
 
+-include("common_types.hrl").
 -include("config.hrl").
 -include("ddfs.hrl").
 

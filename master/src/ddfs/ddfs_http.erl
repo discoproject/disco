@@ -2,6 +2,8 @@
 -export([http_put/3]).
 
 -include_lib("kernel/include/file.hrl").
+
+-include("common_types.hrl").
 -include("ddfs.hrl").
 
 -define(CONNECT_TIMEOUT, 60000).

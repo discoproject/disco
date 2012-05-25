@@ -8,8 +8,9 @@
 
 -define(SCHEDULE_TIMEOUT, 30000).
 
--include("disco.hrl").
+-include("common_types.hrl").
 -include("gs_util.hrl").
+-include("disco.hrl").
 -include("fair_scheduler.hrl").
 
 -type load() :: {non_neg_integer(), {binary(), node()}}.
@@ -37,7 +38,7 @@ start(JobName, JobCoord) ->
 
 -type state() :: {gb_tree(), gb_tree(), [node()]}.
 
--spec init({nonempty_string(), pid()}) -> gs_init() | {stop, normal}.
+-spec init({jobname(), pid()}) -> gs_init() | {stop, normal}.
 init({JobName, JobCoord}) ->
     process_flag(trap_exit, true),
     put(jobname, JobName),
@@ -95,7 +96,7 @@ all_empty_nodes([Job|Jobs], AvailableNodes) ->
     end.
 
 -type cast_msgs() :: new_task_msg() | update_nodes_msg()
-                   | {task_started, host_name(), pid()}.
+                   | {task_started, host(), pid()}.
 -spec handle_cast(cast_msgs(), state()) -> gs_noreply();
                  ({die, string()}, state()) -> gs_stop(normal).
 
