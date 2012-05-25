@@ -3,7 +3,7 @@
 
 -export([get_vols/0, gate_get_blob/0, put_blob/1, get_tag_data/3, rescan_tags/0]).
 
--export([start_link/1, init/1, handle_call/3, handle_cast/2,
+-export([start_link/2, init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
 -include("config.hrl").
@@ -20,8 +20,8 @@
                 scanner :: pid()}).
 -type state() :: #state{}.
 
--spec start_link(term()) -> no_return().
-start_link(Config) ->
+-spec start_link(term(), pid()) -> no_return().
+start_link(Config, NodeMon) ->
     process_flag(trap_exit, true),
     case gen_server:start_link(
                  {local, ?MODULE}, ?MODULE, Config, [{timeout, ?NODE_STARTUP}]) of
@@ -35,6 +35,7 @@ start_link(Config) ->
             error_logger:info_msg("~p failed to start on ~p: ~p", [?MODULE, node(), Error]),
             exit(Error)
     end,
+    NodeMon ! {node_ready, node()},
     receive
         {'EXIT', _, Reason0} ->
             error_logger:info_msg("~p exited on ~p: ~p", [?MODULE, node(), Reason0]),
