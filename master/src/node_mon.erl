@@ -1,6 +1,7 @@
 -module(node_mon).
 -export([start_link/2]).
 
+-include("common_types.hrl").
 -include("disco.hrl").
 
 -define(RESTART_DELAY, 15000).
@@ -8,11 +9,11 @@
 -define(RPC_CALL_TIMEOUT, 30000).
 -define(RPC_RETRY_TIMEOUT, 120000).
 
--spec start_link(host_name(), node_ports()) -> pid().
+-spec start_link(host(), node_ports()) -> pid().
 start_link(Host, Ports) ->
     spawn_link(fun() -> spawn_node(Host, Ports) end).
 
--spec spawn_node(host_name(), node_ports(), boolean()) -> 'ok'.
+-spec spawn_node(host(), node_ports(), boolean()) -> ok.
 spawn_node(Host, Ports) ->
     process_flag(trap_exit, true),
     spawn_node(Host, Ports, disco:local_cluster()).
@@ -25,7 +26,7 @@ spawn_node(Host, Ports, true) ->
 spawn_node(Host, Ports, false) ->
     do_spawn_node(Host, Host, Ports, is_master(Host)).
 
--spec do_spawn_node(host_name(), host_name(), node_ports(), boolean()) -> 'ok'.
+-spec do_spawn_node(host(), host(), node_ports(), boolean()) -> ok.
 do_spawn_node(Host, RealHost, Ports, IsMaster) ->
     DiscoRoot = disco:get_setting("DISCO_DATA"),
     case {IsMaster, catch slave_start(Host, RealHost)} of
@@ -49,8 +50,8 @@ do_spawn_node(Host, RealHost, Ports, IsMaster) ->
     end,
     timer:sleep(?RESTART_DELAY).
 
--spec node_monitor(host_name(), node(), nonempty_string(), node_ports(),
-                   {boolean(), boolean()}) -> 'ok'.
+-spec node_monitor(host(), node(), path(), node_ports(), {boolean(), boolean()})
+                  -> ok.
 node_monitor(Host, Node, DiscoRoot, Ports, WebConfig) ->
     monitor_node(Node, true),
     start_ddfs_node(Host, Node, DiscoRoot, Ports, WebConfig),
@@ -59,7 +60,7 @@ node_monitor(Host, Node, DiscoRoot, Ports, WebConfig) ->
     wait(Host, Node),
     disco_server:connection_status(Host, down).
 
--spec wait(host_name(), node()) -> 'ok'.
+-spec wait(host(), node()) -> ok.
 wait(Host, Node) ->
     receive
         {node_ready, RNode} ->
@@ -91,7 +92,7 @@ slave_env() ->
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 
--spec slave_start(host_name(), host_name()) -> {'ok', node()} | {'error', _}.
+-spec slave_start(host(), host()) -> {ok, node()} | {error, _}.
 slave_start(Host, RealHost) ->
     SlaveName = disco:slave_name(Host),
     lager:info("Starting node ~p on ~p (~p)", [SlaveName, Host, RealHost]),
@@ -101,7 +102,7 @@ slave_start(Host, RealHost) ->
                 self(),
                 disco:get_setting("DISCO_ERLANG")).
 
--spec is_master(host_name()) -> boolean().
+-spec is_master(host()) -> boolean().
 is_master(Host) ->
     % the underlying tcp connection used by net_adm:names() may hang,
     % so we use a timed rpc.
@@ -119,7 +120,7 @@ is_master(Host) ->
             is_master(Host)
     end.
 
--spec start_temp_gc(host_name(), node(), nonempty_string()) -> pid().
+-spec start_temp_gc(host(), node(), path()) -> pid().
 start_temp_gc(Host, Node, DiscoRoot) ->
     DataRoot = filename:join(DiscoRoot, Host),
     spawn_link(Node, temp_gc, start_link, [node(), DataRoot]).
@@ -128,7 +129,7 @@ start_temp_gc(Host, Node, DiscoRoot) ->
 start_lock_server(Node) ->
     spawn_link(Node, fun lock_server:start_link/0).
 
--spec start_ddfs_node(host_name(), node(), nonempty_string(), node_ports(),
+-spec start_ddfs_node(host(), node(), path(), node_ports(),
                       {boolean(), boolean()}) -> pid().
 start_ddfs_node(Host, Node, DiscoRoot,
                 #node_ports{put_port = PutPort, get_port = GetPort},

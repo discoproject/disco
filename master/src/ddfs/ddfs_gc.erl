@@ -4,6 +4,7 @@
 % GC internal api.
 -export([abort/2]).
 
+-include("common_types.hrl").
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").

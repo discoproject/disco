@@ -1,11 +1,13 @@
 -module(shuffle).
 -export([combine_tasks/3, combine_tasks_node/4, process_url/3]).
 
+-include("common_types.hrl").
+-include("disco.hrl").
+
 -type msg() :: {node(), [term()]}.
 -type promise() :: {pid(), msg()}.
 
--spec combine_tasks(nonempty_string(), nonempty_string(),
-                    [msg()]) -> {'ok', [binary()]}.
+-spec combine_tasks(jobname(), nonempty_string(), [msg()]) -> {ok, [binary()]}.
 combine_tasks(JobName, Mode, DirUrls) ->
     DataRoot = disco:get_setting("DISCO_DATA"),
     NodeGroups = disco_util:groupby(1, lists:keysort(1, DirUrls)),
@@ -37,8 +39,8 @@ call_nodes_do(Messages, FailCount) ->
          end || {Node, Args} = Msg <- Messages],
     {Promises, FailCount}.
 
--spec wait_replies(nonempty_string(), {[promise()], non_neg_integer()},
-                   [binary()]) -> [binary()].
+-spec wait_replies(jobname(), {[promise()], non_neg_integer()}, [binary()])
+                  -> [binary()].
 wait_replies(_Name, {[], _FailCount}, Results) -> Results;
 wait_replies(Name, {Promises, FailCount}, Results) ->
     Replies = [{rpc:yield(Key), Msg} || {Key, Msg} <- Promises],
@@ -59,8 +61,8 @@ wait_replies(Name, {Promises, FailCount}, Results) ->
 % combine_tasks_node are running in parallel on a single node. Thus, all
 % operations it performs on shared resources should be atomic.
 
--spec combine_tasks_node(nonempty_string(), nonempty_string(), nonempty_string(),
-                         [nonempty_string()]) -> {'ok', binary()}.
+-spec combine_tasks_node(path(), jobname(), nonempty_string(),
+                         [nonempty_string()]) -> {ok, binary()}.
 combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     Host = disco:host(node()),
     JobHome = disco:jobhome(JobName, filename:join([DataRoot, Host])),
@@ -81,7 +83,7 @@ combine_tasks_node(DataRoot, JobName, Mode, DirUrls) ->
     ok = write_index(IndexPath, Index),
     {ok, list_to_binary(IndexUrl)}.
 
--spec write_index(file:filename(), [binary()]) -> 'ok'.
+-spec write_index(file:filename(), [binary()]) -> ok.
 write_index(Path, Lines) ->
     Time = ddfs_util:timestamp(),
     {ok, IO} = prim_file:open([Path, $., Time], [write, raw, compressed]),
@@ -89,8 +91,7 @@ write_index(Path, Lines) ->
     ok = prim_file:close(IO),
     prim_file:rename([Path, $., Time], Path).
 
--spec merged_index([nonempty_string()], nonempty_string(), partinfo()) ->
-                          [binary()].
+-spec merged_index([nonempty_string()], path(), partinfo()) -> [binary()].
 merged_index(DirUrls, DataRoot, PartInfo) ->
     gb_sets:to_list(
         lists:foldl(
@@ -99,8 +100,7 @@ merged_index(DirUrls, DataRoot, PartInfo) ->
                 gb_sets:union(UrlSet, Set)
             end, gb_sets:empty(), DirUrls)).
 
--spec process_task(nonempty_string(), nonempty_string(), partinfo()) ->
-                          [binary()].
+-spec process_task(nonempty_string(), path(), partinfo()) -> [binary()].
 process_task(DirUrl, DataRoot, PartInfo) ->
     TaskPath = disco:disco_url_path(DirUrl),
     {ok, Index} = prim_file:read_file(filename:join(DataRoot, TaskPath)),
@@ -111,7 +111,7 @@ process_task(DirUrl, DataRoot, PartInfo) ->
 % i.e. potentially millions of times for a job. Be careful when making
 % any changes to it. Especially measure the performance impact of your
 % changes!
--spec process_url(_, nonempty_string(), partinfo()) -> binary().
+-spec process_url(_, path(), partinfo()) -> binary().
 process_url([Id, <<"part://", _/binary>> = Url],
             DataRoot,
             {PartPath, PartUrl}) ->

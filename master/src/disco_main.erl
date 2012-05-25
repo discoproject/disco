@@ -5,6 +5,7 @@
 -behaviour(supervisor).
 -behaviour(application).
 
+-include("common_types.hrl").
 -include("config.hrl").
 
 -define(MAX_R, 10).
@@ -23,7 +24,7 @@ set_env(Key, Default) ->
 init_settings() ->
     set_env(max_failure_rate, ?TASK_MAX_FAILURES).
 
--spec write_pid(nonempty_string()) -> 'ok'.
+-spec write_pid(path()) -> ok.
 write_pid(PidFile) ->
     case file:write_file(PidFile, os:getpid()) of
         ok -> ok;
@@ -31,7 +32,7 @@ write_pid(PidFile) ->
             exit(["Could not write PID to ", PidFile, ":", Error])
     end.
 
--spec start(_, _) -> {'ok', pid()} | {'error', term()}.
+-spec start(_, _) -> {ok, pid()} | {error, term()}.
 start(_Type, _Args) ->
     ok = application:start(lager),
     init_settings(),
@@ -40,7 +41,7 @@ start(_Type, _Args) ->
     supervisor:start_link(disco_main, [list_to_integer(Port)]).
 
 -spec init([non_neg_integer()]) ->
-        {'ok', {{'one_for_one', ?MAX_R, ?MAX_T}, [supervisor:child_spec()]}}.
+        {ok, {{one_for_one, ?MAX_R, ?MAX_T}, [supervisor:child_spec()]}}.
 init([Port]) ->
     lager:info("DISCO BOOTS"),
     {ok, {{one_for_one, ?MAX_R, ?MAX_T}, [
@@ -59,7 +60,7 @@ init([Port]) ->
         ]
     }}.
 
--spec stop(_) -> 'ok'.
+-spec stop(_) -> ok.
 stop(_State) ->
     ok.
 

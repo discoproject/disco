@@ -11,6 +11,8 @@
          jobinfo/1]).
 
 -include_lib("kernel/include/file.hrl").
+
+-include("common_types.hrl").
 -include("disco.hrl").
 
 -define(MAGIC, 16#d5c0).
@@ -40,15 +42,15 @@ find(Key, Dict, Default) ->
             Default
     end.
 
--spec jobfile(nonempty_string()) -> nonempty_string().
+-spec jobfile(path()) -> path().
 jobfile(JobHome) ->
     filename:join(JobHome, "jobfile").
 
--spec exists(nonempty_string()) -> boolean().
+-spec exists(path()) -> boolean().
 exists(JobHome) ->
     disco:is_file(jobfile(JobHome)).
 
--spec extract(binary(), nonempty_string()) -> [file:name()].
+-spec extract(binary(), path()) -> [file:name()].
 extract(JobPack, JobHome) ->
     JobZip = jobzip(JobPack),
     case discozip:extract(JobZip, [{cwd, JobHome}]) of
@@ -60,7 +62,7 @@ extract(JobPack, JobHome) ->
             exit({"Couldn't extract jobhome", JobHome, Reason})
     end.
 
--spec extracted(nonempty_string()) -> boolean().
+-spec extracted(path()) -> boolean().
 extracted(JobHome) ->
     disco:is_file(filename:join(JobHome, ".jobhome")).
 
@@ -69,7 +71,7 @@ ensure_executable_worker(JobPack, JobHome) ->
     Path = filename:join(JobHome, binary_to_list(Worker)),
     prim_file:write_file_info(Path, #file_info{mode = 8#755}).
 
--spec read(nonempty_string()) -> binary().
+-spec read(path()) -> binary().
 read(JobHome) ->
     JobFile = jobfile(JobHome),
     case prim_file:read_file(JobFile) of
@@ -79,7 +81,7 @@ read(JobHome) ->
             throw({"Couldn't read jobfile", JobFile, Reason})
     end.
 
--spec save(binary(), nonempty_string()) -> nonempty_string().
+-spec save(binary(), path()) -> path().
 save(JobPack, JobHome) ->
     TmpFile = tempname(JobHome),
     JobFile = jobfile(JobHome),
@@ -95,8 +97,7 @@ save(JobPack, JobHome) ->
             throw({"Couldn't save jobpack", TmpFile, Reason})
     end.
 
--spec copy({file:io_device(), non_neg_integer(), pid()}, nonempty_string()) ->
-                  {'ok', nonempty_string()}.
+-spec copy({file:io_device(), non_neg_integer(), pid()}, path()) -> {ok, path()}.
 copy({Src, Size, Sender}, JobHome) ->
     CopyResult = (catch try_copy(Src, Size, JobHome)),
     _ = file:close(Src),
@@ -122,7 +123,7 @@ tempname(JobHome) ->
     filename:join(JobHome, disco:format("jobfile@~.16b:~.16b:~.16b",
                                         [MegaSecs, Secs, MicroSecs])).
 
--spec jobinfo(binary()) -> {nonempty_string(), jobinfo()}.
+-spec jobinfo(binary()) -> {path(), jobinfo()}.
 jobinfo(JobPack) ->
     JobDict = jobdict(JobPack),
     Scheduler = dict(find(<<"scheduler">>, JobDict)),
@@ -172,7 +173,7 @@ jobzip(<<?MAGIC:16/big,
     <<_:JobHomeOffset/bytes, JobZip:JobHomeLength/bytes, _/binary>> = JobPack,
     JobZip.
 
--spec valid(binary()) -> 'ok' | {'error', term()}.
+-spec valid(binary()) -> ok | {error, term()}.
 valid(<<?MAGIC:16/big,
         ?VERSION:16/big,
         JobDictOffset:32/big,

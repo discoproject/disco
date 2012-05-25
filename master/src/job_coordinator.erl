@@ -1,11 +1,11 @@
 -module(job_coordinator).
 -export([new/1]).
 
+-include("common_types.hrl").
 -include("disco.hrl").
 -include("config.hrl").
 
 -type input() :: binary() | [binary()].
--type host() :: nonempty_string() | 'false'.
 -type phase_input() :: {non_neg_integer(), [{input(), host()}]}.
 
 % In theory we could keep the HTTP connection pending until the job
@@ -14,7 +14,7 @@
 % takes care of coordinating the whole map-reduce show, including
 % fault-tolerance. The HTTP request returns immediately. It may poll
 % the job status e.g. by using handle_ctrl's get_results.
--spec new(binary()) -> {'ok', jobname()}.
+-spec new(binary()) -> {ok, jobname()}.
 new(JobPack) ->
     Self = self(),
     process_flag(trap_exit, true),
@@ -47,7 +47,7 @@ job_event(JobName, {EventFormat, Args}) ->
 job_event(JobName, Event) ->
     job_event(JobName, {Event, [], {}}).
 
--spec job_coordinator(pid(), binary()) -> 'ok'.
+-spec job_coordinator(pid(), binary()) -> ok.
 job_coordinator(Parent, JobPack) ->
     {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
     {ok, JobName} = event_server:new_job(Prefix, self()),
@@ -56,7 +56,7 @@ job_coordinator(Parent, JobPack) ->
     Parent ! {job_submitted, JobName},
     job_coordinator(JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}).
 
--spec job_coordinator(jobinfo()) -> 'ok'.
+-spec job_coordinator(jobinfo()) -> ok.
 job_coordinator(#jobinfo{jobname = JobName} = Job) ->
     job_event(JobName, {"Starting job", [], {job_data, Job}}),
     Started = now(),
@@ -91,7 +91,7 @@ kill_job(JobName, {EventFormat, Args}) ->
            non_neg_integer(),
            jobinfo(),
            gb_tree()) ->
-    {'ok', gb_tree()}.
+    {ok, gb_tree()}.
 
 % 1. Basic case: Tasks to distribute, maximum number of concurrent tasks (N)
 % not reached.
@@ -155,7 +155,7 @@ wait_workers(N, Results, Mode) ->
                    {task_failed, Task#task.mode}})
     end.
 
--spec submit_task(task()) -> 'ok'.
+-spec submit_task(task()) -> ok.
 submit_task(Task) ->
     case catch disco_server:new_task(Task, 30000) of
         ok ->
@@ -170,7 +170,7 @@ submit_task(Task) ->
 % handle_data_error() schedules the failed task for a retry, with the
 % failing node in its blacklist. If a task fails too many times, as
 % determined by check_failure_rate(), the whole job will be terminated.
--spec handle_data_error(task(), host_name()) -> pid().
+-spec handle_data_error(task(), host()) -> pid().
 handle_data_error(Task, Host) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     check_failure_rate(Task, MaxFail),
@@ -191,7 +191,7 @@ handle_data_error(Task, Host) ->
                        submit_task(Task#task{taskblack = [Host|T], fail_count = C})
                end).
 
--spec check_failure_rate(task(), non_neg_integer()) -> 'ok'.
+-spec check_failure_rate(task(), non_neg_integer()) -> ok.
 check_failure_rate(#task{fail_count = Fail}, MaxFail) when Fail + 1 < MaxFail ->
     ok;
 check_failure_rate(Task, MaxFail) ->
@@ -217,7 +217,7 @@ map(Inputs, #jobinfo{map = false}) ->
 map(Inputs, Job) ->
     run_phase(map_input(Inputs), "map", Job).
 
--spec shuffle(jobname(), nonempty_string(), [{node(), binary()}]) -> {'ok', [binary()]}.
+-spec shuffle(jobname(), nonempty_string(), [{node(), binary()}]) -> {ok, [binary()]}.
 shuffle(_JobName, _Mode, []) ->
     {ok, []};
 shuffle(JobName, Mode, DirUrls) ->

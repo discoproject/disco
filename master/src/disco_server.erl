@@ -11,12 +11,14 @@
          terminate/2, code_change/3]).
 
 -include_lib("kernel/include/file.hrl").
+
+-include("common_types.hrl").
 -include("disco.hrl").
 -include("gs_util.hrl").
 
 -type connection_status() :: undefined | {up | down, erlang:timestamp()}.
 
--record(dnode, {host :: host_name(),
+-record(dnode, {host :: host(),
                 node_mon :: pid(),
                 manual_blacklist :: boolean(),
                 connection_status :: connection_status(),
@@ -70,13 +72,12 @@ start_link() ->
             {ok, Server}
     end.
 
--spec update_config_table([disco_config:host_info()], [host_name()],
-                          [host_name()]) -> ok.
+-spec update_config_table([disco_config:host_info()], [host()], [host()]) -> ok.
 update_config_table(Config, Blacklist, GCBlacklist) ->
     gen_server:cast(?MODULE,
                     {update_config_table, Config, Blacklist, GCBlacklist}).
 
--type active_tasks() :: [{host_name(), task()}].
+-type active_tasks() :: [{host(), task()}].
 -spec get_active(jobname() | all) -> {ok, active_tasks()}.
 get_active(JobName) ->
     gen_server:call(?MODULE, {get_active, JobName}).
@@ -108,15 +109,15 @@ clean_job(JobName) ->
 new_task(Task, Timeout) ->
     gen_server:call(?MODULE, {new_task, Task}, Timeout).
 
--spec connection_status(host_name(), up | down) -> ok.
+-spec connection_status(host(), up | down) -> ok.
 connection_status(Node, Status) ->
     gen_server:call(?MODULE, {connection_status, Node, Status}).
 
--spec manual_blacklist(host_name(), boolean()) -> ok.
+-spec manual_blacklist(host(), boolean()) -> ok.
 manual_blacklist(Node, True) ->
     gen_server:call(?MODULE, {manual_blacklist, Node, True}).
 
--spec gc_blacklist([host_name()]) -> ok.
+-spec gc_blacklist([host()]) -> ok.
 gc_blacklist(Hosts) ->
     gen_server:call(?MODULE, {gc_blacklist, Hosts}).
 
@@ -150,7 +151,7 @@ init(_Args) ->
                 port_map = PortMap}}.
 
 -type update_config_msg() :: {update_config_table, [disco_config:host_info()],
-                              [host_name()], [host_name()]}.
+                              [host()], [host()]}.
 -spec handle_cast(update_config_msg() | schedule_next | {purge_job, jobname()},
                   state()) -> gs_noreply().
 handle_cast({update_config_table, Config, ManualBlacklist, GCBlacklist}, S) ->
@@ -290,7 +291,7 @@ nodemon_exit(Pid, S, none) ->
 %% ===================================================================
 %% internal functions
 
--spec node_ports(host_name(), port_map()) -> node_ports().
+-spec node_ports(host(), port_map()) -> node_ports().
 node_ports(_Host, none) ->
     GetPort = list_to_integer(disco:get_setting("DISCO_PORT")),
     PutPort = list_to_integer(disco:get_setting("DDFS_PUT_PORT")),
@@ -299,20 +300,20 @@ node_ports(Host, {_NextPort, PortMap}) ->
     {GetPort, PutPort} = gb_trees:get(Host, PortMap),
     #node_ports{get_port = GetPort, put_port = PutPort}.
 
--spec allow_write(#dnode{}) -> boolean().
+-spec allow_write(dnode()) -> boolean().
 allow_write(#dnode{connection_status = {up, _},
                    manual_blacklist = false}) ->
     true;
 allow_write(#dnode{}) ->
     false.
 
--spec allow_read(#dnode{}) -> boolean().
+-spec allow_read(dnode()) -> boolean().
 allow_read(#dnode{connection_status = {up, _}}) ->
     true;
 allow_read(#dnode{}) ->
     false.
 
--spec allow_task(#dnode{}) -> boolean().
+-spec allow_task(dnode()) -> boolean().
 allow_task(#dnode{} = N) -> allow_write(N).
 
 -spec update_nodes(gb_tree()) -> ok.
@@ -326,8 +327,7 @@ update_nodes(Nodes) ->
     gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
     schedule_next().
 
--spec update_stats(host_name(), none | {value, dnode()}, _,
-                   state()) -> state().
+-spec update_stats(host(), none | {value, dnode()}, _, state()) -> state().
 update_stats(_Node, none, _ReplyType, S) -> S;
 update_stats(Node, {value, #dnode{num_running = NumRunning,
                                   stats_ok = StatsOk,
@@ -347,7 +347,7 @@ update_stats(Node, {value, #dnode{num_running = NumRunning,
          end,
     S#state{nodes = gb_trees:update(Node, M0, Nodes)}.
 
--spec do_connection_status(host_name(), up | down, state()) -> state().
+-spec do_connection_status(host(), up | down, state()) -> state().
 do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
@@ -362,7 +362,7 @@ do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     update_nodes(UpdatedNodes),
     S#state{nodes = UpdatedNodes}.
 
--spec do_manual_blacklist(host_name(), boolean(), state()) -> state().
+-spec do_manual_blacklist(host(), boolean(), state()) -> state().
 do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
@@ -378,21 +378,21 @@ do_manual_blacklist(Node, True, #state{nodes = Nodes} = S) ->
 init_port_map(none) -> none;
 init_port_map({NextPort, _OldMap}) -> {NextPort, gb_trees:empty()}.
 
--spec update_port_map(port_map(), host_name()) -> port_map().
+-spec update_port_map(port_map(), host()) -> port_map().
 update_port_map(none, _Host) ->
     none;
 update_port_map({NextPort, Map}, Host) ->
     GetPort = NextPort,
     PutPort = NextPort + 1,
     {NextPort + 2, gb_trees:insert(Host, {GetPort, PutPort}, Map)}.
--spec update_port_map(host_name(), port_map(), port_map()) -> port_map().
+-spec update_port_map(host(), port_map(), port_map()) -> port_map().
 update_port_map(_Host, none, none) ->
     none;
 update_port_map(Host, {_, OldMap}, {NP, CurMap}) ->
     {NP, gb_trees:insert(Host, gb_trees:get(Host, OldMap), CurMap)}.
 
--spec do_update_config_table([disco_config:host_info()], [host_name()],
-                             [host_name()], state()) -> state().
+-spec do_update_config_table([disco_config:host_info()], [host()],
+                             [host()], state()) -> state().
 do_update_config_table(Config, Blacklist, GCBlacklist,
                        #state{nodes = Nodes, port_map = OldPortMap} = S) ->
     lager:info("Config table updated"),
@@ -437,12 +437,12 @@ do_update_config_table(Config, Blacklist, GCBlacklist,
     S1 = do_gc_blacklist(GCBlacklist, S),
     S1#state{nodes = NewNodes, port_map = NewPortMap}.
 
--spec do_gc_blacklist([host_name()], state()) -> state().
+-spec do_gc_blacklist([host()], state()) -> state().
 do_gc_blacklist(Hosts, S) ->
     ddfs_master:gc_blacklist([disco:slave_node(H) || H <- Hosts]),
     S.
 
--spec start_worker(host_name(), pid(), task()) -> pid().
+-spec start_worker(host(), pid(), task()) -> pid().
 start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
                        [T#task.mode, T#task.taskid, Node], {}),

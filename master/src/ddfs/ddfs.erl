@@ -9,15 +9,15 @@
 
 -type gen_server() :: pid() | atom() | {atom(), node()}.
 
--spec new_blob(gen_server(), string(), non_neg_integer(), [node()]) ->
-    'invalid_name' | 'too_many_replicas' | {'ok', [string()]} | _.
+-spec new_blob(gen_server(), string(), non_neg_integer(), [node()])
+              -> invalid_name | too_many_replicas | {ok, [string()]} | _.
 new_blob(Server, Blob, Replicas, Exclude) ->
     validate(Blob, fun() ->
         Obj = [Blob, "$", ddfs_util:timestamp()],
         gen_server:call(Server, {new_blob, Obj, Replicas, Exclude})
     end).
 
--spec tags(gen_server(), binary()) -> {'ok', [binary()]}.
+-spec tags(gen_server(), binary()) -> {ok, [binary()]}.
 tags(Server, Prefix) ->
     case gen_server:call(Server, {get_tags, safe}, ?NODEOP_TIMEOUT) of
         {ok, Tags} ->
@@ -29,9 +29,8 @@ tags(Server, Prefix) ->
         E -> E
     end.
 
--spec get_tag(gen_server(), nonempty_string(), atom() | string(), token() | 'internal') ->
-    'invalid_name' | {'missing', _} | 'unknown_attribute'
-    | {'ok', binary()} | {'error', _}.
+-spec get_tag(gen_server(), nonempty_string(), atom() | string(), token() | internal)
+             -> invalid_name | {missing, _} | unknown_attribute | {ok, binary()} | {error, _}.
 get_tag(Server, Tag, Attrib, Token) ->
     tagop(Server, Tag, {get, Attrib, Token}, ?NODEOP_TIMEOUT).
 
@@ -53,16 +52,16 @@ replace_tag(Server, Tag, Field, Value, Token) ->
 delete_attrib(Server, Tag, Field, Token) ->
     tagop(Server, Tag, {delete_attrib, Field, Token}).
 
--spec delete(gen_server(), nonempty_string(), token() | 'internal') -> term().
+-spec delete(gen_server(), nonempty_string(), token() | internal) -> term().
 delete(Server, Tag, Token) ->
     tagop(Server, Tag, {delete, Token}).
 
 -spec tagop(gen_server(), nonempty_string(),
-            {'delete', _}
-            | {'delete_attrib', _, _}
-            | {'delayed_update', _, _, _}
-            | {'update', _, _, _}
-            | {'put', _, _, _}) -> term().
+            {delete, _}
+            | {delete_attrib, _, _}
+            | {delayed_update, _, _, _}
+            | {update, _, _, _}
+            | {put, _, _, _}) -> term().
 tagop(Server, Tag, Op) ->
     tagop(Server, Tag, Op, ?TAG_UPDATE_TIMEOUT).
 tagop(Server, Tag, Op, Timeout) ->

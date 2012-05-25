@@ -1,8 +1,10 @@
 -module(disco_proxy).
 -behaviour(gen_server).
 
--include("disco.hrl").
+-include("common_types.hrl").
 -include("gs_util.hrl").
+-include("disco.hrl").
+
 
 -export([start/0, update_nodes/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -57,7 +59,7 @@ start() ->
         end
     end.
 
--spec update_nodes([host_name()], port_map()) -> ok.
+-spec update_nodes([host()], port_map()) -> ok.
 update_nodes(Nodes, PortMap) ->
     case disco:get_setting("DISCO_PROXY_ENABLED") of
         "" -> ok;
@@ -76,7 +78,7 @@ init(_Args) ->
 handle_call(_Req, _From, S) ->
     {noreply, S}.
 
--spec handle_cast({update_nodes, [host_name()], port_map()}, state())
+-spec handle_cast({update_nodes, [host()], port_map()}, state())
                  -> gs_noreply().
 handle_cast({update_nodes, Nodes, PortMap}, ProxyMonitor) ->
     do_update_nodes(Nodes, PortMap),
@@ -102,7 +104,7 @@ terminate(Reason, _State) ->
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
--spec do_update_nodes([host_name()], port_map()) -> 'ok'.
+-spec do_update_nodes([host()], port_map()) -> ok.
 do_update_nodes(Nodes, PortMap) ->
     DiscoPort = disco:get_setting("DISCO_PORT"),
     Port = disco:get_setting("DISCO_PROXY_PORT"),

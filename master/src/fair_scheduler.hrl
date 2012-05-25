@@ -7,7 +7,7 @@
 % Common scheduler msgs.
 
 -type new_task_msg()     :: {new_task, task(), [nodestat()]}.
--type update_nodes_msg() :: {update_nodes, [{host_name(), cores()}]}.
+-type update_nodes_msg() :: {update_nodes, [{host(), cores()}]}.
 
 -type new_job_msg()  :: {new_job, pid(), jobname()}.
 -type next_job_msg() :: {next_job, [pid()]}.
