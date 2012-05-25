@@ -87,7 +87,7 @@ kill_job(JobName, {EventFormat, Args}) ->
 % to nodes. After that, it starts to wait for the results and finally
 % returns when it has gathered all the results.
 -spec work([{non_neg_integer(), [{input(), host()}]}],
-           nonempty_string(),
+           task_mode(),
            non_neg_integer(),
            jobinfo(),
            gb_tree()) ->
@@ -128,7 +128,7 @@ work([], _Mode, 0, _Job, Res) ->
 
 % wait_workers receives messages from disco_server:clean_worker() that is
 % called when a worker exits.
--spec wait_workers(non_neg_integer(), gb_tree(), nonempty_string()) ->
+-spec wait_workers(non_neg_integer(), gb_tree(), task_mode()) ->
     {non_neg_integer(), gb_tree()}.
 
 % Error condition: should not happen.
@@ -139,20 +139,20 @@ wait_workers(N, Results, Mode) ->
         {{done, TaskResults}, Task, Host} ->
             event_server:task_event(Task,
                                     disco:format("Received results from ~s", [Host]),
-                                    {task_ready, Mode}),
+                                    {task_ready, atom_to_list(Mode)}),
             {N - 1, gb_trees:enter(Task#task.taskid,
                                    {disco:slave_node(Host), TaskResults},
                                    Results)};
         {{error, Error}, Task, Host} ->
             event_server:task_event(Task,
                                     {<<"WARNING">>, Error},
-                                    {task_failed, Task#task.mode},
+                                    {task_failed, atom_to_list(Task#task.mode)},
                                     Host),
             handle_data_error(Task, Host),
             {N, Results};
         {{fatal, Error}, Task, Host} ->
             throw({error, disco:format("Worker at '~s' died: ~s", [Host, Error]),
-                   {task_failed, Task#task.mode}})
+                   {task_failed, atom_to_list(Task#task.mode)}})
     end.
 
 -spec submit_task(task()) -> ok.
@@ -161,7 +161,7 @@ submit_task(Task) ->
         ok ->
             ok;
         _ ->
-            throw({error, disco:format("~s:~B scheduling failed. Try again later.",
+            throw({error, disco:format("~p:~B scheduling failed. Try again later.",
                                        [Task#task.mode, Task#task.taskid])})
     end.
 
@@ -183,7 +183,7 @@ handle_data_error(Task, Host) ->
                            random:uniform(?FAILED_PAUSE_RANDOMIZE),
                        event_server:event(
                          Task#task.jobname,
-                         "~s:~B Task failed for the ~Bth time. "
+                         "~p:~B Task failed for the ~Bth time. "
                          "Sleeping ~B seconds before retrying.",
                          [Task#task.mode, Task#task.taskid, C, round(S / 1000)],
                          {}),
@@ -215,9 +215,9 @@ map_input(Inputs) ->
 map(Inputs, #jobinfo{map = false}) ->
     Inputs;
 map(Inputs, Job) ->
-    run_phase(map_input(Inputs), "map", Job).
+    run_phase(map_input(Inputs), map, Job).
 
--spec shuffle(jobname(), nonempty_string(), [{node(), binary()}]) -> {ok, [binary()]}.
+-spec shuffle(jobname(), task_mode(), [{node(), binary()}]) -> {ok, [binary()]}.
 shuffle(_JobName, _Mode, []) ->
     {ok, []};
 shuffle(JobName, Mode, DirUrls) ->
@@ -250,13 +250,13 @@ reduce(Inputs, #jobinfo{reduce = false}) ->
     Inputs;
 reduce(Inputs, Job) ->
     run_phase(reduce_input(Inputs, Job#jobinfo.nr_reduce),
-              "reduce",
+              reduce,
               Job#jobinfo{force_local = false,
                           force_remote = false}).
 
--spec run_phase([phase_input()], nonempty_string(), jobinfo()) -> [input()].
+-spec run_phase([phase_input()], task_mode(), jobinfo()) -> [input()].
 run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
-    job_event(JobName, {"Starting ~s phase", [Mode]}),
+    job_event(JobName, {"Starting ~s phase", [atom_to_list(Mode)]}),
     Started = now(),
     {ok, TaskResults} = work(Inputs, Mode, 0, Job, gb_trees:empty()),
     Fun = fun ({_Node, {none, GResults}}, {Local, Global}) ->
@@ -268,9 +268,9 @@ run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
     % Only local results need to be shuffled.
     {ok, Combined} = shuffle(JobName, Mode, LResults),
     Results = lists:usort(GResults ++ Combined),
-    job_event(JobName, {"Finished ~s phase in ~s",
+    job_event(JobName, {"Finished ~p phase in ~s",
                         [Mode, disco:format_time_since(Started)],
-                        {list_to_atom(Mode ++ "_ready"), Results}}),
+                        {list_to_atom(atom_to_list(Mode) ++ "_ready"), Results}}),
     Results.
 
 -spec preferred_host(binary()) -> host().

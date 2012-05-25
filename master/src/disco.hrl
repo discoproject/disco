@@ -27,7 +27,7 @@
 -type nodeinfo() :: #nodeinfo{}.
 
 -type task_input() :: {binary(), host()}.
-
+-type task_mode() :: map | reduce.
 -record(task, {chosen_input :: binary() | [binary()],
                force_local :: boolean(),
                force_remote :: boolean(),
@@ -36,7 +36,7 @@
                jobenvs :: [{nonempty_string(), string()}],
                worker :: binary(),
                jobname :: jobname(),
-               mode :: nonempty_string(), %"map" | "reduce"
+               mode :: task_mode(),
                taskid :: non_neg_integer(),
                taskblack :: [host()],
                fail_count :: non_neg_integer()}).

@@ -110,7 +110,7 @@ do_handle({<<"TASK">>, _Body}, #state{task = Task} = S) ->
                          {<<"put_port">>, PutPort},
                          {<<"ddfs_data">>, list_to_binary(DDFSData)},
                          {<<"disco_data">>, list_to_binary(DiscoData)},
-                         {<<"mode">>, list_to_binary(Task#task.mode)},
+                         {<<"mode">>, list_to_binary(atom_to_list(Task#task.mode))},
                          {<<"jobfile">>, list_to_binary(JobFile)},
                          {<<"jobname">>, list_to_binary(Task#task.jobname)},
                          {<<"host">>, list_to_binary(disco:host(node()))}]},
