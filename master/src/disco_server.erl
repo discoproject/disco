@@ -14,7 +14,7 @@
 -include("disco.hrl").
 -include("gs_util.hrl").
 
--type connection_status() :: undefined | up | erlang:timestamp().
+-type connection_status() :: undefined | {up | down, erlang:timestamp()}.
 
 -record(dnode, {host :: host_name(),
                 node_mon :: pid(),
@@ -300,14 +300,14 @@ node_ports(Host, {_NextPort, PortMap}) ->
     #node_ports{get_port = GetPort, put_port = PutPort}.
 
 -spec allow_write(#dnode{}) -> boolean().
-allow_write(#dnode{connection_status = up,
+allow_write(#dnode{connection_status = {up, _},
                    manual_blacklist = false}) ->
     true;
 allow_write(#dnode{}) ->
     false.
 
 -spec allow_read(#dnode{}) -> boolean().
-allow_read(#dnode{connection_status = up}) ->
+allow_read(#dnode{connection_status = {up, _}}) ->
     true;
 allow_read(#dnode{}) ->
     false.
@@ -352,10 +352,10 @@ do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
             {value, N} when Status =:= up ->
-                N1 = N#dnode{connection_status = up},
+                N1 = N#dnode{connection_status = {up, now()}},
                 gb_trees:update(Node, N1, Nodes);
             {value, N} when Status =:= down ->
-                N1 = N#dnode{connection_status = now()},
+                N1 = N#dnode{connection_status = {down, now()}},
                 gb_trees:update(Node, N1, Nodes);
             _ -> Nodes
         end,
@@ -408,7 +408,7 @@ do_update_config_table(Config, Blacklist, GCBlacklist,
                               {#dnode{host = Host,
                                       node_mon = node_mon:start_link(Host, NodePorts),
                                       manual_blacklist = lists:member(Host, Blacklist),
-                                      connection_status = undefined,
+                                      connection_status = {down, now()},
                                       slots = Slots,
                                       num_running = 0,
                                       stats_ok = 0,
@@ -535,7 +535,7 @@ do_get_nodeinfo(#state{nodes = Nodes}) ->
                       stats_ok = StatsOk,
                       stats_failed = StatsFailed,
                       stats_crashed = StatsCrashed,
-                      connection_status = ConnectionStatus,
+                      connection_status = {ConnectionStatus, _},
                       manual_blacklist = Blacklisted} <- gb_trees:values(Nodes)],
     {ok, Info}.
 
