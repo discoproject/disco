@@ -65,7 +65,7 @@ get_map_results(JobName) ->
 -spec get_results(jobname()) -> invalid_job | {ready, pid(), [job_coordinator:input()]}
                                     | {process_status(), pid()}.
 get_results(JobName) ->
-    gen_server:call(event_server, {get_results, JobName}).
+    gen_server:call(?MODULE, {get_results, JobName}).
 
 -spec clean_job(jobname()) -> ok.
 clean_job(JobName) ->
@@ -302,7 +302,7 @@ event(JobName, Format, Args, Params) ->
 
 -spec event(host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
 event(Host, JobName, Format, Args, Params) ->
-    event(event_server, Host, JobName, Format, Args, Params).
+    event(?MODULE, Host, JobName, Format, Args, Params).
 
 -spec event(server(), host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
 event(EventServer, Host, JobName, Format, Args, Params) ->
@@ -332,7 +332,7 @@ task_event(Task, Event, Params) ->
 
 -spec task_event(task(), term(), tuple(), host()) -> ok.
 task_event(Task, Event, Params, Host) ->
-    task_event(Task, Event, Params, Host, event_server).
+    task_event(Task, Event, Params, Host, ?MODULE).
 
 -spec task_event(task(), term(), tuple(), host(), server()) -> ok.
 task_event(Task, {Type, Message}, Params, Host, EventServer) ->
@@ -369,7 +369,7 @@ delete_jobdir(JobName) ->
 job_event_handler(JobName, JobCoordinator) ->
     {ok, _JobHome} = disco:make_dir(disco:jobhome(JobName)),
     {ok, File} = file:open(event_log(JobName), [append, raw]),
-    gen_server:call(event_server, {job_initialized, JobName, self()}),
+    gen_server:call(?MODULE, {job_initialized, JobName, self()}),
     gen_server:reply(JobCoordinator, {ok, JobName}),
     {ok, _} = timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
     job_event_handler_do(File, [], 0).
