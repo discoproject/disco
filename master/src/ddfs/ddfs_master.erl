@@ -34,10 +34,10 @@
 -include("ddfs_gc.hrl").
 
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
--type gc_stats() :: 'none' | gc_run_stats().
+-type gc_stats() :: none | gc_run_stats().
 
 -record(state, {tags      = gb_trees:empty() :: gb_tree(),
-                tag_cache = false            :: 'false' | gb_set(),
+                tag_cache = false            :: false | gb_set(),
                 cache_refresher              :: pid(),
 
                 nodes             = []                :: [node_info()],
@@ -45,7 +45,7 @@
                 read_blacklist    = []                :: [node()],
                 gc_blacklist      = []                :: [node()],
                 safe_gc_blacklist = gb_sets:empty()   :: gb_set(),
-                gc_stats          = none              :: 'none' | {gc_stats(), erlang:timestamp()}}).
+                gc_stats          = none              :: none | {gc_stats(), erlang:timestamp()}}).
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
 
@@ -70,74 +70,74 @@ tag_operation(Op, Tag) ->
 tag_operation(Op, Tag, Timeout) ->
     gen_server:call(?MODULE, {tag, Op, Tag}, Timeout).
 
--spec tag_notify(term(), tagname()) -> 'ok'.
+-spec tag_notify(term(), tagname()) -> ok.
 tag_notify(Op, Tag) ->
     gen_server:cast(?MODULE, {tag_notify, Op, Tag}).
 
--spec get_nodeinfo('all') -> {'ok', [node_info()]}.
+-spec get_nodeinfo(all) -> {ok, [node_info()]}.
 get_nodeinfo(all) ->
     gen_server:call(?MODULE, {get_nodeinfo, all}).
 
--spec get_read_nodes() -> {'ok', [node()], non_neg_integer()} | {'error', term()}.
+-spec get_read_nodes() -> {ok, [node()], non_neg_integer()} | {error, term()}.
 get_read_nodes() ->
     gen_server:call(?MODULE, get_read_nodes).
 
--spec gc_blacklist() -> {'ok', [node()]}.
+-spec gc_blacklist() -> {ok, [node()]}.
 gc_blacklist() ->
     gen_server:call(?MODULE, gc_blacklist).
 
--spec gc_blacklist([node()]) -> 'ok'.
+-spec gc_blacklist([node()]) -> ok.
 gc_blacklist(Nodes) ->
     gen_server:cast(?MODULE, {gc_blacklist, Nodes}).
 
--spec gc_stats() -> {'ok', 'none' | {gc_stats(), erlang:timestamp()}} | {'error', term()}.
+-spec gc_stats() -> {ok, none | {gc_stats(), erlang:timestamp()}} | {error, term()}.
 gc_stats() ->
     gen_server:call(?MODULE, gc_stats).
 
--spec get_hosted_tags(host()) -> {'ok', [tagname()]} | {'error', term()}.
+-spec get_hosted_tags(host()) -> {ok, [tagname()]} | {error, term()}.
 get_hosted_tags(Host) ->
     gen_server:call(?MODULE, {get_hosted_tags, Host}).
 
--spec choose_write_nodes(non_neg_integer(), [node()]) -> {'ok', [node()]}.
+-spec choose_write_nodes(non_neg_integer(), [node()]) -> {ok, [node()]}.
 choose_write_nodes(K, Exclude) ->
     gen_server:call(?MODULE, {choose_write_nodes, K, Exclude}).
 
--spec get_tags('gc') -> {'ok', [tagname()], [node()]} | 'too_many_failed_nodes';
-              ('safe') -> {'ok', [binary()]} | 'too_many_failed_nodes'.
+-spec get_tags(gc) -> {ok, [tagname()], [node()]} | too_many_failed_nodes;
+              (safe) -> {ok, [binary()]} | too_many_failed_nodes.
 get_tags(Mode) ->
     gen_server:call(?MODULE, {get_tags, Mode}, ?GET_TAG_TIMEOUT).
 
 -spec new_blob(string()|object_name(), non_neg_integer(), [node()]) ->
-                      'too_many_replicas' | {'ok', [nonempty_string()]}.
+                      too_many_replicas | {ok, [nonempty_string()]}.
 new_blob(Obj, K, Exclude) ->
     gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
 
--spec safe_gc_blacklist() -> {'ok', [node()]} | {'error', term()}.
+-spec safe_gc_blacklist() -> {ok, [node()]} | {error, term()}.
 safe_gc_blacklist() ->
     gen_server:call(?MODULE, safe_gc_blacklist).
 
--spec safe_gc_blacklist(gb_set()) -> 'ok'.
+-spec safe_gc_blacklist(gb_set()) -> ok.
 safe_gc_blacklist(SafeGCBlacklist) ->
     gen_server:cast(?MODULE, {safe_gc_blacklist, SafeGCBlacklist}).
 
--spec update_gc_stats(gc_run_stats()) -> 'ok'.
+-spec update_gc_stats(gc_run_stats()) -> ok.
 update_gc_stats(Stats) ->
     gen_server:cast(?MODULE, {update_gc_stats, Stats}).
 
 -type nodes_update() :: [{node(), boolean(), boolean()}].
--spec update_nodes(nodes_update()) -> 'ok'.
+-spec update_nodes(nodes_update()) -> ok.
 update_nodes(DDFSNodes) ->
     gen_server:cast(?MODULE, {update_nodes, DDFSNodes}).
 
--spec update_nodestats(gb_tree()) -> 'ok'.
+-spec update_nodestats(gb_tree()) -> ok.
 update_nodestats(NewNodes) ->
     gen_server:cast(?MODULE, {update_nodestats, NewNodes}).
 
--spec update_tag_cache(gb_set()) -> 'ok'.
+-spec update_tag_cache(gb_set()) -> ok.
 update_tag_cache(TagCache) ->
     gen_server:cast(?MODULE, {update_tag_cache, TagCache}).
 
--spec refresh_tag_cache() -> 'ok'.
+-spec refresh_tag_cache() -> ok.
 refresh_tag_cache() ->
     gen_server:cast(?MODULE, refresh_tag_cache).
 
@@ -277,7 +277,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% internal functions
 
 -spec do_get_readable_nodes([node_info()], [node()]) ->
-                                   {'ok', [node()], non_neg_integer()}.
+                                   {ok, [node()], non_neg_integer()}.
 do_get_readable_nodes(Nodes, ReadBlacklist) ->
     NodeSet = gb_sets:from_ordset(lists:sort([Node || {Node, _} <- Nodes])),
     BlackSet = gb_sets:from_ordset(ReadBlacklist),
@@ -285,7 +285,7 @@ do_get_readable_nodes(Nodes, ReadBlacklist) ->
     {ok, gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
 -spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()]) ->
-                                   {'ok', [node()]}.
+                                   {ok, [node()]}.
 do_choose_write_nodes(Nodes, K, Exclude, BlackList) ->
     % Node selection algorithm:
     % 1. try to choose K nodes randomly from all the nodes which have
@@ -317,7 +317,7 @@ do_new_blob(Obj, K, Exclude, BlackList, Nodes) ->
 % Tag request: Start a new tag server if one doesn't exist already. Forward
 % the request to the tag server.
 
--spec get_tag_pid(tagname(), gb_tree(), 'false' | gb_set()) ->
+-spec get_tag_pid(tagname(), gb_tree(), false | gb_set()) ->
                          {pid(), gb_tree()}.
 get_tag_pid(Tag, Tags, Cache) ->
     case gb_trees:lookup(Tag, Tags) of
@@ -390,9 +390,9 @@ do_tag_exit(Pid, S) ->
     NewTags = [X || {_, V} = X <- gb_trees:to_list(S#state.tags), V =/= Pid],
     S#state{tags = gb_trees:from_orddict(NewTags)}.
 
--spec do_get_tags('all' | 'filter', [node()]) -> {[node()], [node()], [binary()]};
-                 ('safe', [node()]) -> {'ok', [binary()]} | 'too_many_failed_nodes';
-                 ('gc', [node()]) -> {'ok', [binary()], [node()]} | 'too_many_failed_nodes'.
+-spec do_get_tags(all | filter, [node()]) -> {[node()], [node()], [binary()]};
+                 (safe, [node()]) -> {ok, [binary()]} | too_many_failed_nodes;
+                 (gc, [node()]) -> {ok, [binary()], [node()]} | too_many_failed_nodes.
 do_get_tags(all, Nodes) ->
     {Replies, Failed} =
         gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
@@ -485,7 +485,7 @@ refresh_tag_cache_proc() ->
     end,
     refresh_tag_cache_proc().
 
--spec refresh_tag_cache([node()], non_neg_integer()) -> 'ok'.
+-spec refresh_tag_cache([node()], non_neg_integer()) -> ok.
 refresh_tag_cache(Nodes, BLSize) ->
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     {Replies, Failed} =
