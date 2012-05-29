@@ -8,6 +8,8 @@
 -type input() :: binary() | [binary()].
 -type phase_input() :: {non_neg_integer(), [{input(), host()}]}.
 
+-export_type([input/0]).
+
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad idea.
 % Thus, the HTTP request spawns a new process, job_coordinator, that
@@ -78,7 +80,7 @@ job_coordinator(#jobinfo{jobname = JobName} = Job) ->
 kill_job(JobName, {EventFormat, Args, Params} = Error) ->
     job_event(JobName, {"ERROR: " ++ EventFormat, Args, Params}),
     disco_server:kill_job(JobName, 30000),
-    gen_server:cast(event_server, {job_done, JobName}),
+    event_server:end_job(JobName),
     exit(Error);
 kill_job(JobName, {EventFormat, Args}) ->
     kill_job(JobName, {EventFormat, Args, {}}).
