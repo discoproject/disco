@@ -48,7 +48,8 @@
 -spec start() -> ignore | {ok, pid()}.
 start() ->
     Proxy = disco:get_setting("DISCO_PROXY_ENABLED"),
-    if Proxy =:= "" ->
+    LocalCluster = disco:local_cluster(),
+    if Proxy =:= "",  LocalCluster =:= false ->
         lager:info("Disco proxy disabled"),
         ignore;
     true ->
