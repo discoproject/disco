@@ -562,7 +562,7 @@ do_kill_job(JobName) ->
 -spec do_clean_job(jobname()) -> ok.
 do_clean_job(JobName) ->
     do_kill_job(JobName),
-    gen_server:cast(event_server, {clean_job, JobName}),
+    event_server:clean_job(JobName),
     ok.
 
 % This is executed in its own process.

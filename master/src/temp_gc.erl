@@ -20,7 +20,7 @@ start_link(Master, DataRoot) ->
 
 -spec loop(path()) -> no_return().
 loop(DataRoot) ->
-    case catch {get_purged(), get_jobs()} of
+    case catch {get_purged(), event_server:get_jobs(get(master))} of
         {{ok, Purged}, {ok, Jobs}} ->
             case prim_file:list_dir(DataRoot) of
                 {ok, Dirs} ->
@@ -56,9 +56,6 @@ ddfs_delete(Tag) ->
 -spec get_purged() -> [binary()].
 get_purged() ->
     disco_server:get_purged(get(master)).
-
-get_jobs() ->
-    gen_server:call({event_server, get(master)}, get_jobs).
 
 -spec process_dir(path(), [path()], gb_set(), gb_set()) -> ok.
 process_dir(_DataRoot, [], _Purged, _Active) -> ok;
