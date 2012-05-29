@@ -80,7 +80,8 @@ def cat(program, *urls):
     def curl(replicas):
         for replica in replicas:
             try:
-                return download(proxy_url(urlresolve(replica, master=program.ddfs.master)))
+                return download(proxy_url(urlresolve(replica, master=program.ddfs.master),
+                                          to_master=False))
             except Exception, e:
                 sys.stderr.write("%s\n" % e)
         if not ignore_missing:
@@ -391,7 +392,7 @@ def xcat(program, *urls):
     stream = reify(program.options.stream)
     reader = program.options.reader
     reader = reify('disco.func.chain_reader' if reader is None else reader)
-    bloburls = [[proxy_url(urlresolve(u)) for u in repset]
+    bloburls = [[proxy_url(urlresolve(u), to_master=False) for u in repset]
                 for repset in chain(urls, program.blobs(*tags))]
     for record in classic_iterator(bloburls,
                                    input_stream=stream,

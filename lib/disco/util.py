@@ -276,15 +276,17 @@ def parse_dir(dir, partition=None):
     # XXX: guarantee indices are read in the same order (task/labels) (for redundancy)
     return [url for id, url in sorted(read_index(dir)) if partition in (None, id)]
 
-def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET'):
+def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET', to_master=True):
     scheme, (host, port), path = urlsplit(url)
     if proxy and scheme != "tag":
+        if to_master:
+            return '%s/%s' % (proxy, path)
         return '%s/proxy/%s/%s/%s' % (proxy, host, meth, path)
     return url
 
 def read_index(dir):
     from disco.comm import open_url
-    file = open_url(proxy_url(dir))
+    file = open_url(proxy_url(dir, to_master=False))
     if dir.endswith(".gz"):
         file = gzip.GzipFile(fileobj=file)
     for line in file:
