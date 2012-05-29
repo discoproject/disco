@@ -99,6 +99,7 @@ handle_info({'EXIT', Other, Reason}, S) ->
 
 -spec terminate(term(), state()) -> ok.
 terminate(Reason, _State) ->
+    kill_proxy(),
     lager:warning("Disco proxy dies: ~p", [Reason]).
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
