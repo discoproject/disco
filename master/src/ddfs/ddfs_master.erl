@@ -346,7 +346,7 @@ do_tag_notify(M, Tag, #state{tags = Tags, tag_cache = Cache} = S) ->
     S#state{tags = TagsN,
             tag_cache = Cache =/= false andalso gb_sets:add(Tag, Cache)}.
 
--spec do_update_nodes([{node(), boolean(), boolean()}], state()) -> state().
+-spec do_update_nodes(nodes_update(), state()) -> state().
 do_update_nodes(NewNodes, #state{nodes = Nodes, tags = Tags} = S) ->
     WriteBlacklist = lists:sort([Node || {Node, false, _} <- NewNodes]),
     ReadBlacklist = lists:sort([Node || {Node, _, false} <- NewNodes]),
