@@ -2,14 +2,14 @@
 -behaviour(gen_server).
 
 -export([start_link/0]).
--export([get_tags/1,
+-export([get_tags/1, get_tags/3,
          get_nodeinfo/1,
          get_read_nodes/0,
          get_hosted_tags/1,
          gc_blacklist/0, gc_blacklist/1,
          gc_stats/0,
          choose_write_nodes/2,
-         new_blob/3,
+         new_blob/3, new_blob/4,
          safe_gc_blacklist/0, safe_gc_blacklist/1,
          refresh_tag_cache/0,
          tag_notify/2,
@@ -105,12 +105,24 @@ choose_write_nodes(K, Exclude) ->
 -spec get_tags(gc) -> {ok, [tagname()], [node()]} | too_many_failed_nodes;
               (safe) -> {ok, [binary()]} | too_many_failed_nodes.
 get_tags(Mode) ->
-    gen_server:call(?MODULE, {get_tags, Mode}, ?GET_TAG_TIMEOUT).
+    get_tags(?MODULE, Mode, ?GET_TAG_TIMEOUT).
+
+-spec get_tags(server(), gc, non_neg_integer()) ->
+                      {ok, [tagname()], [node()]} | too_many_failed_nodes;
+              (server(), safe, non_neg_integer()) ->
+                      {ok, [binary()]} | too_many_failed_nodes.
+get_tags(Server, Mode, Timeout) ->
+    gen_server:call(Server, {get_tags, Mode}, Timeout).
 
 -spec new_blob(string()|object_name(), non_neg_integer(), [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
 new_blob(Obj, K, Exclude) ->
     gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
+
+-spec new_blob(server(), string()|object_name(), non_neg_integer(), [node()]) ->
+                      too_many_replicas | {ok, [nonempty_string()]}.
+new_blob(Master, Obj, K, Exclude) ->
+    gen_server:call(Master, {new_blob, Obj, K, Exclude}).
 
 -spec safe_gc_blacklist() -> {ok, [node()]} | {error, term()}.
 safe_gc_blacklist() ->

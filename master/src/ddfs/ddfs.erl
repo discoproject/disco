@@ -15,19 +15,19 @@
               -> invalid_name | too_many_replicas | {ok, [string()]} | _.
 new_blob(Server, Blob, Replicas, Exclude) ->
     validate(Blob, fun() ->
-        Obj = [Blob, "$", ddfs_util:timestamp()],
-        gen_server:call(Server, {new_blob, Obj, Replicas, Exclude})
-    end).
+                       Obj = lists:flatten([Blob, "$", ddfs_util:timestamp()]),
+                       ddfs_master:new_blob(Server, Obj, Replicas, Exclude)
+                   end).
 
 -spec tags(server(), binary()) -> {ok, [binary()]}.
 tags(Server, Prefix) ->
-    case gen_server:call(Server, {get_tags, safe}, ?NODEOP_TIMEOUT) of
+    case ddfs_master:get_tags(Server, safe, ?NODEOP_TIMEOUT) of
         {ok, Tags} ->
             {ok, if Prefix =:= <<>> ->
-                Tags;
-            true ->
-                [T || T <- Tags, ddfs_util:startswith(T, Prefix)]
-            end};
+                         Tags;
+                    true ->
+                         [T || T <- Tags, ddfs_util:startswith(T, Prefix)]
+                 end};
         E -> E
     end.
 
@@ -68,8 +68,8 @@ tagop(Server, Tag, Op) ->
     tagop(Server, Tag, Op, ?TAG_UPDATE_TIMEOUT).
 tagop(Server, Tag, Op, Timeout) ->
     validate(Tag, fun() ->
-                      gen_server:call(Server,
-                                      {tag, Op, list_to_binary(Tag)}, Timeout)
+                          gen_server:call(Server,
+                                          {tag, Op, list_to_binary(Tag)}, Timeout)
                   end).
 
 -spec validate(nonempty_string(), fun(()-> T)) -> T.
