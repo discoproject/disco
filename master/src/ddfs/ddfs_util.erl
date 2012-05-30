@@ -10,7 +10,7 @@
          is_valid_name/1,
          pack_objname/2,
          parse_url/1,
-         local_cluster_url/2,
+         cluster_url/2,
          safe_rename/2,
          startswith/2,
          timestamp/0,
@@ -134,13 +134,13 @@ parse_url(Url) when is_list(Url) ->
     end.
 
 -type method() :: get | put.
--spec local_cluster_url(binary() | string(), method()) -> string().
-local_cluster_url(Url, Meth) when is_binary(Url) ->
-    local_cluster_url(binary_to_list(Url), Meth);
-local_cluster_url(Url, Meth) when is_list(Url) ->
-    local_cluster_url(Url, Meth, disco:local_cluster()).
-local_cluster_url(Url, _Meth, false) -> Url;
-local_cluster_url(Url, Meth, true) ->
+-spec cluster_url(binary() | string(), method()) -> string().
+cluster_url(Url, Meth) when is_binary(Url) ->
+    cluster_url(binary_to_list(Url), Meth);
+cluster_url(Url, Meth) when is_list(Url) ->
+    cluster_url(Url, Meth, disco:local_cluster()).
+cluster_url(Url, _Meth, false) -> Url;
+cluster_url(Url, Meth, true) ->
     Method = string:to_upper(atom_to_list(Meth)),
     ProxyPort = disco:get_setting("DISCO_PROXY_PORT"),
     U = binary_to_list(list_to_binary(Url)),
