@@ -49,22 +49,23 @@
 start() ->
     Proxy = disco:get_setting("DISCO_PROXY_ENABLED"),
     LocalCluster = disco:local_cluster(),
-    if Proxy =:= "",  LocalCluster =:= false ->
-        lager:info("Disco proxy disabled"),
-        ignore;
-    true ->
-        lager:info("Disco proxy enabled"),
-        case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
-            {ok, Server} -> {ok, Server};
-            {error, {already_started, Server}} -> {ok, Server}
-        end
+    if Proxy =:= "", LocalCluster =:= false ->
+            lager:info("Disco proxy disabled"),
+            ignore;
+       true ->
+            lager:info("Disco proxy enabled"),
+            case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
+                {ok, Server} -> {ok, Server};
+                {error, {already_started, Server}} -> {ok, Server}
+            end
     end.
 
 -spec update_nodes([host()], port_map()) -> ok.
 update_nodes(Nodes, PortMap) ->
-    case disco:get_setting("DISCO_PROXY_ENABLED") of
-        "" -> ok;
-        _ -> gen_server:cast(?MODULE, {update_nodes, Nodes, PortMap})
+    Proxy = disco:get_setting("DISCO_PROXY_ENABLED"),
+    LocalCluster = disco:local_cluster(),
+    if Proxy =:= "", LocalCluster =:= false -> ok;
+       true -> gen_server:cast(?MODULE, {update_nodes, Nodes, PortMap})
     end.
 
 -type state() :: pid().
