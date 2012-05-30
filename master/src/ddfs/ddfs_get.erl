@@ -9,17 +9,19 @@
 
 -export([start/2, serve_ddfs_file/3, serve_disco_file/3]).
 
--spec start(term(), {path(), path()}) -> {ok, pid()} | {error, term()}.
-start(MochiConfig, Roots) ->
+-spec start(non_neg_integer(), {path(), path()}) -> {ok, pid()} | {error, term()}.
+start(Port, Roots) ->
     Ret = mochiweb_http:start([{name, ddfs_get},
                                {max, ?HTTP_MAX_CONNS},
                                {loop, fun(Req) ->
                                               loop(Req:get(raw_path), Req, Roots)
-                                      end}
-                               | MochiConfig]),
+                                      end},
+                               {port, Port}]),
     case Ret of
-        {ok, _Pid} -> error_logger:info_msg("Started ~p on ~p", [?MODULE, node()]);
-        E ->          error_logger:error_msg("~p failed on ~p: ~p", [?MODULE, node(), E])
+        {ok, _Pid} -> error_logger:info_msg("Started ~p at ~p on port ~p",
+                                            [?MODULE, node(), Port]);
+        E ->          error_logger:error_msg("~p failed at ~p on port ~p: ~p",
+                                             [?MODULE, node(), Port, E])
     end,
     Ret.
 
