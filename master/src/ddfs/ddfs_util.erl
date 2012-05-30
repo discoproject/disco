@@ -10,6 +10,7 @@
          is_valid_name/1,
          pack_objname/2,
          parse_url/1,
+         local_cluster_url/2,
          safe_rename/2,
          startswith/2,
          timestamp/0,
@@ -131,6 +132,26 @@ parse_url(Url) when is_list(Url) ->
             {Host, Vol, tag, Hash, list_to_binary(Obj)};
         _ -> not_ddfs
     end.
+
+-type method() :: get | put.
+-spec local_cluster_url(binary() | string(), method()) -> string().
+local_cluster_url(Url, Meth) when is_binary(Url) ->
+    local_cluster_url(binary_to_list(Url), Meth);
+local_cluster_url(Url, Meth) when is_list(Url) ->
+    local_cluster_url(Url, Meth, disco:local_cluster()).
+local_cluster_url(Url, _Meth, false) -> Url;
+local_cluster_url(Url, Meth, true) ->
+    Method = string:to_upper(atom_to_list(Meth)),
+    ProxyPort = disco:get_setting("DISCO_PROXY_PORT"),
+    U = binary_to_list(list_to_binary(Url)),
+    {S, HostPort, Path, _Q, _F} = mochiweb_util:urlsplit(U),
+    Host = case string:tokens(HostPort, ":") of
+               [H] -> H;
+               [H|_] -> H
+           end,
+    ProxyUrl = [S, "://127.0.0.1:", ProxyPort, "/proxy/",
+                Host, "/", Method, Path],
+    lists:flatten(ProxyUrl).
 
 -spec safe_rename(string(), string()) -> 'ok' | {'error', 'file_exists'
     | {'chmod_failed', _} | {'rename_failed', _}}.
