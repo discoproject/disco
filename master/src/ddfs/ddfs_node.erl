@@ -81,15 +81,14 @@ init(Config) ->
 
     if
         PutEnabled ->
-            {ok, _PutPid} = ddfs_put:start([{port, PutPort}]),
+            {ok, _PutPid} = ddfs_put:start(PutPort),
             ok;
         true ->
             ok
     end,
     if
         GetEnabled ->
-            {ok, _GetPid} = ddfs_get:start([{port, GetPort}],
-                                           {DdfsRoot, DiscoRoot}),
+            {ok, _GetPid} = ddfs_get:start(GetPort, {DdfsRoot, DiscoRoot}),
             ok;
         true ->
             ok

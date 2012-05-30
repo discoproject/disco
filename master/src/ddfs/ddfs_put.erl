@@ -12,17 +12,19 @@
 % maximum file size: 1T
 -define(MAX_RECV_BODY, (1024*1024*1024*1024)).
 
--spec start(term()) -> {ok, pid()} | {error, term()}.
-start(MochiConfig) ->
+-spec start(non_neg_integer()) -> {ok, pid()} | {error, term()}.
+start(Port) ->
     Ret = mochiweb_http:start([{name, ddfs_put},
                                {max, ?HTTP_MAX_CONNS},
                                {loop, fun(Req) ->
                                               loop(Req:get(path), Req)
-                                      end}
-                               | MochiConfig]),
+                                      end},
+                               {port, Port}]),
     case Ret of
-        {ok, _Pid} -> error_logger:info_msg("Started ~p on ~p", [?MODULE, node()]);
-        E ->          error_logger:error_msg("~p failed on ~p: ~p", [?MODULE, node(), E])
+        {ok, _Pid} -> error_logger:info_msg("Started ~p at ~p on port ~p",
+                                            [?MODULE, node(), Port]);
+        E ->          error_logger:error_msg("~p failed at ~p on port ~p: ~p",
+                                             [?MODULE, node(), Port, E])
     end,
     Ret.
 
