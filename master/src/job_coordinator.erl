@@ -88,6 +88,8 @@ kill_job(JobName, {EventFormat, Args}) ->
 % work() is the heart of the map/reduce show. First it distributes tasks
 % to nodes. After that, it starts to wait for the results and finally
 % returns when it has gathered all the results.
+% The results gb_tree() maps #task.id to worker_runtime:results().
+
 -spec work([{non_neg_integer(), [{input(), host()}]}],
            task_mode(),
            non_neg_integer(),
@@ -141,20 +143,20 @@ wait_workers(N, Results, Mode) ->
         {{done, TaskResults}, Task, Host} ->
             event_server:task_event(Task,
                                     disco:format("Received results from ~s", [Host]),
-                                    {task_ready, atom_to_list(Mode)}),
+                                    {task_ready, Mode}),
             {N - 1, gb_trees:enter(Task#task.taskid,
                                    {disco:slave_node(Host), TaskResults},
                                    Results)};
         {{error, Error}, Task, Host} ->
             event_server:task_event(Task,
                                     {<<"WARNING">>, Error},
-                                    {task_failed, atom_to_list(Task#task.mode)},
+                                    {task_failed, Mode},
                                     Host),
             handle_data_error(Task, Host),
             {N, Results};
-        {{fatal, Error}, Task, Host} ->
+        {{fatal, Error}, _Task, Host} ->
             throw({error, disco:format("Worker at '~s' died: ~s", [Host, Error]),
-                   {task_failed, atom_to_list(Task#task.mode)}})
+                   {task_failed, Mode}})
     end.
 
 -spec submit_task(task()) -> ok.
@@ -256,6 +258,11 @@ reduce(Inputs, Job) ->
               Job#jobinfo{force_local = false,
                           force_remote = false}).
 
+task_ready_tag(map) ->
+    map_ready;
+task_ready_tag(reduce) ->
+    reduce_ready.
+
 -spec run_phase([phase_input()], task_mode(), jobinfo()) -> [input()].
 run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
     job_event(JobName, {"Starting ~s phase", [atom_to_list(Mode)]}),
@@ -272,7 +279,7 @@ run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
     Results = lists:usort(GResults ++ Combined),
     job_event(JobName, {"Finished ~p phase in ~s",
                         [Mode, disco:format_time_since(Started)],
-                        {list_to_atom(atom_to_list(Mode) ++ "_ready"), Results}}),
+                        {task_ready_tag(Mode), Results}}),
     Results.
 
 -spec preferred_host(binary()) -> host().
