@@ -13,7 +13,10 @@
                 output_filename :: none | string(),
                 output_file :: none | file:io_device()}).
 -type state() :: #state{}.
--export_type([state/0]).
+
+-type results() :: {none | binary(), [binary()]}.
+
+-export_type([state/0, results/0]).
 
 -spec init(task(), node()) -> state().
 init(Task, Master) ->
@@ -186,7 +189,7 @@ local_results(Task, FileName) ->
                            [Host, url_path(Task, Host, FileName)]),
     list_to_binary(Output).
 
--spec results(state()) -> {none | binary(), [string()]}.
+-spec results(state()) -> {none | binary(), [binary()]}.
 results(#state{output_filename = none, persisted_outputs = Outputs}) ->
     {none, Outputs};
 results(#state{task = Task,

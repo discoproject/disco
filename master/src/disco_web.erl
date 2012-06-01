@@ -261,15 +261,15 @@ update_setting(Key, Val, _) ->
     lager:info("Unknown setting: ~p = ~p", [Key, Val]).
 
 count_maps(L) ->
-    {M, N} = lists:foldl(fun ("map", {M, N}) ->
+    {M, N} = lists:foldl(fun (map, {M, N}) ->
                                  {M + 1, N + 1};
-                             (["map"], {M, N}) ->
-                                 {M + 1, N + 1};
-                             (_, {M, N}) ->
+                             (reduce, {M, N}) ->
                                  {M, N + 1}
                          end, {0, 0}, L),
     {M, N - M}.
 
+-spec render_jobinfo(event_server:job_eventinfo(), {[host()], [task_mode()]})
+                    -> term().
 render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
                {Hosts, Modes}) ->
     {NMapRun, NRedRun} = count_maps(Modes),

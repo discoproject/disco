@@ -1,26 +1,30 @@
 -module(event_server).
 -behaviour(gen_server).
 
--define(EVENT_PAGE_SIZE, 100).
--define(EVENT_BUFFER_SIZE, 1000).
--define(EVENT_BUFFER_TIMEOUT, 2000).
-
 -export([new_job/2, end_job/1, clean_job/1,
          get_jobs/0, get_jobs/1, get_jobinfo/1, get_job_events/3,
          get_map_results/1, get_results/1,
          event/4, event/5, event/6,
          task_event/2, task_event/3, task_event/4, task_event/5]).
--export([start_link/0,
-         init/1,
-         handle_call/3,
-         handle_cast/2,
-         handle_info/2,
-         terminate/2,
-         code_change/3]).
+-export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
 
 -include("common_types.hrl").
 -include("gs_util.hrl").
 -include("disco.hrl").
+
+-define(EVENT_PAGE_SIZE, 100).
+-define(EVENT_BUFFER_SIZE, 1000).
+-define(EVENT_BUFFER_TIMEOUT, 2000).
+
+-type job_eventinfo() :: {StartTime :: binary(),
+                          JobCoordinator :: pid(),
+                          jobinfo(),
+                          Results :: [job_coordinator:input()],
+                          Ready :: [task_mode()],
+                          Failed :: [task_mode()]}.
+
+-export_type([job_eventinfo/0]).
 
 -spec new_job(jobname(), pid()) -> {ok, jobname()}.
 new_job(Prefix, JobCoordinator) ->
@@ -43,12 +47,6 @@ get_jobs() ->
 get_jobs(Master) ->
     gen_server:call({?MODULE, Master}, get_jobs).
 
--type job_eventinfo() :: {StartTime :: erlang:timestamp(),
-                          JobCoordinator :: pid(),
-                          jobinfo(),
-                          Results :: [job_coordinator:input()],
-                          Ready :: string(),
-                          Failed :: string()}.
 -spec get_jobinfo(jobname()) -> invalid_job | {ok, job_eventinfo()}.
 get_jobinfo(JobName) ->
     gen_server:call(?MODULE, {get_jobinfo, JobName}).
@@ -82,11 +80,11 @@ start_link() ->
 % state :: {events dict, msgbuf dict}.
 % events dict: jobname -> { [<event>], <start_time>, <job_coordinator_pid> }
 %              event ::= {ready, <results>}
-%                      | {map_ready, <map-results>}
-%                      | {reduce_ready, <reduce-results>}
+%                      | {map_ready, <map-results> :: [binary()]}
+%                      | {reduce_ready, <reduce-results> :: [binary()]}
 %                      | {job_data, jobinfo()}
-%                      | {task_ready, "map" | "reduce"}
-%                      | {task_failed, "map" | "reduce"}
+%                      | {task_ready, map | reduce}
+%                      | {task_failed, map | reduce}
 %
 % msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
 %
@@ -288,7 +286,7 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
     end,
     MsgBufN = dict:store(JobName, {NMsg + 1, LstLen, MsgLst}, MsgBuf),
     if
-        Params == [] ->
+        Params =:= []; Params =:= {} ->
             {Events, MsgBufN};
         true ->
             {ok, {EvLst0, Nu, Pid}} = dict:find(JobName, Events),
