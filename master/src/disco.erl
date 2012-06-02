@@ -39,6 +39,8 @@
 -define(MINUTE, (60 * ?SECOND)).
 -define(HOUR, (60 * ?MINUTE)).
 
+-define(MAX_FORMAT_LENGTH, 8192).
+
 -spec get_setting(nonempty_string()) -> string().
 get_setting(SettingName) ->
     case os:getenv(SettingName) of
@@ -181,7 +183,7 @@ enum(List) ->
 
 -spec format(nonempty_string(), [term()]) -> nonempty_string().
 format(Format, Args) ->
-    lists:flatten(io_lib:format(Format, Args)).
+    lists:flatten(lager:safe_format(Format, Args, ?MAX_FORMAT_LENGTH)).
 
 -spec format_time(integer()) -> nonempty_string().
 format_time(Ms) when is_integer(Ms) ->
@@ -193,7 +195,8 @@ format_time(Ms) when is_integer(Ms) ->
 -spec format_time(integer(), integer(), integer(), integer()) ->
                          nonempty_string().
 format_time(Ms, Second, Minute, Hour) ->
-    format("~B:~2.10.0B:~2.10.0B.~3.10.0B", [Hour, Minute, Second, Ms]).
+    lists:flatten(io_lib:format("~B:~2.10.0B:~2.10.0B.~3.10.0B",
+                                [Hour, Minute, Second, Ms])).
 
 -spec format_time_since(erlang:timestamp()) -> nonempty_string().
 format_time_since(Time) ->
