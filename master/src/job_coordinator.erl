@@ -45,9 +45,9 @@ new(JobPack) ->
 job_event(JobName, {EventFormat, Args, Params}) ->
     event_server:event(JobName, EventFormat, Args, Params);
 job_event(JobName, {EventFormat, Args}) ->
-    job_event(JobName, {EventFormat, Args, {}});
+    job_event(JobName, {EventFormat, Args, none});
 job_event(JobName, Event) ->
-    job_event(JobName, {Event, [], {}}).
+    job_event(JobName, {Event, [], none}).
 
 -spec job_coordinator(pid(), binary()) -> ok.
 job_coordinator(Parent, JobPack) ->
@@ -190,7 +190,7 @@ handle_data_error(Task, Host) ->
                          "~p:~B Task failed for the ~Bth time. "
                          "Sleeping ~B seconds before retrying.",
                          [Task#task.mode, Task#task.taskid, C, round(S / 1000)],
-                         {}),
+                         none),
                        timer:sleep(S),
                        submit_task(Task#task{taskblack = [Host|T], fail_count = C})
                end).

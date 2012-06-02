@@ -283,7 +283,7 @@ warning(Msg, #state{master = Master, task = Task}) ->
 -spec event(event(), task(), node()) -> ok.
 event(Event, Task, Master) ->
     Host = disco:host(node()),
-    event_server:task_event(Task, Event, {}, Host, {event_server, Master}).
+    event_server:task_event(Task, Event, none, Host, {event_server, Master}).
 
 exit_on_error(S) ->
     exit_on_error(error, S).

@@ -49,7 +49,7 @@ wait_replies(Name, {Promises, FailCount}, Results) ->
     Messages =
         [begin
             M = "WARNING: Creating index file failed at ~s: ~p (retrying)",
-            event_server:event(Name, M, [disco:host(Node), Reply], {}),
+            event_server:event(Name, M, [disco:host(Node), Reply], none),
             timer:sleep(10000),
             Msg
          end || {Reply, {Node, _Arg} = Msg} <- Failed],

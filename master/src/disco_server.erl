@@ -445,7 +445,7 @@ do_gc_blacklist(Hosts, S) ->
 -spec start_worker(host(), pid(), task()) -> pid().
 start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
-                       [T#task.mode, T#task.taskid, Node], {}),
+                       [T#task.mode, T#task.taskid, Node], none),
     spawn_link(disco_worker, start_link_remote, [Node, NodeMon, T]).
 
 -spec schedule_next() -> ok.
@@ -554,7 +554,7 @@ do_get_num_cores(#state{nodes = Nodes}) ->
 
 -spec do_kill_job(jobname()) -> ok.
 do_kill_job(JobName) ->
-    event_server:event(JobName, "WARN: Job killed", [], {}),
+    event_server:event(JobName, "WARN: Job killed", [], none),
     % Make sure that scheduler don't accept new tasks from this job
     gen_server:cast(scheduler, {job_done, JobName}),
     ok.

@@ -118,7 +118,7 @@ handle_cast({task_started, Node, Worker}, {Tasks, Running, Nodes}) ->
 
 handle_cast({die, Msg}, S) ->
     event_server:event(get(jobname),
-        "ERROR: Job killed due to an internal exception: ~s", [Msg], {}),
+        "ERROR: Job killed due to an internal exception: ~s", [Msg], none),
     {stop, normal, S}.
 
 -type stats() :: {non_neg_integer(), non_neg_integer()}.
@@ -310,7 +310,7 @@ on_error(T, M) ->
                             "(inputs:~s)."]),
     Args = [T#task.mode, T#task.taskid,
             [binary_to_list(<<" ", Url/binary>>) || {Url, _} <- T#task.input]],
-    event_server:event(get(jobname), Format, Args, {}),
+    event_server:event(get(jobname), Format, Args, none),
     exit(normal).
 
 % Assign a new task to a node which hostname match with the hostname
