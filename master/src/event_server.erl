@@ -40,7 +40,7 @@
                           Ready :: [task_mode()],
                           Failed :: [task_mode()]}.
 
--export_type([job_eventinfo/0]).
+-export_type([event/0, job_eventinfo/0]).
 
 % Job notification.
 
