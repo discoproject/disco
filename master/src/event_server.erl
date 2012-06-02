@@ -21,6 +21,13 @@
 -define(EVENT_BUFFER_SIZE, 1000).
 -define(EVENT_BUFFER_TIMEOUT, 2000).
 
+-type event() :: {ready, [job_coordinator:input()]}
+               | {map_ready, [job_coordinator:input()]}
+               | {reduce_ready, [job_coordinator:input()]}
+               | {job_data, jobinfo()}
+               | {task_ready, task_mode()}
+               | {task_failed, task_mode()}.
+
 -type joblist_entry() :: {JobName :: binary(),
                           process_status(),
                           StartTime :: erlang:timestamp(),
@@ -79,15 +86,16 @@ get_results(JobName) ->
 
 % Event logging.
 
--spec event(jobname(), nonempty_string(), list(), tuple()) -> ok.
+-spec event(jobname(), nonempty_string(), list(), none | event()) -> ok.
 event(JobName, Format, Args, Params) ->
     event("master", JobName, Format, Args, Params).
 
--spec event(host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
+-spec event(host(), jobname(), nonempty_string(), list(), none | event()) -> ok.
 event(Host, JobName, Format, Args, Params) ->
     event(?MODULE, Host, JobName, Format, Args, Params).
 
--spec event(server(), host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
+-spec event(server(), host(), jobname(), nonempty_string(),
+            list(), none | event()) -> ok.
 event(EventServer, Host, JobName, Format, Args, Params) ->
     RawMsg = disco:format(Format, Args),
     Json = try mochijson2:encode(list_to_binary(RawMsg))
@@ -101,17 +109,17 @@ event(EventServer, Host, JobName, Format, Args, Params) ->
 
 -spec task_event(task(), term()) -> ok.
 task_event(Task, Event) ->
-    task_event(Task, Event, {}).
+    task_event(Task, Event, none).
 
--spec task_event(task(), term(), tuple()) -> ok.
+-spec task_event(task(), term(), none | event()) -> ok.
 task_event(Task, Event, Params) ->
     task_event(Task, Event, Params, "master").
 
--spec task_event(task(), term(), tuple(), host()) -> ok.
+-spec task_event(task(), term(), none | event(), host()) -> ok.
 task_event(Task, Event, Params, Host) ->
     task_event(Task, Event, Params, Host, ?MODULE).
 
--spec task_event(task(), term(), tuple(), host(), server()) -> ok.
+-spec task_event(task(), term(), none | event(), host(), server()) -> ok.
 task_event(Task, {Type, Message}, Params, Host, EventServer) ->
     event(EventServer,
           Host,
@@ -133,16 +141,8 @@ start_link() ->
     end.
 
 % state :: {events dict, msgbuf dict}.
-% events dict: jobname -> { [<event>], <start_time>, <job_coordinator_pid> }
-%              event ::= {ready, <results>}
-%                      | {map_ready, <map-results> :: [binary()]}
-%                      | {reduce_ready, <reduce-results> :: [binary()]}
-%                      | {job_data, jobinfo()}
-%                      | {task_ready, map | reduce}
-%                      | {task_failed, map | reduce}
-%
+% events dict: jobname -> { [event()], <start_time>, <job_coordinator_pid> }
 % msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
-%
 -type state() :: {dict(), dict()}.
 
 -spec init(_) -> gs_init().
@@ -273,7 +273,7 @@ do_get_jobinfo(JobName, Events) ->
             {ok, {Start, Pid, JobNfo, Results, Ready, Failed}}
     end.
 
--spec do_add_job_event(host(), jobname(), binary(), tuple(), state()) -> state().
+-spec do_add_job_event(host(), jobname(), binary(), event(), state()) -> state().
 do_add_job_event(Host, JobName, Msg, Params, {_Events, MsgBuf} = S) ->
     case dict:is_key(JobName, MsgBuf) of
         true -> add_event(Host, JobName, Msg, Params, S);
