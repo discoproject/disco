@@ -152,53 +152,6 @@ init(_Args) ->
 
 -spec handle_call(term(), from(), state()) -> gs_reply(term()) | gs_noreply().
 
-handle_call(get_jobs, _From, {Events, _MsgBuf} = S) ->
-    Jobs = dict:fold(fun
-                         (Name, {[{ready, _Results}|_], Start, Pid}, Acc) ->
-                             [{list_to_binary(Name), ready, Start, Pid}|Acc];
-                         (Name, {_Events, Start, Pid}, Acc) ->
-                             [{list_to_binary(Name), process_status(Pid), Start, Pid}|Acc]
-                     end, [], Events),
-    {reply, {ok, Jobs}, S};
-
-handle_call({get_job_events, JobName, Query, N0}, _From, {_Events, MsgBuf} = S) ->
-    N = if
-            N0 > 1000 -> 1000;
-            true -> N0
-        end,
-    case dict:find(JobName, MsgBuf) of
-        _ when Query =/= "" ->
-            {reply, {ok,
-                 json_list(grep_log(JobName, Query, N))}, S};
-        {ok, {_NMsg, _ListLength, MsgLst}} ->
-            {reply, {ok,
-                 json_list(lists:sublist(MsgLst, N))}, S};
-        error ->
-            {reply, {ok,
-                 json_list(tail_log(JobName, N))}, S}
-    end;
-
-handle_call({get_results, JobName}, _From, {Events, _MsgBuf} = S) ->
-    case dict:find(JobName, Events) of
-        error ->
-            {reply, invalid_job, S};
-        {ok, {[{ready, Results}|_EventList], _JobStart, Pid}} ->
-            {reply, {ready, Pid, Results}, S};
-        {ok, {_EventList, _JobStart, Pid}} ->
-            {reply, {process_status(Pid), Pid}, S}
-    end;
-
-handle_call({get_map_results, JobName}, _From, {Events, _MsgBuf} = S) ->
-    case dict:find(JobName, Events) of
-        error ->
-            {reply, invalid_job, S};
-        {ok, {EventList, _JobStart, _Pid}} ->
-            case event_filter(map_ready, EventList) of
-                [] -> {reply, not_ready, S};
-                [Res] -> {reply, {ok, Res}, S}
-            end
-    end;
-
 handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0} = S) ->
     case unique_key(JobPrefix, Events0) of
         invalid_prefix ->
@@ -209,54 +162,29 @@ handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0} = S) ->
             spawn(fun() -> job_event_handler(JobName, From) end),
             {noreply, {Events, MsgBuf}}
     end;
-
+handle_call(get_jobs, _From, {Events, _MsgBuf} = S) ->
+    {reply, do_get_jobs(Events), S};
+handle_call({get_job_events, JobName, Query, N}, _From, {_Events, MsgBuf} = S) ->
+    {reply, do_get_job_events(JobName, Query, N, MsgBuf), S};
+handle_call({get_results, JobName}, _From, {Events, _MsgBuf} = S) ->
+    {reply, do_get_results(JobName, Events), S};
+handle_call({get_map_results, JobName}, _From, {Events, _MsgBuf} = S) ->
+    {reply, do_get_map_results(JobName, Events), S};
 handle_call({job_initialized, JobName, JobEventHandler}, _From, S) ->
     ets:insert(event_files, {JobName, JobEventHandler}),
     {reply, add_event("master", JobName, list_to_binary("\"New job initialized!\""), {}, S), S};
-
 handle_call({get_jobinfo, JobName}, _From, {Events, _MsgBuf} = S) ->
-    case dict:find(JobName, Events) of
-        error ->
-            {reply, invalid_job, S};
-        {ok, {EventList, JobStart, Pid}} ->
-            JobNfo =
-                case event_filter(job_data, EventList) of
-                    [] -> [];
-                    [N] -> N
-                end,
-            Results = event_filter(ready, EventList),
-            Ready = event_filter(task_ready, EventList),
-            Failed = event_filter(task_failed, EventList),
-            Start = disco_util:format_timestamp(JobStart),
-            {reply, {ok, {Start, Pid, JobNfo, Results, Ready, Failed}}, S}
-    end.
+    {reply, do_get_jobinfo(JobName, Events), S}.
 
 -spec handle_cast(term(), state()) -> gs_noreply().
 
-handle_cast({add_job_event, Host, JobName, Msg, Params}, {_Events, MsgBuf} = S) ->
-    case dict:is_key(JobName, MsgBuf) of
-        true  -> {noreply, add_event(Host, JobName, Msg, Params, S)};
-        false -> {noreply, S}
-    end;
-
+handle_cast({add_job_event, Host, JobName, Msg, Params}, S) ->
+    {noreply, do_add_job_event(Host, JobName, Msg, Params, S)};
 % XXX: Some aux process could go through the jobs periodically and
 % check that the job coord is still alive - if not, call job_done for
 % the zombie job.
-handle_cast({job_done, JobName}, {Events, MsgBuf} = S) ->
-    case ets:lookup(event_files, JobName) of
-        [] ->
-            ok;
-        [{_, EventProc}] ->
-            EventProc ! done,
-            ets:delete(event_files, JobName)
-    end,
-    case dict:find(JobName, MsgBuf) of
-        error ->
-            {noreply, S};
-        {ok, _} ->
-            {noreply, {Events, dict:erase(JobName, MsgBuf)}}
-    end;
-
+handle_cast({job_done, JobName}, S) ->
+    {noreply, do_job_done(JobName, S)};
 handle_cast({clean_job, JobName}, {Events, _MsgBuf} = S) ->
     {_, {_, MsgBufN}} = handle_cast({job_done, JobName}, S),
     delete_jobdir(JobName),
@@ -274,6 +202,84 @@ terminate(_Reason, _State) -> ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 % Server implemention.
+
+-spec do_get_jobs(dict()) -> {ok, [joblist_entry()]}.
+do_get_jobs(Events) ->
+    Jobs = dict:fold(fun
+                         (Name, {[{ready, _Results}|_], Start, Pid}, Acc) ->
+                             [{list_to_binary(Name), ready, Start, Pid}|Acc];
+                         (Name, {_Events, Start, Pid}, Acc) ->
+                             [{list_to_binary(Name), process_status(Pid), Start, Pid}|Acc]
+                     end, [], Events),
+    {ok, Jobs}.
+
+-spec do_get_job_events(jobname(), string(), integer(), dict())
+                       -> {ok, [binary()]}.
+do_get_job_events(JobName, Query, N0, MsgBuf) ->
+    N = if
+            N0 > 1000 -> 1000;
+            true -> N0
+        end,
+    case dict:find(JobName, MsgBuf) of
+        _ when Query =/= "" ->
+            {ok, json_list(grep_log(JobName, Query, N))};
+        {ok, {_NMsg, _ListLength, MsgLst}} ->
+            {ok, json_list(lists:sublist(MsgLst, N))};
+        error ->
+            {ok, json_list(tail_log(JobName, N))}
+    end.
+
+-spec do_get_results(jobname(), dict())
+                    -> invalid_job | {process_status(), pid()}
+                           | {ready, pid(), [job_coordinator:input()]}.
+do_get_results(JobName, Events) ->
+    case dict:find(JobName, Events) of
+        error ->
+            invalid_job;
+        {ok, {[{ready, Results}|_EventList], _JobStart, Pid}} ->
+            {ready, Pid, Results};
+        {ok, {_EventList, _JobStart, Pid}} ->
+            {process_status(Pid), Pid}
+    end.
+
+-spec do_get_map_results(jobname(), dict())
+                        -> invalid_job | not_ready
+                               | {ok, [job_coordinator:input()]}.
+do_get_map_results(JobName, Events) ->
+    case dict:find(JobName, Events) of
+        error ->
+            invalid_job;
+        {ok, {EventList, _JobStart, _Pid}} ->
+            case event_filter(map_ready, EventList) of
+                [] -> not_ready;
+                [Res] -> {ok, Res}
+            end
+    end.
+
+-spec do_get_jobinfo(jobname(), dict()) -> invalid_job | {ok, job_eventinfo()}.
+do_get_jobinfo(JobName, Events) ->
+    case dict:find(JobName, Events) of
+        error ->
+            invalid_job;
+        {ok, {EventList, JobStart, Pid}} ->
+            JobNfo =
+                case event_filter(job_data, EventList) of
+                    [] -> [];
+                    [N] -> N
+                end,
+            Results = event_filter(ready, EventList),
+            Ready = event_filter(task_ready, EventList),
+            Failed = event_filter(task_failed, EventList),
+            Start = disco_util:format_timestamp(JobStart),
+            {ok, {Start, Pid, JobNfo, Results, Ready, Failed}}
+    end.
+
+-spec do_add_job_event(host(), jobname(), binary(), tuple(), state()) -> state().
+do_add_job_event(Host, JobName, Msg, Params, {_Events, MsgBuf} = S) ->
+    case dict:is_key(JobName, MsgBuf) of
+        true -> add_event(Host, JobName, Msg, Params, S);
+        false -> S
+    end.
 
 add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
@@ -303,6 +309,20 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
             {ok, {EvLst0, Nu, Pid}} = dict:find(JobName, Events),
             {dict:store(JobName, {[Params|EvLst0], Nu, Pid}, Events),
              MsgBufN}
+    end.
+
+-spec do_job_done(jobname(), state()) -> state().
+do_job_done(JobName, {Events, MsgBuf} = S) ->
+    case ets:lookup(event_files, JobName) of
+        [] ->
+            ok;
+        [{_, EventProc}] ->
+            EventProc ! done,
+            ets:delete(event_files, JobName)
+    end,
+    case dict:find(JobName, MsgBuf) of
+        error -> S;
+        {ok, _} -> {Events, dict:erase(JobName, MsgBuf)}
     end.
 
 % Flush events from memory to file using a per-job process.
@@ -363,10 +383,8 @@ unique_key(Prefix, Dict) ->
         {MegaSecs, Secs, MicroSecs} = now(),
         Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
         case dict:is_key(Key, Dict) of
-            false ->
-                {ok, Key};
-            true ->
-                unique_key(Prefix, Dict)
+            false -> {ok, Key};
+            true -> unique_key(Prefix, Dict)
         end
     end.
 
