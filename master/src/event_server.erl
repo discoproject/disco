@@ -304,18 +304,12 @@ event(Host, JobName, Format, Args, Params) ->
 
 -spec event(server(), host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
 event(EventServer, Host, JobName, Format, Args, Params) ->
-    SArgs = [case lists:flatlength(io_lib:fwrite("~p", [X])) > 1000000 of
-                 true -> trunc_io:fprint(X, 1000000);
-                 false -> X
-             end || X <- Args],
-    RawMsg = disco:format(Format, SArgs),
-    Json = case catch mochijson2:encode(list_to_binary(RawMsg)) of
-               {'EXIT', _} ->
+    RawMsg = disco:format(Format, Args),
+    Json = try mochijson2:encode(list_to_binary(RawMsg))
+           catch _:_ ->
                    Hex = ["WARNING: Binary message data: ",
-                          [io_lib:format("\\x~2.16.0b",[N])
-                           || N <- RawMsg]],
-                   mochijson2:encode(list_to_binary(Hex));
-               J -> J
+                          [io_lib:format("\\x~2.16.0b",[N]) || N <- RawMsg]],
+                   mochijson2:encode(list_to_binary(Hex))
            end,
     Msg = list_to_binary(Json),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
