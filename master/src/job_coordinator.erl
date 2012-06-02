@@ -42,12 +42,12 @@ new(JobPack) ->
             throw("timed out after 60s (master busy?)")
     end.
 
-job_event(JobName, {EventFormat, Args, Params}) ->
-    event_server:event(JobName, EventFormat, Args, Params);
-job_event(JobName, {EventFormat, Args}) ->
-    job_event(JobName, {EventFormat, Args, none});
-job_event(JobName, Event) ->
-    job_event(JobName, {Event, [], none}).
+job_event(JobName, MsgFormat, Args, Event) ->
+    event_server:event(JobName, MsgFormat, Args, Event).
+job_event(JobName, MsgFormat, Args) ->
+    job_event(JobName, MsgFormat, Args, none).
+job_event(JobName, Msg) ->
+    job_event(JobName, Msg, [], none).
 
 -spec job_coordinator(pid(), binary()) -> ok.
 job_coordinator(Parent, JobPack) ->
@@ -60,30 +60,31 @@ job_coordinator(Parent, JobPack) ->
 
 -spec job_coordinator(jobinfo()) -> ok.
 job_coordinator(#jobinfo{jobname = JobName} = Job) ->
-    job_event(JobName, {"Starting job", [], {job_data, Job}}),
+    job_event(JobName, "Starting job", [], {job_data, Job}),
     Started = now(),
     case catch map_reduce(Job) of
         {ok, Results} ->
-            job_event(JobName, {"READY: Job finished in ~s",
-                                [disco:format_time_since(Started)],
-                                {ready, Results}}),
+            job_event(JobName, "READY: Job finished in ~s",
+                      [disco:format_time_since(Started)],
+                      {ready, Results}),
             event_server:end_job(JobName);
         {error, Error} ->
-            kill_job(JobName, {"Job failed: ~s", [Error]});
-        {error, Error, Params} ->
-            kill_job(JobName, {"Job failed: ~s", [Error], Params});
+            kill_job(JobName, "Job failed: ~s", [Error]);
+        {error, Error, Event} ->
+            kill_job(JobName, "Job failed: ~s", [Error], Event);
         Error ->
-            kill_job(JobName, {"Job coordinator failed unexpectedly: ~p", [Error]})
+            kill_job(JobName, "Job coordinator failed unexpectedly: ~p", [Error])
     end.
 
--spec kill_job(jobname(), tuple()) -> no_return().
-kill_job(JobName, {EventFormat, Args, Params} = Error) ->
-    job_event(JobName, {"ERROR: " ++ EventFormat, Args, Params}),
+-spec kill_job(jobname(), string(), list(), event_server:event()) -> no_return().
+kill_job(JobName, MsgFormat, Args, Event) ->
+    job_event(JobName, "ERROR: " ++ MsgFormat, Args, Event),
     disco_server:kill_job(JobName, 30000),
     event_server:end_job(JobName),
-    exit(Error);
-kill_job(JobName, {EventFormat, Args}) ->
-    kill_job(JobName, {EventFormat, Args, {}}).
+    exit({MsgFormat, Args, Event}).
+-spec kill_job(jobname(), string(), list()) -> no_return().
+kill_job(JobName, MsgFormat, Args) ->
+    kill_job(JobName, MsgFormat, Args, none).
 
 % work() is the heart of the map/reduce show. First it distributes tasks
 % to nodes. After that, it starts to wait for the results and finally
@@ -228,8 +229,8 @@ shuffle(JobName, Mode, DirUrls) ->
     job_event(JobName, "Starting shuffle phase"),
     Started = now(),
     Ret = shuffle:combine_tasks(JobName, Mode, DirUrls),
-    job_event(JobName, {"Finished shuffle phase in ~s",
-                        [disco:format_time_since(Started)]}),
+    job_event(JobName, "Finished shuffle phase in ~s",
+              [disco:format_time_since(Started)]),
     Ret.
 
 -spec reduce_input([input()], non_neg_integer()) -> [phase_input()].
@@ -265,7 +266,7 @@ task_ready_tag(reduce) ->
 
 -spec run_phase([phase_input()], task_mode(), jobinfo()) -> [input()].
 run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
-    job_event(JobName, {"Starting ~s phase", [atom_to_list(Mode)]}),
+    job_event(JobName, "Starting ~p phase", [Mode]),
     Started = now(),
     {ok, TaskResults} = work(Inputs, Mode, 0, Job, gb_trees:empty()),
     Fun = fun ({_Node, {none, GResults}}, {Local, Global}) ->
@@ -277,9 +278,9 @@ run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
     % Only local results need to be shuffled.
     {ok, Combined} = shuffle(JobName, Mode, LResults),
     Results = lists:usort(GResults ++ Combined),
-    job_event(JobName, {"Finished ~p phase in ~s",
-                        [Mode, disco:format_time_since(Started)],
-                        {task_ready_tag(Mode), Results}}),
+    job_event(JobName, "Finished ~p phase in ~s",
+              [Mode, disco:format_time_since(Started)],
+              {task_ready_tag(Mode), Results}),
     Results.
 
 -spec preferred_host(binary()) -> host().
