@@ -4,7 +4,7 @@
 % Job notification.
 -export([new_job/2, end_job/1, clean_job/1]).
 % Retrieval.
--export([get_jobs/0, get_jobs/1, get_jobinfo/1, get_job_events/3,
+-export([get_jobs/0, get_jobs/1, get_jobinfo/1, get_job_msgs/3,
          get_map_results/1, get_results/1]).
 % Event logging.
 -export([event/4, event/5, event/6,
@@ -63,9 +63,9 @@ get_jobs(Master) ->
 get_jobinfo(JobName) ->
     gen_server:call(?MODULE, {get_jobinfo, JobName}).
 
--spec get_job_events(jobname(), string(), integer()) -> {ok, [binary()]}.
-get_job_events(JobName, Q, N) ->
-    gen_server:call(?MODULE, {get_job_events, JobName, string:to_lower(Q), N}).
+-spec get_job_msgs(jobname(), string(), integer()) -> {ok, [binary()]}.
+get_job_msgs(JobName, Q, N) ->
+    gen_server:call(?MODULE, {get_job_msgs, JobName, string:to_lower(Q), N}).
 
 -spec get_map_results(jobname()) -> invalid_job | not_ready
                                         | {ok, [job_coordinator:input()]}.
@@ -164,8 +164,8 @@ handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0} = S) ->
     end;
 handle_call(get_jobs, _From, {Events, _MsgBuf} = S) ->
     {reply, do_get_jobs(Events), S};
-handle_call({get_job_events, JobName, Query, N}, _From, {_Events, MsgBuf} = S) ->
-    {reply, do_get_job_events(JobName, Query, N, MsgBuf), S};
+handle_call({get_job_msgs, JobName, Query, N}, _From, {_Events, MsgBuf} = S) ->
+    {reply, do_get_job_msgs(JobName, Query, N, MsgBuf), S};
 handle_call({get_results, JobName}, _From, {Events, _MsgBuf} = S) ->
     {reply, do_get_results(JobName, Events), S};
 handle_call({get_map_results, JobName}, _From, {Events, _MsgBuf} = S) ->
@@ -213,9 +213,8 @@ do_get_jobs(Events) ->
                      end, [], Events),
     {ok, Jobs}.
 
--spec do_get_job_events(jobname(), string(), integer(), dict())
-                       -> {ok, [binary()]}.
-do_get_job_events(JobName, Query, N0, MsgBuf) ->
+-spec do_get_job_msgs(jobname(), string(), integer(), dict()) -> {ok, [binary()]}.
+do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
     N = if
             N0 > 1000 -> 1000;
             true -> N0
