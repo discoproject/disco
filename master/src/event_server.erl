@@ -1,11 +1,15 @@
 -module(event_server).
 -behaviour(gen_server).
 
--export([new_job/2, end_job/1, clean_job/1,
-         get_jobs/0, get_jobs/1, get_jobinfo/1, get_job_events/3,
-         get_map_results/1, get_results/1,
-         event/4, event/5, event/6,
+% Job notification.
+-export([new_job/2, end_job/1, clean_job/1]).
+% Retrieval.
+-export([get_jobs/0, get_jobs/1, get_jobinfo/1, get_job_events/3,
+         get_map_results/1, get_results/1]).
+% Event logging.
+-export([event/4, event/5, event/6,
          task_event/2, task_event/3, task_event/4, task_event/5]).
+% Server.
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
@@ -17,6 +21,11 @@
 -define(EVENT_BUFFER_SIZE, 1000).
 -define(EVENT_BUFFER_TIMEOUT, 2000).
 
+-type joblist_entry() :: {JobName :: binary(),
+                          process_status(),
+                          StartTime :: erlang:timestamp(),
+                          JobCoordinator :: pid()}.
+
 -type job_eventinfo() :: {StartTime :: binary(),
                           JobCoordinator :: pid(),
                           jobinfo(),
@@ -26,6 +35,8 @@
 
 -export_type([job_eventinfo/0]).
 
+% Job notification.
+
 -spec new_job(jobname(), pid()) -> {ok, jobname()}.
 new_job(Prefix, JobCoordinator) ->
     gen_server:call(?MODULE, {new_job, Prefix, JobCoordinator}, 10000).
@@ -34,10 +45,11 @@ new_job(Prefix, JobCoordinator) ->
 end_job(JobName) ->
     gen_server:cast(?MODULE, {job_done, JobName}).
 
--type joblist_entry() :: {JobName :: binary(),
-                          process_status(),
-                          StartTime :: erlang:timestamp(),
-                          JobCoordinator :: pid()}.
+-spec clean_job(jobname()) -> ok.
+clean_job(JobName) ->
+    gen_server:cast(?MODULE, {clean_job, JobName}).
+
+% Retrieval.
 
 -spec get_jobs() -> {ok, [joblist_entry()]}.
 get_jobs() ->
@@ -65,9 +77,52 @@ get_map_results(JobName) ->
 get_results(JobName) ->
     gen_server:call(?MODULE, {get_results, JobName}).
 
--spec clean_job(jobname()) -> ok.
-clean_job(JobName) ->
-    gen_server:cast(?MODULE, {clean_job, JobName}).
+% Event logging.
+
+-spec event(jobname(), nonempty_string(), list(), tuple()) -> ok.
+event(JobName, Format, Args, Params) ->
+    event("master", JobName, Format, Args, Params).
+
+-spec event(host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
+event(Host, JobName, Format, Args, Params) ->
+    event(?MODULE, Host, JobName, Format, Args, Params).
+
+-spec event(server(), host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
+event(EventServer, Host, JobName, Format, Args, Params) ->
+    RawMsg = disco:format(Format, Args),
+    Json = try mochijson2:encode(list_to_binary(RawMsg))
+           catch _:_ ->
+                   Hex = ["WARNING: Binary message data: ",
+                          [io_lib:format("\\x~2.16.0b",[N]) || N <- RawMsg]],
+                   mochijson2:encode(list_to_binary(Hex))
+           end,
+    Msg = list_to_binary(Json),
+    gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
+
+-spec task_event(task(), term()) -> ok.
+task_event(Task, Event) ->
+    task_event(Task, Event, {}).
+
+-spec task_event(task(), term(), tuple()) -> ok.
+task_event(Task, Event, Params) ->
+    task_event(Task, Event, Params, "master").
+
+-spec task_event(task(), term(), tuple(), host()) -> ok.
+task_event(Task, Event, Params, Host) ->
+    task_event(Task, Event, Params, Host, ?MODULE).
+
+-spec task_event(task(), term(), tuple(), host(), server()) -> ok.
+task_event(Task, {Type, Message}, Params, Host, EventServer) ->
+    event(EventServer,
+          Host,
+          Task#task.jobname,
+          "~s: [~s:~B] " ++ task_format(Message),
+          [Type, Task#task.mode, Task#task.taskid, Message],
+          Params);
+task_event(Task, Message, Params, Host, EventServer) ->
+    task_event(Task, {<<"SYS">>, Message}, Params, Host, EventServer).
+
+% Server.
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -88,37 +143,6 @@ start_link() ->
 %
 % msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
 %
-
--type process_status() :: active | dead | ready.
-process_status(Pid) ->
-    case is_process_alive(Pid) of
-        true -> active;
-        false -> dead
-    end.
-
-json_list(List) -> json_list(List, []).
-json_list([], _) -> [];
-json_list([X], L) ->
-    [<<"[">>, lists:reverse([X|L]), <<"]">>];
-json_list([X|R], L) ->
-    json_list(R, [<<X/binary, ",">>|L]).
-
--spec unique_key(jobname(), dict()) -> invalid_prefix | {ok, jobname()}.
-unique_key(Prefix, Dict) ->
-    C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
-    if C > 0 ->
-        invalid_prefix;
-    true ->
-        {MegaSecs, Secs, MicroSecs} = now(),
-        Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
-        case dict:is_key(Key, Dict) of
-            false ->
-                {ok, Key};
-            true ->
-                unique_key(Prefix, Dict)
-        end
-    end.
-
 -type state() :: {dict(), dict()}.
 
 -spec init(_) -> gs_init().
@@ -243,26 +267,13 @@ handle_info(Msg, State) ->
     lager:warning("Unknown message received: ~p", [Msg]),
     {noreply, State}.
 
-event_log(JobName) ->
-    filename:join(disco:jobhome(JobName), "events").
+-spec terminate(term(), state()) -> ok.
+terminate(_Reason, _State) -> ok.
 
-tail_log(JobName, N) ->
-    Tail = string:tokens(os:cmd(["tail -n ", integer_to_list(N), " ",
-                                 event_log(JobName),
-                                 " 2>/dev/null"]), "\n"),
-    [list_to_binary(L) || L <- lists:reverse(Tail)].
+-spec code_change(term(), state(), term()) -> {ok, state()}.
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
-grep_log(JobName, Query, N) ->
-    % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
-    % only whitelisted characters are allowed in the query
-    CQ = re:replace(Query, "[^a-zA-Z0-9:-_!@]", "", [global, {return, list}]),
-    Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ",
-                                  event_log(JobName),
-                                  " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
-    [list_to_binary(L) || L <- lists:reverse(Lines)].
-
-event_filter(Key, EventList) ->
-    [V || {K, V} <- EventList, K == Key].
+% Server implemention.
 
 add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
@@ -294,69 +305,7 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
              MsgBufN}
     end.
 
--spec event(jobname(), nonempty_string(), list(), tuple()) -> ok.
-event(JobName, Format, Args, Params) ->
-    event("master", JobName, Format, Args, Params).
-
--spec event(host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
-event(Host, JobName, Format, Args, Params) ->
-    event(?MODULE, Host, JobName, Format, Args, Params).
-
--spec event(server(), host(), jobname(), nonempty_string(), list(), tuple()) -> ok.
-event(EventServer, Host, JobName, Format, Args, Params) ->
-    RawMsg = disco:format(Format, Args),
-    Json = try mochijson2:encode(list_to_binary(RawMsg))
-           catch _:_ ->
-                   Hex = ["WARNING: Binary message data: ",
-                          [io_lib:format("\\x~2.16.0b",[N]) || N <- RawMsg]],
-                   mochijson2:encode(list_to_binary(Hex))
-           end,
-    Msg = list_to_binary(Json),
-    gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
-
--spec task_event(task(), term()) -> ok.
-task_event(Task, Event) ->
-    task_event(Task, Event, {}).
-
--spec task_event(task(), term(), tuple()) -> ok.
-task_event(Task, Event, Params) ->
-    task_event(Task, Event, Params, "master").
-
--spec task_event(task(), term(), tuple(), host()) -> ok.
-task_event(Task, Event, Params, Host) ->
-    task_event(Task, Event, Params, Host, ?MODULE).
-
--spec task_event(task(), term(), tuple(), host(), server()) -> ok.
-task_event(Task, {Type, Message}, Params, Host, EventServer) ->
-    event(EventServer,
-          Host,
-          Task#task.jobname,
-          "~s: [~s:~B] " ++ task_format(Message),
-          [Type, Task#task.mode, Task#task.taskid, Message],
-          Params);
-task_event(Task, Message, Params, Host, EventServer) ->
-    task_event(Task, {<<"SYS">>, Message}, Params, Host, EventServer).
-
-task_format(Msg) when is_atom(Msg) or is_binary(Msg) or is_list(Msg) ->
-    "~s";
-task_format(_Msg) ->
-    "~w".
-
-% callback stubs
--spec terminate(term(), state()) -> ok.
-terminate(_Reason, _State) -> ok.
-
--spec code_change(term(), state(), term()) -> {ok, state()}.
-code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
-delete_jobdir(JobName) ->
-    Safe = string:chr(JobName, $.) + string:chr(JobName, $/),
-    if Safe =:= 0 ->
-            _ = os:cmd("rm -Rf " ++ disco:jobhome(JobName)),
-            ok;
-       true ->
-            ok
-    end.
+% Flush events from memory to file using a per-job process.
 
 job_event_handler(JobName, JobCoordinator) ->
     {ok, _JobHome} = disco:make_dir(disco:jobhome(JobName)),
@@ -388,3 +337,72 @@ job_event_handler_do(File, Buf, BufSize) ->
 flush_buffer(_, []) -> ok;
 flush_buffer(File, Buf) ->
     ok = file:write(File, lists:reverse(Buf)).
+
+% Misc utilities
+
+-type process_status() :: active | dead | ready.
+process_status(Pid) ->
+    case is_process_alive(Pid) of
+        true -> active;
+        false -> dead
+    end.
+
+json_list(List) -> json_list(List, []).
+json_list([], _) -> [];
+json_list([X], L) ->
+    [<<"[">>, lists:reverse([X|L]), <<"]">>];
+json_list([X|R], L) ->
+    json_list(R, [<<X/binary, ",">>|L]).
+
+-spec unique_key(jobname(), dict()) -> invalid_prefix | {ok, jobname()}.
+unique_key(Prefix, Dict) ->
+    C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
+    if C > 0 ->
+        invalid_prefix;
+    true ->
+        {MegaSecs, Secs, MicroSecs} = now(),
+        Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
+        case dict:is_key(Key, Dict) of
+            false ->
+                {ok, Key};
+            true ->
+                unique_key(Prefix, Dict)
+        end
+    end.
+
+event_filter(Key, EventList) ->
+    [V || {K, V} <- EventList, K == Key].
+
+task_format(Msg) when is_atom(Msg) or is_binary(Msg) or is_list(Msg) ->
+    "~s";
+task_format(_Msg) ->
+    "~w".
+
+% Utilities to process job event file.
+
+event_log(JobName) ->
+    filename:join(disco:jobhome(JobName), "events").
+
+tail_log(JobName, N) ->
+    Tail = string:tokens(os:cmd(["tail -n ", integer_to_list(N), " ",
+                                 event_log(JobName),
+                                 " 2>/dev/null"]), "\n"),
+    [list_to_binary(L) || L <- lists:reverse(Tail)].
+
+grep_log(JobName, Query, N) ->
+    % We dont want execute stuff like "grep -i `rm -Rf *` ..." so
+    % only whitelisted characters are allowed in the query
+    CQ = re:replace(Query, "[^a-zA-Z0-9:-_!@]", "", [global, {return, list}]),
+    Lines = string:tokens(os:cmd(["grep -i \"", CQ ,"\" ",
+                                  event_log(JobName),
+                                  " 2>/dev/null | head -n ", integer_to_list(N)]), "\n"),
+    [list_to_binary(L) || L <- lists:reverse(Lines)].
+
+delete_jobdir(JobName) ->
+    Safe = string:chr(JobName, $.) + string:chr(JobName, $/),
+    if Safe =:= 0 ->
+            _ = os:cmd("rm -Rf " ++ disco:jobhome(JobName)),
+            ok;
+       true ->
+            ok
+    end.
