@@ -28,6 +28,8 @@
                | {task_ready, task_mode()}
                | {task_failed, task_mode()}.
 
+-type task_msg() :: {binary(), term()} | string().
+
 -type joblist_entry() :: {JobName :: binary(),
                           process_status(),
                           StartTime :: erlang:timestamp(),
@@ -40,7 +42,7 @@
                           Ready :: [task_mode()],
                           Failed :: [task_mode()]}.
 
--export_type([event/0, job_eventinfo/0]).
+-export_type([event/0, task_msg/0, job_eventinfo/0]).
 
 % Job notification.
 
@@ -87,17 +89,17 @@ get_results(JobName) ->
 % Event logging.
 
 -spec event(jobname(), nonempty_string(), list(), none | event()) -> ok.
-event(JobName, Format, Args, Params) ->
-    event("master", JobName, Format, Args, Params).
+event(JobName, MsgFormat, Args, Event) ->
+    event("master", JobName, MsgFormat, Args, Event).
 
 -spec event(host(), jobname(), nonempty_string(), list(), none | event()) -> ok.
-event(Host, JobName, Format, Args, Params) ->
-    event(?MODULE, Host, JobName, Format, Args, Params).
+event(Host, JobName, MsgFormat, Args, Event) ->
+    event(?MODULE, Host, JobName, MsgFormat, Args, Event).
 
 -spec event(server(), host(), jobname(), nonempty_string(),
             list(), none | event()) -> ok.
-event(EventServer, Host, JobName, Format, Args, Params) ->
-    RawMsg = disco:format(Format, Args),
+event(EventServer, Host, JobName, MsgFormat, Args, Event) ->
+    RawMsg = disco:format(MsgFormat, Args),
     Json = try mochijson2:encode(list_to_binary(RawMsg))
            catch _:_ ->
                    Hex = ["WARNING: Binary message data: ",
@@ -105,30 +107,30 @@ event(EventServer, Host, JobName, Format, Args, Params) ->
                    mochijson2:encode(list_to_binary(Hex))
            end,
     Msg = list_to_binary(Json),
-    gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Params}).
+    gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Event}).
 
--spec task_event(task(), term()) -> ok.
-task_event(Task, Event) ->
-    task_event(Task, Event, none).
+-spec task_event(task(), task_msg()) -> ok.
+task_event(Task, Msg) ->
+    task_event(Task, Msg, none).
 
--spec task_event(task(), term(), none | event()) -> ok.
-task_event(Task, Event, Params) ->
-    task_event(Task, Event, Params, "master").
+-spec task_event(task(), task_msg(), none | event()) -> ok.
+task_event(Task, Msg, Event) ->
+    task_event(Task, Msg, Event, "master").
 
--spec task_event(task(), term(), none | event(), host()) -> ok.
-task_event(Task, Event, Params, Host) ->
-    task_event(Task, Event, Params, Host, ?MODULE).
+-spec task_event(task(), task_msg(), none | event(), host()) -> ok.
+task_event(Task, Msg, Event, Host) ->
+    task_event(Task, Msg, Event, Host, ?MODULE).
 
--spec task_event(task(), term(), none | event(), host(), server()) -> ok.
-task_event(Task, {Type, Message}, Params, Host, EventServer) ->
+-spec task_event(task(), task_msg(), none | event(), host(), server()) -> ok.
+task_event(Task, {Type, Message}, Event, Host, EventServer) ->
     event(EventServer,
           Host,
           Task#task.jobname,
           "~s: [~s:~B] " ++ task_format(Message),
           [Type, Task#task.mode, Task#task.taskid, Message],
-          Params);
-task_event(Task, Message, Params, Host, EventServer) ->
-    task_event(Task, {<<"SYS">>, Message}, Params, Host, EventServer).
+          Event);
+task_event(Task, Message, Event, Host, EventServer) ->
+    task_event(Task, {<<"SYS">>, Message}, Event, Host, EventServer).
 
 % Server.
 
@@ -178,8 +180,8 @@ handle_call({get_jobinfo, JobName}, _From, {Events, _MsgBuf} = S) ->
 
 -spec handle_cast(term(), state()) -> gs_noreply().
 
-handle_cast({add_job_event, Host, JobName, Msg, Params}, S) ->
-    {noreply, do_add_job_event(Host, JobName, Msg, Params, S)};
+handle_cast({add_job_event, Host, JobName, Msg, Event}, S) ->
+    {noreply, do_add_job_event(Host, JobName, Msg, Event, S)};
 % XXX: Some aux process could go through the jobs periodically and
 % check that the job coord is still alive - if not, call job_done for
 % the zombie job.
@@ -274,13 +276,13 @@ do_get_jobinfo(JobName, Events) ->
     end.
 
 -spec do_add_job_event(host(), jobname(), binary(), event(), state()) -> state().
-do_add_job_event(Host, JobName, Msg, Params, {_Events, MsgBuf} = S) ->
+do_add_job_event(Host, JobName, Msg, Event, {_Events, MsgBuf} = S) ->
     case dict:is_key(JobName, MsgBuf) of
-        true -> add_event(Host, JobName, Msg, Params, S);
+        true -> add_event(Host, JobName, Msg, Event, S);
         false -> S
     end.
 
-add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
+add_event(Host0, JobName, Msg, Event, {Events, MsgBuf}) ->
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
     Time = disco_util:format_timestamp(now()),
     Host = list_to_binary(Host0),
@@ -302,11 +304,11 @@ add_event(Host0, JobName, Msg, Params, {Events, MsgBuf}) ->
     end,
     MsgBufN = dict:store(JobName, {NMsg + 1, LstLen, MsgLst}, MsgBuf),
     if
-        Params =:= []; Params =:= {} ->
+        Event =:= none ->
             {Events, MsgBufN};
         true ->
             {ok, {EvLst0, Nu, Pid}} = dict:find(JobName, Events),
-            {dict:store(JobName, {[Params|EvLst0], Nu, Pid}, Events),
+            {dict:store(JobName, {[Event|EvLst0], Nu, Pid}, Events),
              MsgBufN}
     end.
 

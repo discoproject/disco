@@ -26,10 +26,9 @@
                 runtime :: worker_runtime:state(),
                 throttle :: worker_throttle:state()}).
 -type state() :: #state{}.
-
 -type shutdown() :: {error | fatal | done, term()}.
--type event() :: {binary(), term()}.
--export_type([shutdown/0, event/0]).
+
+-export_type([shutdown/0]).
 
 -define(JOBHOME_TIMEOUT, 5 * 60 * 1000).
 -define(PID_TIMEOUT, 30 * 1000).
@@ -280,10 +279,10 @@ jobhome(JobName) ->
 warning(Msg, #state{master = Master, task = Task}) ->
     event({<<"WARNING">>, iolist_to_binary(Msg)}, Task, Master).
 
--spec event(event(), task(), node()) -> ok.
-event(Event, Task, Master) ->
+-spec event(event_server:task_msg(), task(), node()) -> ok.
+event(Msg, Task, Master) ->
     Host = disco:host(node()),
-    event_server:task_event(Task, Event, none, Host, {event_server, Master}).
+    event_server:task_event(Task, Msg, none, Host, {event_server, Master}).
 
 exit_on_error(S) ->
     exit_on_error(error, S).
