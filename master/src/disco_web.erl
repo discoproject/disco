@@ -279,30 +279,32 @@ render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
     NRedDone = dict:fetch(reduce, Ready),
     NMapFail = dict:fetch(map, Failed),
     NRedFail = dict:fetch(reduce, Failed),
-    Status = list_to_binary(atom_to_list(Status0)),
-
-    MapI = if
-               JobInfo#jobinfo.map ->
-                   length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun);
-               true ->
-                   0
-           end,
-    RedI = if
-               JobInfo#jobinfo.reduce ->
-                   JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
-               true -> 0
-           end,
-
+    {Status, MapI, RedI, Reduce, Inputs, Worker, Owner} =
+        case JobInfo of
+            none ->
+                % The job is still initializing; use some defaults.
+                {<<"initializing">>, 0, 0, true, [], <<"">>, <<"">>};
+            #jobinfo{map = M, reduce = R, inputs = I, nr_reduce = NR,
+                     worker = W, owner = O} ->
+                {list_to_binary(atom_to_list(Status0)),
+                 if M -> length(I) - (NMapDone + NMapRun);
+                    true -> 0
+                 end,
+                 if R -> NR - (NRedDone + NRedRun);
+                    true -> 0
+                 end,
+                 R, lists:sublist(I, 100), W, O}
+        end,
     {struct, [{timestamp, disco_util:format_timestamp(Start)},
               {active, Status},
               {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
               {redi, [RedI, NRedRun, NRedDone, NRedFail]},
-              {reduce, JobInfo#jobinfo.reduce},
+              {reduce, Reduce},
               {results, lists:flatten(Results)},
-              {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
-              {worker, JobInfo#jobinfo.worker},
+              {inputs, Inputs},
+              {worker, Worker},
               {hosts, [list_to_binary(Host) || Host <- Hosts]},
-              {owner, JobInfo#jobinfo.owner}
+              {owner, Owner}
              ]}.
 
 status_msg(invalid_job) -> [<<"unknown job">>, []];
