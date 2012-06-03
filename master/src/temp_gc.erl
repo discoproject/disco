@@ -25,7 +25,7 @@ loop(DataRoot) ->
             case prim_file:list_dir(DataRoot) of
                 {ok, Dirs} ->
                     Active = gb_sets:from_list(
-                               [Name || {Name, active, _Start, _Pid} <- Jobs]),
+                               [Name || {Name, active, _Start} <- Jobs]),
                     process_dir(DataRoot, Dirs, gb_sets:from_ordset(Purged), Active);
                 E ->
                     % fresh install, try again after GC_INTERVAL
@@ -68,7 +68,7 @@ process_dir(DataRoot, [Dir|R], Purged, Active) ->
 
 -spec ifdead(jobname(), gb_set()) -> boolean().
 ifdead(Job, Active) ->
-    not gb_sets:is_member(list_to_binary(Job), Active).
+    not gb_sets:is_member(Job, Active).
 
 % Perform purge in one function so that gen_server errors can be
 % caught by callers.
