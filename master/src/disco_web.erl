@@ -64,8 +64,10 @@ getop("load_config_table", _Query) ->
 
 getop("joblist", _Query) ->
     {ok, Jobs} = event_server:get_jobs(),
-    {ok, [[1000000 * MSec + Sec, list_to_binary(atom_to_list(Status)), Name]
-          || {Name, Status, {MSec, Sec, _USec}, _Pid}
+    {ok, [[1000000 * MSec + Sec,
+           list_to_binary(atom_to_list(Status)),
+           list_to_binary(Name)]
+          || {Name, Status, {MSec, Sec, _USec}}
                  <- lists:reverse(lists:keysort(3, Jobs))]};
 
 getop("jobinfo", {_Query, JobName}) ->
@@ -270,20 +272,14 @@ count_maps(L) ->
 
 -spec render_jobinfo(event_server:job_eventinfo(), {[host()], [task_mode()]})
                     -> term().
-render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
+render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
                {Hosts, Modes}) ->
     {NMapRun, NRedRun} = count_maps(Modes),
-    {NMapDone, NRedDone} = count_maps(Ready),
-    {NMapFail, NRedFail} = count_maps(Failed),
-
-    Status = case is_process_alive(Pid) of
-                 true ->
-                     <<"active">>;
-                 false when Results == [] ->
-                     <<"dead">>;
-                 false ->
-                     <<"ready">>
-             end,
+    NMapDone = dict:fetch(map, Ready),
+    NRedDone = dict:fetch(reduce, Ready),
+    NMapFail = dict:fetch(map, Failed),
+    NRedFail = dict:fetch(reduce, Failed),
+    Status = list_to_binary(atom_to_list(Status0)),
 
     MapI = if
                JobInfo#jobinfo.map ->
@@ -297,7 +293,7 @@ render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
                true -> 0
            end,
 
-    {struct, [{timestamp, Timestamp},
+    {struct, [{timestamp, disco_util:format_timestamp(Start)},
               {active, Status},
               {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
               {redi, [RedI, NRedRun, NRedDone, NRedFail]},
