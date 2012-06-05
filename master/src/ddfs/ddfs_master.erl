@@ -322,8 +322,8 @@ do_new_blob(_Obj, K, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;
 do_new_blob(Obj, K, Exclude, BlackList, Nodes) ->
     {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, Exclude, BlackList),
-    Urls = [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj]
-            || N <- WriteNodes],
+    Urls = [lists:flatten(["s3://", ?S3_BUCKET, "/", Obj]) | 
+            [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj] || N <- WriteNodes]],
     {ok, Urls}.
 
 % Tag request: Start a new tag server if one doesn't exist already. Forward

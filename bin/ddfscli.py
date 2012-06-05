@@ -123,6 +123,7 @@ def chunk(program, tag, *urls):
     tags, urls = program.separate_tags(*program.input(*urls))
     stream = reify(program.options.stream)
     reader = reify(program.options.reader or 'None')
+
     tag, blobs = program.ddfs.chunk(tag,
                                     chain(urls, program.blobs(*tags)),
                                     input_stream=stream,

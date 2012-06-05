@@ -14,7 +14,7 @@ from cStringIO import StringIO
 from urllib import urlencode
 
 from disco import json
-from disco.comm import upload, download, open_remote
+from disco.comm import upload, s3_put, download, open_remote
 from disco.error import CommError
 from disco.fileutils import Chunker, CHUNK_SIZE
 from disco.settings import DiscoSettings
@@ -409,4 +409,5 @@ class DDFS(object):
                                         meth='PUT',
                                         to_master=to_master))
                 for url in iterify(urls)]
+
         return upload(urls, source, token=self._token(url, token, 'PUT'), **kwargs)

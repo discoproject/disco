@@ -1,5 +1,7 @@
-import httplib, os, random, struct, time, socket, base64
+import httplib, os, random, struct, time, socket, base64, string
 from cStringIO import StringIO
+from boto.s3.connection import S3Connection
+from boto.s3.key import Key
 
 from disco.error import CommError
 from disco.settings import DiscoSettings
@@ -93,13 +95,49 @@ def download(url, method='GET', data=None, offset=(), token=None):
                    headers=headers).read()
 
 def upload(urls, source, token=None, **kwargs):
+    def _is_s3(url):
+        return string.find(url, "s3://") == 0
+
+    def _split_urls(urls):
+        s3_urls, non_s3_urls = [], []
+
+        for url in urls:
+            if _is_s3(url):
+                s3_urls.append(url)
+            else:
+                non_s3_urls.append(url)
+
+        return s3_urls, non_s3_urls
+
+    def _upload(url):
+        if _is_s3(url):
+            key = os.path.basename(url)
+            bucket = os.path.dirname(url)[5:]
+            s3_put(bucket, key, source)
+            return ("\"%s\"" % url)
+        else:
+            return request('PUT',
+                           url,
+                           data=source.read(),
+                           headers=auth_header(token)).read()
+
     source = FileSource(source)
+
     if nocurl:
-        return [request('PUT',
-                        url,
-                        data=source.read(),
-                        headers=auth_header(token)).read() for url in urls]
-    return list(comm_pycurl.upload(urls, source, token, **kwargs))
+        return [_upload(url) for url in urls]
+
+    s3_urls, non_s3_urls = _split_urls(urls)
+    return [_upload(s3_url) for s3_url in s3_urls] + list(comm_pycurl.upload(non_s3_urls, source, token, **kwargs))
+
+def s3_put(bucket, key, source):
+    conn = S3Connection()
+    bucket = conn.create_bucket(bucket)
+    k = Key(bucket)
+
+    source = FileSource(source)
+
+    k.key = key
+    k.set_contents_from_string(source.read())
 
 def open_url(url, *args, **kwargs):
     from disco.util import schemesplit
