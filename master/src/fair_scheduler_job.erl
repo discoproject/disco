@@ -83,17 +83,21 @@ schedule(Mode, Job, Jobs, AvailableNodes) ->
             none
     end.
 
+-spec get_empty_nodes(pid(), [node()], non_neg_integer()) -> {ok, [node()]} | {error, term()}.
+get_empty_nodes(Job, AvailableNodes, Timeout) ->
+    gen_server:call(Job, {get_empty_nodes, AvailableNodes}, Timeout).
+
 % Return an often empty subset of AvailableNodes that don't have any tasks
 % assigned to them by any job.
 -spec all_empty_nodes([jobinfo()], [node()]) -> [node()].
 all_empty_nodes(_, []) -> [];
 all_empty_nodes([], AvailableNodes) -> AvailableNodes;
 all_empty_nodes([Job|Jobs], AvailableNodes) ->
-    % Job may have died already, don't care
-    case catch gen_server:call(Job,
-            {get_empty_nodes, AvailableNodes}, 500) of
-        {ok, L} -> all_empty_nodes(Jobs, L);
-        _ -> all_empty_nodes(Jobs, AvailableNodes)
+    try
+        {ok, L} = get_empty_nodes(Job, AvailableNodes, 500),
+        all_empty_nodes(Jobs, L)
+    catch _:_ -> % Job may have died already, don't care
+            all_empty_nodes(Job, AvailableNodes)
     end.
 
 -type cast_msgs() :: new_task_msg() | update_nodes_msg()
