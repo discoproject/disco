@@ -100,17 +100,17 @@ init({Master, Task}) ->
 handle_cast(start, #state{task = Task, master = Master} = State) ->
     JobName = Task#task.jobname,
     Fun = fun() -> make_jobhome(JobName, Master) end,
-    case catch lock_server:lock(JobName, Fun, ?JOBHOME_TIMEOUT) of
-        ok ->
-            gen_server:cast(self(), work),
-            {noreply, State};
-        {error, killed} ->
-            {stop, {shutdown, {error, "Job pack extraction timeout"}}, State};
-        {error, Reason} ->
-            Msg = io_lib:format("Jobpack extraction failed: ~p", [Reason]),
-            {stop, {shutdown, {error, Msg}}, State};
-        {'EXIT', {timeout, _}} ->
-            {stop, {shutdown, {error, "Job initialization timeout"}}, State}
+    try case lock_server:lock(JobName, Fun, ?JOBHOME_TIMEOUT) of
+            ok ->
+                gen_server:cast(self(), work),
+                {noreply, State};
+            {error, Reason} ->
+                Msg = io_lib:format("Jobpack extraction failed: ~p", [Reason]),
+                {stop, {shutdown, {error, Msg}}, State}
+        end
+    catch K:V ->
+            E = io_lib:format("Jobpack extraction error: ~p:~p", [K,V]),
+            {stop, {shutdown, {error, E}}, State}
     end;
 handle_cast(work, #state{task = Task, port = none} = State) ->
     JobHome = jobhome(Task#task.jobname),
