@@ -234,7 +234,7 @@ start_link(Root, DeletedAges) ->
             E
     end.
 
--spec gc_status(pid(), pid()) -> 'ok'.
+-spec gc_status(pid(), pid()) -> ok.
 gc_status(Master, From) ->
     gen_server:cast(Master, {gc_status, From}).
 
@@ -246,11 +246,11 @@ gc_status(Master, From) ->
 is_orphan(Master, Type, ObjName, Vol) ->
     gen_server:call(Master, {is_orphan, Type, ObjName, node(), Vol}).
 
--spec node_gc_done(pid(), gc_run_stats()) -> 'ok'.
+-spec node_gc_done(pid(), gc_run_stats()) -> ok.
 node_gc_done(Master, GCStats) ->
     gen_server:cast(Master, {gc_done, node(), GCStats}).
 
--spec add_replicas(pid(), object_name(), [url()]) -> 'ok'.
+-spec add_replicas(pid(), object_name(), [url()]) -> ok.
 add_replicas(Master, BlobName, NewUrls) ->
     gen_server:cast(Master, {add_replicas, BlobName, NewUrls}).
 
@@ -363,7 +363,10 @@ handle_cast({retry_node, Node},
 
 handle_cast({build_map, [T|Tags]},
             #state{phase = build_map, num_pending_reqs = PendingReqs} = S) ->
-    case catch check_tag(T, S, ?MAX_TAG_OP_RETRIES) of
+    Check = try check_tag(T, S, ?MAX_TAG_OP_RETRIES)
+            catch K:V -> {error, {K,V}}
+            end,
+    case Check of
         {ok, Sent} ->
             gen_server:cast(self(), {build_map, Tags}),
             Pending = PendingReqs + Sent,
@@ -580,7 +583,7 @@ format_status(_Opt, [_PDict, S]) ->
 %% ===================================================================
 %% peer connection management and messaging protocol
 
--spec schedule_retry(node()) -> 'ok'.
+-spec schedule_retry(node()) -> ok.
 schedule_retry(Node) ->
     Self = self(),
     _ = spawn(fun() ->
@@ -630,18 +633,18 @@ resend_pending(Node, Pid) ->
     length(Objects).
 
 
--spec node_broadcast(gb_tree(), protocol_msg()) -> 'ok'.
+-spec node_broadcast(gb_tree(), protocol_msg()) -> ok.
 node_broadcast(Peers, Msg) ->
     lists:foreach(fun({Pid, _}) ->
                           node_send(Pid, Msg)
                   end, gb_trees:values(Peers)).
 
--spec node_send(pid(), protocol_msg()) -> 'ok'.
+-spec node_send(pid(), protocol_msg()) -> ok.
 node_send(Pid, Msg) ->
     Pid ! Msg,
     ok.
 
--spec cleanup_for_exit(state()) -> 'ok'.
+-spec cleanup_for_exit(state()) -> ok.
 cleanup_for_exit(#state{gc_peers = Peers, progress_timer = Timer, rr_pid = RR}) ->
     lists:foreach(fun({Pid, _}) -> exit(Pid, terminate)
                   end, gb_trees:values(Peers)),
@@ -655,34 +658,32 @@ cleanup_for_exit(#state{gc_peers = Peers, progress_timer = Timer, rr_pid = RR}) 
 %% ===================================================================
 %% build_map and map_wait phases
 
--spec get_all_tags() -> {'ok', [tagname()], [node()]} | {'error', term()}.
+-spec get_all_tags() -> {ok, [tagname()], [node()]} | {error, term()}.
 get_all_tags() ->
     get_all_tags(?MAX_TAG_OP_RETRIES).
 
 get_all_tags(Retries) ->
-    case catch ddfs_master:get_tags(gc) of
-        {'EXIT', {timeout, _}} when Retries =/= 0 ->
-            get_all_tags(Retries - 1);
-        {'EXIT', {timeout, _}} ->
-            {error, timeout};
-        {ok, _Tags, _OkNodes} = AllTags ->
-            AllTags;
-        E ->
-            E
+    try case ddfs_master:get_tags(gc) of
+            {ok, _Tags, _OkNodes} = AllTags -> AllTags;
+            E -> E
+        end
+    catch _:_ when Retries =/= 0 -> get_all_tags(Retries - 1);
+          _:_ ->                    {error, timeout}
     end.
 
 -spec check_tag(tagname(), state(), non_neg_integer()) ->
-                       {'ok', non_neg_integer()} | {'error', term()}.
+                       {ok, non_neg_integer()} | {error, term()}.
 check_tag(Tag, S, Retries) ->
-    case catch ddfs_master:tag_operation(gc_get, Tag, ?GET_TAG_TIMEOUT) of
-        {{missing, deleted}, false} ->
-            {ok,  0};
-        {'EXIT', {timeout, _}} when Retries =/= 0 ->
-            check_tag(Tag, S, Retries - 1);
-        {TagId, TagUrls, TagReplicas} ->
-            {ok, check_tag(S, Tag, TagId, TagUrls, TagReplicas)};
-        E ->
-            E
+    try case ddfs_master:tag_operation(gc_get, Tag, ?GET_TAG_TIMEOUT) of
+            {{missing, deleted}, false} ->
+                {ok,  0};
+            {TagId, TagUrls, TagReplicas} ->
+                {ok, check_tag(S, Tag, TagId, TagUrls, TagReplicas)};
+            E ->
+                E
+        end
+    catch _:_ when Retries =/= 0 -> check_tag(Tag, S, Retries - 1);
+          _:_                    -> {error, timeout}
     end.
 
 -spec check_tag(state(), tagname(), tagid(), [[url()]], [node()])
@@ -697,7 +698,7 @@ check_tag(S, Tag, TagId, TagUrls, TagReplicas) ->
     lists:foldl(fun(BlobSet, Sent) -> check_blobset(S, BlobSet, Sent) end,
                 0, TagUrls).
 
--spec record_tag(state(), object_name(), tagid(), [node()]) -> 'ok'.
+-spec record_tag(state(), object_name(), tagid(), [node()]) -> ok.
 record_tag(_S, Tag, TagId, _TagReplicas) ->
     % Assert that TagId embeds the specified Tag name.
     {Tag, Tstamp} = ddfs_util:unpack_objname(TagId),
@@ -906,7 +907,7 @@ add_obj_stats({K1, D1}, {K2, D2}) ->
 add_gc_stat({F1, B1}, {F2, B2}) ->
     {F1 + F2, B1 + B2}.
 
--spec print_gc_stats(node(), gc_run_stats()) -> 'ok'.
+-spec print_gc_stats(node(), gc_run_stats()) -> ok.
 print_gc_stats(all, {Tags, Blobs}) ->
     lager:info("Total GC Stats: ~p  ~p",
                [obj_stats(tag, Tags), obj_stats(blob, Blobs)]);
@@ -936,7 +937,7 @@ obj_stats(Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
 %
 % The Ages table persists the time of death for each deleted tag.
 
--spec process_deleted([object_name()], ets:tab()) -> 'ok'.
+-spec process_deleted([object_name()], ets:tab()) -> ok.
 process_deleted(Tags, Ages) ->
     lager:info("GC: Pruning +deleted"),
     Now = now(),
@@ -992,7 +993,7 @@ find_unusable(BL, Nodes) ->
 -type rep_result() :: 'noupdate' | {'update', [url()]}.
 
 % Rereplicate at most one blob, and then return.
--spec rereplicate_blob(state(), rr_next() | '$end_of_table') -> 'ok'.
+-spec rereplicate_blob(state(), rr_next() | '$end_of_table') -> ok.
 rereplicate_blob(_S, '$end_of_table' = End) ->
     gen_server:cast(self(), {rr_blob, End});
 rereplicate_blob(S, BlobName) ->
@@ -1059,7 +1060,7 @@ rereplicate_blob(#state{blacklist = BL} = S,
     end.
 
 -spec try_put_blob(state(), object_name(), [node(),...], [node()]) ->
-                          'pending' | {'error', term()}.
+                          pending | {error, term()}.
 try_put_blob(#state{rr_pid = RR, gc_peers = Peers}, BlobName, OkNodes, BL) ->
     case ddfs_master:new_blob(BlobName, 1, OkNodes ++ BL) of
         {ok, [PutUrl]} ->
@@ -1073,7 +1074,7 @@ try_put_blob(#state{rr_pid = RR, gc_peers = Peers}, BlobName, OkNodes, BL) ->
     end.
 
 % gen_server update handler.
--spec update_replicas(state(), object_name(), [url()]) -> 'ok'.
+-spec update_replicas(state(), object_name(), [url()]) -> ok.
 update_replicas(_S, BlobName, NewUrls) ->
     % An update can only arrive for a blob that was marked for replication
     % (see rereplicate_blob/5).
@@ -1109,7 +1110,7 @@ replicator(#rep_state{ref = Ref, timeouts = TO} = S) ->
             ok
     end.
 
--spec stop_replicator(pid()) -> 'ok'.
+-spec stop_replicator(pid()) -> ok.
 stop_replicator(RR) ->
     RR ! rr_end,
     ok.
@@ -1151,19 +1152,19 @@ wait_put_blob(#rep_state{ref = Ref, timeouts = TO, master = Master} = S,
 update_tag(S, _T, 0) ->
     S;
 update_tag(S, T, Retries) ->
-    case catch ddfs_master:tag_operation(gc_get, T, ?GET_TAG_TIMEOUT) of
-        {{missing, deleted}, false} ->
-            S;
-        {'EXIT', {timeout, _}} ->
-            update_tag(S, T, Retries - 1);
-        {TagId, TagUrls, TagReplicas} ->
-            update_tag_body(S, T, TagId, TagUrls, TagReplicas);
-        _E ->
-            % If there is any error, we cannot ensure safety in
-            % removing any blacklisted nodes; reset the safe
-            % blacklist.
-            lager:info("GC: Unable to retrieve tag ~p (rr_tags)", [T]),
-            S#state{safe_blacklist = gb_sets:empty()}
+    try case ddfs_master:tag_operation(gc_get, T, ?GET_TAG_TIMEOUT) of
+            {{missing, deleted}, false} ->
+                S;
+            {TagId, TagUrls, TagReplicas} ->
+                update_tag_body(S, T, TagId, TagUrls, TagReplicas);
+            _E ->
+                % If there is any error, we cannot ensure safety in
+                % removing any blacklisted nodes; reset the safe
+                % blacklist.
+                lager:info("GC: Unable to retrieve tag ~p (rr_tags)", [T]),
+                S#state{safe_blacklist = gb_sets:empty()}
+        end
+    catch _:_ -> update_tag(S, T, Retries - 1)
     end.
 
 -spec log_blacklist_change(tagname(), gb_set(), gb_set()) -> ok.
@@ -1261,7 +1262,7 @@ usable_locations(S, BlobName) ->
 usable_locations(#state{blacklist = BL, root = Root},
                  BlobName, Locations, NewUrls) ->
     CurUrls = [url(N, V, BlobName, Root) || {N, V} <- Locations,
-                                            not lists:member(N, BL)], 
+                                            not lists:member(N, BL)],
     lists:usort(CurUrls ++ NewUrls).
 
 url(N, V, Blob, Root) ->

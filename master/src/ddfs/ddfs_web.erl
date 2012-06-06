@@ -124,13 +124,11 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
 
 op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
     Prefix = list_to_binary(string:strip(Prefix0, both, $/)),
-    case catch ddfs:tags(ddfs_master, Prefix) of
-        {ok, Tags} ->
-            okjson(Tags, Req);
-        {'EXIT', {timeout, _}} ->
-            on_error({error, timeout}, Req);
-        E ->
-            on_error(E, Req)
+    try case ddfs:tags(ddfs_master, Prefix) of
+            {ok, Tags} -> okjson(Tags, Req);
+            E -> on_error(E, Req)
+        end
+    catch K:V -> on_error({K,V}, Req)
     end;
 
 op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->

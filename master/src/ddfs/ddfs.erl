@@ -19,14 +19,12 @@ new_blob(Server, Blob, Replicas, Exclude) ->
                        ddfs_master:new_blob(Server, Obj, Replicas, Exclude)
                    end).
 
--spec tags(server(), binary()) -> {ok, [binary()]}.
+-spec tags(server(), binary()) -> {ok, [binary()]} | {error, term()}.
 tags(Server, Prefix) ->
     case ddfs_master:get_tags(Server, safe, ?NODEOP_TIMEOUT) of
         {ok, Tags} ->
-            {ok, if Prefix =:= <<>> ->
-                         Tags;
-                    true ->
-                         [T || T <- Tags, ddfs_util:startswith(T, Prefix)]
+            {ok, if Prefix =:= <<>> -> Tags;
+                    true -> [T || T <- Tags, ddfs_util:startswith(T, Prefix)]
                  end};
         E -> E
     end.

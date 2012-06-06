@@ -148,7 +148,10 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
                   ddfs_util:hashdir(Obj, "nonode!", atom_to_list(Type), Root, VolName),
               FullPath = filename:join(Path, binary_to_list(Obj)),
               Diff = timer:now_diff(Now, Time) / 1000,
-              case catch ddfs_gc_main:is_orphan(Master, Type, Obj, VolName) of
+              Orphan = try ddfs_gc_main:is_orphan(Master, Type, Obj, VolName)
+                       catch _:_ -> false
+                       end,
+              case Orphan of
                   {ok, true} ->
                       Deleted = delete_if_expired(FullPath, Diff, Expires, Paranoid),
                       true = ets:update_element(Type, Obj, {4, not Deleted});
@@ -204,15 +207,16 @@ replica_server(Master, Root) ->
 do_put(Blob, SrcPath, PutUrl) ->
     case ddfs_http:http_put(SrcPath, PutUrl, ?GC_PUT_TIMEOUT) of
         {ok, Body} ->
-            case catch mochijson2:decode(Body) of
-                {'EXIT', _, _} ->
+            Resp = try mochijson2:decode(Body)
+                   catch _ -> invalid; _:_ -> invalid
+                   end,
+            case Resp of
+                invalid ->
                     {error, {server_error, Body}};
                 Resp when is_binary(Resp) ->
                     case ddfs_util:parse_url(Resp) of
-                        not_ddfs ->
-                            {error, {server_error, Body}};
-                        _ ->
-                            {ok, Blob, [Resp]}
+                        not_ddfs -> {error, {server_error, Body}};
+                        _ ->        {ok, Blob, [Resp]}
                     end;
                 _Err ->
                     {error, {server_error, Body}}
