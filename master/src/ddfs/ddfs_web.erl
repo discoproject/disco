@@ -284,21 +284,19 @@ okjson(Data, Req) ->
 
 -spec process_payload(fun(([binary()], non_neg_integer()) -> _), module()) -> _.
 process_payload(Fun, Req) ->
-    case catch Req:recv_body(?MAX_TAG_BODY_SIZE) of
-        {'EXIT', _} ->
-            Req:respond({403, [], ["Invalid request."]});
-        BinaryPayload ->
-            case catch mochijson2:decode(BinaryPayload) of
-                {'EXIT', _} ->
-                    Req:respond({403, [], ["Invalid request body."]});
-                Value ->
-                    case Fun(Value, size(BinaryPayload)) of
-                        {ok, Dst} ->
-                            okjson(Dst, Req);
-                        E ->
-                            on_error(E, Req)
-                    end
-            end
+    try  BinaryPayload = Req:recv_body(?MAX_TAG_BODY_SIZE),
+         Payload = try mochijson2:decode(BinaryPayload)
+                   catch _:_ -> invalid end,
+         case Payload of
+             invalid ->
+                 Req:respond({403, [], ["Invalid request body."]});
+             Value ->
+                 case Fun(Value, size(BinaryPayload)) of
+                     {ok, Dst} -> okjson(Dst, Req);
+                     E -> on_error(E, Req)
+                 end
+         end
+    catch _:_ -> Req:respond({403, [], ["Invalid request."]})
     end.
 
 -spec parse_exclude('false' | {'value', {_, string()}}) -> [node()].
