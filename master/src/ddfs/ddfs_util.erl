@@ -198,12 +198,8 @@ concatenate_do(SrcIO, DstIO) ->
 diskspace(Path) ->
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
         [_, _, Free, Used|_] ->
-            case catch {list_to_integer(Free),
-                        list_to_integer(Used)} of
-                {F, U} when is_integer(F), is_integer(U), F >= 0, U >= 0 ->
-                    {ok, {F, U}};
-                _ ->
-                    {error, invalid_path}
+            try {ok, {list_to_integer(Free), list_to_integer(Used)}}
+            catch _:_ -> {error, invalid_path}
             end;
         _ ->
             {error, invalid_output}
