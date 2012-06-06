@@ -90,7 +90,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
 receive_blob(Req, IO, Dst, Url) ->
     error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p",
                           [Req:get(path), Req:get_header_value("content-length"), node()]),
-    case catch receive_body(Req, IO) of
+    case receive_body(Req, IO) of
         ok ->
             [_, Fname] = string:tokens(filename:basename(Dst), "."),
             Dir = filename:join(filename:dirname(Dst), Fname),
@@ -116,13 +116,13 @@ receive_blob(Req, IO, Dst, Url) ->
 
 -spec receive_body(module(), file:io_device()) -> _.
 receive_body(Req, IO) ->
-    R0 = Req:stream_body(?MAX_RECV_BODY,
-                         fun ({BufLen, Buf}, BodyLen) ->
-                                 case file:write(IO, Buf) of
-                                     ok -> BodyLen + BufLen;
-                                     {error, E} -> throw(E) % caught in receive_blob/4.
-                                 end
-                         end, 0),
+    R0 = (catch Req:stream_body(?MAX_RECV_BODY,
+                                fun ({BufLen, Buf}, BodyLen) ->
+                                        case file:write(IO, Buf) of
+                                            ok -> BodyLen + BufLen;
+                                            {error, _E} = Err -> throw(Err)
+                                        end
+                                end, 0)),
     case R0 of
         % R == <<>> or undefined if body is empty
         R when is_integer(R); R =:= <<>>; R =:= undefined ->
