@@ -76,10 +76,8 @@ validate(Name, Fun) ->
         false ->
             {error, invalid_name};
         true ->
-            case catch Fun() of
-                {'EXIT', {timeout, _}} ->
-                    {error, timeout};
-                Ret ->
-                    Ret
+            try Fun()
+            catch exit:{timeout,_} -> {error,timeout};
+                  K:V -> {error, {K,V}}
             end
     end.
