@@ -42,13 +42,14 @@ start(JobName, JobCoord) ->
 init({JobName, JobCoord}) ->
     process_flag(trap_exit, true),
     put(jobname, JobName),
-    case catch link(JobCoord) of
-        true ->
-            {ok, {gb_trees:insert(nopref, {0, []}, gb_trees:empty()),
-                  gb_trees:empty(),
-                  []}};
-        R ->
-            lager:info("Linking failed: ~p", [R]),
+    try
+        true = link(JobCoord),
+        {ok, {gb_trees:insert(nopref, {0, []}, gb_trees:empty()),
+              gb_trees:empty(),
+              []}}
+    catch K:V ->
+            lager:warning("~p: linking to coordinator for job ~p failed: ~p:~p",
+                          [?MODULE, JobName, K, V]),
             {stop, normal}
     end.
 
