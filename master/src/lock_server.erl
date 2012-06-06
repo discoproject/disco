@@ -21,17 +21,12 @@
 -spec start_link() -> no_return().
 start_link() ->
     process_flag(trap_exit, true),
-    case catch gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
-        {ok, _Server} ->
-            ok;
-	{error, {already_started, _Server}} ->
-	    exit(already_started);
-        {'EXIT', Reason} ->
-            exit(Reason)
+    case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
+        {ok, _Server} -> ok;
+	{error, {already_started, _Server}} -> exit(already_started)
     end,
     receive
-        {'EXIT', _, Reason0} ->
-            exit(Reason0)
+        {'EXIT', _, Reason0} -> exit(Reason0)
     end.
 
 -spec lock(lockname(), fun(() -> ok), non_neg_integer()) -> ok | {error, term()}.
