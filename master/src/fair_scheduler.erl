@@ -73,7 +73,7 @@ handle_cast({job_done, JobName}, Nodes) ->
     end.
 
 -spec handle_call({new_job, jobname(), pid()}, from(), state()) -> gs_reply(ok);
-                 (new_task_msg(), from(), state()) -> gs_reply(ok);
+                 (new_task_msg(), from(), state()) -> gs_reply(unknown_job | ok);
                  (dbg_state_msg(), from(), state()) -> gs_reply(state());
                  ({next_task, [host()]}, from(), state()) ->
                          gs_reply(nojobs | {ok, {pid(), task()}}).
