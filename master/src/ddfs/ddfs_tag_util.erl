@@ -95,12 +95,7 @@ decode_tagcontent(TagData) ->
         {'EXIT', _} ->
             {error, corrupted_json};
         {struct, Body} ->
-            case catch lookup_tagcontent(Body) of
-                {'EXIT', _} ->
-                    {error, invalid_object};
-                TagContent ->
-                    {ok, TagContent}
-            end
+            {ok, lookup_tagcontent(Body)}
     end.
 
 -spec update_tagcontent(tagname(), tagcontent()) -> tagcontent().
