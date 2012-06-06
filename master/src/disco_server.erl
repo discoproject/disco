@@ -496,18 +496,23 @@ do_new_job(JobName, JobCoord, _S) ->
     catch gen_server:call(scheduler, {new_job, JobName, JobCoord}).
 
 -spec do_new_task(task(), state()) -> ok | failed.
-do_new_task(Task, #state{nodes = Nodes}) ->
+do_new_task(#task{jobname = Job, taskid = TaskId} = Task, #state{nodes = Nodes}) ->
     NodeStats = [case gb_trees:lookup(Node, Nodes) of
                      none -> {false, Input};
                      {value, N} -> {N#dnode.num_running, Input}
                  end || {_Url, Node} = Input <- Task#task.input],
-    %% FIXME: remove case catch
-    case catch gen_server:call(scheduler, {new_task, Task, NodeStats}) of
-        ok ->
-            schedule_next(),
-            ok;
-        unknown_job ->
-            % most likely job was killed
+    try
+        case gen_server:call(scheduler, {new_task, Task, NodeStats}) of
+            ok ->
+                schedule_next(),
+                ok;
+            unknown_job ->
+                % most likely job was killed
+                failed
+        end
+    catch K:V ->
+            lager:warning("Call to schedule task ~p of job ~p failed: ~p:~p",
+                          [TaskId, Job, K, V]),
             failed
     end.
 
