@@ -51,9 +51,9 @@ get_vols() ->
 gate_get_blob() ->
     gen_server:call(?MODULE, get_blob, ?GET_WAIT_TIMEOUT).
 
--spec put_blob(nonempty_string()) ->
-                      full | {ok, path(), url()} | {error, path(), term()}
-                          | {error, no_volumes}.
+-type put_blob_result() :: {ok, path(), url()} | full
+                         | {error, path(), term()} | {error, term()}.
+-spec put_blob(nonempty_string()) -> put_blob_result().
 put_blob(BlobName) ->
     gen_server:call(?MODULE, {put_blob, BlobName}, ?PUT_WAIT_TIMEOUT).
 
@@ -211,7 +211,6 @@ do_get_diskspace(#state{vols = Vols}) ->
                         {TotalFree + Free, TotalUsed + Used}
                 end, {0, 0}, Vols).
 
--type put_blob_result() :: full | {error, no_volumes}.
 -spec do_put_blob(nonempty_string(), {pid(), _}, state())
                  -> gs_reply(put_blob_result()) | gs_noreply().
 do_put_blob(_BlobName, _From, #state{vols = []} = S) ->
