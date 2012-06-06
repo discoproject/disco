@@ -20,24 +20,23 @@ start_link(Master, DataRoot) ->
 
 -spec loop(path()) -> no_return().
 loop(DataRoot) ->
-    case catch {get_purged(), event_server:get_jobs(get(master))} of
-        {{ok, Purged}, {ok, Jobs}} ->
-            case prim_file:list_dir(DataRoot) of
-                {ok, Dirs} ->
-                    Active = gb_sets:from_list(
-                               [Name || {Name, active, _Start} <- Jobs]),
-                    process_dir(DataRoot, Dirs, gb_sets:from_ordset(Purged), Active);
-                E ->
-                    % fresh install, try again after GC_INTERVAL
-                    error_logger:info_msg("Tempgc: error listing ~p: ~p",
-                                          [DataRoot, E]),
-                    ok
-            end;
-        E ->
-            error_logger:info_msg("Tempgc: error contacting master from ~p: ~p",
-                                  [node(), E]),
+    try
+        {{ok, Purged}, {ok, Jobs}} = {get_purged(), event_server:get_jobs(get(master))},
+        case prim_file:list_dir(DataRoot) of
+            {ok, Dirs} ->
+                Active = gb_sets:from_list(
+                           [Name || {Name, active, _Start} <- Jobs]),
+                process_dir(DataRoot, Dirs, gb_sets:from_ordset(Purged), Active);
+            E ->
+                % fresh install, try again after GC_INTERVAL
+                error_logger:info_msg("Tempgc: error listing ~p: ~p",
+                                      [DataRoot, E]),
+                ok
+        end
+    catch K:V ->
+            error_logger:info_msg("Tempgc: error contacting master from ~p: ~p:~p",
+                                  [node(), K,V])
             % master busy, try again after GC_INTERVAL
-            ok
     end,
     error_logger:info_msg("Tempgc: one pass completed on ~p", [node()]),
     timer:sleep(?GC_INTERVAL),
@@ -53,7 +52,6 @@ flush() ->
 ddfs_delete(Tag) ->
     ddfs:delete({ddfs_master, get(master)}, Tag, internal).
 
--spec get_purged() -> [binary()].
 get_purged() ->
     disco_server:get_purged(get(master)).
 

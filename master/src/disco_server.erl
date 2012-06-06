@@ -127,7 +127,7 @@ gc_blacklist(Hosts) ->
 get_worker_jobpack(Master, JobName) ->
     gen_server:call({?MODULE, Master}, {jobpack, JobName}).
 
--spec get_purged(node()) -> [binary()].
+-spec get_purged(node()) -> {ok, [binary()]}.
 get_purged(Master) ->
     gen_server:call({?MODULE, Master}, get_purged).
 
