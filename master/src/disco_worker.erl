@@ -202,32 +202,33 @@ update(#state{buffer = B,
     case worker_protocol:parse(B, P) of
         {ok, Request, Buffer, PState} ->
             S1 = S#state{buffer = Buffer},
-            case catch worker_runtime:handle(Request, RT) of
-                {ok, Reply, RState} ->
-                    WS ! {Reply, 0},
-                    update(S1#state{parser = PState, runtime = RState});
-                {ok, Reply, RState, rate_limit} ->
-                    case worker_throttle:handle(T) of
-                        {ok, Delay, TState} ->
-                            WS ! {Reply, Delay},
-                            update(S1#state{parser = PState,
-                                            runtime = RState,
-                                            throttle = TState});
-                        {error, Msg} ->
-                            warning(Msg, S1),
-                            exit_on_error(fatal, S1)
-                    end;
-                {stop, Ret} ->
-                    {stop, {shutdown, Ret}, S};
-                {error, {Type, Msg}} ->
-                    warning(Msg, S1),
-                    exit_on_error(Type, S1);
-                {error, {Type, Msg}, RState} ->
-                    S2 = S1#state{runtime = RState},
-                    warning(Msg, S2),
-                    exit_on_error(Type, S2);
-                {'EXIT', Reason} ->
-                    warning(io_lib:format("~p", [Reason]), S1),
+            try case worker_runtime:handle(Request, RT) of
+                    {ok, Reply, RState} ->
+                        WS ! {Reply, 0},
+                        update(S1#state{parser = PState, runtime = RState});
+                    {ok, Reply, RState, rate_limit} ->
+                        case worker_throttle:handle(T) of
+                            {ok, Delay, TState} ->
+                                WS ! {Reply, Delay},
+                                update(S1#state{parser = PState,
+                                                runtime = RState,
+                                                throttle = TState});
+                            {error, Msg} ->
+                                warning(Msg, S1),
+                                exit_on_error(fatal, S1)
+                        end;
+                    {stop, Ret} ->
+                        {stop, {shutdown, Ret}, S};
+                    {error, {Type, Msg}} ->
+                        warning(Msg, S1),
+                        exit_on_error(Type, S1);
+                    {error, {Type, Msg}, RState} ->
+                        S2 = S1#state{runtime = RState},
+                        warning(Msg, S2),
+                        exit_on_error(Type, S2)
+                end
+            catch K:V ->
+                    warning(io_lib:format("~p:~p", [K, V]), S1),
                     exit_on_error(error, S1)
             end;
         {cont, Buffer, PState} ->
