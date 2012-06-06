@@ -64,22 +64,22 @@ next_task(Job, Jobs, AvailableNodes) ->
                [jobinfo()], [node()]) -> {ok, {node(), task()}} | none.
 schedule(Mode, Job, Jobs, AvailableNodes) ->
     % First try to find a node-local or remote task to execute
-    case catch gen_server:call(Job, {Mode, AvailableNodes}, ?SCHEDULE_TIMEOUT) of
-        {run, Node, Task} ->
-            {ok, {Node, Task}};
-        nonodes ->
-            none;
-        nolocal ->
-            % No locals, if empty nodes (i.e. nodes where no job
-            % has any tasks assigned) are available, we can assign
-            % a task to one of them.
-            Empty = all_empty_nodes(Jobs, AvailableNodes),
-            schedule(schedule_remote, Job, Jobs, Empty);
-        {'EXIT', {timeout, _}} = Error ->
-            lager:warning("Scheduling timeout error ~p!", [Error]),
-            gen_server:cast(Job, {die, "Scheduling timeout (system busy?)"}),
-            none;
-        {'EXIT', _} ->
+    try
+        case gen_server:call(Job, {Mode, AvailableNodes}, ?SCHEDULE_TIMEOUT) of
+            {run, Node, Task} ->
+                {ok, {Node, Task}};
+            nonodes ->
+                none;
+            nolocal ->
+                % No locals, if empty nodes (i.e. nodes where no job
+                % has any tasks assigned) are available, we can assign
+                % a task to one of them.
+                Empty = all_empty_nodes(Jobs, AvailableNodes),
+                schedule(schedule_remote, Job, Jobs, Empty)
+        end
+    catch K:V ->
+            lager:warning("Scheduling error: ~p:~p!", [K, V]),
+            gen_server:cast(Job, {die, "Scheduling error (system busy?)"}),
             none
     end.
 
