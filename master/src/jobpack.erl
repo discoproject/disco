@@ -186,10 +186,9 @@ valid(<<?MAGIC:16/big,
        JobHomeOffset >= JobEnvsOffset,
        JobDataOffset >= JobHomeOffset,
        byte_size(JobPack) >= JobDataOffset ->
-    case catch jobenvs(JobPack) of
-        {'EXIT', _} -> {error, invalid_dicts_or_envs};
-        {error, E} -> {error, E};
-        _ -> ok
+    try  _ = jobenvs(JobPack),
+         ok
+    catch _:_ -> {error, invalid_dicts_or_envs}
     end;
 valid(_JobPack) -> {error, invalid_header}.
 
@@ -198,8 +197,6 @@ validate_prefix(Prefix) when is_binary(Prefix)->
     validate_prefix(binary_to_list(Prefix));
 validate_prefix(Prefix) ->
     case string:chr(Prefix, $/) + string:chr(Prefix, $.) of
-        0 ->
-            Prefix;
-        _ ->
-            throw({error, "invalid prefix"})
+        0 -> Prefix;
+        _ -> throw({error, "invalid prefix"})
     end.
