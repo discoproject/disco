@@ -37,16 +37,17 @@ parse(Buffer, {parse_length, Type} = State) ->
     <<_:TypeLen/binary, Rest/binary>> = Buffer,
     case head(Rest) of
         {ok, LengthStr} ->
-            case catch list_to_integer(binary_to_list(LengthStr)) of
-                {'EXIT', _} ->
-                    {error, invalid_length};
-                Length when Length < 0 ->
-                    {error, invalid_length};
-                Length when Length > ?MAX_MESSAGE_LENGTH ->
-                    {error, message_too_big};
-                Length ->
-                    Total = byte_size(Type) + byte_size(LengthStr) + Length + 3,
-                    parse(Buffer, {parse_body, Type, LengthStr, Total})
+            try
+                case list_to_integer(binary_to_list(LengthStr)) of
+                    Len when Len < 0 ->
+                        {error, invalid_length};
+                    Len when Len > ?MAX_MESSAGE_LENGTH ->
+                        {error, message_too_big};
+                    Len ->
+                        Total = byte_size(Type) + byte_size(LengthStr) + Len + 3,
+                        parse(Buffer, {parse_body, Type, LengthStr, Total})
+                end
+            catch _:_ -> {error, invalid_length}
             end;
         head_missing ->
             {error, invalid_length};
