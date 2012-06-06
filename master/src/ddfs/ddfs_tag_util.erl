@@ -10,7 +10,7 @@
 
 -export([make_tagcontent/6]).
 
--spec check_token(tokentype(), token(), token(), token()) -> tokentype() | 'false'.
+-spec check_token(tokentype(), token(), token(), token()) -> tokentype() | false.
 check_token(TokenType, Token, ReadToken, WriteToken) ->
     Auth = fun(Tok, CurrentToken) when Tok =:= CurrentToken -> true;
               (internal, _) -> true;
@@ -87,15 +87,15 @@ lookup_tagcontent(L) ->
                 write_token = lookup(<<"write-token">>, null, L),
                 user = UserData}.
 
--spec decode_tagcontent(binary()) ->
-                        {'error', 'corrupted_json' | 'invalid_object'} |
-                         {'ok', tagcontent()}.
+-spec decode_tagcontent(binary()) -> {error, corrupted_json | invalid_object} |
+                                     {ok, tagcontent()}.
 decode_tagcontent(TagData) ->
-    case catch mochijson2:decode(TagData) of
-        {'EXIT', _} ->
-            {error, corrupted_json};
-        {struct, Body} ->
-            {ok, lookup_tagcontent(Body)}
+    try case mochijson2:decode(TagData) of
+            {struct, Body} -> {ok, lookup_tagcontent(Body)};
+            _E -> {error, invalid_object}
+        end
+    catch _ ->   {error, corrupted_json};
+          _:_ -> {error, corrupted_json}
     end.
 
 -spec update_tagcontent(tagname(), tagcontent()) -> tagcontent().
@@ -104,8 +104,8 @@ update_tagcontent(TagName, Tag) ->
                    last_modified = ddfs_util:format_timestamp()}.
 
 -spec update_tagcontent(tagname(), attrib(), _, _, token()) ->
-                        {'error', 'too_many_attributes' | 'invalid_url_object'} |
-                        {'ok', tagcontent()}.
+                               {error, too_many_attributes | invalid_url_object} |
+                               {ok, tagcontent()}.
 update_tagcontent(TagName, Field, Value, {ok, Tag}, _Token) ->
     Updated = update_tagcontent(TagName, Tag),
     update_tagcontent(Field, Value, Updated);
@@ -122,8 +122,8 @@ update_tagcontent(TagName, Field, Value, _Tag, Token) ->
     update_tagcontent(TagName, Field, Value, {ok, New}, Token).
 
 -spec update_tagcontent(attrib(), _, tagcontent()) ->
-                       {'error', 'too_many_attributes' | 'invalid_url_object'} |
-                       {'ok', tagcontent()}.
+                       {error, too_many_attributes | invalid_url_object} |
+                       {ok, tagcontent()}.
 update_tagcontent(read_token, Token, Tag) ->
     {ok, Tag#tagcontent{read_token = Token}};
 
