@@ -55,12 +55,12 @@ init({JobName, JobCoord}) ->
 
 % MAIN FUNCTION:
 % Return a next task to be executed from this Job.
--spec next_task(jobinfo(), [jobinfo()], [node()])
+-spec next_task(pid(), [jobinfo()], [node()])
                -> {ok, {node(), task()}} | none.
 next_task(Job, Jobs, AvailableNodes) ->
     schedule(schedule_local, Job, Jobs, AvailableNodes).
 
--spec schedule(schedule_local | schedule_remote, jobinfo(),
+-spec schedule(schedule_local | schedule_remote, pid(),
                [jobinfo()], [node()]) -> {ok, {node(), task()}} | none.
 schedule(Mode, Job, Jobs, AvailableNodes) ->
     % First try to find a node-local or remote task to execute
