@@ -11,10 +11,9 @@ start(Port) ->
             {name, web_server},
             {max, ?MAX_HTTP_CONNECTIONS},
             {port, Port}],
-    lager:info("web_server starts"),
-    case catch mochiweb_http:start(Conf) of
+    case mochiweb_http:start(Conf) of
         {ok, Pid} ->
-            lager:info("mochiweb starts"),
+            lager:info("web server (mochiweb) starts"),
             {ok, Pid};
         {_Error, E} ->
             lager:error("Starting web server failed: ~p", [E]),
