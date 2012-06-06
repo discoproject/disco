@@ -64,16 +64,16 @@ send_file(Req, Path, Root) ->
         {true, undefined} ->
             Req:not_found();
         {true, SafePath} ->
-            case catch ddfs_node:gate_get_blob() of
-                ok ->
-                    send_file(Req, filename:join(Root, SafePath));
-                {'EXIT', {noproc, _}} ->
-                    Req:respond({403, [],
-                                 ["Disco node is not running on this host"]});
-                _ ->
-                    Req:respond({503, [],
-                                 ["Maximum number of downloaders reached. ",
-                                  "Try again later"]})
+            try case ddfs_node:gate_get_blob() of
+                    ok ->
+                        send_file(Req, filename:join(Root, SafePath));
+                    full ->
+                        Req:respond({503, [],
+                                     ["Maximum number of downloaders reached. ",
+                                      "Try again later"]})
+                end
+            catch _K:_V ->
+                    Req:respond({403, [], ["Disco node is busy"]})
             end;
         _ ->
             Req:respond({501, [], ["Method not supported"]})
