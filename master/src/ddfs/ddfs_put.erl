@@ -70,7 +70,7 @@ valid_blob({'EXIT', _}) -> false;
 valid_blob({Name, _}) ->
     ddfs_util:is_valid_name(binary_to_list(Name)).
 
--spec receive_blob(module(), {path(), path()}, path()) -> _.
+-spec receive_blob(module(), {path(), path()}, url()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
     Dir = filename:join(Path, Fname),
     case prim_file:read_file_info(Dir) of
@@ -86,7 +86,7 @@ receive_blob(Req, {Path, Fname}, Url) ->
             error_reply(Req, "File exists", Dir, Dir)
     end.
 
--spec receive_blob(module(), file:io_device(), file:filename(), path()) -> _.
+-spec receive_blob(module(), file:io_device(), file:filename(), url()) -> _.
 receive_blob(Req, IO, Dst, Url) ->
     error_logger:info_msg("PUT BLOB: ~p (~p bytes) on ~p",
                           [Req:get(path), Req:get_header_value("content-length"), node()]),
