@@ -64,7 +64,7 @@ unpack_objname(Obj) ->
     [Name, Tstamp] = string:tokens(Obj, "$"),
     {list_to_binary(Name), timestamp_to_time(Tstamp)}.
 
--spec url_to_name(binary()) -> binary() | 'false'.
+-spec url_to_name(binary()) -> binary() | false.
 url_to_name(<<"tag://", Name/binary>>) ->
     Name;
 url_to_name(Url) ->
@@ -75,7 +75,7 @@ url_to_name(Url) ->
             false
     end.
 
--spec ensure_dir(string()) -> 'eof' | 'ok' | {'error', _} | {'ok', _}.
+-spec ensure_dir(string()) -> eof | ok | {error, _} | {ok, _}.
 ensure_dir(Dir) ->
     case prim_file:make_dir(Dir) of
         ok -> ok;
@@ -109,7 +109,7 @@ to_hex(Int, L) ->
     end.
 
 -spec hashdir(binary(), nonempty_string(), nonempty_string(),
-    nonempty_string(), nonempty_string()) -> {'ok', string(), binary()}.
+              nonempty_string(), nonempty_string()) -> {ok, string(), binary()}.
 hashdir(Name, Host, Type, Root, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
     D1 = to_hex(D0),
@@ -119,8 +119,9 @@ hashdir(Name, Host, Type, Root, Vol) ->
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
 
--spec parse_url(binary() | string()) ->
-        'not_ddfs' | {host(), volume_name(), object_type(), string(), object_name()}.
+-spec parse_url(binary() | string())
+               -> not_ddfs |
+                  {host(), volume_name(), object_type(), string(), object_name()}.
 parse_url(Url) when is_binary(Url) ->
     parse_url(binary_to_list(Url));
 parse_url(Url) when is_list(Url) ->
@@ -153,8 +154,8 @@ cluster_url(Url, Meth, true) ->
                 Host, "/", Method, Path],
     lists:flatten(ProxyUrl).
 
--spec safe_rename(string(), string()) -> 'ok' | {'error', 'file_exists'
-    | {'chmod_failed', _} | {'rename_failed', _}}.
+-type rename_errors() :: file_exists| {chmod_failed, _} | {rename_failed, _}.
+-spec safe_rename(string(), string()) -> ok | {error, rename_errors()}.
 safe_rename(Src, Dst) ->
     case prim_file:read_file_info(Dst) of
         {error, enoent} ->
@@ -170,7 +171,7 @@ safe_rename(Src, Dst) ->
         _ -> {error, file_exists}
     end.
 
--spec concatenate(file:filename(), file:filename()) -> 'ok' | {'error', term()}.
+-spec concatenate(file:filename(), file:filename()) -> ok | {error, term()}.
 concatenate(Src, Dst) ->
     {ok, SrcIO} = prim_file:open(Src, [read, raw, binary]),
     {ok, DstIO} = prim_file:open(Dst, [append, raw]),
@@ -192,8 +193,8 @@ concatenate_do(SrcIO, DstIO) ->
             Error
     end.
 
--spec diskspace(nonempty_string()) ->
-    {'error', 'invalid_output' | 'invalid_path'} | {'ok', diskinfo()}.
+-spec diskspace(nonempty_string()) -> {error, invalid_output | invalid_path} |
+                                      {ok, diskinfo()}.
 diskspace(Path) ->
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
         [_, _, Free, Used|_] ->
