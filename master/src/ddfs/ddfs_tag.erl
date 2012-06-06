@@ -515,12 +515,15 @@ get_tagdata(TagName) ->
     end.
 
 read_tagdata(_TagID, Replicas, Failed, Error)
-             when length(Replicas) =:= length(Failed) ->
+  when length(Replicas) =:= length(Failed) ->
     {error, Error};
 
 read_tagdata(TagID, Replicas, Failed, _Error) ->
     {TagNfo, SrcNode} = Chosen = ddfs_util:choose_random(Replicas -- Failed),
-    case catch ddfs_node:get_tag_data(SrcNode, TagID, TagNfo) of
+    GetData = try ddfs_node:get_tag_data(SrcNode, TagID, TagNfo)
+              catch K:V -> {error, {K,V}}
+              end,
+    case GetData of
         {ok, Data} ->
             {_, DestNodes} = lists:unzip(Replicas),
             {ok, Data, DestNodes};
