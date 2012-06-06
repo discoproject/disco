@@ -65,23 +65,23 @@ payload_type(_Type) -> none.
 
 -spec handle({binary(), binary()}, state()) -> handle().
 handle({Type, Body}, S) ->
-   case catch mochijson2:decode(Body) of
-        {'EXIT', _} ->
+    Json = try mochijson2:decode(Body)
+           catch _:_ -> invalid_json
+           end,
+    case {Json, payload_type(Type)} of
+        {invalid_json, _} ->
             Err = ["Payload is not valid JSON: type '", Type, "', body:\n", Body],
             {error, {fatal, Err}};
-        Json ->
-            case payload_type(Type) of
-                none ->
-                    Err = ["Unknown message type '", Type, "', body:\n", Body],
-                    {error, {fatal, Err}};
-                Spec ->
-                    case json_validator:validate(Spec, Json) of
-                        ok ->
-                            do_handle({Type, Json}, S);
-                        {error, E} ->
-                            Msg = "Invalid message body (type '~s'): ~p",
-                            {error, {fatal, io_lib:format(Msg, [Type, E])}}
-                    end
+        {_, none} ->
+            Err = ["Unknown message type '", Type, "', body:\n", Body],
+            {error, {fatal, Err}};
+        {_, Spec} ->
+            case json_validator:validate(Spec, Json) of
+                ok ->
+                    do_handle({Type, Json}, S);
+                {error, E} ->
+                    Msg = "Invalid message body (type '~s'): ~p",
+                    {error, {fatal, io_lib:format(Msg, [Type, E])}}
             end
     end.
 
