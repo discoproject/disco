@@ -120,7 +120,7 @@ start_gc_wait(Pid, Interval) ->
             exit(Pid, force_timeout)
     end.
 
--spec hosted_tags(host()) -> {ok, [tagname()]} | {'error', term()}.
+-spec hosted_tags(host()) -> {ok, [tagname()]} | {error, term()}.
 hosted_tags(Host) ->
     case disco:slave_safe(Host) of
         false ->
@@ -131,42 +131,44 @@ hosted_tags(Host) ->
                 Tags -> {ok, Tags}
             end
     end.
--spec hosted_tags(host(), node()) -> [tagname()] | {'error', term()}.
+-spec hosted_tags(host(), node()) -> [tagname()] | {error, term()}.
 hosted_tags(Host, Node) ->
-    case catch ddfs_master:get_tags(safe) of
-        {ok, Tags} ->
-            lists:foldl(
-              fun (_T, {error, _} = E) ->
-                      E;
-                  (T, HostedTags) ->
-                      case tag_is_hosted(T, Host, Node, ?MAX_TAG_OP_RETRIES) of
-                          true -> [T|HostedTags];
-                          false -> HostedTags;
-                          E -> E
-                      end
-              end, [], Tags);
-        E ->
-            E
+    try
+        {ok, Tags} = ddfs_master:get_tags(safe),
+        lists:foldl(
+          fun (_T, {error, _} = E) ->
+                  E;
+              (T, HostedTags) ->
+                  case tag_is_hosted(T, Host, Node, ?MAX_TAG_OP_RETRIES) of
+                      true -> [T|HostedTags];
+                      false -> HostedTags;
+                      E -> E
+                  end
+          end, [], Tags)
+    catch K:V ->
+            {error, {K,V}}
     end.
 
 -spec tag_is_hosted(tagname(), host(), node(), non_neg_integer()) ->
-                           boolean() | {'error', term()}.
+                           boolean() | {error, term()}.
 tag_is_hosted(T, _Host, _Node, 0) ->
     {error, {get_tag, T}};
 tag_is_hosted(T, Host, Node, Retries) ->
-    case catch ddfs_master:tag_operation(gc_get, T, ?GET_TAG_TIMEOUT) of
-        {{missing, _}, false} ->
-            false;
-        {'EXIT', {timeout, _}} ->
-            tag_is_hosted(T, Host, Node, Retries - 1);
-        {_Id, Urls, TagReplicas} ->
-            lists:member(Node, TagReplicas) orelse urls_are_hosted(Urls, Host, Node);
-        E ->
-            E
+    try
+        case ddfs_master:tag_operation(gc_get, T, ?GET_TAG_TIMEOUT) of
+            {{missing, _}, false} ->
+                false;
+            {_Id, Urls, TagReplicas} ->
+                lists:member(Node, TagReplicas) orelse urls_are_hosted(Urls, Host, Node);
+            E ->
+                E
+        end
+    catch _:_ ->
+            tag_is_hosted(T, Host, Node, Retries - 1)
     end.
 
 -spec urls_are_hosted([[url()]], host(), node())
-                     -> boolean() | {'error' | term()}.
+                     -> boolean() | {error | term()}.
 urls_are_hosted([], _Host, _Node) ->
     false;
 urls_are_hosted([[]|Rest], Host, Node) ->
