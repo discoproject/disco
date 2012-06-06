@@ -37,20 +37,25 @@ loop("/ddfs/" ++ BlobName, Req) ->
     % Disable keep-alive
     erlang:put(mochiweb_request_force_close, true),
     case {Req:get(method),
-            valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
+          valid_blob(catch ddfs_util:unpack_objname(BlobName))} of
         {'PUT', true} ->
-            case catch ddfs_node:put_blob(BlobName) of
-                {ok, Path, Url} ->
-                    receive_blob(Req, {Path, BlobName}, Url);
-                {error, Path, Error} ->
-                    error_reply(Req, "Could not create path for blob",
-                        Path, Error);
-                {error, no_volumes} ->
-                    Req:respond({500, [], "No volumes"});
-                _ ->
-                    Req:respond({503, [],
-                        ["Maximum number of uploaders reached. ",
-                         "Try again later"]})
+            try case ddfs_node:put_blob(BlobName) of
+                    {ok, Path, Url} ->
+                        receive_blob(Req, {Path, BlobName}, Url);
+                    {error, Path, Error} ->
+                        error_reply(Req, "Could not create path for blob",
+                                    Path, Error);
+                    {error, no_volumes} ->
+                        Req:respond({500, [], "No volumes"});
+                    full ->
+                        Req:respond({503, [],
+                                     ["Maximum number of uploaders reached. ",
+                                      "Try again later"]});
+                    {error, Error} ->
+                        error_reply(Req, "Could not put blob", BlobName, Error)
+                    end
+            catch K:V ->
+                    error_reply(Req, "Could not put blob", BlobName, {K,V})
             end;
         {'PUT', _} ->
             Req:respond({403, [], ["Invalid blob name"]});
@@ -133,7 +138,7 @@ receive_body(Req, IO) ->
             Error
     end.
 
--spec error_reply(module(), nonempty_string(), nonempty_string(), _) -> _.
+-spec error_reply(module(), nonempty_string(), path(), term()) -> _.
 error_reply(Req, Msg, Dst, Err) ->
     M = io_lib:format("~s (path: ~s): ~p", [Msg, Dst, Err]),
     error_logger:warning_msg("Error response for ~p on ~p: ~p (error ~p)",
