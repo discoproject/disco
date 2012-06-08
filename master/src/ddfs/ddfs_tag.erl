@@ -2,6 +2,7 @@
 -module(ddfs_tag).
 -behaviour(gen_server).
 
+-include("common_types.hrl").
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_gc.hrl").

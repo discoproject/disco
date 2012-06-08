@@ -1,2 +1,3 @@
 -type host() :: nonempty_string().
 -type path() :: nonempty_string().
+-type url() :: binary().
