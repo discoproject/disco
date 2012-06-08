@@ -212,9 +212,9 @@ map_reduce(#jobinfo{inputs = Inputs} = Job) ->
 map_input(Inputs) ->
     disco:enum([case Input of
                     List when is_list(List) ->
-                        [{I, preferred_host(I)} || I <- List];
+                        [{I, disco:preferred_host(I)} || I <- List];
                     I ->
-                        [{I, preferred_host(I)}]
+                        [{I, disco:preferred_host(I)}]
                 end || Input <- Inputs]).
 
 map(Inputs, #jobinfo{map = false}) ->
@@ -239,7 +239,7 @@ reduce_input(Inputs, NRed) ->
                              List when is_list(List) andalso length(List) > 1 ->
                                  throw({error, "Redundant inputs in reduce"});
                              Input ->
-                                 preferred_host(Input)
+                                 disco:preferred_host(Input)
                          end || Input <- Inputs]),
     NHosts = length(Hosts),
     case NHosts of
@@ -282,13 +282,3 @@ run_phase(Inputs, Mode, #jobinfo{jobname = JobName} = Job) ->
               [Mode, disco:format_time_since(Started)],
               {task_ready_tag(Mode), Results}),
     Results.
-
--spec preferred_host(binary()) -> host().
-preferred_host(Url) ->
-    case re:run(Url, "^[a-zA-Z0-9]+://([^/:]*)",
-                [{capture, all_but_first, binary}]) of
-        {match, [Match]} ->
-            binary_to_list(Match);
-        nomatch ->
-            false
-    end.

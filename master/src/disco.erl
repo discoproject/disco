@@ -19,6 +19,7 @@
          debug_flags/1,
          local_cluster/0,
          disco_url_path/1,
+         preferred_host/1,
          enum/1,
          format/2,
          format_time/1,
@@ -172,10 +173,17 @@ local_cluster() ->
 
 -spec disco_url_path(file:filename()) -> [path()].
 disco_url_path(Url) ->
-    {match, [Path]} = re:run(Url,
-                             ".*?://.*?/disco/(.*)",
-                             [{capture, all_but_first, list}]),
+    Opts = [{capture, all_but_first, list}],
+    {match, [Path]} = re:run(Url, ".*?://.*?/disco/(.*)", Opts),
     Path.
+
+-spec preferred_host(url()) -> host().
+preferred_host(Url) ->
+    Opts = [{capture, all_but_first, binary}],
+    case re:run(Url, "^[a-zA-Z0-9]+://([^/:]*)", Opts) of
+        {match, [Match]} -> binary_to_list(Match);
+        nomatch -> false
+    end.
 
 -spec enum([term()]) -> [{non_neg_integer(), term()}].
 enum(List) ->
