@@ -6,5 +6,4 @@
 
 -type object_type() :: 'blob' | 'tag'.
 -type object_name() :: binary().
--type url() :: binary().
 -type taginfo() :: {erlang:timestamp(), volume_name()}.

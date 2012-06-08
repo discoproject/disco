@@ -186,6 +186,7 @@
          terminate/2, code_change/3, format_status/2]).
 -export([is_orphan/4, node_gc_done/2]).
 
+-include("common_types.hrl").
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
