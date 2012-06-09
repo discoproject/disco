@@ -1,14 +1,9 @@
 -module(jobpack).
 
--export([valid/1,
-         jobfile/1,
-         exists/1,
-         extract/2,
-         extracted/1,
-         read/1,
-         save/2,
-         copy/2,
-         jobinfo/1]).
+% Metadata extraction.
+-export([jobinfo/1, valid/1]).
+% Jobpack file management.
+-export([jobfile/1, exists/1, extract/2, extracted/1, read/1, save/2, copy/2]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -20,27 +15,105 @@
 -define(HEADER_SIZE, 128).
 -define(COPY_BUFFER_SIZE, 1048576).
 
--spec dict({'struct', [{term(), term()}]}) -> dict().
+% Metadata extraction.
+
+-spec dict({struct, [{term(), term()}]}) -> dict().
 dict({struct, List}) ->
     dict:from_list(List).
 
 -spec find(binary(), dict()) -> term().
 find(Key, Dict) ->
     case dict:find(Key, Dict) of
-        {ok, Field} ->
-            Field;
-        error ->
-            throw({error, disco:format("jobpack missing key '~s'", [Key])})
+        {ok, Field} -> Field;
+        error -> throw({error, disco:format("jobpack missing key '~s'", [Key])})
     end.
 
 -spec find(binary(), dict(), T) -> T.
 find(Key, Dict, Default) ->
     case dict:find(Key, Dict) of
-        {ok, Field} ->
-            Field;
-        error ->
-            Default
+        {ok, Field} -> Field;
+        error -> Default
     end.
+
+-spec jobinfo(binary()) -> {path(), jobinfo()}.
+jobinfo(JobPack) ->
+    JobDict = jobdict(JobPack),
+    Scheduler = dict(find(<<"scheduler">>, JobDict)),
+    {validate_prefix(find(<<"prefix">>, JobDict)),
+     #jobinfo{jobenvs = jobenvs(JobPack),
+              inputs = find(<<"input">>, JobDict),
+              worker = find(<<"worker">>, JobDict),
+              owner = find(<<"owner">>, JobDict),
+              map = find(<<"map?">>, JobDict, false),
+              reduce = find(<<"reduce?">>, JobDict, false),
+              nr_reduce = find(<<"nr_reduces">>, JobDict),
+              max_cores = find(<<"max_cores">>, Scheduler, 1 bsl 31),
+              force_local = find(<<"force_local">>, Scheduler, false),
+              force_remote = find(<<"force_remote">>, Scheduler, false)}}.
+
+-spec jobdict(binary()) -> dict().
+jobdict(<<?MAGIC:16/big,
+          _Version:16/big,
+          JobDictOffset:32/big,
+          JobEnvsOffset:32/big,
+          _/binary>> = JobPack) ->
+    JobDictLength = JobEnvsOffset - JobDictOffset,
+    <<_:JobDictOffset/bytes, JobDict:JobDictLength/bytes, _/binary>> = JobPack,
+    dict(mochijson2:decode(JobDict)).
+
+-spec jobenvs(binary()) -> [{nonempty_string(), string()}].
+jobenvs(<<?MAGIC:16/big,
+          _Version:16/big,
+          _JobDictOffset:32/big,
+          JobEnvsOffset:32/big,
+          JobHomeOffset:32/big,
+          _/binary>> = JobPack) ->
+    JobEnvsLength = JobHomeOffset - JobEnvsOffset,
+    <<_:JobEnvsOffset/bytes, JobEnvs:JobEnvsLength/bytes, _/binary>> = JobPack,
+    {struct, Envs} = mochijson2:decode(JobEnvs),
+    Envs.
+
+-spec jobzip(binary()) -> binary().
+jobzip(<<?MAGIC:16/big,
+         _Version:16/big,
+         _JobDictOffset:32/big,
+         _JobEnvsOffset:32/big,
+         JobHomeOffset:32/big,
+         JobDataOffset:32/big,
+         _/binary>> = JobPack) ->
+    JobHomeLength = JobDataOffset - JobHomeOffset,
+    <<_:JobHomeOffset/bytes, JobZip:JobHomeLength/bytes, _/binary>> = JobPack,
+    JobZip.
+
+-spec valid(binary()) -> ok | {error, term()}.
+valid(<<?MAGIC:16/big,
+        ?VERSION:16/big,
+        JobDictOffset:32/big,
+        JobEnvsOffset:32/big,
+        JobHomeOffset:32/big,
+        JobDataOffset:32/big,
+        _/binary>> = JobPack)
+  when JobDictOffset =:= ?HEADER_SIZE,
+       JobEnvsOffset > JobDictOffset,
+       JobHomeOffset >= JobEnvsOffset,
+       JobDataOffset >= JobHomeOffset,
+       byte_size(JobPack) >= JobDataOffset ->
+    try  _ = jobenvs(JobPack),
+         ok
+    catch _:_ -> {error, invalid_dicts_or_envs}
+    end;
+valid(_JobPack) -> {error, invalid_header}.
+
+-spec validate_prefix(binary() | list()) -> nonempty_string().
+validate_prefix(Prefix) when is_binary(Prefix)->
+    validate_prefix(binary_to_list(Prefix));
+validate_prefix(Prefix) ->
+    case string:chr(Prefix, $/) + string:chr(Prefix, $.) of
+        0 -> Prefix;
+        _ -> throw({error, "invalid prefix"})
+    end.
+
+% Jobpack file management.
 
 -spec jobfile(path()) -> path().
 jobfile(JobHome) ->
@@ -122,81 +195,3 @@ tempname(JobHome) ->
     {MegaSecs, Secs, MicroSecs} = now(),
     filename:join(JobHome, disco:format("jobfile@~.16b:~.16b:~.16b",
                                         [MegaSecs, Secs, MicroSecs])).
-
--spec jobinfo(binary()) -> {path(), jobinfo()}.
-jobinfo(JobPack) ->
-    JobDict = jobdict(JobPack),
-    Scheduler = dict(find(<<"scheduler">>, JobDict)),
-    {validate_prefix(find(<<"prefix">>, JobDict)),
-     #jobinfo{jobenvs = jobenvs(JobPack),
-              inputs = find(<<"input">>, JobDict),
-              worker = find(<<"worker">>, JobDict),
-              owner = find(<<"owner">>, JobDict),
-              map = find(<<"map?">>, JobDict, false),
-              reduce = find(<<"reduce?">>, JobDict, false),
-              nr_reduce = find(<<"nr_reduces">>, JobDict),
-              max_cores = find(<<"max_cores">>, Scheduler, 1 bsl 31),
-              force_local = find(<<"force_local">>, Scheduler, false),
-              force_remote = find(<<"force_remote">>, Scheduler, false)}}.
-
--spec jobdict(binary()) -> dict().
-jobdict(<<?MAGIC:16/big,
-         _Version:16/big,
-         JobDictOffset:32/big,
-         JobEnvsOffset:32/big,
-         _/binary>> = JobPack) ->
-    JobDictLength = JobEnvsOffset - JobDictOffset,
-    <<_:JobDictOffset/bytes, JobDict:JobDictLength/bytes, _/binary>> = JobPack,
-    dict(mochijson2:decode(JobDict)).
-
--spec jobenvs(binary()) -> [{nonempty_string(), string()}].
-jobenvs(<<?MAGIC:16/big,
-         _Version:16/big,
-         _JobDictOffset:32/big,
-         JobEnvsOffset:32/big,
-         JobHomeOffset:32/big,
-         _/binary>> = JobPack) ->
-    JobEnvsLength = JobHomeOffset - JobEnvsOffset,
-    <<_:JobEnvsOffset/bytes, JobEnvs:JobEnvsLength/bytes, _/binary>> = JobPack,
-    {struct, Envs} = mochijson2:decode(JobEnvs),
-    Envs.
-
--spec jobzip(binary()) -> binary().
-jobzip(<<?MAGIC:16/big,
-        _Version:16/big,
-        _JobDictOffset:32/big,
-        _JobEnvsOffset:32/big,
-        JobHomeOffset:32/big,
-        JobDataOffset:32/big,
-        _/binary>> = JobPack) ->
-    JobHomeLength = JobDataOffset - JobHomeOffset,
-    <<_:JobHomeOffset/bytes, JobZip:JobHomeLength/bytes, _/binary>> = JobPack,
-    JobZip.
-
--spec valid(binary()) -> ok | {error, term()}.
-valid(<<?MAGIC:16/big,
-        ?VERSION:16/big,
-        JobDictOffset:32/big,
-        JobEnvsOffset:32/big,
-        JobHomeOffset:32/big,
-        JobDataOffset:32/big,
-        _/binary>> = JobPack)
-  when JobDictOffset =:= ?HEADER_SIZE,
-       JobEnvsOffset > JobDictOffset,
-       JobHomeOffset >= JobEnvsOffset,
-       JobDataOffset >= JobHomeOffset,
-       byte_size(JobPack) >= JobDataOffset ->
-    try  _ = jobenvs(JobPack),
-         ok
-    catch _:_ -> {error, invalid_dicts_or_envs}
-    end;
-valid(_JobPack) -> {error, invalid_header}.
-
--spec validate_prefix(binary() | list()) -> nonempty_string().
-validate_prefix(Prefix) when is_binary(Prefix)->
-    validate_prefix(binary_to_list(Prefix));
-validate_prefix(Prefix) ->
-    case string:chr(Prefix, $/) + string:chr(Prefix, $.) of
-        0 -> Prefix;
-        _ -> throw({error, "invalid prefix"})
-    end.
