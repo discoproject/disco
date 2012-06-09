@@ -98,11 +98,14 @@ valid(<<?MAGIC:16/big,
        JobHomeOffset >= JobEnvsOffset,
        JobDataOffset >= JobHomeOffset,
        byte_size(JobPack) >= JobDataOffset ->
-    try  _ = jobenvs(JobPack),
+    try  _ = jobinfo(JobPack),
+         _ = jobenvs(JobPack),
          ok
-    catch _:_ -> {error, invalid_dicts_or_envs}
+    catch
+        {error, E} -> E;
+        _:_ -> {error, "invalid payload"}
     end;
-valid(_JobPack) -> {error, invalid_header}.
+valid(_JobPack) -> {error, "invalid header"}.
 
 -spec validate_prefix(binary() | list()) -> nonempty_string().
 validate_prefix(Prefix) when is_binary(Prefix)->
