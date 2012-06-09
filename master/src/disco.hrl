@@ -2,13 +2,14 @@
 
 -type cores() :: non_neg_integer().
 
+-type job_inputs() :: [url() | [url()]].
 -record(jobinfo, {jobname :: jobname(),
                   jobfile :: nonempty_string(),
                   jobenvs :: [{nonempty_string(), string()}],
                   force_local :: boolean(),
                   force_remote :: boolean(),
                   owner :: binary(),
-                  inputs :: [binary()] | [[binary()]],
+                  inputs :: job_inputs(),
                   worker :: binary(),
                   map :: boolean(),
                   max_cores :: cores(),
