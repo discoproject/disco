@@ -20,7 +20,11 @@ op('POST', "/disco/job/" ++ _, Req) ->
                 try
                     {ok, JobName} = job_coordinator:new(Body),
                     [<<"ok">>, list_to_binary(JobName)]
-                catch K:E ->
+                catch Err ->
+                        ErrorString = disco:format("Job failed to start: ~p", [Err]),
+                        lager:warning("Job failed to start:~p", [Err]),
+                        [<<"error">>, list_to_binary(ErrorString)];
+                      K:E ->
                         ErrorString = disco:format("Job failed to start: ~p:~p", [K, E]),
                         lager:warning("Job failed to start: ~p:~p", [K, E]),
                         [<<"error">>, list_to_binary(ErrorString)]
