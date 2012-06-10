@@ -162,6 +162,8 @@ init(_Args) ->
     spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
+    put(use_s3, string:equal(disco:get_setting("DISCO_USE_S3"), "true")),
+    put(s3_bucket, disco:get_setting("DISCO_S3_BUCKET")),
     {ok, #state{cache_refresher = Refresher}}.
 
 -type choose_write_nodes_msg() :: {choose_write_nodes, non_neg_integer(), [node()]}.
@@ -322,7 +324,12 @@ do_new_blob(_Obj, K, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;
 do_new_blob(Obj, K, Exclude, BlackList, Nodes) ->
     {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, Exclude, BlackList),
-    Urls = [lists:flatten(["s3://", ?S3_BUCKET, "/", Obj]) | 
+    Urls = [case get(use_s3) of
+               true ->
+                   lists:flatten(["s3://", get(s3_bucket), "/", Obj]);
+                false ->
+                    [] 
+            end | 
             [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj] || N <- WriteNodes]],
     {ok, Urls}.
 

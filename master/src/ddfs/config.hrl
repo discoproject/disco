@@ -1,6 +1,3 @@
-% S3 Bucket for writing blobs and tags 	
--define(S3_BUCKET, "disco_s3_test").
-
 -define(SECOND, 1000).
 -define(MINUTE, (60 * ?SECOND)).
 -define(HOUR, (60 * ?MINUTE)).
