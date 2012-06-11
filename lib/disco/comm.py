@@ -51,7 +51,7 @@ def resolveuri(baseuri, uri):
 
 def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
-    if scheme == 'http'
+    if scheme == 'http':
         conn_cls = HTTPConnection
     elif scheme == 'https':
         conn_cls = HTTPSConnection

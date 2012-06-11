@@ -99,7 +99,7 @@ class HTTPSConnection(HTTPConnection):
     def __setitem__(self, key, value):
         if key == 'URL':
             value = 'https://' + value
-        super(HTTPSConnection,self).__setitem__(self,key,value)
+        super(HTTPSConnection,self).__setitem__(key,value)
         
 
 class MultiPut(object):
