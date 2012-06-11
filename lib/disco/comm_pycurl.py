@@ -95,6 +95,13 @@ class HTTPConnection(object):
         except pycurl.error, e:
             raise httplib.HTTPException(self.handle.errstr())
 
+class HTTPSConnection(HTTPConnection):
+    def __setitem__(self, key, value):
+        if key == 'URL':
+            value = 'https://' + value
+        super(HTTPSConnection,self).__setitem__(self,key,value)
+        
+
 class MultiPut(object):
     def __init__(self, urls, source, token=None):
         from disco.util import urlresolve
