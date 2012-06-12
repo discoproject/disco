@@ -308,7 +308,7 @@ do_choose_write_nodes(Nodes, K, Exclude, BlackList) ->
     Primary = ([N || {N, {Free, _Total}} <- Nodes, Free > ?MIN_FREE_SPACE / 1024]
                -- (Exclude ++ BlackList)),
     if length(Primary) >= K ->
-            {ok, ddfs_util:choose_random(Primary, K)};
+            {ok, disco_util:choose_random(Primary, K)};
        true ->
             Preferred = [N || {N, _} <- lists:reverse(lists:keysort(2, Nodes))],
             Secondary = lists:sublist(Preferred -- (Exclude ++ BlackList), K),

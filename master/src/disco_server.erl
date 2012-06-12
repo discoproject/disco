@@ -1,4 +1,3 @@
-
 -module(disco_server).
 -behaviour(gen_server).
 
