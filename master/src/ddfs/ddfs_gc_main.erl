@@ -1066,7 +1066,7 @@ try_put_blob(#state{rr_pid = RR, gc_peers = Peers}, BlobName, OkNodes, BL) ->
     case ddfs_master:new_blob(BlobName, 1, OkNodes ++ BL) of
         {ok, [PutUrl]} ->
             Srcs = [{find_peer(Peers, N), N} || N <- OkNodes],
-            {SrcPeer, SrcNode} = ddfs_util:choose_random(Srcs),
+            {SrcPeer, SrcNode} = disco_util:choose_random(Srcs),
             RealPutUrl = ddfs_util:cluster_url(PutUrl, put),
             RR ! {put_blob, BlobName, SrcPeer, SrcNode, RealPutUrl},
             pending;

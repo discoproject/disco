@@ -1,7 +1,5 @@
 -module(ddfs_util).
--export([choose_random/1,
-         choose_random/2,
-         concatenate/2,
+-export([concatenate/2,
          diskspace/1,
          ensure_dir/1,
          fold_files/3,
@@ -217,17 +215,3 @@ fold_files(Dir, Fun, Acc0) ->
                 Fun(F, Dir, Acc)
         end
     end, Acc0, L).
-
--spec choose_random([T,...]) -> T.
-choose_random(L) ->
-    lists:nth(random:uniform(length(L)), L).
-
--spec choose_random(list(T), non_neg_integer()) -> list(T).
-choose_random(L, N) ->
-    choose_random(L, [], N).
-
-choose_random([], R, _) -> R;
-choose_random(_, R, 0) -> R;
-choose_random(L, R, N) ->
-    C = choose_random(L),
-    choose_random(L -- [C], [C|R], N - 1).

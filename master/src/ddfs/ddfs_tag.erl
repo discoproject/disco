@@ -520,7 +520,7 @@ read_tagdata(_TagID, Replicas, Failed, Error)
     {error, Error};
 
 read_tagdata(TagID, Replicas, Failed, _Error) ->
-    {TagNfo, SrcNode} = Chosen = ddfs_util:choose_random(Replicas -- Failed),
+    {TagNfo, SrcNode} = Chosen = disco_util:choose_random(Replicas -- Failed),
     GetData = try ddfs_node:get_tag_data(SrcNode, TagID, TagNfo)
               catch K:V -> {error, {K,V}}
               end,
