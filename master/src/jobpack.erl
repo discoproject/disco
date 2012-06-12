@@ -157,7 +157,7 @@ read(JobHome) ->
             throw({"Couldn't read jobfile", JobFile, Reason})
     end.
 
--spec save(binary(), path()) -> path().
+-spec save(binary(), path()) -> {ok, path()} | {error, term()}.
 save(JobPack, JobHome) ->
     TmpFile = tempname(JobHome),
     JobFile = jobfile(JobHome),
@@ -165,12 +165,14 @@ save(JobPack, JobHome) ->
         ok ->
             case prim_file:rename(TmpFile, JobFile) of
                 ok ->
-                    JobFile;
+                    {ok, JobFile};
                 {error, Reason} ->
-                    throw({"Couldn't rename jobpack", TmpFile, Reason})
+                    {error, disco:format("Couldn't rename jobpack to ~p: ~p",
+                                         [JobFile, Reason])}
             end;
         {error, Reason} ->
-            throw({"Couldn't save jobpack", TmpFile, Reason})
+            {error, disco:format("Couldn't save jobpack ~p: ~p",
+                                 [TmpFile, Reason])}
     end.
 
 -spec copy({file:io_device(), non_neg_integer(), pid()}, path()) -> {ok, path()}.
