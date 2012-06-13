@@ -179,7 +179,7 @@ update_priorities(Alpha, NumCores) ->
     NumJobs = gb_trees:size(Jobs),
 
     % Get the status of each running job
-    RawStats = [{Job, catch gen_server:call(Job#job.pid, get_stats, 100)}
+    RawStats = [{Job, catch fair_scheduler_job:get_stats(Job#job.pid, 100)}
                 || Job <- gb_trees:values(Jobs)],
     Stats = [{Job, X} || {Job, {ok, X}} <- RawStats],
 

@@ -2,7 +2,7 @@
 -module(fair_scheduler_job).
 -behaviour(gen_server).
 
--export([start/2, next_task/3]).
+-export([start/2, next_task/3, get_stats/2]).
 -export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
@@ -35,6 +35,11 @@ start(JobName, JobCoord) ->
                 {ok, spawn(fun() -> ok end)}
             end
     end.
+
+-type stats() :: {non_neg_integer(), non_neg_integer()}.
+-spec get_stats(pid(), timeout()) -> {ok, stats()}.
+get_stats(JobPid, Timeout) ->
+    gen_server:call(JobPid, get_stats, Timeout).
 
 -type state() :: {gb_tree(), gb_tree(), [node()]}.
 
@@ -126,7 +131,6 @@ handle_cast({die, Msg}, S) ->
         "ERROR: Job killed due to an internal exception: ~s", [Msg], none),
     {stop, normal, S}.
 
--type stats() :: {non_neg_integer(), non_neg_integer()}.
 -type schedule_result() :: nolocal | nonodes | {run, node(), task()}.
 -spec handle_call(dbg_state_msg(), from(), state()) -> gs_reply(state());
                  (get_stats, from(), state()) -> gs_reply({ok, stats()});
