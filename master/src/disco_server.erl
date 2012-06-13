@@ -323,7 +323,7 @@ update_nodes(Nodes) ->
     DDFSNodes = [{disco:slave_node(N#dnode.host),
                   allow_write(N), allow_read(N)} || N <- gb_trees:values(Nodes)],
     ddfs_master:update_nodes(DDFSNodes),
-    gen_server:cast(scheduler, {update_nodes, WhiteNodes}),
+    fair_scheduler:update_nodes(WhiteNodes),
     schedule_next().
 
 -spec update_stats(host(), none | {value, dnode()}, _, state()) -> state().
@@ -441,7 +441,7 @@ do_gc_blacklist(Hosts, S) ->
     ddfs_master:gc_blacklist([disco:slave_node(H) || H <- Hosts]),
     S.
 
--spec start_worker(host(), pid(), task()) -> pid().
+-spec start_worker(node(), pid(), task()) -> pid().
 start_worker(Node, NodeMon, T) ->
     event_server:event(T#task.jobname, "~s:~B assigned to ~s",
                        [T#task.mode, T#task.taskid, Node], none),
@@ -457,7 +457,7 @@ do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
                              <- gb_trees:values(Nodes), X > Y, allow_task(Node)],
     {_, AvailableNodes} = lists:unzip(lists:keysort(1, Running)),
     if AvailableNodes =/= [] ->
-        case gen_server:call(scheduler, {next_task, AvailableNodes}) of
+        case fair_scheduler:next_task(AvailableNodes) of
             {ok, {JobSchedPid, {Node, Task}}} ->
                 M = gb_trees:get(Node, Nodes),
                 WorkerPid = start_worker(Node, M#dnode.node_mon, Task),
@@ -492,7 +492,7 @@ do_purge_job(JobName, #state{purged = Purged} = S) ->
 
 -spec do_new_job(jobname(), pid(), state()) -> ok.
 do_new_job(JobName, JobCoord, _S) ->
-    catch gen_server:call(scheduler, {new_job, JobName, JobCoord}).
+    catch fair_scheduler:new_job(JobName, JobCoord).
 
 -spec do_new_task(task(), state()) -> ok | failed.
 do_new_task(#task{jobname = Job, taskid = TaskId} = Task, #state{nodes = Nodes}) ->
@@ -501,7 +501,7 @@ do_new_task(#task{jobname = Job, taskid = TaskId} = Task, #state{nodes = Nodes})
                      {value, N} -> {N#dnode.num_running, Input}
                  end || {_Url, Node} = Input <- Task#task.input],
     try
-        case gen_server:call(scheduler, {new_task, Task, NodeStats}) of
+        case fair_scheduler:new_task(Task, NodeStats) of
             ok ->
                 schedule_next(),
                 ok;
@@ -560,7 +560,7 @@ do_get_num_cores(#state{nodes = Nodes}) ->
 do_kill_job(JobName) ->
     event_server:event(JobName, "WARN: Job killed", [], none),
     % Make sure that scheduler don't accept new tasks from this job
-    gen_server:cast(scheduler, {job_done, JobName}),
+    fair_scheduler:job_done(JobName),
     ok.
 
 -spec do_clean_job(jobname()) -> ok.
