@@ -179,13 +179,12 @@ disco_url_path(Url) ->
     {match, [Path]} = re:run(Url, ".*?://.*?/disco/(.*)", Opts),
     Path.
 
--type url_host() :: host() | false.
 -spec preferred_host(url()) -> url_host().
 preferred_host(Url) ->
     Opts = [{capture, all_but_first, binary}],
     case re:run(Url, "^[a-zA-Z0-9]+://([^/:]*)", Opts) of
         {match, [Match]} -> binary_to_list(Match);
-        nomatch -> false
+        nomatch -> none
     end.
 
 -spec enum([term()]) -> [{non_neg_integer(), term()}].
