@@ -117,7 +117,7 @@ handle_call(priv_get_jobs, _, {Jobs, _, _} = S) ->
 -spec handle_info({'DOWN', _, _, pid(), _}, state()) -> gs_noreply().
 handle_info({'DOWN', _, _, JobPid, _}, {Jobs, PrioQ, NC}) ->
     Job = gb_trees:get(JobPid, Jobs),
-    gen_server:cast(scheduler, {job_done, Job#job.name}),
+    fair_scheduler:job_done(Job#job.name),
     {noreply, {gb_trees:delete(JobPid, Jobs),
                lists:keydelete(JobPid, 2, PrioQ), NC}}.
 

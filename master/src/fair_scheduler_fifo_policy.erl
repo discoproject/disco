@@ -78,7 +78,7 @@ handle_call({next_job, NotJobs}, _, Q) ->
 handle_info({'DOWN', _, _, JobPid, _}, Q) ->
     L = queue:to_list(Q),
     {value, {_, JobName} = E} = lists:keysearch(JobPid, 1, L),
-    gen_server:cast(scheduler, {job_done, JobName}),
+    fair_scheduler:job_done(JobName),
     {noreply, queue:from_list(L -- [E])}.
 
 -spec terminate(term(), state()) -> ok.

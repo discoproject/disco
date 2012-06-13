@@ -17,8 +17,11 @@
 -module(fair_scheduler).
 -behaviour(gen_server).
 
--export([start_link/0, init/1, handle_call/3, handle_cast/2,
-         handle_info/2, terminate/2, code_change/3]).
+-export([start_link/0, new_job/2, job_done/1,
+         next_task/1, new_task/2, update_nodes/1]).
+
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
 
 -include("common_types.hrl").
 -include("gs_util.hrl").
@@ -27,14 +30,41 @@
 
 -type state() :: [node()].
 
+%% ===================================================================
+%% API functions
+
 -spec start_link() -> {ok, pid()}.
 start_link() ->
     lager:info("Fair scheduler starts"),
-    case gen_server:start_link({local, scheduler}, fair_scheduler, [],
-            disco:debug_flags("fair_scheduler")) of
+    case gen_server:start_link({local, ?MODULE}, fair_scheduler, [],
+                               disco:debug_flags("fair_scheduler"))
+    of
         {ok, _Server} = Ret -> Ret;
         {error, {already_started, Server}} -> {ok, Server}
     end.
+
+-spec update_nodes([node_update()]) -> ok.
+update_nodes(NewNodes) ->
+    gen_server:cast(?MODULE, {update_nodes, NewNodes}).
+
+-spec job_done(jobname()) -> ok.
+job_done(JobName) ->
+    gen_server:cast(?MODULE, {job_done, JobName}).
+
+-spec next_task([host()]) -> nojobs | {ok, {pid(), {node(), task()}}}.
+next_task(AvailableNodes) ->
+    gen_server:call(?MODULE, {next_task, AvailableNodes}).
+
+-spec new_job(jobname(), pid()) -> ok.
+new_job(JobName, JobCoord) ->
+    gen_server:call(?MODULE, {new_job, JobName, JobCoord}).
+
+-spec new_task(task(), [nodestat()]) -> unknown_job | ok.
+new_task(Task, NodeStat) ->
+    gen_server:call(?MODULE, {new_task, Task, NodeStat}).
+
+%% ===================================================================
+%% gen_server callbacks
 
 -spec init([]) -> gs_init().
 init([]) ->
@@ -50,7 +80,7 @@ init([]) ->
     _ = ets:new(jobs, [private, named_table]),
     {ok, []}.
 
--spec handle_cast(update_nodes_msg() | {job_done, jobname}, state())
+-spec handle_cast(update_nodes_msg() | {job_done, jobname()}, state())
                  -> gs_noreply().
 handle_cast({update_nodes, NewNodes}, _) ->
     gen_server:cast(sched_policy, {update_nodes, NewNodes}),
@@ -76,7 +106,7 @@ handle_cast({job_done, JobName}, Nodes) ->
                  (new_task_msg(), from(), state()) -> gs_reply(unknown_job | ok);
                  (dbg_state_msg(), from(), state()) -> gs_reply(state());
                  ({next_task, [host()]}, from(), state()) ->
-                         gs_reply(nojobs | {ok, {pid(), task()}}).
+                         gs_reply(nojobs | {ok, {pid(), {node(), task()}}}).
 
 handle_call({new_job, JobName, JobCoord}, _, Nodes) ->
     {ok, JobPid} = fair_scheduler_job:start(JobName, JobCoord),
