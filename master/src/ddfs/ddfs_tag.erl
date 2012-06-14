@@ -68,6 +68,13 @@
 
 -spec start(tagname(), boolean()) -> ignore | {error,_} | {ok,pid()}.
 start(TagName, NotFound) ->
+    application:start(crypto),
+    application:start(public_key),
+    application:start(ssl),
+    application:start(inets),
+    application:start(xmerl),
+    application:start(erlcloud),
+
     gen_server:start(?MODULE, {TagName, NotFound}, []).
 
 -spec init({tagname(), boolean()}) -> gs_init().
@@ -81,6 +88,16 @@ init(TagName, Data, Timeout) ->
     put(min_tagk, list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS"))),
     put(tagk, list_to_integer(disco:get_setting("DDFS_TAG_REPLICAS"))),
     put(blobk, list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS"))),
+    put(use_s3, string:equal(disco:get_setting("DISCO_USE_S3"), "true")),
+
+    case get(use_s3) of
+        true ->
+            put(s3_bucket, disco:get_setting("DISCO_S3_BUCKET")),
+            disco_aws:set_aws_creds();
+        false ->
+            nothing
+    end,
+    
     {ok, #state{tag = TagName,
                 data = Data,
                 delayed = false,
@@ -647,7 +664,8 @@ put_distribute({TagID, _} = Msg) ->
 -spec put_distribute({tagid(), binary()}, non_neg_integer(),
     [{node(), binary()}], [node()]) ->
         {error, replication_failed} | {ok, [{node(), binary()}]}.
-put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
+put_distribute({TagID, TagData}, K, OkNodes, _Exclude) when K == length(OkNodes) ->
+    disco_aws:spawn_put(get(s3_bucket), TagID, TagData),
     {ok, OkNodes};
 
 put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
