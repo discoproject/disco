@@ -24,8 +24,7 @@ start_link() ->
     case gen_server:start_link({local, sched_policy},
                                fair_scheduler_fifo_policy, [],
                                disco:debug_flags("fair_scheduler_fifo_policy"))
-    of
-        {ok, _Server} = Ret -> Ret;
+    of  {ok, _Server} = Ret -> Ret;
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
@@ -49,10 +48,8 @@ handle_cast({new_job, JobPid, JobName}, Q) ->
                  (next_job_msg(), from(), state()) -> gs_reply(next_job()).
 handle_call(current_priorities, _, Q) ->
     {reply, {ok, case queue:to_list(Q) of
-                     [{_, N}|R] ->
-                         [{N, -1.0}|[{M, 1.0} || {_, M} <- R]];
-                     [] ->
-                         []
+                     [{_, N}|R] -> [{N, -1.0}|[{M, 1.0} || {_, M} <- R]];
+                     []         -> []
                  end}, Q};
 
 handle_call(dbg_get_state, _, Q) ->
@@ -66,10 +63,8 @@ handle_call({next_job, NotJobs}, _, Q) ->
     case queue:out(Q) of
         {{value, {JobPid, _}}, NQ} ->
             V = lists:member(JobPid, NotJobs),
-            if V ->
-                dropwhile(NQ, NotJobs);
-            true ->
-                {ok, JobPid}
+            if V    -> dropwhile(NQ, NotJobs);
+               true -> {ok, JobPid}
             end;
         {empty, _} -> nojobs
     end.
