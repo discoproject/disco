@@ -38,8 +38,7 @@ start_link() ->
     lager:info("Fair scheduler starts"),
     case gen_server:start_link({local, ?MODULE}, fair_scheduler, [],
                                disco:debug_flags("fair_scheduler"))
-    of
-        {ok, _Server} = Ret -> Ret;
+    of  {ok, _Server} = Ret -> Ret;
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
@@ -86,8 +85,7 @@ handle_cast({update_nodes, NewNodes}, _) ->
     gen_server:cast(sched_policy, {update_nodes, NewNodes}),
     NNodes = [Name || {Name, _NumCores} <- NewNodes],
     Msg = {update_nodes, NNodes},
-    _ = [gen_server:cast(JobPid, Msg) ||
-            {_, {JobPid, _}} <- ets:tab2list(jobs)],
+    _ = [gen_server:cast(JobPid, Msg) || {_, {JobPid,_}} <- ets:tab2list(jobs)],
     {noreply, NNodes};
 
 handle_cast({job_done, JobName}, Nodes) ->
@@ -95,7 +93,8 @@ handle_cast({job_done, JobName}, Nodes) ->
     % job has been removed from the scheduler. Make sure that doesn't
     % happen.
     case ets:lookup(jobs, JobName) of
-        [] -> {noreply, Nodes};
+        [] ->
+            {noreply, Nodes};
         [{_, {_, JobCoord}}] ->
             ets:delete(jobs, JobName),
             exit(JobCoord, kill_worker),
@@ -139,10 +138,8 @@ next_task(AvailableNodes, Jobs, NotJobs) ->
     case gen_server:call(sched_policy, {next_job, NotJobs}) of
         {ok, JobPid} ->
             case fair_scheduler_job:next_task(JobPid, Jobs, AvailableNodes) of
-                {ok, Task} ->
-                    {ok, {JobPid, Task}};
-                none ->
-                    next_task(AvailableNodes, Jobs, [JobPid|NotJobs])
+                {ok, Task} -> {ok, {JobPid, Task}};
+                none       -> next_task(AvailableNodes, Jobs, [JobPid|NotJobs])
             end;
         nojobs -> nojobs
     end.

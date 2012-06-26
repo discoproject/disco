@@ -35,8 +35,7 @@ start_link() ->
     case gen_server:start_link({local, sched_policy},
                                fair_scheduler_fair_policy, [],
                                disco:debug_flags("fair_scheduler_fair_policy"))
-    of
-        {ok, _Server} = Ret -> Ret;
+    of  {ok, _Server} = Ret -> Ret;
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
@@ -57,10 +56,8 @@ handle_cast({priv_update_priorities, Priorities}, {Jobs, _, NC}) ->
     NewJobs = lists:foldl(
                 fun({JobPid, NewJob}, NJobs) ->
                     case gb_trees:lookup(JobPid, NJobs) of
-                        none ->
-                            NJobs;
-                        {value, _} ->
-                            gb_trees:update(JobPid, NewJob, NJobs)
+                        none       -> NJobs;
+                        {value, _} -> gb_trees:update(JobPid, NewJob, NJobs)
                     end
                 end, Jobs, Priorities),
     % Include all known jobs in the priority queue.
@@ -100,7 +97,7 @@ handle_call({next_job, _}, _, {{0, _}, _, _} = S) ->
     {reply, nojobs, S};
 
 handle_call({next_job, NotJobs}, _, {{N, _}, _, _} = S)
-        when length(NotJobs) >= N ->
+  when length(NotJobs) >= N ->
     {reply, nojobs, S};
 
 % NotJobs lists all jobs that got 'none' reply from the
@@ -158,16 +155,12 @@ prioq_insert(Item, L, H) ->
 -spec fairness_fairy(non_neg_integer()) -> no_return().
 fairness_fairy(NumCores) ->
     receive
-        {update, NewNumCores} ->
-            fairness_fairy(NewNumCores);
-        _ ->
-            fairness_fairy(NumCores)
+        {update, NewNumCores} -> fairness_fairy(NewNumCores);
+        _                     -> fairness_fairy(NumCores)
     after ?FAIRY_INTERVAL ->
             case application:get_env(fair_scheduler_alpha) of
-                {ok, Alpha} ->
-                    update_priorities(Alpha, NumCores);
-                undefined ->
-                    update_priorities(?FF_ALPHA_DEFAULT, NumCores)
+                {ok, Alpha} -> update_priorities(Alpha, NumCores);
+                undefined   -> update_priorities(?FF_ALPHA_DEFAULT, NumCores)
             end,
             fairness_fairy(NumCores)
     end.
