@@ -46,18 +46,23 @@ set_aws_creds() ->
 try_s3_tagdata(Bucket, TagName) ->
     Creds = get_config(),
     {contents, Objects} = lists:keyfind(contents, 1, erlcloud_s3:list_objects(Bucket, Creds)),
-    Tags = lists:foldl(fun(Tag, Acc) ->
-                                {key, Key} = lists:keyfind(key, 1, Tag),
-                                case string:str(Key, "tag/"++TagName) of
-                                    0 ->
-                                        Acc;
-                                    1 ->
-                                        {last_modified, Time} = lists:keyfind(last_modified, 1, Tag),
-                                        [{Time, Key} | Acc]
-                                end
-                        end, [], Objects),
-    {_, TagID} = lists:max(Tags),
-    {TagID, get_tag_data(Bucket, TagID, Creds)}.
+    case lists:foldl(fun(Tag, Acc) ->
+                             {key, Key} = lists:keyfind(key, 1, Tag),
+
+                             case string:str(Key, "tag/"++TagName) of
+                                 0 ->
+                                     Acc;
+                                 1 ->
+                                     {last_modified, Time} = lists:keyfind(last_modified, 1, Tag),
+                                     [{Time, Key} | Acc]
+                             end
+                     end, [], Objects) of
+        [] ->
+            fail;
+        Tags ->
+            {_, TagID} = lists:max(Tags),
+            {TagID, get_tag_data(Bucket, TagID, Creds)}
+    end.
 
 %%%===================================================================
 %%% Internal functions

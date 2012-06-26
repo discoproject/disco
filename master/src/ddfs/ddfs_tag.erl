@@ -522,16 +522,16 @@ get_tagdata(TagName) ->
             case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
                 _ when length(Failed) + RBSize >= TagMinK ->
                     case disco_aws:try_s3_tagdata(get(s3_bucket), binary_to_list(TagName)) of
+                        fail ->
+                            {error, too_many_failed_nodes};
                         {_TagID, TagData} ->
-                            {ok, TagData, []};
-                        _ ->
-                            {error, too_many_failed_nodes}
+                            {ok, TagData, []}
                     end;
                 [] ->
                     case disco_aws:try_s3_tagdata(get(s3_bucket), binary_to_list(TagName)) of
                         {_TagID, TagData} ->
                             {ok, TagData, []};
-                        _ ->
+                        fail ->
                             {missing, notfound}
                     end;
                 L ->
