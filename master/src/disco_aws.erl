@@ -11,7 +11,8 @@
 %% API
 -export([put/3,
          spawn_put/3,
-         set_aws_creds/0]).
+         set_aws_creds/0,
+         try_s3_tagdata/2]).
 
 %%%===================================================================
 %%% API
@@ -41,9 +42,31 @@ set_aws_creds() ->
     erlcloud_s3:configure(AccessKeyId, SecretKey),
     erlcloud_s3:new(AccessKeyId, SecretKey).    
 
+-spec try_s3_tagdata(string(), string()) -> {binary(), binary()}.
+try_s3_tagdata(Bucket, TagName) ->
+    Creds = get_config(),
+    {contents, Objects} = lists:keyfind(contents, 1, erlcloud_s3:list_objects(Bucket, Creds)),
+    Tags = lists:foldl(fun(Tag, Acc) ->
+                                {key, Key} = lists:keyfind(key, 1, Tag),
+                                case string:str(Key, "tag/"++TagName) of
+                                    0 ->
+                                        Acc;
+                                    1 ->
+                                        {last_modified, Time} = lists:keyfind(last_modified, 1, Tag),
+                                        [{Time, Key} | Acc]
+                                end
+                        end, [], Objects),
+    {_, TagID} = lists:max(Tags),
+    {TagID, get_tag_data(Bucket, TagID, Creds)}.
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+get_tag_data(Bucket, TagID, Creds) ->
+    Obj = erlcloud_s3:get_object(Bucket, TagID, Creds),
+    {content, Content} = lists:keyfind(content, 1, Obj),
+    Content.
 
 get_config() ->
     case get(aws_config) of

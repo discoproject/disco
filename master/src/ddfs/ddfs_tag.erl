@@ -521,9 +521,19 @@ get_tagdata(TagName) ->
                                       ?NODE_TIMEOUT),
             case [{TagNfo, Node} || {Node, {ok, TagNfo}} <- Replies] of
                 _ when length(Failed) + RBSize >= TagMinK ->
-                    {error, too_many_failed_nodes};
+                    case disco_aws:try_s3_tagdata(get(s3_bucket), binary_to_list(TagName)) of
+                        {_TagID, TagData} ->
+                            {ok, TagData, []};
+                        _ ->
+                            {error, too_many_failed_nodes}
+                    end;
                 [] ->
-                    {missing, notfound};
+                    case disco_aws:try_s3_tagdata(get(s3_bucket), binary_to_list(TagName)) of
+                        {_TagID, TagData} ->
+                            {ok, TagData, []};
+                        _ ->
+                            {missing, notfound}
+                    end;
                 L ->
                     {{Time, _Vol}, _Node} = lists:max(L),
                     Replicas = [X || {{T, _}, _} = X <- L, T == Time],
@@ -671,7 +681,7 @@ put_distribute({TagID, TagData}, K, OkNodes, _Exclude) when K == length(OkNodes)
 put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
     case get(use_s3) of
         true ->
-            disco_aws:put(get(s3_bucket), binary_to_list(TagID), TagData),
+            disco_aws:put(get(s3_bucket), "tag/"++binary_to_list(TagID), TagData),
             put_distribute_(Msg, K, OkNodes, Exclude);
         false ->
             put_distribute_(Msg, K, OkNodes, Exclude)

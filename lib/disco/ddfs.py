@@ -151,6 +151,7 @@ class DDFS(object):
                             retries=retries)
                  for reps in urls
                  for n, chunk in enumerate(chunk_iter(reps))]
+
         return (self.tag(tag,
                          blobs,
                          delayed=delayed,

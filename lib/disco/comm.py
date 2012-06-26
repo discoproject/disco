@@ -112,8 +112,8 @@ def upload(urls, source, token=None, **kwargs):
     def _upload(url):
         if _is_s3(url):
             key = os.path.basename(url)
-            bucket = os.path.dirname(url)[5:]
-            s3_put(bucket, key, source)
+            (bucket, dirname) = os.path.split(os.path.dirname(url)[5:])
+            s3_put(bucket, os.path.join(dirname, key), source)
             return ("\"%s\"" % url)
         else:
             return request('PUT',
