@@ -9,18 +9,24 @@
 -module(disco_aws).
 
 %% API
--export([spawn_put/3,
+-export([put/3,
+         spawn_put/3,
          set_aws_creds/0]).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
 
+-spec put(string(), string(), binary()) -> term().
+put(Bucket, Dir, Contents) ->
+    Creds = get_config(),
+    erlcloud_s3:put_object(Bucket, Dir, Contents, Creds).
+
 -spec spawn_put(string(), string(), binary()) -> pid().
 spawn_put(Bucket, Dir, Contents) ->
     Creds = get_config(),
     proc_lib:spawn(fun()->                       
-                           erlcloud_s3:put_object(Bucket, binary_to_list(Dir), Contents, Creds) 
+                           erlcloud_s3:put_object(Bucket, Dir, Contents, Creds) 
                    end).
 
 -spec set_aws_creds() -> record().

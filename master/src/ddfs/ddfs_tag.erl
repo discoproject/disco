@@ -665,10 +665,22 @@ put_distribute({TagID, _} = Msg) ->
     [{node(), binary()}], [node()]) ->
         {error, replication_failed} | {ok, [{node(), binary()}]}.
 put_distribute({TagID, TagData}, K, OkNodes, _Exclude) when K == length(OkNodes) ->
-    disco_aws:spawn_put(get(s3_bucket), TagID, TagData),
+    disco_aws:put(get(s3_bucket), binary_to_list(TagID), TagData),
     {ok, OkNodes};
 
 put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
+    case get(use_s3) of
+        true ->
+            disco_aws:put(get(s3_bucket), binary_to_list(TagID), TagData),
+            put_distribute_(Msg, K, OkNodes, Exclude);
+        false ->
+            put_distribute_(Msg, K, OkNodes, Exclude)
+    end.
+
+-spec put_distribute_({tagid(), binary()}, non_neg_integer(),
+                      [{node(), binary()}], [node()]) ->
+                             {error, replication_failed} | {ok, [{node(), binary()}]}.
+put_distribute_({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
     TagMinK = get(min_tagk),
     K0 = K - length(OkNodes),
     {ok, Nodes} = ddfs_master:choose_write_nodes(K0, Exclude),
