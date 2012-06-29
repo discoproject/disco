@@ -380,8 +380,14 @@ def classic_iterator(urls,
     worker = Worker(map_reader=reader, map_input_stream=input_stream)
     settings = DiscoSettings(DISCO_MASTER=ddfs) if ddfs else DiscoSettings()
     for input in util.inputlist(urls, settings=settings):
-        notifier(input)
-        for record in Input(input, open=worker.opener('map', 'in', params)):
+        if isinstance(input, basestring):
+            dest = proxy_url(input, to_master=False)
+        elif isinstance(input, tuple):
+            dest = tuple([proxy_url(i, to_master=False) for i in input])
+        else:
+            dest = [proxy_url(i, to_master=False) for i in input]
+        notifier(dest)
+        for record in Input(dest, open=worker.opener('map', 'in', params)):
             yield record
 
 def result_iterator(*args, **kwargs):
