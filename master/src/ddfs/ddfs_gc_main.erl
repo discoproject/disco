@@ -1127,21 +1127,26 @@ wait_put_blob(#rep_state{ref = Ref, timeouts = TO, master = Master} = S,
               SrcNode, PutUrl) ->
     receive
         {Ref, _B, _PU, {ok, BlobName, NewUrls}} ->
+            lager:info("GC: replicated ~p (~p) to ~p", [BlobName, Ref, NewUrls]),
             add_replicas(Master, BlobName, NewUrls),
             S;
         {Ref, B, PU, E} ->
-            lager:info("GC: error replicating ~p to ~p: ~p", [B, PU, E]),
+            lager:info("GC: error replicating ~p (~p) to ~p: ~p",
+                       [B, Ref, PU, E]),
             S;
-        {_OldRef, _B, PU, {ok, BlobName, NewUrls}} ->
+        {OldRef, _B, PU, {ok, BlobName, NewUrls}} ->
             % Delayed response.
-            lager:info("GC: delayed replication of ~p to ~p: ~p", [BlobName, PU, NewUrls]),
+            lager:info("GC: delayed replication of ~p (~p/~p) to ~p: ~p",
+                       [BlobName, OldRef, Ref, PU, NewUrls]),
             add_replicas(Master, BlobName, NewUrls),
             wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl);
-        {_OldRef, B, PU, OldResult} ->
-            lager:info("GC: error replicating ~p to ~p: ~p", [B, PU, OldResult]),
+        {OldRef, B, PU, OldResult} ->
+            lager:info("GC: error replicating ~p (~p/~p) to ~p: ~p",
+                       [B, OldRef, Ref, PU, OldResult]),
             wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl)
     after ?GC_PUT_TIMEOUT ->
-            lager:info("GC: replication timeout on ~p for ~p", [SrcNode, PutUrl]),
+            lager:info("GC: replication timeout on ~p (~p) for ~p",
+                       [SrcNode, Ref, PutUrl]),
             S#rep_state{timeouts = TO + 1}
     end.
 
