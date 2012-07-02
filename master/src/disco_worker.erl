@@ -295,6 +295,6 @@ exit_on_error(Type, #state{buffer = Buffer} = S)
     <<Buffer1:(?MAX_ERROR_BUFFER_SIZE - 3)/binary, _/binary>> = Buffer,
     exit_on_error(Type, S#state{buffer = <<Buffer1/binary, "...">>});
 exit_on_error(Type, #state{buffer = Buffer} = S) ->
-    Msg = ["Worker died. Last words:\n", Buffer],
+    Msg = iolist_to_binary(["Worker died. Last words:\n", Buffer]),
     {stop, {shutdown, {Type, Msg}}, S}.
 
