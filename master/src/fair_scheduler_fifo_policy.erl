@@ -11,6 +11,7 @@
 -include("common_types.hrl").
 -include("gs_util.hrl").
 -include("disco.hrl").
+-include("pipeline.hrl").
 -include("fair_scheduler.hrl").
 
 -export([start_link/0, init/1, handle_call/3, handle_cast/2,

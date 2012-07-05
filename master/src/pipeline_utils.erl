@@ -4,7 +4,7 @@
 -include("disco.hrl").
 -include("pipeline.hrl").
 
--export([job_from_jobinfo/1, job_schedule_option/1]).
+-export([job_from_jobinfo/1, job_schedule_option/1, stages/1]).
 -export([next_stage/2, group_outputs/2, pick_local_host/1]).
 -export([locations/1, ranked_locations/1]).
 
@@ -66,6 +66,8 @@ job_schedule_option(true, _) -> local;
 job_schedule_option(_, true) -> remote;
 job_schedule_option(_, _) -> none.
 
+-spec stages(pipeline()) -> [stage_name()].
+stages(Pipeline) -> [Stage || {Stage, _G} <- Pipeline].
 
 % Other utilities.
 

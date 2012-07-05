@@ -12,8 +12,9 @@
 -include_lib("kernel/include/file.hrl").
 
 -include("common_types.hrl").
--include("disco.hrl").
 -include("gs_util.hrl").
+-include("disco.hrl").
+-include("pipeline.hrl").
 
 -type connection_status() :: undefined | {up | down, erlang:timestamp()}.
 
@@ -28,9 +29,9 @@
                 stats_crashed :: non_neg_integer()}).
 -type dnode() :: #dnode{}.
 
--record(state, {workers :: gb_tree(),
-                nodes :: gb_tree(),
-                purged :: gb_tree(),
+-record(state, {workers = gb_trees:empty() :: gb_tree(), % pid()    -> {host(), task()}
+                nodes   = gb_trees:empty() :: gb_tree(), % host()   -> dnode()
+                purged  = gb_trees:empty() :: gb_tree(), % binary() -> timestamp()
                 jobpack_queue :: pid(),
 
                 % The below are only used in cluster-in-a-box mode.
@@ -76,7 +77,7 @@ update_config_table(Config, Blacklist, GCBlacklist) ->
     gen_server:cast(?MODULE,
                     {update_config_table, Config, Blacklist, GCBlacklist}).
 
--type active_tasks() :: [{host(), task()}].
+-type active_tasks() :: [{host(), jobname(), stage_name()}].
 -spec get_active(jobname() | all) -> {ok, active_tasks()}.
 get_active(JobName) ->
     gen_server:call(?MODULE, {get_active, JobName}).
@@ -85,7 +86,7 @@ get_active(JobName) ->
 get_nodeinfo(Spec) ->
     gen_server:call(?MODULE, {get_nodeinfo, Spec}).
 
--spec new_job(jobname(), pid(), non_neg_integer()) -> ok.
+-spec new_job(jobname(), pid(), non_neg_integer()) -> ok | {error, term()}.
 new_job(JobName, JobCoord, Timeout) ->
     gen_server:call(?MODULE, {new_job, JobName, JobCoord}, Timeout).
 
@@ -143,11 +144,7 @@ init(_Args) ->
                            gb_trees:empty()};
                   false -> none
               end,
-    {ok, #state{workers = gb_trees:empty(),
-                nodes = gb_trees:empty(),
-                purged = gb_trees:empty(),
-                jobpack_queue = JobPackQ,
-                port_map = PortMap}}.
+    {ok, #state{jobpack_queue = JobPackQ, port_map = PortMap}}.
 
 -type update_config_msg() :: {update_config_table, [disco_config:host_info()],
                               [host()], [host()]}.
@@ -258,12 +255,12 @@ process_exit(Pid, {Type, _} = Results, #state{workers = Workers,
     case gb_trees:lookup(Pid, Workers) of
         none ->
             nodemon_exit(Pid, S);
-        {_, {Host, Task}} ->
+        {value, {H, {#task_spec{job_coord = C, taskid = Id}, #task_run{}}}} ->
+            job_coordinator:task_done(C, {Results, Id, H}),
             UWorkers = gb_trees:delete(Pid, Workers),
-            Task#task.from ! {Results, Task, Host},
             schedule_next(),
-            {noreply, update_stats(Host,
-                                   gb_trees:lookup(Host, Nodes),
+            {noreply, update_stats(H,
+                                   gb_trees:lookup(H, Nodes),
                                    Type,
                                    S#state{workers = UWorkers})}
     end.
@@ -317,8 +314,9 @@ allow_task(#dnode{} = N) -> allow_write(N).
 
 -spec update_nodes(gb_tree()) -> ok.
 update_nodes(Nodes) ->
-    WhiteNodes = [{H, S}
-                  || #dnode{host = H, slots = S} = N <- gb_trees:values(Nodes),
+    WhiteNodes = [{H, S, R}
+                  || #dnode{host = H, slots = S, num_running = R}
+                         = N <- gb_trees:values(Nodes),
                      allow_task(N)],
     DDFSNodes = [{disco:slave_node(N#dnode.host),
                   allow_write(N), allow_read(N)} || N <- gb_trees:values(Nodes)],
@@ -338,6 +336,8 @@ update_stats(Node, {value, #dnode{num_running = NumRunning,
              done ->
                  M#dnode{stats_ok = StatsOk + 1};
              error ->
+                 M#dnode{stats_failed = StatsFailed + 1};
+             input_error ->
                  M#dnode{stats_failed = StatsFailed + 1};
              fatal ->
                  M#dnode{stats_crashed = StatsCrashed + 1};
@@ -441,11 +441,10 @@ do_gc_blacklist(Hosts, S) ->
     ddfs_master:gc_blacklist([disco:slave_node(H) || H <- Hosts]),
     S.
 
--spec start_worker(node(), pid(), task()) -> pid().
-start_worker(Node, NodeMon, T) ->
-    event_server:event(T#task.jobname, "~s:~B assigned to ~s",
-                       [T#task.mode, T#task.taskid, Node], none),
-    spawn_link(disco_worker, start_link_remote, [Node, NodeMon, T]).
+-spec start_worker(host(), pid(), task()) -> pid().
+start_worker(H, NM, {#task_spec{jobname = J, stage = S, taskid = TI}, _} = T) ->
+    event_server:event(J, "~s:~B assigned to ~s", [S, TI, H], none),
+    spawn_link(fun() -> disco_worker:start_link_remote(H, NM, T) end).
 
 -spec schedule_next() -> ok.
 schedule_next() ->
@@ -490,18 +489,27 @@ do_purge_job(JobName, #state{purged = Purged} = S) ->
     S#state{purged = NPurged}.
 
 
--spec do_new_job(jobname(), pid(), state()) -> ok.
+-spec do_new_job(jobname(), pid(), state()) -> ok | {error, term()}.
 do_new_job(JobName, JobCoord, _S) ->
-    catch fair_scheduler:new_job(JobName, JobCoord).
+    try fair_scheduler:new_job(JobName, JobCoord)
+    catch K:V -> {error, {K, V}}
+    end.
 
 -spec do_new_task(task(), state()) -> ok | failed.
-do_new_task(#task{jobname = Job, taskid = TaskId} = Task, #state{nodes = Nodes}) ->
-    NodeStats = [case gb_trees:lookup(Node, Nodes) of
-                     none -> {false, Input};
-                     {value, N} -> {N#dnode.num_running, Input}
-                 end || {_Url, Node} = Input <- Task#task.input],
-    try
-        case fair_scheduler:new_task(Task, NodeStats) of
+do_new_task({#task_spec{jobname = Job, taskid = TaskId},
+             #task_run{input = Inputs}} = Task,
+            #state{nodes = Nodes}) ->
+    Locations = [pipeline_utils:locations(D) || {_Id, D} <- Inputs],
+    LoadStats = lists:foldl(
+                  fun(Host, Load) ->
+                          case gb_trees:lookup(Host, Nodes) of
+                              none ->
+                                  Load;
+                              {value, #dnode{num_running = Running}} ->
+                                  gb_trees:enter(Host, Running, Load)
+                          end
+                  end, gb_trees:empty(), lists:flatten(Locations)),
+    try case fair_scheduler:new_task(Task, LoadStats) of
             ok ->
                 schedule_next(),
                 ok;
@@ -516,11 +524,13 @@ do_new_task(#task{jobname = Job, taskid = TaskId} = Task, #state{nodes = Nodes})
     end.
 
 -spec do_get_active(jobname() | all, state()) -> {ok, active_tasks()}.
-do_get_active(all, #state{workers = Workers}) ->
-    {ok, gb_trees:values(Workers)};
-do_get_active(JobName, #state{workers = Workers}) ->
-    Active = [{Host, Task} || {Host, #task{jobname = N} = Task}
-                                  <- gb_trees:values(Workers), N == JobName],
+do_get_active(all, #state{workers = W}) ->
+    Active = [{H, J, S} || {H, {#task_spec{jobname = J, stage = S}, _}}
+                               <- gb_trees:values(W)],
+    {ok, Active};
+do_get_active(JobName, #state{workers = W}) ->
+    Active = [{H, JobName, S} || {H, {#task_spec{jobname = N, stage = S}, _}}
+                                     <- gb_trees:values(W), N == JobName],
     {ok, Active}.
 
 -spec do_get_nodeinfo(state()) -> {ok, [nodeinfo()]}.

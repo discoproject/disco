@@ -41,7 +41,6 @@
                taskid :: non_neg_integer(),
                taskblack :: [host()],
                fail_count :: non_neg_integer()}).
--type task() :: #task{}.
 
 % types used for local-cluster mode
 

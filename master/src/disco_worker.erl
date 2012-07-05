@@ -15,6 +15,7 @@
 -include("common_types.hrl").
 -include("gs_util.hrl").
 -include("disco.hrl").
+-include("pipeline.hrl").
 
 -record(state, {master :: node(),
                 task :: task(),
@@ -43,30 +44,23 @@ start_link_remote(Host, NodeMon, Task) ->
     spawn_link(Node, disco_worker, start_link, [{self(), node(), Task}]),
     process_flag(trap_exit, true),
     receive
-        ok -> ok;
-        {'EXIT', _, Reason} ->
-            exit({error, Reason});
-        _ ->
-            exit({error, "Internal server error: invalid_reply"})
-    after 60000 ->
-            exit({error, "Worker did not start in 60s at " ++ Host})
+        {'EXIT', _, Reason} -> exit({error, Reason});
+        ok      -> ok;
+        _       ->    exit({error, "Internal server error: invalid_reply"})
+    after 60000 -> exit({error, "Worker did not start in 60s at " ++ Host})
     end,
     wait_for_exit().
 
 -spec wait_until_node_ready(pid(), host()) -> ok.
 wait_until_node_ready(NodeMon, Host) ->
     NodeMon ! {is_ready, self()},
-    receive
-        node_ready -> ok
-    after 30000 ->
-        exit({error, lists:flatten(["Node ", Host, " unavailable"])})
+    receive node_ready -> ok
+    after 30000 -> exit({error, lists:flatten(["Node ", Host, " unavailable"])})
     end.
 
 -spec wait_for_exit() -> no_return().
 wait_for_exit() ->
-    receive
-        {'EXIT', _, Reason} ->
-            exit(Reason)
+    receive {'EXIT', _, Reason} -> exit(Reason)
     end.
 
 -spec start_link({pid(), node(), task()}) -> no_return().
@@ -78,27 +72,25 @@ start_link({Parent, Master, Task}) ->
     wait_for_exit().
 
 -spec init({node(), task()}) -> gs_init().
-init({Master, Task}) ->
-    % Note! Worker is killed implicitely by killing its job_coordinator
-    % which should be noticed by the monitor below. If the DOWN message
-    % gets lost, e.g. due to temporary network partitioning, the worker
-    % becomes a zombie.
-    erlang:monitor(process, Task#task.from),
-    {ok,
-     #state{master = Master,
-            task = Task,
-            port = none,
-            worker_send = none,
-            error_output = false,
-            buffer = <<>>,
-            parser = worker_protocol:init(),
-            runtime = worker_runtime:init(Task, Master),
-            throttle = worker_throttle:init()}
-    }.
+init({Master, {#task_spec{job_coord = JobCoord}, #task_run{}} = Task}) ->
+    % Note! This worker is killed implicitly by killing its
+    % job_coordinator, which should be noticed by the monitor
+    % below. If the DOWN message gets lost, e.g. due to temporary
+    % network partitioning, the worker becomes a zombie.
+    erlang:monitor(process, JobCoord),
+    {ok, #state{master = Master,
+                task = Task,
+                port = none,
+                worker_send = none,
+                error_output = false,
+                buffer = <<>>,
+                parser = worker_protocol:init(),
+                runtime = worker_runtime:init(Task, Master),
+                throttle = worker_throttle:init()}}.
 
 -spec handle_cast(start | work, state()) -> gs_noreply().
 handle_cast(start, #state{task = Task, master = Master} = State) ->
-    JobName = Task#task.jobname,
+    {#task_spec{jobname = JobName}, #task_run{}} = Task,
     Fun = fun() -> make_jobhome(JobName, Master) end,
     try case lock_server:lock(JobName, Fun, ?JOBHOME_TIMEOUT) of
             ok ->
@@ -112,11 +104,12 @@ handle_cast(start, #state{task = Task, master = Master} = State) ->
             E = io_lib:format("Jobpack extraction error: ~p:~p", [K,V]),
             {stop, {shutdown, {error, E}}, State}
     end;
-handle_cast(work, #state{task = Task, port = none} = State) ->
-    JobHome = jobhome(Task#task.jobname),
-    Worker = filename:join(JobHome, binary_to_list(Task#task.worker)),
+handle_cast(work, #state{task = T, port = none} = State) ->
+    {#task_spec{jobname = JobName, worker = W, jobenvs = JE}, #task_run{}} = T,
+    JobHome = jobhome(JobName),
+    Worker = filename:join(JobHome, binary_to_list(W)),
     Command = "nice -n 19 " ++ Worker,
-    JobEnvs = [{S, false} || S <- disco:settings()] ++ Task#task.jobenvs,
+    JobEnvs = [{S, false} || S <- disco:settings()] ++ JE,
     Options = [{cd, JobHome},
                stream,
                binary,
@@ -147,10 +140,8 @@ handle_info({_Port, {data, Data}}, #state{buffer = Buffer} = S) ->
 
 handle_info(timeout, #state{error_output = false, runtime = Runtime} = S) ->
     case worker_runtime:get_pid(Runtime) of
-        none ->
-            warning("Worker did not send its PID in 30 seconds", S);
-        _ ->
-            warning("Worker stuck in the middle of a message", S)
+        none -> warning("Worker did not send its PID in 30 seconds", S);
+        _    -> warning("Worker stuck in the middle of a message", S)
     end,
     exit_on_error(S);
 
@@ -281,9 +272,9 @@ warning(Msg, #state{master = Master, task = Task}) ->
     event({<<"WARNING">>, iolist_to_binary(Msg)}, Task, Master).
 
 -spec event(event_server:task_msg(), task(), node()) -> ok.
-event(Msg, Task, Master) ->
+event(M, {#task_spec{jobname = J, taskid = T, stage = S}, _}, Master) ->
     Host = disco:host(node()),
-    event_server:task_event(Task, Msg, none, Host, {event_server, Master}).
+    event_server:task_event({J, S, T}, M, none, Host, {event_server, Master}).
 
 exit_on_error(S) ->
     exit_on_error(error, S).

@@ -3,6 +3,7 @@
 
 -include("common_types.hrl").
 -include("disco.hrl").
+-include("pipeline.hrl").
 -include("config.hrl").
 
 -spec op(atom(), string(), module()) -> _.
@@ -76,13 +77,10 @@ getop("joblist", _Query) ->
 
 getop("jobinfo", {_Query, JobName}) ->
     {ok, Active} = disco_server:get_active(JobName),
+    HostInfo = lists:unzip([{H, S} || {H, _J, S} <- Active]),
     case event_server:get_jobinfo(JobName) of
-        {ok, JobInfo} ->
-            HostInfo = lists:unzip([{Host, M}
-                                    || {Host, #task{mode = M}} <- Active]),
-            {ok, render_jobinfo(JobInfo, HostInfo)};
-        invalid_job ->
-            not_found
+        {ok, JobInfo} -> {ok, render_jobinfo(JobInfo, HostInfo)};
+        invalid_job   -> not_found
     end;
 
 getop("parameters", {_Query, Name}) ->
@@ -105,7 +103,7 @@ getop("nodeinfo", _Query) ->
     {ok, Active} = disco_server:get_active(all),
     {ok, DiscoNodes} = disco_server:get_nodeinfo(all),
     {ok, DDFSNodes} = ddfs_master:get_nodeinfo(all),
-    ActiveNodeInfo = lists:foldl(fun ({Host, #task{jobname = JobName}}, Dict) ->
+    ActiveNodeInfo = lists:foldl(fun ({Host, JobName, _Stage}, Dict) ->
                                          dict:append(Host,
                                                      list_to_binary(JobName),
                                                      Dict)
@@ -147,16 +145,14 @@ getop("get_settings", _Query) ->
                                  fun(S) ->
                                      case application:get_env(disco, S) of
                                          {ok, V} -> {S, V};
-                                         _ -> false
+                                         _       -> false
                                      end
                                  end, L))}};
 
 getop("get_mapresults", {_Query, Name}) ->
     case event_server:get_map_results(Name) of
-        {ok, _Res} = OK ->
-            OK;
-        _ ->
-            not_found
+        {ok, _Res} = OK -> OK;
+        _               -> not_found
     end;
 
 getop(_, _) -> not_found.
@@ -165,7 +161,8 @@ getop(_, _) -> not_found.
                        term(), fun((term()) -> T)) -> T.
 validate_payload(_Op, Spec, Payload, Fun) ->
     case json_validator:validate(Spec, Payload) of
-        ok -> Fun(Payload);
+        ok ->
+            Fun(Payload);
         {error, E} ->
             Msg = list_to_binary(json_validator:error_msg(E)),
             {error, Msg}
@@ -266,23 +263,21 @@ update_setting(<<"max_failure_rate">>, Val, App) ->
 update_setting(Key, Val, _) ->
     lager:info("Unknown setting: ~p = ~p", [Key, Val]).
 
-count_maps(L) ->
-    {M, N} = lists:foldl(fun (map, {M, N}) ->
-                                 {M + 1, N + 1};
-                             (reduce, {M, N}) ->
-                                 {M, N + 1}
+count_mr_stages(L) ->
+    {M, N} = lists:foldl(fun (?MAP, {M, N})    -> {M + 1, N + 1};
+                             (?REDUCE, {M, N}) -> {M, N + 1}
                          end, {0, 0}, L),
     {M, N - M}.
 
--spec render_jobinfo(event_server:job_eventinfo(), {[host()], [task_mode()]})
+-spec render_jobinfo(event_server:job_eventinfo(), {[host()], [stage_name()]})
                     -> term().
 render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
-               {Hosts, Modes}) ->
-    {NMapRun, NRedRun} = count_maps(Modes),
-    NMapDone = dict:fetch(map, Ready),
-    NRedDone = dict:fetch(reduce, Ready),
-    NMapFail = dict:fetch(map, Failed),
-    NRedFail = dict:fetch(reduce, Failed),
+               {Hosts, Stages}) ->
+    {NMapRun, NRedRun} = count_mr_stages(Stages),
+    NMapDone = dict:fetch(?MAP, Ready),
+    NRedDone = dict:fetch(?REDUCE, Ready),
+    NMapFail = dict:fetch(?MAP, Failed),
+    NRedFail = dict:fetch(?REDUCE, Failed),
     {Status, MapI, RedI, Reduce, Inputs, Worker, Owner} =
         case JobInfo of
             none ->
@@ -291,10 +286,10 @@ render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
             #jobinfo{map = M, reduce = R, inputs = I, nr_reduce = NR,
                      worker = W, owner = O} ->
                 {list_to_binary(atom_to_list(Status0)),
-                 if M -> length(I) - (NMapDone + NMapRun);
+                 if M    -> length(I) - (NMapDone + NMapRun);
                     true -> 0
                  end,
-                 if R -> NR - (NRedDone + NRedRun);
+                 if R    -> NR - (NRedDone + NRedRun);
                     true -> 0
                  end,
                  R, lists:sublist(I, 100), W, O}
@@ -318,7 +313,8 @@ status_msg({dead, _}) -> [<<"dead">>, []].
 
 wait_jobs(Jobs, Timeout) ->
     case [erlang:monitor(process, Pid) || {_, {active, Pid}} <- Jobs] of
-        [] -> Jobs;
+        [] ->
+            Jobs;
         _ ->
             receive {'DOWN', _, _, _, _} -> ok
             after Timeout -> ok

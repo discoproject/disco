@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 % Job notification.
--export([new_job/2, end_job/1, clean_job/1]).
+-export([new_job/3, end_job/1, clean_job/1]).
 % Retrieval.
 -export([get_jobs/0, get_jobs/1, get_jobinfo/1, get_job_msgs/3,
          get_map_results/1, get_results/1]).
@@ -16,17 +16,19 @@
 -include("common_types.hrl").
 -include("gs_util.hrl").
 -include("disco.hrl").
+-include("pipeline.hrl").
 
 -define(EVENT_PAGE_SIZE, 100).
 -define(EVENT_BUFFER_SIZE, 1000).
 -define(EVENT_BUFFER_TIMEOUT, 2000).
 
 -type event() :: {job_data, jobinfo()}
-               | {task_ready, task_mode()}
-               | {task_failed, task_mode()}
-               | {map_ready, [job_coordinator:input()]}
-               | {reduce_ready, [job_coordinator:input()]}
+               | {task_ready, stage_name()}
+               | {task_failed, stage_name()}
+               | {stage_ready, stage_name(), [job_coordinator:input()]}
                | {ready, [job_coordinator:input()]}.
+
+-type task_info() :: {jobname(), stage_name(), task_id()}.
 
 -type task_msg() :: {binary(), term()} | string().
 
@@ -43,13 +45,13 @@
                           Ready   :: dict(),
                           Failed  :: dict()}.
 
--export_type([event/0, task_msg/0, job_eventinfo/0]).
+-export_type([event/0, task_info/0, task_msg/0, job_eventinfo/0]).
 
 % Job notification.
 
--spec new_job(jobname(), pid()) -> {ok, jobname()}.
-new_job(Prefix, JobCoordinator) ->
-    gen_server:call(?MODULE, {new_job, Prefix, JobCoordinator}, 10000).
+-spec new_job(jobname(), pid(), [stage_name()]) -> {ok, jobname()}.
+new_job(Prefix, JobCoord, Stages) ->
+    gen_server:call(?MODULE, {new_job, Prefix, JobCoord, Stages}, 10000).
 
 -spec end_job(jobname()) -> ok.
 end_job(JobName) ->
@@ -110,25 +112,23 @@ event(EventServer, Host, JobName, MsgFormat, Args, Event) ->
     Msg = list_to_binary(Json),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Event}).
 
--spec task_event(task(), task_msg()) -> ok.
+-spec task_event(task_info(), task_msg()) -> ok.
 task_event(Task, Msg) ->
     task_event(Task, Msg, none).
 
--spec task_event(task(), task_msg(), none | event()) -> ok.
+-spec task_event(task_info(), task_msg(), none | event()) -> ok.
 task_event(Task, Msg, Event) ->
     task_event(Task, Msg, Event, "master").
 
--spec task_event(task(), task_msg(), none | event(), host()) -> ok.
+-spec task_event(task_info(), task_msg(), none | event(), host()) -> ok.
 task_event(Task, Msg, Event, Host) ->
     task_event(Task, Msg, Event, Host, ?MODULE).
 
--spec task_event(task(), task_msg(), none | event(), host(), server()) -> ok.
-task_event(Task, {Type, Message}, Event, Host, EventServer) ->
-    event(EventServer,
-          Host,
-          Task#task.jobname,
+-spec task_event(task_info(), task_msg(), none | event(), host(), server()) -> ok.
+task_event({JN, Stage, TaskId}, {Type, Message}, Event, Host, EventServer) ->
+    event(EventServer, Host, JN,
           "~s: [~s:~B] " ++ task_format(Message),
-          [Type, Task#task.mode, Task#task.taskid, Message],
+          [Type, Stage, TaskId, Message],
           Event);
 task_event(Task, Message, Event, Host, EventServer) ->
     task_event(Task, {<<"SYS">>, Message}, Event, Host, EventServer).
@@ -155,12 +155,12 @@ init(_Args) ->
 
 -spec handle_call(term(), from(), state()) -> gs_reply(term()) | gs_noreply().
 
-handle_call({new_job, JobPrefix, Pid}, From, {Events0, MsgBuf0} = S) ->
+handle_call({new_job, JobPrefix, Pid, Stages}, From, {Events0, MsgBuf0} = S) ->
     case unique_key(JobPrefix, Events0) of
         invalid_prefix ->
             {reply, {error, invalid_prefix}, S};
         {ok, JobName} ->
-            Events = dict:store(JobName, new_job_ent(Pid), Events0),
+            Events = dict:store(JobName, new_job_ent(Pid, Stages), Events0),
             MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
             spawn(fun() -> job_event_handler(JobName, From) end),
             {noreply, {Events, MsgBuf}}
@@ -210,37 +210,33 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 -record(job_ent, {job_coord :: pid(),
                   start     :: erlang:timestamp(),
                   job_data  = none :: none | jobinfo(),
-                  task_ready    :: dict(), % task_mode() -> count
-                  task_failed   :: dict(), % task_mode() -> count
-                  phase_results :: dict(), % task_mode() -> results
+                  task_ready    :: dict(), % stage_name() -> count
+                  task_failed   :: dict(), % stage_name() -> count
+                  stage_results :: dict(), % stage_name() -> results
                   job_results   = []         :: [job_coordinator:input()]}).
 -type job_ent() :: #job_ent{}.
 
--spec new_job_ent(pid()) -> job_ent().
-new_job_ent(JobCoord) ->
-    new_job_ent(JobCoord, [map, reduce]).
-new_job_ent(JobCoord, Phases) ->
-    Counts = [{P, 0} || P <- Phases],
+-spec new_job_ent(pid(), [stage_name()]) -> job_ent().
+new_job_ent(JobCoord, Stages) ->
+    Counts = [{S, 0} || S <- Stages],
     TaskReady = dict:from_list(Counts),
     TaskFailed = dict:from_list(Counts),
-    PhaseResults = dict:new(),
+    StageResults = dict:new(),
     #job_ent{job_coord = JobCoord,
              start = now(),
              task_ready = TaskReady,
              task_failed = TaskFailed,
-             phase_results = PhaseResults}.
+             stage_results = StageResults}.
 
 -spec update_job_ent(job_ent(), event()) -> job_ent().
 update_job_ent(JE, {job_data, JobData}) ->
     JE#job_ent{job_data = JobData};
-update_job_ent(#job_ent{task_ready = TaskReady} = JE, {task_ready, Phase}) ->
-    JE#job_ent{task_ready = dict:update_counter(Phase, 1, TaskReady)};
-update_job_ent(#job_ent{task_failed = TaskFailed} = JE, {task_failed, Phase}) ->
-    JE#job_ent{task_failed = dict:update_counter(Phase, 1, TaskFailed)};
-update_job_ent(#job_ent{phase_results = PhaseResults} = JE, {map_ready, Res}) ->
-    JE#job_ent{phase_results = dict:store(map, Res, PhaseResults)};
-update_job_ent(#job_ent{phase_results = PhaseResults} = JE, {reduce_ready, Res}) ->
-    JE#job_ent{phase_results = dict:store(reduce, Res, PhaseResults)};
+update_job_ent(#job_ent{task_ready = TaskReady} = JE, {task_ready, Stage}) ->
+    JE#job_ent{task_ready = dict:update_counter(Stage, 1, TaskReady)};
+update_job_ent(#job_ent{task_failed = TaskFailed} = JE, {task_failed, Stage}) ->
+    JE#job_ent{task_failed = dict:update_counter(Stage, 1, TaskFailed)};
+update_job_ent(#job_ent{stage_results = Results} = JE, {stage_ready, S, R}) ->
+    JE#job_ent{stage_results = dict:store(S, R, Results)};
 update_job_ent(JE, {ready, Results}) ->
     JE#job_ent{job_results = Results}.
 
@@ -297,8 +293,8 @@ do_get_map_results(JobName, Events) ->
     case dict:find(JobName, Events) of
         error ->
             invalid_job;
-        {ok, #job_ent{phase_results = PR}} ->
-            case dict:find(map, PR) of
+        {ok, #job_ent{stage_results = PR}} ->
+            case dict:find(?MAP, PR) of
                 error -> not_ready;
                 {ok, _Res} = Ret -> Ret
             end
