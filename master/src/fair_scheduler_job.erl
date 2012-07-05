@@ -103,7 +103,7 @@ all_empty_nodes([Job|Jobs], AvailableNodes) ->
         {ok, L} = get_empty_nodes(Job, AvailableNodes, 500),
         all_empty_nodes(Jobs, L)
     catch _:_ -> % Job may have died already, don't care
-            all_empty_nodes(Job, AvailableNodes)
+            all_empty_nodes(Jobs, AvailableNodes)
     end.
 
 -type cast_msgs() :: new_task_msg() | update_nodes_msg()
