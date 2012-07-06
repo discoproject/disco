@@ -177,8 +177,8 @@ there's probably something wrong either with your
           and vice versa.
           Aliasing is not allowed.
 
-Is your firewall configued correctly?
--------------------------------------
+Is your firewall configured correctly?
+--------------------------------------
 
 Disco requires a number of ports to be accessible to function properly.
 
@@ -230,4 +230,3 @@ do not despair!
 Report your problem to friendly Disco developers
 :doc:`on IRC or the mailing list <getinvolved>`.
 Please mention in your report the steps you followed and the results you got.
-
