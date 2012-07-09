@@ -16,14 +16,14 @@ functional (happily configured and working) installation of Disco.
 
 .. _inner_join: http://en.wikipedia.org/wiki/Join_%28SQL%29#Inner_join
 
-1. Prepare small sample input data
-----------------------------------
+1. Background and sample input
+------------------------------
 
 Let's first prepare a sample input data set that's small enough and simple
 enough for us to follow and know what to expect on output.  We will prepare
 two sets of input in csv format to be "joined" together using the first
 entry in each row as the key to match (join) on.  Create a file named
-``set_A.csv`` containing the following text:
+``set_A.csv`` containing the following text::
 
    1,"alpha"
    2,"beta"
@@ -31,7 +31,7 @@ entry in each row as the key to match (join) on.  Create a file named
    4,"delta"
    5,"epsilon"
 
-Create a second file named ``set_B.csv`` containing the following text:
+Create a second file named ``set_B.csv`` containing the following text::
 
    1,"who"
    2,"what"
@@ -41,7 +41,7 @@ Create a second file named ``set_B.csv`` containing the following text:
    6,"how"
 
 When we `inner_join`_ these two datasets using the first entry in each row as
-its key, we would like to see output that looks something like this:
+its key, we would like to see output that looks something like this::
 
     1,"alpha","who"
     2,"beta","what"
@@ -81,23 +81,23 @@ With a single input stream, it's easier to see how to split up the input,
 do work on it, then merge it back together.  This approach doesn't
 necessarily harm performance but there are different strategies tuned for
 optimal performance depending upon the nature of your data.  (Search the
-net for ``mapreduce join`` to see the wealth of competing strategies out
+net for "``mapreduce join``" to see the wealth of competing strategies out
 there.)
 
 Assuming a unix-like environment from here on, start by combining our two
-input files:
+input files::
 
    % cat set_A.csv set_B.csv > both_sets.csv
 
 Next, we want to split our ``both_sets.csv`` file into chunks with 2 lines
 each.  You can do this with a text editor yourself, by hand, or we can
-make use of the convenient unix utility ``split`` to do the job for us:
+make use of the convenient unix utility ``split`` to do the job for us::
 
    % split -l 2 both_sets.csv
 
 Running ``split`` as above should create 6 files named ``xaa`` through
 ``xaf``.  You can quickly verify this by performing a count of the lines
-in each file and seeing that it adds up to 11:
+in each file and seeing that it adds up to 11::
 
    % wc -l xa?
      2 xaa
@@ -110,12 +110,12 @@ in each file and seeing that it adds up to 11:
 
 Now that we've split the input data ourselves into 6 chunks, let's push
 our split data into ddfs and label it all with a single tag,
-``data:both_sets``, so that we can refer to all our chunks as one:
+``data:both_sets``, so that we can refer to all our chunks as one::
 
    % ddfs push data:both_sets ./xa?
 
 You can verify that all 11 lines made it into ddfs and are accessible via
-that single tag by asking to ``cat`` it back to the screen:
+that single tag by asking to ``cat`` it back to the screen::
 
    % ddfs cat data:both_sets
 
@@ -143,20 +143,21 @@ In the introductory :ref:`tutorial`, we defined a :term:`map` function and a
 :term:`reduce` function then supplied them as parameters to ``Job().run()``.
 But there's more fun to be had by deriving a new class from
 :class:`~disco.job.Job`.  Let's start by declaring our new class and saving
-it in a source file named ``simple_innerjoin.py``:
+it in a source file named ``simple_innerjoin.py``::
 
         class CsvInnerJoiner(Job):
-        
             def map(self, row, params):
                 # TODO
+                pass
         
             def reduce(self, rows_iter, out, params):
                 # TODO
+                pass
 
 Before we turn attention to implementing either of the :term:`map` or
 :term:`reduce` methods, we should consider our need, in this example, to
 read input that's in csv format.  A convenient solution is to implement
-``map_reader()`` in our class:
+``map_reader()`` in our class::
 
             @staticmethod
             def map_reader(fd, size, url, params):
@@ -174,7 +175,7 @@ row 4 from ``set_A.csv`` right next to / in front of row 4 from
 This puts most of the burden on our ``reduce()`` implementation, but
 we'll ease that a bit in a later pass.  Since ``map()`` does not need
 to do much other than serve as a pass-through (quickly), modify our
-placeholder for ``map()`` to read:
+placeholder for ``map()`` to read::
 
             def map(self, row, params):
                 yield row[0], row[1:]
@@ -183,7 +184,7 @@ This will separate the unique key (in position 0) from all the other
 data on a row (assuming we want to re-use this for something more
 interesting than our fairly trivial input data set so far).
 
-Now we ask ``reduce()`` to do the real work in its updated definition:
+Now we ask ``reduce()`` to do the real work in its updated definition::
 
             def reduce(self, rows_iter, out, params):
                 from disco.util import kvgroup
@@ -195,14 +196,14 @@ Now we ask ``reduce()`` to do the real work in its updated definition:
 
 Again, as in :ref:`tutorial`, we are using :func:`disco.util.kvgroup`
 to group together consecutive rows in our sorted input and hand them
-back as a group (list).  Note our test to see if we have a matched pair
+back as a group (iterable).  Note our test to see if we have a matched pair
 or not is somewhat fragile and may not work for more general cases -- we
 highlight this as an area for improvement for the reader to consider
 later.
 
 Let's round out our ``simple_innerjoin.py`` tool by making it easy to
 supply names for input and output, while also making our output come out
-in csv format -- adding to the bottom of ``simple_innerjoin.py``:
+in csv format -- adding to the bottom of ``simple_innerjoin.py``::
 
         if __name__ == '__main__':
             input_filename = "input.csv"
@@ -231,7 +232,8 @@ in csv format -- adding to the bottom of ``simple_innerjoin.py``:
    commented out to see the resulting complaint from the Unpickler run by
    the workers.  If anything, we should take this as a gentle reminder to be
    cognizant that we are preparing code to run in a distributed, parallel
-   system and that we occasionally need to make some small adjustments.
+   system and that we occasionally need to make some small adjustments for
+   that environment.
 
 .. _pickle: http://docs.python.org/library/pickle.html
 
@@ -247,19 +249,22 @@ it to your own needs are possible in the same way.
 We should now be set up to run our job with 6 input chunks corresponding
 to 6 invocations of our ``map()`` method and the output of those map runs
 will flow into 1 invocation of our ``reduce()`` method to then produce our
-final csv result file.  Launching from the command-line:
+final csv result file.  Launching from the command-line::
 
     % python simple_innerjoin.py data:both_sets output.csv
 
 At this point, please check that the output found in the file ``output.csv``
 matches what was expected.  (Pedants can play further with formatting and
-quotation rules via the csv module, to taste.)
+quotation rules via the csv module, to taste.)  If you instead encounter
+errors, please double-check that your file faithfully matches the code
+outlined thus far and please double-check that you can still run the
+example from the introductory :ref:`tutorial`.
 
 Thus far we've been running parallel invocations of ``map()`` but not of
 ``reduce()`` -- let's change that by requesting that the output from the
 map phase be divided into 2 partitions.  Add the following line to the 
 very top of our definition of the ``CsvInnerJoiner`` class, to look
-something like this:
+something like this::
 
         class CsvInnerJoiner(Job):
             partitions = 2
@@ -278,7 +283,7 @@ larger volumes of data at this Disco job:  invoking ``sorted()`` requires
 a potentially large amount of memory.  Thankfully Disco provides, as part
 of its framework, an easier solution to this common need for working with
 sorted results in the reduce step.  At the top of our definition of the
-``CsvInnerJoiner`` class, let's add the following line:
+``CsvInnerJoiner`` class, let's add the following line::
 
         class CsvInnerJoiner(Job):
             partitions = 2
@@ -287,7 +292,7 @@ sorted results in the reduce step.  At the top of our definition of the
             ...*truncated*...
 
 Simultaneously, we can remove the use of ``sorted()`` from the one line
-in our implementation of ``reduce()`` so that it now reads as:
+in our implementation of ``reduce()`` so that it now reads as::
 
             def reduce(self, rows_iter, out, params):
                 from disco.util import kvgroup
@@ -307,20 +312,22 @@ before being partitioned and handed as input to the reducers.
 Let's quickly generate a bigger input data set with which to work.  The
 following one-liner can be modified to generate as little or as much sample
 data as you have patience / disk space to hold -- modify the ``1000`` near
-the end of the line to create as many rows of data as you like:
+the end of the line to create as many rows of data as you like::
 
-    % python -c "import csv, random; w = csv.writer(open('input1.csv','w')); [w.writerow([i, int(999999*random.random())]) for i in range(1000)]"
+    % python -c "import csv, sys, random; w = csv.writer(sys.stdout); 
+    [w.writerow([i, int(999999*random.random())]) for i in range(1000)]" > input1.csv
 
-Run it twice (saving the first run's output to the side) to give yourself
-two sets of input data just as before, then follow the steps from either
-this :ref:`tutorial_2` or the prior introductory :ref:`tutorial` to chunk
-the input data and push it to ddfs in whatever manner you like.  (Let's
-assume you tag your chunked input data as ``data:bigger_sets`` in ddfs.)
+Run it twice (saving the first run's output in a different name from the
+second run's) to give yourself two sets of input data just as before. 
+Then follow the steps from either this :ref:`tutorial_2` or the prior
+introductory :ref:`tutorial` to chunk the input data and push it to ddfs
+in whatever manner you like.  (Let's assume you tag your chunked input
+data as ``data:bigger_sets`` in ddfs.)
 
 The only modification to ``simple_innerjoin.py`` that we suggest,
 depending upon how large your newly generated input data set is, is to
 increase the number of partitions to ratchet up the number of parallel
-runs of ``reduce()``.  Then go ahead and run your job in the same way:
+runs of ``reduce()``.  Then go ahead and run your job in the same way::
 
     % python simple_innerjoin.py data:bigger_sets bigger_output.csv
 
@@ -333,15 +340,18 @@ with a longer runtime makes observing these things much easier.
 
 Note that you may quickly find your disk access speed to become a
 bottleneck and for this reason and others you should consider playing with
-the number of partitions as well as the number of input chunks to find your
-system's optimal throughput for this job.
+the number of partitions as well as the number of input chunks (how many
+reducers and mappers, respectively) to find your system's optimal
+throughput for this job.
 
 After playing with ever larger volumes of data and tweaking the controls
 that Disco provides, you'll quickly gain confidence in being able to throw
 any size job at Disco and knowing how to go about implementing a solution.
 
-simple_innerjoin.py
--------------------
+simple_innerjoin.py listing
+---------------------------
+
+Complete source all in one place:
 
     .. literalinclude:: ../../examples/util/simple_innerjoin.py
 
