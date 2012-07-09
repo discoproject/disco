@@ -67,12 +67,12 @@ and ``set_B.csv`` which contain 5 and 6 lines, respectively, of text data.
 2. Split input data into chunks
 -------------------------------
 
-In the introductory :ref:`tutorial`, we made use of a ddfs command,
-``ddfs chunk``, to split input data into chunks and copy it onto ddfs.  To
-provide a more concrete sense of how to chunk input data, let's instead
-split our input data *before* we push it to ddfs.  When we do push our
-already-split data to ddfs, we will tell ddfs to treat the distinct chunks
-as one.
+In the introductory :ref:`tutorial`, we made use of a ddfs (:ref:`DDFS`)
+command, ``ddfs chunk``, to split input data into chunks and copy it onto
+ddfs.  To provide a more concrete sense of how to chunk input data, let's
+instead split our input data *before* we push it to ddfs.  When we do push
+our already-split data to ddfs, we will tell ddfs to treat the distinct
+chunks as one.
 
 As alluded to before, there are many strategies for performing efficient
 join operations inside MapReduce frameworks.  Here we will take the approach
@@ -311,11 +311,11 @@ before being partitioned and handed as input to the reducers.
 
 Let's quickly generate a bigger input data set with which to work.  The
 following one-liner can be modified to generate as little or as much sample
-data as you have patience / disk space to hold -- modify the ``1000`` near
+data as you have patience / disk space to hold -- modify the ``1000000`` near
 the end of the line to create as many rows of data as you like::
 
     % python -c "import csv, sys, random; w = csv.writer(sys.stdout); 
-    [w.writerow([i, int(999999*random.random())]) for i in range(1000)]" > input1.csv
+    [w.writerow([i, int(999999*random.random())]) for i in range(1000000)]" > input1.csv
 
 Run it twice (saving the first run's output in a different name from the
 second run's) to give yourself two sets of input data just as before. 
@@ -343,6 +343,17 @@ bottleneck and for this reason and others you should consider playing with
 the number of partitions as well as the number of input chunks (how many
 reducers and mappers, respectively) to find your system's optimal
 throughput for this job.
+
+As a variation on the above, remember that our ``simple_innerjoin.py``
+script has the capability to read its input data from a local file instead
+of ddfs -- try running again with a local file supplied as the location of
+the input (instead of ``data:bigger_sets``).  Did you get an error message
+with "Invalid tag (403)"?  If so, you need to ensure Disco recognizes that
+you are supplying a filename and not the name of a tag.  Did you get an
+error message with "IOError: [Errno 2] No such file or directory"?  If so,
+you either need to supply the full path to the file (not a relative path
+name) or that path may not be available to Disco everywhere (if so, a good
+reason to use ddfs again).  Was your run faster or slower than using ddfs?
 
 After playing with ever larger volumes of data and tweaking the controls
 that Disco provides, you'll quickly gain confidence in being able to throw
