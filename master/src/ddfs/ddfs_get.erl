@@ -72,7 +72,9 @@ send_file(Req, Path, Root) ->
                                      ["Maximum number of downloaders reached. ",
                                       "Try again later"]})
                 end
-            catch _K:_V ->
+            catch K:V ->
+                    error_logger:info_msg("~p: error getting ~p: ~p:~p",
+                                          [?MODULE, Path, K, V]),
                     Req:respond({403, [], ["Disco node is busy"]})
             end;
         _ ->

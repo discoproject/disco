@@ -208,7 +208,7 @@
 
           num_pending_reqs  = 0               :: non_neg_integer(),       % build_map/map_wait
           pending_nodes     = gb_sets:empty() :: gb_set(),                % gc
-          rr_next           = undefined       :: 'undefined' | rr_next(), % rr_blobs
+          rr_reqs           = 0               :: non_neg_integer(),       % rr_blobs
           rr_pid            = undefined       :: 'undefined' | pid(),     % rr_blobs
           safe_blacklist    = gb_sets:empty() :: gb_set(),                % rr_tags
 
@@ -229,10 +229,8 @@
 -spec start_link(string(), ets:tab()) -> {ok, pid()} | {error, term()}.
 start_link(Root, DeletedAges) ->
     case gen_server:start_link(?MODULE, {Root, DeletedAges}, []) of
-        {ok, Pid} ->
-            {ok, Pid};
-        E ->
-            E
+        {ok, Pid} -> {ok, Pid};
+        E         -> E
     end.
 
 -spec gc_status(pid(), pid()) -> ok.
@@ -311,7 +309,7 @@ handle_call(dbg_get_state, _, S) ->
 -type gc_done_msg()       :: {gc_done, node(), gc_run_stats()}.
 -type rr_blob_msg()       :: {rr_blob, term()}.
 -type add_replicas_msg()  :: {add_replicas, object_name(), [url()]}.
--type rr_tags_msg()       :: {rr_tags, [tagname()]}.
+-type rr_tags_msg()       :: {rr_tags, [tagname()], non_neg_integer()}.
 
 -spec handle_cast(gc_status_msg() | retry_node_msg() | build_map_msg()
                   | gc_done_msg() | rr_blob_msg()    | add_replicas_msg()
@@ -416,6 +414,7 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                                                gc_stats = Stats,
                                                pending_nodes = Pending,
                                                deleted_ages = DeletedAges,
+                                               rr_reqs = RReqs,
                                                tags = Tags} = S) ->
     print_gc_stats(Node, NodeStats),
     NewStats = add_gc_stats(Stats, NodeStats),
@@ -438,8 +437,8 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  % and then iterate over all the blobs.
                  Sr = S#state{rr_pid = start_replicator(self())},
                  Start = ets:first(gc_blobs),
-                 rereplicate_blob(Sr, Start),
-                 Sr#state{phase = rr_blobs};
+                 Reqs = rereplicate_blob(Sr, Start),
+                 Sr#state{phase = rr_blobs, rr_reqs = RReqs + Reqs};
              Remaining ->
                  lager:info("GC: ~p nodes pending in gc", [Remaining]),
                  S
@@ -449,31 +448,36 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                        last_response_time = now()}};
 
 handle_cast({rr_blob, '$end_of_table'},
-            #state{phase = rr_blobs, rr_pid = RR} = S) ->
+            #state{phase = rr_blobs, rr_pid = RR, rr_reqs = RReqs} = S) ->
     % We are done with sending replication requests; we now wait for
     % the replicator to terminate.
-    lager:info("GC: done sending blob replication requests, entering rr_blobs_wait"),
+    lager:info("GC: sent ~p blob replication requests, entering rr_blobs_wait",
+               [RReqs]),
     stop_replicator(RR),
     {noreply, S#state{phase = rr_blobs_wait}};
-handle_cast({rr_blob, Next}, #state{phase = rr_blobs} = S) ->
-    rereplicate_blob(S, Next),
-    {noreply, S};
-handle_cast({add_replicas, BlobName, NewUrls}, #state{phase = Phase} = S)
+handle_cast({rr_blob, Next}, #state{phase = rr_blobs, rr_reqs = RReqs} = S) ->
+    Reqs = rereplicate_blob(S, Next),
+    {noreply, S#state{rr_reqs = RReqs + Reqs}};
+handle_cast({add_replicas, BlobName, NewUrls}, #state{phase = Phase,
+                                                      rr_reqs = RReqs} = S)
   when Phase =:= rr_blobs; Phase =:= rr_blobs_wait ->
     update_replicas(S, BlobName, NewUrls),
-    {noreply, S};
-handle_cast({add_replicas, _BlobName, _NewUrls} = M, #state{phase = Phase} = S) ->
-    lager:info("GC: ignoring late response ~p (~p)", [M, Phase]),
+    lager:info("GC: ~p replication requests pending", [RReqs - 1]),
+    {noreply, S#state{rr_reqs = RReqs - 1}};
+handle_cast({add_replicas, _BlobName, _NewUrls} = M, #state{phase = Phase,
+                                                            rr_reqs = RReqs} = S) ->
+    lager:info("GC: ignoring late response ~p (~p,~p)", [M, RReqs, Phase]),
     {noreply, S};
 
-handle_cast({rr_tags, [T|Tags]}, #state{phase = rr_tags} = S) ->
+handle_cast({rr_tags, [T|Tags], Count}, #state{phase = rr_tags} = S) ->
     S1 = update_tag(S, T, ?MAX_TAG_OP_RETRIES),
-    gen_server:cast(self(), {rr_tags, Tags}),
+    lager:info("GC: updated tag ~p (~p)", [T, Count]),
+    gen_server:cast(self(), {rr_tags, Tags, Count + 1}),
     {noreply, S1};
-handle_cast({rr_tags, []}, #state{phase = rr_tags, gc_peers = Peers,
+handle_cast({rr_tags, [], Count}, #state{phase = rr_tags, gc_peers = Peers,
                                   safe_blacklist = Blacklist} = S) ->
     % We are done with the RR phase, and hence with GC!
-    lager:info("GC: tag update/replication done, done with GC!"),
+    lager:info("GC: ~p tags updated/replication done, done with GC!", [Count]),
     node_broadcast(Peers, end_rr),
     % Update ddfs_master with the safe_blacklist.
     ddfs_master:safe_gc_blacklist(Blacklist),
@@ -535,8 +539,9 @@ handle_info({'EXIT', RR, normal},
     % The RR process has finished normally, and we can proceed to the
     % second phase of RR: start updating the tags.  Also, we
     % initialize the safe blacklist here.
-    lager:info("GC: done with blob replication, entering rr_tags"),
-    gen_server:cast(self(), {rr_tags, Tags}),
+    lager:info("GC: done with blob replication, replicating tags (~p pending)",
+               [length(Tags)]),
+    gen_server:cast(self(), {rr_tags, Tags, 0}),
     {noreply, S#state{rr_pid = undefined,
                       safe_blacklist = gb_sets:from_list(BlackList),
                       phase = rr_tags}};
@@ -994,21 +999,23 @@ find_unusable(BL, Nodes) ->
 -type rep_result() :: 'noupdate' | {'update', [url()]}.
 
 % Rereplicate at most one blob, and then return.
--spec rereplicate_blob(state(), rr_next() | '$end_of_table') -> ok.
+-spec rereplicate_blob(state(), rr_next() | '$end_of_table') -> non_neg_integer().
 rereplicate_blob(_S, '$end_of_table' = End) ->
-    gen_server:cast(self(), {rr_blob, End});
+    gen_server:cast(self(), {rr_blob, End}),
+    0;
 rereplicate_blob(S, BlobName) ->
     [{_, Present, Recovered, _}] = ets:lookup(gc_blobs, BlobName),
-    FinalReps = rereplicate_blob(S, BlobName, Present, Recovered, S#state.blobk),
+    {FinalReps, Reqs} = rereplicate_blob(S, BlobName, Present, Recovered, S#state.blobk),
     ets:update_element(gc_blobs, BlobName, {4, FinalReps}),
     Next = ets:next(gc_blobs, BlobName),
-    gen_server:cast(self(), {rr_blob, Next}).
+    gen_server:cast(self(), {rr_blob, Next}),
+    Reqs.
 
 % RR1) Re-replicate blobs that don't have enough replicas
 
 -spec rereplicate_blob(state(), object_name(), [object_location()],
                        [object_location()], non_neg_integer())
-                      -> rep_result().
+                      -> {rep_result(), non_neg_integer()}.
 rereplicate_blob(#state{blacklist = BL} = S,
                  BlobName, Present, Recovered, Blobk) ->
     PresentNodes = [N || {N, _V} <- Present],
@@ -1018,18 +1025,18 @@ rereplicate_blob(#state{blacklist = BL} = S,
         {NumPresent, NumRecovered}
           when NumRecovered =:= 0, NumPresent >= Blobk ->
             % No need for replication or blob update.
-            noupdate;
+            {noupdate, 0};
         {NumPresent, NumRecovered}
           when NumRecovered > 0, NumPresent + NumRecovered >= Blobk ->
             % No need for new replication; containing tags need updating to
             % recover lost blob replicas.
-            {update, []};
+            {{update, []}, 0};
         {0, 0}
           when Present =:= [], Recovered =:= [] ->
             % We have no good copies from which to generate new replicas;
             % we have no option but to live with the current information.
             lager:warning("GC: all replicas missing for ~p!!!", [BlobName]),
-            noupdate;
+            {noupdate, 0};
         {NumPresent, NumRecovered} ->
             % Extra replicas are needed; we generate one new replica at a
             % time, in a single-shot way. We use any available replicas as
@@ -1042,21 +1049,21 @@ rereplicate_blob(#state{blacklist = BL} = S,
                                "(with ~p replicas recorded) "
                                "failed: ~p",
                                [BlobName, NumPresent, E]),
-                    noupdate;
+                    {noupdate, 0};
                 {{error, E}, _} ->
                     lager:info("GC: rr for ~p "
                                "(with ~p/~p replicas recorded/recovered) "
                                "failed: ~p",
                                [BlobName, NumPresent, NumRecovered, E]),
                     % We should record the usable recovered replicas.
-                    {update, []};
+                    {{update, []}, 0};
                 {pending, _} ->
                     lager:info("GC: rr for ~p "
                                "(with ~p/~p replicas recorded/recovered) "
                                "initiated",
                                [BlobName, NumPresent, NumRecovered]),
                     % Mark the blob as updatable (see update_replicas/3).
-                    {update, []}
+                    {{update, []}, 1}
             end
     end.
 
@@ -1127,21 +1134,26 @@ wait_put_blob(#rep_state{ref = Ref, timeouts = TO, master = Master} = S,
               SrcNode, PutUrl) ->
     receive
         {Ref, _B, _PU, {ok, BlobName, NewUrls}} ->
+            lager:info("GC: replicated ~p (~p) to ~p", [BlobName, Ref, NewUrls]),
             add_replicas(Master, BlobName, NewUrls),
             S;
         {Ref, B, PU, E} ->
-            lager:info("GC: error replicating ~p to ~p: ~p", [B, PU, E]),
+            lager:info("GC: error replicating ~p (~p) to ~p: ~p",
+                       [B, Ref, PU, E]),
             S;
-        {_OldRef, _B, PU, {ok, BlobName, NewUrls}} ->
+        {OldRef, _B, PU, {ok, BlobName, NewUrls}} ->
             % Delayed response.
-            lager:info("GC: delayed replication of ~p to ~p: ~p", [BlobName, PU, NewUrls]),
+            lager:info("GC: delayed replication of ~p (~p/~p) to ~p: ~p",
+                       [BlobName, OldRef, Ref, PU, NewUrls]),
             add_replicas(Master, BlobName, NewUrls),
             wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl);
-        {_OldRef, B, PU, OldResult} ->
-            lager:info("GC: error replicating ~p to ~p: ~p", [B, PU, OldResult]),
+        {OldRef, B, PU, OldResult} ->
+            lager:info("GC: error replicating ~p (~p/~p) to ~p: ~p",
+                       [B, OldRef, Ref, PU, OldResult]),
             wait_put_blob(S#rep_state{timeouts = TO - 1}, SrcNode, PutUrl)
     after ?GC_PUT_TIMEOUT ->
-            lager:info("GC: replication timeout on ~p for ~p", [SrcNode, PutUrl]),
+            lager:info("GC: replication timeout on ~p (~p) for ~p",
+                       [SrcNode, Ref, PutUrl]),
             S#rep_state{timeouts = TO + 1}
     end.
 

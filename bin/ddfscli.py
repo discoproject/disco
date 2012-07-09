@@ -386,15 +386,13 @@ def xcat(program, *urls):
     """
     from itertools import chain
     from disco.core import classic_iterator
-    from disco.util import iterify, reify, urlresolve, proxy_url
+    from disco.util import iterify, reify
 
     tags, urls = program.separate_tags(*program.input(*urls))
     stream = reify(program.options.stream)
     reader = program.options.reader
     reader = reify('disco.func.chain_reader' if reader is None else reader)
-    bloburls = [[proxy_url(urlresolve(u), to_master=False) for u in repset]
-                for repset in chain(urls, program.blobs(*tags))]
-    for record in classic_iterator(bloburls,
+    for record in classic_iterator(chain(urls, program.blobs(*tags)),
                                    input_stream=stream,
                                    reader=reader):
         print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()

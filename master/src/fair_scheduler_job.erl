@@ -13,26 +13,26 @@
 -include("disco.hrl").
 -include("fair_scheduler.hrl").
 
--type load() :: {non_neg_integer(), {binary(), node()}}.
+-type load() :: {non_neg_integer(), {url(), host()}}.
 
 -spec start(jobname(), pid()) -> {ok, pid()} | {error, _}.
 start(JobName, JobCoord) ->
     case gen_server:start(fair_scheduler_job, {JobName, JobCoord},
-            disco:debug_flags("fair_scheduler_job-" ++ JobName)) of
-        {ok, _Server} = Ret -> Ret;
+                          disco:debug_flags("fair_scheduler_job-" ++ JobName))
+    of  {ok, _Server} = Ret -> Ret;
         Error ->
             % This happens mainly if the job coordinator has
             % already died.
             V = is_process_alive(JobCoord),
             if V ->
-                % If it hasn't, this is a real error.
-                Error;
-            true ->
-                % If it's dead, we can just remove a dummy
-                % pid that will become zombie right away.
-                % Scheduler monitoring will notice that it's
-                % dead and react accordingly.
-                {ok, spawn(fun() -> ok end)}
+                    % If it hasn't, this is a real error.
+                    Error;
+               true ->
+                    % If it's dead, we can just remove a dummy pid
+                    % that will become zombie right away.  Scheduler
+                    % monitoring will notice that it's dead and react
+                    % accordingly.
+                    {ok, spawn(fun() -> ok end)}
             end
     end.
 
@@ -41,7 +41,7 @@ start(JobName, JobCoord) ->
 get_stats(JobPid, Timeout) ->
     gen_server:call(JobPid, get_stats, Timeout).
 
--type state() :: {gb_tree(), gb_tree(), [node()]}.
+-type state() :: {gb_tree(), gb_tree(), [host()]}.
 
 -spec init({jobname(), pid()}) -> gs_init() | {stop, normal}.
 init({JobName, JobCoord}) ->
@@ -49,7 +49,7 @@ init({JobName, JobCoord}) ->
     put(jobname, JobName),
     try
         true = link(JobCoord),
-        {ok, {gb_trees:insert(nopref, {0, []}, gb_trees:empty()),
+        {ok, {gb_trees:insert(nopref, {0, 0, []}, gb_trees:empty()),
               gb_trees:empty(),
               []}}
     catch K:V ->
@@ -60,15 +60,15 @@ init({JobName, JobCoord}) ->
 
 % MAIN FUNCTION:
 % Return a next task to be executed from this Job.
--spec next_task(pid(), [jobinfo()], [node()])
-               -> {ok, {node(), task()}} | none.
+-spec next_task(pid(), [jobinfo()], [host()])
+               -> {ok, {host(), task()}} | none.
 next_task(Job, Jobs, AvailableNodes) ->
     schedule(schedule_local, Job, Jobs, AvailableNodes).
 
--spec schedule(schedule_local | schedule_remote, pid(),
-               [jobinfo()], [node()]) -> {ok, {node(), task()}} | none.
+-spec schedule(schedule_local | schedule_remote, pid(), [jobinfo()], [host()])
+              -> {ok, {host(), task()}} | none.
 schedule(Mode, Job, Jobs, AvailableNodes) ->
-    % First try to find a node-local or remote task to execute
+    % First try to find a node-local or remote task to execute.
     try
         case gen_server:call(Job, {Mode, AvailableNodes}, ?SCHEDULE_TIMEOUT) of
             {run, Node, Task} ->
@@ -88,13 +88,14 @@ schedule(Mode, Job, Jobs, AvailableNodes) ->
             none
     end.
 
--spec get_empty_nodes(pid(), [node()], non_neg_integer()) -> {ok, [node()]} | {error, term()}.
+-spec get_empty_nodes(pid(), [host()], non_neg_integer())
+                     -> {ok, [host()]} | {error, term()}.
 get_empty_nodes(Job, AvailableNodes, Timeout) ->
     gen_server:call(Job, {get_empty_nodes, AvailableNodes}, Timeout).
 
 % Return an often empty subset of AvailableNodes that don't have any tasks
 % assigned to them by any job.
--spec all_empty_nodes([jobinfo()], [node()]) -> [node()].
+-spec all_empty_nodes([jobinfo()], [host()]) -> [host()].
 all_empty_nodes(_, []) -> [];
 all_empty_nodes([], AvailableNodes) -> AvailableNodes;
 all_empty_nodes([Job|Jobs], AvailableNodes) ->
@@ -102,7 +103,7 @@ all_empty_nodes([Job|Jobs], AvailableNodes) ->
         {ok, L} = get_empty_nodes(Job, AvailableNodes, 500),
         all_empty_nodes(Jobs, L)
     catch _:_ -> % Job may have died already, don't care
-            all_empty_nodes(Job, AvailableNodes)
+            all_empty_nodes(Jobs, AvailableNodes)
     end.
 
 -type cast_msgs() :: new_task_msg() | update_nodes_msg()
@@ -131,12 +132,12 @@ handle_cast({die, Msg}, S) ->
         "ERROR: Job killed due to an internal exception: ~s", [Msg], none),
     {stop, normal, S}.
 
--type schedule_result() :: nolocal | nonodes | {run, node(), task()}.
+-type schedule_result() :: nolocal | nonodes | {run, host(), task()}.
 -spec handle_call(dbg_state_msg(), from(), state()) -> gs_reply(state());
                  (get_stats, from(), state()) -> gs_reply({ok, stats()});
-                 ({get_empty_nodes, [node()]}, from(), state()) ->
-                         gs_reply({ok, [node()]});
-                 ({schedule_local, [node()]}, from(), state()) ->
+                 ({get_empty_nodes, [host()]}, from(), state()) ->
+                         gs_reply({ok, [host()]});
+                 ({schedule_local|schedule_remote, [host()]}, from(), state()) ->
                          gs_reply(schedule_result()).
 
 handle_call(dbg_get_state, _, S) ->
@@ -191,7 +192,7 @@ handle_info({'EXIT', _, _}, S) ->
 handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
     {noreply, S}.
 
--spec schedule_local(gb_tree(), [node()]) -> {schedule_result(), gb_tree()}.
+-spec schedule_local(gb_tree(), [host()]) -> {schedule_result(), gb_tree()}.
 schedule_local(Tasks, AvailableNodes) ->
     % Does the job have any local tasks to be run on AvailableNodes?
     case datalocal_nodes(Tasks, AvailableNodes) of
@@ -207,8 +208,7 @@ schedule_local(Tasks, AvailableNodes) ->
                 % Remote tasks found. Pick a remote task
                 % and run it on a random node that is
                 % available.
-                _ -> pop_and_switch_node(Tasks, [nopref],
-                    AvailableNodes)
+                _ -> pop_and_switch_node(Tasks, [nopref], AvailableNodes)
             end;
         % Local tasks found. Choose an AvailableNode that has the
         % least number of tasks already running, that is, the first
@@ -218,7 +218,7 @@ schedule_local(Tasks, AvailableNodes) ->
             {{run, Node, Task}, gb_trees:update(Node, {N - 1, C, R}, Tasks)}
     end.
 
--spec pop_and_switch_node(gb_tree(), [node()], [node()])
+-spec pop_and_switch_node(gb_tree(), [nopref|host()], [host()])
                          -> {schedule_result(), gb_tree()}.
 pop_and_switch_node(Tasks, _, []) -> {nonodes, Tasks};
 pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
@@ -244,18 +244,18 @@ pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
 
 % pop_busiest_node defines the policy for choosing the next task from a chosen
 % set of Nodes. Pick the task from the longest list.
--spec pop_busiest_node(gb_tree(), [node()]) -> {schedule_result(), gb_tree()}.
+-spec pop_busiest_node(gb_tree(), [host()]) -> {schedule_result(), gb_tree()}.
 pop_busiest_node(Tasks, []) -> {nonodes, Tasks};
 pop_busiest_node(Tasks, Nodes) ->
-    {{N, C, [Task|R]}, MaxNode} = lists:max(
-        [{gb_trees:get(Node, Tasks), Node} || Node <- Nodes]),
+    {{N, C, [Task|R]}, MaxNode} = lists:max([{gb_trees:get(Node, Tasks), Node}
+                                             || Node <- Nodes]),
     {{run, MaxNode, Task}, gb_trees:update(MaxNode, {N - 1, C, R}, Tasks)}.
 
 % Given a task, choose a node from AvailableNodes
 % 1) that is not in the taskblack list
 % 2) that doesn't contain any input of the task, if force_remote == true
 % unless force_local == true. Otherwise return false.
--spec choose_node(task(), [node()]) -> false | {ok, node()}.
+-spec choose_node(task(), [host()]) -> false | {ok, host()}.
 choose_node(#task{force_local = true}, _) -> false;
 choose_node(Task, AvailableNodes) ->
     case AvailableNodes -- Task#task.taskblack of
@@ -269,7 +269,7 @@ choose_node(Task, AvailableNodes) ->
     end.
 
 % Pop the first task in Nodes that can be run
--spec pop_suitable(gb_tree(), [node()], [node()]) -> {schedule_result(), gb_tree()}.
+-spec pop_suitable(gb_tree(), [host()], [host()]) -> {schedule_result(), gb_tree()}.
 pop_suitable(Tasks, Nodes, AvailableNodes) ->
     case find_suitable([], none, Nodes, Tasks, AvailableNodes) of
         false -> {nonodes, Tasks};
@@ -281,8 +281,8 @@ pop_suitable(Tasks, Nodes, AvailableNodes) ->
 
 % Find first task from any node in Nodes that can be run,
 % i.e. choose_node() =/= false
--spec find_suitable([task()], node(), [node()], gb_tree(), [node()]) ->
-    {ok, task(), node(), node()} | false.
+-spec find_suitable([task()], none|host(), [host()], gb_tree(), [host()]) ->
+    {ok, task(), host(), host()} | false.
 find_suitable([], _, [], _, _) -> false;
 find_suitable([], _, [Node|R], Tasks, AvailableNodes) ->
     {_, _, L} = gb_trees:get(Node, Tasks),
@@ -294,23 +294,23 @@ find_suitable([T|R], Node, RestNodes, Tasks, AvailableNodes) ->
     end.
 
 % return nodes that don't have any local tasks assigned to them
--spec empty_nodes(gb_tree(), [node()]) -> [node()].
+-spec empty_nodes(gb_tree(), [host()]) -> [host()].
 empty_nodes(Tasks, AvailableNodes) ->
     filter_nodes(Tasks, AvailableNodes, false).
 
 % return nodes that have at least one local task assigned to them
--spec datalocal_nodes(gb_tree(), [node()]) -> [node()].
+-spec datalocal_nodes(gb_tree(), [host()]) -> [host()].
 datalocal_nodes(Tasks, AvailableNodes) ->
     filter_nodes(Tasks, AvailableNodes, true).
 
--spec filter_nodes(gb_tree(), [node()], boolean()) -> [node()].
+-spec filter_nodes(gb_tree(), [host()], boolean()) -> [host()].
 filter_nodes(Tasks, AvailableNodes, Local) ->
     [Node || Node <- AvailableNodes,
-		 case gb_trees:lookup(Node, Tasks) of
-		     none -> false =:= Local;
-		     {value, {0, _, _}} -> false =:= Local;
-		     _ -> true =:= Local
-		 end].
+             case gb_trees:lookup(Node, Tasks) of
+                 none -> false =:= Local;
+                 {value, {0, _, _}} -> false =:= Local;
+                 _ -> true =:= Local
+             end].
 
 -spec on_error(task(), nonempty_string()) -> no_return().
 on_error(T, M) ->
@@ -326,7 +326,7 @@ on_error(T, M) ->
 % of the task's input file, if the node is not in the task's blacklist.
 % The task may have several redundant inputs, so we need to find the
 % first one that matchs.
--spec assign_task(task(), [load()], gb_tree(), [node()]) -> gb_tree().
+-spec assign_task(task(), [load()], gb_tree(), [host()]) -> gb_tree().
 assign_task(Task, NodeStats, Tasks, Nodes) ->
     case Nodes -- Task#task.taskblack of
         [] ->
@@ -337,9 +337,9 @@ assign_task(Task, NodeStats, Tasks, Nodes) ->
             assign_task0(Task, NodeStats, Tasks, OkNodes)
     end.
 
--spec assign_task0(task(), [load()], gb_tree(), [node()]) -> gb_tree().
+-spec assign_task0(task(), [load()], gb_tree(), [host()]) -> gb_tree().
 assign_task0(#task{force_remote = true, input = Input} = Task,
-	     _NodeStats, Tasks, Nodes) ->
+             _NodeStats, Tasks, Nodes) ->
     case Nodes -- [N || {_, N} <- Input] of
         [] ->
             on_error(Task, "remote");
@@ -349,7 +349,7 @@ assign_task0(#task{force_remote = true, input = Input} = Task,
 assign_task0(Task, NodeStats, Tasks, Nodes) ->
     findpref(Task, NodeStats, Tasks, Nodes).
 
--spec assign_nopref(task(), gb_tree(), [node()]) -> gb_tree().
+-spec assign_nopref(task(), gb_tree(), [host()]) -> gb_tree().
 assign_nopref(#task{force_local = true} = Task, _Tasks, _Nodes) ->
     on_error(Task, "local");
 
@@ -361,10 +361,11 @@ assign_nopref(Task, Tasks, _Nodes) ->
     T = Task#task{chosen_input = Input},
     gb_trees:update(nopref, {N + 1, C + 1, [T|L]}, Tasks).
 
--spec findpref(task(), [load()], gb_tree(), [node()]) -> gb_tree().
+-spec findpref(task(), [load()], gb_tree(), [host()]) -> gb_tree().
 findpref(Task, NodeStats, Tasks, Nodes) ->
-    LoadSorted = lists:sort([{taskcount(Node, Tasks), Load, X} ||
-            {Load, {_Url, Node} = X} <- NodeStats, lists:member(Node, Nodes)]),
+    LoadSorted = lists:sort([{taskcount(Node, Tasks), Load, X}
+                             || {Load, {_Url, Node} = X}
+                                    <- NodeStats, lists:member(Node, Nodes)]),
     case LoadSorted of
         [] ->
             assign_nopref(Task, Tasks, Nodes);
@@ -374,32 +375,37 @@ findpref(Task, NodeStats, Tasks, Nodes) ->
             gb_trees:enter(Node, {N + 1, Count + 1, [T|TaskList]}, Tasks)
     end.
 
--spec taskcount(node(), gb_tree()) -> non_neg_integer().
+-spec taskcount(host(), gb_tree()) -> non_neg_integer().
 taskcount(Node, Tasks) ->
     {_N, Count, _TaskList} = get_default(Node, Tasks, {0, 0, []}),
     Count.
 
-% Cluster topology changed: New nodes appeared or existing ones were deleted
-% or black- / whitelisted. Re-assign tasks.
--spec reassign_tasks(gb_tree(), [node()]) -> gb_tree().
+% Cluster topology changed: New nodes appeared or existing ones were
+% deleted or black- / whitelisted. Re-assign tasks.
+-spec reassign_tasks(gb_tree(), [host()]) -> gb_tree().
 reassign_tasks(Tasks, NewNodes) ->
-    {OTasks, NTasks} = lists:foldl(fun(Node, {OTasks, NTasks}) ->
-        case gb_trees:lookup(Node, OTasks) of
-            {value, TList} ->
-                {gb_trees:delete(Node, OTasks),
-                 gb_trees:insert(Node, TList, NTasks)};
-            none ->
-                {OTasks, NTasks}
-        end
-    end, {Tasks, gb_trees:empty()}, NewNodes),
+    {OTasks, NTasks} =
+        lists:foldl(
+          fun(Node, {OTasks, NTasks}) ->
+                  case gb_trees:lookup(Node, OTasks) of
+                      {value, TList} ->
+                          {gb_trees:delete(Node, OTasks),
+                           gb_trees:insert(Node, TList, NTasks)};
+                      none ->
+                          {OTasks, NTasks}
+                  end
+          end, {Tasks, gb_trees:empty()}, NewNodes),
 
-    lists:foldl(fun(Task, NTasks0) ->
-        NodeStats = [{random:uniform(100), Input} || Input <- Task#task.input],
-        assign_task(Task, NodeStats, NTasks0, NewNodes)
-    end, gb_trees:insert(nopref, {0, 0, []}, NTasks),
-        lists:flatten([L || {_, _, L} <- gb_trees:values(OTasks)])).
+    lists:foldl(
+      fun(Task, NTasks0) ->
+              NodeStats = [{random:uniform(100), Input}
+                           || Input <- Task#task.input],
+              assign_task(Task, NodeStats, NTasks0, NewNodes)
+      end,
+      gb_trees:insert(nopref, {0, 0, []}, NTasks),
+      lists:flatten([L || {_, _, L} <- gb_trees:values(OTasks)])).
 
--spec get_default(node(), gb_tree(), T) -> T.
+-spec get_default(host(), gb_tree(), T) -> T.
 get_default(Key, Tree, Default) ->
     case gb_trees:lookup(Key, Tree) of
         none -> Default;
