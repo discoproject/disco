@@ -75,7 +75,7 @@ wait(Host, Node) ->
             lager:info("Node already started at ~p on ~p", [Node, Host]),
             wait(Host, Node);
         {'EXIT', _, Reason} ->
-            lager:info("Node failed at ~p on ~p: ~p", [Node, Reason, Host]);
+            lager:info("Node failed at ~p on ~p: ~p", [Node, Host, Reason]);
         {nodedown, _Node} ->
             lager:info("Node ~p on ~p down", [Node, Host]);
         E ->
@@ -123,7 +123,7 @@ is_master(Host) ->
 -spec start_temp_gc(host(), node(), path()) -> pid().
 start_temp_gc(Host, Node, DiscoRoot) ->
     DataRoot = filename:join(DiscoRoot, Host),
-    spawn_link(Node, temp_gc, start_link, [node(), DataRoot]).
+    spawn_link(Node, fun() -> temp_gc:start_link(node(), DataRoot) end).
 
 -spec start_lock_server(node()) -> pid().
 start_lock_server(Node) ->
@@ -139,4 +139,4 @@ start_ddfs_node(Host, Node, DiscoRoot,
             {disco_root, DiscoRoot}, {ddfs_root, DdfsRoot},
             {get_port, GetPort}, {put_port, PutPort},
             {get_enabled, GetEnabled}, {put_enabled, PutEnabled}],
-    spawn_link(Node, ddfs_node, start_link, [Args, self()]).
+    spawn_link(Node, fun() -> ddfs_node:start_link(Args, self()) end).

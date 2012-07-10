@@ -140,7 +140,7 @@ uninstall-node:
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
 dialyzer: $(EPLT) master
-	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
+	$(DIALYZER) --get_warnings -Wno_return -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
 
 dialyzer-clean:
 	- rm -Rf $(EPLT)
