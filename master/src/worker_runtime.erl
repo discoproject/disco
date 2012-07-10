@@ -36,7 +36,7 @@ init({#task_spec{jobname = JN}, #task_run{input = Inputs}} = Task, Master) ->
 get_pid(#state{child_pid = Pid}) ->
     Pid.
 
-%-spec payload_type(binary()) -> json_validator:spec() | 'none'.
+-spec payload_type(binary()) -> json_validator:spec() | none.
 payload_type(<<"WORKER">>) -> {object, [{<<"version">>, string},
                                         {<<"pid">>, integer}]};
 payload_type(<<"TASK">>) -> string;
