@@ -180,8 +180,10 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 -spec update(state()) -> {'noreply', state()} | {'stop', shutdown(), state()}.
-% Note that size(Buffer) =:= 0 is here to avoid binary matching
-% which would force expensive copying of Buffer. See
+% Note that size(Buffer) =:= 0 is here to avoid preventing delayed sub
+% binary optimization in worker_protocol:parse (since we use the
+% binary in a byte_size guard), resulting in expensive copying of
+% Buffer. See
 % http://www.erlang.org/doc/efficiency_guide/binaryhandling.html
 update(#state{buffer = Buffer} = S) when size(Buffer) =:= 0 ->
     {noreply, S};
