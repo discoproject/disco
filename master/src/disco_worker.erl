@@ -76,8 +76,7 @@ start_link(Parent, Master, Task) ->
 init({Master, {#task_spec{job_coord = JobCoord}, #task_run{}} = Task}) ->
     % Note! This worker is killed implicitly by killing its
     % job_coordinator, which should be noticed by the monitor
-    % below. If the DOWN message gets lost, e.g. due to temporary
-    % network partitioning, the worker becomes a zombie.
+    % below.
     erlang:monitor(process, JobCoord),
     {ok, #state{master = Master,
                 task = Task,
