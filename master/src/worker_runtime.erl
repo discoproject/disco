@@ -58,7 +58,7 @@ payload_type(_Type) -> none.
 
 -type worker_msg() :: {nonempty_string(), term()}.
 
--type do_handle() :: {ok, worker_msg(), state()} | {ok, worker_msg(), state(), ratelimit}
+-type do_handle() :: {ok, worker_msg(), state()} | {ok, worker_msg(), state(), rate_limit}
                    | {error, {fatal, term()}, state()}
                    | {stop, {error | fatal | done, term()}}.
 -type handle() :: do_handle() | {error, {fatal, term()}}.
