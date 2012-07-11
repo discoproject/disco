@@ -1,36 +1,13 @@
 -module(disco).
 
--export([get_setting/1,
-         has_setting/1,
-         settings/0,
-         host/1,
-         name/1,
-         slave_name/1,
-         slave_node/1,
-         slave_safe/1,
-         oob_name/1,
-         hexhash/1,
-         jobhome/1,
-         jobhome/2,
-         joburl/2,
-         data_root/1,
-         data_path/2,
-         ddfs_root/2,
-         debug_flags/1,
-         local_cluster/0,
-         disco_url_path/1,
-         preferred_host/1,
-         enum/1,
-         format/2,
-         format_time/1,
-         format_time/4,
-         format_time_since/1,
-         make_dir/1,
-         ensure_dir/1,
-         is_file/1,
-         is_dir/1]).
-
--export_type([url_host/0]).
+-export([get_setting/1, has_setting/1, settings/0]).
+-export([host/1, name/1, slave_name/1, slave_node/1, slave_safe/1]).
+-export([jobhome/1, jobhome/2, joburl/2]).
+-export([data_root/1, data_path/2, ddfs_root/2]).
+-export([local_cluster/0, preferred_host/1, disco_url_path/1]).
+-export([enum/1, hexhash/1, oob_name/1, debug_flags/1]).
+-export([format/2, format_time/1, format_time/4, format_time_since/1]).
+-export([make_dir/1, ensure_dir/1, is_file/1, is_dir/1]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -90,13 +67,12 @@ slave_name(Host) ->
 slave_node(Host) ->
     case local_cluster() of
         false -> list_to_atom(default_slave_name() ++ "@" ++ Host);
-        true ->  list_to_atom(box_slave_name(Host) ++ "@localhost")
+        true  -> list_to_atom(box_slave_name(Host) ++ "@localhost")
     end.
 
 -spec slave_safe(host()) -> false | node().
 slave_safe(Host) ->
-    try
-        case local_cluster() of
+    try case local_cluster() of
             false -> list_to_existing_atom(default_slave_name() ++ "@" ++ Host);
             true  -> list_to_existing_atom(box_slave_name(Host) ++ "@localhost")
         end
@@ -162,7 +138,7 @@ debug_flags(Server) ->
         "trace" ->
             Root = disco:get_setting("DISCO_MASTER_ROOT"),
             [{debug, [{log_to_file,
-                filename:join(Root, Server ++ "_trace.log")}]}];
+                       filename:join(Root, Server ++ "_trace.log")}]}];
         _ -> []
     end.
 
@@ -170,7 +146,7 @@ debug_flags(Server) ->
 local_cluster() ->
     case os:getenv("DISCO_LOCAL_CLUSTER") of
         false -> false;
-        _ -> true
+        _     -> true
     end.
 
 -spec disco_url_path(file:filename()) -> [path()].
@@ -184,7 +160,7 @@ preferred_host(Url) ->
     Opts = [{capture, all_but_first, binary}],
     case re:run(Url, "^[a-zA-Z0-9]+://([^/:]*)", Opts) of
         {match, [Match]} -> binary_to_list(Match);
-        nomatch -> none
+        nomatch          -> none
     end.
 
 -spec enum([T]) -> [{non_neg_integer(), T}].
@@ -202,8 +178,8 @@ format_time(Ms) when is_integer(Ms) ->
                 (Ms rem ?HOUR) div ?MINUTE,
                 (Ms div ?HOUR)).
 
--spec format_time(integer(), integer(), integer(), integer()) ->
-                         nonempty_string().
+-spec format_time(integer(), integer(), integer(), integer())
+                 -> nonempty_string().
 format_time(Ms, Second, Minute, Hour) ->
     lists:flatten(io_lib:format("~B:~2.10.0B:~2.10.0B.~3.10.0B",
                                 [Hour, Minute, Second, Ms])).
@@ -217,62 +193,48 @@ make_dir(Dir) ->
     case ensure_dir(Dir) of
         ok ->
             case prim_file:make_dir(Dir) of
-                ok ->
-                    {ok, Dir};
-                {error, eexist} ->
-                    {ok, Dir};
-                {error, Reason} ->
-                    {error, Reason}
+                ok                  -> {ok, Dir};
+                {error, eexist}     -> {ok, Dir};
+                {error, _Reason} = E -> E
             end;
-        {error, Reason} ->
-            {error, Reason}
+        {error, _Reason} = E ->
+            E
     end.
 
 % based on ensure_dir() in /usr/lib/erlang/lib/stdlib-1.17/src/filelib.erl
 
 -spec ensure_dir(file:filename()) -> ok | {error, file:posix()}.
-ensure_dir("/") ->
-    ok;
+ensure_dir("/") -> ok;
 ensure_dir(F) ->
     Dir = filename:dirname(F),
     case is_dir(Dir) of
-        true ->
+        true  ->
             ok;
         false ->
             case ensure_dir(Dir) of
-                ok ->
-                    case prim_file:make_dir(Dir) of
-                        {error,eexist}=EExist ->
-                            case is_dir(Dir) of
-                                true ->
-                                    ok;
-                                false ->
-                                    EExist
-                            end;
-                        Err ->
-                            Err
-                    end;
-                Err ->
-                    Err
+                ok -> case prim_file:make_dir(Dir) of
+                          {error,eexist} = EExist ->
+                              case is_dir(Dir) of
+                                  true  -> ok;
+                                  false -> EExist
+                              end;
+                          Err -> Err
+                      end;
+                Err -> Err
             end
     end.
 
 -spec is_dir(file:filename()) -> boolean().
 is_dir(Dir) ->
     case prim_file:read_file_info(Dir) of
-        {ok, #file_info{type=directory}} ->
-            true;
-        _ ->
-            false
+        {ok, #file_info{type=directory}} -> true;
+        _                                -> false
     end.
 
 -spec is_file(file:filename()) -> boolean().
 is_file(Dir) ->
     case prim_file:read_file_info(Dir) of
-        {ok, #file_info{type=regular}} ->
-            true;
-        {ok, #file_info{type=directory}} ->
-            true;
-        _ ->
-            false
+        {ok, #file_info{type=regular}}   -> true;
+        {ok, #file_info{type=directory}} -> true;
+        _                                -> false
     end.

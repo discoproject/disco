@@ -1,22 +1,12 @@
 -module(ddfs_util).
--export([concatenate/2,
-         diskspace/1,
-         ensure_dir/1,
-         fold_files/3,
-         format_timestamp/0,
-         hashdir/5,
-         is_valid_name/1,
-         pack_objname/2,
-         parse_url/1,
-         cluster_url/2,
-         safe_rename/2,
-         startswith/2,
-         timestamp/0,
-         timestamp/1,
-         timestamp_to_time/1,
-         to_hex/1,
-         unpack_objname/1,
-         url_to_name/1]).
+-export([concatenate/2, diskspace/1, ensure_dir/1, fold_files/3,
+         hashdir/5, safe_rename/2]).
+-export([startswith/2, is_valid_name/1, unpack_objname/1, pack_objname/2]).
+-export([cluster_url/2, parse_url/1, url_to_name/1]).
+-export([format_timestamp/0, timestamp/0, timestamp/1, timestamp_to_time/1]).
+
+% For tests.
+-export([to_hex/1]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -48,8 +38,8 @@ timestamp({X0, X1, X2}) ->
 
 -spec timestamp_to_time(nonempty_string()) -> erlang:timestamp().
 timestamp_to_time(T) ->
-    list_to_tuple([erlang:list_to_integer(X, 16) ||
-        X <- string:tokens(lists:flatten(T), "-")]).
+    list_to_tuple([erlang:list_to_integer(X, 16)
+                   || X <- string:tokens(lists:flatten(T), "-")]).
 
 -spec pack_objname(tagname(), erlang:timestamp()) -> tagid().
 pack_objname(Name, T) ->
@@ -67,18 +57,16 @@ url_to_name(<<"tag://", Name/binary>>) ->
     Name;
 url_to_name(Url) ->
     case re:run(Url, "/../(.*)[$]", [{capture, all_but_first, binary}]) of
-        {match, [Name]} ->
-            Name;
-        _ ->
-            false
+        {match, [Name]} -> Name;
+        _               -> false
     end.
 
 -spec ensure_dir(string()) -> eof | ok | {error, _} | {ok, _}.
 ensure_dir(Dir) ->
     case prim_file:make_dir(Dir) of
-        ok -> ok;
+        ok              -> ok;
         {error, eexist} -> ok;
-        E -> E
+        E               -> E
     end.
 
 -spec format_timestamp() -> binary().
@@ -129,7 +117,8 @@ parse_url(Url) when is_list(Url) ->
             {Host, Vol, blob, Hash, list_to_binary(Obj)};
         ["/","ddfs","vol" ++ _ = Vol, "tag", Hash, Obj] ->
             {Host, Vol, tag, Hash, list_to_binary(Obj)};
-        _ -> not_ddfs
+        _ ->
+            not_ddfs
     end.
 
 -type method() :: get | put.
@@ -148,8 +137,8 @@ cluster_url(Url, Meth, true) ->
                [H] -> H;
                [H|_] -> H
            end,
-    ProxyUrl = [S, "://127.0.0.1:", ProxyPort, "/proxy/",
-                Host, "/", Method, Path],
+    ProxyUrl = [S, "://127.0.0.1:", ProxyPort,
+                "/proxy/", Host, "/", Method, Path],
     lists:flatten(ProxyUrl).
 
 -type rename_errors() :: file_exists| {chmod_failed, _} | {rename_failed, _}.
@@ -157,14 +146,13 @@ cluster_url(Url, Meth, true) ->
 safe_rename(Src, Dst) ->
     case prim_file:read_file_info(Dst) of
         {error, enoent} ->
-            case prim_file:write_file_info(Src,
-                    #file_info{mode = ?FILE_MODE}) of
-                ok ->
-                    case prim_file:rename(Src, Dst) of
-                        ok -> ok;
-                        {error, E} -> {error, {rename_failed, E}}
-                    end;
-                {error, E} -> {error, {chmod_failed, E}}
+            W = prim_file:write_file_info(Src, #file_info{mode = ?FILE_MODE}),
+            case W of
+                ok -> case prim_file:rename(Src, Dst) of
+                          ok         -> ok;
+                          {error, E} -> {error, {rename_failed, E}}
+                      end;
+                {error, E}           -> {error, {chmod_failed, E}}
             end;
         _ -> {error, file_exists}
     end.
@@ -185,10 +173,8 @@ concatenate_do(SrcIO, DstIO) ->
                 ok -> concatenate_do(SrcIO, DstIO);
                 Error -> Error
             end;
-        eof ->
-            ok;
-        Error ->
-            Error
+        eof   -> ok;
+        Error -> Error
     end.
 
 -spec diskspace(nonempty_string()) -> {error, invalid_output | invalid_path} |
@@ -199,19 +185,19 @@ diskspace(Path) ->
             try {ok, {list_to_integer(Free), list_to_integer(Used)}}
             catch _:_ -> {error, invalid_path}
             end;
-        _ ->
-            {error, invalid_output}
+        _ -> {error, invalid_output}
     end.
 
 -spec fold_files(string(), fun((string(), string(), T) -> T), T) -> T.
 fold_files(Dir, Fun, Acc0) ->
     {ok, L} = prim_file:list_dir(Dir),
-    lists:foldl(fun(F, Acc) ->
-        Path = filename:join(Dir, F),
-        case prim_file:read_file_info(Path) of
-            {ok, #file_info{type = directory}} ->
-                fold_files(Path, Fun, Acc);
-            _ ->
-                Fun(F, Dir, Acc)
-        end
-    end, Acc0, L).
+    lists:foldl(
+      fun(F, Acc) ->
+              Path = filename:join(Dir, F),
+              case prim_file:read_file_info(Path) of
+                  {ok, #file_info{type = directory}} ->
+                      fold_files(Path, Fun, Acc);
+                  _ ->
+                      Fun(F, Dir, Acc)
+              end
+      end, Acc0, L).
