@@ -5,15 +5,16 @@
 -include("disco.hrl").
 -include("pipeline.hrl").
 
--record(state, {jobname :: jobname(),
-                task :: task(),
-                inputs,
-                master :: node(),
+-record(state, {jobname    :: jobname(),
+                task       :: task(),
+                master     :: node(),
                 start_time :: erlang:timestamp(),
-                child_pid :: none | non_neg_integer(),
-                persisted_outputs :: [string()],
-                output_filename :: none | string(),
-                output_file :: none | file:io_device()}).
+                child_pid  = none               :: none | non_neg_integer(),
+                inputs                          :: worker_inputs:state(),
+                failed_inputs = gb_sets:empty() :: gb_set(), % [seq_id()]
+                persisted_outputs = []          :: [string()],
+                output_filename   = none        :: none | string(),
+                output_file       = none        :: none | file:io_device()}).
 -type state() :: #state{}.
 
 -type results() :: {none | binary(), [binary()]}.
@@ -21,16 +22,13 @@
 -export_type([state/0, results/0]).
 
 -spec init(task(), node()) -> state().
-init({#task_spec{jobname = JN}, #task_run{input = Inputs}} = Task, Master) ->
+init({#task_spec{jobname = JN, grouping = Grouping, group = Group},
+      #task_run{input = Inputs}} = Task, Master) ->
     #state{jobname = JN,
            task = Task,
-           inputs = worker_inputs:init(Inputs),
+           inputs = worker_inputs:init(Inputs, Grouping, Group),
            start_time = now(),
-           master = Master,
-           child_pid = none,
-           persisted_outputs = [],
-           output_filename = none,
-           output_file = none}.
+           master = Master}.
 
 -spec get_pid(state()) -> none | non_neg_integer().
 get_pid(#state{child_pid = Pid}) ->
@@ -53,8 +51,8 @@ payload_type(<<"INPUT">>) ->
 payload_type(<<"INPUT_ERR">>) ->
     {array, [integer, {hom_array, integer}]};
 payload_type(<<"OUTPUT">>) ->
-    {opt, [{array, [string, string]},
-           {array, [string, string, string]}]};
+    % label url size
+    {array, [integer, string, integer]}.
 
 payload_type(_Type) -> none.
 
@@ -93,7 +91,7 @@ do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
     {_, Pid} = lists:keyfind(<<"pid">>, 1, Worker),
     S1 = S#state{child_pid = Pid},
     case lists:keyfind(<<"version">>, 1, Worker) of
-        {_, <<"1.0">>} ->
+        {_, <<"1.1">>} ->
             {ok, {"OK", <<"ok">>}, S1};
         {_, Ver} ->
             VerMsg = io_lib:format("~p", [Ver]),
@@ -136,13 +134,18 @@ do_handle({<<"INPUT">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
 do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
     {ok, input_reply(worker_inputs:exclude(Iids, Inputs)), S};
 
-do_handle({<<"INPUT_ERR">>, [Iid, Rids]}, #state{inputs = Inputs} = S) ->
+do_handle({<<"INPUT_ERR">>, [Iid, Rids]}, #state{inputs = Inputs,
+                                                 failed_inputs = Failed} = S) ->
     Inputs1 = worker_inputs:fail(Iid, Rids, Inputs),
     [{_, Replicas} | _] = worker_inputs:include([Iid], Inputs1),
     R = gb_sets:from_list(Rids),
     case [E || [Rid, _Url] = E <- Replicas, not gb_sets:is_member(Rid, R)] of
-        []    -> {ok, {"FAIL", <<>>}, S#state{inputs = Inputs1}};
-        Valid -> {ok, {"RETRY", Valid}, S#state{inputs = Inputs1}}
+        [] ->
+            Failed1 = gb_sets:add(Iid, Failed),
+            {ok, {"FAIL", <<>>}, S#state{inputs = Inputs1,
+                                         failed_inputs = Failed1}};
+        Valid ->
+            {ok, {"RETRY", Valid}, S#state{inputs = Inputs1}}
     end;
 
 do_handle({<<"ERROR">>, Msg}, _S) ->

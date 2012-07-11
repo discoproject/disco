@@ -7,6 +7,7 @@
 -export([job_from_jobinfo/1, job_schedule_option/1, stages/1]).
 -export([next_stage/2, group_outputs/2, pick_local_host/1]).
 -export([locations/1, ranked_locations/1]).
+-export([input_urls/3]).
 
 % Compatibility utility: construct a pipeline from a job packet of
 % Disco 0.4.2 or earlier.
@@ -216,3 +217,28 @@ group_outputs(join_all, Outputs) ->
                                  {Outid, {data, {_L, _S, Reps}} = D} <- Tout,
                                  Reps =/= []],
     [{{0, none}, Dirs ++ Dats}].  % '0', 'none' indicate no assigned host or label.
+
+-spec input_urls(data_input(), label_grouping(), group()) -> [url()].
+input_urls({data, {_L, _Sz, Reps}}, _LG, _G) ->
+    [U || {U, _H} <- Reps];
+input_urls({dir, {_H1, U, LS}}, split, {L, _H2}) ->
+    labelled_urls([U], L, LS);
+input_urls({dir, {_H1, U, LS}}, join_node_label, {L, _H2}) ->
+    labelled_urls([U], L, LS);
+input_urls({dir, {_H1, U, LS}}, join_label, {L, _H2}) ->
+    labelled_urls([U], L, LS);
+input_urls({dir, {_H1, U, _LS}}, join_node, {_L, _H2}) ->
+    [U];
+input_urls({dir, {_H1, U, _LS}}, join_all, {_L, _H2}) ->
+    [U].
+
+-spec labelled_urls([url()], label(), [{label(), data_size()}]) -> [url()].
+labelled_urls(Urls, Label, LabelSizes) ->
+    Labels = [L || {L, _Sz} <- LabelSizes],
+    case lists:member(Label, Labels) of
+        true ->
+            LB = list_to_binary(["#", integer_to_list(Label)]),
+            [<<U/binary, LB/binary>> || U <- Urls];
+        false ->
+            []
+    end.
