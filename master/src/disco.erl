@@ -187,7 +187,7 @@ preferred_host(Url) ->
         nomatch -> none
     end.
 
--spec enum([term()]) -> [{non_neg_integer(), term()}].
+-spec enum([T]) -> [{non_neg_integer(), T}].
 enum(List) ->
     lists:zip(lists:seq(0, length(List) - 1), List).
 
