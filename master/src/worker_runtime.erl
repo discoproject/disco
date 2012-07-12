@@ -5,58 +5,60 @@
 -include("disco.hrl").
 -include("pipeline.hrl").
 
+-type remote_output() :: {label(), data_size(), [data_replica()]}.
 -record(state, {jobname    :: jobname(),
                 task       :: task(),
                 master     :: node(),
+                host       :: host(),
+                inputs     :: worker_inputs:state(),
                 start_time :: erlang:timestamp(),
-                child_pid  = none               :: none | non_neg_integer(),
-                inputs                          :: worker_inputs:state(),
-                failed_inputs = gb_sets:empty() :: gb_set(), % [seq_id()]
-                persisted_outputs = []          :: [string()],
-                output_filename   = none        :: none | string(),
-                output_file       = none        :: none | file:io_device()}).
+
+                child_pid       = none             :: none | non_neg_integer(),
+                failed_inputs   = gb_sets:empty()  :: gb_set(), % [seq_id()]
+                remote_outputs  = []               :: [remote_output()],
+                local_labels    = gb_trees:empty() :: gb_tree(),
+                output_filename = none             :: none | string(),
+                output_file     = none             :: none | file:io_device()}).
 -type state() :: #state{}.
 
--type results() :: {none | binary(), [binary()]}.
-
--export_type([state/0, results/0]).
+-export_type([state/0]).
 
 -spec init(task(), node()) -> state().
 init({#task_spec{jobname = JN, grouping = Grouping, group = Group},
       #task_run{input = Inputs}} = Task, Master) ->
     #state{jobname = JN,
-           task = Task,
-           inputs = worker_inputs:init(Inputs, Grouping, Group),
-           start_time = now(),
-           master = Master}.
+           task    = Task,
+           master  = Master,
+           host    = disco:host(node()),
+           inputs  = worker_inputs:init(Inputs, Grouping, Group),
+           start_time = now()}.
 
 -spec get_pid(state()) -> none | non_neg_integer().
 get_pid(#state{child_pid = Pid}) ->
     Pid.
 
+% Input message format.
+
 -spec payload_type(binary()) -> json_validator:spec() | none.
 payload_type(<<"WORKER">>) -> {object, [{<<"version">>, string},
                                         {<<"pid">>, integer}]};
-payload_type(<<"TASK">>) -> string;
-payload_type(<<"MSG">>) -> string;
+payload_type(<<"TASK">>)  -> string;
+payload_type(<<"MSG">>)   -> string;
 payload_type(<<"ERROR">>) -> string;
 payload_type(<<"FATAL">>) -> string;
-payload_type(<<"DONE">>) -> string;
-
-payload_type(<<"INPUT">>) ->
-    {opt, [{value, <<>>},
-           {array, [{opt, [{value, <<"include">>},
-                           {value, <<"exclude">>}]},
-                    {hom_array, integer}]}]};
-payload_type(<<"INPUT_ERR">>) ->
-    {array, [integer, {hom_array, integer}]};
-payload_type(<<"OUTPUT">>) ->
-    % label url size
-    {array, [integer, string, integer]}.
-
+payload_type(<<"DONE">>)  -> string;
+payload_type(<<"INPUT">>) -> {opt, [{value, <<>>},
+                                    {array, [{opt, [{value, <<"include">>},
+                                                    {value, <<"exclude">>}]},
+                                             {hom_array, integer}]}]};
+payload_type(<<"INPUT_ERR">>) -> {array, [integer, {hom_array, integer}]};
+payload_type(<<"OUTPUT">>)    -> {array, [integer, string, integer]};
 payload_type(_Type) -> none.
 
+% Core protocol handling.
+
 -type worker_msg() :: {nonempty_string(), term()}.
+-type output_msg() :: {label(), binary(), data_size()}.
 
 -type do_handle() :: {ok, worker_msg(), state()} | {ok, worker_msg(), state(), rate_limit}
                    | {error, {fatal, term()}, state()}
@@ -100,7 +102,7 @@ do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
             {error, {fatal, ["No worker version received"]}, S1}
     end;
 
-do_handle({<<"TASK">>, _Body}, #state{task = {TS, _TR}} = S) ->
+do_handle({<<"TASK">>, _Body}, #state{host = Host, task = {TS, _TR}} = S) ->
     #task_spec{jobname = JN, taskid = TaskId, stage = Stage, group = G} = TS,
     Master = disco:get_setting("DISCO_MASTER"),
     JobFile = jobpack:jobfile(disco_worker:jobhome(JN)),
@@ -118,7 +120,7 @@ do_handle({<<"TASK">>, _Body}, #state{task = {TS, _TR}} = S) ->
                          {<<"group">>, tuple_to_list(G)},
                          {<<"jobfile">>, list_to_binary(JobFile)},
                          {<<"jobname">>, list_to_binary(JN)},
-                         {<<"host">>, list_to_binary(disco:host(node()))}]},
+                         {<<"host">>, Host}]},
     {ok, {"TASK", TaskInfo}, S};
 
 do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
@@ -154,8 +156,8 @@ do_handle({<<"ERROR">>, Msg}, _S) ->
 do_handle({<<"FATAL">>, Msg}, _S) ->
     {stop, {fatal, Msg}};
 
-do_handle({<<"OUTPUT">>, Results}, S) ->
-    case add_output(Results, S) of
+do_handle({<<"OUTPUT">>, Output}, S) ->
+    case add_output(list_to_tuple(Output), S) of
         {ok, S1}   -> {ok, {"OK", <<"ok">>}, S1};
         {error, E} -> {stop, {error, E}}
     end;
@@ -168,75 +170,44 @@ do_handle({<<"DONE">>, _Body}, #state{task = Task,
                                       start_time = ST} = S) ->
     case close_output(S) of
         ok ->
-            Time = disco:format_time_since(ST),
-            Msg = ["Task finished in ", Time],
+            Msg = ["Task finished in ", disco:format_time_since(ST)],
             disco_worker:event({<<"DONE">>, Msg}, Task, Master),
             {stop, {done, results(S)}};
-        {error, Reason} ->
-            {stop, {error, Reason}}
+        {error, _Reason} = E ->
+            {stop, E}
     end.
 
+% Input utilities.
 -spec input_reply([worker_inputs:worker_input()]) -> worker_msg().
 input_reply(Inputs) ->
     {"INPUT", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
+
+% Output utilities.
+
+-spec ioerror(nonempty_string(), atom()) -> nonempty_string().
+ioerror(Msg, Reason) ->
+    Msg ++ ": " ++ atom_to_list(Reason).
 
 -spec url_path(jobname(), host(), path()) -> file:filename().
 url_path(JobName, Host, LocalFile) ->
     LocationPrefix = disco:joburl(Host, JobName),
     filename:join(LocationPrefix, LocalFile).
 
--spec local_results(jobname(), path()) -> binary().
-local_results(JobName, FileName) ->
-    Host = disco:host(node()),
-    Url = url_path(JobName, Host, FileName),
-    Output = io_lib:format("dir://~s/~s", [Host, Url]),
-    list_to_binary(Output).
-
--spec results(state()) -> {none | binary(), [binary()]}.
-results(#state{output_filename = none, persisted_outputs = Outputs}) ->
-    {none, Outputs};
-results(#state{jobname = JobName,
-               output_filename = FileName,
-               persisted_outputs = Outputs}) ->
-    {local_results(JobName, FileName), Outputs}.
-
--spec add_output(list(), state()) -> {ok, state()} | {error, term()}.
-add_output([Tag, <<"tag">>], #state{persisted_outputs = PO} = S) ->
-    Result = list_to_binary(io_lib:format("tag://~s", [Tag])),
-    {ok, S#state{persisted_outputs = [Result | PO]}};
-
-add_output(RL, #state{jobname = JN, task = Task, output_file = none} = S) ->
-    ResultsFileName = results_filename(Task),
-    Home = disco_worker:jobhome(JN),
-    Path = filename:join(Home, ResultsFileName),
-    ok = disco:ensure_dir(Path),
-    case prim_file:open(Path, [write, raw]) of
-        {ok, ResultsFile} ->
-            add_output(RL, S#state{output_filename = ResultsFileName,
-                                   output_file = ResultsFile});
-        {error, E} ->
-            {error, ioerror("Opening index file at " ++ Path ++ " failed", E)}
-    end;
-
-add_output(RL, #state{output_file = RF} = S) ->
-    case prim_file:write(RF, format_output_line(S, RL)) of
-        ok         -> {ok, S};
-        {error, E} -> {error, ioerror("Writing to index file failed", E)}
-    end.
-
--spec results_filename(task()) -> path().
-results_filename({#task_spec{stage = Stage, taskid = TaskId}, #task_run{}}) ->
+-spec local_results_filename(task()) -> path().
+local_results_filename({#task_spec{stage = S, taskid = TaskId}, #task_run{}}) ->
     TimeStamp = timer:now_diff(now(), {0,0,0}),
-    FileName = io_lib:format("~s-~B-~B.results", [Stage, TaskId, TimeStamp]),
+    FileName = io_lib:format("~s-~B-~B.results", [S, TaskId, TimeStamp]),
     filename:join(".disco", FileName).
 
--spec format_output_line(state(), [string()|binary()]) -> iolist().
-format_output_line(S, [LocalFile, Type]) ->
-    format_output_line(S, [LocalFile, Type, <<"0">>]);
-format_output_line(#state{jobname = JN}, [LocalFile, Type, Label]) ->
-    Host = disco:host(node()),
-    Url = url_path(JN, Host, binary_to_list(LocalFile)),
-    io_lib:format("~s ~s://~s/~s\n", [Label, Type, Host, Url]).
+-spec output_type(url()) -> local | remote | invalid.
+output_type(Url) ->
+    U = binary_to_list(Url),
+    {S, H, Path, _Q, _F} = mochiweb_util:urlsplit(U),
+    case {S, H, Path} of
+        {"", "", "/" ++ _P} -> invalid;  % Forbid absolute paths
+        {"", "", _P}        -> local;
+        _                   -> remote
+    end.
 
 -spec close_output(state()) -> ok | {error, term()}.
 close_output(#state{output_file = none}) -> ok;
@@ -249,6 +220,66 @@ close_output(#state{output_file = File}) ->
             {error, ioerror("Closing index file failed", Reason)}
     end.
 
--spec ioerror(nonempty_string(), atom()) -> nonempty_string().
-ioerror(Msg, Reason) ->
-    Msg ++ ": " ++ atom_to_list(Reason).
+% Handling recording of worker outputs.
+
+-spec add_output(output_msg(), state()) -> {ok, state()} | {error, term()}.
+add_output({L, Url, Size} = O, #state{remote_outputs = RO} = S) ->
+    case output_type(Url) of
+        invalid ->
+            {error, {invalid_output, Url}};
+        remote ->
+            DataOutput = {L, Size, [{Url, disco:preferred_host(Url)}]},
+            {ok, S#state{remote_outputs = [DataOutput | RO]}};
+        local ->
+            local_output(O, S)
+    end.
+
+-spec local_output(output_msg(), state()) -> {ok, state()} | {error, term()}.
+local_output(O, #state{jobname = JN, task = Task, output_file = none} = S) ->
+    FileName = local_results_filename(Task),
+    Home = disco_worker:jobhome(JN),
+    Path = filename:join(Home, FileName),
+    ok = disco:ensure_dir(Path),
+    case prim_file:open(Path, [write, raw]) of
+        {ok, ResultsFile} ->
+            local_output(O, S#state{output_filename = FileName,
+                                    output_file     = ResultsFile});
+        {error, E} ->
+            {error, ioerror("Opening index file at " ++ Path ++ " failed", E)}
+    end;
+local_output({L, _U, Sz} = O, #state{output_file = RF,
+                                     local_labels = Labels} = S) ->
+    case prim_file:write(RF, format_local_output(O, S)) of
+        ok ->
+            CurSz = case gb_trees:lookup(L, Labels) of
+                        none -> 0;
+                        {value, LSize} -> LSize
+                    end,
+            {ok, S#state{local_labels = gb_trees:enter(L, CurSz + Sz, Labels)}};
+        {error, E} ->
+            {error, ioerror("Writing to index file failed", E)}
+    end.
+
+-spec format_local_output(output_msg(), state()) -> iolist().
+format_local_output({L, LocalFile, Size}, #state{jobname = JN, host = Host}) ->
+    Url = url_path(JN, Host, binary_to_list(LocalFile)),
+    io_lib:format("~B disco://~s/~s ~B\n", [L, Host, Url, Size]).
+
+% Convert recorded outputs into pipeline format.
+
+-spec local_results(jobname(), host(), path(), gb_tree()) -> dir_spec().
+local_results(JobName, Host, FileName, Labels) ->
+    UPath = url_path(JobName, Host, FileName),
+    Dir = erlang:iolist_to_binary(io_lib:format("dir://~s/~s", [Host, UPath])),
+    {dir, {Host, Dir, gb_trees:to_list(Labels)}}.
+
+-spec results(state()) -> [task_output()].
+results(#state{output_filename = none, remote_outputs = ROutputs}) ->
+    disco:enum([{data, RO} || RO <- ROutputs]);
+results(#state{jobname = JobName,
+               host = Host,
+               output_filename = FileName,
+               local_labels = Labels,
+               remote_outputs = ROutputs}) ->
+    disco:enum([local_results(JobName, Host, FileName, Labels)
+                | [{data, RO} || RO <- ROutputs]]).

@@ -55,18 +55,6 @@ start_job(Starter, JobPack) ->
     end.
 
 
-% FIXME: Temp hack to massage disco_worker output into our new format.
-munge(none, Remote, _Host) ->
-    munge(Remote);
-munge(Local, Remote, Host) ->
-    [{0, {dir, {Host, Local, []}}} | munge(Remote)].
-munge(Remote) ->
-    munge_remote(1, Remote, []).
-munge_remote(_N, [], Munged) ->
-    lists:reverse(Munged);
-munge_remote(N, [H|T], Munged) ->
-    munge_remote(N + 1, T, [{N, {data, {0, 0, [H]}}} | Munged]).
-
 -type task_done_msg() :: {error | fatal, term()}
                        | {input_error, {input_id(), [host()]}}
                        | {done, {none | binary(), [binary()]}}.
@@ -76,7 +64,7 @@ munge_remote(N, [H|T], Munged) ->
 -spec task_done(pid(), {task_done_msg(), task_id(), host()}) -> ok.
 task_done(JobCoord, {TaskResults, TaskId, Host}) ->
     R = case TaskResults of
-            {done, {Local, Remote}} -> {done, munge(Local, Remote, Host)};
+            {done, _R}  = D -> D;
             {error, _E} = E -> E;
             {fatal, _E} = E -> E;
             {input_error, {_IId, _UH}} = E -> E
