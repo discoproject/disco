@@ -271,7 +271,7 @@ count_mr_stages(L) ->
 
 -spec render_jobinfo(event_server:job_eventinfo(), {[host()], [stage_name()]})
                     -> term().
-render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
+render_jobinfo({Start, _Status0, _JobInfo, Results, Ready, Failed},
                {Hosts, Stages}) ->
     {NMapRun, NRedRun} = count_mr_stages(Stages),
     NMapDone = dict:fetch(?MAP, Ready),
@@ -279,21 +279,8 @@ render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
     NMapFail = dict:fetch(?MAP, Failed),
     NRedFail = dict:fetch(?REDUCE, Failed),
     {Status, MapI, RedI, Reduce, Inputs, Worker, Owner} =
-        case JobInfo of
-            none ->
-                % The job is still initializing; use some defaults.
-                {<<"initializing">>, 0, 0, true, [], <<"">>, <<"">>};
-            #jobinfo{map = M, reduce = R, inputs = I, nr_reduce = NR,
-                     worker = W, owner = O} ->
-                {list_to_binary(atom_to_list(Status0)),
-                 if M    -> length(I) - (NMapDone + NMapRun);
-                    true -> 0
-                 end,
-                 if R    -> NR - (NRedDone + NRedRun);
-                    true -> 0
-                 end,
-                 R, lists:sublist(I, 100), W, O}
-        end,
+        %TODO: render UI for pipeline jobs.
+        {<<"initializing">>, 0, 0, true, [], <<"">>, <<"">>},
     {struct, [{timestamp, disco_util:format_timestamp(Start)},
               {active, Status},
               {mapi, [MapI, NMapRun, NMapDone, NMapFail]},

@@ -5,17 +5,34 @@
 % Jobpack file management.
 -export([jobfile/1, exists/1, extract/2, extracted/1, read/1, save/2, copy/2]).
 
+-export_type([jobpack/0]).
+
 -include_lib("kernel/include/file.hrl").
 
 -include("common_types.hrl").
 -include("disco.hrl").
+-include("pipeline.hrl").
 
 -define(MAGIC, 16#d5c0).
--define(VERSION, 16#0001).
+-define(VERSION_1, 16#0001).
+-define(VERSION_2, 16#0002).
 -define(HEADER_SIZE, 128).
 -define(COPY_BUFFER_SIZE, 1048576).
 
-% Metadata extraction.
+-type jobpack() :: binary().
+
+% Metadata utilities.
+
+-spec grouping(binary())        -> label_grouping().
+grouping(<<"split">>)           -> split;
+grouping(<<"join_node_label">>) -> join_node_label;
+grouping(<<"join_node">>)       -> join_node;
+grouping(<<"join_label">>)      -> join_label;
+grouping(<<"join_all">>)        -> join_all;
+grouping(G) ->
+    throw({error, disco:format("invalid grouping '~p'", [G])}).
+
+% Lookup utilities.
 
 -spec dict({struct, [{term(), term()}]}) -> dict().
 dict({struct, List}) ->
@@ -32,36 +49,37 @@ find(Key, Dict) ->
 find(Key, Dict, Default) ->
     case dict:find(Key, Dict) of
         {ok, Field} -> Field;
-        error -> Default
+        error       -> Default
     end.
 
--spec jobinfo(binary()) -> {path(), jobinfo()}.
-jobinfo(JobPack) ->
-    JobDict = jobdict(JobPack),
-    Scheduler = dict(find(<<"scheduler">>, JobDict)),
-    {validate_prefix(find(<<"prefix">>, JobDict)),
-     #jobinfo{jobenvs = jobenvs(JobPack),
-              inputs = find(<<"input">>, JobDict),
-              worker = find(<<"worker">>, JobDict),
-              owner = find(<<"owner">>, JobDict),
-              map = find(<<"map?">>, JobDict, false),
-              reduce = find(<<"reduce?">>, JobDict, false),
-              nr_reduce = find(<<"nr_reduces">>, JobDict),
-              max_cores = find(<<"max_cores">>, Scheduler, 1 bsl 31),
-              force_local = find(<<"force_local">>, Scheduler, false),
-              force_remote = find(<<"force_remote">>, Scheduler, false)}}.
+% Metadata extraction.
 
--spec jobdict(binary()) -> dict().
+-spec jobinfo(jobpack()) -> {jobname(), jobinfo()}.
+jobinfo(JobPack) ->
+    {Version, JobDict} = jobdict(JobPack),
+    {Prefix, JobInfo} = core_jobinfo(JobPack, JobDict),
+    VersionInfo = version_info(Version, JobDict),
+    {Prefix, fixup_versions(JobInfo, VersionInfo)}.
+
+-spec jobdict(jobpack()) -> {non_neg_integer(), dict()}.
 jobdict(<<?MAGIC:16/big,
-          _Version:16/big,
+          Version:16/big,
           JobDictOffset:32/big,
           JobEnvsOffset:32/big,
           _/binary>> = JobPack) ->
     JobDictLength = JobEnvsOffset - JobDictOffset,
     <<_:JobDictOffset/bytes, JobDict:JobDictLength/bytes, _/binary>> = JobPack,
-    dict(mochijson2:decode(JobDict)).
+    {Version, dict(mochijson2:decode(JobDict))}.
 
--spec jobenvs(binary()) -> [{nonempty_string(), string()}].
+-spec core_jobinfo(jobpack(), dict()) -> {jobname(), jobinfo()}.
+core_jobinfo(JobPack, JobDict) ->
+    Prefix  = find(<<"prefix">>, JobDict),
+    JobInfo = #jobinfo{jobenvs = jobenvs(JobPack),
+                       worker  = find(<<"worker">>, JobDict),
+                       owner   = find(<<"owner">>, JobDict)},
+    {validate_prefix(Prefix), JobInfo}.
+
+-spec jobenvs(jobpack()) -> [{nonempty_string(), string()}].
 jobenvs(<<?MAGIC:16/big,
           _Version:16/big,
           _JobDictOffset:32/big,
@@ -73,7 +91,7 @@ jobenvs(<<?MAGIC:16/big,
     {struct, Envs} = mochijson2:decode(JobEnvs),
     Envs.
 
--spec jobzip(binary()) -> binary().
+-spec jobzip(jobpack()) -> binary().
 jobzip(<<?MAGIC:16/big,
          _Version:16/big,
          _JobDictOffset:32/big,
@@ -85,9 +103,51 @@ jobzip(<<?MAGIC:16/big,
     <<_:JobHomeOffset/bytes, JobZip:JobHomeLength/bytes, _/binary>> = JobPack,
     JobZip.
 
--spec valid(binary()) -> ok | {error, term()}.
+% Backward compatibility management.
+-type job_inputs1() :: [url() | [url()]].
+-record(ver1_info, {force_local  :: boolean(),
+                    force_remote :: boolean(),
+                    inputs :: job_inputs1(),
+                    max_cores :: cores(),
+                    nr_reduce :: non_neg_integer(),
+                    map    :: boolean(),
+                    reduce :: boolean()}).
+-record(ver2_info, {pipeline = [] :: pipeline(),
+                    schedule = none :: task_schedule(),
+                    inputs   = [] :: [task_output()]}).
+
+-spec version_info(non_neg_integer(), dict()) -> #ver1_info{} | #ver2_info{}.
+version_info(?VERSION_1, JobDict) ->
+    Scheduler = dict(find(<<"scheduler">>, JobDict)),
+    #ver1_info{inputs = find(<<"input">>, JobDict),
+               map    = find(<<"map?">>, JobDict, false),
+               reduce = find(<<"reduce?">>, JobDict, false),
+               nr_reduce = find(<<"nr_reduces">>, JobDict),
+               max_cores = find(<<"max_cores">>, Scheduler, 1 bsl 31),
+               force_local  = find(<<"force_local">>, Scheduler, false),
+               force_remote = find(<<"force_remote">>, Scheduler, false)};
+version_info(?VERSION_2, JobDict) ->
+    Pipeline = find(<<"pipeline">>, JobDict),
+    Inputs   = find(<<"inputs">>, JobDict),
+    #ver2_info{schedule = none,  % No scheduling options supported for now.
+               pipeline = validate_pipeline(Pipeline),
+               inputs   = validate_inputs(Inputs)};
+version_info(V, _JobDict) ->
+    throw({error, disco:format("unsupported version '~p'", [V])}).
+
+-spec fixup_versions(jobinfo(), #ver1_info{} | #ver2_info{}) -> jobinfo().
+fixup_versions(JobInfo, #ver1_info{} = V1) ->
+    {I, P} = job_from_ver1(V1),
+    S = schedule_option1(V1),
+    JobInfo#jobinfo{inputs = I, pipeline = P, schedule = S};
+fixup_versions(JobInfo, #ver2_info{inputs = I, pipeline = P, schedule = S}) ->
+    JobInfo#jobinfo{inputs = I, pipeline = P, schedule = S}.
+
+% Validation
+
+-spec valid(jobpack()) -> ok | {error, term()}.
 valid(<<?MAGIC:16/big,
-        ?VERSION:16/big,
+        _Version:16/big,
         JobDictOffset:32/big,
         JobEnvsOffset:32/big,
         JobHomeOffset:32/big,
@@ -116,6 +176,38 @@ validate_prefix(Prefix) ->
         _ -> throw({error, "invalid prefix"})
     end.
 
+-spec validate_pipeline(list()) -> pipeline().
+validate_pipeline(P) ->
+    Spec = {hom_array, {array, [string, string]}},
+    case json_validator:validate(Spec, P) of
+        {error, E} ->
+            lager:warn("Invalid pipeline in jobpack: ~s",
+                       json_validator:error_msg(E)),
+            throw({error, invalid_pipeline_format});
+        ok ->
+            % Ensure stages are unique.
+            {Stages, _Groups} = lists:unzip(P),
+            StageSet = gb_sets:from_list(Stages),
+            case gb_sets:size(StageSet) =/= length(Stages) of
+                true  -> throw({error, repeated_pipeline_stages});
+                false -> ok
+            end,
+            [{S, grouping(G)} || {S, G} <- P]
+    end.
+
+-spec validate_inputs(list()) -> [task_output()].
+validate_inputs(Inputs) ->
+    Spec = {hom_array, {array, [integer, integer, {hom_array, string}]}},
+    case json_validator:validate(Spec, Inputs) of
+        {error, E} ->
+            lager:warn("Invalid inputs in jobpack: ~s",
+                       json_validator:error_msg(E)),
+            throw({error, invalid_job_inputs});
+        _I ->
+            [{N, {data, {L, Sz, Urls}}}
+             || {N, [L, Sz, Urls]} <- disco:enum(Inputs)]
+    end.
+
 % Jobpack file management.
 
 -spec jobfile(path()) -> path().
@@ -126,7 +218,7 @@ jobfile(JobHome) ->
 exists(JobHome) ->
     disco:is_file(jobfile(JobHome)).
 
--spec extract(binary(), path()) -> [file:name()].
+-spec extract(jobpack(), path()) -> [file:name()].
 extract(JobPack, JobHome) ->
     JobZip = jobzip(JobPack),
     case discozip:extract(JobZip, [{cwd, JobHome}]) of
@@ -143,7 +235,8 @@ extracted(JobHome) ->
     disco:is_file(filename:join(JobHome, ".jobhome")).
 
 ensure_executable_worker(JobPack, JobHome) ->
-    Worker = find(<<"worker">>, jobdict(JobPack)),
+    {_Version, JobDict} = jobdict(JobPack),
+    Worker = find(<<"worker">>, JobDict),
     Path = filename:join(JobHome, binary_to_list(Worker)),
     prim_file:write_file_info(Path, #file_info{mode = 8#755}).
 
@@ -157,7 +250,7 @@ read(JobHome) ->
             throw({"Couldn't read jobfile", JobFile, Reason})
     end.
 
--spec save(binary(), path()) -> {ok, path()} | {error, term()}.
+-spec save(jobpack(), path()) -> {ok, path()} | {error, term()}.
 save(JobPack, JobHome) ->
     TmpFile = tempname(JobHome),
     JobFile = jobfile(JobHome),
@@ -200,3 +293,62 @@ tempname(JobHome) ->
     {MegaSecs, Secs, MicroSecs} = now(),
     filename:join(JobHome, disco:format("jobfile@~.16b:~.16b:~.16b",
                                         [MegaSecs, Secs, MicroSecs])).
+
+
+% Compatibility utility: construct a pipeline from a job packet of
+% Disco 0.4.2 or earlier.
+
+-spec job_from_ver1(#ver1_info{}) -> {[task_output()],
+                                      pipeline() | unsupported_job}.
+job_from_ver1(#ver1_info{inputs = JI, map = M, reduce = R, nr_reduce = NR}) ->
+    job_from_ver1(JI, M, R, NR).
+
+job_from_ver1(JobInputs, Map, Reduce, Nr_reduce) ->
+    Inputs = task_inputs1(JobInputs),
+    Pipeline = pipeline1(Map, Reduce, Nr_reduce),
+    {Inputs, Pipeline}.
+
+-spec task_inputs1([url() | [url()]]) -> [task_output()].
+task_inputs1(Inputs) ->
+    % Currently, we assume that all pipeline inputs are data file
+    % inputs; dir-files as job inputs in the job pack are not
+    % supported.
+    [{N, {data, {0, 0, input_replicas1(I)}}} || {N, I} <- disco:enum(Inputs)].
+
+-spec input_replicas1([url() | [url()]]) -> [data_replica()].
+input_replicas1(Input) when is_binary(Input) ->
+    % Single replica
+    [{Input, disco:preferred_host(Input)}];
+input_replicas1(Reps) when is_list(Reps) ->
+    % Replica set
+    [{R, disco:preferred_host(R)} || R <- Reps].
+
+-spec pipeline1(boolean(), boolean(), non_neg_integer())
+              -> pipeline() | unsupported_job.
+pipeline1(false, false, _NR) ->
+    [];
+pipeline1(false, true, 1) ->
+    [{?REDUCE, join_all}];
+pipeline1(false, true, _NR) ->
+    % This was used to support reduce-only jobs with partitioned
+    % inputs from dir:// files. This is now unsupported; instead, the
+    % job-submitter will need to prepare an explicit pipeline.
+    unsupported_job;
+pipeline1(true, false, _NR) ->
+    [{?MAP, split}, {?MAP_SHUFFLE, join_node}];
+pipeline1(true, true, 1) ->
+    [{?MAP, split}, {?MAP_SHUFFLE, join_node}, {?REDUCE, join_all}];
+pipeline1(true, true, _NR) ->
+    % This was used to support a pre-determined number of partitions
+    % in map output, which determined the number of reduces.  However,
+    % we now determine the number of reduces dynamically.
+    [{?MAP, split}, {?MAP_SHUFFLE, join_node},
+     {?REDUCE, join_label}, {?REDUCE_SHUFFLE, join_node}].
+
+-spec schedule_option1(#ver1_info{}) -> task_schedule().
+schedule_option1(#ver1_info{force_local = Local, force_remote = Remote}) ->
+    schedule_option1(Local, Remote).
+% Prefer Local if both Local and Remote are set.
+schedule_option1(true, _) -> local;
+schedule_option1(_, true) -> remote;
+schedule_option1(_, _) -> none.

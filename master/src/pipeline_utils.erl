@@ -4,73 +4,14 @@
 -include("disco.hrl").
 -include("pipeline.hrl").
 
--export([job_from_jobinfo/1, job_schedule_option/1, stages/1]).
--export([next_stage/2, group_outputs/2, pick_local_host/1]).
+-export([stages/1, next_stage/2, group_outputs/2, pick_local_host/1]).
 -export([locations/1, ranked_locations/1]).
 -export([input_urls/3]).
 
-% Compatibility utility: construct a pipeline from a job packet of
-% Disco 0.4.2 or earlier.
-
--spec job_from_jobinfo(jobinfo()) -> {[task_output()],
-                                      pipeline() | unsupported_job}.
-job_from_jobinfo(#jobinfo{inputs = JI, map = M, reduce = R, nr_reduce = NR}) ->
-    job_from_jobinfo(JI, M, R, NR).
-
-job_from_jobinfo(JobInputs, Map, Reduce, Nr_reduce) ->
-    Inputs = task_inputs(JobInputs),
-    Pipeline = pipeline(Map, Reduce, Nr_reduce),
-    {Inputs, Pipeline}.
-
--spec task_inputs([url() | [url()]]) -> [task_output()].
-task_inputs(Inputs) ->
-    % Currently, we assume that all pipeline inputs are data file
-    % inputs; dir-files as job inputs in the job pack are not
-    % supported.
-    [{N, {data, {0, 0, input_replicas(I)}}} || {N, I} <- disco:enum(Inputs)].
-
--spec input_replicas([url() | [url()]]) -> [data_replica()].
-input_replicas(Input) when is_binary(Input) ->
-    % Single replica
-    [{Input, disco:preferred_host(Input)}];
-input_replicas(Reps) when is_list(Reps) ->
-    % Replica set
-    [{R, disco:preferred_host(R)} || R <- Reps].
-
--spec pipeline(boolean(), boolean(), non_neg_integer())
-              -> pipeline() | unsupported_job.
-pipeline(false, false, _NR) ->
-    [];
-pipeline(false, true, 1) ->
-    [{?REDUCE, join_all}];
-pipeline(false, true, _NR) ->
-    % This was used to support reduce-only jobs with partitioned
-    % inputs from dir:// files. This is now unsupported; instead, the
-    % job-submitter will need to prepare an explicit pipeline.
-    unsupported_job;
-pipeline(true, false, _NR) ->
-    [{?MAP, split}, {?MAP_SHUFFLE, join_node}];
-pipeline(true, true, 1) ->
-    [{?MAP, split}, {?MAP_SHUFFLE, join_node}, {?REDUCE, join_all}];
-pipeline(true, true, _NR) ->
-    % This was used to support a pre-determined number of partitions
-    % in map output, which determined the number of reduces.  However,
-    % we now determine the number of reduces dynamically.
-    [{?MAP, split}, {?MAP_SHUFFLE, join_node},
-     {?REDUCE, join_label}, {?REDUCE_SHUFFLE, join_node}].
-
--spec job_schedule_option(jobinfo()) -> task_schedule().
-job_schedule_option(#jobinfo{force_local = Local, force_remote = Remote}) ->
-    job_schedule_option(Local, Remote).
-% Prefer Local if both Local and Remote are set.
-job_schedule_option(true, _) -> local;
-job_schedule_option(_, true) -> remote;
-job_schedule_option(_, _) -> none.
+% Pipeline utilities.
 
 -spec stages(pipeline()) -> [stage_name()].
 stages(Pipeline) -> [Stage || {Stage, _G} <- Pipeline].
-
-% Other utilities.
 
 -spec locations(data_input()) -> [host()].
 locations({data, {_Label, _Size, Replicas}}) ->

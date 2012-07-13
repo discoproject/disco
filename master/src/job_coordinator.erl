@@ -92,9 +92,9 @@ stage_done(Stage) ->
 
 -spec init({pid(), binary()}) -> gs_init() | {stop, term()}.
 init({Starter, JobPack}) ->
-    try  {JobInfo, Pipe} = setup_job(JobPack, self()),
+    try  JobInfo = setup_job(JobPack, self()),
          Starter ! {job_started, JobInfo#jobinfo.jobname},
-         {ok, init_state(JobInfo, Pipe)}
+         {ok, init_state(JobInfo)}
     catch
         {error, E} ->
             {stop, E};
@@ -145,15 +145,10 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 % This function performs all the failure-prone operations involved in
 % initializing the job state.  It throws error exceptions on
 % encountering problems, which are caught in init().
--spec setup_job(binary(), pid()) -> {jobinfo(), {[task_output()], pipeline()}}.
+-spec setup_job(binary(), pid()) -> jobinfo().
 setup_job(JobPack, JobCoord) ->
     {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
-    {_I, Pipeline} = Pipe =
-        case pipeline_utils:job_from_jobinfo(JobInfo) of
-            {_, unsupported_job} -> throw({error, "Unsupported job"});
-            P -> P
-        end,
-    Stages = pipeline_utils:stages(Pipeline),
+    Stages = pipeline_utils:stages(JobInfo#jobinfo.pipeline),
     {ok, JobName} = event_server:new_job(Prefix, JobCoord, Stages),
     JobFile = case jobpack:save(JobPack, disco:jobhome(JobName)) of
                   {ok, File} -> File;
@@ -163,8 +158,7 @@ setup_job(JobPack, JobCoord) ->
         ok -> ok;
         {error, _E} = T1 -> throw(T1)
     end,
-    JI = JobInfo#jobinfo{jobname = JobName, jobfile = JobFile},
-    {JI, Pipe}.
+    JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}.
 
 % Internal state of the job coordinator.
 -record(state, {jobinfo         :: jobinfo(),
@@ -180,8 +174,10 @@ setup_job(JobPack, JobCoord) ->
                 stage_info = gb_trees:empty() :: gb_tree()}).
 -type state() :: #state{}.
 
--spec init_state(jobinfo(), {[task_output()], pipeline()}) -> state().
-init_state(JobInfo, {Inputs, Pipeline}) ->
+-spec init_state(jobinfo()) -> state().
+init_state(#jobinfo{schedule = Schedule,
+                    inputs = Inputs,
+                    pipeline = Pipeline} = JobInfo) ->
     % Create a dummy completed 'input' task.
     Tasks = gb_trees:from_orddict([{input, #task_info{spec = input,
                                                       outputs = Inputs}}]),
@@ -191,7 +187,7 @@ init_state(JobInfo, {Inputs, Pipeline}) ->
     stage_done(?INPUT),
     #state{jobinfo    = JobInfo,
            pipeline   = Pipeline,
-           schedule   = pipeline_utils:job_schedule_option(JobInfo),
+           schedule   = Schedule,
            tasks      = Tasks,
            stage_info = SI}.
 

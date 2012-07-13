@@ -118,3 +118,14 @@
 -define(MAP, <<"map">>).
 -define(MAP_SHUFFLE, <<"map-shuffle">>).
 -define(REDUCE_SHUFFLE, <<"reduce-shuffle">>).
+
+% The submitted pipeline jobpack.
+-record(jobinfo, {jobname       :: jobname(),
+                  jobfile       :: path(),
+                  jobenvs = []  :: [{nonempty_string(), string()}],
+                  owner         :: binary(),
+                  worker        :: binary(),
+                  inputs = []   :: [task_output()],
+                  pipeline = [] :: pipeline(),
+                  schedule      :: task_schedule()}).
+-type jobinfo() :: #jobinfo{}.
