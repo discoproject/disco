@@ -90,6 +90,20 @@ stage_done(Stage) ->
 %% ===================================================================
 %% gen_server callbacks
 
+% Internal state of the job coordinator.
+-record(state, {jobinfo         :: jobinfo(),
+                pipeline        :: pipeline(),
+                schedule        :: task_schedule(),
+                next_taskid = 0 :: task_id(),
+                next_runid  = 0 :: task_run_id(),
+                % input | task_id() -> task_info().
+                tasks      = gb_trees:empty() :: gb_tree(),
+                % input_id() -> data_info().
+                data_map   = gb_trees:empty() :: gb_tree(),
+                % stage_name() -> stage_info().
+                stage_info = gb_trees:empty() :: gb_tree()}).
+-type state() :: #state{}.
+
 -spec init({pid(), binary()}) -> gs_init() | {stop, term()}.
 init({Starter, JobPack}) ->
     try  JobInfo = setup_job(JobPack, self()),
@@ -132,8 +146,8 @@ handle_info(_M, S) ->
     {noreply, S}.
 
 -spec terminate(term(), state()) -> ok.
-terminate(Reason, _State) ->
-    lager:warning("Disco server dies: ~p", [Reason]).
+terminate(Reason, #state{jobinfo = #jobinfo{jobname = JobName}}) ->
+    lager:warning("job coordinator for ~s dies: ~p", [JobName, Reason]).
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
@@ -159,20 +173,6 @@ setup_job(JobPack, JobCoord) ->
         {error, _E} = T1 -> throw(T1)
     end,
     JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}.
-
-% Internal state of the job coordinator.
--record(state, {jobinfo         :: jobinfo(),
-                pipeline        :: pipeline(),
-                schedule        :: task_schedule(),
-                next_taskid = 0 :: task_id(),
-                next_runid  = 0 :: task_run_id(),
-                % input | task_id() -> task_info().
-                tasks      = gb_trees:empty() :: gb_tree(),
-                % input_id() -> data_info().
-                data_map   = gb_trees:empty() :: gb_tree(),
-                % stage_name() -> stage_info().
-                stage_info = gb_trees:empty() :: gb_tree()}).
--type state() :: #state{}.
 
 -spec init_state(jobinfo()) -> state().
 init_state(#jobinfo{schedule = Schedule,
@@ -416,7 +416,7 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                         host   = Host,
                         input  = Inputs,
                         failed_hosts = FailedHosts},
-    % TODO: retry submission on failure.
+    % TODO: retry submission on submission failure.  For now, assert ok.
     ok = disco_server:new_task({TaskSpec, TaskRun}, ?TASK_SUBMIT_TIMEOUT),
     SI1 = jc_utils:update_stage_tasks(Stage, TaskId, run, SI),
     do_submit_tasks(Mode, Rest, S#state{next_runid = RunId + 1,

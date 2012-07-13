@@ -42,7 +42,8 @@ start_link_remote(Host, NodeMon, Task) ->
     Node = disco:slave_node(Host),
     wait_until_node_ready(NodeMon, Host),
     process_flag(trap_exit, true),
-    spawn_link(Node, fun() -> disco_worker:start_link(self(), node(), Task)
+    {Master, Self} = {node(), self()},
+    spawn_link(Node, fun() -> disco_worker:start_link(Self, Master, Task)
                      end),
     receive
         {'EXIT', _, Reason} -> exit({error, Reason});
