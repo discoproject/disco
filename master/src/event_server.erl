@@ -143,19 +143,21 @@ start_link() ->
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
-% state :: {events dict, msgbuf dict}.
 % events dict: jobname -> { [event()], <start_time>, <job_coordinator_pid> }
 % msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
--type state() :: {dict(), dict()}.
+-record(state, {events = dict:new() :: dict(),
+                msgbuf = dict:new() :: dict()}).
+-type state() :: #state{}.
 
 -spec init(_) -> gs_init().
 init(_Args) ->
     _ = ets:new(event_files, [named_table]),
-    {ok, {dict:new(), dict:new()}}.
+    {ok, #state{}}.
 
 -spec handle_call(term(), from(), state()) -> gs_reply(term()) | gs_noreply().
 
-handle_call({new_job, JobPrefix, Pid, Stages}, From, {Events0, MsgBuf0} = S) ->
+handle_call({new_job, JobPrefix, Pid, Stages}, From,
+            #state{events = Events0, msgbuf = MsgBuf0} = S) ->
     case unique_key(JobPrefix, Events0) of
         invalid_prefix ->
             {reply, {error, invalid_prefix}, S};
@@ -163,21 +165,21 @@ handle_call({new_job, JobPrefix, Pid, Stages}, From, {Events0, MsgBuf0} = S) ->
             Events = dict:store(JobName, new_job_ent(Pid, Stages), Events0),
             MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
             spawn(fun() -> job_event_handler(JobName, From) end),
-            {noreply, {Events, MsgBuf}}
+            {noreply, S#state{events = Events, msgbuf = MsgBuf}}
     end;
-handle_call(get_jobs, _From, {Events, _MsgBuf} = S) ->
+handle_call(get_jobs, _F, #state{events = Events} = S) ->
     {reply, do_get_jobs(Events), S};
-handle_call({get_job_msgs, JobName, Query, N}, _From, {_Events, MsgBuf} = S) ->
-    {reply, do_get_job_msgs(JobName, Query, N, MsgBuf), S};
-handle_call({get_results, JobName}, _From, {Events, _MsgBuf} = S) ->
+handle_call({get_job_msgs, JobName, Query, N}, _F, #state{msgbuf = MB} = S) ->
+    {reply, do_get_job_msgs(JobName, Query, N, MB), S};
+handle_call({get_results, JobName}, _F, #state{events = Events} = S) ->
     {reply, do_get_results(JobName, Events), S};
-handle_call({get_map_results, JobName}, _From, {Events, _MsgBuf} = S) ->
+handle_call({get_map_results, JobName}, _F, #state{events = Events} = S) ->
     {reply, do_get_map_results(JobName, Events), S};
-handle_call({job_initialized, JobName, JobEventHandler}, _From, S) ->
+handle_call({job_initialized, JobName, JobEventHandler}, _F, S) ->
     ets:insert(event_files, {JobName, JobEventHandler}),
     S1 = add_event("master", JobName, <<"\"New job initialized!\"">>, none, S),
     {reply, ok, S1};
-handle_call({get_jobinfo, JobName}, _From, {Events, _MsgBuf} = S) ->
+handle_call({get_jobinfo, JobName}, _F, #state{events = Events} = S) ->
     {reply, do_get_jobinfo(JobName, Events), S}.
 
 -spec handle_cast(term(), state()) -> gs_noreply().
@@ -189,10 +191,10 @@ handle_cast({add_job_event, Host, JobName, Msg, Event}, S) ->
 % the zombie job.
 handle_cast({job_done, JobName}, S) ->
     {noreply, do_job_done(JobName, S)};
-handle_cast({clean_job, JobName}, {Events, _MsgBuf} = S) ->
-    {_, {_, MsgBufN}} = handle_cast({job_done, JobName}, S),
+handle_cast({clean_job, JobName}, S) ->
+    #state{events = Events} = S1 = do_job_done(JobName, S),
     delete_jobdir(JobName),
-    {noreply, {dict:erase(JobName, Events), MsgBufN}}.
+    {noreply, S1#state{events = dict:erase(JobName, Events)}}.
 
 -spec handle_info(term(), state()) -> gs_noreply().
 handle_info(Msg, State) ->
@@ -311,13 +313,14 @@ do_get_jobinfo(JobName, Events) ->
     end.
 
 -spec do_add_job_event(host(), jobname(), binary(), event(), state()) -> state().
-do_add_job_event(Host, JobName, Msg, Event, {_Events, MsgBuf} = S) ->
+do_add_job_event(Host, JobName, Msg, Event, #state{msgbuf = MsgBuf} = S) ->
     case dict:is_key(JobName, MsgBuf) of
         true -> add_event(Host, JobName, Msg, Event, S);
         false -> S
     end.
 
-add_event(Host0, JobName, Msg, Event, {Events, MsgBuf}) ->
+add_event(Host0, JobName, Msg, Event,
+          #state{events = Events, msgbuf = MsgBuf} = S) ->
     {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
     Time = disco_util:format_timestamp(now()),
     Host = list_to_binary(Host0),
@@ -340,15 +343,15 @@ add_event(Host0, JobName, Msg, Event, {Events, MsgBuf}) ->
     MsgBufN = dict:store(JobName, {NMsg + 1, LstLen, MsgLst}, MsgBuf),
     if
         Event =:= none ->
-            {Events, MsgBufN};
+            S#state{events = Events, msgbuf = MsgBufN};
         true ->
             {ok, JE} = dict:find(JobName, Events),
-            {dict:store(JobName, update_job_ent(JE, Event), Events),
-             MsgBufN}
+            EventsN = dict:store(JobName, update_job_ent(JE, Event), Events),
+            S#state{events = EventsN, msgbuf = MsgBufN}
     end.
 
 -spec do_job_done(jobname(), state()) -> state().
-do_job_done(JobName, {Events, MsgBuf} = S) ->
+do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->
     case ets:lookup(event_files, JobName) of
         [] ->
             ok;
@@ -358,7 +361,7 @@ do_job_done(JobName, {Events, MsgBuf} = S) ->
     end,
     case dict:find(JobName, MsgBuf) of
         error -> S;
-        {ok, _} -> {Events, dict:erase(JobName, MsgBuf)}
+        {ok, _} -> #state{msgbuf = dict:erase(JobName, MsgBuf)}
     end.
 
 % Flush events from memory to file using a per-job process.
