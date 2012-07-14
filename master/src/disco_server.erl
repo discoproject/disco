@@ -320,6 +320,7 @@ update_nodes(Nodes) ->
                      allow_task(N)],
     DDFSNodes = [{disco:slave_node(N#dnode.host),
                   allow_write(N), allow_read(N)} || N <- gb_trees:values(Nodes)],
+    event_server:update_nodes([H || {H, _S, _R} <- WhiteNodes]),
     ddfs_master:update_nodes(DDFSNodes),
     fair_scheduler:update_nodes(WhiteNodes),
     schedule_next().

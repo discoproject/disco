@@ -1,6 +1,8 @@
 -module(event_server).
 -behaviour(gen_server).
 
+% Cluster state.
+-export([update_nodes/1]).
 % Job notification.
 -export([new_job/3, end_job/1, clean_job/1]).
 % Retrieval.
@@ -46,6 +48,12 @@
                           Failed  :: dict()}.
 
 -export_type([event/0, task_info/0, task_msg/0, job_eventinfo/0]).
+
+% Cluster configuration.
+
+-spec update_nodes([host()]) -> ok.
+update_nodes(Hosts) ->
+    gen_server:cast(?MODULE, {update_nodes, Hosts}).
 
 % Job notification.
 
@@ -146,7 +154,8 @@ start_link() ->
 % events dict: jobname -> { [event()], <start_time>, <job_coordinator_pid> }
 % msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
 -record(state, {events = dict:new() :: dict(),
-                msgbuf = dict:new() :: dict()}).
+                msgbuf = dict:new() :: dict(),
+                hosts  = []         :: [host()]}).
 -type state() :: #state{}.
 
 -spec init(_) -> gs_init().
@@ -184,6 +193,8 @@ handle_call({get_jobinfo, JobName}, _F, #state{events = Events} = S) ->
 
 -spec handle_cast(term(), state()) -> gs_noreply().
 
+handle_cast({update_nodes, Hosts}, S) ->
+    {noreply, S#state{hosts = Hosts}};
 handle_cast({add_job_event, Host, JobName, Msg, Event}, S) ->
     {noreply, do_add_job_event(Host, JobName, Msg, Event, S)};
 % XXX: Some aux process could go through the jobs periodically and
