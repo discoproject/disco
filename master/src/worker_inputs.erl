@@ -28,8 +28,8 @@
 -spec init([{input_id(), data_input()}], label_grouping(), group()) -> state().
 init(Inputs, Grouping, Group) ->
     SeqInputs = disco:enum(Inputs),
-    SeqMap = [init_replicas(SeqId, DI, Grouping, Group)
-              || {SeqId, {_Id, DI}} <- SeqInputs],
+    SeqMap = lists:flatten([init_replicas(SeqId, DI, Grouping, Group)
+                            || {SeqId, {_Id, DI}} <- SeqInputs]),
     #state{inputs     = gb_trees:from_orddict(SeqInputs),
            input_map  = gb_trees:from_orddict(SeqMap),
            max_seq_id = length(Inputs)}.

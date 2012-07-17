@@ -117,10 +117,10 @@ do_handle({<<"TASK">>, _Body}, #state{host = Host, task = {TS, _TR}} = S) ->
                          {<<"ddfs_data">>, list_to_binary(DDFSData)},
                          {<<"disco_data">>, list_to_binary(DiscoData)},
                          {<<"stage">>, Stage},
-                         {<<"group">>, tuple_to_list(G)},
+                         {<<"group">>, group_to_json(G)},
                          {<<"jobfile">>, list_to_binary(JobFile)},
                          {<<"jobname">>, list_to_binary(JN)},
-                         {<<"host">>, Host}]},
+                         {<<"host">>, list_to_binary(Host)}]},
     {ok, {"TASK", TaskInfo}, S};
 
 do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
@@ -183,6 +183,12 @@ input_reply(Inputs) ->
     {"INPUT", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
 
 % Output utilities.
+
+-spec group_to_json(group()) -> list().
+group_to_json({L, H}) when is_atom(H) ->
+    [L, list_to_binary(atom_to_list(H))];
+group_to_json({L, H}) when is_list(H) ->
+    [L, list_to_binary(H)].
 
 -spec ioerror(nonempty_string(), atom()) -> nonempty_string().
 ioerror(Msg, Reason) ->
