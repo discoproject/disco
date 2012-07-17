@@ -1,7 +1,7 @@
 -module(job_coordinator).
 -behaviour(gen_server).
 
--export([new/1, task_done/2]).
+-export([new/1, task_done/2, update_nodes/2]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -71,6 +71,9 @@ task_done(JobCoord, {TaskResults, TaskId, Host}) ->
         end,
     gen_server:cast(JobCoord, {task_done, TaskId, Host, R}).
 
+-spec update_nodes(pid(), [host()]) -> ok.
+update_nodes(JobCoord, Hosts) ->
+    gen_server:cast(JobCoord, {update_nodes, Hosts}).
 
 %% ===================================================================
 %% internal API
@@ -91,11 +94,13 @@ stage_done(Stage) ->
 %% gen_server callbacks
 
 % Internal state of the job coordinator.
--record(state, {jobinfo         :: jobinfo(),
-                pipeline        :: pipeline(),
-                schedule        :: task_schedule(),
-                next_taskid = 0 :: task_id(),
-                next_runid  = 0 :: task_run_id(),
+-record(state, {jobinfo          :: jobinfo(),
+                pipeline         :: pipeline(),
+                schedule         :: task_schedule(),
+                next_taskid = 0  :: task_id(),
+                next_runid  = 0  :: task_run_id(),
+                % cluster membership: [host()]
+                hosts      = gb_sets:empty()  :: gb_set(),
                 % input | task_id() -> task_info().
                 tasks      = gb_trees:empty() :: gb_tree(),
                 % input_id() -> data_info().
@@ -106,9 +111,9 @@ stage_done(Stage) ->
 
 -spec init({pid(), binary()}) -> gs_init() | {stop, term()}.
 init({Starter, JobPack}) ->
-    try  JobInfo = setup_job(JobPack, self()),
+    try  {JobInfo, Hosts} = setup_job(JobPack, self()),
          Starter ! {job_started, JobInfo#jobinfo.jobname},
-         {ok, init_state(JobInfo)}
+         {ok, init_state(JobInfo, Hosts)}
     catch
         {error, E} ->
             {stop, E};
@@ -120,14 +125,16 @@ init({Starter, JobPack}) ->
 handle_call(_M, _F, S) ->
     {noreply, S}.
 
--spec handle_cast({submit_tasks, submit_mode(), [task_id()]}, state()) ->
-                         gs_noreply();
-                 ({stage_done, stage_name()}, state()) ->
+-spec handle_cast({update_nodes, [host()]}, state()) -> gs_noreply();
+                 ({stage_done, stage_name()}, state()) -> gs_noreply();
+                 ({submit_tasks, submit_mode(), [task_id()]}, state()) ->
                          gs_noreply();
                  ({task_done, task_id(), host(), [task_output()]}, state()) ->
                          gs_noreply();
                  (pipeline_done, state()) -> gs_noreply();
                  ({kill_job, term()}, state()) -> gs_noreply().
+handle_cast({update_nodes, Hosts}, S) ->
+    {noreply, do_update_nodes(Hosts, S)};
 handle_cast({submit_tasks, Mode, Tasks}, S) ->
     {noreply, do_submit_tasks(Mode, Tasks, S)};
 handle_cast({stage_done, Stage}, S) ->
@@ -159,25 +166,25 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 % This function performs all the failure-prone operations involved in
 % initializing the job state.  It throws error exceptions on
 % encountering problems, which are caught in init().
--spec setup_job(binary(), pid()) -> jobinfo().
+-spec setup_job(binary(), pid()) -> {jobinfo(), [host()]}.
 setup_job(JobPack, JobCoord) ->
     {Prefix, JobInfo} = jobpack:jobinfo(JobPack),
     Stages = pipeline_utils:stages(JobInfo#jobinfo.pipeline),
-    {ok, JobName} = event_server:new_job(Prefix, JobCoord, Stages),
+    {ok, JobName, Hosts} = event_server:new_job(Prefix, JobCoord, Stages),
     JobFile = case jobpack:save(JobPack, disco:jobhome(JobName)) of
-                  {ok, File} -> File;
-                  {error, _M} = T-> throw(T)
+                  {ok, File}      -> File;
+                  {error, _M} = T -> throw(T)
               end,
     case disco_server:new_job(JobName, JobCoord, 30000) of
         ok -> ok;
         {error, _E} = T1 -> throw(T1)
     end,
-    JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}.
+    {JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}, Hosts}.
 
--spec init_state(jobinfo()) -> state().
+-spec init_state(jobinfo(), [host()]) -> state().
 init_state(#jobinfo{schedule = Schedule,
-                    inputs = Inputs,
-                    pipeline = Pipeline} = JobInfo) ->
+                    inputs   = Inputs,
+                    pipeline = Pipeline} = JobInfo, Hosts) ->
     % Create a dummy completed 'input' task.
     Tasks = gb_trees:from_orddict([{input, #task_info{spec = input,
                                                       outputs = Inputs}}]),
@@ -188,6 +195,7 @@ init_state(#jobinfo{schedule = Schedule,
     #state{jobinfo    = JobInfo,
            pipeline   = Pipeline,
            schedule   = Schedule,
+           hosts      = gb_sets:from_list(Hosts),
            tasks      = Tasks,
            stage_info = SI}.
 
@@ -201,6 +209,10 @@ stage_outputs(Stage, #state{stage_info = SI, tasks = Tasks}) ->
 
 %% ===================================================================
 %% Callback implementations.
+
+-spec do_update_nodes([host()], state()) -> state().
+do_update_nodes(Hosts, S) ->
+    S#state{hosts = gb_sets:from_list(Hosts)}.
 
 -spec do_task_done(task_id(), host(), task_done_result(), state()) -> state().
 do_task_done(TaskId, Host, Result, #state{tasks = Tasks,
@@ -404,19 +416,24 @@ do_submit_tasks(_Mode, [], S) -> S;
 do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               data_map   = DataMap,
                                               next_runid = RunId,
-                                              tasks = Tasks} = S) ->
+                                              hosts      = Hosts,
+                                              tasks      = Tasks} = S) ->
     #task_info{spec = TaskSpec, failed_hosts = FailedHosts}
         = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage, group = {_L, H}, input = Input} = TaskSpec,
     Inputs = jc_utils:task_inputs(Input, DataMap),
-    % On first_run, we use host selected by grouping; otherwise, we
-    % let the host-allocator choose it.
-    Host = case Mode of first_run -> H; re_run -> none end,
+    % On first_run, we use host selected by grouping, if it belongs to
+    % the cluster; otherwise, we let the host-allocator choose it.
+    Host = case {Mode, gb_sets:is_member(H, Hosts)} of
+               {first_run, true}  -> H;
+               {_,         false} -> none
+           end,
     TaskRun = #task_run{runid  = RunId,
                         host   = Host,
                         input  = Inputs,
                         failed_hosts = FailedHosts},
-    % TODO: retry submission on submission failure.  For now, assert ok.
+    % TODO: retry submission on submission failure.  For now, assert
+    % ok.
     ok = disco_server:new_task({TaskSpec, TaskRun}, ?TASK_SUBMIT_TIMEOUT),
     SI1 = jc_utils:update_stage_tasks(Stage, TaskId, run, SI),
     do_submit_tasks(Mode, Rest, S#state{next_runid = RunId + 1,

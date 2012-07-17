@@ -57,7 +57,7 @@ update_nodes(Hosts) ->
 
 % Job notification.
 
--spec new_job(jobname(), pid(), [stage_name()]) -> {ok, jobname()}.
+-spec new_job(jobname(), pid(), [stage_name()]) -> {ok, jobname(), [host()]}.
 new_job(Prefix, JobCoord, Stages) ->
     gen_server:call(?MODULE, {new_job, Prefix, JobCoord, Stages}, 10000).
 
@@ -166,14 +166,14 @@ init(_Args) ->
 -spec handle_call(term(), from(), state()) -> gs_reply(term()) | gs_noreply().
 
 handle_call({new_job, JobPrefix, Pid, Stages}, From,
-            #state{events = Events0, msgbuf = MsgBuf0} = S) ->
+            #state{events = Events0, msgbuf = MsgBuf0, hosts = Hosts} = S) ->
     case unique_key(JobPrefix, Events0) of
         invalid_prefix ->
             {reply, {error, invalid_prefix}, S};
         {ok, JobName} ->
             Events = dict:store(JobName, new_job_ent(Pid, Stages), Events0),
             MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
-            spawn(fun() -> job_event_handler(JobName, From) end),
+            spawn(fun() -> job_event_handler(JobName, Hosts, From) end),
             {noreply, S#state{events = Events, msgbuf = MsgBuf}}
     end;
 handle_call(get_jobs, _F, #state{events = Events} = S) ->
@@ -377,11 +377,11 @@ do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->
 
 % Flush events from memory to file using a per-job process.
 
-job_event_handler(JobName, JobCoordinator) ->
+job_event_handler(JobName, Hosts, JobCoordinator) ->
     {ok, _JobHome} = disco:make_dir(disco:jobhome(JobName)),
     {ok, File} = file:open(event_log(JobName), [append, raw]),
     gen_server:call(?MODULE, {job_initialized, JobName, self()}),
-    gen_server:reply(JobCoordinator, {ok, JobName}),
+    gen_server:reply(JobCoordinator, {ok, JobName, Hosts}),
     {ok, _} = timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
     job_event_handler_do(File, [], 0).
 

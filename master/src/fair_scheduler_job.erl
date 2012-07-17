@@ -2,11 +2,11 @@
 -module(fair_scheduler_job).
 -behaviour(gen_server).
 
--export([start/2, next_task/3, get_stats/2]).
+-export([start/2, next_task/3, new_task/3, get_stats/2, update_nodes/2]).
 -export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
--define(SCHEDULE_TIMEOUT, 30000).
+-define(SCHEDULE_TIMEOUT, 1000).
 
 -include("common_types.hrl").
 -include("gs_util.hrl").
@@ -43,6 +43,10 @@ start(JobName, JobCoord) ->
 next_task(Job, Jobs, AvailableNodes) ->
     schedule(schedule_local, Job, Jobs, AvailableNodes).
 
+-spec new_task(pid(), task(), loadstats()) -> ok.
+new_task(Job, Task, Load) ->
+    gen_server:cast(Job, {new_task, Task, Load}).
+
 % Internal API used by scheduler policy.
 -type stats() :: {non_neg_integer(), non_neg_integer()}.
 -spec get_stats(pid(), timeout()) -> {ok, stats()}.
@@ -50,11 +54,15 @@ get_stats(JobPid, Timeout) ->
     gen_server:call(JobPid, get_stats, Timeout).
 
 % Internal API used across different job task schedulers.
+
 -spec get_empty_nodes(pid(), [host()], non_neg_integer())
                      -> {ok, [host()]} | {error, term()}.
 get_empty_nodes(Job, AvailableNodes, Timeout) ->
     gen_server:call(Job, {get_empty_nodes, AvailableNodes}, Timeout).
 
+-spec update_nodes(pid(), [node_info()]) -> ok.
+update_nodes(Job, NewNodes) ->
+    gen_server:cast(Job, {update_nodes, NewNodes}).
 
 % Top-level interaction with the task selection implemention.
 -spec schedule(schedule_local | schedule_remote, pid(), [pid()], [host()])
@@ -149,16 +157,16 @@ handle_call(dbg_get_state, _, S) ->
     {reply, S, S};
 
 % Job stats for the fairness fairy
-handle_call(get_stats, _, {Tasks, Running, _} = S) ->
-    NumTasks = lists:sum([N || {N, _, _} <- gb_trees:values(Tasks)]),
+handle_call(get_stats, _, #state{host_queue = HQ, running = Running} = S) ->
+    NumTasks = lists:sum([N || {N, _, _} <- gb_trees:values(HQ)]),
     {reply, {ok, {NumTasks, gb_trees:size(Running)}}, S};
 
 % Return a subset of AvailableNodes that don't have any tasks assigned
 % to them by this job.
-handle_call({get_empty_nodes, AvailableNodes}, _, {Tasks, _, _} = S) ->
-    case gb_trees:get(none, Tasks) of
+handle_call({get_empty_nodes, AvailableNodes}, _, #state{host_queue = HQ} = S) ->
+    case gb_trees:get(none, HQ) of
         {0, _, _} ->
-            {reply, {ok, empty_nodes(Tasks, AvailableNodes)}, S};
+            {reply, {ok, empty_nodes(HQ, AvailableNodes)}, S};
         _ ->
             {reply, {ok, []}, S}
     end;
@@ -167,24 +175,24 @@ handle_call({get_empty_nodes, AvailableNodes}, _, {Tasks, _, _} = S) ->
 % Try to find
 % 1) a local task assigned to one of the AvailableNodes
 % 2) any remote task
-handle_call({schedule_local, AvailableNodes}, _, {Tasks, Running, Nodes}) ->
-    {Reply, UpdatedTasks} = schedule_local(Tasks, AvailableNodes),
-    {reply, Reply, {UpdatedTasks, Running, Nodes}};
+handle_call({schedule_local, AvailableNodes}, _, #state{host_queue = HQ} = S) ->
+    {Reply, HQ1} = schedule_local(HQ, AvailableNodes),
+    {reply, Reply, S#state{host_queue = HQ1}};
 
 % Secondary task scheduling policy:
 % No local or remote tasks were found. Free nodes are available that have
 % no tasks assigned to them by any job. Pick a task from
 % If ForceLocal, always fail.
-handle_call({schedule_remote, FreeNodes}, _, {Tasks, Running, Nodes}) ->
-    LocalNodes = datalocal_nodes(Tasks, gb_trees:keys(Tasks)),
-    {Reply, UpdatedTasks} = pop_and_switch_node(Tasks, LocalNodes, FreeNodes),
-    {reply, Reply, {UpdatedTasks, Running, Nodes}}.
+handle_call({schedule_remote, FreeNodes}, _, #state{host_queue = HQ} = S) ->
+    LocalNodes = datalocal_nodes(HQ, gb_trees:keys(HQ)),
+    {Reply, HQ1} = pop_and_switch_node(HQ, LocalNodes, FreeNodes),
+    {reply, Reply, S#state{host_queue = HQ1}}.
 
 -spec handle_info(term(), state()) -> gs_noreply() | gs_stop(normal).
 
 % Task done. Remove it from the list of running tasks. (for the fairness fairy)
-handle_info({'DOWN', _, _, Worker, _}, {Tasks, Running, Nodes}) ->
-    {noreply, {Tasks, gb_trees:delete(Worker, Running), Nodes}};
+handle_info({'DOWN', _, _, Worker, _}, #state{running = Running} = S) ->
+    {noreply, S#state{running = gb_trees:delete(Worker, Running)}};
 
 handle_info({'EXIT', Pid, normal}, S) when Pid == self() ->
     {stop, normal, S};
@@ -362,7 +370,7 @@ assign_task(JC, {#task_spec{taskid = TaskId}, #task_run{host = Host}} = T,
             {N, Count, Tasks} = get_default(Host, HQ, {0, 0, []}),
             gb_trees:enter(Host, {N + 1, Count + 1, [T|Tasks]}, HQ);
         false ->
-            % The assignment is unusable. Fail the task.
+            % Fail the task due to unusable assignment.
             Err = {error, {unknown_host, Host}},
             job_coordinator:task_done(JC, {Err, TaskId, Host}),
             HQ
