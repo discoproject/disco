@@ -79,7 +79,7 @@ update_nodes(JobCoord, Hosts) ->
 %% internal API
 -type submit_mode() :: first_run | re_run.
 -spec submit_tasks(pid(), submit_mode(), [task_id()]) -> ok.
-submit_tasks(JobCoord, Tasks, Mode) ->
+submit_tasks(JobCoord, Mode, Tasks) ->
     gen_server:cast(JobCoord, {submit_tasks, Mode, Tasks}).
 
 -spec kill_job(term()) -> ok.
