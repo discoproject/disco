@@ -195,24 +195,24 @@ update(#state{buffer = B,
               throttle = T} = S) ->
     case worker_protocol:parse(B, P) of
         {ok, Request, Buffer, PState} ->
-            S1 = S#state{buffer = Buffer},
+            S1 = S#state{buffer = Buffer, parser = PState},
             try case worker_runtime:handle(Request, RT) of
                     {ok, Reply, RState} ->
                         WS ! {Reply, 0},
-                        update(S1#state{parser = PState, runtime = RState});
+                        update(S1#state{runtime = RState});
                     {ok, Reply, RState, rate_limit} ->
                         case worker_throttle:handle(T) of
                             {ok, Delay, TState} ->
                                 WS ! {Reply, Delay},
-                                update(S1#state{parser = PState,
-                                                runtime = RState,
+                                update(S1#state{runtime = RState,
                                                 throttle = TState});
                             {error, Msg} ->
-                                warning(Msg, S1),
-                                exit_on_error(fatal, S1)
+                                S2 = S1#state{runtime = RState},
+                                warning(Msg, S2),
+                                exit_on_error(fatal, S2)
                         end;
                     {stop, Ret} ->
-                        {stop, {shutdown, Ret}, S};
+                        {stop, {shutdown, Ret}, S1};
                     {error, {Type, Msg}} ->
                         warning(Msg, S1),
                         exit_on_error(Type, S1);
