@@ -323,7 +323,7 @@ class Worker(dict):
         try:
             sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
             sys.stdout = MessageWriter(cls)
-            cls.send('WORKER', {'pid': os.getpid(), 'version': "1.0"})
+            cls.send('WORKER', {'pid': os.getpid(), 'version': "1.1"})
             task = cls.get_task()
             job, jobargs = task.jobobjs
             job.worker.start(task, job, **jobargs)
@@ -381,12 +381,12 @@ class Worker(dict):
             for output in self.outputs.values():
                 output.file.close()
                 yield output.path
-        self.send('OUTPUT', [DDFS(master).save(jobname, paths()), 'tag'])
+        self.send('OUTPUT', [0, "tag://" + DDFS(master).save(jobname, paths()), 0])
 
     def send_outputs(self):
         for output in self.outputs.values():
             output.file.close()
-            self.send('OUTPUT', [output.path, output.type, output.partition])
+            self.send('OUTPUT', [output.partition, output.path, 0])
 
 class IDedInput(tuple):
     @property
@@ -528,7 +528,8 @@ class Output(object):
         The underlying output file handle.
     """
     def __init__(self, (path, type, partition), open=None):
-        self.path, self.type, self.partition = path, type, partition
+        self.path, self.type = path, type
+        self.partition = 0 if partition is None else int(partition)
         self.open = open or DiscoOutput
         self.file = self.open(self.path)
 

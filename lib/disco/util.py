@@ -274,7 +274,7 @@ def parse_dir(dir, partition=None):
     :param dir: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
     # XXX: guarantee indices are read in the same order (task/labels) (for redundancy)
-    return [url for id, url in sorted(read_index(dir)) if partition in (None, id)]
+    return [url for id, url, size in sorted(read_index(dir)) if partition in (None, id)]
 
 def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET', to_master=True):
     scheme, (host, port), path = urlsplit(url)

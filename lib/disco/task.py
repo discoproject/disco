@@ -56,7 +56,8 @@ class Task(object):
                  put_port=None,
                  ddfs_data='',
                  disco_data='',
-                 mode=None,
+                 stage=None,
+                 group=None,
                  taskid=-1):
         from disco.job import JobPack
         self.host = host
@@ -69,10 +70,11 @@ class Task(object):
         self.put_port = put_port
         self.ddfs_data = ddfs_data
         self.disco_data = disco_data
-        self.mode = mode
+        self.mode = stage
+        self.group = group
         self.taskid = taskid
         self.outputs = {}
-        self.uid = '%s:%s-%s-%x' % (mode,
+        self.uid = '%s:%s-%s-%x' % (self.mode,
                                     taskid,
                                     hexhash(str((time.time()))),
                                     os.getpid())
@@ -91,9 +93,9 @@ class Task(object):
 
     def output(self, partition=None, type='disco'):
         if partition is None:
-            return self.path(self.uid), type, '0'
+            return self.path(self.uid), type, 0
         elif not isinstance(partition, basestring):
-            raise ValueError("Partition label must be a string or None")
+            raise ValueError("Partition label must be an integer or None")
         return self.path('%s-%s' % (self.mode, partition)), 'part', partition
 
     def path(self, name):
