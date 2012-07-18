@@ -181,8 +181,8 @@ validate_pipeline(P) ->
     Spec = {hom_array, {array, [string, string]}},
     case json_validator:validate(Spec, P) of
         {error, E} ->
-            lager:warn("Invalid pipeline in jobpack: ~s",
-                       json_validator:error_msg(E)),
+            lager:warning("Invalid pipeline in jobpack: ~s",
+                          json_validator:error_msg(E)),
             throw({error, invalid_pipeline_format});
         ok ->
             % Ensure stages are unique.
@@ -200,8 +200,8 @@ validate_inputs(Inputs) ->
     Spec = {hom_array, {array, [integer, integer, {hom_array, string}]}},
     case json_validator:validate(Spec, Inputs) of
         {error, E} ->
-            lager:warn("Invalid inputs in jobpack: ~s",
-                       json_validator:error_msg(E)),
+            lager:warning("Invalid inputs in jobpack: ~s",
+                          json_validator:error_msg(E)),
             throw({error, invalid_job_inputs});
         _I ->
             [{N, {data, {L, Sz, Urls}}}

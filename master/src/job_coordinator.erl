@@ -14,6 +14,7 @@
 -include("job_coordinator.hrl").
 
 -define(TASK_SUBMIT_TIMEOUT, 30000).
+-define(DISCO_SERVER_TIMEOUT, 30000).
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad
@@ -142,10 +143,9 @@ handle_cast({stage_done, Stage}, S) ->
 handle_cast({task_done, TaskId, Host, Results}, S) ->
     {noreply, do_task_done(TaskId, Host, Results, S)};
 handle_cast(pipeline_done, S) ->
-    % TODO: finish up
     {stop, normal, S};
 handle_cast({kill_job, Reason}, S) ->
-    % TODO: send event/msg, and cleanup
+    do_kill_job(Reason, S),
     {stop, Reason, S}.
 
 -spec handle_info(term(), state()) -> gs_noreply().
@@ -153,6 +153,7 @@ handle_info(_M, S) ->
     {noreply, S}.
 
 -spec terminate(term(), state()) -> ok.
+terminate(normal, _S) -> ok;
 terminate(Reason, #state{jobinfo = #jobinfo{jobname = JobName}}) ->
     lager:warning("job coordinator for ~s dies: ~p", [JobName, Reason]).
 
@@ -186,8 +187,9 @@ init_state(#jobinfo{schedule = Schedule,
                     inputs   = Inputs,
                     pipeline = Pipeline} = JobInfo, Hosts) ->
     % Create a dummy completed 'input' task.
-    Tasks = gb_trees:from_orddict([{input, #task_info{spec = input,
-                                                      outputs = Inputs}}]),
+    Tasks = gb_trees:from_orddict([{input,
+                                    #task_info{spec = input,
+                                               outputs = disco:enum(Inputs)}}]),
     % Mark the 'input' stage as done, and send notification.
     InputStage = #stage_info{all = 1, done = [input]},
     SI = gb_trees:from_orddict([{?INPUT, InputStage}]),
@@ -224,6 +226,7 @@ do_task_done(TaskId, Host, Result, #state{tasks = Tasks,
     FEvent = {task_failed, Stage},
     case Result of
         {fatal, F} ->
+            event_server:task_event(ETInfo, {<<"FATAL">>, F}, FEvent),
             kill_job(F),
             SI1 = jc_utils:update_stage_tasks(Stage, TaskId, stop, SI),
             S#state{stage_info = SI1};
@@ -266,6 +269,19 @@ do_task_done(TaskId, Host, Result, #state{tasks = Tasks,
             task_complete(TaskId, Host, Outputs, S)
     end.
 
+-spec finish_pipeline(stage_name(), state()) -> ok.
+finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname = JobName},
+                              tasks = Tasks,
+                              stage_info = SI}) ->
+    #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
+    Outputs = [(jc_utils:task_info(TaskId, Tasks))#task_info.outputs
+               || TaskId <- Done],
+    Results = [pipeline_utils:output_urls(O)
+               || {_Id, O} <- lists:flatten(Outputs)],
+    lager:info("Job ~s done, results: ~p", [JobName, Results]),
+    event_server:job_done_event(JobName, Results),
+    gen_server:cast(self(), pipeline_done).
+
 -spec retry_task(host(), term(), task_info(), state()) -> state().
 retry_task(Host, Error,
            #task_info{spec = #task_spec{jobname = JobName,
@@ -302,6 +318,12 @@ retry_task(Host, Error,
                                      failed_hosts = gb_sets:add(Host, FH)},
             S#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks)}
     end.
+
+-spec do_kill_job(term(), state()) -> ok.
+do_kill_job(Reason, #state{jobinfo = #jobinfo{jobname = JobName}}) ->
+    lager:info("Job ~s failed: ~p", [JobName, Reason]),
+    disco_server:kill_job(JobName, ?DISCO_SERVER_TIMEOUT),
+    event_server:end_job(JobName).
 
 -spec regenerate_input(task_info(), input_id(), data_info(), state()) -> state().
 regenerate_input(_WaiterTInfo, {GenTaskId, _} = _InputId,
@@ -345,7 +367,7 @@ task_complete(TaskId, Host, Outputs, #state{tasks = Tasks,
 do_stage_done(Stage, #state{pipeline = P, stage_info = SI} = S) ->
     case pipeline_utils:next_stage(P, Stage) of
         done ->
-            gen_server:cast(self(), pipeline_done),
+            finish_pipeline(Stage, S),
             S;
         {Next, Grouping} ->
             % If this is the first time this stage has finished, then

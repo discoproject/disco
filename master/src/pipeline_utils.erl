@@ -6,7 +6,7 @@
 
 -export([stages/1, next_stage/2, group_outputs/2, pick_local_host/1]).
 -export([locations/1, ranked_locations/1]).
--export([input_urls/3]).
+-export([input_urls/3, output_urls/1]).
 
 % Pipeline utilities.
 
@@ -183,3 +183,10 @@ labelled_urls(Urls, Label, LabelSizes) ->
         false ->
             []
     end.
+
+-spec output_urls(task_output_type()) -> [url()].
+output_urls({data, {L, _Sz, Reps}}) ->
+    LB = list_to_binary(["#", integer_to_list(L)]),
+    [<<U/binary, LB/binary>> || {U, _H} <- Reps];
+output_urls({dir, {_H1, U, _LS}}) ->
+    [U].

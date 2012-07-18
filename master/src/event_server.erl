@@ -10,7 +10,8 @@
          get_map_results/1, get_results/1]).
 % Event logging.
 -export([event/4, event/5, event/6,
-         task_event/2, task_event/3, task_event/4, task_event/5]).
+         task_event/2, task_event/3, task_event/4, task_event/5,
+         job_done_event/2]).
 % Server.
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -120,6 +121,10 @@ event(EventServer, Host, JobName, MsgFormat, Args, Event) ->
     Msg = list_to_binary(Json),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Event}).
 
+-spec job_done_event(jobname(), [[url()]]) -> ok.
+job_done_event(JobName, Results) ->
+    gen_server:cast(?MODULE, {job_done_event, JobName, Results}).
+
 -spec task_event(task_info(), task_msg()) -> ok.
 task_event(Task, Msg) ->
     task_event(Task, Msg, none).
@@ -151,7 +156,7 @@ start_link() ->
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
-% events dict: jobname -> { [event()], <start_time>, <job_coordinator_pid> }
+% events dict: jobname -> job_ent()
 % msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
 -record(state, {events = dict:new() :: dict(),
                 msgbuf = dict:new() :: dict(),
@@ -197,6 +202,8 @@ handle_cast({update_nodes, Hosts}, S) ->
     {noreply, S#state{hosts = Hosts}};
 handle_cast({add_job_event, Host, JobName, Msg, Event}, S) ->
     {noreply, do_add_job_event(Host, JobName, Msg, Event, S)};
+handle_cast({job_done_event, JobName, Results}, S) ->
+    {noreply, do_job_done_event(JobName, Results, S)};
 % XXX: Some aux process could go through the jobs periodically and
 % check that the job coord is still alive - if not, call job_done for
 % the zombie job.
@@ -373,6 +380,18 @@ do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->
     case dict:find(JobName, MsgBuf) of
         error -> S;
         {ok, _} -> #state{msgbuf = dict:erase(JobName, MsgBuf)}
+    end.
+
+-spec do_job_done_event(jobname(), [[url()]], state()) -> state().
+do_job_done_event(JobName, Results, #state{events = Events} = S) ->
+    case dict:find(JobName, Events) of
+        {ok, #job_ent{start = Start}} ->
+            Msg = disco:format("READY: Job done in ~s",
+                               [disco:format_time_since(Start)]),
+            Event = {ready, Results},
+            add_event("master", JobName, list_to_binary(Msg), Event, S);
+        error ->
+            S
     end.
 
 % Flush events from memory to file using a per-job process.
