@@ -351,4 +351,4 @@ schedule_option1(#ver1_info{force_local = Local, force_remote = Remote}) ->
 % Prefer Local if both Local and Remote are set.
 schedule_option1(true, _) -> local;
 schedule_option1(_, true) -> remote;
-schedule_option1(_, _) -> none.
+schedule_option1(_, _)    -> none.

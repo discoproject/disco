@@ -217,11 +217,12 @@ do_update_nodes(Hosts, S) ->
     S#state{hosts = gb_sets:from_list(Hosts)}.
 
 -spec do_task_done(task_id(), host(), task_done_result(), state()) -> state().
-do_task_done(TaskId, Host, Result, #state{tasks = Tasks,
-                                          data_map = DataMap,
+do_task_done(TaskId, Host, Result, #state{jobinfo = #jobinfo{jobname = JobName},
+                                          tasks   = Tasks,
+                                          data_map   = DataMap,
                                           stage_info = SI} = S) ->
-    #task_info{spec = #task_spec{stage = Stage, jobname = JobName}} =
-        TInfo = jc_utils:task_info(TaskId, Tasks),
+    #task_info{spec = #task_spec{stage = Stage}}
+        = TInfo = jc_utils:task_info(TaskId, Tasks),
     ETInfo = {JobName, Stage, TaskId},
     FEvent = {task_failed, Stage},
     case Result of
@@ -271,7 +272,7 @@ do_task_done(TaskId, Host, Result, #state{tasks = Tasks,
 
 -spec finish_pipeline(stage_name(), state()) -> ok.
 finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname = JobName},
-                              tasks = Tasks,
+                              tasks   = Tasks,
                               stage_info = SI}) ->
     #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
     Outputs = [(jc_utils:task_info(TaskId, Tasks))#task_info.outputs
@@ -285,8 +286,8 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname = JobName},
 -spec retry_task(host(), term(), task_info(), state()) -> state().
 retry_task(Host, Error,
            #task_info{spec = #task_spec{jobname = JobName,
-                                        taskid = TaskId,
-                                        stage = Stage},
+                                        taskid  = TaskId,
+                                        stage   = Stage},
                       failed_count = FailedCnt,
                       failed_hosts = FH} = TInfo,
            #state{tasks = Tasks} = S) ->
@@ -340,14 +341,14 @@ regenerate_input(_WaiterTInfo, {GenTaskId, _} = _InputId,
     do_submit_tasks(re_run, TaskIdsToRun, S1).
 
 -spec task_complete(task_id(), host(), [task_output()], state()) -> state().
-task_complete(TaskId, Host, Outputs, #state{tasks = Tasks,
+task_complete(TaskId, Host, Outputs, #state{tasks      = Tasks,
                                             stage_info = SI} = S) ->
     #task_info{failed_hosts = FH,
                waiters = Waiters,
                spec = #task_spec{stage = Stage}}
         = TInfo = jc_utils:task_info(TaskId, Tasks),
     TInfo1 = TInfo#task_info{failed_hosts = gb_sets:delete_any(Host, FH),
-                             worker = none,
+                             worker  = none,
                              waiters = [],
                              outputs = Outputs},
     % Get the runnable set of waiters.
@@ -356,7 +357,7 @@ task_complete(TaskId, Host, Outputs, #state{tasks = Tasks,
     % stage.
     StageDone = jc_utils:last_stage_task(Stage, TaskId, SI),
     case StageDone of
-        true -> stage_done(Stage);
+        true  -> stage_done(Stage);
         false -> ok
     end,
     S1 = S#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI),
@@ -364,7 +365,24 @@ task_complete(TaskId, Host, Outputs, #state{tasks = Tasks,
     do_submit_tasks(re_run, Awake, S1).
 
 -spec do_stage_done(stage_name(), state()) -> state().
-do_stage_done(Stage, #state{pipeline = P, stage_info = SI} = S) ->
+do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
+                            pipeline   = P,
+                            tasks      = Tasks,
+                            stage_info = SI} = S) ->
+    case Stage of
+        ?INPUT ->
+            ok;
+        _ ->
+            #stage_info{start = Start, done = Done}
+                = jc_utils:stage_info(Stage, SI),
+            STasks = [jc_utils:task_info(TaskId, Tasks) || TaskId <- Done],
+            Results = [pipeline_utils:output_urls(O)
+                       || T <- STasks, {_Id, O} <- T#task_info.outputs],
+            Event = {stage_ready, Stage, Results},
+            Since = disco:format_time_since(Start),
+            event_server:event(JobName, "Stage ~s finished in ~s",
+                               [Stage, Since], Event)
+    end,
     case pipeline_utils:next_stage(P, Stage) of
         done ->
             finish_pipeline(Stage, S),
@@ -380,7 +398,7 @@ do_stage_done(Stage, #state{pipeline = P, stage_info = SI} = S) ->
 start_next_stage(Prev, Stage, Grouping, S) ->
     {Tasks, S1} = setup_stage_tasks(Prev, Stage, Grouping, S),
     case Tasks of
-        []    -> stage_done(Stage), S1;
+        []    -> do_stage_done(Stage, S1);
         [_|_] -> do_submit_tasks(first_run, Tasks, S1)
     end.
 
@@ -395,22 +413,23 @@ setup_stage_tasks(Prev, Stage, Grouping, S) ->
     make_stage_tasks(Stage, Grouping, GOutputs, S, []).
 
 make_stage_tasks(Stage, _Grouping, [], #state{stage_info = SI} = S, Tasks) ->
-    SI1 = jc_utils:update_stage(Stage, #stage_info{all = length(Tasks)}, SI),
+    StageInfo = #stage_info{start = now(), all = length(Tasks)},
+    SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
     {Tasks, S#state{stage_info = SI1}};
 make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                  #state{jobinfo = #jobinfo{jobname = JN,
                                            jobenvs = JE,
                                            worker  = W},
+                        tasks = Tasks,
                         schedule    = Schedule,
                         next_taskid = NextTaskId,
-                        tasks    = Tasks,
-                        data_map = OldDataMap} = S,
+                        data_map    = OldDataMap} = S,
                  Acc) ->
     DataMap = lists:foldl(
                 fun({InputId, DataInput}, DM) ->
                         DataHosts = pipeline_utils:locations(DataInput),
                         Locations = lists:sort([{H, DataInput} || H <- DataHosts]),
-                        Failures = lists:sort([{H, 0} || H <- DataHosts]),
+                        Failures  = lists:sort([{H, 0} || H <- DataHosts]),
                         DInfo = #data_info{source = DataInput,
                                            locations = gb_trees:from_orddict(Locations),
                                            failures = gb_trees:from_orddict(Failures)},
@@ -465,9 +484,9 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
 % state.
 -spec collect_runnable_deps(task_id(), gb_set(), state())
                            -> {[task_id()], state()}.
-collect_runnable_deps(TaskId, FHosts, #state{tasks = Tasks,
+collect_runnable_deps(TaskId, FHosts, #state{tasks      = Tasks,
                                              stage_info = SI,
-                                             data_map = DataMap} = S) ->
+                                             data_map   = DataMap} = S) ->
     {RunIds, Tasks2} =
         jc_utils:collect_stagewise(TaskId, Tasks, SI, DataMap, FHosts),
     {gb_sets:to_list(RunIds), S#state{tasks = Tasks2}}.

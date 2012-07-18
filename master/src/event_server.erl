@@ -28,8 +28,8 @@
 -type event() :: {job_data, jobinfo()}
                | {task_ready, stage_name()}
                | {task_failed, stage_name()}
-               | {stage_ready, stage_name(), [job_coordinator:input()]}
-               | {ready, [job_coordinator:input()]}.
+               | {stage_ready, stage_name(), [[url()]]}
+               | {ready, [[url()]]}.
 
 -type task_info() :: {jobname(), stage_name(), task_id()}.
 
@@ -44,7 +44,7 @@
 -type job_eventinfo() :: {StartTime :: erlang:timestamp(),
                           Status  :: job_status(),
                           JobInfo :: none | jobinfo(),
-                          Results :: [job_coordinator:input()],
+                          Results :: [[url()]],
                           Ready   :: dict(),
                           Failed  :: dict()}.
 
@@ -89,11 +89,11 @@ get_job_msgs(JobName, Q, N) ->
     gen_server:call(?MODULE, {get_job_msgs, JobName, string:to_lower(Q), N}).
 
 -spec get_map_results(jobname()) -> invalid_job | not_ready
-                                        | {ok, [job_coordinator:input()]}.
+                                        | {ok, [[url()]]}.
 get_map_results(JobName) ->
     gen_server:call(?MODULE, {get_map_results, JobName}).
 
--spec get_results(jobname()) -> invalid_job | {ready, pid(), [job_coordinator:input()]}
+-spec get_results(jobname()) -> invalid_job | {ready, pid(), [[url()]]}
                                     | {job_status(), pid()}.
 get_results(JobName) ->
     gen_server:call(?MODULE, {get_results, JobName}).
@@ -230,22 +230,22 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 -record(job_ent, {job_coord :: pid(),
                   start     :: erlang:timestamp(),
                   job_data  = none :: none | jobinfo(),
-                  task_ready    :: dict(), % stage_name() -> count
-                  task_failed   :: dict(), % stage_name() -> count
-                  stage_results :: dict(), % stage_name() -> results
-                  job_results   = []         :: [job_coordinator:input()]}).
+                  task_ready       :: dict(), % stage_name() -> count
+                  task_failed      :: dict(), % stage_name() -> count
+                  stage_results    :: dict(), % stage_name() -> results
+                  job_results = [] :: [[url()]]}).
 -type job_ent() :: #job_ent{}.
 
 -spec new_job_ent(pid(), [stage_name()]) -> job_ent().
 new_job_ent(JobCoord, Stages) ->
     Counts = [{S, 0} || S <- Stages],
-    TaskReady = dict:from_list(Counts),
+    TaskReady  = dict:from_list(Counts),
     TaskFailed = dict:from_list(Counts),
     StageResults = dict:new(),
     #job_ent{job_coord = JobCoord,
-             start = now(),
-             task_ready = TaskReady,
-             task_failed = TaskFailed,
+             start     = now(),
+             task_ready    = TaskReady,
+             task_failed   = TaskFailed,
              stage_results = StageResults}.
 
 -spec update_job_ent(job_ent(), event()) -> job_ent().
@@ -263,7 +263,7 @@ update_job_ent(JE, {ready, Results}) ->
 -spec job_status(job_ent()) -> job_status().
 job_status(#job_ent{job_coord = Pid, job_results = []}) ->
     case is_process_alive(Pid) of
-        true -> active;
+        true  -> active;
         false -> dead
     end;
 job_status(_JE) ->
@@ -295,7 +295,7 @@ do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
 
 -spec do_get_results(jobname(), dict())
                     -> invalid_job | {job_status(), pid()}
-                           | {ready, pid(), [job_coordinator:input()]}.
+                           | {ready, pid(), [[url()]]}.
 do_get_results(JobName, Events) ->
     case dict:find(JobName, Events) of
         error ->
@@ -308,7 +308,7 @@ do_get_results(JobName, Events) ->
 
 -spec do_get_map_results(jobname(), dict())
                         -> invalid_job | not_ready
-                               | {ok, [job_coordinator:input()]}.
+                               | {ok, [[url()]]}.
 do_get_map_results(JobName, Events) ->
     case dict:find(JobName, Events) of
         error ->

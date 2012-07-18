@@ -42,7 +42,7 @@ op('GET', "/disco/ctrl/" ++ Op, Req) ->
     Name =
         case lists:keyfind("name", 1, Query) of
             {_, N} -> N;
-            _ -> false
+            _      -> false
         end,
     reply(getop(Op, {Query, Name}), Req);
 
@@ -93,7 +93,7 @@ getop("jobevents", {Query, Name}) ->
     {_, NumS} = lists:keyfind("num", 1, Query),
     Num = list_to_integer(NumS),
     Q = case lists:keyfind("filter", 1, Query) of
-            false -> "";
+            false  -> "";
             {_, F} -> string:to_lower(F)
         end,
     {ok, Ev} = event_server:get_job_msgs(Name, string:to_lower(Q), Num),
@@ -293,10 +293,10 @@ render_jobinfo({Start, _Status0, _JobInfo, Results, Ready, Failed},
               {owner, Owner}
              ]}.
 
-status_msg(invalid_job) -> [<<"unknown job">>, []];
+status_msg(invalid_job)         -> [<<"unknown job">>, []];
 status_msg({ready, _, Results}) -> [<<"ready">>, Results];
-status_msg({active, _}) -> [<<"active">>, []];
-status_msg({dead, _}) -> [<<"dead">>, []].
+status_msg({active, _})         -> [<<"active">>, []];
+status_msg({dead, _})           -> [<<"dead">>, []].
 
 wait_jobs(Jobs, Timeout) ->
     case [erlang:monitor(process, Pid) || {_, {active, Pid}} <- Jobs] of

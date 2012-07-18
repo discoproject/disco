@@ -116,7 +116,7 @@ update_input_failures(Hosts, #data_info{failures = Failures} = DInfo) ->
     F = lists:foldl(
           fun(H, Fails) ->
                   case gb_trees:lookup(H, Fails) of
-                      none -> Fails;
+                      none         -> Fails;
                       {value, Cnt} -> gb_trees:enter(H, Cnt + 1, Fails)
                   end
           end, Failures, Hosts),
@@ -140,7 +140,7 @@ local_inputs([Id | Rest], Hosts, DataMap, Acc) ->
     Acc1 =
         case lists:all(fun(H) -> gb_sets:is_member(H, Hosts) end,
                        data_hosts(input_info(Id, DataMap)))
-        of  true ->  [Id | Acc];
+        of  true  ->  [Id | Acc];
             false -> Acc
         end,
     local_inputs(Rest, Hosts, DataMap, Acc1).
@@ -226,8 +226,9 @@ collect_stagewise(CurStage, PrevStage, Frontier, Tasks, SI, DataMap, FHosts) ->
     end.
 
 collect_task(TaskId, CurStage, PrevStage, Frontier, Tasks, SI, DataMap, FHosts) ->
-    #task_info{spec = #task_spec{input = Inputs},
-               failed_hosts = TFHosts} = TInfo = task_info(TaskId, Tasks),
+    #task_info{spec         = #task_spec{input = Inputs},
+               failed_hosts = TFHosts}
+        = TInfo = task_info(TaskId, Tasks),
     % Lookup task dependencies.
     LocalInputs = local_inputs(Inputs, FHosts, DataMap),
     GenTaskIds = lists:usort([TId || {TId, _} <- LocalInputs, TId =/= input]),
@@ -235,7 +236,7 @@ collect_task(TaskId, CurStage, PrevStage, Frontier, Tasks, SI, DataMap, FHosts) 
     % empty, or else it would be waiting and we would not be
     % processing it.
     TInfo2 = TInfo#task_info{failed_hosts = gb_sets:union(TFHosts, FHosts),
-                             depends = GenTaskIds},
+                             depends      = GenTaskIds},
     Tasks1 = update_task_info(TaskId, TInfo2, Tasks),
     case GenTaskIds of
         [] ->
@@ -268,14 +269,15 @@ collect_task(TaskId, CurStage, PrevStage, Frontier, Tasks, SI, DataMap, FHosts) 
 % This removes the completed task as a dependency from a set of
 % waiters, and returns the set of tasks that are now runnable since
 % they have no more dependencies, and the updated task set.
--spec wakeup_waiters(task_id(), [task_id()], gb_tree()) -> {[task_id()], gb_tree()}.
+-spec wakeup_waiters(task_id(), [task_id()], gb_tree())
+                    -> {[task_id()], gb_tree()}.
 wakeup_waiters(TaskId, Waiters, Tasks) ->
     lists:foldl(
       fun(WId, {Runnable, Tsks}) ->
               #task_info{depends = Deps} = WInfo = task_info(WId, Tsks),
               UDeps = Deps -- [TaskId],
               Runnable2 = case UDeps of
-                              [] -> [WId | Runnable];
+                              []    -> [WId | Runnable];
                               [_|_] -> Runnable
                           end,
               Tsks2 = gb_trees:enter(WId, WInfo#task_info{depends = UDeps}, Tsks),

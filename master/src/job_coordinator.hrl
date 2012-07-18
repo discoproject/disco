@@ -1,6 +1,7 @@
 % Pieces of state maintained by the pipeline job_coordinator.
 
--record(stage_info, {all     = 0  :: non_neg_integer(),
+-record(stage_info, {start        :: erlang:timestamp(),
+                     all     = 0  :: non_neg_integer(),
                      running = [] :: [task_id()],
                      done    = [] :: [input | task_id()]}).
 -type stage_info() :: #stage_info{}.
