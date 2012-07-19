@@ -1,5 +1,6 @@
 -module(ddfs_gc_node).
--export([start_gc_node/4]).
+-export([start_gc_node/4,
+         start_s3_gc_node/3]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -14,6 +15,10 @@
 -spec start_gc_node(node(), pid(), erlang:timestamp(), phase()) -> pid().
 start_gc_node(Node, Master, Now, Phase) ->
     spawn_link(Node, fun () -> gc_node_init(Master, Now, Phase) end).
+
+-spec start_s3_gc_node(pid(), erlang:timestamp(), phase()) -> pid().
+start_s3_gc_node(Master, Now, Phase) ->
+    spawn_link(fun () -> s3_gc_node_init(Master, Now, Phase) end).
 
 -spec gc_node_init(pid(), erlang:timestamp(), phase()) -> 'ok'.
 gc_node_init(Master, Now, Phase) ->
@@ -38,7 +43,20 @@ gc_node_init(Master, Now, Phase) ->
     % Now, dispatch to the phase that is running on the master.
     gc_node(Master, Now, Root, Phase).
 
--spec gc_node(pid(), erlang:timestamp(), path(), phase()) -> 'ok'.
+-spec s3_gc_node_init(pid(), erlang:timestamp(), phase()) -> 'ok'.
+s3_gc_node_init(Master, Now, Phase) ->
+    put(s3_bucket, disco:get_setting("DISCO_S3_BUCKET")),
+    process_flag(priority, low),
+    _ = ets:new(tag, [named_table, set, private]),
+    _ = ets:new(blob, [named_table, set, private]),
+    s3_traverse(Now, "", blob),
+    s3_traverse(Now, "", tag),
+    error_logger:info_msg("GC: found ~p blob, ~p tag candidates on ~p",
+                          [ets:info(blob, size), ets:info(tag, size), node()]),
+    % Now, dispatch to the phase that is running on the master.
+    s3_gc_node(Master, Now, "", Phase).
+
+-spec gc_node(pid(), erlang:timestamp(), string(), phase()) -> 'ok'.
 gc_node(Master, Now, Root, Phase)
   when Phase =:= start; Phase =:= build_map; Phase =:= map_wait ->
     check_server(Master, Root),
@@ -53,11 +71,16 @@ gc_node(Master, _Now, Root, Phase)
   when Phase =:= rr_blobs; Phase =:= rr_blobs_wait; Phase =:= rr_tags ->
     replica_server(Master, Root).
 
+-spec s3_gc_node(pid(), erlang:timestamp(), string(), phase()) -> 'ok'.
+s3_gc_node(Master, Now, Root, _Phase) ->
+    s3_gc(Master, Now, Root),
+    replica_server(Master, Root).
+
 %%
 %% Node-local object table construction. (build_map / map_wait / gc)
 %%
 
--spec traverse(erlang:timestamp(), path(), [volume_name()], object_type()) -> 'ok'.
+-spec traverse(erlang:timestamp(), string(), [volume_name()], object_type()) -> 'ok'.
 traverse(Now, Root, VolNames, Type) ->
     Mode = case Type of tag -> "tag"; blob -> "blob" end,
     lists:foreach(
@@ -69,7 +92,22 @@ traverse(Now, Root, VolNames, Type) ->
               ddfs_util:fold_files(DDFSDir, Handler, ok)
       end, VolNames).
 
--spec handle_file(path(), path(), volume_name(), object_type(), erlang:timestamp())
+-spec s3_traverse(erlang:timestamp(), string(), object_type()) -> 'ok'.
+s3_traverse(_Now, _Root, Type) ->
+    Mode = case Type of tag -> "tag"; blob -> "blob" end,
+    Bucket = get(s3_bucket),
+    {contents, L} = lists:keyfind(contents, 1, disco_aws:list_objects(Bucket)),
+    lists:foreach(fun(F) ->
+                          {key, Key} = lists:keyfind(key, 1, F),
+                          case string:str(Key, Mode) > 0 of
+                              false ->
+                                  nothing;
+                              true ->
+                                  ets:insert(Type, {list_to_binary(Key), "", 0, false})
+                          end
+                  end, L).
+
+-spec handle_file(string(), string(), volume_name(), object_type(), erlang:timestamp())
                  -> 'ok'.
 handle_file("!trash" ++ _, _, _, _, _) ->
     ok;
@@ -79,7 +117,7 @@ handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     {_, Time} = ddfs_util:unpack_objname(Obj),
     Diff = timer:now_diff(Now, Time) / 1000,
     Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
-    delete_if_expired(filename:join(Dir, File), Diff, ?PARTIAL_EXPIRES, Paranoid);
+    delete_if_expired(local, Dir, File, Diff, ?PARTIAL_EXPIRES, Paranoid);
 handle_file(Obj, Dir, VolName, Type, _) ->
     Size = case prim_file:read_file_info(filename:join(Dir, Obj)) of
                {ok, #file_info{size = S}} -> S;
@@ -117,10 +155,16 @@ check_blob(ObjName) ->
 % GC3) Remove orphaned blobs (blobs not referred by any tag)
 
 local_gc(Master, Now, Root) ->
-    delete_orphaned(Master, Now, Root, blob, ?ORPHANED_BLOB_EXPIRES),
-    delete_orphaned(Master, Now, Root, tag, ?ORPHANED_TAG_EXPIRES),
+    delete_orphaned(local, Master, Now, Root, blob, ?ORPHANED_BLOB_EXPIRES),
+    delete_orphaned(local, Master, Now, Root, tag, ?ORPHANED_TAG_EXPIRES),
     ddfs_gc_main:node_gc_done(Master, gc_run_stats()),
     ddfs_node:rescan_tags(),  % update local node cache
+    ok.
+
+s3_gc(Master, Now, Root) ->
+    delete_orphaned(s3, Master, Now, Root, blob, ?ORPHANED_BLOB_EXPIRES),
+    delete_orphaned(s3, Master, Now, Root, tag, ?ORPHANED_TAG_EXPIRES),
+    ddfs_gc_main:s3_node_gc_done(Master, gc_run_stats()),
     ok.
 
 -spec obj_stats(object_type()) -> obj_stats().
@@ -137,23 +181,22 @@ obj_stats(Type) ->
 gc_run_stats() ->
     {obj_stats(tag), obj_stats(blob)}.
 
--spec delete_orphaned(pid(), erlang:timestamp(), path(), object_type(),
+-spec delete_orphaned(s3 | local, pid(), erlang:timestamp(), string(), object_type(),
                       non_neg_integer()) -> 'ok'.
-delete_orphaned(Master, Now, Root, Type, Expires) ->
+delete_orphaned(NodeType, Master, Now, Root, Type, Expires) ->
     Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
     lists:foreach(
       fun([Obj, VolName]) ->
               {_, Time} = ddfs_util:unpack_objname(Obj),
               {ok, Path, _} =
                   ddfs_util:hashdir(Obj, "nonode!", atom_to_list(Type), Root, VolName),
-              FullPath = filename:join(Path, binary_to_list(Obj)),
               Diff = timer:now_diff(Now, Time) / 1000,
               Orphan = try ddfs_gc_main:is_orphan(Master, Type, Obj, VolName)
                        catch _:_ -> false
                        end,
               case Orphan of
                   {ok, true} ->
-                      Deleted = delete_if_expired(FullPath, Diff, Expires, Paranoid),
+                      Deleted = delete_if_expired(NodeType, Path, Obj, Diff, Expires, Paranoid),
                       true = ets:update_element(Type, Obj, {4, not Deleted});
                   _E ->
                       % Do not delete if not orphan, timeout or error.
@@ -162,33 +205,47 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
               end
       end, ets:match(Type, {'$1', '$2', '_', false})).
 
--spec delete_if_expired(file:filename(), float(),
+-spec delete_if_expired(s3 | local, file:filename(), binary(), float(),
                         non_neg_integer(), boolean()) -> boolean().
-delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
-    error_logger:info_msg("GC: Deleting expired object (paranoid) at ~p", [Path]),
-    Trash = "!trash." ++ filename:basename(Path),
-    Deleted = filename:join(filename:dirname(Path), Trash),
+delete_if_expired(s3, _Path, Obj, Diff, Expires, true) when Diff > Expires ->
+    FullPath = binary_to_list(Obj),
+    error_logger:info_msg("S3 GC: Deleting expired object (paranoid, but not) at ~p", [FullPath]),
+    Bucket = get(s3_bucket),
+    _ = disco_aws:delete(Bucket, FullPath),
+    true;
+delete_if_expired(local, Path, Obj, Diff, Expires, true) when Diff > Expires ->
+    FullPath = filename:join(Path, binary_to_list(Obj)),
+    error_logger:info_msg("GC: Deleting expired object (paranoid) at ~p", [FullPath]),
+    Trash = "!trash." ++ filename:basename(FullPath),
+    Deleted = filename:join(filename:dirname(FullPath), Trash),
     % Chmod u+w deleted files, so they can removed safely with rm without -f
-    _ = prim_file:write_file_info(Path, #file_info{mode = 8#00600}),
-    _ = prim_file:rename(Path, Deleted),
+    _ = prim_file:write_file_info(FullPath, #file_info{mode = 8#00600}),
+    _ = prim_file:rename(FullPath, Deleted),
     % Sleep here two prevent master being DDOS'ed by info_reports above
     timer:sleep(100),
     true;
-
-delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
-    error_logger:info_msg("GC: Deleting expired object at ~p", [Path]),
-    _ = prim_file:delete(Path),
+delete_if_expired(s3, _Path, Obj, Diff, Expires, _Paranoid) when Diff > Expires ->
+    FullPath = binary_to_list(Obj),
+    error_logger:info_msg("S3 GC: Deleting expired object at ~p", [FullPath]),
+    Bucket = get(s3_bucket),
+    _ = disco_aws:delete(Bucket, FullPath),
+    timer:sleep(100),
+    true;
+delete_if_expired(local, Path, Obj, Diff, Expires, _Paranoid) when Diff > Expires ->
+    FullPath = filename:join(Path, binary_to_list(Obj)),
+    error_logger:info_msg("GC: Deleting expired object at ~p", [FullPath]),
+    _ = prim_file:delete(FullPath),
     timer:sleep(100),
     true;
 
-delete_if_expired(_Path, _Diff, _Expires, _Paranoid) ->
+delete_if_expired(_, _Path, _Obj, _Diff, _Expires, _Paranoid) ->
     false.
 
 %%
 %% Re-replication  (rr_blobs / rr_blobs_wait)
 %%
 
--spec replica_server(pid(), path()) -> 'ok'.
+-spec replica_server(pid(), string()) -> 'ok'.
 replica_server(Master, Root) ->
     receive
         {put_blob, Replicator, Ref, Blob, PutUrl} ->
@@ -202,7 +259,7 @@ replica_server(Master, Root) ->
             ok
     end.
 
--spec do_put(object_name(), path(), nonempty_string()) ->
+-spec do_put(object_name(), string(), nonempty_string()) ->
                     {'ok', object_name(), [binary(),...]} | {'error', term()}.
 do_put(Blob, SrcPath, PutUrl) ->
     case ddfs_http:http_put(SrcPath, PutUrl, ?GC_PUT_TIMEOUT) of

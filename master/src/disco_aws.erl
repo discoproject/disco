@@ -12,7 +12,9 @@
 -export([put/3,
          spawn_put/3,
          set_aws_creds/0,
-         try_s3_tagdata/2]).
+         try_s3_tagdata/2,
+         delete/2,
+         list_objects/1]).
 
 %%%===================================================================
 %%% API
@@ -30,6 +32,16 @@ spawn_put(Bucket, Dir, Contents) ->
                            erlcloud_s3:put_object(Bucket, Dir, Contents, Creds) 
                    end).
 
+-spec delete(string(), string()) -> list().
+delete(Bucket, Key) ->
+    Creds = get_config(),
+    erlcloud_s3:delete_object(Bucket, Key, Creds).
+
+-spec list_objects(string()) -> list().
+list_objects(Bucket) ->
+    Creds = get_config(),
+    erlcloud_s3:list_objects(Bucket, Creds).    
+
 -spec set_aws_creds() -> record().
 set_aws_creds() ->
     CredFilePath = os:getenv("AWS_CREDENTIAL_FILE"),
@@ -45,23 +57,27 @@ set_aws_creds() ->
 -spec try_s3_tagdata(string(), string()) -> {binary(), binary()}.
 try_s3_tagdata(Bucket, TagName) ->
     Creds = get_config(),
-    {contents, Objects} = lists:keyfind(contents, 1, erlcloud_s3:list_objects(Bucket, Creds)),
-    case lists:foldl(fun(Tag, Acc) ->
-                             {key, Key} = lists:keyfind(key, 1, Tag),
+    case lists:keyfind(contents, 1, erlcloud_s3:list_objects(Bucket, Creds)) of
+        {contents, Objects} ->
+            case lists:foldl(fun(Tag, Acc) ->
+                                     {key, Key} = lists:keyfind(key, 1, Tag),
 
-                             case string:str(Key, "tag/"++TagName) of
-                                 0 ->
-                                     Acc;
-                                 1 ->
-                                     {last_modified, Time} = lists:keyfind(last_modified, 1, Tag),
-                                     [{Time, Key} | Acc]
-                             end
-                     end, [], Objects) of
-        [] ->
-            fail;
-        Tags ->
-            {_, TagID} = lists:max(Tags),
-            {TagID, get_tag_data(Bucket, TagID, Creds)}
+                                     case string:str(Key, "tag/"++TagName) of
+                                         0 ->
+                                             Acc;
+                                         1 ->
+                                             {last_modified, Time} = lists:keyfind(last_modified, 1, Tag),
+                                             [{Time, Key} | Acc]
+                                     end
+                             end, [], Objects) of
+                [] ->
+                    fail;
+                Tags ->
+                    {_, TagID} = lists:max(Tags),
+                    {TagID, get_tag_data(Bucket, TagID, Creds)}
+            end;
+        _ ->
+            fail
     end.
 
 %%%===================================================================

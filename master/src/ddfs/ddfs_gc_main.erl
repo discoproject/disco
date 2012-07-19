@@ -184,7 +184,7 @@
 -export([start_link/2, gc_status/2]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3, format_status/2]).
--export([is_orphan/4, node_gc_done/2]).
+-export([is_orphan/4, node_gc_done/2, s3_node_gc_done/2]).
 
 -include("common_types.hrl").
 -include("config.hrl").
@@ -249,7 +249,10 @@ is_orphan(Master, Type, ObjName, Vol) ->
 node_gc_done(Master, GCStats) ->
     gen_server:cast(Master, {gc_done, node(), GCStats}).
 
--spec add_replicas(pid(), object_name(), [url()]) -> ok.
+-spec s3_node_gc_done(pid(), gc_run_stats()) -> 'ok'.
+s3_node_gc_done(Master, GCStats) ->
+    gen_server:cast(Master, {gc_done, s3_gc_node, GCStats}).
+
 add_replicas(Master, BlobName, NewUrls) ->
     gen_server:cast(Master, {add_replicas, BlobName, NewUrls}).
 
@@ -326,6 +329,10 @@ handle_cast(start, #state{phase = start} = S) ->
         {ok, Tags, OkNodes} ->
             Phase = build_map,
             Peers = start_gc_peers(OkNodes, self(), now(), Phase),
+
+            Pid = ddfs_gc_node:start_s3_gc_node(self(), now(), Phase),
+            Peers2 = gb_trees:insert(s3_gc_node, {Pid, 0}, Peers),
+
             % We iterate over the tags by messaging ourselves, so that
             % we keep processing our message queue, which would
             % otherwise fill up when we process very large numbers of
@@ -334,7 +341,7 @@ handle_cast(start, #state{phase = start} = S) ->
             % tag processing.
             gen_server:cast(self(), {build_map, Tags}),
             {noreply, S#state{phase = Phase,
-                              gc_peers = Peers,
+                              gc_peers = Peers2,
                               tags = Tags,
                               blacklist = Blacklist}};
         E ->
@@ -968,7 +975,7 @@ process_deleted(Tags, Ages) ->
                   false ->
                       % Copies of tag still alive, remove from Ages
                       ets:delete(Ages, Tag);
-                  true when Diff > ?DELETED_TAG_EXPIRES ->
+                  true when Diff >= ?DELETED_TAG_EXPIRES ->
                       % Tag ready to be removed from +deleted
                       lager:info("REMOVED ~p from +DELETED", [Tag]),
                       ddfs_master:tag_operation({delete_tagname, Tag},
