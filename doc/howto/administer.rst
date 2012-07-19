@@ -171,3 +171,33 @@ the node entry being highlighted in green in the blacklist.  It may
 require several runs of :ref:`gcrr` to re-replicate data away from a
 node; since by default it runs once a day, several days may be needed
 before a DDFS blacklisted node becomes safe for removal.
+
+.. _master_recovery:
+
+Handling a master failure
+-------------------------
+
+Disco is currently a single master system, which means it has a single
+point of failure.  This master controls both job scheduling as well as
+the :ref:`ddfs`.  The failure of the master will result in the
+termination of currently running jobs and loss of access to the
+:ref:`ddfs`.  However, it will not result in any loss of data in DDFS,
+since all metadata in DDFS is replicated, just like data.  The only
+centralized static information is the Disco settings file on the
+master (specified by the ``DISCO_SETTINGS_FILE``, which defaults to
+``/etc/disco/settings.py`` for installation), and the Disco cluster
+configuration, maintained in the file specified by the
+``DISCO_MASTER_CONFIG`` setting.  You can examine all the settings for
+Disco using the ``disco -v`` command.
+
+A failed Disco master can be replaced by installing the Disco master
+on a new machine (or even an existing Disco node, though this is not
+recommended for large or busy clusters).  See :ref:`_install_sys` for
+details on installing the Disco master.  On the replacement machine,
+you will need to copy the settings and configuration files from the
+original master into their expected locations.  For this reason, it is
+a good idea to backup these files after any change.  The
+``DISCO_SETTINGS_FILE`` is manually modified, while the
+``DISCO_MASTER_CONFIG`` file is managed by the Disco master.  The
+config file is changed whenever nodes are added or removed as members
+of the cluster, or any blacklist.
