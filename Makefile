@@ -112,7 +112,7 @@ install: install-core install-node install-master
 uninstall: uninstall-master uninstall-node
 
 install-core:
-  $(PY_INSTALL)
+	$(PY_INSTALL)
 
 install-discodb: contrib
 	$(MAKE) -C contrib/discodb install
