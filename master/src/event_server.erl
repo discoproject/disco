@@ -209,11 +209,11 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 -record(job_ent, {job_coord :: pid(),
                   start     :: erlang:timestamp(),
-                  job_data  = none :: none | jobinfo(),
+                  job_data    = none :: none | jobinfo(),
                   task_ready    :: dict(), % task_mode() -> count
                   task_failed   :: dict(), % task_mode() -> count
                   phase_results :: dict(), % task_mode() -> results
-                  job_results   = []         :: [job_coordinator:input()]}).
+                  job_results = none :: none | [job_coordinator:input()]}).
 -type job_ent() :: #job_ent{}.
 
 -spec new_job_ent(pid()) -> job_ent().
@@ -245,7 +245,7 @@ update_job_ent(JE, {ready, Results}) ->
     JE#job_ent{job_results = Results}.
 
 -spec job_status(job_ent()) -> job_status().
-job_status(#job_ent{job_coord = Pid, job_results = []}) ->
+job_status(#job_ent{job_coord = Pid, job_results = none}) ->
     case is_process_alive(Pid) of
         true -> active;
         false -> dead
@@ -284,7 +284,7 @@ do_get_results(JobName, Events) ->
     case dict:find(JobName, Events) of
         error ->
             invalid_job;
-        {ok, #job_ent{job_coord = Pid, job_results = Res}} when Res =/= [] ->
+        {ok, #job_ent{job_coord = Pid, job_results = Res}} when Res =/= none ->
             {ready, Pid, Res};
         {ok, #job_ent{job_coord = Pid} = JE} ->
             {job_status(JE), Pid}
@@ -311,7 +311,9 @@ do_get_jobinfo(JobName, Events) ->
             invalid_job;
         {ok, #job_ent{start = Start, job_data = JobNfo, job_results = Results,
                       task_ready = Ready, task_failed = Failed} = JE} ->
-            {ok, {Start, job_status(JE), JobNfo, Results, Ready, Failed}}
+            {ok, {Start, job_status(JE), JobNfo,
+                  case Results of none -> []; _ -> Results end,
+                  Ready, Failed}}
     end.
 
 -spec do_add_job_event(host(), jobname(), binary(), event(), state()) -> state().
