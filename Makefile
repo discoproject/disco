@@ -50,6 +50,7 @@ WWW   = master/www
 EBIN  = master/ebin
 ESRC  = master/src
 EDEP  = master/deps
+ETEST = master/test
 
 DEPS     = mochiweb lager
 EDEPS    = $(foreach dep,$(DEPS),$(EDEP)/$(dep)/ebin)
@@ -79,8 +80,10 @@ clean:
 	@ (cd master && ./rebar clean)
 	- rm -Rf lib/build lib/disco.egg-info
 
-test:
-	@ (cd master && ./rebar -C eunit.config get-deps eunit)
+test: master
+	@ (cd master && ./rebar -C eunit.config get-deps)
+	erlc -o $(ETEST) $(ETEST)/*.erl
+	erl -noshell -pa $(ETEST) -pa $(EBIN) -pa $(EDEP)/proper -pa $(EDEP)/mochiweb/ebin -s master_tests main -s init stop
 
 contrib:
 	git submodule init
