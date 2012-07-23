@@ -386,9 +386,9 @@ class DDFS(object):
             if token is None:
                 if method == 'GET':
                     token = self.settings['DDFS_READ_TOKEN']
-                    return token if token else None
+                    return token if isinstance(token, basestring) else None
                 token = self.settings['DDFS_WRITE_TOKEN']
-                return token if token else None
+                return token if isinstance(token, basestring) else None
         return token
 
     def _resolve(self, url):
