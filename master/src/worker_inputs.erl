@@ -7,8 +7,10 @@
          add/2,
          add/3]).
 
+-export_type([state/0, worker_input/0]).
+
 -record(input, {url :: binary(),
-                failed :: disco_util:timestamp()}).
+                failed :: erlang:timestamp()}).
 -type input() :: #input{}.
 -type input_id() :: non_neg_integer().
 -type replica_id() :: non_neg_integer().
@@ -18,12 +20,9 @@
 -type labeled_rep() :: [replica_id() | binary(), ...].
 -type worker_input() :: {input_id(), [labeled_rep()]}.
 
--export_type([state/0, worker_input/0]).
-
 -spec init(binary() | [binary()] | [[binary()]]) -> state().
 init(Url) when is_binary(Url) ->
     init([Url]);
-
 init(Inputs) when is_list(Inputs) ->
     Items = [init_replicaset(Iid, Urls) || {Iid, Urls} <- disco:enum(Inputs)],
     {gb_trees:from_orddict(lists:flatten(Items)), length(Inputs)}.
@@ -32,7 +31,6 @@ init(Inputs) when is_list(Inputs) ->
                              [replica()].
 init_replicaset(Iid, Url) when is_binary(Url) ->
     init_replicaset(Iid, [Url]);
-
 init_replicaset(Iid, Urls) when is_list(Urls) ->
     [{{Iid, Rid}, #input{url = Url, failed = {0, 0, 0}}}
         || {Rid, Url} <- disco:enum(Urls)].
@@ -50,7 +48,7 @@ exclude(Exc, S) ->
 all(S) ->
     include(all_iids(S), S).
 
--spec replicas(input_id(), replica_id(), [{disco_util:timestamp(), labeled_rep()}],
+-spec replicas(input_id(), replica_id(), [{erlang:timestamp(), labeled_rep()}],
                state()) -> [labeled_rep()].
 replicas(Iid, Rid, Replicas, {T, _MaxIid} = S) ->
     case gb_trees:lookup({Iid, Rid}, T) of
@@ -74,13 +72,15 @@ fail_one(Key, Now, {T, MaxIid} = S) ->
             S
     end.
 
--spec add(binary(), state()) -> 'invalid_iid' | {{input_id(), replica_id()}, state()}.
+-type add_ret() :: 'invalid_iid' | {{input_id(), replica_id()}, state()}.
+
+-spec add(binary(), state()) -> add_ret().
 add(Url, {T, MaxIid}) ->
     add(MaxIid, Url, {T, MaxIid + 1}).
 
+-spec add(non_neg_integer(), binary(), state()) -> add_ret().
 add(Iid, _Url, {_T, MaxIid}) when Iid >= MaxIid ->
     invalid_iid;
-
 add(Iid, Url, {T, MaxIid}) ->
     Item = #input{url = Url, failed = {0, 0, 0}},
     Rid = max_rid(Iid, 0, T),

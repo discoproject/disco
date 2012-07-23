@@ -164,12 +164,15 @@ As you saw, creating a new Disco job is pretty straightforward.
 You could extend this simple example in any number of ways.
 For instance, by using the params object to include a list of stop words.
 
+You could continue on with :ref:`tutorial_2` which is intended as a
+follow-on tutorial to this one.
+
 If you pushed the data to :ref:`DDFS`,
 you could try changing the input to ``tag://data:bigtxt``,
 and add ``map_reader = disco.worker.classic.func.chain_reader``.
 
 You could follow the :ref:`discodb_tutorial`,
-to learn more about using :ref:`discodb <discodb>` with Disco.
+to learn more about using :mod:`discodb` with Disco.
 
 You could try using :func:`~disco.worker.classic.func.sum_combiner`,
 to make the job more efficient.

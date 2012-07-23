@@ -1,7 +1,5 @@
 -module(ddfs_util).
--export([choose_random/1,
-         choose_random/2,
-         concatenate/2,
+-export([concatenate/2,
          diskspace/1,
          ensure_dir/1,
          fold_files/3,
@@ -10,6 +8,7 @@
          is_valid_name/1,
          pack_objname/2,
          parse_url/1,
+         cluster_url/2,
          safe_rename/2,
          startswith/2,
          timestamp/0,
@@ -21,6 +20,7 @@
 
 -include_lib("kernel/include/file.hrl").
 
+-include("common_types.hrl").
 -include("config.hrl").
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
@@ -62,6 +62,7 @@ unpack_objname(Obj) ->
     [Name, Tstamp] = string:tokens(Obj, "$"),
     {list_to_binary(Name), timestamp_to_time(Tstamp)}.
 
+-spec url_to_name(binary()) -> binary() | false.
 url_to_name(<<"tag://", Name/binary>>) ->
     Name;
 url_to_name(Url) ->
@@ -72,7 +73,7 @@ url_to_name(Url) ->
             false
     end.
 
--spec ensure_dir(string()) -> 'eof' | 'ok' | {'error', _} | {'ok', _}.
+-spec ensure_dir(string()) -> eof | ok | {error, _} | {ok, _}.
 ensure_dir(Dir) ->
     case prim_file:make_dir(Dir) of
         ok -> ok;
@@ -106,19 +107,19 @@ to_hex(Int, L) ->
     end.
 
 -spec hashdir(binary(), nonempty_string(), nonempty_string(),
-    nonempty_string(), nonempty_string()) -> {'ok', string(), binary()}.
+              nonempty_string(), nonempty_string()) -> {ok, string(), binary()}.
 hashdir(Name, Host, Type, Root, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
     D1 = to_hex(D0),
-    Dir = lists:flatten([if length(D1) == 1 -> "0"; true -> "" end, D1]),
+    Dir = lists:flatten([case D1 of [_] -> "0"; _ -> "" end, D1]),
     Path = filename:join([Vol, Type, Dir]),
     Url = list_to_binary(["disco://", Host, "/ddfs/", Path, "/", Name]),
     Local = filename:join(Root, Path),
     {ok, Local, Url}.
 
-
--spec parse_url(binary()|string()) ->
-        'not_ddfs' | {host(), volume_name(), object_type(), string(), object_name()}.
+-spec parse_url(binary() | string())
+               -> not_ddfs |
+                  {host(), volume_name(), object_type(), string(), object_name()}.
 parse_url(Url) when is_binary(Url) ->
     parse_url(binary_to_list(Url));
 parse_url(Url) when is_list(Url) ->
@@ -131,8 +132,28 @@ parse_url(Url) when is_list(Url) ->
         _ -> not_ddfs
     end.
 
--spec safe_rename(string(), string()) -> 'ok' | {'error', 'file_exists'
-    | {'chmod_failed', _} | {'rename_failed', _}}.
+-type method() :: get | put.
+-spec cluster_url(binary() | string(), method()) -> string().
+cluster_url(Url, Meth) when is_binary(Url) ->
+    cluster_url(binary_to_list(Url), Meth);
+cluster_url(Url, Meth) when is_list(Url) ->
+    cluster_url(Url, Meth, disco:local_cluster()).
+cluster_url(Url, _Meth, false) -> Url;
+cluster_url(Url, Meth, true) ->
+    Method = string:to_upper(atom_to_list(Meth)),
+    ProxyPort = disco:get_setting("DISCO_PROXY_PORT"),
+    U = binary_to_list(list_to_binary(Url)),
+    {S, HostPort, Path, _Q, _F} = mochiweb_util:urlsplit(U),
+    Host = case string:tokens(HostPort, ":") of
+               [H] -> H;
+               [H|_] -> H
+           end,
+    ProxyUrl = [S, "://127.0.0.1:", ProxyPort, "/proxy/",
+                Host, "/", Method, Path],
+    lists:flatten(ProxyUrl).
+
+-type rename_errors() :: file_exists| {chmod_failed, _} | {rename_failed, _}.
+-spec safe_rename(string(), string()) -> ok | {error, rename_errors()}.
 safe_rename(Src, Dst) ->
     case prim_file:read_file_info(Dst) of
         {error, enoent} ->
@@ -148,7 +169,7 @@ safe_rename(Src, Dst) ->
         _ -> {error, file_exists}
     end.
 
--spec concatenate(file:filename(), file:filename()) -> 'ok' | {'error', term()}.
+-spec concatenate(file:filename(), file:filename()) -> ok | {error, term()}.
 concatenate(Src, Dst) ->
     {ok, SrcIO} = prim_file:open(Src, [read, raw, binary]),
     {ok, DstIO} = prim_file:open(Dst, [append, raw]),
@@ -170,17 +191,13 @@ concatenate_do(SrcIO, DstIO) ->
             Error
     end.
 
--spec diskspace(nonempty_string()) ->
-    {'error', 'invalid_output' | 'invalid_path'} | {'ok', diskinfo()}.
+-spec diskspace(nonempty_string()) -> {error, invalid_output | invalid_path} |
+                                      {ok, diskinfo()}.
 diskspace(Path) ->
     case lists:reverse(string:tokens(os:cmd(["df -k ", Path]), "\n\t ")) of
         [_, _, Free, Used|_] ->
-            case catch {list_to_integer(Free),
-                        list_to_integer(Used)} of
-                {F, U} when is_integer(F), is_integer(U), F >= 0, U >= 0 ->
-                    {ok, {F, U}};
-                _ ->
-                    {error, invalid_path}
+            try {ok, {list_to_integer(Free), list_to_integer(Used)}}
+            catch _:_ -> {error, invalid_path}
             end;
         _ ->
             {error, invalid_output}
@@ -198,17 +215,3 @@ fold_files(Dir, Fun, Acc0) ->
                 Fun(F, Dir, Acc)
         end
     end, Acc0, L).
-
--spec choose_random([T,...]) -> T.
-choose_random(L) ->
-    lists:nth(random:uniform(length(L)), L).
-
--spec choose_random(list(T), non_neg_integer()) -> list(T).
-choose_random(L, N) ->
-    choose_random(L, [], N).
-
-choose_random([], R, _) -> R;
-choose_random(_, R, 0) -> R;
-choose_random(L, R, N) ->
-    C = choose_random(L),
-    choose_random(L -- [C], [C|R], N - 1).

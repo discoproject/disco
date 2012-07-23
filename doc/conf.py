@@ -23,7 +23,10 @@ sys.path.insert(0, os.path.abspath('../bin'))
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest', 'sphinx.ext.todo']
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest', 'sphinx.ext.todo', 'sphinx.ext.intersphinx']
+
+intersphinx_mapping = {'discodb': ('http://discoproject.org/doc/discodb', None),
+                       'discodex': ('http://discoproject.org/doc/discodex', None)}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['.templates']
@@ -36,7 +39,7 @@ master_doc = 'index'
 
 # General substitutions.
 project = 'Disco'
-copyright = '2008-2011, Nokia Corporation and the Disco Project'
+copyright = '2008-2012, Nokia Corporation and the Disco Project'
 
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
@@ -140,7 +143,7 @@ htmlhelp_basename = 'Discodoc'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, document class [howto/manual]).
 latex_documents = [
-  ('index', 'Disco.tex', 'Disco Documentation', 'Ville Tuulos', 'manual'),
+  ('index', 'Disco.tex', 'Disco Documentation', 'Disco Project', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of

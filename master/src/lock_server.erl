@@ -1,10 +1,10 @@
 -module(lock_server).
 -behaviour(gen_server).
 
--record(state, {waiters, procs}).
+-include("gs_util.hrl").
 
--export([start_link/0,
-         init/1,
+-export([start_link/0, lock/3]).
+-export([init/1,
          handle_call/3,
          handle_cast/2,
          handle_info/2,
@@ -13,56 +13,69 @@
 
 -define(PROC_TIMEOUT, 10 * 60 * 1000).
 
+-type lockname() :: nonempty_string().
+-record(state, {waiters :: gb_tree(),
+                procs   :: gb_tree()}).
+-type state() :: #state{}.
+
 -spec start_link() -> no_return().
 start_link() ->
     process_flag(trap_exit, true),
-    case catch gen_server:start_link({local, lock_server}, lock_server, [], []) of
-        {ok, _Server} ->
-            ok;
-	{error, {already_started, _Server}} ->
-	    exit(already_started);
-        {'EXIT', Reason} ->
-            exit(Reason)
+    case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
+        {ok, _Server} -> ok;
+	{error, {already_started, _Server}} -> exit(already_started)
     end,
     receive
-        {'EXIT', _, Reason0} ->
-            exit(Reason0)
+        {'EXIT', _, Reason0} -> exit(Reason0)
     end.
 
+-spec lock(lockname(), fun(() -> ok), non_neg_integer()) -> ok | {error, term()}.
+lock(JobName, Proc, Timeout) ->
+    gen_server:call(?MODULE, {wait, JobName, Proc}, Timeout).
+
+-spec init(_) -> gs_init().
 init(_Args) ->
     process_flag(trap_exit, true),
     {ok, #state{waiters = gb_trees:empty(),
                 procs = gb_trees:empty()}}.
 
-handle_call({wait, Key, Proc}, From, S) ->
+-spec handle_call({wait, lockname(), fun(() -> ok)}, from(), state())
+                 -> gs_noreply().
+handle_call({wait, Key, Proc}, From, #state{procs = Procs,
+                                            waiters = Waiters} = S) ->
     {WaiterList1, S1} =
-        case gb_trees:lookup(Key, S#state.waiters) of
+        case gb_trees:lookup(Key, Waiters) of
             none ->
                 Pid = spawn_link(Proc),
                 {ok, TRef} = timer:kill_after(?PROC_TIMEOUT, Pid),
-                Procs = gb_trees:insert(Pid, {Key, TRef}, S#state.procs),
-                {[], S#state{procs = Procs}};
+                Procs1 = gb_trees:insert(Pid, {Key, TRef}, Procs),
+                {[], S#state{procs = Procs1}};
             {value, WaiterList} ->
                 {WaiterList, S}
         end,
-    Waiters = gb_trees:enter(Key, [From|WaiterList1], S1#state.waiters),
-    {noreply, S1#state{waiters = Waiters}}.
+    Waiters1 = gb_trees:enter(Key, [From|WaiterList1], Waiters),
+    {noreply, S1#state{waiters = Waiters1}}.
 
-handle_info({'EXIT', Pid, Reason}, S) ->
-    {value, {Key, TRef}} = gb_trees:lookup(Pid, S#state.procs),
-    {value, Waiters} = gb_trees:lookup(Key, S#state.waiters),
+-spec handle_info({'EXIT', pid(), term()}, state()) -> gs_noreply().
+handle_info({'EXIT', Pid, Reason}, #state{procs = Procs,
+                                          waiters = Waiters} = S) ->
+    {value, {Key, TRef}} = gb_trees:lookup(Pid, Procs),
+    {value, WaiterList} = gb_trees:lookup(Key, Waiters),
     Msg = if Reason =:= normal -> ok; true -> {error, Reason} end,
-    _ = [gen_server:reply(From, Msg) || From <- Waiters],
+    _ = [gen_server:reply(From, Msg) || From <- WaiterList],
     _ = timer:cancel(TRef),
-    {noreply, S#state{procs = gb_trees:delete(Pid, S#state.procs),
-                      waiters = gb_trees:delete(Key, S#state.waiters)}}.
+    {noreply, S#state{procs = gb_trees:delete(Pid, Procs),
+                      waiters = gb_trees:delete(Key, Waiters)}}.
 
+-spec handle_cast(term(), state()) -> gs_noreply().
 handle_cast(_, State) ->
     {noreply, State}.
 
+-spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) ->
     ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 

@@ -177,8 +177,8 @@ there's probably something wrong either with your
           and vice versa.
           Aliasing is not allowed.
 
-Is your firewall configued correctly?
--------------------------------------
+Is your firewall configured correctly?
+--------------------------------------
 
 Disco requires a number of ports to be accessible to function properly.
 
@@ -192,6 +192,14 @@ Disco requires a number of ports to be accessible to function properly.
    Future versions of Disco may allow you to specify a port range for Erlang to
    use. However, the current version of Disco does not, so you must open up the
    entire port range.
+
+Is your DNS configured correctly?
+---------------------------------
+
+Disco uses short DNS names of cluster nodes in its configuration.
+Please ensure that short hostnames were entered in the
+:ref:`confignodes` step, and that DNS resolves these short names
+correctly across all nodes in the cluster.
 
 Do workers run?
 ---------------
@@ -222,4 +230,3 @@ do not despair!
 Report your problem to friendly Disco developers
 :doc:`on IRC or the mailing list <getinvolved>`.
 Please mention in your report the steps you followed and the results you got.
-

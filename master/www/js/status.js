@@ -62,7 +62,7 @@ function update_nodeboxes(data){
     }, 10000);
 }
 
-function update_gcstats(data) {
+function update_gcstats(data){
     $("#gcstats").empty();
     if (typeof(data) === "string")
         $("#gcstats").text(data);
@@ -80,14 +80,23 @@ function update_gcstats(data) {
     }
 
     setTimeout(function(){
-        $.getJSON("/disco/ctrl/gc_stats", update_gcstats);
+        $.getJSON("/ddfs/ctrl/gc_stats", update_gcstats);
     }, 10000);
 }
 
-function update_gcstatus(data) {
-    $("#gcstatus").text(data);
-
+function update_gcstatus(data){
+    $("#gcstatus").unbind('click').empty();
+    if (data === "")
+        $("#gcstatus").append('<a href="#">Start GC</a>').show().click(start_gc);
+    else
+        $("#gcstatus").text(data);
     setTimeout(function(){
-        $.getJSON("/disco/ctrl/gc_status", update_gcstatus);
+        $.getJSON("/ddfs/ctrl/gc_status", update_gcstatus);
     }, 10000);
+}
+
+function start_gc(){
+    $.getJSON("/ddfs/ctrl/gc_start", function(resp){
+        $("#gcstatus").unbind('click').text(resp).show().fadeOut(2000);
+    });
 }

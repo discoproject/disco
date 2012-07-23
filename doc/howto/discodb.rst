@@ -7,7 +7,7 @@ DiscoDB Tutorial
 
 This tutorial is a guide to using :class:`DiscoDBs <discodb.DiscoDB>` in Disco.
 
-.. seealso:: :ref:`discodb`.
+.. seealso:: :mod:`discodb`.
 
 Create a DiscoDB
 ================

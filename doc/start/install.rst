@@ -34,9 +34,10 @@ Any distribution should work (including Mac OS X).
 On each server the following are required:
 
  * `SSH daemon and client <http://www.openssh.com>`_
- * `Erlang/OTP R13B or newer <http://www.erlang.org>`_
- * `Python 2.5 or newer <http://www.python.org>`_
- * `simplejson <http://pypi.python.org/pypi/simplejson/>`_ (for Python < 2.6)
+ * `Erlang/OTP R14A or newer <http://www.erlang.org>`_
+ * `Python 2.6 or newer <http://www.python.org>`_
+
+The same version of Erlang should be installed on all servers.
 
 Optionally, ``DISCO_PROXY`` needs one of
 
@@ -164,6 +165,13 @@ Once you have entered a value, click the cell again to save it.
     Keep in mind that for more than one node, hostnames need to resolve globally
     (e.g. you should be relying on DNS to resolve hostnames,
     **not** `/etc/hosts` on an individual machine).
+
+    Hostnames used by Disco are shortnames, and not fully qualified
+    hostnames.  DNS must be configured to correctly resolve the
+    shortnames of the hostnames in the cluster.
+
+    Disco cannot currently use raw IP addresses for hostnames.  Short
+    DNS hostnames must be used to name cluster nodes.
 
     A relatively common mistake is that ``master`` is just an alias for the loopback address,
     such as ``localhost``, provided in `/etc/hosts` on the master machine.

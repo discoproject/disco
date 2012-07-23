@@ -1,9 +1,11 @@
 -module(disco_web).
 -export([op/3]).
 
+-include("common_types.hrl").
 -include("disco.hrl").
 -include("config.hrl").
 
+-spec op(atom(), string(), module()) -> _.
 op('GET', "/disco/version", Req) ->
     {ok, Vsn} = application:get_key(vsn),
     reply({ok, list_to_binary(Vsn)}, Req);
@@ -11,17 +13,23 @@ op('GET', "/disco/version", Req) ->
 op('POST', "/disco/job/" ++ _, Req) ->
     BodySize = list_to_integer(Req:get_header_value("content-length")),
     if BodySize > ?MAX_JOB_PACKET ->
-        Req:respond({413, [], ["Job packet too large"]});
+            Req:respond({413, [], ["Job packet too large"]});
     true ->
-        Body = Req:recv_body(?MAX_JOB_PACKET),
-        case catch job_coordinator:new(Body) of
-            {ok, JobName} ->
-                reply({ok, [<<"ok">>, list_to_binary(JobName)]}, Req);
-            Error ->
-                ErrorString = disco:format("Job failed to start: ~p", [Error]),
-                error_logger:warning_report(ErrorString),
-                reply({ok, [<<"error">>, list_to_binary(ErrorString)]}, Req)
-        end
+            Body = Req:recv_body(?MAX_JOB_PACKET),
+            Reply =
+                try
+                    {ok, JobName} = job_coordinator:new(Body),
+                    [<<"ok">>, list_to_binary(JobName)]
+                catch Err ->
+                        ErrorString = disco:format("Job failed to start: ~p", [Err]),
+                        lager:warning("Job failed to start:~p", [Err]),
+                        [<<"error">>, list_to_binary(ErrorString)];
+                      K:E ->
+                        ErrorString = disco:format("Job failed to start: ~p:~p", [K, E]),
+                        lager:warning("Job failed to start: ~p:~p", [K, E]),
+                        [<<"error">>, list_to_binary(ErrorString)]
+                end,
+            reply({ok, Reply}, Req)
     end;
 
 op('POST', "/disco/ctrl/" ++ Op, Req) ->
@@ -31,14 +39,15 @@ op('POST', "/disco/ctrl/" ++ Op, Req) ->
 op('GET', "/disco/ctrl/" ++ Op, Req) ->
     Query = Req:parse_qs(),
     Name =
-        case lists:keysearch("name", 1, Query) of
-            {value, {_, N}} -> N;
+        case lists:keyfind("name", 1, Query) of
+            {_, N} -> N;
             _ -> false
         end,
     reply(getop(Op, {Query, Name}), Req);
 
 op('GET', Path, Req) ->
-    ddfs_get:serve_disco_file(Path, Req);
+    DiscoRoot = disco:get_setting("DISCO_DATA"),
+    ddfs_get:serve_disco_file(DiscoRoot, Path, Req);
 
 op(_, _, Req) ->
     Req:not_found().
@@ -52,23 +61,22 @@ reply({file, File, Docroot}, Req) ->
 reply(not_found, Req) ->
     Req:not_found();
 reply({error, E}, Req) ->
-    Req:respond({400, [], mochijson2:encode(E)});
-reply(E, Req) ->
-    error_logger:error_report({"500 Error", E}),
-    Req:respond({500, [], ["Internal server error"]}).
+    Req:respond({400, [], mochijson2:encode(E)}).
 
 getop("load_config_table", _Query) ->
     disco_config:get_config_table();
 
 getop("joblist", _Query) ->
-    {ok, Jobs} = gen_server:call(event_server, get_jobs),
-    {ok, [[1000000 * MSec + Sec, list_to_binary(atom_to_list(Status)), Name]
-          || {Name, Status, {MSec, Sec, _USec}, _Pid}
+    {ok, Jobs} = event_server:get_jobs(),
+    {ok, [[1000000 * MSec + Sec,
+           list_to_binary(atom_to_list(Status)),
+           list_to_binary(Name)]
+          || {Name, Status, {MSec, Sec, _USec}}
                  <- lists:reverse(lists:keysort(3, Jobs))]};
 
 getop("jobinfo", {_Query, JobName}) ->
     {ok, Active} = disco_server:get_active(JobName),
-    case gen_server:call(event_server, {get_jobinfo, JobName}) of
+    case event_server:get_jobinfo(JobName) of
         {ok, JobInfo} ->
             HostInfo = lists:unzip([{Host, M}
                                     || {Host, #task{mode = M}} <- Active]),
@@ -84,14 +92,13 @@ getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");
 
 getop("jobevents", {Query, Name}) ->
-    {value, {_, NumS}} = lists:keysearch("num", 1, Query),
+    {_, NumS} = lists:keyfind("num", 1, Query),
     Num = list_to_integer(NumS),
-    Q = case lists:keysearch("filter", 1, Query) of
+    Q = case lists:keyfind("filter", 1, Query) of
             false -> "";
-            {value, {_, F}} -> string:to_lower(F)
+            {_, F} -> string:to_lower(F)
         end,
-    {ok, Ev} = gen_server:call(event_server,
-                               {get_job_events, Name, string:to_lower(Q), Num}),
+    {ok, Ev} = event_server:get_job_msgs(Name, string:to_lower(Q), Num),
     {raw, Ev};
 
 getop("nodeinfo", _Query) ->
@@ -145,9 +152,9 @@ getop("get_settings", _Query) ->
                                  end, L))}};
 
 getop("get_mapresults", {_Query, Name}) ->
-    case gen_server:call(event_server, {get_map_results, Name}) of
-        {ok, Res} ->
-            {ok, Res};
+    case event_server:get_map_results(Name) of
+        {ok, _Res} = OK ->
+            OK;
         _ ->
             not_found
     end;
@@ -189,7 +196,7 @@ postop("clean_job", Json) ->
                      end);
 
 postop("get_results", Json) ->
-    Results = fun(N) -> gen_server:call(event_server, {get_results, N}) end,
+    Results = fun(N) -> event_server:get_results(N) end,
     validate_payload("get_results", {array, [integer, {hom_array, string}]}, Json,
                      fun(J) ->
                              [Timeout, Names] = J,
@@ -257,55 +264,51 @@ update_setting(<<"max_failure_rate">>, Val, App) ->
                              list_to_integer(binary_to_list(Val)));
 
 update_setting(Key, Val, _) ->
-    error_logger:info_report([{"Unknown setting", Key, Val}]).
+    lager:info("Unknown setting: ~p = ~p", [Key, Val]).
 
 count_maps(L) ->
-    {M, N} = lists:foldl(fun ("map", {M, N}) ->
+    {M, N} = lists:foldl(fun (map, {M, N}) ->
                                  {M + 1, N + 1};
-                             (["map"], {M, N}) ->
-                                 {M + 1, N + 1};
-                             (_, {M, N}) ->
+                             (reduce, {M, N}) ->
                                  {M, N + 1}
                          end, {0, 0}, L),
     {M, N - M}.
 
-render_jobinfo({Timestamp, Pid, JobInfo, Results, Ready, Failed},
+-spec render_jobinfo(event_server:job_eventinfo(), {[host()], [task_mode()]})
+                    -> term().
+render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
                {Hosts, Modes}) ->
     {NMapRun, NRedRun} = count_maps(Modes),
-    {NMapDone, NRedDone} = count_maps(Ready),
-    {NMapFail, NRedFail} = count_maps(Failed),
-
-    Status = case is_process_alive(Pid) of
-                 true ->
-                     <<"active">>;
-                 false when Results == [] ->
-                     <<"dead">>;
-                 false ->
-                     <<"ready">>
-             end,
-
-    MapI = if
-               JobInfo#jobinfo.map ->
-                   length(JobInfo#jobinfo.inputs) - (NMapDone + NMapRun);
-               true ->
-                   0
-           end,
-    RedI = if
-               JobInfo#jobinfo.reduce ->
-                   JobInfo#jobinfo.nr_reduce - (NRedDone + NRedRun);
-               true -> 0
-           end,
-
-    {struct, [{timestamp, Timestamp},
+    NMapDone = dict:fetch(map, Ready),
+    NRedDone = dict:fetch(reduce, Ready),
+    NMapFail = dict:fetch(map, Failed),
+    NRedFail = dict:fetch(reduce, Failed),
+    {Status, MapI, RedI, Reduce, Inputs, Worker, Owner} =
+        case JobInfo of
+            none ->
+                % The job is still initializing; use some defaults.
+                {<<"initializing">>, 0, 0, true, [], <<"">>, <<"">>};
+            #jobinfo{map = M, reduce = R, inputs = I, nr_reduce = NR,
+                     worker = W, owner = O} ->
+                {list_to_binary(atom_to_list(Status0)),
+                 if M -> length(I) - (NMapDone + NMapRun);
+                    true -> 0
+                 end,
+                 if R -> NR - (NRedDone + NRedRun);
+                    true -> 0
+                 end,
+                 R, lists:sublist(I, 100), W, O}
+        end,
+    {struct, [{timestamp, disco_util:format_timestamp(Start)},
               {active, Status},
               {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
               {redi, [RedI, NRedRun, NRedDone, NRedFail]},
-              {reduce, JobInfo#jobinfo.reduce},
+              {reduce, Reduce},
               {results, lists:flatten(Results)},
-              {inputs, lists:sublist(JobInfo#jobinfo.inputs, 100)},
-              {worker, JobInfo#jobinfo.worker},
+              {inputs, Inputs},
+              {worker, Worker},
               {hosts, [list_to_binary(Host) || Host <- Hosts]},
-              {owner, JobInfo#jobinfo.owner}
+              {owner, Owner}
              ]}.
 
 status_msg(invalid_job) -> [<<"unknown job">>, []];
@@ -320,7 +323,5 @@ wait_jobs(Jobs, Timeout) ->
             receive {'DOWN', _, _, _, _} -> ok
             after Timeout -> ok
             end,
-            [{N, gen_server:call(event_server,
-                                 {get_results, binary_to_list(N)})}
-             || {N, _} <- Jobs]
+            [{N, event_server:get_results(binary_to_list(N))} || {N, _} <- Jobs]
     end.

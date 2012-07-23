@@ -4,7 +4,7 @@
 -define(MAX_EVENTS_PER_SECOND, 5).
 
 -opaque state() :: queue().
--type throttle() :: {'ok', non_neg_integer(), state()} | {'error', term()}.
+-type throttle() :: {ok, non_neg_integer(), state()} | {error, term()}.
 
 -export_type([state/0]).
 

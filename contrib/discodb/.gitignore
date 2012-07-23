@@ -1,6 +1,0 @@
-*.dSYM
-*.o
-*.pyc
-build
-util/create_discodb
-util/query_discodb

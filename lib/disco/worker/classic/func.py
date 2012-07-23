@@ -337,8 +337,8 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
             break
 
 def default_partition(key, nr_partitions, params):
-    """Returns ``hash(str(key)) % nr_partitions``."""
-    return hash(str(key)) % nr_partitions
+    """Returns ``hash(key) % nr_partitions``."""
+    return hash(key) % nr_partitions
 
 def make_range_partition(min_val, max_val):
     """

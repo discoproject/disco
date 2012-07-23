@@ -1,40 +1,91 @@
+% This module implements the global task scheduler (GTS).  It is
+% called by disco_server on any event that indicates a new task could
+% perhaps be scheduled on the cluster.  The selection of this task is
+% split into two phases:
+%
+% . First, a candidate job is selected according to the scheduler
+%   policy (omitting from consideration any jobs who do not have any
+%   tasks that can be scheduled currently on the available cluster
+%   nodes).
+%
+% . Next, the job's task scheduler (JTS) in fair_scheduler_job.erl is
+%   called with the list of cluster nodes which have available
+%   computing slots.  The task returned by the JTS is then returned by
+%   the GTS.  If the job's JTS does not have a candidate task, we
+%   re-run the previous step with this job added to the omit list.
+
 -module(fair_scheduler).
 -behaviour(gen_server).
 
--export([start_link/0, init/1, handle_call/3, handle_cast/2,
-    handle_info/2, terminate/2, code_change/3]).
+-export([start_link/0, new_job/2, job_done/1,
+         next_task/1, new_task/2, update_nodes/1]).
 
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+         terminate/2, code_change/3]).
+
+-include("common_types.hrl").
+-include("gs_util.hrl").
 -include("disco.hrl").
+-include("fair_scheduler.hrl").
 
+-type state() :: [node()].
+
+%% ===================================================================
+%% API functions
+
+-spec start_link() -> {ok, pid()}.
 start_link() ->
-    error_logger:info_report([{"Fair scheduler starts"}]),
-    case gen_server:start_link({local, scheduler}, fair_scheduler, [],
-            disco:debug_flags("fair_scheduler")) of
-        {ok, Server} -> {ok, Server};
+    lager:info("Fair scheduler starts"),
+    case gen_server:start_link({local, ?MODULE}, fair_scheduler, [],
+                               disco:debug_flags("fair_scheduler"))
+    of  {ok, _Server} = Ret -> Ret;
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
+-spec update_nodes([node_update()]) -> ok.
+update_nodes(NewNodes) ->
+    gen_server:cast(?MODULE, {update_nodes, NewNodes}).
+
+-spec job_done(jobname()) -> ok.
+job_done(JobName) ->
+    gen_server:cast(?MODULE, {job_done, JobName}).
+
+-spec next_task([host()]) -> nojobs | {ok, {pid(), {node(), task()}}}.
+next_task(AvailableNodes) ->
+    gen_server:call(?MODULE, {next_task, AvailableNodes}).
+
+-spec new_job(jobname(), pid()) -> ok.
+new_job(JobName, JobCoord) ->
+    gen_server:call(?MODULE, {new_job, JobName, JobCoord}).
+
+-spec new_task(task(), [nodestat()]) -> unknown_job | ok.
+new_task(Task, NodeStat) ->
+    gen_server:call(?MODULE, {new_task, Task, NodeStat}).
+
+%% ===================================================================
+%% gen_server callbacks
+
+-spec init([]) -> gs_init().
 init([]) ->
     {ok, _ } =
         case application:get_env(scheduler_opt) of
             {ok, "fifo"} ->
-                error_logger:info_report(
-                  [{"Scheduler uses fifo policy"}]),
+                lager:info("Scheduler uses fifo policy"),
                 fair_scheduler_fifo_policy:start_link();
             _ ->
-                error_logger:info_report(
-                  [{"Scheduler uses fair policy"}]),
+                lager:info("Scheduler uses fair policy"),
                 fair_scheduler_fair_policy:start_link()
         end,
     _ = ets:new(jobs, [private, named_table]),
     {ok, []}.
 
+-spec handle_cast(update_nodes_msg() | {job_done, jobname()}, state())
+                 -> gs_noreply().
 handle_cast({update_nodes, NewNodes}, _) ->
     gen_server:cast(sched_policy, {update_nodes, NewNodes}),
     NNodes = [Name || {Name, _NumCores} <- NewNodes],
     Msg = {update_nodes, NNodes},
-    _ = [gen_server:cast(JobPid, Msg) ||
-            {_, {JobPid, _}} <- ets:tab2list(jobs)],
+    _ = [gen_server:cast(JobPid, Msg) || {_, {JobPid,_}} <- ets:tab2list(jobs)],
     {noreply, NNodes};
 
 handle_cast({job_done, JobName}, Nodes) ->
@@ -42,12 +93,19 @@ handle_cast({job_done, JobName}, Nodes) ->
     % job has been removed from the scheduler. Make sure that doesn't
     % happen.
     case ets:lookup(jobs, JobName) of
-        [] -> {noreply, Nodes};
+        [] ->
+            {noreply, Nodes};
         [{_, {_, JobCoord}}] ->
             ets:delete(jobs, JobName),
             exit(JobCoord, kill_worker),
             {noreply, Nodes}
     end.
+
+-spec handle_call({new_job, jobname(), pid()}, from(), state()) -> gs_reply(ok);
+                 (new_task_msg(), from(), state()) -> gs_reply(unknown_job | ok);
+                 (dbg_state_msg(), from(), state()) -> gs_reply(state());
+                 ({next_task, [host()]}, from(), state()) ->
+                         gs_reply(nojobs | {ok, {pid(), {node(), task()}}}).
 
 handle_call({new_job, JobName, JobCoord}, _, Nodes) ->
     {ok, JobPid} = fair_scheduler_job:start(JobName, JobCoord),
@@ -79,20 +137,20 @@ handle_call({next_task, AvailableNodes}, _From, Nodes) ->
 next_task(AvailableNodes, Jobs, NotJobs) ->
     case gen_server:call(sched_policy, {next_job, NotJobs}) of
         {ok, JobPid} ->
-            case fair_scheduler_job:next_task(
-                    JobPid, Jobs, AvailableNodes) of
-                {ok, Task} ->
-                    {ok, {JobPid, Task}};
-                none ->
-                    next_task(AvailableNodes,
-                        Jobs, [JobPid|NotJobs])
+            case fair_scheduler_job:next_task(JobPid, Jobs, AvailableNodes) of
+                {ok, Task} -> {ok, {JobPid, Task}};
+                none       -> next_task(AvailableNodes, Jobs, [JobPid|NotJobs])
             end;
         nojobs -> nojobs
     end.
 
+-spec handle_info(term(), state()) -> gs_noreply().
 handle_info(_Msg, State) -> {noreply, State}.
 
+-spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) ->
-    [exit(JobPid, kill) || {_, {JobPid, _}} <- ets:tab2list(jobs)].
+    _ = [exit(JobPid, kill) || {_, {JobPid, _}} <- ets:tab2list(jobs)],
+    ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

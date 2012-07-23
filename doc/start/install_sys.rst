@@ -20,10 +20,13 @@ to install system-wide, just run ``make install`` as root::
 
         make install
 
-This will build and install Disco to your system
+This will build and install the Disco master to your system
 (see the ``Makefile`` for exact directory locations).
 You can specify ``DESTDIR`` and ``prefix``,
 in compliance with `GNU make <http://www.gnu.org/software/make/manual/make.html>`_.
+
+On systems that are intended to function as Disco worker nodes only,
+you can use the ``make install-node`` target instead.
 
 System Settings
 ===============
@@ -67,3 +70,13 @@ You can easily integrate :mod:`disco <discocli>`
 into your system's startup sequence.
 As an example, you can see how ``disco-master.init``
 is implemented in Disco's ``debian`` packaging.
+
+Configuring DDFS Storage
+========================
+
+On the Disco nodes, DDFS creates by default a subdirectory named
+``vol0`` under the :envvar:`DDFS_DATA` directory to use for storage.
+If you have one or more dedicated disks or storage areas you wish to
+use instead, you can mount them under the directory specified by
+:envvar:`DDFS_DATA` as subdirectories named ``vol0``, ``vol1`` and so
+on.

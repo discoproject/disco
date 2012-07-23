@@ -17,4 +17,3 @@
                      user = [] :: user_attr()}).
 
 -type tagcontent() :: #tagcontent{}.
-

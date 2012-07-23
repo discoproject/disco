@@ -1,9 +1,11 @@
 -module(disco_config).
 -behaviour(gen_server).
 
+-include("common_types.hrl").
+-include("gs_util.hrl").
 -include("disco.hrl").
 
--export([start_link/0, stop/0]).
+-export([start_link/0]).
 -export([get_config_table/0, save_config_table/1,
          blacklist/1, whitelist/1,
          gc_blacklist/1, gc_whitelist/1]).
@@ -12,54 +14,61 @@
 
 -type hostinfo_line() :: [binary(),...].
 -type raw_hosts() :: [[hostinfo_line()]].
--type host_info() :: {host_name(), non_neg_integer()}.
+-type host_info() :: {host(), non_neg_integer()}.
 -type config() :: [{binary(), [binary(),...]}].
 
 -export_type([host_info/0]).
 
-%% ===================================================================
+% ===================================================================
 %% API functions
 
+-spec start_link() -> {ok, pid()}.
 start_link() ->
-    error_logger:info_report([{"Disco config starts"}]),
+    lager:info("Disco config starts"),
     case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
         {ok, Server} -> {ok, Server};
         {error, {already_started, Server}} -> {ok, Server}
     end.
 
-stop() ->
-    gen_server:call(?MODULE, stop).
-
--spec get_config_table() -> {'ok', raw_hosts()}.
+-spec get_config_table() -> {ok, raw_hosts()}.
 get_config_table() ->
     gen_server:call(?MODULE, get_config_table).
 
--spec save_config_table(raw_hosts()) -> {'ok' | 'error', binary()}.
+-spec save_config_table(raw_hosts()) -> {ok | error, binary()}.
 save_config_table(Json) ->
     gen_server:call(?MODULE, {save_config_table, Json}).
 
--spec blacklist(host_name()) -> 'ok'.
+-spec blacklist(host()) -> ok.
 blacklist(Host) ->
     gen_server:call(?MODULE, {blacklist, Host}).
 
--spec whitelist(host_name()) -> 'ok'.
+-spec whitelist(host()) -> ok.
 whitelist(Host) ->
     gen_server:call(?MODULE, {whitelist, Host}).
 
--spec gc_blacklist(host_name()) -> 'ok'.
+-spec gc_blacklist(host()) -> ok.
 gc_blacklist(Host) ->
     gen_server:call(?MODULE, {gc_blacklist, Host}).
 
--spec gc_whitelist(host_name()) -> 'ok'.
+-spec gc_whitelist(host()) -> ok.
 gc_whitelist(Host) ->
     gen_server:call(?MODULE, {gc_whitelist, Host}).
 
 %% ===================================================================
 %% gen_server callbacks
 
+-type state() :: undefined.
+
+-spec init(_) -> gs_init().
 init(_Args) ->
     {ok, undefined}.
 
+-type host_op() :: whitelist | blacklist | gc_whitelist | gc_blacklist.
+-type host_op_msg() :: {host_op(), host()}.
+-spec handle_call(host_op_msg(), from(), state()) -> gs_reply(ok);
+                 (get_config_table, from(), state()) -> gs_reply({ok, raw_hosts()});
+                 ({save_config_table, raw_hosts()}, from(), state()) ->
+                         gs_reply({ok | error, binary()}).
 handle_call(get_config_table, _, S) ->
     {reply, do_get_config_table(), S};
 
@@ -78,21 +87,25 @@ handle_call({gc_blacklist, Host}, _, S) ->
 handle_call({gc_whitelist, Host}, _, S) ->
     {reply, do_gc_whitelist(Host), S}.
 
+-spec handle_cast(term(), state()) -> gs_noreply().
 handle_cast(_, S) ->
     {noreply, S}.
 
+-spec handle_info(term(), state()) -> gs_noreply().
 handle_info(_, S) ->
     {noreply, S}.
 
+-spec terminate(term(), state()) -> ok.
 terminate(Reason, _State) ->
-    error_logger:warning_report({"Disco config dies", Reason}).
+    lager:warning("Disco config dies: ~p", [Reason]).
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% ===================================================================
 %% internal functions
 
--spec expand_range(nonempty_string(), nonempty_string()) -> [host_name()].
+-spec expand_range(nonempty_string(), nonempty_string()) -> [host()].
 expand_range(FirstNode, Max) ->
     Len = string:len(FirstNode),
     FieldLen = string:len(Max),
@@ -116,7 +129,7 @@ parse_row([NodeSpecB, InstancesB]) ->
     Instances = string:strip(binary_to_list(InstancesB)),
     add_nodes(string:tokens(NodeSpec, ":"), list_to_integer(Instances)).
 
--spec update_config_table([host_info()], [host_name()], [host_name()]) -> 'ok'.
+-spec update_config_table([host_info()], [host()], [host()]) -> ok.
 update_config_table(HostInfo, Blacklist, GCBlacklist) ->
     disco_server:update_config_table(HostInfo, Blacklist, GCBlacklist).
 
@@ -149,33 +162,34 @@ get_raw_hosts(Config) ->
 get_host_info(RawHosts) ->
     lists:flatten([parse_row(R) || R <- RawHosts]).
 
--spec get_expanded_hosts(raw_hosts()) -> [host_name()].
+-spec get_expanded_hosts(raw_hosts()) -> [host()].
 get_expanded_hosts(RawHosts) ->
     {Hosts, _Cores} = lists:unzip(get_host_info(RawHosts)),
     Hosts.
 
--spec get_blacklist(config(), 'blacklist' | 'gc_blacklist') -> [host_name()].
+-spec get_blacklist(config(), blacklist | gc_blacklist) -> [host()].
 get_blacklist(Config, blacklist) ->
     get_blacklist(proplists:get_value(<<"blacklist">>, Config));
 get_blacklist(Config, gc_blacklist) ->
     get_blacklist(proplists:get_value(<<"gc_blacklist">>, Config)).
-get_blacklist(Blacklist) ->
-    lists:map(fun(B) -> binary_to_list(B) end, Blacklist).
 
--spec make_config(raw_hosts(), [host_name()], [host_name()]) -> config().
+get_blacklist(Blacklist) ->
+    [binary_to_list(B) || B <- Blacklist].
+
+-spec make_config(raw_hosts(), [host()], [host()]) -> config().
 make_config(RawHosts, Blacklist, GCBlacklist) ->
-    BinarizeList = fun(L) -> lists:map(fun(B) -> list_to_binary(B) end, L) end,
+    BinarizeList = fun(L) -> [list_to_binary(B) || B <- L] end,
     RawBlacklist = BinarizeList(Blacklist),
     RawGCBlacklist = BinarizeList(GCBlacklist),
     [{<<"hosts">>, RawHosts},
      {<<"blacklist">>, RawBlacklist},
      {<<"gc_blacklist">>, RawGCBlacklist}].
 
--spec make_blacklist([host_name()], [host_name()]) -> [host_name()].
+-spec make_blacklist([host()], [host()]) -> [host()].
 make_blacklist(Hosts, Prospects) ->
-    lists:usort(lists:filter(fun(P) -> lists:member(P, Hosts) end, Prospects)).
+    lists:usort([P || P <- Prospects, lists:member(P, Hosts)]).
 
--spec do_get_config_table() -> {'ok', raw_hosts()}.
+-spec do_get_config_table() -> {ok, raw_hosts()}.
 do_get_config_table() ->
     Config = get_full_config(),
     RawHosts = get_raw_hosts(Config),
@@ -184,15 +198,14 @@ do_get_config_table() ->
     update_config_table(get_host_info(RawHosts), Blacklist, GCBlacklist),
     {ok, RawHosts}.
 
--spec do_save_config_table(raw_hosts()) -> {'ok' | 'error', binary()}.
+-spec do_save_config_table(raw_hosts()) -> {ok | error, binary()}.
 do_save_config_table(RawHosts) ->
     ParsedConfig =
         try
             {get_host_info(RawHosts), get_expanded_hosts(RawHosts)}
         catch
             _:_ ->
-                error_logger:warning_report({"Disco config: parse error",
-                                             RawHosts}),
+                lager:warning("Disco config: error parsing ~p", [RawHosts]),
                 parse_error
         end,
     case ParsedConfig of
@@ -201,7 +214,7 @@ do_save_config_table(RawHosts) ->
             Sorted = lists:sort(Hosts),
             USorted = lists:usort(Hosts),
             if
-                length(Sorted) == length(USorted) ->
+                length(Sorted) =:= length(USorted) ->
                     % Retrieve and update old blacklist
                     OldConfig = get_full_config(),
                     OldBL = get_blacklist(OldConfig, blacklist),
@@ -220,7 +233,7 @@ do_save_config_table(RawHosts) ->
             {error, <<"invalid config">>}
     end.
 
--spec do_blacklist(host_name()) -> 'ok'.
+-spec do_blacklist(host()) -> ok.
 do_blacklist(Host) ->
     OldConfig = get_full_config(),
     RawHosts = get_raw_hosts(OldConfig),
@@ -232,7 +245,7 @@ do_blacklist(Host) ->
                          mochijson2:encode({struct, NewConfig})),
     disco_server:manual_blacklist(Host, true).
 
--spec do_whitelist(host_name()) -> 'ok'.
+-spec do_whitelist(host()) -> ok.
 do_whitelist(Host) ->
     OldConfig = get_full_config(),
     RawHosts = get_raw_hosts(OldConfig),
@@ -244,7 +257,7 @@ do_whitelist(Host) ->
                          mochijson2:encode({struct, NewConfig})),
     disco_server:manual_blacklist(Host, false).
 
--spec do_gc_blacklist(host_name()) -> 'ok'.
+-spec do_gc_blacklist(host()) -> ok.
 do_gc_blacklist(Host) ->
     OldConfig = get_full_config(),
     RawHosts = get_raw_hosts(OldConfig),
@@ -256,7 +269,7 @@ do_gc_blacklist(Host) ->
                          mochijson2:encode({struct, NewConfig})),
     disco_server:gc_blacklist(NewGCBlacklist).
 
--spec do_gc_whitelist(host_name()) -> 'ok'.
+-spec do_gc_whitelist(host()) -> ok.
 do_gc_whitelist(Host) ->
     OldConfig = get_full_config(),
     RawHosts = get_raw_hosts(OldConfig),

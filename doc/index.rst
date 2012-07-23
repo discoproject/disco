@@ -24,6 +24,7 @@ Getting started
    start/install
    start/install_sys
    start/tutorial
+   start/tutorial_2
    start/troubleshoot
    start/getinvolved
 
@@ -45,13 +46,3 @@ Reference
    lib/index
    man/disco
    man/ddfs
-
-Batteries Included
-------------------
-
-.. toctree::
-   :titlesonly:
-
-   contrib/discodb/discodb
-   contrib/discodb/query
-   contrib/discodex/index

@@ -1,4 +1,3 @@
-
 -module(web_server).
 
 -export([start/1]).
@@ -6,18 +5,18 @@
 
 -include("config.hrl").
 
+-spec start(string()) -> {ok, pid()} | {error, term()}.
 start(Port) ->
     Conf = [{loop, fun loop/1},
             {name, web_server},
             {max, ?MAX_HTTP_CONNECTIONS},
             {port, Port}],
-    error_logger:info_report({"web_server starts"}),
-    case catch mochiweb_http:start(Conf) of
+    case mochiweb_http:start(Conf) of
         {ok, Pid} ->
-            error_logger:info_report({"mochiweb starts"}),
+            lager:info("web server (mochiweb) starts"),
             {ok, Pid};
         {_Error, E} ->
-            error_logger:error_report({"Starting web server failed:", E}),
+            lager:error("Starting web server failed: ~p", [E]),
             {error, E}
     end.
 
@@ -47,13 +46,12 @@ docroot() ->
 
 dispatch(Req, Module, Path) ->
     erlang:put(mochiweb_request_force_close, true),
-    case catch Module:op(Req:get(method), Path, Req) of
-        {'EXIT', E} ->
-            error_logger:error_report({"Request failed", Req:get(path), E}),
-            Req:respond({500, [], ["Internal server error"]});
-        invalid_utf8 ->
-            error_logger:error_report({"Request failed", Req:get(path), invalid_utf8}),
-            Req:respond({400, [], ["Invalid UTF8"]});
-        _ ->
-            ok
+    try Module:op(Req:get(method), Path, Req)
+    catch
+        E ->
+            lager:error("Request ~p failed: ~p", [Req:get(path), E]),
+            Req:respond({400, [], [disco:format("~p", [E])]});
+        K:V ->
+            lager:error("Request ~p failed: ~p:~p", [Req:get(path), K,V]),
+            Req:respond({500, [], ["Internal server error"]})
     end.

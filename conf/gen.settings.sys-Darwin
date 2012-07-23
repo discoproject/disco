@@ -1,0 +1,4 @@
+#!/bin/bash
+# This file is used by "make install" on Darwin (i.e. Mac OS X).
+
+. gen.settings.sh

@@ -7,9 +7,6 @@ Glossary
    client
         The program which submits a :term:`job` to the :term:`master`.
 
-   conjunctive normal form
-        See `conjunctive normal form <http://en.wikipedia.org/wiki/Conjunctive_normal_form>`_.
-
    blob
         An arbitrary file stored in :ref:`DDFS`.
 
@@ -29,17 +26,15 @@ Glossary
    Erlang
         See `Erlang <http://en.wikipedia.org/wiki/Erlang_(programming_language)>`_.
 
-   ichunk
-        An :term:`immutable` piece of a distributed :term:`index`, stored in a file.
+   garbage collection (GC)
+        DDFS has a tag-based filesystem, which means that a given blob
+        could be addressed via multiple tags.  This means that blobs
+        can only be deleted once the last reference to it is deleted.
+        DDFS uses a garbage collection procedure to detect and delete
+        such unreferenced data.
 
    immutable
         See `immutable object <http://en.wikipedia.org/wiki/Immutable_object>`_.
-
-   index
-        A mapping from each key in a set of keys to a multiset of values.
-        Indices provide random access into a set of data.
-        As an example, search engines are usually implemented using a
-        `web index <http://en.wikipedia.org/wiki/Index_(search_engine)>`_.
 
    map
         The first phase of a :term:`job`,
@@ -115,9 +110,6 @@ Glossary
         Typically, the output of :term:`map` is partitioned,
         and each :term:`reduce` operates on a single partition.
 
-   persistent
-        See `persistent data structure <http://en.wikipedia.org/wiki/Persistent_data_structure>`_.
-
    pid
         A process identifier.
         In Disco this usually refers to the :term:`worker` *pid*.
@@ -132,6 +124,16 @@ Glossary
         which usually has access to all values for a given key
         produced by the :term:`map` phase.
         Grouping data for reduce is achieved via :term:`partitioning`.
+
+   replica
+        Multiple copies (or replicas) of blobs are stored on different
+        cluster nodes so that blobs are still available inspite of a
+        small number of nodes going down.
+
+   re-replication
+        When a node goes down, the system tries to create additional
+        replicas to replace copies that were lost at the loss of the
+        node.
 
    SSH
         Network protocol used by :term:`Erlang` to start :term:`slaves <slave>`.

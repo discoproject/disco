@@ -2,6 +2,45 @@
 Release notes
 =============
 
+Disco 0.4.2 (Apr 26, 2012)
+--------------------------
+
+New features
+''''''''''''
+
+- New fault-tolerant garbage collector and re-replicator (GC/RR).
+- Allow scheduling of nodes for safe removal from DDFS (#201).
+- Some useful GC statistics are now shown in the UI.
+
+Changes
+'''''''
+
+- Discodb and Discodex separated out into submodule repositories.
+- Master/Erlang build switched to rebar, with source tree re-organized
+  appropriately.
+- Master logging switched to lager.  Note that the format of the logs
+  has changed as a result.
+- Many dialyzer-related cleanups.  Thanks to Kostis Sagonas.
+- Cleanup of debian package build.
+
+Bugfixes
+''''''''
+
+- The new GC/RR closes #254, where a concurrent update to a tag was
+  not handled at some points during GC.
+- The new GC/RR also closes #256, where lost tag updates for
+  re-replicated blobs caused later re-replication failures.
+- Fix a case when the master node could run out of file descriptors
+  when servicing an unexpectedly large number of jobpack requests from
+  worker nodes (20d8fbe, 10a33b9, 0f7eaeb).
+- Fixes to make DISCO_PROXY usable again (#269).  Thanks to Dmitrijs
+  Milajevs.
+- Fix a crash due to an already started lock server (64096a3).
+- Handle an existing disco user on package install (4f04e14).  Thanks
+  to Pedro Larroy.
+- Fix a crash of ddfs_master due to timeouts in linked processes (#312).
+
+
 Disco 0.4.1 (Sep 23rd 2011)
 ---------------------------
 
@@ -51,7 +90,7 @@ New features
 - *prefix* is now optional for jobs.
 - Many Dialyzer-related improvements.
 - Separate Debian branch containing rules to create Debian packages merged under ``pkg``.
-- Debian package for :mod:`discodb`.
+- Debian package for DiscoDB.
 - :ref:`discoext` provides the task type on the command line, to allow a single
   binary to handle both map and reduce phases.
 
@@ -109,7 +148,6 @@ New features
     - Improved REST API (see :ref:`ddfsapi`).
     - ``DDFS_PARANOID_DELETE`` setting allows an external program to be used to delete or verify obsolete files (see :mod:`disco.settings`).
  - Functions are now allowed in arguments of `partial job functions <http://docs.python.org/library/functools.html#functools.partial>`_.
- - Improvements in :mod:`discodb` and :ref:`discodex`.
  - Improved documentation, and a new document :ref:`administer`.
 
 Bugfixes
@@ -163,7 +201,7 @@ New features
     - Atomic set updates (``update=1``).
     - Delayed commits (``delayed=1``), which gives a major performance boost without sacrificing data consistency.
     - Garbage collection is now scheme-agnostic (#189).
- - Major :mod:`discodb` enhancements:
+ - Major DiscoDB enhancements:
     - Values are now compressed without sacrificing performance.
     - Constructor accepts unsorted key-value pairs.
     - Option (``unique_items=True``) to remove duplicates from inputs automatically.
@@ -172,7 +210,7 @@ New features
  - Enhanced Java support added as a Git submodule under ``contrib/java-ext``
    (`Thanks to Ryan Maus <http://github.com/ryan-maus/disco-java-ext>`_).
  - Disk space monitoring for DDFS added to the Web UI.
- - Lots of enhancements to :mod:`discodex <discodexcli>` and :mod:`disco <discocli>` command line utilities.
+ - Lots of enhancements to :mod:`disco <discocli>` command line.
  - New setting ``DISCO_SORT_BUFFER_SIZE`` to control memory usage of the external sort (see :mod:`disco.settings`).
  - :func:`disco.func.gzip_reader` for reading gzipped inputs.
  - Easier single-node installation with default localhost configuration.
@@ -201,7 +239,7 @@ Bugfixes
  - Fix unicode handling (#185, #190)
  - In-memory sort disabled as it doesn't work well compressed inputs (#145)
  - Fixed/improved replica handling (#170, #178, #176)
- - Three bugfixes in :mod:`discodb` querying and iterators (#181)
+ - Three bugfixes in DiscoDB querying and iterators (#181)
  - Don't rate limit internal messages, to prevent bursts of messages crashing the job (#169)
  - Random bytes in a message should not make json encoding fail (#161)
  - :meth:`disco.core.Disco.wait` should not throw an exception if master doesn't respond immediately (#183)
@@ -221,9 +259,9 @@ New features
 ''''''''''''
 
  - :ref:`ddfs` - distributed and replicated data storage for Disco.
- - :ref:`discodex` - distributed indices for efficient querying of data.
- - :mod:`discodb` - lightning fast and scalable mapping data structure.
- - New internal data format, supporting compression and pickling 
+ - Discodex - distributed indices for efficient querying of data.
+ - DiscoDB - lightning fast and scalable mapping data structure.
+ - New internal data format, supporting compression and pickling
    of Python objects by default.
  - Clarified the partitioning logic in Disco, see :ref:`dataflow`.
  - Integrated web server (Mochiweb) replaces Lighttpd, making installation
@@ -245,7 +283,7 @@ New features
  - Debian packaging: ``disco-master`` and ``disco-node`` do not conflict
    anymore, making it possible to run Disco locally from Debian packages.
 
-Deprecated 
+Deprecated
 ''''''''''
 These features will be removed in the coming releases:
   - *object_reader* and *object_writer* - Disco supports now pickling by
@@ -261,8 +299,8 @@ Backwards incompatible changes
  - ``homedisco`` removed - use a local Disco instead
  - Deprecated ``chunked`` parameter removed from :meth:`disco.core.Disco.new_job`.
  - If you have been using a custom output stream with the default writer,
-   you need to specify the writer now explictly, or upgrade your 
-   output stream to support the `.out(k, v)`` method which replaces 
+   you need to specify the writer now explictly, or upgrade your
+   output stream to support the `.out(k, v)`` method which replaces
    writers in 0.3.
 
 Bugfixes
@@ -309,7 +347,7 @@ Bugfixes
  - Apply rate limit to all messages on stdout / stderr. (bug #21, db76c80)
  - Fixed *flock* error handing for OS X (b06757e4)
  - Documentation fixes (bug #34, #42 9cd9b6f1)
-   
+
 
 Disco 0.2.3 (September 9th 2009)
 --------------------------------
@@ -321,7 +359,7 @@ New features
    before.
  - Console output of job events (`screenshot
    <_static/screenshots/disco-events.png>`_). You can now follow progress of a job
-   on the console instead of the web UI by setting ``DISCO_EVENTS=1``. 
+   on the console instead of the web UI by setting ``DISCO_EVENTS=1``.
    See :meth:`disco.core.Disco.events` and :meth:`disco.core.Disco.wait`.
  - Automatic inference and distribution of dependent modules. See :mod:`disco.modutil`.
  - *required_files* parameter added to :meth:`disco.core.Disco.new_job`.
@@ -364,7 +402,7 @@ Disco 0.2.2 (July 26th 2009)
 New features
 ''''''''''''
 
- - Experimental support for POSIX-compatible distributed filesystems, 
+ - Experimental support for POSIX-compatible distributed filesystems,
    in particular `GlusterFS <http://gluster.com>`_. Two modes are available: Disco
    can read input data from a distributed filesystem while preserving data locality
    (aka *inputfs*). Disco can also use a DFS for internal communication,
@@ -375,7 +413,7 @@ Bugfixes
 ''''''''
 
  - ``DISCO_PROXY`` handles now out-of-band results correctly (commit b1c0f9911)
- - `make-lighttpd-proxyconf.py` now ignores commented out lines in `/etc/hosts` (bug #14, commit a1a93045d) 
+ - `make-lighttpd-proxyconf.py` now ignores commented out lines in `/etc/hosts` (bug #14, commit a1a93045d)
  - Fixed missing PID file in the `disco-master` script. The `/etc/init.d/disco-master` script in Debian packages now works correctly (commit 223c2eb01)
  - Fixed a regression in `Makefile`. Config files were not copied to `/etc/disco` (bug #13, commit c058e5d6)
  - Increased `server.max-write-idle` setting in Lighttpd config. This prevents the http connection from disconnecting with long running, cpu-intensive reduce tasks  (bug #12, commit 956617b0)
@@ -426,4 +464,3 @@ Bugfixes
  - Added warning about unknown parameters in ``new_job()`` (bug #8, commit db707e7d)
  - Fix for sending invalid configuration data (bug #1, commit bea70dd4)
  - Fixed missing ``msg``, ``err`` and ``data_err`` functions (commit e99a406d)
-
