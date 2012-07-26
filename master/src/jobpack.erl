@@ -162,8 +162,8 @@ valid(<<?MAGIC:16/big,
          _ = jobenvs(JobPack),
          ok
     catch
-        {error, E} -> E;
-        _:_ -> {error, "invalid payload"}
+        {error, _E} = Err -> Err;
+        K:E -> {error, disco:format("invalid payload: ~p:~p", [K, E])}
     end;
 valid(_JobPack) -> {error, "invalid header"}.
 
@@ -181,18 +181,18 @@ validate_pipeline(P) ->
     Spec = {hom_array, {array, [string, string]}},
     case json_validator:validate(Spec, P) of
         {error, E} ->
-            lager:warning("Invalid pipeline in jobpack: ~s",
-                          json_validator:error_msg(E)),
-            throw({error, invalid_pipeline_format});
+            Msg = disco:format("Invalid job pipeline: ~s",
+                               json_validator:error_msg(E)),
+            throw({error, Msg});
         ok ->
             % Ensure stages are unique.
-            {Stages, _Groups} = lists:unzip(P),
+            Stages = [S || [S | _] <- P],
             StageSet = gb_sets:from_list(Stages),
             case gb_sets:size(StageSet) =/= length(Stages) of
                 true  -> throw({error, repeated_pipeline_stages});
                 false -> ok
             end,
-            [{S, grouping(G)} || {S, G} <- P]
+            [{S, grouping(G)} || [S | [G | _]] <- P]
     end.
 
 -spec validate_inputs(list()) -> [task_output()].
