@@ -195,7 +195,7 @@ validate_pipeline(P) ->
             [{S, grouping(G)} || [S | [G | _]] <- P]
     end.
 
--spec validate_inputs(list()) -> [task_output()].
+-spec validate_inputs(list()) -> [data_input()].
 validate_inputs(Inputs) ->
     Spec = {hom_array, {array, [integer, integer, {hom_array, string}]}},
     case json_validator:validate(Spec, Inputs) of
@@ -204,8 +204,7 @@ validate_inputs(Inputs) ->
                           json_validator:error_msg(E)),
             throw({error, invalid_job_inputs});
         _I ->
-            [{N, {data, {L, Sz, Urls}}}
-             || {N, [L, Sz, Urls]} <- disco:enum(Inputs)]
+            [{data, {L, Sz, Urls}} || [L, Sz, Urls] <- Inputs]
     end.
 
 % Jobpack file management.
