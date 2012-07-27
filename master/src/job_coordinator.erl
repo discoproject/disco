@@ -284,7 +284,7 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname = JobName},
     gen_server:cast(self(), pipeline_done).
 
 -spec retry_task(host(), term(), task_info(), state()) -> state().
-retry_task(Host, Error,
+retry_task(Host, _Error,
            #task_info{spec = #task_spec{jobname = JobName,
                                         taskid  = TaskId,
                                         stage   = Stage},
@@ -295,9 +295,9 @@ retry_task(Host, Error,
     FC = FailedCnt + 1,
     case FC > MaxFail of
         true ->
-            M = disco:format("Task failed ~B times (due to ~p). "
-                             "At most ~B failures are allowed.",
-                             [FC, Error, MaxFail]),
+            M = disco:format("Task ~s:~B failed ~B times."
+                             " At most ~B failures are allowed.",
+                             [Stage, TaskId, FC, MaxFail]),
             event_server:task_event({JobName, Stage, TaskId}, {<<"ERROR">>, M}),
             kill_job(M);
         false ->
@@ -308,9 +308,9 @@ retry_task(Host, Error,
                               lists:min([FC * ?FAILED_MIN_PAUSE,
                                          ?FAILED_MAX_PAUSE])
                               + random:uniform(?FAILED_PAUSE_RANDOMIZE),
-                          M = "~p:~B Task failed for the ~Bth time (due to ~p)."
+                          M = "Task ~s:~B failed for the ~Bth time."
                               " Sleeping ~B seconds before retrying.",
-                          MArgs = [Stage, TaskId, FC, Error, round(Sleep / 1000)],
+                          MArgs = [Stage, TaskId, FC, round(Sleep / 1000)],
                           event_server:event(JobName, M, MArgs, none),
                           timer:sleep(Sleep),
                           submit_tasks(JobCoord, re_run, [TaskId])

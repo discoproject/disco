@@ -140,11 +140,17 @@ task_event(Task, Msg, Event, Host) ->
 -spec task_event(task_info(), task_msg(), none | event(), host(), server()) -> ok.
 task_event({JN, Stage, TaskId}, {Type, Message}, Event, Host, EventServer) ->
     event(EventServer, Host, JN,
-          "~s: [~s:~B] " ++ task_format(Message),
+          "~s: [~s:~B] " ++ msg_format(Message),
           [Type, Stage, TaskId, Message],
           Event);
 task_event(Task, Message, Event, Host, EventServer) ->
     task_event(Task, {<<"SYS">>, Message}, Event, Host, EventServer).
+
+-spec msg_format(term()) -> nonempty_string().
+msg_format(Msg) when is_atom(Msg) or is_binary(Msg) or is_list(Msg) ->
+    "~s";
+msg_format(_Msg) ->
+    "~w".
 
 % Server.
 
@@ -452,11 +458,6 @@ unique_key(Prefix, Dict) ->
             true -> unique_key(Prefix, Dict)
         end
     end.
-
-task_format(Msg) when is_atom(Msg) or is_binary(Msg) or is_list(Msg) ->
-    "~s";
-task_format(_Msg) ->
-    "~w".
 
 % Utilities to process job event file.
 
