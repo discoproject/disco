@@ -387,7 +387,7 @@ do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->
     end,
     case dict:find(JobName, MsgBuf) of
         error -> S;
-        {ok, _} -> #state{msgbuf = dict:erase(JobName, MsgBuf)}
+        {ok, _} -> S#state{msgbuf = dict:erase(JobName, MsgBuf)}
     end.
 
 -spec do_job_done_event(jobname(), [[url()]], state()) -> state().
