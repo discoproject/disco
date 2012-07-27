@@ -204,7 +204,8 @@ validate_inputs(Inputs) ->
                           json_validator:error_msg(E)),
             throw({error, invalid_job_inputs});
         _I ->
-            [{data, {L, Sz, Urls}} || [L, Sz, Urls] <- Inputs]
+            [{data, {L, Sz, [{U, disco:preferred_host(U)} || U <- Urls]}}
+             || [L, Sz, Urls] <- Inputs]
     end.
 
 % Jobpack file management.
