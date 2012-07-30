@@ -79,6 +79,9 @@ clean:
 	@ (cd master && ./rebar clean)
 	- rm -Rf lib/build lib/disco.egg-info
 
+xref: master
+	@ (cd master && ./rebar xref)
+
 test:
 	@ (cd master && ./rebar -C eunit.config get-deps eunit)
 
