@@ -1,6 +1,5 @@
 -module(ddfs_tag_test).
-
--export([test/0]).
+-export([check_token_test/0]).
 
 -include_lib("triq/include/triq.hrl").
 
@@ -47,7 +46,7 @@ token_check(T) ->
     (false =:= lists:keyfind(<<"read-token">>, 1, J))
         andalso (false =:= lists:keyfind(<<"write-token">>, 1, J)).
 
-api_token_test() ->
+api_token_check() ->
     % This does not really need to be a FORALL, just a single instance
     % would do.  It would be nice for triq to support this.  Using
     % eunit here causes two problems:
@@ -57,14 +56,12 @@ api_token_test() ->
     ?FORALL(T, tagcontent(), token_check(T)).
 
 prop_test() ->
-    io:fwrite("[api_token_test]~n", []),
-    triq:check(api_token_test()),
-    io:fwrite("[tag_encode_decode]~n", []),
+    triq:check(api_token_check()),
     triq:check(encode_decode_check()).
 
 % Non-property tests.
 
-check_token_tests() ->
+check_token_test() ->
     % default; backward-compatibility
     write = ddfs_tag_util:check_token(read, null, null, null),
     write = ddfs_tag_util:check_token(write, null, null, null),
@@ -85,7 +82,3 @@ check_token_tests() ->
     false = ddfs_tag_util:check_token(write, <<"read-token">>, <<"read-token">>, <<"write-token">>),
     write = ddfs_tag_util:check_token(read, <<"write-token">>, <<"read-token">>, <<"write-token">>),
     write = ddfs_tag_util:check_token(write, <<"read-token">>, <<"read-token">>, null).
-
-test() ->
-    io:fwrite("[check_token_tests]~n", []),
-    check_token_tests().

@@ -1,7 +1,7 @@
 -module(worker_protocol_test).
--export([test/0]).
+-export([protocol_test/0]).
 
-test() ->
+protocol_test() ->
     new_message = worker_protocol:init(),
     {cont, _, {parse_length, <<"FOO">>}} = worker_protocol:parse(<<"FOO 1">>),
     {cont, _, {parse_body, <<"FOO">>, <<"3">>, 10}} = worker_protocol:parse(<<"FOO 3 bar">>),
