@@ -158,7 +158,8 @@ group_outputs(join_node, Outputs) ->
 
 group_outputs(join_all, Outputs) ->
     Dirs = [{{Tid, Outid}, D} || {Tid, Tout} <- Outputs,
-                                 {Outid, {dir, {_H, _U, _Labels}} = D} <- Tout],
+                                 {Outid, {dir, {_H, _U, Labels}} = D} <- Tout,
+                                 Labels =/= []],
     Dats = [{{Tid, Outid}, D} || {Tid, Tout} <- Outputs,
                                  {Outid, {data, {_L, _S, Reps}} = D} <- Tout,
                                  Reps =/= []],
