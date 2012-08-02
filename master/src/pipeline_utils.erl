@@ -85,6 +85,11 @@ dirdict(Outputs) ->
                         dict:store(G, DirList, DirD)
                 end, dict:new(), disco_util:groupby(1, lists:sort(Dirs))).
 
+-spec unique_labels([{label(), data_size()}]) -> [label()].
+unique_labels(LabelSizes) ->
+    Labels = [L || {L, _Sz} <- LabelSizes],
+    gb_sets:to_list(gb_sets:from_list(Labels)).
+
 -spec group_outputs(label_grouping(), [{task_id(), [task_output()]}])
                    -> [grouped_output()].
 group_outputs(split, Outputs) ->
@@ -94,7 +99,7 @@ group_outputs(split, Outputs) ->
             || {Tid, Tout} <- Outputs,
                {Outid, {dir, {H, _U, Labels}} = D} <- Tout,
                Labels =/= [],
-               {L, _Sz} <- Labels],
+               {L, _Sz} <- unique_labels(Labels)],
     Dats = [{{L, pick_local_host(Reps)}, [{{Tid, Outid}, D}]}
             || {Tid, Tout} <- Outputs,
                {Outid, {data, {L, _S, Reps}} = D} <- Tout,
@@ -129,7 +134,7 @@ group_outputs(join_label, Outputs) ->
             || {Tid, Tout} <- Outputs,
                {Outid, {dir, {_H, _U, Labels}} = D} <- Tout,
                Labels =/= [],
-               {L, _Sz} <- Labels],
+               {L, _Sz} <- unique_labels(Labels)],
     Dats = [{L, {{Tid, Outid}, D}}
             || {Tid, Tout} <- Outputs,
                {Outid, {data, {L, _S, Reps}} = D} <- Tout,
