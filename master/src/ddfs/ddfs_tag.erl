@@ -683,6 +683,8 @@ put_commit(TagID, TagVol) ->
         [] ->
             {error, commit_failed};
         Urls ->
+            error_logger:info_msg("Updated tag ~p (at ~p locations)",
+                                  [TagID, length(Urls)]),
             {ok, Nodes, Urls}
     end.
 
