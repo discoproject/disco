@@ -75,7 +75,7 @@ wait(Host, Node) ->
             lager:info("Node already started at ~p on ~p", [Node, Host]),
             wait(Host, Node);
         {'EXIT', _, Reason} ->
-            lager:info("Node failed at ~p on ~p: ~p", [Node, Reason, Host]);
+            lager:info("Node failed at ~p on ~p: ~p", [Node, Host, Reason]);
         {nodedown, _Node} ->
             lager:info("Node ~p on ~p down", [Node, Host]);
         E ->
