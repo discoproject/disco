@@ -556,11 +556,6 @@ handle_info({'EXIT', Pid, Reason},
     case find_node(Peers, Pid) of
         undefined ->
             {noreply, S};
-        {Node, Failures} when Failures > ?MAX_GC_NODE_FAILURES ->
-            lager:error("GC: too many failures (~p) on node ~p (~p)",
-                        [Failures, Node, Phase]),
-            cleanup_for_exit(S),
-            {stop, shutdown, S};
         {Node, Failures} ->
             lager:warning("GC: Node ~p disconnected (~p): ~p (~p)",
                           [Node, Failures, Reason, Phase]),
