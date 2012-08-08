@@ -99,7 +99,7 @@ group_outputs(split, Outputs) ->
             || {Tid, Tout} <- Outputs,
                {Outid, {dir, {H, _U, Labels}} = D} <- Tout,
                Labels =/= [],
-               {L, _Sz} <- unique_labels(Labels)],
+               L <- unique_labels(Labels)],
     Dats = [{{L, pick_local_host(Reps)}, [{{Tid, Outid}, D}]}
             || {Tid, Tout} <- Outputs,
                {Outid, {data, {L, _S, Reps}} = D} <- Tout,
@@ -134,7 +134,7 @@ group_outputs(join_label, Outputs) ->
             || {Tid, Tout} <- Outputs,
                {Outid, {dir, {_H, _U, Labels}} = D} <- Tout,
                Labels =/= [],
-               {L, _Sz} <- unique_labels(Labels)],
+               L <- unique_labels(Labels)],
     Dats = [{L, {{Tid, Outid}, D}}
             || {Tid, Tout} <- Outputs,
                {Outid, {data, {L, _S, Reps}} = D} <- Tout,
