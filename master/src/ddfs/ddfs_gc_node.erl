@@ -17,6 +17,7 @@ start_gc_node(Node, Master, Now, Phase) ->
 
 -spec gc_node_init(pid(), erlang:timestamp(), phase()) -> 'ok'.
 gc_node_init(Master, Now, Phase) ->
+    register(?MODULE, self()),
     % All phases of GC/RR require that we build a snapshot of our
     % node-local DDFS content across all volumes.
     process_flag(priority, low),

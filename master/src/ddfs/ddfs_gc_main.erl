@@ -470,8 +470,7 @@ handle_cast({add_replicas, _BlobName, _NewUrls} = M, #state{phase = Phase,
     {noreply, S};
 
 handle_cast({rr_tags, [T|Tags], Count}, #state{phase = rr_tags} = S) ->
-    S1 = update_tag(S, T, ?MAX_TAG_OP_RETRIES),
-    lager:info("GC: updated tag ~p (~p)", [T, Count]),
+    S1 = update_tag(S, Count, T, ?MAX_TAG_OP_RETRIES),
     gen_server:cast(self(), {rr_tags, Tags, Count + 1}),
     {noreply, S1};
 handle_cast({rr_tags, [], Count}, #state{phase = rr_tags, gc_peers = Peers,
@@ -556,11 +555,6 @@ handle_info({'EXIT', Pid, Reason},
     case find_node(Peers, Pid) of
         undefined ->
             {noreply, S};
-        {Node, Failures} when Failures > ?MAX_GC_NODE_FAILURES ->
-            lager:error("GC: too many failures (~p) on node ~p (~p)",
-                        [Failures, Node, Phase]),
-            cleanup_for_exit(S),
-            {stop, shutdown, S};
         {Node, Failures} ->
             lager:warning("GC: Node ~p disconnected (~p): ~p (~p)",
                           [Node, Failures, Reason, Phase]),
@@ -1125,8 +1119,8 @@ stop_replicator(RR) ->
 
 -spec do_put_blob(rep_state(), object_name(), pid(), node(), binary())
                  -> rep_state().
-do_put_blob(#rep_state{ref = Ref} = S, BlobName, SrcPeer, SrcNode, PutUrl) ->
-    SrcPeer ! {put_blob, self(), Ref, BlobName, PutUrl},
+do_put_blob(#rep_state{ref = Ref} = S, BlobName, _SrcPeer, SrcNode, PutUrl) ->
+    {ddfs_gc_node, SrcNode} ! {put_blob, self(), Ref, BlobName, PutUrl},
     wait_put_blob(S, SrcNode, PutUrl).
 
 -spec wait_put_blob(rep_state(), node(), url()) -> rep_state().
@@ -1161,15 +1155,16 @@ wait_put_blob(#rep_state{ref = Ref, timeouts = TO, master = Master} = S,
 %% ===================================================================
 %% tag updates
 
--spec update_tag(state(), object_name(), non_neg_integer()) -> state().
-update_tag(S, _T, 0) ->
+-spec update_tag(state(), non_neg_integer(), object_name(),
+                 non_neg_integer()) -> state().
+update_tag(S, _Cnt, _T, 0) ->
     S;
-update_tag(S, T, Retries) ->
+update_tag(S, Cnt, T, Retries) ->
     try case ddfs_master:tag_operation(gc_get, T, ?GET_TAG_TIMEOUT) of
             {{missing, deleted}, false} ->
                 S;
             {TagId, TagUrls, TagReplicas} ->
-                update_tag_body(S, T, TagId, TagUrls, TagReplicas);
+                update_tag_body(S, Cnt, T, TagId, TagUrls, TagReplicas);
             _E ->
                 % If there is any error, we cannot ensure safety in
                 % removing any blacklisted nodes; reset the safe
@@ -1177,7 +1172,7 @@ update_tag(S, T, Retries) ->
                 lager:info("GC: Unable to retrieve tag ~p (rr_tags)", [T]),
                 S#state{safe_blacklist = gb_sets:empty()}
         end
-    catch _:_ -> update_tag(S, T, Retries - 1)
+    catch _:_ -> update_tag(S, Cnt, T, Retries - 1)
     end.
 
 -spec log_blacklist_change(tagname(), gb_set(), gb_set()) -> ok.
@@ -1193,10 +1188,10 @@ log_blacklist_change(Tag, Old, New) ->
 % RR2) Update tags that contain blobs that were re-replicated, and/or
 %      re-replicate tags that don't have enough replicas.
 
--spec update_tag_body(state(), tagname(), tagid(), [[url()]], [node()])
-                     -> state().
+-spec update_tag_body(state(), non_neg_integer(),
+                      tagname(), tagid(), [[url()]], [node()]) -> state().
 update_tag_body(#state{safe_blacklist = SBL, blacklist = BL, tagk = TagK} = S,
-                Tag, Id, TagUrls, TagReplicas) ->
+                Cnt, Tag, Id, TagUrls, TagReplicas) ->
     % Collect the blobs that need updating, and compute their new
     % replica locations.
     {Updates, SBL1} = collect_updates(S, TagUrls, SBL),
@@ -1212,8 +1207,8 @@ update_tag_body(#state{safe_blacklist = SBL, blacklist = BL, tagk = TagK} = S,
             % the safe_blacklist.
             SBL2 = gb_sets:subtract(SBL1, gb_sets:from_list(TagReplicas)),
             Msg = {gc_rr_update, Updates, BL, Id},
-            lager:info("Updating tag ~p with ~p (blacklist ~p)",
-                       [Id, Updates, BL]),
+            lager:info("Updating tag ~p (~p) with ~p (blacklist ~p)",
+                       [Id, Cnt, Updates, BL]),
             ddfs_master:tag_notify(Msg, Tag),
             log_blacklist_change(Tag, SBL, SBL2),
             S#state{safe_blacklist = SBL2}
