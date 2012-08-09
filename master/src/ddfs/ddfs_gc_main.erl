@@ -1119,8 +1119,8 @@ stop_replicator(RR) ->
 
 -spec do_put_blob(rep_state(), object_name(), pid(), node(), binary())
                  -> rep_state().
-do_put_blob(#rep_state{ref = Ref} = S, BlobName, SrcPeer, SrcNode, PutUrl) ->
-    SrcPeer ! {put_blob, self(), Ref, BlobName, PutUrl},
+do_put_blob(#rep_state{ref = Ref} = S, BlobName, _SrcPeer, SrcNode, PutUrl) ->
+    {ddfs_gc_node, SrcNode} ! {put_blob, self(), Ref, BlobName, PutUrl},
     wait_put_blob(S, SrcNode, PutUrl).
 
 -spec wait_put_blob(rep_state(), node(), url()) -> rep_state().
