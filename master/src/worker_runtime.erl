@@ -16,7 +16,7 @@
                 child_pid       = none             :: none | non_neg_integer(),
                 failed_inputs   = gb_sets:empty()  :: gb_set(), % [seq_id()]
                 remote_outputs  = []               :: [remote_output()],
-                local_labels    = gb_trees:empty() :: gb_tree(),
+                local_labels    = gb_trees:empty() :: gb_tree(),% label -> size
                 output_filename = none             :: none | string(),
                 output_file     = none             :: none | file:io_device()}).
 -type state() :: #state{}.
@@ -185,8 +185,8 @@ input_reply(Inputs) ->
 % Output utilities.
 
 -spec group_to_json(group()) -> list().
-group_to_json({L, H}) when is_atom(H) ->
-    [L, list_to_binary(atom_to_list(H))];
+group_to_json({L, none}) ->
+    [L, <<"">>];
 group_to_json({L, H}) when is_list(H) ->
     [L, list_to_binary(H)].
 
