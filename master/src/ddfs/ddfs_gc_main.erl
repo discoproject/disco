@@ -1120,6 +1120,19 @@ stop_replicator(RR) ->
 -spec do_put_blob(rep_state(), object_name(), pid(), node(), binary())
                  -> rep_state().
 do_put_blob(#rep_state{ref = Ref} = S, BlobName, _SrcPeer, SrcNode, PutUrl) ->
+    % We don't use SrcPeer, but instead use the named pid on SrcNode
+    % to send the put_blob to the peer.  This is because the pid in
+    % SrcPeer might now be invalid, as the SrcNode might have been
+    % restarted (say due to a transient network issue), and the
+    % restarted GC-node peer will have a pid different from SrcPeer.
+    % This can happen since the message queue for the replicator is
+    % typically quite deep, with a significant interval between the
+    % time the put_blob entered our (i.e. the replicator's) message
+    % queue, and the time (now) that we process it.  This latency in
+    % the message handling is caused by the fact that the replicator
+    % functions in a synchronous manner, while the main GC/RR
+    % gen_server process functions asynchronously (and generates
+    % messages faster than the replicator can process).
     {ddfs_gc_node, SrcNode} ! {put_blob, self(), Ref, BlobName, PutUrl},
     wait_put_blob(S, SrcNode, PutUrl).
 
