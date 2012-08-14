@@ -12,10 +12,9 @@
 -export([start/2, init/1, handle_call/3, handle_cast/2,
         handle_info/2, terminate/2, code_change/3]).
 
--type replica() :: {erlang:timestamp(), nonempty_string()}.
 -type replyto() :: {pid(), reference()}.
 
--record(state, {tag :: tagname(),
+-record(state, {tag  :: tagname(),
                 data :: none |
                         {missing, notfound} |
                         {missing, deleted} |
@@ -23,8 +22,7 @@
                         {ok, #tagcontent{}},
                 delayed :: false | gb_tree(),
                 timeout :: non_neg_integer(),
-                replicas :: false | too_many_failed_nodes
-                    | [{replica(), node()}],
+                replicas  :: false | [node()],
                 url_cache :: false | gb_set()}).
 -type state() :: #state{}.
 
@@ -489,7 +487,7 @@ filter_blacklist(BlobSet, Blacklist) ->
       end, [], BlobSet).
 
 -spec get_tagdata(tagname()) -> {missing, notfound} | {error, _}
-                             | {ok, binary(), [{replica(), node()}]}.
+                             | {ok, binary(), [node()]}.
 get_tagdata(TagName) ->
     {ok, ReadableNodes, RBSize} = ddfs_master:get_read_nodes(),
     TagMinK = get(min_tagk),
@@ -634,8 +632,9 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
 % 6. if all fail, fail
 % 7. if at least one multicall succeeds, return updated tagdata, desturls
 
--spec put_distribute({tagid(),binary()}) ->
-    {error, commit_failed | replication_failed} | {ok, [node()], [binary(),...]}.
+-spec put_distribute({tagid(), binary()})
+                    -> {error, commit_failed | replication_failed}
+                           | {ok, [node()], [url(), ...]}.
 put_distribute({TagID, _} = Msg) ->
     case put_distribute(Msg, get(tagk), [], []) of
         {ok, TagVol} ->
@@ -645,8 +644,9 @@ put_distribute({TagID, _} = Msg) ->
     end.
 
 -spec put_distribute({tagid(), binary()}, non_neg_integer(),
-    [{node(), binary()}], [node()]) ->
-        {error, replication_failed} | {ok, [{node(), binary()}]}.
+                     [{node(), volume_name()}], [node()])
+                    -> {error, replication_failed}
+                           | {ok, [{node(), volume_name()}]}.
 put_distribute(_, K, OkNodes, _Exclude) when K == length(OkNodes) ->
     {ok, OkNodes};
 
@@ -671,8 +671,8 @@ put_distribute({TagID, TagData} = Msg, K, OkNodes, Exclude) ->
                            Exclude ++ [Node || {Node, _} <- Replies] ++ Failed)
     end.
 
--spec put_commit(tagid(), [{node(), binary()}]) ->
-    {error, commit_failed} | {ok, [node()], [binary(), ...]}.
+-spec put_commit(tagid(), [{node(), volume_name()}])
+                -> {error, commit_failed} | {ok, [node()], [url(), ...]}.
 put_commit(TagID, TagVol) ->
     {Nodes, _} = lists:unzip(TagVol),
     {NodeUrls, _} = gen_server:multi_call(Nodes,
