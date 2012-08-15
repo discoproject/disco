@@ -20,10 +20,12 @@
                         {missing, deleted} |
                         {error, _} |
                         {ok, #tagcontent{}},
-                delayed :: false | gb_tree(),
+                ddfs_data :: path(),
                 timeout :: non_neg_integer(),
-                replicas  :: false | [node()],
-                url_cache :: false | gb_set()}).
+                delayed   = false :: false | gb_tree(),
+                replicas  = false :: false | [node()],
+                locations = false :: false | [url()],
+                url_cache = false :: false | gb_set()}).
 -type state() :: #state{}.
 
 % API messages.
@@ -81,9 +83,7 @@ init(TagName, Data, Timeout) ->
     put(blobk, list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS"))),
     {ok, #state{tag = TagName,
                 data = Data,
-                delayed = false,
-                replicas = false,
-                url_cache = false,
+                ddfs_data = disco:get_setting("DDFS_DATA"),
                 timeout = Timeout}}.
 
 -type msg() :: call_msg()
@@ -117,31 +117,33 @@ handle_cast({notify, M}, S) ->
     handle_cast({notify0, M}, S);
 
 % First request for this tag: No tag data loaded - load it
-handle_cast(M, #state{data = none, tag = Tag, timeout = TO} = S) ->
-    {Data, Replicas, Timeout} =
+handle_cast(M, #state{data = none, tag = Tag, timeout = TO,
+                      ddfs_data = DdfsData} = S) ->
+    {Data, Replicas, Locations, Timeout} =
         case is_tag_deleted(Tag) of
             true ->
-                {{missing, deleted}, false, ?TAG_EXPIRES_ONERROR};
+                {{missing, deleted}, false, false, ?TAG_EXPIRES_ONERROR};
             false ->
-                case get_tagdata(Tag) of
-                    {ok, TagData, Repl} ->
+                case get_tagdata(Tag, DdfsData) of
+                    {ok, TagData, Repl, Locs} ->
                         case ddfs_tag_util:decode_tagcontent(TagData) of
                             {ok, Content} ->
-                                {{ok, Content}, Repl, TO};
+                                {{ok, Content}, Repl, Locs, TO};
                             {error, _} = E ->
-                                {E, false, ?TAG_EXPIRES_ONERROR}
+                                {E, false, false, ?TAG_EXPIRES_ONERROR}
                         end;
                     {missing, notfound} = E ->
-                        {E, false, ?TAG_EXPIRES_ONERROR};
+                        {E, false, false, ?TAG_EXPIRES_ONERROR};
                     {error, _} = E ->
-                        {E, false, ?TAG_EXPIRES_ONERROR}
+                        {E, false, false, ?TAG_EXPIRES_ONERROR}
                 end;
             {error, _} = E ->
-                {E, false, ?TAG_EXPIRES_ONERROR}
+                {E, false, false, ?TAG_EXPIRES_ONERROR}
         end,
-    handle_cast(M, S#state{data = Data,
-                           replicas = Replicas,
-                           timeout = lists:min([Timeout, TO])});
+    handle_cast(M, S#state{data      = Data,
+                           replicas  = Replicas,
+                           locations = Locations,
+                           timeout   = lists:min([Timeout, TO])});
 
 % Delayed update with an empty buffer, initialize the buffer and a flush process
 handle_cast({{delayed_update, _, _, _}, _} = M,
@@ -407,9 +409,10 @@ do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
     NewTagData = ddfs_tag_util:encode_tagcontent(NewTagContent),
     TagId = NewTagContent#tagcontent.id,
     case put_distribute({TagId, NewTagData}) of
-        {ok, DestNodes, _} ->
+        {ok, DestNodes, DestUrls} ->
             S#state{data = {ok, NewTagContent},
                     replicas = DestNodes,
+                    locations = DestUrls,
                     url_cache = init_url_cache(NewUrls)};
         {error, _} = E ->
             lager:error("GC: unable to update tag ~p: ~p", [TagName, E]),
@@ -486,9 +489,15 @@ filter_blacklist(BlobSet, Blacklist) ->
               end
       end, [], BlobSet).
 
--spec get_tagdata(tagname()) -> {missing, notfound} | {error, _}
-                             | {ok, binary(), [node()]}.
-get_tagdata(TagName) ->
+location_url(TagId, Node, DdfsData, Vol) ->
+    Host = disco:host(Node),
+    DdfsRoot = disco:ddfs_root(DdfsData, Host),
+    {ok, _, Url} = ddfs_util:hashdir(TagId, Host, "tag", DdfsRoot, Vol),
+    Url.
+
+-spec get_tagdata(tagname(), path()) -> {missing, notfound} | {error, _}
+                                            | {ok, binary(), [node()], [url()]}.
+get_tagdata(TagName, DdfsData) ->
     {ok, ReadableNodes, RBSize} = ddfs_master:get_read_nodes(),
     TagMinK = get(min_tagk),
     case RBSize >= TagMinK of
@@ -509,15 +518,17 @@ get_tagdata(TagName) ->
                     {{Time, _Vol}, _Node} = lists:max(L),
                     Replicas = [X || {{T, _}, _} = X <- L, T == Time],
                     TagID = ddfs_util:pack_objname(TagName, Time),
-                    read_tagdata(TagID, Replicas, [], tagdata_failed)
+                    Locations = [location_url(TagID, Node, DdfsData, Vol)
+                                 || {{_, Vol}, Node} <- Replicas],
+                    read_tagdata(TagID, Locations, Replicas, [], tagdata_failed)
             end
     end.
 
-read_tagdata(_TagID, Replicas, Failed, Error)
+read_tagdata(_TagID, _Locations, Replicas, Failed, Error)
   when length(Replicas) =:= length(Failed) ->
     {error, Error};
 
-read_tagdata(TagID, Replicas, Failed, _Error) ->
+read_tagdata(TagID, Locations, Replicas, Failed, _Error) ->
     {TagNfo, SrcNode} = Chosen = disco_util:choose_random(Replicas -- Failed),
     GetData = try ddfs_node:get_tag_data(SrcNode, TagID, TagNfo)
               catch K:V -> {error, {K,V}}
@@ -525,9 +536,9 @@ read_tagdata(TagID, Replicas, Failed, _Error) ->
     case GetData of
         {ok, Data} ->
             {_, DestNodes} = lists:unzip(Replicas),
-            {ok, Data, DestNodes};
+            {ok, Data, DestNodes, Locations};
         E ->
-            read_tagdata(TagID, Replicas, [Chosen|Failed], E)
+            read_tagdata(TagID, Locations, Replicas, [Chosen|Failed], E)
     end.
 
 -spec do_delayed_update([[binary()]], [term()], replyto(),
@@ -599,7 +610,9 @@ do_put({_, Token},
                        true -> ok
                     end,
                     _ = send_replies(ReplyTo, {ok, DestUrls}),
-                    S#state{data = {ok, TagContent}, replicas = DestNodes};
+                    S#state{data = {ok, TagContent},
+                            replicas = DestNodes,
+                            locations = DestUrls};
                 {error, _} = E ->
                     _ = send_replies(ReplyTo, E),
                     S#state{url_cache = false}
@@ -614,10 +627,11 @@ do_delete_attrib(Field, ReplyTo, #state{tag = TagName, data = {ok, D}} = S) ->
     NewTagData = ddfs_tag_util:encode_tagcontent(TagContent),
     TagId = TagContent#tagcontent.id,
     case put_distribute({TagId, NewTagData}) of
-        {ok, DestNodes, _DestUrls} ->
+        {ok, DestNodes, DestUrls} ->
             _ = send_replies(ReplyTo, ok),
             S#state{data = {ok, TagContent},
-                    replicas = DestNodes};
+                    replicas = DestNodes,
+                    locations = DestUrls};
         {error, _} = E ->
             _ = send_replies(ReplyTo, E),
             S
@@ -683,8 +697,8 @@ put_commit(TagID, TagVol) ->
         [] ->
             {error, commit_failed};
         Urls ->
-            error_logger:info_msg("Updated tag ~p (at ~p locations)",
-                                  [TagID, length(Urls)]),
+            lager:info("Updated tag ~p (at ~p locations)",
+                       [TagID, length(Urls)]),
             {ok, Nodes, Urls}
     end.
 
