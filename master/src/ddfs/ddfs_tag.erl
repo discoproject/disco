@@ -19,7 +19,7 @@
                         {missing, notfound} |
                         {missing, deleted} |
                         {error, _} |
-                        {ok, #tagcontent{}},
+                        {ok, tagcontent()},
                 ddfs_data :: path(),
                 timeout :: non_neg_integer(),
                 delayed   = false :: false | gb_tree(),
@@ -325,57 +325,77 @@ authorize(TokenType, Token, ReplyTo, ReadToken, WriteToken, S, Op) ->
     end.
 
 do_update(TokenInfo, Urls, Opt, ReplyTo, #state{data = {missing, _}} = S) ->
-    do_update(TokenInfo, Urls, Opt, ReplyTo, [], S);
+    do_update(TokenInfo, Urls, Opt, ReplyTo, missing, S);
 
 do_update(TokenInfo, Urls, Opt, ReplyTo, #state{data = {ok, D}} = S) ->
     OldUrls = D#tagcontent.urls,
     do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls, S).
 
 do_update(TokenInfo, Urls, Opt, ReplyTo, OldUrls,
-          #state{url_cache = OldCache} = S) ->
+          #state{url_cache = OldCache, locations = TagUrls} = S) ->
     case ddfs_tag_util:validate_urls(Urls) of
         true ->
             NoDup = proplists:is_defined(nodup, Opt),
-            {Cache, Merged} = merge_urls(Urls,
-                                         OldUrls,
-                                         NoDup,
-                                         OldCache),
-            do_put(TokenInfo,
-                   urls,
-                   Merged,
-                   ReplyTo,
-                   S#state{url_cache = Cache});
+            {Updated, Cache, Merged} = merge_urls(Urls,
+                                                  OldUrls,
+                                                  NoDup,
+                                                  OldCache),
+            case Updated of
+                true ->
+                    do_put(TokenInfo,
+                           urls,
+                           Merged,
+                           ReplyTo,
+                           S#state{url_cache = Cache});
+                false ->
+                    _ = send_replies(ReplyTo, {ok, TagUrls}),
+                    S#state{url_cache = Cache}
+            end;
         false ->
             _ = send_replies(ReplyTo, {error, invalid_url_object}),
             S
     end.
 
-% Normal update: Just add new urls to the list
+% Avoid creating new tag incarnations when there is no modification,
+% otherwise we just create pointless garbage that needs cleaning.  But
+% ensure that any new tags are created, even if empty.
+
+% Normal update: Just add new urls to the list.
+merge_urls(NewUrls, missing, false, _Cache) ->
+    {true, false, NewUrls};
+merge_urls([], OldUrls, false, _Cache) ->
+    {false, false, OldUrls};
 merge_urls(NewUrls, OldUrls, false, _Cache) ->
-    {false, NewUrls ++ OldUrls};
+    {true, false, NewUrls ++ OldUrls};
 
 % Set update (nodup): Remove duplicates.
 %
 % Note that merge_urls should keep the original order of
 % both NewUrls and OldUrls list. It should drop entries from
 % NewUrls that are duplicates or already exist in OldUrls.
+merge_urls([] = NewUrls, missing, true, _Cache) ->
+    % This is a special case: an empty update to a non-existent tag
+    % should create the tag.
+    {true, init_url_cache(NewUrls), NewUrls};
+merge_urls(NewUrls, missing, true, _Cache) ->
+    find_unseen(NewUrls, init_url_cache([]), [], false);
 merge_urls(NewUrls, OldUrls, true, false) ->
     merge_urls(NewUrls, OldUrls, true, init_url_cache(OldUrls));
 
 merge_urls(NewUrls, OldUrls, true, Cache) ->
-    find_unseen(NewUrls, Cache, OldUrls).
+    find_unseen(NewUrls, Cache, OldUrls, false).
 
-find_unseen([], Seen, Urls) ->
-    {Seen, Urls};
-find_unseen([[Url|_] = Repl|Rest], Seen, Urls) ->
+find_unseen([], Seen, Urls, Updated) ->
+    {Updated, Seen, Urls};
+find_unseen([[Url|_] = Repl|Rest], Seen, Urls, Updated) ->
     Name = ddfs_util:url_to_name(Url),
     case {Name, gb_sets:is_member(Name, Seen)} of
         {false, _} ->
-            find_unseen(Rest, Seen, [Repl|Urls]);
+            find_unseen(Rest, Seen, [Repl|Urls], true);
         {_, false} ->
-            find_unseen(Rest, gb_sets:add(Name, Seen), [Repl|Urls]);
+            find_unseen(Rest, gb_sets:add(Name, Seen), [Repl|Urls], true);
         {_, true} ->
-            find_unseen(Rest, Seen, Urls)
+            find_unseen(Rest, Seen, Urls, Updated)
     end.
 
 init_url_cache(Urls) ->
@@ -385,7 +405,7 @@ init_url_cache(Urls) ->
                    {error, commit_failed | invalid_attribute_value |
                            invalid_url_object | unknown_attribute |
                            replication_failed | unauthorized} |
-                   {ok, [binary(),...]} | ok) -> [any()].
+                   {ok, [url()]} | ok) -> [any()].
 send_replies(ReplyTo, Message) when is_tuple(ReplyTo) ->
     send_replies([ReplyTo], Message);
 send_replies(ReplyToList, Message) ->
@@ -496,7 +516,7 @@ location_url(TagId, Node, DdfsData, Vol) ->
     Url.
 
 -spec get_tagdata(tagname(), path()) -> {missing, notfound} | {error, _}
-                                            | {ok, binary(), [node()], [url()]}.
+                                            | {ok, tagname(), [node()], [url()]}.
 get_tagdata(TagName, DdfsData) ->
     {ok, ReadableNodes, RBSize} = ddfs_master:get_read_nodes(),
     TagMinK = get(min_tagk),
@@ -541,8 +561,8 @@ read_tagdata(TagID, Locations, Replicas, Failed, _Error) ->
             read_tagdata(TagID, Locations, Replicas, [Chosen|Failed], E)
     end.
 
--spec do_delayed_update([[binary()]], [term()], replyto(),
-                        gb_tree(), state()) -> state().
+-spec do_delayed_update([[url()]], [term()], replyto(), gb_tree(), state())
+                       -> state().
 do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
     % We must handle updates with different set of options separately.
     % Thus requests are indexed by the normalized set of options (OptKey)
