@@ -5,10 +5,18 @@ from cStringIO import StringIO
 class DDFSUpdateTestCase(TestCase):
     data = StringIO('blobdata')
 
+    def setUp(self):
+        self.ddfs.delete('disco:test:blobs')
+
     def blobnames(self, tag):
         from disco.ddfs import DDFS
         return list(reversed(list(DDFS.blob_name(repl[0])
                                   for repl in self.ddfs.blobs(tag))))
+
+    def test_update_empty_new(self):
+        self.ddfs.push('disco:test:blobs', [], update=True)
+        self.assertEquals(len(self.blobnames('disco:test:blobs')), 0)
+        self.ddfs.delete('disco:test:blobs')
 
     def test_update(self):
         for i in range(5):
@@ -22,6 +30,18 @@ class DDFSUpdateTestCase(TestCase):
                            update=True,
                            delayed=True)
         self.assertEquals(len(self.blobnames('disco:test:blobs')), 2)
+        self.ddfs.delete('disco:test:blobs')
+
+    def test_no_garbage(self):
+        self.ddfs.push('disco:test:blobs',
+                       [(self.data, 'dup')] * 2,
+                       update=True)
+        tagid_pre  = self.ddfs.get('disco:test:blobs')['id']
+        self.ddfs.push('disco:test:blobs',
+                       [(self.data, 'dup')] * 2,
+                       update=True)
+        tagid_post = self.ddfs.get('disco:test:blobs')['id']
+        self.assertEquals(tagid_pre, tagid_post)
         self.ddfs.delete('disco:test:blobs')
 
     def test_random(self):
@@ -58,6 +78,10 @@ class DDFSUpdateTestCase(TestCase):
         self.ddfs.delete('disco:test:blobs')
 
 class DDFSWriteTestCase(TestCase):
+    def setUp(self):
+        self.ddfs.delete('disco:test:tag')
+        self.ddfs.delete('disco:test:blobs')
+
     def test_chunk(self):
         from disco.core import classic_iterator
         url = 'http://discoproject.org/media/text/chekhov.txt'
@@ -97,6 +121,21 @@ class DDFSWriteTestCase(TestCase):
         self.ddfs.put('disco:test:tag', [['tags']])
         self.assertEquals(self.ddfs.get('disco:test:tag')['urls'], [['tags']])
         self.ddfs.delete('tag://disco:test:tag')
+
+    def test_put_new(self):
+        self.ddfs.put('disco:test:tag', [])
+        self.assert_(self.ddfs.exists('disco:test:tag'))
+        self.ddfs.delete('disco:test:tag')
+
+    def test_put_no_garbage(self):
+        self.ddfs.tag('disco:test:tag', [['urls']])
+        self.assertEquals(self.ddfs.get('disco:test:tag')['urls'], [['urls']])
+        tagid_pre  = self.ddfs.get('disco:test:tag')['id']
+        self.ddfs.tag('disco:test:tag', [])
+        tagid_post = self.ddfs.get('disco:test:tag')['id']
+        self.assertEquals(tagid_pre, tagid_post)
+        self.assertEquals(self.ddfs.get('disco:test:tag')['urls'], [['urls']])
+        self.ddfs.delete('disco:test:tag')
 
     def test_delete(self):
         self.ddfs.delete('disco:test:notag')

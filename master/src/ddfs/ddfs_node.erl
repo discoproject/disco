@@ -12,7 +12,7 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
--record(state, {nodename :: string(),
+-record(state, {nodename :: host(),
                 root :: path(),
                 vols :: [volume()],
                 putq :: http_queue:q(),
