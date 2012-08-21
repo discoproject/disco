@@ -1,7 +1,7 @@
 export
 
-DISCO_VERSION = 0.4.2
-DISCO_RELEASE = 0.4.2
+DISCO_VERSION = 0.4.3
+DISCO_RELEASE = 0.4.3
 
 # standard make installation variables
 sysconfdir    = /etc
