@@ -1,12 +1,12 @@
 [submodule "contrib/java-ext"]
 	path = contrib/java-ext
-	url = http://github.com/ryan-maus/disco-java-ext.git
+	url = https://github.com/ryan-maus/disco-java-ext.git
 [submodule "contrib/odisco"]
 	path = contrib/odisco
-	url = git://github.com/pmundkur/odisco.git
+	url = https://github.com/pmundkur/odisco.git
 [submodule "contrib/discodb"]
 	path = contrib/discodb
-	url = git://github.com/discoproject/discodb.git
+	url = https://github.com/discoproject/discodb.git
 [submodule "contrib/discodex"]
 	path = contrib/discodex
-	url = git://github.com/discoproject/discodex.git
+	url = https://github.com/discoproject/discodex.git
