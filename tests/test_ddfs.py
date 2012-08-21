@@ -36,12 +36,10 @@ class DDFSUpdateTestCase(TestCase):
         self.ddfs.push('disco:test:blobs',
                        [(self.data, 'dup')] * 2,
                        update=True)
-        tagid_pre  = self.ddfs.get('disco:test:blobs')['id']
-        self.ddfs.push('disco:test:blobs',
-                       [(self.data, 'dup')] * 2,
-                       update=True)
-        tagid_post = self.ddfs.get('disco:test:blobs')['id']
-        self.assertEquals(tagid_pre, tagid_post)
+        tag_pre = self.ddfs.get('disco:test:blobs')
+        self.assertEquals(len(tag_pre['urls']), 1)
+        self.ddfs.tag('disco:test:blobs', tag_pre['urls'], update=True)
+        self.assertEquals(tag_pre['id'], self.ddfs.get('disco:test:blobs')['id'])
         self.ddfs.delete('disco:test:blobs')
 
     def test_random(self):
@@ -129,12 +127,12 @@ class DDFSWriteTestCase(TestCase):
 
     def test_put_no_garbage(self):
         self.ddfs.tag('disco:test:tag', [['urls']])
-        self.assertEquals(self.ddfs.get('disco:test:tag')['urls'], [['urls']])
-        tagid_pre  = self.ddfs.get('disco:test:tag')['id']
+        tag_pre = self.ddfs.get('disco:test:tag')
+        self.assertEquals(tag_pre['urls'], [['urls']])
         self.ddfs.tag('disco:test:tag', [])
-        tagid_post = self.ddfs.get('disco:test:tag')['id']
-        self.assertEquals(tagid_pre, tagid_post)
-        self.assertEquals(self.ddfs.get('disco:test:tag')['urls'], [['urls']])
+        tag_post = self.ddfs.get('disco:test:tag')
+        self.assertEquals(tag_pre['id'], tag_post['id'])
+        self.assertEquals(tag_post['urls'], [['urls']])
         self.ddfs.delete('disco:test:tag')
 
     def test_delete(self):
