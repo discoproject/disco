@@ -16,7 +16,7 @@ Description: Disco master
 
 Package: disco-node
 Architecture: any
-Depends: ${misc:Depends}, erlang-base (>= 1:14.a-dfsg1), adduser
+Depends: ${misc:Depends}, erlang-base (>= 1:14.a-dfsg1), erlang-inets (>= 1:14.a-dfsg1), adduser
 Description: Disco node
  This is Disco node.
 
