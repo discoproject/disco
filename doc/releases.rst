@@ -1,7 +1,7 @@
 Release notes
 =============
 
-Disco 0.4.3 (TBD)
+Disco 0.4.3 (Aug 22, 2012)
 -----------------
 
 New features
