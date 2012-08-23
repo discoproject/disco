@@ -477,8 +477,6 @@ do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
 -spec do_purge_job(jobname(), state()) -> state().
 do_purge_job(JobName, #state{purged = Purged} = S) ->
     _ = handle_call({clean_job, JobName}, {self(), none}, S),
-    % NB! next line disabled for 0.3.1, ISSUE #227
-    %ddfs:delete(ddfs_master, disco:oob_name(JobName), internal),
     Key = list_to_binary(JobName),
     NPurged =
         case gb_trees:is_defined(Key, Purged) of

@@ -1,6 +1,53 @@
-
 Release notes
 =============
+
+Disco 0.4.3 (Aug 22, 2012)
+-----------------
+
+New features
+''''''''''''
+
+- An extended Disco tutorial, thanks to Davin Potts.
+
+- More documentation on using the proxy mode, and recovering from a
+  master failure.
+
+- More efficient (faster and using less memory) event_server, which
+  should speed up UI responses for large jobs.
+
+- Better fault-tolerance in re-replication, which should speed up
+  node-removal.  Node-removal of more than one node is now better
+  tested and supported.
+
+- Less unnecessary creation of garbage tags in DDFS, by avoiding
+  creating new tag incarnations when their content has not changed.
+  Since less garbage is created, GC will now complete more quickly.
+
+- A "local-cluster" mode for DDFS, that simulates a multi-node DDFS
+  cluster on a single machine.  This is purely a developer feature for
+  the purpose of improving DDFS testing, and cannot be used for
+  running Disco jobs using DDFS.  Thanks to Harry Nakos.
+
+Changes
+'''''''
+
+- Change the default partition function to use the key hash directly,
+  instead of the string version of the key; this should address some
+  unicode failures (#265).  Thanks to quasiben and tmielika.
+
+- Improved logging, especially to track re-replication progress.
+
+- Major cleanup of Erlang codebase.
+
+Bugfixes
+''''''''
+
+- More fixes to DISCO_PROXY mode (#269).  This mode is required for
+  using DDFS in the "local cluster" mode.
+
+- Fix a race when the UI tried to access information for a job that
+  had been submitted but not yet unpacked (#304).
+
 
 Disco 0.4.2 (Apr 26, 2012)
 --------------------------

@@ -271,13 +271,19 @@ handle_cast({get_tagnames, ReplyTo},
     {noreply, S, TO};
 
 handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
-    NewDel = gb_sets:delete_any(Name, Cache),
-    NewUrls = [[<<"tag://", Tag/binary>>] || Tag <- gb_sets:to_list(NewDel)],
-    S1 = do_put({write, null},
-                urls,
-                NewUrls,
-                ReplyTo,
-                S#state{url_cache = NewDel}),
+    S1 = case gb_sets:is_member(Name, Cache) of
+             true ->
+                 NewDel = gb_sets:delete_any(Name, Cache),
+                 NewUrls = [[<<"tag://", Tag/binary>>]
+                            || Tag <- gb_sets:to_list(NewDel)],
+                 do_put({write, null},
+                        urls,
+                        NewUrls,
+                        ReplyTo,
+                        S#state{url_cache = NewDel});
+             false ->
+                 S
+         end,
     {noreply, S1, S1#state.timeout}.
 
 -spec handle_call(term(), from(), state()) -> gs_reply(ok | state()).

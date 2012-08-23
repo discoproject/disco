@@ -77,7 +77,7 @@ class JobPackLengthTestCase(TestCase):
         jobpack = jobpack[:(len(jobpack)-len(jobdata)-1)]
         status, response = loads(self.disco.request('/disco/job/new', jobpack))
         self.assertEquals(status, 'error')
-        self.assertTrue(response.find("invalid_header") >= 0)
+        self.assertTrue(response.find("invalid header") >= 0)
 
     # Zip extraction failures are currently treated as non-fatal errors.
     #

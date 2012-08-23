@@ -1,8 +1,8 @@
 
 .. _tutorial_2:
 
-Tutorial 2
-==========
+Extended Tutorial
+=================
 
 This tutorial expands on the introductory :ref:`tutorial` to expose the
 user to Disco's exported classes while solidifying the concepts of feeding
@@ -67,11 +67,11 @@ and ``set_B.csv`` which contain 5 and 6 lines, respectively, of text data.
 2. Split input data into chunks
 -------------------------------
 
-In the introductory :ref:`tutorial`, we made use of a ddfs (:ref:`DDFS`)
+In the introductory :ref:`tutorial`, we made use of a DDFS (:ref:`DDFS`)
 command, ``ddfs chunk``, to split input data into chunks and copy it onto
-ddfs.  To provide a more concrete sense of how to chunk input data, let's
-instead split our input data *before* we push it to ddfs.  When we do push
-our already-split data to ddfs, we will tell ddfs to treat the distinct
+DDFS.  To provide a more concrete sense of how to chunk input data, let's
+instead split our input data *before* we push it to DDFS.  When we do push
+our already-split data to DDFS, we will tell DDFS to treat the distinct
 chunks as one.
 
 As alluded to before, there are many strategies for performing efficient
@@ -109,12 +109,12 @@ in each file and seeing that it adds up to 11::
     11 total
 
 Now that we've split the input data ourselves into 6 chunks, let's push
-our split data into ddfs and label it all with a single tag,
+our split data into DDFS and label it all with a single tag,
 ``data:both_sets``, so that we can refer to all our chunks as one::
 
    % ddfs push data:both_sets ./xa?
 
-You can verify that all 11 lines made it into ddfs and are accessible via
+You can verify that all 11 lines made it into DDFS and are accessible via
 that single tag by asking to ``cat`` it back to the screen::
 
    % ddfs cat data:both_sets
@@ -130,9 +130,9 @@ operations to be running at the same time, make more chunks (smaller chunks).
 Taking it too far, if you make more chunks than you have cores, you won't
 get further speedup from parallelism.
 
-You should now have the 11 lines of input csv-format data stored in ddfs
+You should now have the 11 lines of input csv-format data stored in DDFS
 in 6 chunks under the tag ``data:both_sets``.  While not necessarily the
-best approach for splitting and importing your largest datasets into ddfs,
+best approach for splitting and importing your largest datasets into DDFS,
 it may prove helpful to remember that you can chunk your data all at once
 *or* bring it in in pieces.
 
@@ -140,7 +140,7 @@ it may prove helpful to remember that you can chunk your data all at once
 ------------------------------------
 
 In the introductory :ref:`tutorial`, we defined a :term:`map` function and a
-:term:`reduce` function then supplied them as parameters to ``Job().run()``.
+:term:`reduce` function, and then supplied them as parameters to ``Job().run()``.
 But there's more fun to be had by deriving a new class from
 :class:`~disco.job.Job`.  Let's start by declaring our new class and saving
 it in a source file named ``simple_innerjoin.py``::
@@ -149,7 +149,7 @@ it in a source file named ``simple_innerjoin.py``::
             def map(self, row, params):
                 # TODO
                 pass
-        
+
             def reduce(self, rows_iter, out, params):
                 # TODO
                 pass
@@ -212,10 +212,10 @@ in csv format -- adding to the bottom of ``simple_innerjoin.py``::
                 input_filename = sys.argv[1]
                 if len(sys.argv) > 2:
                     output_filename = sys.argv[2]
-        
+
             from simple_innerjoin import CsvInnerJoiner
             job = CsvInnerJoiner().run(input=[input_filename])
-        
+
             with open(output_filename, 'w') as fp:
                 writer = csv.writer(fp)
                 for url_key, descriptors in result_iterator(job.wait(show=True)):
@@ -262,13 +262,13 @@ example from the introductory :ref:`tutorial`.
 
 Thus far we've been running parallel invocations of ``map()`` but not of
 ``reduce()`` -- let's change that by requesting that the output from the
-map phase be divided into 2 partitions.  Add the following line to the 
+map phase be divided into 2 partitions.  Add the following line to the
 very top of our definition of the ``CsvInnerJoiner`` class, to look
 something like this::
 
         class CsvInnerJoiner(Job):
             partitions = 2
-            
+
             ...*truncated*...
 
 Run the job again from the command-line and this time you may find that
@@ -288,7 +288,7 @@ sorted results in the reduce step.  At the top of our definition of the
         class CsvInnerJoiner(Job):
             partitions = 2
             sort = True
-            
+
             ...*truncated*...
 
 Simultaneously, we can remove the use of ``sorted()`` from the one line
@@ -314,15 +314,15 @@ following one-liner can be modified to generate as little or as much sample
 data as you have patience / disk space to hold -- modify the ``1000000`` near
 the end of the line to create as many rows of data as you like::
 
-    % python -c "import csv, sys, random; w = csv.writer(sys.stdout); 
+    % python -c "import csv, sys, random; w = csv.writer(sys.stdout);
     [w.writerow([i, int(999999*random.random())]) for i in range(1000000)]" > input1.csv
 
 Run it twice (saving the first run's output in a different name from the
-second run's) to give yourself two sets of input data just as before. 
+second run's) to give yourself two sets of input data just as before.
 Then follow the steps from either this :ref:`tutorial_2` or the prior
-introductory :ref:`tutorial` to chunk the input data and push it to ddfs
+introductory :ref:`tutorial` to chunk the input data and push it to DDFS
 in whatever manner you like.  (Let's assume you tag your chunked input
-data as ``data:bigger_sets`` in ddfs.)
+data as ``data:bigger_sets`` in DDFS.)
 
 The only modification to ``simple_innerjoin.py`` that we suggest,
 depending upon how large your newly generated input data set is, is to
@@ -346,14 +346,14 @@ throughput for this job.
 
 As a variation on the above, remember that our ``simple_innerjoin.py``
 script has the capability to read its input data from a local file instead
-of ddfs -- try running again with a local file supplied as the location of
+of DDFS -- try running again with a local file supplied as the location of
 the input (instead of ``data:bigger_sets``).  Did you get an error message
 with "Invalid tag (403)"?  If so, you need to ensure Disco recognizes that
 you are supplying a filename and not the name of a tag.  Did you get an
 error message with "IOError: [Errno 2] No such file or directory"?  If so,
 you either need to supply the full path to the file (not a relative path
 name) or that path may not be available to Disco everywhere (if so, a good
-reason to use ddfs again).  Was your run faster or slower than using ddfs?
+reason to use DDFS again).  Was your run faster or slower than using DDFS?
 
 After playing with ever larger volumes of data and tweaking the controls
 that Disco provides, you'll quickly gain confidence in being able to throw
@@ -373,7 +373,7 @@ A natural next step in experimenting with partitioning involves
 :ref:`chaining jobs together <chaining>` since the number of partitioned
 outputs from one job becomes the number of chunked inputs for the next.
 As a baby step, you could move the ``reduce()`` method implemented above
-into a second, chained job and replace it in the first job with a 
+into a second, chained job and replace it in the first job with a
 do-nothing substitute like :func:`disco.worker.classic.func.nop_reduce`.
 
 As already mentioned in the introductory :ref:`tutorial`,
