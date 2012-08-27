@@ -192,7 +192,7 @@ Disco using the ``disco -v`` command.
 
 A failed Disco master can be replaced by installing the Disco master
 on a new machine (or even an existing Disco node, though this is not
-recommended for large or busy clusters).  See :ref:`_install_sys` for
+recommended for large or busy clusters).  See :ref:`install_sys` for
 details on installing the Disco master.  On the replacement machine,
 you will need to copy the settings and configuration files from the
 original master into their expected locations.  For this reason, it is
