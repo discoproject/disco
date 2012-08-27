@@ -1,34 +1,13 @@
 -module(disco).
 
--export([get_setting/1,
-         has_setting/1,
-         settings/0,
-         host/1,
-         name/1,
-         slave_name/1,
-         slave_node/1,
-         slave_safe/1,
-         oob_name/1,
-         hexhash/1,
-         jobhome/1,
-         jobhome/2,
-         joburl/2,
-         data_root/1,
-         data_path/2,
-         ddfs_root/2,
-         debug_flags/1,
-         local_cluster/0,
-         disco_url_path/1,
-         preferred_host/1,
-         enum/1,
-         format/2,
-         format_time/1,
-         format_time/4,
-         format_time_since/1,
-         make_dir/1,
-         ensure_dir/1,
-         is_file/1,
-         is_dir/1]).
+-export([get_setting/1, has_setting/1, settings/0,
+         host/1, name/1, slave_name/1, slave_node/1, slave_safe/1, oob_name/1,
+         hexhash/1, jobhome/1, jobhome/2, joburl/2,
+         data_root/1, data_path/2, ddfs_root/2,
+         debug_flags/1, local_cluster/0,
+         disco_url_path/1, preferred_host/1,
+         enum/1, format/2, format_time/1, format_time/4, format_time_since/1,
+         make_dir/1, ensure_dir/1, is_file/1, is_dir/1]).
 
 -export_type([url_host/0]).
 
@@ -90,7 +69,7 @@ slave_name(Host) ->
 slave_node(Host) ->
     case local_cluster() of
         false -> list_to_atom(default_slave_name() ++ "@" ++ Host);
-        true ->  list_to_atom(box_slave_name(Host) ++ "@localhost")
+        true  -> list_to_atom(box_slave_name(Host) ++ "@localhost")
     end.
 
 -spec slave_safe(host()) -> false | node().
@@ -217,12 +196,9 @@ make_dir(Dir) ->
     case ensure_dir(Dir) of
         ok ->
             case prim_file:make_dir(Dir) of
-                ok ->
-                    {ok, Dir};
-                {error, eexist} ->
-                    {ok, Dir};
-                {error, Reason} ->
-                    {error, Reason}
+                ok              -> {ok, Dir};
+                {error, eexist} -> {ok, Dir};
+                {error, Reason} -> {error, Reason}
             end;
         {error, Reason} ->
             {error, Reason}
@@ -242,12 +218,10 @@ ensure_dir(F) ->
             case ensure_dir(Dir) of
                 ok ->
                     case prim_file:make_dir(Dir) of
-                        {error,eexist}=EExist ->
+                        {error, eexist} = EExist ->
                             case is_dir(Dir) of
-                                true ->
-                                    ok;
-                                false ->
-                                    EExist
+                                true  -> ok;
+                                false -> EExist
                             end;
                         Err ->
                             Err
@@ -260,19 +234,14 @@ ensure_dir(F) ->
 -spec is_dir(file:filename()) -> boolean().
 is_dir(Dir) ->
     case prim_file:read_file_info(Dir) of
-        {ok, #file_info{type=directory}} ->
-            true;
-        _ ->
-            false
+        {ok, #file_info{type=directory}} -> true;
+        _                                -> false
     end.
 
 -spec is_file(file:filename()) -> boolean().
 is_file(Dir) ->
     case prim_file:read_file_info(Dir) of
-        {ok, #file_info{type=regular}} ->
-            true;
-        {ok, #file_info{type=directory}} ->
-            true;
-        _ ->
-            false
+        {ok, #file_info{type=regular}}   -> true;
+        {ok, #file_info{type=directory}} -> true;
+        _                                -> false
     end.
