@@ -37,7 +37,7 @@ start_gc(Root) ->
     % Wait some time for all nodes to start and stabilize.
     InitialWait =
         case disco:has_setting("DDFS_GC_INITIAL_WAIT") of
-            true -> list_to_integer(disco:get_setting("DDFS_GC_INITIAL_WAIT")) * ?MINUTE;
+            true  -> list_to_integer(disco:get_setting("DDFS_GC_INITIAL_WAIT")) * ?MINUTE;
             false -> ?GC_DEFAULT_INITIAL_WAIT
         end,
     initial_wait(InitialWait),
@@ -128,7 +128,7 @@ hosted_tags(Host) ->
         Node ->
             case hosted_tags(Host, Node) of
                 {error, _} = E -> E;
-                Tags -> {ok, Tags}
+                Tags           -> {ok, Tags}
             end
     end.
 -spec hosted_tags(host(), node()) -> [tagname()] | {error, term()}.
@@ -140,9 +140,9 @@ hosted_tags(Host, Node) ->
                   E;
               (T, HostedTags) ->
                   case tag_is_hosted(T, Host, Node, ?MAX_TAG_OP_RETRIES) of
-                      true -> [T|HostedTags];
+                      true  -> [T|HostedTags];
                       false -> HostedTags;
-                      E -> E
+                      E     -> E
                   end
           end, [], Tags)
     catch K:V ->
@@ -159,7 +159,8 @@ tag_is_hosted(T, Host, Node, Retries) ->
             {{missing, _}, false} ->
                 false;
             {_Id, Urls, TagReplicas} ->
-                lists:member(Node, TagReplicas) orelse urls_are_hosted(Urls, Host, Node);
+                lists:member(Node, TagReplicas)
+                    orelse urls_are_hosted(Urls, Host, Node);
             E ->
                 E
         end
@@ -180,13 +181,13 @@ urls_are_hosted([Urls|Rest], Host, Node) ->
                   tag_is_hosted(T, Host, Node, ?MAX_TAG_OP_RETRIES);
               (Url, false) ->
                   case ddfs_util:parse_url(Url) of
-                      not_ddfs -> false;
+                      not_ddfs            -> false;
                       {H, _V, _T, _H, _B} -> H =:= Host
                   end;
               (_Url, TrueOrError) ->
                   TrueOrError
           end, false, Urls),
     case Hosted of
-        false -> urls_are_hosted(Rest, Host, Node);
+        false       -> urls_are_hosted(Rest, Host, Node);
         TrueOrError -> TrueOrError
     end.

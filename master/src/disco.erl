@@ -193,8 +193,8 @@ make_dir(Dir) ->
     case ensure_dir(Dir) of
         ok ->
             case prim_file:make_dir(Dir) of
-                ok                  -> {ok, Dir};
-                {error, eexist}     -> {ok, Dir};
+                ok                   -> {ok, Dir};
+                {error, eexist}      -> {ok, Dir};
                 {error, _Reason} = E -> E
             end;
         {error, _Reason} = E ->
@@ -213,7 +213,7 @@ ensure_dir(F) ->
         false ->
             case ensure_dir(Dir) of
                 ok -> case prim_file:make_dir(Dir) of
-                          {error,eexist} = EExist ->
+                          {error, eexist} = EExist ->
                               case is_dir(Dir) of
                                   true  -> ok;
                                   false -> EExist
