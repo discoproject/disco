@@ -103,7 +103,8 @@ do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
     end;
 
 do_handle({<<"TASK">>, _Body}, #state{host = Host, task = {TS, _TR}} = S) ->
-    #task_spec{jobname = JN, taskid = TaskId, stage = Stage, group = G} = TS,
+    #task_spec{jobname = JN, taskid = TaskId, stage = Stage,
+               group = G, grouping = Gg} = TS,
     Master = disco:get_setting("DISCO_MASTER"),
     JobFile = jobpack:jobfile(disco_worker:jobhome(JN)),
     DiscoPort = list_to_integer(disco:get_setting("DISCO_PORT")),
@@ -117,6 +118,7 @@ do_handle({<<"TASK">>, _Body}, #state{host = Host, task = {TS, _TR}} = S) ->
                          {<<"ddfs_data">>, list_to_binary(DDFSData)},
                          {<<"disco_data">>, list_to_binary(DiscoData)},
                          {<<"stage">>, Stage},
+                         {<<"grouping">>, grouping_to_json(Gg)},
                          {<<"group">>, group_to_json(G)},
                          {<<"jobfile">>, list_to_binary(JobFile)},
                          {<<"jobname">>, list_to_binary(JN)},
@@ -189,6 +191,10 @@ group_to_json({L, none}) ->
     [L, <<"">>];
 group_to_json({L, H}) when is_list(H) ->
     [L, list_to_binary(H)].
+
+-spec grouping_to_json(label_grouping()) -> binary().
+grouping_to_json(Gg) ->
+    list_to_binary(atom_to_list(Gg)).
 
 -spec ioerror(nonempty_string(), atom()) -> nonempty_string().
 ioerror(Msg, Reason) ->
