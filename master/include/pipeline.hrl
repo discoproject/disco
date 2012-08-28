@@ -14,17 +14,17 @@
         split
       | % Each task consumes all inputs with the same label on the
         % same node (typically used in local-reduce stages).
-        join_node_label
+        group_node_label
       | % Each task consumes all inputs on the same node (typically
         % used in shuffle stages).
-        join_node
+        group_node
       | % Each task consumes all inputs with the same label (typically
         % used in partitioned-reduce stages).
-        join_label
+        group_label
       | % A single task should consume all inputs, regardless of their
         % location or label (typically used in non-partitioned reduce
         % stages).
-        join_all.
+        group_all.
 
 -type stage() :: {stage_name(), label_grouping()}.
 -type pipeline() :: [stage()].

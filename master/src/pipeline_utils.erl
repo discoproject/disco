@@ -58,7 +58,7 @@ next_stage([_S|Rest], S) -> next_stage(Rest, S).
 % tuples into a single 'dir' file, and sends the same of this file as
 % the output.  In order to perform label-based grouping, the labels in
 % the 'dir' file are also sent along with its name in the output spec.
-% A subsequent 'shuffle' stage using a join_node grouping normally
+% A subsequent 'shuffle' stage using a group_node grouping normally
 % uses these 'dir' file inputs to compress the large number of small
 % files into fewer larger files per-label.
 
@@ -106,7 +106,7 @@ group_outputs(split, Outputs) ->
                Reps =/= []],
     Dirs ++ Dats;
 
-group_outputs(join_node_label, Outputs) ->
+group_outputs(group_node_label, Outputs) ->
     Dats = [{{L, pick_local_host(Reps)}, {{Tid, Outid}, D}}
             || {Tid, Tout} <- Outputs,
                {Outid, {data, {L, _S, Reps}} = D} <- Tout,
@@ -129,7 +129,7 @@ group_outputs(join_node_label, Outputs) ->
                        not lists:member(G, GroupNames)],
     DirGroups ++ Groups;
 
-group_outputs(join_label, Outputs) ->
+group_outputs(group_label, Outputs) ->
     Dirs = [{L, {{Tid, Outid}, D}}
             || {Tid, Tout} <- Outputs,
                {Outid, {dir, {_H, _U, Labels}} = D} <- Tout,
@@ -143,7 +143,7 @@ group_outputs(join_label, Outputs) ->
      || [{L,_D}|_] = LGroup <- disco_util:groupby(1, lists:sort(Dats ++ Dirs)),
         {_L, Group} <- [lists:unzip(LGroup)]];
 
-group_outputs(join_node, Outputs) ->
+group_outputs(group_node, Outputs) ->
     Dirs = [{H, {{Tid, Outid}, D}}
             || {Tid, Tout} <- Outputs,
                {Outid, {dir, {H, _U, Labels}} = D} <- Tout,
@@ -156,7 +156,7 @@ group_outputs(join_node, Outputs) ->
      || [{H, _D}|_] = HGroup <- disco_util:groupby(1, lists:sort(Dats ++ Dirs)),
         {_H, Group} <- [lists:unzip(HGroup)]];
 
-group_outputs(join_all, Outputs) ->
+group_outputs(group_all, Outputs) ->
     Dirs = [{{Tid, Outid}, D} || {Tid, Tout} <- Outputs,
                                  {Outid, {dir, {_H, _U, Labels}} = D} <- Tout,
                                  Labels =/= []],
@@ -170,13 +170,13 @@ input_urls({data, {L, _Sz, Reps}}, _LG, _G) ->
     labelled_urls([U || {U, _H} <- Reps], L, [{L, 0}]);
 input_urls({dir, {_H1, U, LS}}, split, {L, _H2}) ->
     labelled_urls([U], L, LS);
-input_urls({dir, {_H1, U, LS}}, join_node_label, {L, _H2}) ->
+input_urls({dir, {_H1, U, LS}}, group_node_label, {L, _H2}) ->
     labelled_urls([U], L, LS);
-input_urls({dir, {_H1, U, LS}}, join_label, {L, _H2}) ->
+input_urls({dir, {_H1, U, LS}}, group_label, {L, _H2}) ->
     labelled_urls([U], L, LS);
-input_urls({dir, {_H1, U, _LS}}, join_node, {_L, _H2}) ->
+input_urls({dir, {_H1, U, _LS}}, group_node, {_L, _H2}) ->
     [U];
-input_urls({dir, {_H1, U, _LS}}, join_all, {_L, _H2}) ->
+input_urls({dir, {_H1, U, _LS}}, group_all, {_L, _H2}) ->
     [U].
 
 -spec labelled_urls([url()], label(), [{label(), data_size()}]) -> [url()].

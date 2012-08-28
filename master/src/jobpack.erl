@@ -23,12 +23,12 @@
 
 % Metadata utilities.
 
--spec grouping(binary())        -> label_grouping().
-grouping(<<"split">>)           -> split;
-grouping(<<"join_node_label">>) -> join_node_label;
-grouping(<<"join_node">>)       -> join_node;
-grouping(<<"join_label">>)      -> join_label;
-grouping(<<"join_all">>)        -> join_all;
+-spec grouping(binary())         -> label_grouping().
+grouping(<<"split">>)            -> split;
+grouping(<<"group_node_label">>) -> group_node_label;
+grouping(<<"group_node">>)       -> group_node;
+grouping(<<"group_label">>)      -> group_label;
+grouping(<<"group_all">>)        -> group_all;
 grouping(G) ->
     throw({error, disco:format("invalid grouping '~p'", [G])}).
 
@@ -328,22 +328,22 @@ input_replicas1(Reps) when is_list(Reps) ->
 pipeline1(false, false, _NR) ->
     [];
 pipeline1(false, true, 1) ->
-    [{?REDUCE, join_all}];
+    [{?REDUCE, group_all}];
 pipeline1(false, true, _NR) ->
     % This was used to support reduce-only jobs with partitioned
     % inputs from dir:// files. This is now unsupported; instead, the
     % job-submitter will need to prepare an explicit pipeline.
     unsupported_job;
 pipeline1(true, false, _NR) ->
-    [{?MAP, split}, {?MAP_SHUFFLE, join_node}];
+    [{?MAP, split}, {?MAP_SHUFFLE, group_node}];
 pipeline1(true, true, 1) ->
-    [{?MAP, split}, {?MAP_SHUFFLE, join_node}, {?REDUCE, join_all}];
+    [{?MAP, split}, {?MAP_SHUFFLE, group_node}, {?REDUCE, group_all}];
 pipeline1(true, true, _NR) ->
     % This was used to support a pre-determined number of partitions
     % in map output, which determined the number of reduces.  However,
     % we now determine the number of reduces dynamically.
-    [{?MAP, split}, {?MAP_SHUFFLE, join_node},
-     {?REDUCE, join_label}, {?REDUCE_SHUFFLE, join_node}].
+    [{?MAP, split}, {?MAP_SHUFFLE, group_node},
+     {?REDUCE, group_label}, {?REDUCE_SHUFFLE, group_node}].
 
 -spec schedule_option1(#ver1_info{}) -> task_schedule().
 schedule_option1(#ver1_info{force_local = Local, force_remote = Remote}) ->
