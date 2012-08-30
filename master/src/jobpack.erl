@@ -112,9 +112,10 @@ jobzip(<<?MAGIC:16/big,
                     nr_reduce :: non_neg_integer(),
                     map    :: boolean(),
                     reduce :: boolean()}).
--record(ver2_info, {pipeline = [] :: pipeline(),
-                    schedule = none :: task_schedule(),
-                    inputs   = [] :: [task_output()]}).
+-record(ver2_info, {pipeline     = []    :: pipeline(),
+                    schedule     = none  :: task_schedule(),
+                    inputs       = []    :: [task_output()],
+                    save_results = false :: boolean()}).
 
 -spec version_info(non_neg_integer(), dict()) -> #ver1_info{} | #ver2_info{}.
 version_info(?VERSION_1, JobDict) ->
@@ -129,9 +130,11 @@ version_info(?VERSION_1, JobDict) ->
 version_info(?VERSION_2, JobDict) ->
     Pipeline = find(<<"pipeline">>, JobDict),
     Inputs   = find(<<"inputs">>, JobDict),
+    SaveResults = find(<<"save_results">>, JobDict, false),
     #ver2_info{schedule = none,  % No scheduling options supported for now.
                pipeline = validate_pipeline(Pipeline),
-               inputs   = validate_inputs(Inputs)};
+               inputs   = validate_inputs(Inputs),
+               save_results = validate_save_results(SaveResults)};
 version_info(V, _JobDict) ->
     throw({error, disco:format("unsupported version '~p'", [V])}).
 
@@ -140,8 +143,9 @@ fixup_versions(JobInfo, #ver1_info{} = V1) ->
     {I, P} = job_from_ver1(V1),
     S = schedule_option1(V1),
     JobInfo#jobinfo{inputs = I, pipeline = P, schedule = S};
-fixup_versions(JobInfo, #ver2_info{inputs = I, pipeline = P, schedule = S}) ->
-    JobInfo#jobinfo{inputs = I, pipeline = P, schedule = S}.
+fixup_versions(JobInfo, #ver2_info{inputs = I, pipeline = P,
+                                   schedule = S, save_results = SR}) ->
+    JobInfo#jobinfo{inputs = I, pipeline = P, schedule = S, save_results = SR}.
 
 % Validation
 
@@ -206,6 +210,17 @@ validate_inputs(Inputs) ->
         _I ->
             [{data, {L, Sz, [{U, disco:preferred_host(U)} || U <- Urls]}}
              || [L, Sz, Urls] <- Inputs]
+    end.
+
+-spec validate_save_results(term()) -> boolean().
+validate_save_results(S) ->
+    case json_validator:validate(boolean, S) of
+        {error, E} ->
+            lager:warning("Invalid save_results in jobpack: ~s",
+                          json_validator:error_msg(E)),
+            throw({error, invalid_job_save_results});
+        _ ->
+            S
     end.
 
 % Jobpack file management.

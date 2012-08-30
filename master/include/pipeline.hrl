@@ -104,10 +104,10 @@
 % specifies the pre-assigned host from grouping, if any, for the task
 % run.  On re-runs after faults, the host is selected by the
 % host-allocator.
--record(task_run, {runid               :: task_run_id(),
-                   host                :: url_host(),
-                   failed_hosts        :: gb_set(),
-                   input               :: [{input_id(), data_input()}]}).
+-record(task_run, {runid         :: task_run_id(),
+                   host          :: url_host(),
+                   failed_hosts  :: gb_set(),
+                   input         :: [{input_id(), data_input()}]}).
 -type task_run() :: #task_run{}.
 
 -type task() :: {task_spec(), task_run()}.
@@ -127,5 +127,6 @@
                   worker        :: binary(),
                   inputs = []   :: [task_output()],
                   pipeline = [] :: pipeline(),
-                  schedule      :: task_schedule()}).
+                  schedule      :: task_schedule(),
+                  save_results = false :: boolean()}).
 -type jobinfo() :: #jobinfo{}.
