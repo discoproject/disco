@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # This file is used by "make install" on Darwin (i.e. Mac OS X).
 
-. gen.settings.sh
+. ./gen.settings.sh

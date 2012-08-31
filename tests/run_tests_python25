@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 export DISCO_TEST_PURGE=
 export DISCO_MASTER_HOST=localhost

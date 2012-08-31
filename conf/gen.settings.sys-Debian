@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # This file is used by Debian packaging.
 
 cat << EOF
@@ -7,4 +7,4 @@ DISCO_USER = "disco"
 
 EOF
 
-. gen.settings.sh
+. ./gen.settings.sh
