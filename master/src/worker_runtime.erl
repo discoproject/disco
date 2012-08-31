@@ -6,12 +6,13 @@
 -include("pipeline.hrl").
 
 -type remote_output() :: {label(), data_size(), [data_replica()]}.
--record(state, {jobname    :: jobname(),
-                task       :: task(),
-                master     :: node(),
-                host       :: host(),
-                inputs     :: worker_inputs:state(),
-                start_time :: erlang:timestamp(),
+-record(state, {jobname      :: jobname(),
+                task         :: task(),
+                master       :: node(),
+                host         :: host(),
+                inputs       :: worker_inputs:state(),
+                start_time   :: erlang:timestamp(),
+                save_outputs :: boolean(),
 
                 child_pid       = none             :: none | non_neg_integer(),
                 failed_inputs   = gb_sets:empty()  :: gb_set(), % [seq_id()]
@@ -24,14 +25,16 @@
 -export_type([state/0]).
 
 -spec init(task(), node()) -> state().
-init({#task_spec{jobname = JN, grouping = Grouping, group = Group},
+init({#task_spec{jobname = JN, grouping = Grouping, group = Group,
+                 save_outputs = Save},
       #task_run{input = Inputs}} = Task, Master) ->
     #state{jobname = JN,
            task    = Task,
            master  = Master,
            host    = disco:host(node()),
            inputs  = worker_inputs:init(Inputs, Grouping, Group),
-           start_time = now()}.
+           start_time   = now(),
+           save_outputs = Save}.
 
 -spec get_pid(state()) -> none | non_neg_integer().
 get_pid(#state{child_pid = Pid}) ->

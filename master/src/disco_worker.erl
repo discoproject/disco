@@ -48,7 +48,7 @@ start_link_remote(Host, NodeMon, Task) ->
     receive
         {'EXIT', _, Reason} -> exit({error, Reason});
         ok      -> ok;
-        _       ->    exit({error, "Internal server error: invalid_reply"})
+        _       -> exit({error, "Internal server error: invalid_reply"})
     after 60000 -> exit({error, "Worker did not start in 60s at " ++ Host})
     end,
     wait_for_exit().
