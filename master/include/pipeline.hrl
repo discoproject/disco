@@ -95,7 +95,8 @@
                     jobenvs   :: [{nonempty_string(), string()}],
                     worker    :: binary(),
                     schedule  :: task_schedule(),
-                    input     :: [input_id()]}).
+                    input     :: [input_id()],
+                    save_outputs :: boolean()}).
 -type task_spec() :: #task_spec{}.
 
 % Information particular to a specific run of a task.  Each attempt to
