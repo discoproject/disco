@@ -177,7 +177,7 @@ delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
     true;
 
 delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
-    error_logger:info_msg("GC: Deleting expired object at ~p", [Path]),
+    error_logger:info_msg("GC: Deleting expired object at ~p:~p", [node(), Path]),
     _ = prim_file:delete(Path),
     timer:sleep(100),
     true;
@@ -217,7 +217,7 @@ do_put(Blob, SrcPath, PutUrl) ->
                 Resp when is_binary(Resp) ->
                     case ddfs_util:parse_url(Resp) of
                         not_ddfs -> {error, {server_error, Body}};
-                        _ ->        {ok, Blob, [Resp]}
+                        _        -> {ok, Blob, [Resp]}
                     end;
                 _Err ->
                     {error, {server_error, Body}}

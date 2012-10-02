@@ -73,8 +73,8 @@ send_file(Req, Path, Root) ->
                                       "Try again later"]})
                 end
             catch K:V ->
-                    error_logger:info_msg("~p: error getting ~p: ~p:~p",
-                                          [?MODULE, Path, K, V]),
+                    error_logger:info_msg("~p: error getting ~p on ~p: ~p:~p",
+                                          [?MODULE, Path, node(), K, V]),
                     Req:respond({403, [], ["Disco node is busy"]})
             end;
         _ ->

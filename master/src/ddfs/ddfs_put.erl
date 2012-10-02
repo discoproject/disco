@@ -55,7 +55,9 @@ loop("/ddfs/" ++ BlobName, Req) ->
                         error_reply(Req, "Could not put blob", BlobName, Error)
                     end
             catch K:V ->
-                    error_reply(Req, "Could not put blob", BlobName, {K,V})
+                    error_logger:info_msg("~p: error putting ~p on ~p: ~p:~p",
+                                          [?MODULE, BlobName, node(), K, V]),
+                    error_reply(Req, "Could not put blob onto", BlobName, {K,V})
             end;
         {'PUT', _} ->
             Req:respond({403, [], ["Invalid blob name"]});
