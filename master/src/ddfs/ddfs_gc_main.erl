@@ -955,25 +955,36 @@ process_deleted(Tags, Ages) ->
     % copies around.
     DelSet = gb_sets:subtract(Deleted, gb_sets:from_ordset(Tags)),
 
-    lists:foreach(
-      fun({Tag, Age}) ->
-              Diff = timer:now_diff(Now, Age) / 1000,
-              case gb_sets:is_member(Tag, DelSet) of
-                  false ->
-                      % Copies of tag still alive, remove from Ages
-                      ets:delete(Ages, Tag);
-                  true when Diff > ?DELETED_TAG_EXPIRES ->
-                      % Tag ready to be removed from +deleted
-                      lager:info("REMOVED ~p from +DELETED", [Tag]),
-                      ddfs_master:tag_operation({delete_tagname, Tag},
-                                                <<"+deleted">>,
-                                                ?TAG_UPDATE_TIMEOUT);
-                  true ->
-                      % Tag hasn't been dead long enough to be removed from
-                      % +deleted
-                      ok
+    % Build up a list of tags ready to be removed from +deleted.
+    ExpiredTags =
+        lists:foldl(
+          fun({Tag, Age}, Acc) ->
+                  Diff = timer:now_diff(Now, Age) / 1000,
+                  case gb_sets:is_member(Tag, DelSet) of
+                      false ->
+                          % Copies of tag still alive, remove from Ages.
+                          ets:delete(Ages, Tag);
+                      true when Diff > ?DELETED_TAG_EXPIRES ->
+                          % Tag ready to be removed from +deleted.
+                          lager:info("~p ready for removal from +DELETED", [Tag]),
+                          [Tag | Acc];
+                      true ->
+                          % Tag hasn't been dead long enough to be
+                          % removed from +deleted.
+                          Acc
+                  end
+          end, [], ets:tab2list(Ages)),
+    case ExpiredTags of
+        [] -> ok;
+        _  -> case ddfs_master:tag_operation({delete_tagnames, ExpiredTags},
+                                             <<"+deleted">>,
+                                             ?TAG_UPDATE_TIMEOUT)
+              of  {ok, _}    ->
+                      lager:info("Dead tags removed from +DELETED");
+                  {error, E} ->
+                      lager:info("Error removing tags from +DELETED: ~p", [E])
               end
-      end, ets:tab2list(Ages)).
+    end.
 
 %% ===================================================================
 %% blacklist utilities
