@@ -1,7 +1,8 @@
 -module(ddfs_util).
 -export([concatenate/2, diskspace/1, ensure_dir/1, fold_files/3,
          hashdir/5, safe_rename/2]).
--export([startswith/2, is_valid_name/1, unpack_objname/1, pack_objname/2]).
+-export([startswith/2, is_valid_name/1, make_valid_name/1,
+         unpack_objname/1, pack_objname/2]).
 -export([cluster_url/2, parse_url/1, url_to_name/1]).
 -export([format_timestamp/0, timestamp/0, timestamp/1, timestamp_to_time/1]).
 
@@ -15,12 +16,26 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
+-define(LEGAL_CHARS,
+        ":@-_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ").
+
+-spec is_invalid_char(char()) -> boolean().
+is_invalid_char(C) ->
+    string:chr(?LEGAL_CHARS, C) =:= 0.
+
 -spec is_valid_name(path()) -> boolean().
 is_valid_name([]) -> false;
 is_valid_name(Name) when length(Name) > ?NAME_MAX -> false;
 is_valid_name(Name) ->
-    Ok = ":@-_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-    not lists:any(fun(C) -> string:chr(Ok, C) =:= 0 end, Name).
+    not lists:any(fun is_invalid_char/1, Name).
+
+% Replace illegal chars in filenames by '_'.
+-spec make_valid_char(char()) -> char().
+make_valid_char(C) ->
+    case is_invalid_char(C) of true  -> $_; false -> C end.
+-spec make_valid_name(path()) -> path().
+make_valid_name(Path) ->
+    [make_valid_char(C) || C <- Path].
 
 -spec startswith(binary(), binary()) -> boolean().
 startswith(B, Prefix) when size(B) < size(Prefix) ->
