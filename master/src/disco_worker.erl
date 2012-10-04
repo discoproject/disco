@@ -36,6 +36,7 @@
 -define(ERROR_TIMEOUT, 10 * 1000).
 -define(MESSAGE_TIMEOUT, 30 * 1000).
 -define(MAX_ERROR_BUFFER_SIZE, 100 * 1024).
+-define(LOG_PROTOCOL, false).
 
 -spec start_link_remote(host(), pid(), task()) -> no_return().
 start_link_remote(Host, NodeMon, Task) ->
@@ -119,7 +120,7 @@ handle_cast(work, #state{task = T, port = none} = State) ->
                stderr_to_stdout,
                {env, JobEnvs}],
     Port = open_port({spawn, Command}, Options),
-    SendPid = spawn_link(fun() -> worker_send(Port) end),
+    SendPid = spawn_link(fun() -> worker_send(T, Port) end),
     {noreply, State#state{port = Port, worker_send = SendPid}, ?PID_TIMEOUT}.
 
 
@@ -180,6 +181,18 @@ terminate(_Reason, #state{runtime = Runtime} = S) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+-spec proto_log(task(), to|from, nonempty_string(), [term()]) -> ok.
+proto_log(T, Dir, Format, Args) ->
+    case ?LOG_PROTOCOL of
+        true ->
+            {#task_spec{jobname = J, stage = S, taskid = Tid}, _} = T,
+            D = case Dir of to -> "->"; from -> "<-" end,
+            Msg = disco:format(Format, Args),
+            error_logger:info_msg("~p:~s:~p ~s ~p", [J, S, Tid, D, Msg]);
+        _ ->
+            ok
+    end.
+
 -spec update(state()) -> {'noreply', state()} | {'stop', shutdown(), state()}.
 % Note that size(Buffer) =:= 0 is here to avoid preventing delayed sub
 % binary optimization in worker_protocol:parse (since we use the
@@ -188,13 +201,15 @@ code_change(_OldVsn, State, _Extra) ->
 % http://www.erlang.org/doc/efficiency_guide/binaryhandling.html
 update(#state{buffer = Buffer} = S) when size(Buffer) =:= 0 ->
     {noreply, S};
-update(#state{buffer = B,
+update(#state{task = Task,
+              buffer = B,
               parser = P,
               runtime = RT,
               worker_send = WS,
               throttle = T} = S) ->
     case worker_protocol:parse(B, P) of
         {ok, Request, Buffer, PState} ->
+            proto_log(Task, from, "~p", [Request]),
             S1 = S#state{buffer = Buffer, parser = PState},
             try case worker_runtime:handle(Request, RT) of
                     {ok, Reply, RState} ->
@@ -232,8 +247,8 @@ update(#state{buffer = B,
             handle_info({none, {data, <<>>}}, S#state{error_output = true})
     end.
 
--spec worker_send(port()) -> no_return().
-worker_send(Port) ->
+-spec worker_send(task(), port()) -> no_return().
+worker_send(Task, Port) ->
     receive
         {{MsgName, Payload}, Delay} ->
             timer:sleep(Delay),
@@ -242,7 +257,8 @@ worker_send(Port) ->
             Length = list_to_binary(integer_to_list(byte_size(Body))),
             Msg = <<Type/binary, " ", Length/binary, " ", Body/binary, "\n">>,
             port_command(Port, Msg),
-            worker_send(Port)
+            proto_log(Task, to, "~s ~p", [MsgName, Body]),
+            worker_send(Task, Port)
     end.
 
 -spec make_jobhome(jobname(), node()) -> ok.
