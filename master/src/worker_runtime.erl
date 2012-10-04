@@ -4,8 +4,14 @@
 -include("common_types.hrl").
 -include("disco.hrl").
 -include("pipeline.hrl").
+-include("config.hrl").
+-include("ddfs.hrl").
+
+-define(PUT_TIMEOUT, 10 * ?MINUTE).
+-define(MAX_SAVE_ATTEMPTS, 10).
 
 -type remote_output() :: {label(), data_size(), [data_replica()]}.
+
 -record(state, {jobname      :: jobname(),
                 task         :: task(),
                 master       :: node(),
@@ -18,7 +24,7 @@
                 failed_inputs   = gb_sets:empty()  :: gb_set(), % [seq_id()]
                 remote_outputs  = []               :: [remote_output()],
                 local_labels    = gb_trees:empty() :: gb_tree(),% label -> size
-                output_filename = none             :: none | string(),
+                output_filename = none             :: none | path(),
                 output_file     = none             :: none | file:io_device()}).
 -type state() :: #state{}.
 
@@ -177,7 +183,10 @@ do_handle({<<"DONE">>, _Body}, #state{task = Task,
         ok ->
             Msg = ["Task finished in ", disco:format_time_since(ST)],
             disco_worker:event({<<"DONE">>, Msg}, Task, Master),
-            {stop, {done, results(S)}};
+            case results(S) of
+                {ok, R} -> {stop, {done, R}};
+                E       -> {stop, E}
+            end;
         {error, _Reason} = E ->
             {stop, E}
     end.
@@ -288,13 +297,146 @@ local_results(JobName, Host, FileName, Labels) ->
     Dir = erlang:iolist_to_binary(io_lib:format("dir://~s/~s", [Host, UPath])),
     {dir, {Host, Dir, gb_trees:to_list(Labels)}}.
 
--spec results(state()) -> [task_output()].
+-spec results(state()) -> {ok, [task_output()]} | {error, term()}.
 results(#state{output_filename = none, remote_outputs = ROutputs}) ->
-    disco:enum([{data, RO} || RO <- ROutputs]);
+    {ok, disco:enum([{data, RO} || RO <- ROutputs])};
 results(#state{jobname = JobName,
                host = Host,
+               save_outputs = false,
                output_filename = FileName,
                local_labels = Labels,
                remote_outputs = ROutputs}) ->
-    disco:enum([local_results(JobName, Host, FileName, Labels)
-                | [{data, RO} || RO <- ROutputs]]).
+    {ok, disco:enum([local_results(JobName, Host, FileName, Labels)
+                     | [{data, RO} || RO <- ROutputs]])};
+results(#state{jobname = JobName,
+               task = Task,
+               master = Master,
+               save_outputs = true,
+               output_filename = FileName,
+               remote_outputs = ROutputs}) ->
+    case save_locals_to_ddfs(JobName, FileName, Master, Task) of
+        {ok, Locs} -> {ok, disco:enum([{data, O} || O <- ROutputs ++ Locs])};
+        E          -> E
+    end.
+
+-spec save_locals_to_ddfs(jobname(), path(), node(), task()) ->
+                                 {ok, [remote_output()]} | {error, term()}.
+save_locals_to_ddfs(JN, FileName, Master, Task) ->
+    IndexFile = filename:join(disco_worker:jobhome(JN), FileName),
+    K = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
+    {#task_spec{taskid = TaskId}, #task_run{runid = RunId}} = Task,
+    case prim_file:read_file(IndexFile) of
+        {ok, Index} ->
+            Locals =
+                try {ok, parse_index(Index)}
+                catch
+                    Err ->
+                        error_logger:warning_msg("Error parsing ~s: ~p",
+                                                 [IndexFile, Err]),
+                        {error, Err};
+                    K:V ->
+                        error_logger:warning_msg("Error parsing ~s: ~p:~p",
+                                                 [IndexFile, K, V]),
+                        {error, bad_index_file}
+                end,
+            case Locals of
+                {ok, L} -> save_locals(L, K, Master, JN, TaskId, RunId, []);
+                {error, _} = E1 -> E1
+            end;
+        {error, _} = E2 ->
+            E2
+    end.
+
+-spec parse_index(binary()) -> [{label(), url(), data_size()}].
+parse_index(Index) ->
+    case re:run(Index, "(.*?) (.*?) (.*?)\n",
+                [global, {capture, all_but_first, binary}])
+    of  {match, Lines} ->
+            [{list_to_integer(binary_to_list(L)),
+              Url,
+              list_to_integer(binary_to_list(Sz))}
+             || [L, Url, Sz] <- Lines];
+        nomatch ->
+            []
+    end.
+
+-spec save_locals([{label(), url(), data_size()}], integer(), node(),
+                  jobname(), task_id(), task_run_id(), [remote_output()]) ->
+                         {ok, [remote_output()]} | {error, term()}.
+save_locals([], _K, _M, _JN, _Tid, _Rid, Saved) ->
+    {ok, Saved};
+save_locals([{L, Loc, Sz} = _H | Rest], K, M, JN, TaskId, RunId, Acc) ->
+    LocalPath = disco:joburl_to_localpath(Loc),
+    % Since this task can be re-run, name blob replicas such that
+    % collisions across re-runs of the same task are avoided.  Unused
+    % blobs will not be in the final tag, and will be garbage
+    % collected.
+    BlobBase = disco:format("~s:~p:~p:~s",
+                            [JN, TaskId, RunId, filename:basename(LocalPath)]),
+    BlobName = list_to_binary(ddfs_util:make_valid_name(BlobBase)),
+    Blob = ddfs_util:pack_objname(BlobName, now()),
+    % TODO: Optimize new_blob to handle hints so that local blob
+    % copies can be created.
+    case ddfs_save(M, Blob, LocalPath, K, ?MAX_SAVE_ATTEMPTS, {[], []}) of
+        {ok, Saved} ->
+            Res = {L, Sz, [{U, disco:preferred_host(U)} || U <- Saved]},
+            save_locals(Rest, K, M, JN, TaskId, RunId, [Res|Acc]);
+        {error, _} = Err ->
+            Err
+    end.
+
+-spec ddfs_save(node(), object_name(), path(), integer(), integer(),
+                {[url()], [node()]}) -> {ok, [url()]} | {error, term()}.
+ddfs_save(_M, _B, _P, _K, 0, _) ->
+    {error, too_many_save_failures};
+ddfs_save(M, BlobName, Path, K, Attempts, {Acc, Exclude}) ->
+    case ddfs_master:new_blob({ddfs_master, M}, BlobName, K, Exclude) of
+        {ok, Dests} ->
+            error_logger:info_msg("Replicating ~s from ~p to ~p (excluding ~p)",
+                                  [BlobName, Path, Dests, Exclude]),
+            Res =
+                [save_result(Path, D, ddfs_http:http_put(Path, D, ?PUT_TIMEOUT))
+                 || D <- Dests],
+            Acc1 = [U || {ok, U} <- Res] ++ Acc,
+            case length(Acc1) < K of
+                true ->
+                    X = [N || D <- Dests,
+                              N = disco:slave_for_url(list_to_binary(D))
+                                  =/= false],
+                    ddfs_save(M, BlobName, Path, K, Attempts - 1,
+                              {Acc1, X ++ Exclude});
+                false ->
+                    {ok, Acc1}
+            end;
+        E ->
+            {error, E}
+    end.
+
+-spec save_result(path(), nonempty_string(), {ok, binary()} | {error, _}) ->
+                         {error, term()} | {ok, url()}.
+save_result(Loc, D, {error, _} = E) ->
+    error_logger:error_msg("Error saving ~p to ~p: ~p", [Loc, D, E]),
+    E;
+save_result(Loc, D, {ok, Body}) ->
+    Resp = try mochijson2:decode(Body)
+           catch _ -> invalid; _:_ -> invalid
+           end,
+    case Resp of
+        invalid ->
+            error_logger:error_msg("Invalid response on saving ~p to ~p: ~p",
+                                   [Loc, D, Resp]),
+            {error, {server_error, Body}};
+        Resp when is_binary(Resp) ->
+            case ddfs_util:parse_url(Resp) of
+                not_ddfs ->
+                    error_logger:error_msg("Invalid final url for ~p to ~p: ~p",
+                                           [Loc, D, Resp]),
+                    {error, {server_error, Body}};
+                _ ->
+                    {ok, Resp}
+            end;
+        _ ->
+            error_logger:error_msg("Invalid response for ~p to ~p: ~p",
+                                   [Loc, D, Resp]),
+            {error, {server_body, Resp}}
+    end.

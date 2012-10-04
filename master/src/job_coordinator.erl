@@ -278,17 +278,29 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
     #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
     Outputs = [(jc_utils:task_info(TaskId, Tasks))#task_info.outputs
                || TaskId <- Done],
+    Results = [pipeline_utils:output_urls(O)
+               || {_Id, O} <- lists:flatten(Outputs)],
     case Save of
         false ->
-            Results = [pipeline_utils:output_urls(O)
-                       || {_Id, O} <- lists:flatten(Outputs)],
             lager:info("Job ~s done, results: ~p", [JobName, Results]),
             event_server:job_done_event(JobName, Results),
             gen_server:cast(self(), pipeline_done),
             S;
         true ->
-            % TODO
-            S
+            % Save the results into a tag.
+            Tag = list_to_binary(disco:format("disco:results:~s", [JobName])),
+            T = <<"tag://", Tag/binary>>,
+            Op = {put, urls, Results, internal},
+            case ddfs_master:tag_operation(Op, Tag) of
+                {ok, TagReps} ->
+                    lager:info("Job ~s done, results saved to ~p at ~p",
+                               [JobName, T, TagReps]),
+                    event_server:job_done_event(JobName, [[T]]);
+                E ->
+                    M = "Job ~s failed to save results to ~s: ~p",
+                    MArgs = [JobName, T, E],
+                    event_server:event(JobName, M, MArgs, none)
+            end
     end.
 
 -spec retry_task(host(), term(), task_info(), state()) -> state().
