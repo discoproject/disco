@@ -260,7 +260,8 @@ do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
         {ok, Binary} ->
             gen_server:reply(From, {ok, Binary});
         {error, Reason} ->
-            error_logger:warning_msg("Read failed at ~p: ~p", [TagPath, Reason]),
+            error_logger:warning_msg("Read failed on ~p at ~p: ~p",
+                                     [node(), TagPath, Reason]),
             gen_server:reply(From, {error, read_failed})
     end.
 
