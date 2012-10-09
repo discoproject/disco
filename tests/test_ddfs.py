@@ -79,6 +79,7 @@ class DDFSWriteTestCase(TestCase):
     def setUp(self):
         self.ddfs.delete('disco:test:tag')
         self.ddfs.delete('disco:test:blobs')
+        self.ddfs.delete('disco:test:chunk')
 
     def test_chunk(self):
         from disco.core import classic_iterator
