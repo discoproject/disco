@@ -963,10 +963,11 @@ process_deleted(Tags, Ages) ->
                   case gb_sets:is_member(Tag, DelSet) of
                       false ->
                           % Copies of tag still alive, remove from Ages.
-                          ets:delete(Ages, Tag);
+                          ets:delete(Ages, Tag),
+                          Acc;
                       true when Diff > ?DELETED_TAG_EXPIRES ->
                           % Tag ready to be removed from +deleted.
-                          lager:info("~p ready for removal from +DELETED", [Tag]),
+                          lager:info("GC: tag ~p ready for removal from +DELETED", [Tag]),
                           [Tag | Acc];
                       true ->
                           % Tag hasn't been dead long enough to be
@@ -980,9 +981,10 @@ process_deleted(Tags, Ages) ->
                                              <<"+deleted">>,
                                              ?TAG_UPDATE_TIMEOUT)
               of  {ok, _}    ->
-                      lager:info("Dead tags removed from +DELETED");
+                      lager:info("GC: ~p dead tags removed from +DELETED",
+                                 [length(ExpiredTags)]);
                   {error, E} ->
-                      lager:info("Error removing tags from +DELETED: ~p", [E])
+                      lager:info("GC: error removing dead tags from +DELETED: ~p", [E])
               end
     end.
 
