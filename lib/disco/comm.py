@@ -144,7 +144,7 @@ class Connection(object):
         self.offset = 0
         self.orig_offset = 0
         self.eof = False
-        self.headers = {}
+        self.response = None
         self.read(1)
         self.i = 0
 
@@ -159,9 +159,11 @@ class Connection(object):
             chunk = last + next_chunk
 
     def __len__(self):
-        if 'content-range' in self.headers:
-            return int(self.headers['content-range'].split('/')[1])
-        return int(self.headers.get('content-length', 0))
+        if self.response == None:
+            return 0
+        if self.response.getheader('content-range', None) != None:
+            return int(self.response.getheader('content-range').split('/')[1])
+        return int(self.response.getheader('content-length', 0))
 
     def close(self):
         pass
@@ -187,11 +189,10 @@ class Connection(object):
                 end = self.offset + CHUNK_SIZE - 1
             headers = auth_header(self.token)
             headers.update(range_header((self.offset, end)))
-            response = request('GET',
-                               self.url,
-                               headers=headers)
-            self.buf = response.read()
-            self.headers = dict(response.getheaders())
+            self.response = request('GET',
+                                    self.url,
+                                    headers=headers)
+            self.buf = self.response.read()
             self.orig_offset = self.offset
             self.offset += len(self.buf)
             if len(self) and self.offset >= len(self):
