@@ -214,7 +214,7 @@ def ensure_path(path):
     from errno import EEXIST
     try:
         os.makedirs(path)
-    except OSError, x:
+    except OSError as x:
         # File exists is ok.
         # It may happen if two tasks are racing to create the directory
         if x.errno != EEXIST:

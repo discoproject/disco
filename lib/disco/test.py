@@ -61,9 +61,9 @@ class TestCase(unittest.TestCase):
         from disco.error import CommError
         try:
             ret = callable()
-        except CommError, e:
+        except CommError as e:
             return self.assertEquals(code, e.code)
-        except Exception, e:
+        except Exception as e:
             raise AssertionError('CommError not raised, got %s' % e)
         raise AssertionError('CommError not raised (expected %d), '
             'returned %s' % (code, ret))
@@ -97,7 +97,7 @@ class TestCase(unittest.TestCase):
         # (until we drop 2.5 support)
         try:
             super(TestCase, self).skipTest(message)
-        except AttributeError, e:
+        except AttributeError as e:
             pass
 
 class TestJob(Job):
@@ -165,7 +165,7 @@ def handler(data_generator):
         def do_GET(self):
             try:
                 self.send_data(data_generator(self.path.strip('/')))
-            except FailedReply, e:
+            except FailedReply as e:
                 self.send_error(INTERNAL_SERVER_ERROR, str(e))
 
         def log_request(*args):

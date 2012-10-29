@@ -30,7 +30,7 @@ class OutputStream(object):
             if self.handle.isatty():
                 curses.setupterm()
                 return curses.tigetnum('colors') > 2
-        except Exception, e:
+        except Exception as e:
             pass
 
     def write(self, *args, **kwargs):

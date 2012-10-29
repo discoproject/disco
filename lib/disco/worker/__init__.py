@@ -328,13 +328,13 @@ class Worker(dict):
             job, jobargs = task.jobobjs
             job.worker.start(task, job, **jobargs)
             cls.send('DONE')
-        except (DataError, EnvironmentError, MemoryError), e:
+        except (DataError, EnvironmentError, MemoryError) as e:
             # check the number of open file descriptors (under proc), warn if close to max
             # http://stackoverflow.com/questions/899038/getting-the-highest-allocated-file-descriptor
             # also check for other known reasons for error, such as if disk is full
             cls.send('ERROR', traceback.format_exc())
             raise
-        except Exception, e:
+        except Exception as e:
             cls.send('FATAL', MessageWriter.force_utf8(traceback.format_exc()))
             raise
 
@@ -485,7 +485,7 @@ class Input(object):
                 for item in iter:
                     yield item
                 iter = None
-            except Wait, w:
+            except Wait as w:
                 time.sleep(w.retry_after)
 
     def input_iter(self, input):
@@ -556,7 +556,7 @@ class ParallelInput(Input):
             try:
                 for item in iter:
                     yield item
-            except Wait, w:
+            except Wait as w:
                 if not iters:
                     time.sleep(w.retry_after)
                 iters.insert(0, iter)

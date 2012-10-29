@@ -82,7 +82,7 @@ def cat(program, *urls):
             try:
                 return download(proxy_url(urlresolve(replica, master=program.ddfs.master),
                                           to_master=False))
-            except Exception, e:
+            except Exception as e:
                 sys.stderr.write("%s\n" % e)
         if not ignore_missing:
             raise Exception("Failed downloading all replicas: %s" % replicas)
@@ -251,7 +251,7 @@ def ls(program, *prefixes):
             if program.options.recursive:
                 try:
                     blobs(program, tag)
-                except CommError, e:
+                except CommError as e:
                     print e
                 print
 

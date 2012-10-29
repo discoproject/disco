@@ -44,7 +44,7 @@ class Disco(object):
             return download(proxy_url('%s%s' % (self.master, url), proxy=self.proxy),
                             data=data,
                             offset=offset)
-        except CommError, e:
+        except CommError as e:
             if e.code == None:
                 e.msg += " (is disco master running at %s?)" % self.master
             raise
@@ -106,7 +106,7 @@ class Disco(object):
         """
         try:
             return util.load_oob(self.master, jobname, key)
-        except CommError, e:
+        except CommError as e:
             if e.code == 404:
                 raise DiscoError("Unknown key or jobname")
             raise
@@ -301,7 +301,7 @@ class Disco(object):
     def check_results(self, jobname, start_time, timeout, poll_interval):
         try:
             status, results = self.results(jobname, timeout=poll_interval)
-        except CommError, e:
+        except CommError as e:
             status = 'active'
         if status == 'ready':
             return results

@@ -9,7 +9,7 @@ def check_reify(option, opt, val):
     from disco.util import reify
     try:
         return reify(val)
-    except Exception, e:
+    except Exception as e:
         raise OptionValueError('%s option: %s' % (opt, str(e)))
 
 class Option(Opt):
@@ -261,5 +261,5 @@ class Master(clx.server.Server):
                 os.setgid(gid)
                 os.setuid(uid)
                 os.environ['HOME'] = home
-            except Exception, x:
+            except Exception as x:
                 raise Exception("Could not switch to the user '%s'" % user)

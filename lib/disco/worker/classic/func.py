@@ -406,7 +406,7 @@ def gzip_line_reader(fd, size, url, params):
     try:
         for line in GzipFile(fileobj=fd):
             yield line
-    except Exception, e:
+    except Exception as e:
         print e
 
 def task_input_stream(stream, size, url, params):
@@ -465,7 +465,7 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
             data = zlib.decompress(hunk) if is_compressed else hunk
             if checksum != (zlib.crc32(data) & 0xFFFFFFFF):
                 raise ValueError("Checksum does not match")
-        except (ValueError, zlib.error), e:
+        except (ValueError, zlib.error) as e:
             if not ignore_corrupt:
                 raise DataError("Corrupted data between bytes %d-%d: %s" %
                                 (offset, offset + hunk_size, e), url)
@@ -537,7 +537,7 @@ def unix_sort(filename, sort_buffer_size='10%'):
                                '-o', filename,
                                filename],
                                env=env)
-    except subprocess.CalledProcessError, e:
+    except subprocess.CalledProcessError as e:
         raise DataError("Sorting %s failed: %s" % (filename, e), filename)
 
 chain_reader = disco_input_stream

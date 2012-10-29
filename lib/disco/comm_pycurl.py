@@ -92,7 +92,7 @@ class HTTPConnection(object):
         self.prepare(method, url, body=body, headers=headers)
         try:
             self.handle.perform()
-        except pycurl.error, e:
+        except pycurl.error as e:
             raise httplib.HTTPException(self.handle.errstr())
 
 class MultiPut(object):

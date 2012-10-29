@@ -167,7 +167,7 @@ class DDFS(object):
         try:
             if open_remote(self._resolve(canonizetag(tag))):
                 return True
-        except CommError, e:
+        except CommError as e:
             if e.code == 401:
                 return True
             if e.code not in (403, 404):
@@ -195,7 +195,7 @@ class DDFS(object):
 
                     tag_queue += relativizetags(tags, tag)
                     seen.add(tag)
-                except CommError, e:
+                except CommError as e:
                     if ignore_missing and e.code == 404:
                         tags = blobs = ()
                     else:
@@ -218,6 +218,7 @@ class DDFS(object):
         return self._download('%s/ddfs/tags/%s' % (self.master, prefix))
 
     def pull(self, tag, blobfilter=lambda x: True, token=None):
+        comm_error = None
         for repl in self.urls(tag, token=token):
             if blobfilter(self.blob_name(repl[0])):
                 random.shuffle(repl)
@@ -225,10 +226,11 @@ class DDFS(object):
                     try:
                         yield open_remote(url)
                         break
-                    except CommError, error:
+                    except CommError as error:
+                        comm_error = error
                         continue
                 else:
-                    raise error
+                    raise comm_error
 
     def push(self,
              tag,
@@ -335,7 +337,7 @@ class DDFS(object):
             tags, blobs = partition(urls, istag)
             tags        = canonizetags(tags)
             yield tagpath, tags, blobs
-        except CommError, e:
+        except CommError as e:
             if ignore_missing and e.code == 404:
                 tags = blobs = ()
                 yield tagpath, tags, blobs
@@ -370,7 +372,7 @@ class DDFS(object):
         try:
             return [json.loads(url)
                     for url in self._upload(urls, source, to_master=False, **kwargs)]
-        except CommError, e:
+        except CommError as e:
             scheme, (host, port), path = urlsplit(e.url)
             return self._push((source, target),
                               replicas=replicas,

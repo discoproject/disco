@@ -168,7 +168,7 @@ If this is not what you want, see the `--help` option
             return self.dispatch()
         except KeyboardInterrupt:
             sys.exit(1)
-        except Exception, e:
+        except Exception as e:
             if self.options.verbose:
                 raise
             sys.exit("%s" % e)

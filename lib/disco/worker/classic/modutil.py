@@ -207,7 +207,7 @@ def find_modules(functions, send_modules=True, recurse=True, exclude=()):
         if send_modules:
             try:
                 m = locate_modules(fmod, recurse, include_sys=True)
-            except ImportError, e:
+            except ImportError as e:
                 raise ModUtilImportError(e, function)
             modules.update((k, v) if v else k for k, v in m)
         else:
