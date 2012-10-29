@@ -90,12 +90,11 @@ def download(url, method='GET', data=None, offset=(), token=None):
                    headers=headers).read()
 
 def upload(urls, source, token=None, **kwargs):
-    source = FileSource(source)
+    data = FileSource(source).read()
+    headers = auth_header(token)
     if nocurl:
-        return [request('PUT',
-                        url,
-                        data=source.read(),
-                        headers=auth_header(token)).read() for url in urls]
+        return [request('PUT', url, data=data, headers=headers).read()
+                for url in urls]
     return list(comm_pycurl.upload(urls, source, token, **kwargs))
 
 def open_url(url, *args, **kwargs):
