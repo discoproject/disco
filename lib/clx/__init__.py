@@ -5,11 +5,11 @@ from PROJECT.settings import ProjectSettings
 
 >>> @ConcreteProgram.command
 ... def test(*args, **options):
-...     print 'command', args
+...     print('command', args)
 
 >>> @test.subcommand('subcommand')
 ... def sub_command(*args, **options):
-...     print 'named subcommand'
+...     print('named subcommand')
 
 >>> ConcreteProgram(['test']).main()
 command ()

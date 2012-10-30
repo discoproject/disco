@@ -125,7 +125,7 @@ class ANSIEventWriter(EventWriter):
 class JSONEventWriter(EventWriter):
     def write(self, status=None, timestamp=None, host=None, message=None):
         if timestamp:
-            print json.dumps([timestamp, host, message])
+            print(json.dumps([timestamp, host, message]))
 
 
 class EventMonitor(object):

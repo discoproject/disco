@@ -212,7 +212,7 @@ def msg(message):
     master, the maximum *message* size is set to 255 characters and job is
     allowed to send at most 10 messages per second.
     """
-    print message
+    print(message)
 
 def err(message):
     """

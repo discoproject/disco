@@ -268,7 +268,7 @@ class Disco(object):
                   for jobname, (status, results) in inactive:
                     if status == 'ready':
                       for k, v in result_iterator(results):
-                        print k, v
+                        print(k, v)
                       disco.purge(jobname)
 
         Note how the list of active jobs, ``active``,

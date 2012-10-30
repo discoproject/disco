@@ -120,7 +120,7 @@ class Program(clx.Program):
     def default(self, program, *args):
         if args:
             raise Exception("unrecognized command: %s" % ' '.join(args))
-        print self.disco
+        print(self.disco)
 
     def job_history(self, jobname):
         if jobname == '@':

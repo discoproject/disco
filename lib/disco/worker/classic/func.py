@@ -332,8 +332,8 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
                 if output_tail:
                     yield [buf]
                 else:
-                    print "Couldn't match the last %d bytes in %s. "\
-                    "Some bytes may be missing from input." % (len(buf), fname)
+                    print("Couldn't match the last {0} bytes in {1}. "
+                          "Some bytes may be missing from input.".format(len(buf), fname))
             break
 
 def default_partition(key, nr_partitions, params):
@@ -407,7 +407,7 @@ def gzip_line_reader(fd, size, url, params):
         for line in GzipFile(fileobj=fd):
             yield line
     except Exception as e:
-        print e
+        print(e)
 
 def task_input_stream(stream, size, url, params):
     """

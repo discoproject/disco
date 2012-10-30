@@ -13,7 +13,7 @@ class GoodJob(TestJob):
     @staticmethod
     def map(e, params):
         import sys, disco.json
-        print e
+        print(e)
         return [(e.strip(), '')]
 
 

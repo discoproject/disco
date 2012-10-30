@@ -53,7 +53,8 @@ class DiscoProtoTestCase(TestCase):
         t, res = self.decode(buf, final_size, "nourl",
                              ignore_corrupt=ignore_corrupt)
         if not ignore_corrupt:
-            print "%s, decoded in %1.3fs (%1.2fMB/s)" % (msg, t, self.size / t)
+            print("{0}, decoded in {1:1.3f}s ({2:1.2f}MB/s)"
+                  .format(msg, t, self.size / t))
         return res
 
     def test_compress(self):

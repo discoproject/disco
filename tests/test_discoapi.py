@@ -9,7 +9,7 @@ class DiscoAPIJob(TestJob):
     @staticmethod
     def map(e, params):
         for i in range(3):
-            print special
+            print(special)
         yield e.split('_')
 
 class DiscoAPITestCase(TestCase):

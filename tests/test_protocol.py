@@ -32,8 +32,8 @@ class ProtocolTestCase(TestCase):
 
     def test_binary_message(self):
         def map(e, params):
-            print '\x00\x001\xc9D\x8b-\xa0\x99 \x00\xba\xc0\xe5`\x00H\x89'
-            '\xdeH\x8b=\x81\x99 \x00\xe8\x04\xeb\xff\xff\x85\xc0\x0f\x88l'
+            print('\x00\x001\xc9D\x8b-\xa0\x99 \x00\xba\xc0\xe5`\x00H\x89'
+                  '\xdeH\x8b=\x81\x99 \x00\xe8\x04\xeb\xff\xff\x85\xc0\x0f\x88l')
             return []
         self.job = self.new_job(map=map)
         self.assertResults(self.job, [])
@@ -45,7 +45,7 @@ class ProtocolTestCase(TestCase):
                 if msg in e[2]:
                     return True
         def map(e, params):
-            print u'\xc4\xe4rett\xf6myys'
+            print(u'\xc4\xe4rett\xf6myys')
             return []
         self.job = self.new_job(map=map)
         self.assertResults(self.job, [])
@@ -53,7 +53,7 @@ class ProtocolTestCase(TestCase):
 
     def test_non_utf8_message(self):
         def map(e, params):
-            print u'\xc4\xe4rett\xf6myys'.encode('latin-1')
+            print(u'\xc4\xe4rett\xf6myys'.encode('latin-1'))
             return []
         self.job = self.new_job(map=map)
         self.assertResults(self.job, [])
