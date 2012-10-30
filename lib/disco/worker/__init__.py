@@ -235,8 +235,8 @@ class Worker(dict):
         from disco import __file__ as discopath
         from disco.fileutils import DiscoZipFile
         jobzip = DiscoZipFile()
-        jobzip.writepath(os.path.dirname(clxpath), exclude=('.pyc',))
-        jobzip.writepath(os.path.dirname(discopath), exclude=('.pyc',))
+        jobzip.writepath(os.path.dirname(clxpath), exclude=('.pyc', '__pycache__'))
+        jobzip.writepath(os.path.dirname(discopath), exclude=('.pyc', '__pycache__'))
         jobzip.writesource(job)
         jobzip.writesource(self)
         return jobzip
