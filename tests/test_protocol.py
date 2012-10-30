@@ -17,7 +17,7 @@ class ProtocolTestCase(TestCase):
         def map(e, params):
             import sys, disco.json
             msg = disco.json.dumps("Single line error!")
-            sys.stderr.write('FATAL %d %s\n' % (len(msg), msg))
+            sys.stderr.write('FATAL {0} {1}\n'.format(len(msg), msg))
         self.job = self.new_job(map=map)
         self.assertRaises(JobError, self.job.wait)
 
@@ -25,7 +25,7 @@ class ProtocolTestCase(TestCase):
         def map(e, params):
             import sys, disco.json
             msg = disco.json.dumps("Single line message")
-            sys.stderr.write('MSG %d %s\n' % (len(msg), msg))
+            sys.stderr.write('MSG {0} {1}\n'.format(len(msg), msg))
             return []
         self.job = self.new_job(map=map)
         self.assertResults(self.job, [])

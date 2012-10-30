@@ -18,7 +18,7 @@ class TempFailTestCase(TestCase):
             raise FailedReply()
         else:
             self.lock.release()
-            return '%s\n' % (int(path) * 10)
+            return '{0}\n'.format(int(path) * 10)
 
     def setUp(self):
         self.lock = thread.allocate_lock()

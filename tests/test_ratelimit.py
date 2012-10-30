@@ -6,7 +6,7 @@ class BadJob(TestJob):
     def map(e, params):
         import sys, disco.json
         msg = disco.json.dumps(e)
-        sys.stderr.write('MSG %d %s\n' % (len(msg), msg))
+        sys.stderr.write('MSG {0} {1}\n'.format(len(msg), msg))
         return []
 
 class GoodJob(TestJob):

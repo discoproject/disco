@@ -83,9 +83,9 @@ def cat(program, *urls):
                 return download(proxy_url(urlresolve(replica, master=program.ddfs.master),
                                           to_master=False))
             except Exception as e:
-                sys.stderr.write("%s\n" % e)
+                sys.stderr.write("{0}\n".format(e))
         if not ignore_missing:
-            raise Exception("Failed downloading all replicas: %s" % replicas)
+            raise Exception("Failed downloading all replicas: {0}".format(replicas))
         return ''
 
     for replicas in deref(chain(urls, program.blobs(*tags))):

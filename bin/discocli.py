@@ -69,10 +69,10 @@ def debug(program, host=''):
     """
     from subprocess import Popen
     master = program.master
-    nodename = '%s@%s' % (master.name, host) if host else master.nodename
+    nodename = '{0}@{1}'.format(master.name, host) if host else master.nodename
     args = program.settings['DISCO_ERLANG'].split() + \
            ['-remsh', nodename,
-            '-sname', '%s_remsh' % os.getpid()]
+            '-sname', '{0}_remsh'.format(os.getpid())]
     if Popen(args).wait():
         raise Exception("Could not connect to {0} ({1})".format(host, nodename))
     print("closing remote shell to {0} ({1})".format(host, nodename))

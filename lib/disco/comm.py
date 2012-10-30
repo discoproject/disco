@@ -33,9 +33,9 @@ def isunavailable(status):
 
 def range_header(offset):
     def httprange(start='', end=''):
-        return '%s-%s' % (start, end)
+        return '{0}-{1}'.format(start, end)
     if offset:
-        return {'Range': 'bytes=%s' % httprange(*tuple(iterify(offset)))}
+        return {'Range': 'bytes={0}'.format(httprange(*tuple(iterify(offset))))}
     return {}
 
 def auth_header(token):
@@ -46,15 +46,15 @@ def auth_header(token):
 def resolveuri(baseuri, uri):
     if uri.startswith('/'):
         scheme, netloc, _path = urlsplit(baseuri)
-        return '%s://%s%s' % (scheme, netloc, uri)
-    return '%s/%s' % (baseuri, uri)
+        return '{0}://{1}{2}'.format(scheme, netloc, uri)
+    return '{0}/{1}'.format(baseuri, uri)
 
 def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
 
     try:
         conn = HTTPConnection(str(netloc))
-        conn.request(method, '/%s' % path, body=data, headers=headers)
+        conn.request(method, '/{0}'.format(path), body=data, headers=headers)
         response = conn.getresponse()
         status = response.status
         errmsg = response.reason
@@ -132,7 +132,7 @@ class File(file):
 
     @property
     def url(self):
-        return 'file://%s' % self.name
+        return 'file://{0}'.format(self.name)
 
 # should raise DataError
 class Connection(object):

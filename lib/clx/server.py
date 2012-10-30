@@ -26,7 +26,7 @@ class Server(object):
 
     @property
     def log_file(self):
-        return os.path.join(self.log_dir, '%s-%s_%s.log' % self.id)
+        return os.path.join(self.log_dir, '{0[0]}-{0[1]}_{0[2]}.log'.format(self.id))
 
     def log_rotate(self):
         TimedRotatingFileHandler(self.log_file, when='S', interval=1).doRollover()
@@ -37,20 +37,20 @@ class Server(object):
 
     @property
     def pid_file(self):
-        return os.path.join(self.pid_dir, '%s-%s_%s.pid' % self.id)
+        return os.path.join(self.pid_dir, '{0[0]}-{0[1]}_{0[2]}.pid'.format(self.id))
 
     def restart(self):
         return chain(self.stop(), self.start())
 
     def start(self, *args, **kwargs):
         if self._status == 'running':
-            raise ServerError("%s already started" % self)
+            raise ServerError("{0} already started".format(self))
         if self.rotate_log:
             self.log_rotate()
         process = subprocess.Popen(args or self.args, env=self.env, **kwargs)
         if process.wait():
-            raise ServerError("Failed to start %s" % self)
-        yield '%s started' % self
+            raise ServerError("Failed to start {0}".format(self))
+        yield '{0} started'.format(self)
 
     @property
     def _status(self):
@@ -61,7 +61,7 @@ class Server(object):
             return 'stopped'
 
     def status(self):
-        yield '%s %s' % (self, self._status)
+        yield '{0} {1}'.format(self, self._status)
 
     def stop(self):
         try:
@@ -73,4 +73,4 @@ class Server(object):
         return chain(self.status())
 
     def __str__(self):
-        return '%s %s:%s' % self.id
+        return '{0[0]} {0[1]}:{0[2]}'.format(self.id)

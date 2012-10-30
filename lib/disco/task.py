@@ -72,10 +72,10 @@ class Task(object):
         self.mode = mode
         self.taskid = taskid
         self.outputs = {}
-        self.uid = '%s:%s-%s-%x' % (mode,
-                                    taskid,
-                                    hexhash(str((time.time()))),
-                                    os.getpid())
+        self.uid = '{0}:{1}-{2}-{3}'.format(mode,
+                                            taskid,
+                                            hexhash(str((time.time())).encode()),
+                                            os.getpid())
 
     @property
     def jobpath(self):

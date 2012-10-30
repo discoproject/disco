@@ -26,7 +26,7 @@ class UtilTestCase(TestCase):
         self.assertEquals(urlsplit('http://host:port/path'),
                           ('http', ('host', 'port'), 'path'))
         self.assertEquals(urlsplit('disco://master/long/path'),
-                          ('http', ('master', '%s' % port), 'long/path'))
+                          ('http', ('master', '{0}'.format(port)), 'long/path'))
         self.assertEquals(urlsplit('disco://localhost/ddfs/path',
                                    localhost='localhost',
                                    ddfs_data=ddfs),

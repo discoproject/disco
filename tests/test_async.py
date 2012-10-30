@@ -12,7 +12,7 @@ class AsyncJob(TestJob):
     @staticmethod
     def reduce(iter, params):
         for k, v in iter:
-            yield '[%s]' % k, v
+            yield '[{0}]'.format(k), v
 
 class AsyncTestCase(TestCase):
     def sample(self, n):

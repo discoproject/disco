@@ -37,22 +37,22 @@ class Disco(object):
         self.master = master or self.settings['DISCO_MASTER']
 
     def __repr__(self):
-        return 'Disco master at %s' % self.master
+        return 'Disco master at {0}'.format(self.master)
 
     def request(self, url, data=None, offset=0):
         try:
-            return download(proxy_url('%s%s' % (self.master, url), proxy=self.proxy),
+            byts = download(proxy_url('{0}{1}'.format(self.master, url), proxy=self.proxy),
                             data=data,
                             offset=offset)
         except CommError as e:
             if e.code == None:
-                e.msg += " (is disco master running at %s?)" % self.master
+                e.msg += " (is disco master running at {0}?)".format(self.master)
             raise
 
     def submit(self, jobpack):
         status, body = json.loads(self.request('/disco/job/new', jobpack))
         if status != 'ok':
-            raise DiscoError("Failed to submit jobpack: %s" % body)
+            raise DiscoError("Failed to submit jobpack: {0}".format(body))
         return body
 
     def get_config(self):
@@ -87,7 +87,7 @@ class Disco(object):
 
         .. versionadded:: 0.2.4
         """
-        self.request('/disco/ctrl/blacklist', '"%s"' % node)
+        self.request('/disco/ctrl/blacklist', '"{0}"'.format(node))
 
     def whitelist(self, node):
         """
@@ -95,7 +95,7 @@ class Disco(object):
 
         .. versionadded:: 0.2.4
         """
-        self.request('/disco/ctrl/whitelist', '"%s"' % node)
+        self.request('/disco/ctrl/whitelist', '"{0}"'.format(node))
 
     def oob_get(self, jobname, key):
         """
@@ -140,7 +140,7 @@ class Disco(object):
 
         .. versionadded:: 0.2.1
         """
-        prefix = 'profile-%s' % mode
+        prefix = 'profile-{0}'.format(mode)
         f = [s for s in self.oob_list(jobname) if s.startswith(prefix)]
         if not f:
             raise JobError(Job(name=jobname, master=self), "No profile data")
@@ -163,7 +163,7 @@ class Disco(object):
 
     def kill(self, jobname):
         """Kills the job."""
-        self.request('/disco/ctrl/kill_job', '"%s"' % jobname)
+        self.request('/disco/ctrl/kill_job', '"{0}"'.format(jobname))
 
     def clean(self, jobname):
         """
@@ -178,17 +178,17 @@ class Disco(object):
                   However, no data is actually deleted by :meth:`Disco.clean`,
                   in contrast to :meth:`Disco.purge`.
         """
-        self.request('/disco/ctrl/clean_job', '"%s"' % jobname)
+        self.request('/disco/ctrl/clean_job', '"{0}"'.format(jobname))
 
     def purge(self, jobname):
         """Deletes all metadata and data related to the job."""
-        self.request('/disco/ctrl/purge_job', '"%s"' % jobname)
+        self.request('/disco/ctrl/purge_job', '"{0}"'.format(jobname))
 
     def jobpack(self, jobname):
         """Return the :class:`disco.job.JobPack` submitted for the job."""
         from cStringIO import StringIO
         from disco.job import JobPack
-        return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name=%s' % jobname)))
+        return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name={0}'.format(jobname))))
 
     def events(self, jobname, offset=0):
         """
@@ -224,12 +224,12 @@ class Disco(object):
         return event_iter(self.rawevents(jobname, offset=offset))
 
     def rawevents(self, jobname, offset=0):
-        return self.request("/disco/ctrl/rawevents?name=%s" % jobname,
+        return self.request("/disco/ctrl/rawevents?name={0}".format(jobname),
                             offset=offset)
 
     def mapresults(self, jobname):
         return json.loads(
-            self.request('/disco/ctrl/get_mapresults?name=%s' % jobname))
+            self.request('/disco/ctrl/get_mapresults?name={0}'.format(jobname)))
 
     def results(self, jobspec, timeout=2000):
         """
@@ -296,7 +296,7 @@ class Disco(object):
 
     def jobinfo(self, jobname):
         """Returns a dict containing information about the job."""
-        return json.loads(self.request('/disco/ctrl/jobinfo?name=%s' % jobname))
+        return json.loads(self.request('/disco/ctrl/jobinfo?name={0}'.format(jobname)))
 
     def check_results(self, jobname, start_time, timeout, poll_interval):
         try:
@@ -306,7 +306,7 @@ class Disco(object):
         if status == 'ready':
             return results
         if status != 'active':
-            raise JobError(Job(name=jobname, master=self), "Status %s" % status)
+            raise JobError(Job(name=jobname, master=self), "Status {0}".format(status))
         if timeout and time.time() - start_time > timeout:
             raise JobError(Job(name=jobname, master=self), "Timeout")
         raise Continue()

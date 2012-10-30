@@ -39,8 +39,9 @@ class netloc(tuple):
     def __nonzero__((host, port)):
         return bool(host)
 
-    def __str__((host, port)):
-        return '%s:%s' % (host, port) if port else host
+    def __str__(host_port):
+        host, port = host_port
+        return '{0}:{1}'.format(host, port) if port else host
 
 def chainify(iterable):
     return list(chain(*iterable))
@@ -149,10 +150,11 @@ def globalize(object, globals):
         for k, v in globals.iteritems():
             object.func_globals.setdefault(k, v)
 
-def urljoin((scheme, netloc, path)):
-    return '%s%s%s' % ('%s://' % scheme if scheme else '',
-                       '%s/' % (netloc, ) if netloc else '',
-                       path)
+def urljoin(scheme_netloc_path):
+    scheme, netloc, path = scheme_netloc_path
+    return ('{0}{1}{2}'.format('{0}://'.format(scheme if scheme else ''),
+                               '{0}/'.format(netloc if netloc else ''),
+                               path))
 
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('', url)
@@ -179,7 +181,7 @@ def urlsplit(url, localhost=None, disco_port=None, **kwargs):
                 path = localize(path, **kwargs)
             elif scheme == 'disco':
                 scheme = 'http'
-                locstr = '%s:%s' % (host, disco_port)
+                locstr = '{0}:{1}'.format(host, disco_port)
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url, master=None):
@@ -187,14 +189,14 @@ def urlresolve(url, master=None):
         if not host:
             return master or DiscoSettings()['DISCO_MASTER']
         if not port:
-            return 'disco://%s' % host
-        return 'http://%s:%s' % (host, port)
+            return 'disco://{0}'.format(host)
+        return 'http://{0}:{1}'.format(host, port)
     scheme, netloc, path = urlsplit(url)
     if scheme == 'dir':
-        return urlresolve('%s/%s' % (_master(netloc), path))
+        return urlresolve('{0}/{1}'.format(_master(netloc), path))
     if scheme == 'tag':
-        return urlresolve('%s/ddfs/tag/%s' % (_master(netloc), path))
-    return '%s://%s/%s' % (scheme, netloc, path)
+        return urlresolve('{0}/ddfs/tag/{1}'.format(_master(netloc), path))
+    return '{0}://{1}/{2}'.format(scheme, netloc, path)
 
 def urltoken(url):
     _scheme, rest = schemesplit(url)
@@ -253,7 +255,7 @@ def jobname(url):
     scheme, x, path = urlsplit(url)
     if scheme in ('disco', 'dir', 'http'):
         return path.strip('/').split('/')[-2]
-    raise DiscoError("Cannot parse jobname from %s" % url)
+    raise DiscoError("Cannot parse jobname from {0}".format(url))
 
 def external(files):
     from disco.worker.classic.external import package
@@ -280,8 +282,8 @@ def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET', to_master=T
     scheme, (host, port), path = urlsplit(url)
     if proxy and scheme != "tag":
         if to_master:
-            return '%s/%s' % (proxy, path)
-        return '%s/proxy/%s/%s/%s' % (proxy, host, meth, path)
+            return '{0}/{1}'.format(proxy, path)
+        return '{0}/proxy/{1}/{2}/{3}'.format(proxy, host, meth, path)
     return url
 
 def read_index(dir):
@@ -326,5 +328,5 @@ def load_oob(host, name, key):
 def format_size(num):
     for unit in [' bytes','KB','MB','GB','TB']:
         if num < 1024.:
-            return "%3.1f%s" % (num, unit)
+            return "{0:3.1f}{1}".format(num, unit)
         num /= 1024.

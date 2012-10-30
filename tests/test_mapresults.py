@@ -17,11 +17,11 @@ class MapResultsJob(TestJob):
 class MapResultsTestCase(TestCase):
     def runTest(self):
         ducks = ['huey', 'dewey', 'louie']
-        self.job = MapResultsJob().run(input=['raw://%s' % d for d in ducks])
+        self.job = MapResultsJob().run(input=['raw://{0}'.format(d) for d in ducks])
         self.assertAllEqual(sorted(result_iterator(self.job.wait())),
-                            sorted(('%s!?' % d, '') for d in ducks))
+                            sorted(('{0}!?'.format(d), '') for d in ducks))
         self.assertAllEqual(sorted(result_iterator(self.job.mapresults())),
-                            sorted(('%s!' % d, '') for d in ducks))
+                            sorted(('{0}!'.format(d), '') for d in ducks))
 
 
 

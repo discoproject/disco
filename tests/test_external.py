@@ -12,7 +12,7 @@ class ExternalTestCase(TestCase):
     inputs = ['ape', 'cat', 'dog']
 
     def serve(self, path):
-        return 'test_%s\n' % path
+        return 'test_{0}\n'.format(path)
 
     def setUp(self):
         super(ExternalTestCase, self).setUp()
@@ -39,12 +39,12 @@ class ExternalTestCase(TestCase):
         results = sorted((v, k) for k, v in self.results(self.job))
         for n, (v, k) in enumerate(results):
             self.assertEquals(k, 'red_dkey')
-            self.assertEquals(v, 'red_test_%s\n' % self.inputs[n / 3])
+            self.assertEquals(v, 'red_test_{0}\n'.format(self.inputs[n / 3]))
         self.assertEquals(len(results), 9)
 
     def test_extreduce(self):
         self.job = ExternalJob().run(input=self.test_server.urls(self.inputs),
                                      map=lambda e, params: [('', e)],
                                      reduce=external([self.binary]))
-        ans = str(sum(map(ord, ''.join('test_%s\n' % i for i in self.inputs))))
+        ans = str(sum(map(ord, ''.join('test_{0}\n'.format(i) for i in self.inputs))))
         self.assertEquals([(ans, ans)] * 10, list(self.results(self.job)))

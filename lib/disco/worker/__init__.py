@@ -282,7 +282,7 @@ class Worker(dict):
         task.makedirs()
         if self.getitem('profile', job, jobargs):
             from cProfile import runctx
-            name = 'profile-%s' % task.uid
+            name = 'profile-{0}'.format(task.uid)
             path = task.path(name)
             runctx('self.run(task, job, **jobargs)', globals(), locals(), path)
             task.put(name, open(path).read())
@@ -342,7 +342,7 @@ class Worker(dict):
     def send(cls, type, payload=''):
         from disco.json import dumps, loads
         body = dumps(payload)
-        sys.stderr.write('%s %d %s\n' % (type, len(body), body))
+        sys.stderr.write('{0} {1} {2}\n'.format(type, len(body), body))
         spent, rtype = sys.stdin.t_read_until(' ')
         spent, rsize = sys.stdin.t_read_until(' ', spent=spent)
         spent, rbody = sys.stdin.t_read(int(rsize) + 1, spent=spent)
@@ -405,7 +405,7 @@ class IDedInput(tuple):
         return self.worker.send('INPUT_ERR', [self.id, list(tried)])
 
     def __str__(self):
-        return '%s' % [url for rid, url in self.replicas]
+        return '{0}'.format([url for rid, url in self.replicas])
 
 class ReplicaIter(object):
     def __init__(self, input):
@@ -458,7 +458,7 @@ class InputIter(object):
         except StopIteration:
             if error:
                 raise DataError("Exhausted all available replicas, "
-                                "last error was:\n\n%s" % error, self.input)
+                                "last error was:\n\n{0}".format(error), self.input)
             raise DataError("Exhausted all available replicas", self.input)
 
 class Input(object):

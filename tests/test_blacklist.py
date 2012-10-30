@@ -10,9 +10,9 @@ class BlacklistJob(TestJob):
     def map_input_stream(stream, size, url, params):
         scheme, (host, port), test_server = urlsplit(url)
         # test that scheduler preserved data locality
-        msg("NODE %s GOT URL %s" % (Task.host, url))
+        msg("NODE {0} GOT URL {1}".format(Task.host, url))
         assert Task.host == host
-        return open_remote("http://%s/%s" % (test_server, host))
+        return open_remote("http://{0}/{1}".format((test_server, host)))
     map_input_stream = [map_input_stream]
 
     @staticmethod
@@ -39,7 +39,7 @@ class BlacklistTestCase(TestCase):
     def runTest(self):
         # assumption: scheduler starts scheduling tasks in the order of input
         host, port = self.test_server_address
-        input = chainify(['http://%s/%s:%d' % (node, host, port)] * N
+        input = chainify(['http://{0}/{1}:{2}'.format(node, host, port)] * N
                          for node in self.blacklist)
         self.job = BlacklistJob().run(input=input)
         self.assertAllEqual(sorted(k for k, v in self.results(self.job)),

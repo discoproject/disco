@@ -15,7 +15,7 @@ class RedundantTestCase(TestCase):
     def serve(self, path):
         if 'fail' in path:
             raise FailedReply()
-        return '%s\n' % (int(path) * 10)
+        return '{0}\n'.format(int(path) * 10)
 
     def runTest(self):
         input = ['1', ['2_fail', '2_still_fail', '200'], '3', ['4_fail', '400']]

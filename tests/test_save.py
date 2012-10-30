@@ -32,7 +32,7 @@ class SaveJob2(SaveJob1):
 
 class SaveTestCase(TestCase):
     def serve(self, path):
-        return '%s\n' % path
+        return '{0}\n'.format(path)
 
     def test_save_map(self):
         input = range(10)
@@ -40,7 +40,7 @@ class SaveTestCase(TestCase):
         results = sorted(self.results(self.job))
         self.tag = self.disco.results(self.job.name)[1][0]
         self.assertEquals(len(list(self.ddfs.blobs(self.tag))), len(input))
-        self.assertEquals(results, [('%s!' % e, '') for e in input])
+        self.assertEquals(results, [('{0}!'.format(e), '') for e in input])
 
     def test_save(self):
         ducks = ['dewey', 'huey', 'louie']
@@ -49,7 +49,7 @@ class SaveTestCase(TestCase):
                              b: a}).wait()
         self.tag = self.disco.results(b)[1][0]
         self.assertAllEqual(sorted(self.results(b)),
-                            [('%s!?!?' % d, '') for d in ducks])
+                            [('{0}!?!?'.format(d), '') for d in ducks])
 
     def tearDown(self):
         super(SaveTestCase, self).tearDown()

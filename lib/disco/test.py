@@ -64,9 +64,9 @@ class TestCase(unittest.TestCase):
         except CommError as e:
             return self.assertEquals(code, e.code)
         except Exception as e:
-            raise AssertionError('CommError not raised, got %s' % e)
-        raise AssertionError('CommError not raised (expected %d), '
-            'returned %s' % (code, ret))
+            raise AssertionError('CommError not raised, got {0}'.format(e))
+        raise AssertionError('CommError not raised (expected {0}), '
+                             'returned {1}'.format(code, ret))
 
     def assertResults(self, job, answers):
         self.assertAllEqual(self.results(job), answers)
@@ -130,7 +130,7 @@ class TestServer(ThreadingMixIn, HTTPServer):
 
     @property
     def address(self):
-        return 'http://%s:%d' % self.server_address
+        return 'http://{0[0]}:{0[1]:d}'.format(self.server_address)
 
     @classmethod
     def create(cls, server_address, data_generator):
@@ -148,7 +148,7 @@ class TestServer(ThreadingMixIn, HTTPServer):
 
     def urls(self, inputs):
         def serverify(input):
-            return '%s/%s' % (self.address, input)
+            return '{0}/{1}'.format(self.address, input)
         return [[serverify(url) for url in iterify(input)] for input in inputs]
 
 class FailedReply(Exception):

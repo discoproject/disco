@@ -37,9 +37,9 @@ class DiscoProtoTestCase(TestCase):
         t = self.encode(stream, self.data)
         final_size = len(buf.getvalue())
         final_mb = final_size / 1024**2
-        msg = "%1.2fMB encoded in %1.3fs (%1.2fMB/s), "\
-              "encoded size %1.3fMB (version: %d, %s)" %\
-                    (self.size, t, self.size / t, final_mb, version, kwargs)
+        msg = (("{0:1.2f}MB encoded in {1:1.3f}s ({2:1.2f}MB/s), "
+                "encoded size {3:1.3f}MB (version: {4}, {5})")
+               .format(self.size, t, self.size / t, final_mb, version, kwargs))
         if corrupt:
             buf.seek(0)
             new = cStringIO.StringIO()

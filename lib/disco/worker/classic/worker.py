@@ -261,7 +261,7 @@ class Worker(worker.Worker):
         for func in ('map', 'reduce'):
             if isinstance(get(func), dict):
                 for path, bytes in get(func).iteritems():
-                    jobzip.writestr(os.path.join('ext.%s' % func, path), bytes)
+                    jobzip.writestr(os.path.join('ext.{0}'.format(func), path), bytes)
         return jobzip
 
     def run(self, task, job, **jobargs):
@@ -269,7 +269,7 @@ class Worker(worker.Worker):
         Task = task
         for key in self:
             self[key] = self.getitem(key, job, jobargs)
-        assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
+        assert self['version'] == '{0[0]}.{0[1]}'.format(sys.version_info[:2]), "Python version mismatch"
 
         params = self['params']
         if isinstance(self[task.mode], dict):
@@ -350,15 +350,15 @@ class Worker(worker.Worker):
             if status_interval and (n + 1) % status_interval == 0:
                 self.send('MSG', message_template % (n + 1))
             yield item
-        self.send('MSG', "Done: %s" % (message_template % (n + 1)))
+        self.send('MSG', "Done: {0}".format(message_template % (n + 1)))
 
     def opener(self, mode, direction, params):
         if direction == 'in':
             from itertools import chain
-            streams = filter(None, chain(self['%s_input_stream' % mode],
-                                         [self['%s_reader' % mode]]))
+            streams = filter(None, chain(self['{0}_input_stream'.format(mode)],
+                                         [self['{0}_reader'.format(mode)]]))
         else:
-            streams = self['%s_output_stream' % mode]
+            streams = self['{0}_output_stream'.format(mode)]
         def open(url):
             return ClassicFile(url, streams, params)
         return open

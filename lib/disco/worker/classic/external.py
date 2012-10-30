@@ -372,11 +372,11 @@ def pack_kv(e):
 def unpack_kv():
     le = struct.unpack("I", proc.stdout.read(4))[0]
     if le > MAX_ITEM_SIZE:
-        raise DiscoError("External key size exceeded: %d bytes" % le)
+        raise DiscoError("External key size exceeded: {0:d} bytes".format(le))
     k = proc.stdout.read(le)
     le = struct.unpack("I", proc.stdout.read(4))[0]
     if le > MAX_ITEM_SIZE:
-        raise DiscoError("External key size exceeded: %d bytes" % le)
+        raise DiscoError("External key size exceeded: {0:d} bytes".format(le))
     v = proc.stdout.read(le)
     return k, v
 
@@ -439,7 +439,7 @@ def prepare(params, mode):
     global proc
     # op -> worker
     # find required files
-    path = os.path.join('ext.%s' % mode, 'op')
+    path = os.path.join('ext.{0}'.format(mode), 'op')
     os.chmod(path, stat.S_IEXEC)
     proc = Popen([path, mode], stdin=PIPE, stdout=PIPE, stderr=PIPE)
     register_poll()

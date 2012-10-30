@@ -26,8 +26,8 @@ from disco import util
 
 def import_scheme(url):
     scheme, _rest = util.schemesplit(url)
-    scheme = 'scheme_%s' % (scheme or 'file')
-    return __import__('disco.schemes.%s' % scheme, fromlist=[scheme])
+    scheme = 'scheme_{0}'.format((scheme or 'file'))
+    return __import__('disco.schemes.{0}'.format(scheme), fromlist=[scheme])
 
 def input_stream(stream, size, url, params, globals=globals()):
     input_stream = import_scheme(url).input_stream

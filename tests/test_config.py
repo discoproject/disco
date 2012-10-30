@@ -4,7 +4,7 @@ from disco.test import TestCase, TestJob
 from disco.util import shuffled
 
 def unique_nodename(nodenames, count=0):
-    nodename = 'missingnode_%s' % count
+    nodename = 'missingnode_{0}'.format(count)
     if nodename not in nodenames:
         return nodename
     return unique_nodename(nodenames, count + 1)
@@ -37,7 +37,7 @@ class ConfigTestCase(TestCase):
         if len(self.nodes) < 2:
             self.skipTest("Cannot test node changes with < 2 nodes")
         else:
-            local = ['url://%s' % node
+            local = ['url://{0}'.format(node)
                      for node, max_workers in self.nodes.iteritems()
                      for x in xrange(max_workers * 2)]
             input = shuffled(local + range(self.num_workers))

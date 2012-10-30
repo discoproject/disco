@@ -34,8 +34,8 @@ def canonizetag(tag):
         elif tag.startswith('tag://'):
             return tag
         elif '://' not in tag and '/' not in tag:
-            return 'tag://%s' % tag
-    raise InvalidTag("Invalid tag: %s" % tag)
+            return 'tag://{0}'.format(tag)
+    raise InvalidTag("Invalid tag: {0}".format(tag))
 
 def canonizetags(tags):
     return [canonizetag(tag) for tag in iterify(tags)]
@@ -72,7 +72,7 @@ class DDFS(object):
         self.settings['DISCO_MASTER'] = self.master
 
     def __repr__(self):
-        return 'DDFS master at %s' % self.master
+        return 'DDFS master at {0}'.format(self.master)
 
     @classmethod
     def safe_name(cls, name):
@@ -84,15 +84,15 @@ class DDFS(object):
 
     @classmethod
     def job_blob(self, jobname, filename):
-        return 'disco:blob:%s:%s' % (jobname, os.path.basename(filename))
+        return 'disco:blob:{0}:{1}'.format(jobname, os.path.basename(filename))
 
     @classmethod
     def job_oob(self, jobname):
-        return 'disco:job:oob:%s' % jobname
+        return 'disco:job:oob:{0}'.format(jobname)
 
     @classmethod
     def job_tag(self, jobname):
-        return 'disco:job:results:%s' % jobname
+        return 'disco:job:results:{0}'.format(jobname)
 
     def attrs(self, tag, token=None):
         """Get a list of the attributes of the tag ``tag`` and their values."""
@@ -144,7 +144,7 @@ class DDFS(object):
 
         def chunk_name(replicas, n):
             url = listify(replicas)[0]
-            return self.safe_name('%s-%s' % (os.path.basename(url), n))
+            return self.safe_name('{0}-{1}'.format(os.path.basename(url), n))
 
         blobs = [self._push((StringIO(chunk), chunk_name(reps, n)),
                             replicas=replicas,
@@ -215,7 +215,7 @@ class DDFS(object):
 
     def list(self, prefix=''):
         """Return a list of all tags starting with ``prefix``."""
-        return self._download('%s/ddfs/tags/%s' % (self.master, prefix))
+        return self._download('{0}/ddfs/tags/{1}'.format(self.master, prefix))
 
     def pull(self, tag, blobfilter=lambda x: True, token=None):
         comm_error = None
@@ -290,9 +290,9 @@ class DDFS(object):
         """Append the list of ``urls`` to the ``tag``."""
         defaults = {'delayed': False, 'update': False}
         defaults.update(kwargs)
-        url = '%s?%s' % (canonizetag(tag),
-                         '&'.join('%s=%s' % (k, '1' if v else '')
-                                  for k, v in defaults.items()))
+        url = '{0}?{1}'.format(canonizetag(tag),
+                               '&'.join('{0}={1}'.format(k, '1' if v else '')
+                                        for k, v in defaults.items()))
         return self._download(url, json.dumps(urls), token=token)
 
     def tarblobs(self, tarball, compress=True, include=None, exclude=None):
@@ -365,9 +365,9 @@ class DDFS(object):
     def _push(self, (source, target), replicas=None, exclude=[], **kwargs):
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
-        urls = self._download('%s/ddfs/new_blob/%s?%s' % (self.master,
-                                                          target,
-                                                          qs))
+        urls = self._download('{0}/ddfs/new_blob/{1}?{2}'.format(self.master,
+                                                                 target,
+                                                                 qs))
 
         try:
             return [json.loads(url)
@@ -380,7 +380,7 @@ class DDFS(object):
                               **kwargs)
 
     def _tagattr(self, tag, attr):
-        return '%s/%s' % (self._resolve(canonizetag(tag)), attr)
+        return '{0}/{1}'.format(self._resolve(canonizetag(tag)), attr)
 
     def _token(self, url, token, method):
         if token is None:

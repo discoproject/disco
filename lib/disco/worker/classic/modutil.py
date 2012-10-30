@@ -105,9 +105,9 @@ class ModUtilImportError(DiscoError, ImportError):
 
     def __str__(self):
         # XXX! Add module name below
-        return ("%s: Could not find module defined in %s. Maybe it is a typo. "
+        return ("{0}: Could not find module defined in {1}. Maybe it is a typo. "
                 "See documentation of the required_modules parameter for details "
-                "on how to include modules." % (self.error, self.function.func_name))
+                "on how to include modules.".format(self.error, self.function.__name__))
 
 def user_paths():
     return set([os.path.abspath(path)

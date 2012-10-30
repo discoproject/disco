@@ -60,7 +60,7 @@ class InputTestCase(TestCase):
 
     def test_partitioned_reduce(self):
         beers = ['sam_adams', 'trader_jose', 'boont_esb']
-        input = ['raw://%s' % beer for beer in beers]
+        input = ['raw://{0}'.format(beer) for beer in beers]
         a, b, c, d = MapJob(), MapJob(), ReduceJob(), MergeReduceJob()
         self.job = JobChain({a: input,
                              b: input,

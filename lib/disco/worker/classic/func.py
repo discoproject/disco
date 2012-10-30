@@ -226,23 +226,24 @@ def old_netstr_reader(fd, size, fname, head=''):
 
         i = data.find(' ', idx, idx + 11)
         if i == -1:
-            raise DataError("Corrupted input: "\
-                            "Could not parse a value length at %d bytes."\
-                            % (tot), fname)
+            raise DataError("Corrupted input: "
+                            "Could not parse a value length at {0} bytes."
+                            .format(tot), fname)
         else:
             lenstr = data[idx:i + 1]
             idx = i + 1
 
         if ldata < i + 1:
-            raise DataError("Truncated input: "\
-                            "Expected %d bytes, got %d" % (size, tot), fname)
+            raise DataError("Truncated input: "
+                            "Expected {0} bytes, got {1}"
+                            .format(size, tot), fname)
 
         try:
             llen = int(lenstr)
         except ValueError:
-            raise DataError("Corrupted input: "\
-                            "Could not parse a value length at %d bytes."\
-                            % (tot), fname)
+            raise DataError("Corrupted input: "
+                            "Could not parse a value length at {0} bytes."
+                            .format(tot), fname)
 
         tot += len(lenstr)
 
@@ -254,9 +255,9 @@ def old_netstr_reader(fd, size, fname, head=''):
         msg = data[idx:idx + llen]
 
         if idx + llen + 1 > ldata:
-            raise DataError("Truncated input: "\
-                            "Expected a value of %d bytes (offset %u bytes)"\
-                            % (llen + 1, tot), fname)
+            raise DataError("Truncated input: "
+                            "Expected a value of {0} bytes (offset {1} bytes)"
+                            .format(llen + 1, tot), fname)
 
         tot += llen + 1
         idx += llen + 1
@@ -326,8 +327,9 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
 
         if not len(r) or (size!=None and tot >= size):
             if size != None and tot < size:
-                raise DataError("Truncated input: "\
-                "Expected %d bytes, got %d" % (size, tot), fname)
+                raise DataError("Truncated input: "
+                                "Expected {0} bytes, got {1}"
+                                .format(size, tot), fname)
             if len(buf):
                 if output_tail:
                     yield [buf]
@@ -348,8 +350,8 @@ def make_range_partition(min_val, max_val):
     The number of partitions is defined by the *partitions* parameter
     """
     r = max_val - min_val
-    f = "lambda k, n, p: int(round(float(int(k) - %d) / %d * (n - 1)))" %\
-        (min_val, r)
+    f = ("lambda k_n_p: int(round(float(int(k_n_p[0]) - {0}) / {1} * (k_n_p[1] - 1)))"
+         .format(min_val, r))
     return eval(f)
 
 def noop(*args, **kwargs):
@@ -456,7 +458,7 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
             is_compressed, checksum, hunk_size =\
                 struct.unpack('<BIQ', stream.read(13))
         except:
-            raise DataError("Truncated data at %d bytes" % offset, url)
+            raise DataError("Truncated data at {0} bytes".format(offset), url)
         if not hunk_size:
             return
         hunk = stream.read(hunk_size)
@@ -467,8 +469,8 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 raise ValueError("Checksum does not match")
         except (ValueError, zlib.error) as e:
             if not ignore_corrupt:
-                raise DataError("Corrupted data between bytes %d-%d: %s" %
-                                (offset, offset + hunk_size, e), url)
+                raise DataError("Corrupted data between bytes {0}-{1}: {2}"
+                                .format(offset, offset + hunk_size, e), url)
         offset += hunk_size
         hunk = cStringIO.StringIO(data)
         while True:
@@ -497,14 +499,14 @@ class DiscoDBOutput(object):
 
 def discodb_output(stream, partition, url, params):
     from disco.worker.classic.func import DiscoDBOutput
-    return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
+    return DiscoDBOutput(stream, params), 'discodb:{0}'.format(url.split(':', 1)[1])
 
 def disk_sort(worker, input, filename, sort_buffer_size='10%'):
     from os.path import getsize
     from disco.comm import open_local
     from disco.util import format_size
     from disco.fileutils import AtomicFile
-    worker.send('MSG', "Downloading %s" % filename)
+    worker.send('MSG', "Downloading {0}".format(filename))
     out_fd = AtomicFile(filename)
     for key, value in input:
         if not isinstance(key, str):
@@ -515,8 +517,8 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
             # value pickled using protocol 0 will always be printable ASCII
             out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
     out_fd.close()
-    worker.send('MSG', "Downloaded %s OK" % format_size(getsize(filename)))
-    worker.send('MSG', "Sorting %s..." % filename)
+    worker.send('MSG', "Downloaded {0:s} OK".format(format_size(getsize(filename))))
+    worker.send('MSG', "Sorting {0}...".format(filename))
     unix_sort(filename, sort_buffer_size=sort_buffer_size)
     worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
@@ -538,7 +540,7 @@ def unix_sort(filename, sort_buffer_size='10%'):
                                filename],
                                env=env)
     except subprocess.CalledProcessError as e:
-        raise DataError("Sorting %s failed: %s" % (filename, e), filename)
+        raise DataError("Sorting {0} failed: {1}".format(filename, e), filename)
 
 chain_reader = disco_input_stream
 chain_stream = (task_input_stream, chain_reader)

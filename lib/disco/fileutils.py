@@ -167,7 +167,7 @@ class NonBlockingInput(object):
         if spent < self.timeout:
             if any(select([self.fd], [], [], self.timeout - spent)):
                 return time.time() - started
-        raise IOError("Reading timed out after %s seconds" % self.timeout)
+        raise IOError("Reading timed out after {0} seconds".format(self.timeout))
 
     def t_read(self, nbytes, spent=0, bytes=''):
         while True:
@@ -188,7 +188,7 @@ class AtomicFile(file):
         ensure_path(dir)
         ensure_free_space(dir)
         self.path = path
-        self.partial = '%s.partial' % path
+        self.partial = '{0}.partial'.format(path)
         self.isopen = True
         super(AtomicFile, self).__init__(self.partial, 'w')
 
@@ -224,7 +224,8 @@ def ensure_free_space(fname):
     s = os.statvfs(fname)
     free = s.f_bsize * s.f_bavail
     if free < MIN_DISK_SPACE:
-        raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
+        raise DataError("Only {0} KB disk space available. Task failed."
+                        .format((free / 1024), fname))
 
 def files(path):
     if os.path.isdir(path):

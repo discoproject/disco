@@ -33,4 +33,4 @@ class StreamsTestCase(TestCase):
     def runTest(self):
         input = ['apple', 'orange', 'pear']
         self.job = StreamsJob().run(input=self.test_server.urls(input))
-        self.assertResults(self.job, (('red:ba%s' % i, '') for i in input))
+        self.assertResults(self.job, (('red:ba{0}'.format(i), '') for i in input))

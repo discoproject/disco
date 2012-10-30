@@ -14,7 +14,7 @@ class AuthTestCase(TestCase):
 
     def runTest(self):
         self.ddfs.setattr(self.tag, 'ddfs:read-token', 'r')
-        self.job = AuthJob().run(input=['tag://user:r@/%s' % self.tag])
+        self.job = AuthJob().run(input=['tag://user:r@/{0}'.format(self.tag)])
         self.assertResults(self.job, [('blobdata', '')])
 
     def tearDown(self):
