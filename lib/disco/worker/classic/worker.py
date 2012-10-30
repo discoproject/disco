@@ -182,7 +182,7 @@ class Worker(worker.Worker):
                    The object is serialized using the *pickle* module,
                    so it should be pickleable.
 
-                   A convience class :class:`Params` is provided that
+                   A convenience class :class:`Params` is provided that
                    provides an easy way to encapsulate a set of parameters.
                    :class:`Params` allows including functions  in the parameters.
 
