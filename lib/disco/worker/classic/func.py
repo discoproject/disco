@@ -384,7 +384,7 @@ def sum_combiner(key, value, buf, done, params):
     if not done:
         buf[key] = buf.get(key, 0) + value
     else:
-        return buf.iteritems()
+        return buf.items()
 
 def sum_reduce(iter, params):
     """
@@ -395,7 +395,7 @@ def sum_reduce(iter, params):
     buf = {}
     for key, value in iter:
         buf[key] = buf.get(key, 0) + value
-    return buf.iteritems()
+    return buf.items()
 
 def gzip_reader(fd, size, url, params):
     """Wraps the input in a :class:`gzip.GzipFile` object."""

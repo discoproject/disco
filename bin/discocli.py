@@ -305,7 +305,7 @@ def nodeinfo(program):
 
     Print the node information.
     """
-    for item in program.disco.nodeinfo().iteritems():
+    for item in program.disco.nodeinfo().items():
         print('{0[0]}\t{0[1]}'.format(item))
 
 @Disco.job_command

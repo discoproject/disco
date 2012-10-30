@@ -38,7 +38,7 @@ class ConfigTestCase(TestCase):
             self.skipTest("Cannot test node changes with < 2 nodes")
         else:
             local = ['url://{0}'.format(node)
-                     for node, max_workers in self.nodes.iteritems()
+                     for node, max_workers in self.nodes.items()
                      for x in xrange(max_workers * 2)]
             input = shuffled(local + range(self.num_workers))
             self.job = ConfigJob().run(input=self.test_server.urls(input))

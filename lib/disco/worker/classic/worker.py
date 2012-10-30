@@ -244,8 +244,8 @@ class Worker(worker.Worker):
         def get(key):
             return self.getitem(key, job, jobargs)
         if isinstance(get('required_files'), dict):
-            for path, bytes in get('required_files').iteritems():
-                    jobzip.writestr(path, bytes)
+            for path, bytes in get('required_files').items():
+                jobzip.writestr(path, bytes)
         else:
             for path in get('required_files'):
                 jobzip.write(path, os.path.join('lib', os.path.basename(path)))
@@ -260,7 +260,7 @@ class Worker(worker.Worker):
                 jobzip.writepath(mod[1])
         for func in ('map', 'reduce'):
             if isinstance(get(func), dict):
-                for path, bytes in get(func).iteritems():
+                for path, bytes in get(func).items():
                     jobzip.writestr(os.path.join('ext.{0}'.format(func), path), bytes)
         return jobzip
 

@@ -10,7 +10,7 @@
 #
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -42,7 +42,7 @@ def encode_netstring_str(d):
     return msg.getvalue()
 
 def encode_netstring_fd(d):
-    s = encode_netstring_str(d.iteritems())
+    s = encode_netstring_str(d.items())
     return "%d\n%s" % (len(s), s)
 
 def decode_netstring_str(msg):
@@ -67,12 +67,12 @@ def decode_netstring_fd(fd):
         i += 1
         if i > MAX_LEN_STRING:
             raise NetStringError("Length string too long")
-       
+
     if not lenstr:
         raise EOFError()
-       
+
     length = int(lenstr)
     if length > MAX_PACKET_LEN:
         raise NetStringError("Will not receive %d bytes" % length)
-    
+
     return dict(decode_netstring_str(fd.read(length)))

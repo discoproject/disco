@@ -46,9 +46,9 @@ def command(obj, name_or_function):
     return _command(obj, name_or_function.__name__, name_or_function)
 
 def walk(commands):
-    for name, command in commands.iteritems():
+    for name, command in commands.items():
         yield name, command
-        for subname, subcommand in command.commands.iteritems():
+        for subname, subcommand in command.commands.items():
             yield '{0} {1}'.format(name, subname), subcommand
 
 def search(receiver, commands, options=()):
