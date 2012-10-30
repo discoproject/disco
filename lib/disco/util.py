@@ -85,7 +85,7 @@ def identity(object):
     return object
 
 def isiterable(object):
-    return hasattr(object, '__iter__')
+    return hasattr(object, '__iter__') and not isinstance(object, str)
 
 def iskv(object):
     return isinstance(object, tuple) and len(object) is 2
