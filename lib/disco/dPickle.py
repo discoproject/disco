@@ -1,5 +1,5 @@
-import functools, marshal, pickle, types
 from disco.compat import pickle_loads, StringIO
+import functools, marshal, pickle, types, sys
 from inspect import getfile, getmodule
 from os.path import dirname
 
@@ -21,14 +21,19 @@ def unpartial(packed):
     func, args, kwds = loads(packed)
     return functools.partial(func, *args, **kwds)
 
-class Pickler(pickle.Pickler):
-    dispatch = pickle.Pickler.dispatch.copy()
+if sys.version_info[0] == 3:
+    cls = pickle._Pickler
+else:
+    cls = pickle.Pickler
+
+class Pickler(cls):
+    dispatch = cls.dispatch.copy()
 
     def save_func(self, func):
         if is_std(getmodule(func)) or func.__module__.startswith('disco.'):
             self.save_global(func)
         else:
-            packed = marshal.dumps((func.func_code, func.func_defaults))
+            packed = marshal.dumps((func.__code__, func.__defaults__))
             self.save_reduce(unfunc, (packed,), obj=func)
     dispatch[types.FunctionType] = save_func
 

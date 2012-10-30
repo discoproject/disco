@@ -137,17 +137,17 @@ def shuffled(object):
     return shuffled
 
 def argcount(object):
-    if hasattr(object, 'func_code'):
-        return object.func_code.co_argcount
-    argcount = object.func.func_code.co_argcount
+    if hasattr(object, '__code__'):
+        return object.__code__.co_argcount
+    argcount = object.func.__code__.co_argcount
     return argcount - len(object.args or ()) - len(object.keywords or ())
 
 def globalize(object, globals):
     if isinstance(object, functools.partial):
         object = object.func
-    if hasattr(object, 'func_globals'):
-        for k, v in globals.iteritems():
-            object.func_globals.setdefault(k, v)
+    if hasattr(object, '__globals__'):
+        for k, v in globals.items():
+            object.__globals__.setdefault(k, v)
 
 def urljoin(scheme_netloc_path):
     scheme, netloc, path = scheme_netloc_path

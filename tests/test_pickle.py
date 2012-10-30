@@ -18,8 +18,8 @@ class PickleTestCase(TestCase):
         now = datetime.datetime.now()
         self.assertEquals(now, loads(dumps(now)))
         self.assertEquals(666, loads(dumps(666)))
-        self.assertEquals(f.func_code, loads(dumps(f)).func_code)
-        self.assertEquals(f().func_code, loads(dumps(f())).func_code)
+        self.assertEquals(f.__code__, loads(dumps(f)).__code__)
+        self.assertEquals(f().__code__, loads(dumps(f())).__code__)
         self.assertEquals(p('a', b='b'), loads(dumps(p))('a', b='b'))
 
     def test_pattern(self):
