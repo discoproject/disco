@@ -218,8 +218,8 @@ dictionary contains at least a single key-value pair where key is the string
 
         disco.job("disco://localhost:5000",
                   ["disco://localhost/myjob/file1"],
-                  fun_map = {"op": file("bin/external_map").read(),
-                             "config.txt": file("bin/config.txt").read()})
+                  fun_map = {"op": open("bin/external_map").read(),
+                             "config.txt": open("bin/config.txt").read()})
 
 The dictionary may contain other keys as well, which correspond to the
 file names (not paths) of the supporting files, such as *"config.txt"*
