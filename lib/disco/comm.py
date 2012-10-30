@@ -62,7 +62,7 @@ def request(method, url, data=None, headers={}, sleep=0):
         errmsg = str(e) or repr(e)
     except (httplib.socket.error, socket.error) as e:
         status = None
-        errmsg = e if isinstance(e, basestring) else e[1]
+        errmsg = e if isinstance(e, basestring) else str(e) or repr(e)
 
     if not status or isunavailable(status):
         if sleep == 9:
