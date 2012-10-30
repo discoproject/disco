@@ -1,6 +1,6 @@
-import os, struct, sys, time
-from cPickle import dumps
-from cStringIO import StringIO
+import os, struct, sys, time, pickle
+from disco.compat import file, basestring
+from disco.compat import pickle_dumps
 from inspect import getmodule, getsourcefile
 from zipfile import ZipFile, ZIP_DEFLATED
 from zlib import compress, crc32
@@ -81,7 +81,7 @@ class DiscoOutputStream_v1(object):
         self.append((k, v))
 
     def append(self, record):
-        self.hunk_write(dumps(record, 1))
+        self.hunk_write(pickle_dumps(record, 1))
         if self.hunk_size > self.min_hunk_size:
             self.flush()
 

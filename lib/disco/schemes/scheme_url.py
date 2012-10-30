@@ -1,3 +1,3 @@
 def input_stream(fd, size, url, params):
-    import cStringIO
-    return cStringIO.StringIO(url), len(url), url
+    from disco.compat import StringIO
+    return StringIO(url), len(url), url

@@ -1,6 +1,5 @@
-import httplib, os, random, struct, time, socket, base64
-from cStringIO import StringIO
-
+import os, random, struct, time, socket, base64
+from disco.compat import BytesIO, file, httplib, basestring
 from disco.error import CommError
 from disco.settings import DiscoSettings
 from disco.util import iterify, urlresolve, urlsplit
@@ -17,7 +16,7 @@ except ImportError:
     nocurl = True
 
 if nocurl:
-    from httplib import HTTPConnection
+    HTTPConnection = httplib.HTTPConnection
 else:
     from disco import comm_pycurl
     from disco.comm_pycurl import HTTPConnection

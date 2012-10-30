@@ -13,9 +13,8 @@ internally.
 import os, sys, time
 import functools, gzip
 
-from cStringIO import StringIO
+from disco.compat import StringIO, basestring
 from itertools import chain, groupby, repeat
-from urllib import urlencode
 
 from disco.error import DiscoError, DataError, CommError
 from disco.settings import DiscoSettings
@@ -47,14 +46,14 @@ def chainify(iterable):
     return list(chain(*iterable))
 
 def dsorted(iterable, buffer_size=1e6, tempdir='.'):
-    from cPickle import dump, load
+    from disco.compat import pickle_load, pickle_dump
     from heapq import merge
     from itertools import islice
     from tempfile import TemporaryFile
     def read(handle):
         while True:
             try:
-                yield load(handle)
+                yield pickle_load(handle)
             except EOFError:
                 return
     iterator = iter(iterable)
@@ -63,7 +62,7 @@ def dsorted(iterable, buffer_size=1e6, tempdir='.'):
         buffer = sorted(islice(iterator, buffer_size))
         handle = TemporaryFile(dir=tempdir)
         for item in buffer:
-            dump(item, handle, -1)
+            pickle_dump(item, handle, -1)
         handle.seek(0)
         subiters.append(read(handle))
         if len(buffer) < buffer_size:

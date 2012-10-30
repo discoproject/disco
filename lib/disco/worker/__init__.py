@@ -56,6 +56,7 @@ using a standard :class:`Worker`:
 """
 import os, sys, time, traceback
 
+from disco.compat import basestring
 from disco.error import DataError
 from disco.fileutils import DiscoOutput, NonBlockingInput, Wait
 

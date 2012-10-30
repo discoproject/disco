@@ -16,6 +16,7 @@ from disco.job import Job
 from disco.settings import DiscoSettings
 from disco.util import proxy_url
 from disco.worker.classic.worker import Params # backwards compatibility XXX: deprecate
+from disco.compat import basestring
 
 class Continue(Exception):
     pass
@@ -186,7 +187,7 @@ class Disco(object):
 
     def jobpack(self, jobname):
         """Return the :class:`disco.job.JobPack` submitted for the job."""
-        from cStringIO import StringIO
+        from disco.compat import StringIO
         from disco.job import JobPack
         return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name={0}'.format(jobname))))
 

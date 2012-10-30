@@ -10,8 +10,7 @@ See also: :ref:`DDFS`.
         a `tag://` URL, or the name of the tag.
 """
 import os, re, random
-from cStringIO import StringIO
-from urllib import urlencode
+from disco.compat import StringIO, urlencode, basestring
 
 from disco import json
 from disco.comm import upload, download, open_remote

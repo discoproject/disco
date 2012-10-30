@@ -1,5 +1,5 @@
-import httplib, time, base64
-from cStringIO import StringIO
+import time, base64
+from disco.compat import StringIO, httplib, basestring
 
 import pycurl
 

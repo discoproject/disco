@@ -6,7 +6,8 @@ A Classic Disco job is specified by one or more :term:`job functions`.
 This module defines the interfaces for the job functions,
 some default values, as well as otherwise useful functions.
 """
-import re, cPickle
+import re
+from disco.compat import pickle_loads, pickle_dumps
 from disco.error import DataError
 
 def notifier(urls):
@@ -425,7 +426,7 @@ def task_input_stream(stream, size, url, params):
 map_input_stream = reduce_input_stream = task_input_stream
 
 def string_input_stream(string, size, url, params):
-    from cStringIO import StringIO
+    from disco.compat import StringIO
     return StringIO(string), len(string), url
 
 def task_output_stream(stream, partition, url, params):
@@ -444,13 +445,15 @@ def disco_output_stream(stream, partition, url, params):
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
     """Input stream for Disco's internal compression format."""
-    import struct, cStringIO, gzip, cPickle, zlib
+    from disco.compat import BytesIO, int_of_byte
+    from disco.compat import pickle_load
+    import struct, gzip, zlib
     offset = 0
     while True:
         header = stream.read(1)
         if not header:
             return
-        if ord(header[0]) < 128:
+        if int_of_byte(header[0]) < 128:
             for e in old_netstr_reader(stream, size, url, header):
                 yield e
             return
@@ -475,7 +478,7 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
         hunk = cStringIO.StringIO(data)
         while True:
             try:
-                yield cPickle.load(hunk)
+                yield pickle_load(hunk)
             except EOFError:
                 break
 
@@ -523,7 +526,7 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
     worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
     for k, v in re_reader("(?s)(.*?)\xff(.*?)\x00", fd, len(fd), fd.url):
-        yield k, cPickle.loads(v)
+        yield k, pickle_loads(v)
 
 def unix_sort(filename, sort_buffer_size='10%'):
     import subprocess

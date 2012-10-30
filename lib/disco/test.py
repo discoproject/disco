@@ -1,7 +1,5 @@
 import os, signal, unittest
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from SocketServer import ThreadingMixIn
-from httplib import OK, INTERNAL_SERVER_ERROR
+from disco.compat import http_server, socket_server, httplib
 from threading import Thread
 
 try:
@@ -15,6 +13,13 @@ from disco.job import Job
 from disco.ddfs import DDFS
 from disco.settings import DiscoSettings
 from disco.util import iterify
+
+BaseHTTPRequestHandler = http_server.BaseHTTPRequestHandler
+HTTPServer = http_server.HTTPServer
+ThreadingMixIn = socket_server.ThreadingMixIn
+
+OK = httplib.OK
+INTERNAL_SERVER_ERROR = httplib.INTERNAL_SERVER_ERROR
 
 class InterruptTest(KeyboardInterrupt, SkipTest):
     def __init__(self, test):

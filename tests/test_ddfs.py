@@ -1,6 +1,5 @@
 from disco.test import TestCase
-
-from cStringIO import StringIO
+from disco.compat import StringIO
 
 class DDFSUpdateTestCase(TestCase):
     data = StringIO('blobdata')

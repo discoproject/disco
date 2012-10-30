@@ -1,4 +1,4 @@
-import cStringIO
+from disco.compat import StringIO
 from disco.test import TestCase, TestJob
 from disco.util import kvgroup
 
@@ -21,7 +21,7 @@ class ProfileTestCase(TestCase):
         return "Gutta cavat cavat lapidem\n" * 10
 
     def reduce_calls(self):
-        out = cStringIO.StringIO()
+        out = StringIO()
         self.job.profile_stats(stream=out).print_stats('worker', 'reduce')
         for line in out.getvalue().splitlines():
             if 'worker.py' in line:

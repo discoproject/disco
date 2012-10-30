@@ -8,6 +8,7 @@ This module defines objects for interfacing with
 """
 import os, time
 
+from disco.compat import basestring
 from disco import dPickle
 from disco.util import hexhash
 

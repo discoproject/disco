@@ -1,5 +1,6 @@
 from disco.job import JobChain
 from disco.test import TestCase, TestJob
+from disco.compat import file
 
 class SchemesJobA(TestJob):
     @staticmethod

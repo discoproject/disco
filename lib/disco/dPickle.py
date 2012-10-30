@@ -1,9 +1,9 @@
 import functools, marshal, pickle, types
-
-from cPickle import loads
-from cStringIO import StringIO
+from disco.compat import pickle_loads, StringIO
 from inspect import getfile, getmodule
 from os.path import dirname
+
+loads = pickle_loads
 
 def dumps(obj, protocol=None):
     file = StringIO()

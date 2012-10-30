@@ -8,7 +8,7 @@ class AuthJob(TestJob):
 class AuthTestCase(TestCase):
     def setUp(self):
         super(AuthTestCase, self).setUp()
-        from cStringIO import StringIO
+        from disco.compat import StringIO
         self.tag = 'disco:test:authjob'
         self.ddfs.push(self.tag, [(StringIO('blobdata'), 'blob')])
 
