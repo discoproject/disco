@@ -56,7 +56,7 @@ using a standard :class:`Worker`:
 """
 import os, sys, time, traceback
 
-from disco.compat import basestring
+from disco.compat import basestring, force_utf8
 from disco.error import DataError
 from disco.fileutils import DiscoOutput, NonBlockingInput, Wait
 
@@ -64,16 +64,13 @@ class MessageWriter(object):
     def __init__(self, worker):
         self.worker = worker
 
-    @classmethod
-    def force_utf8(cls, string):
-        if isinstance(string, unicode):
-            return string.encode('utf-8', 'replace')
-        return string.decode('utf-8', 'replace').encode('utf-8')
-
     def write(self, string):
         string = string.strip()
         if string:
-            self.worker.send('MSG', self.force_utf8(string))
+            self.worker.send('MSG', force_utf8(string))
+
+    def flush(self):
+        pass
 
 class Worker(dict):
     """
@@ -336,7 +333,7 @@ class Worker(dict):
             cls.send('ERROR', traceback.format_exc())
             raise
         except Exception as e:
-            cls.send('FATAL', MessageWriter.force_utf8(traceback.format_exc()))
+            cls.send('FATAL', force_utf8(traceback.format_exc()))
             raise
 
     @classmethod
