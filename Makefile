@@ -150,7 +150,7 @@ typer: $(EPLT)
 
 $(EPLT):
 	$(DIALYZER) --build_plt --output_plt $(EPLT) \
-		    --apps stdlib kernel erts compiler crypto inets ssl syntax_tools xmerl
+		    --apps stdlib kernel erts compiler crypto inets syntax_tools
 
 $(TARGETDAT)/% $(TARGETLIB)/%: %
 	$(INSTALL) -d $(@D)
