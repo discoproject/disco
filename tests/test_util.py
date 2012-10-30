@@ -11,7 +11,7 @@ sequence = 0, [1, [2, 3], [[4, [5, [6]]]]]
 
 class UtilTestCase(TestCase):
     def test_flatten(self):
-        self.assertEquals(range(7), list(flatten(sequence)))
+        self.assertEquals(list(range(7)), list(flatten(sequence)))
 
     def test_iterify(self):
         self.assertEquals([5], list(iterify(5)))

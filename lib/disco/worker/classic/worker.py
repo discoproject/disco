@@ -355,8 +355,8 @@ class Worker(worker.Worker):
     def opener(self, mode, direction, params):
         if direction == 'in':
             from itertools import chain
-            streams = filter(None, chain(self['{0}_input_stream'.format(mode)],
-                                         [self['{0}_reader'.format(mode)]]))
+            streams = [s for s in chain(self['{0}_input_stream'.format(mode)],
+                                        [self['{0}_reader'.format(mode)]]) if s]
         else:
             streams = self['{0}_output_stream'.format(mode)]
         def open(url):

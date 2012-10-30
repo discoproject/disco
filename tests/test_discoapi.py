@@ -16,4 +16,4 @@ class DiscoAPITestCase(TestCase):
     def runTest(self):
         self.job = DiscoAPIJob().run(input=['raw://disco_api'])
         self.assertResults(self.job, [('disco', 'api')])
-        self.assertEquals(len(filter(isspecial, self.job.events())), 3)
+        self.assertEquals(len(list(filter(isspecial, self.job.events()))), 3)

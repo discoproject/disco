@@ -3,7 +3,7 @@ import base64, string
 from disco.test import TestCase, TestJob
 from disco.util import kvgroup, shuffled
 
-alphanum = list(string.ascii_letters) + map(str, range(10))
+alphanum = list(string.ascii_letters) + list(map(str, range(10)))
 
 class SortJob(TestJob):
     sort = True

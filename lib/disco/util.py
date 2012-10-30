@@ -312,7 +312,8 @@ def inputexpand(input, partition=None, settings=DiscoSettings()):
     return [input]
 
 def inputlist(inputs, **kwargs):
-    return filter(None, chainify(inputexpand(input, **kwargs) for input in inputs))
+    return [inp for inp in chainify(inputexpand(input, **kwargs)
+                                    for input in inputs) if inp]
 
 def save_oob(host, name, key, value, ddfs_token=None):
     from disco.ddfs import DDFS
