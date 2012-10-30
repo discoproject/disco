@@ -41,7 +41,7 @@ def command(obj, name_or_function):
     def _command(obj, name, function):
         obj.commands[name] = Command(function)
         return obj.commands[name]
-    if isinstance(name_or_function, basestring):
+    if isinstance(name_or_function, str):
         return partial(_command, obj, name_or_function)
     return _command(obj, name_or_function.__name__, name_or_function)
 
