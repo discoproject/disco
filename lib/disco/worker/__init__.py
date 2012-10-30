@@ -344,6 +344,7 @@ class Worker(dict):
         from disco.json import dumps, loads
         body = dumps(payload)
         sys.stderr.write('{0} {1} {2}\n'.format(type, len(body), body))
+        sys.stderr.flush()
         spent, rtype = sys.stdin.t_read_until(' ')
         spent, rsize = sys.stdin.t_read_until(' ', spent=spent)
         spent, rbody = sys.stdin.t_read(int(rsize) + 1, spent=spent)
