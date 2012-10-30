@@ -212,15 +212,17 @@ class JobPack(object):
     def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
         from struct import pack
         toc = pack(format, magic, *(o for o in offsets))
-        return toc + '\0' * (size - len(toc))
+        return toc + b'\0' * (size - len(toc))
 
     def contents(self, offset=HEADER_SIZE):
-        for field in (json.dumps(self.jobdict),
-                      json.dumps(self.jobenvs),
+        cont = []
+        for field in (json.dumps(self.jobdict).encode(),
+                      json.dumps(self.jobenvs).encode(),
                       self.jobhome,
                       self.jobdata):
-            yield offset, field
+            cont.append((offset, field))
             offset += len(field)
+        return cont
 
     def dumps(self):
         """
@@ -230,7 +232,7 @@ class JobPack(object):
         and prepends a valid header.
         """
         offsets, fields = zip(*self.contents())
-        return self.header(offsets) + ''.join(fields)
+        return self.header(offsets) + b''.join(fields)
 
     @classmethod
     def offsets(cls, jobfile, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
@@ -255,13 +257,13 @@ class PackedJobPack(JobPack):
     def jobdict(self):
         dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
         self.jobfile.seek(dict_offset)
-        return json.loads(self.jobfile.read(envs_offset - dict_offset))
+        return json.loads(bytes_to_str(self.jobfile.read(envs_offset - dict_offset)))
 
     @property
     def jobenvs(self):
         dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
         self.jobfile.seek(envs_offset)
-        return json.loads(self.jobfile.read(home_offset - envs_offset))
+        return json.loads(bytes_to_str(self.jobfile.read(home_offset - envs_offset)))
 
     @property
     def jobhome(self):
