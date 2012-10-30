@@ -1,12 +1,12 @@
-from disco.compat import pickle_loads, StringIO
 import functools, marshal, pickle, types, sys
+from disco.compat import pickle_loads, BytesIO
 from inspect import getfile, getmodule
 from os.path import dirname
 
 loads = pickle_loads
 
 def dumps(obj, protocol=None):
-    file = StringIO()
+    file = BytesIO()
     Pickler(file, protocol).dump(obj)
     return file.getvalue()
 
