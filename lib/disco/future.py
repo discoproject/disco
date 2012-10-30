@@ -49,7 +49,7 @@
 # agrees to be bound by the terms and conditions of this License
 # Agreement.
 
-from itertools import chain, izip, repeat
+from itertools import chain, repeat
 
 def izip_longest(*args, **kwds):
     # python2.6 itertools has izip_longest
@@ -60,7 +60,7 @@ def izip_longest(*args, **kwds):
     fillers = repeat(fillvalue)
     iters = [chain(it, sentinel(), fillers) for it in args]
     try:
-        for tup in izip(*iters):
+        for tup in zip(*iters):
             yield tup
     except IndexError:
         pass
