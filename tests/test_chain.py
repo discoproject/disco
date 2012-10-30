@@ -59,4 +59,4 @@ class DavinChainTestCase(TestCase):
                              b: ['raw://3', 'raw://4', 'raw://5'],
                              c: [a, b]}).wait()
         self.assertAllEqual(sorted(self.results(c)),
-                            ((str(x), '') for x in xrange(6)))
+                            ((str(x), '') for x in range(6)))

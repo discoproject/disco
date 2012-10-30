@@ -39,7 +39,7 @@ class ConfigTestCase(TestCase):
         else:
             local = ['url://{0}'.format(node)
                      for node, max_workers in self.nodes.items()
-                     for x in xrange(max_workers * 2)]
+                     for x in range(max_workers * 2)]
             input = shuffled(local + range(self.num_workers))
             self.job = ConfigJob().run(input=self.test_server.urls(input))
             time.sleep(5)

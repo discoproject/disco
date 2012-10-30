@@ -18,13 +18,13 @@ class FlowTestCase(TestCase):
         return '\n'.join([path] * 10)
 
     def test_map(self):
-        input = xrange(10 * self.num_workers)
+        input = range(10 * self.num_workers)
         self.job = OnlyMapJob().run(input=self.test_server.urls(input))
         results = kvgroup(sorted(self.results(self.job)))
         self.assertAllEqual(((k, sum(vs)) for k, vs in results),
                             ((i, 10) for i in input))
 
     def test_reduce(self):
-        input = xrange(10 * self.num_workers)
+        input = range(10 * self.num_workers)
         self.job = OnlyReduceJob().run(input=self.test_server.urls(input))
         self.assertResults(self.job, [('', sum(input) * 10)])

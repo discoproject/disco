@@ -598,7 +598,7 @@ class MergedInput(ParallelInput):
         from disco.future import merge
         iters = [self.input_iter(input) for input in self.input]
         heads = [Wait] * len(iters)
-        return merge(*(self.couple(iters, heads, n) for n in xrange(len(iters))))
+        return merge(*(self.couple(iters, heads, n) for n in range(len(iters))))
 
 if __name__ == '__main__':
     Worker.main()
