@@ -1,9 +1,9 @@
 from disco.test import TestCase
-from disco.compat import StringIO
+from disco.compat import BytesIO
 from functools import partial
 
 class DDFSUpdateTestCase(TestCase):
-    data = StringIO('blobdata')
+    data = BytesIO(b'blobdata')
 
     def setUp(self):
         self.ddfs.delete('disco:test:blobs')
@@ -91,9 +91,9 @@ class DDFSWriteTestCase(TestCase):
         self.ddfs.delete('disco:test:chunk')
 
     def test_push(self):
-        self.ddfs.push('disco:test:blobs', [(StringIO('blobdata'), 'blobdata')])
+        self.ddfs.push('disco:test:blobs', [(BytesIO(b'blobdata'), 'blobdata')])
         self.assert_(self.ddfs.exists('disco:test:blobs'))
-        self.ddfs.push('tag://disco:test:blobs2', [(StringIO('blobdata'), 'blobdata')])
+        self.ddfs.push('tag://disco:test:blobs2', [(BytesIO(b'blobdata'), 'blobdata')])
         self.assert_(self.ddfs.exists('disco:test:blobs2'))
         self.ddfs.delete('disco:test:blobs')
         self.assert_(not self.ddfs.exists('disco:test:blobs'))
@@ -147,9 +147,9 @@ class DDFSWriteTestCase(TestCase):
 
 class DDFSReadTestCase(TestCase):
     def setUp(self):
-        self.ddfs.push('disco:test:blobs', [(StringIO('datablob'), 'blobdata')])
-        self.ddfs.push('disco:test:blobs', [(StringIO('datablob2'), 'blobdata2')])
-        self.ddfs.push('disco:test:emptyblob', [(StringIO(''), 'empty')])
+        self.ddfs.push('disco:test:blobs', [(BytesIO(b'datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:blobs', [(BytesIO(b'datablob2'), 'blobdata2')])
+        self.ddfs.push('disco:test:emptyblob', [(BytesIO(b''), 'empty')])
         self.ddfs.tag('disco:test:tag', [['urls']])
         self.ddfs.tag('disco:test:metatag',
                       [['tag://disco:test:tag'], ['tag://disco:test:metatag']])
@@ -166,13 +166,13 @@ class DDFSReadTestCase(TestCase):
     def test_pull(self):
         self.assertEquals([(self.ddfs.blob_name(fd.url), fd.read())
                            for fd  in self.ddfs.pull('disco:test:blobs')],
-                          [('blobdata2', 'datablob2'), ('blobdata', 'datablob')])
+                          [('blobdata2', b'datablob2'), ('blobdata', b'datablob')])
         self.assertEquals([(self.ddfs.blob_name(fd.url), fd.read())
                            for fd in self.ddfs.pull('disco:test:blobs',
                                                     blobfilter=lambda b: '2' in b)],
-                          [('blobdata2', 'datablob2')])
+                          [('blobdata2', b'datablob2')])
         self.assertEquals([(len(fd), fd.read()) for fd in
-                           self.ddfs.pull('disco:test:emptyblob')], [(0, '')])
+                           self.ddfs.pull('disco:test:emptyblob')], [(0, b'')])
         self.assertCommErrorCode(404, partial(next, self.ddfs.pull('disco:test:notag')))
 
     def test_exists(self):
@@ -206,7 +206,7 @@ class DDFSReadTestCase(TestCase):
 
 class DDFSAttrTestCase(TestCase):
     def setUp(self):
-        self.ddfs.push('disco:test:attrs', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:attrs', [(BytesIO(b'datablob'), 'blobdata')])
         self.ddfs.setattr('disco:test:attrs', 'a1', 'v1')
         self.ddfs.setattr('disco:test:attrs', 'a2', 'v2')
 
@@ -251,9 +251,9 @@ class DDFSAttrTestCase(TestCase):
 
 class DDFSAuthTestCase(TestCase):
     def setUp(self):
-        self.ddfs.push('disco:test:authrd', [(StringIO('datablob'), 'blobdata')])
-        self.ddfs.push('disco:test:authwr', [(StringIO('datablob'), 'blobdata')])
-        self.ddfs.push('disco:test:authempty', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:authrd', [(BytesIO(b'datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:authwr', [(BytesIO(b'datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:authempty', [(BytesIO(b'datablob'), 'blobdata')])
         self.ddfs.setattr('disco:test:authrd', 'a', 'v')
         self.ddfs.setattr('disco:test:authwr', 'a', 'v')
         self.ddfs.setattr('disco:test:authrd', 'ddfs:read-token', 'rdr')
@@ -304,7 +304,7 @@ class DDFSAuthTestCase(TestCase):
 
     def test_atomic_token(self):
         self.ddfs.push('disco:test:atomic1',
-                        [(StringIO('abc'), 'atom')],
+                        [(BytesIO(b'abc'), 'atom')],
                         update=True,
                         delayed=True,
                         token='secret1')
@@ -333,13 +333,13 @@ class DDFSAuthTestCase(TestCase):
 
 class DDFSDeleteTestCase(TestCase):
     def setUp(self):
-        self.ddfs.push('disco:test:delete1', [(StringIO('datablob'), 'blobdata')])
-        self.ddfs.push('disco:test:delete2', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:delete1', [(BytesIO(b'datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:delete2', [(BytesIO(b'datablob'), 'blobdata')])
 
     def test_create_delete_create(self):
         self.ddfs.delete('disco:test:delete1')
         self.assert_(not self.ddfs.exists('disco:test:delete1'))
-        self.ddfs.push('disco:test:delete1', [(StringIO('datablob'), 'blobdata')])
+        self.ddfs.push('disco:test:delete1', [(BytesIO(b'datablob'), 'blobdata')])
         self.assert_(self.ddfs.exists('disco:test:delete1'))
         self.assert_("disco:test:delete1" in self.ddfs.list('disco:test:delete1'))
 
@@ -347,7 +347,7 @@ class DDFSDeleteTestCase(TestCase):
         self.ddfs.delete('disco:test:delete2')
         self.assert_(not self.ddfs.exists('disco:test:delete2'))
         self.ddfs.push('disco:test:delete2',
-                       [(StringIO('abc'), 'atom')],
+                       [(BytesIO(b'abc'), 'atom')],
                        token='secret1')
         self.assert_(self.ddfs.exists('disco:test:delete2'))
         self.assert_("disco:test:delete2" in self.ddfs.list('disco:test:delete2'))

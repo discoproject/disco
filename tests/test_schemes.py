@@ -1,6 +1,6 @@
 from disco.job import JobChain
 from disco.test import TestCase, TestJob
-from disco.compat import file
+from disco.compat import file, bytes_to_str
 
 class SchemesJobA(TestJob):
     @staticmethod
@@ -18,7 +18,7 @@ class SchemesJobB(TestJob):
 
     @staticmethod
     def map(k_v, params):
-        yield k_v[0], k_v[1]
+        yield bytes_to_str(k_v[0]), k_v[1]
 
 class SchemesTestCase(TestCase):
     animals = ['horse', 'sheep', 'whale', 'tiger']

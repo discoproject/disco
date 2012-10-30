@@ -22,7 +22,7 @@ class RateLimitTestCase(TestCase):
     inputs = [1]
 
     def serve(self, path):
-        return 'badger\n' * self.num_lines
+        return b'badger\n' * self.num_lines
 
     def answers(self):
         return [(l, '') for l in self.serve('').splitlines()]

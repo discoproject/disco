@@ -1,9 +1,10 @@
 from disco.test import TestCase, TestJob
+from disco.compat import bytes_to_str
 
 class SimpleJob(TestJob):
     @staticmethod
     def map(e, params):
-        yield int(e), e.strip()
+        yield int(e), (bytes_to_str(e)).strip()
 
     @staticmethod
     def reduce(iter, out, params):

@@ -2,6 +2,7 @@ import time
 
 from disco.test import TestCase, TestJob
 from disco.util import shuffled
+from disco.compat import str_to_bytes
 
 def unique_nodename(nodenames, count=0):
     nodename = 'missingnode_{0}'.format(count)
@@ -18,7 +19,7 @@ class ConfigJob(TestJob):
 class ConfigTestCase(TestCase):
     def checkAnswers(self, job, input):
         self.assertEquals(sorted(self.results(job)),
-                          sorted((str(i), '') for i in input))
+                          sorted((str_to_bytes(str(i)), '') for i in input))
 
     def configTest(self, config):
         input = range(self.num_workers * 2)

@@ -1,5 +1,6 @@
 import os, signal, unittest
 from disco.compat import http_server, socket_server, httplib
+from disco.compat import str_to_bytes
 from threading import Thread
 
 try:
@@ -165,7 +166,7 @@ def handler(data_generator):
             self.send_response(OK)
             self.send_header('Content-length', len(data or []))
             self.end_headers()
-            self.wfile.write(data)
+            self.wfile.write(str_to_bytes(data))
 
         def do_GET(self):
             try:

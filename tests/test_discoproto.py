@@ -1,7 +1,7 @@
 import time
 from random import randint, choice
 from string import ascii_lowercase
-from disco.compat import StringIO
+from disco.compat import BytesIO
 from disco.error import DataError
 from disco.fileutils import DiscoOutputStream
 from disco.test import TestCase
@@ -33,7 +33,7 @@ class DiscoProtoTestCase(TestCase):
               corrupt=False,
               ignore_corrupt=False,
               **kwargs):
-        buf = StringIO()
+        buf = BytesIO()
         stream = DiscoOutputStream(buf, version=version, **kwargs)
         t = self.encode(stream, self.data)
         final_size = len(buf.getvalue())
@@ -43,9 +43,9 @@ class DiscoProtoTestCase(TestCase):
                .format(self.size, t, self.size / t, final_mb, version, kwargs))
         if corrupt:
             buf.seek(0)
-            new = StringIO()
+            new = BytesIO()
             new.write(buf.read(100))
-            new.write('X')
+            new.write(b'X')
             buf.read(1)
             new.write(buf.read())
             buf = new

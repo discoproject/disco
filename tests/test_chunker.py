@@ -1,5 +1,5 @@
 from itertools import count
-from cPickle import dumps
+from pickle import dumps
 from unittest import TestCase
 from disco.fileutils import Chunker, CHUNK_SIZE, HUNK_SIZE
 

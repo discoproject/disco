@@ -1,6 +1,6 @@
 from disco.test import TestCase, TestJob
 from disco.worker.classic.modutil import find_modules, ModUtilImportError
-
+from disco.compat import bytes_to_str
 import sys, os
 
 support = os.path.join(os.path.dirname(__file__), 'support')
@@ -24,7 +24,7 @@ def recursive_module():
 class ModUtilJob(TestJob):
     @staticmethod
     def map(e, params):
-        x, y = [float(x) for x in e.split('|')]
+        x, y = [float(x) for x in bytes_to_str(e).split('|')]
         yield mod1.plusceil(x, y) + math.ceil(1.5), ''
 
 class RequiredFilesJob(TestJob):
@@ -38,7 +38,7 @@ class RequiredFilesJob(TestJob):
 
 class ModUtilTestCase(TestCase):
     def serve(self, path):
-        return '%s\n' % path
+        return '{0}\n'.format(path)
 
     def setUp(self):
         super(ModUtilTestCase, self).setUp()
