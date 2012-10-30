@@ -1,5 +1,5 @@
 import os, random, struct, time, socket, base64
-from disco.compat import BytesIO, file, httplib, basestring
+from disco.compat import BytesIO, file, httplib, basestring, str_to_bytes
 from disco.error import CommError
 from disco.settings import DiscoSettings
 from disco.util import iterify, urlresolve, urlsplit
@@ -39,7 +39,7 @@ def range_header(offset):
 
 def auth_header(token):
     if token != None:
-        return {'Authorization': 'Basic ' + base64.b64encode("token:" + token)}
+        return {'Authorization': b'Basic ' + base64.b64encode(b"token:" + token.encode('utf-8'))}
     return {}
 
 def resolveuri(baseuri, uri):
@@ -122,7 +122,7 @@ class FileSource(object):
     @property
     def read(self):
         if self.isopen:
-            return StringIO(self.source).read
+            return BytesIO(str_to_bytes(self.source)).read
         return open(self.source, 'r').read
 
 class File(file):
@@ -150,8 +150,8 @@ class Connection(object):
         chunk = self._read_chunk(CHUNK_SIZE)
         while chunk:
             next_chunk = self._read_chunk(CHUNK_SIZE)
-            lines = list(StringIO(chunk))
-            last  = lines.pop() if next_chunk else ''
+            lines = list(BytesIO(chunk))
+            last  = lines.pop() if next_chunk else b''
             for line in lines:
                 yield line
             chunk = last + next_chunk
@@ -167,7 +167,7 @@ class Connection(object):
         pass
 
     def read(self, size=-1):
-        buf = StringIO()
+        buf = BytesIO()
         while size:
             bytes = self._read_chunk(size if size > 0 else CHUNK_SIZE)
             if not bytes:
@@ -179,7 +179,7 @@ class Connection(object):
     def _read_chunk(self, n):
         if self.buf is None or self.i >= len(self.buf):
             if self.eof:
-                return ''
+                return b''
             self.i = 0
             if len(self):
                 end = min(len(self), self.offset + CHUNK_SIZE) - 1
@@ -195,7 +195,7 @@ class Connection(object):
             self.offset += len(self.buf)
             if len(self) and self.offset >= len(self):
                 self.eof = True
-            elif self.buf == '':
+            elif self.buf == b'':
                 self.eof = True
         ret = self.buf[self.i:self.i + n]
         self.i += len(ret)

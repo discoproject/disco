@@ -45,6 +45,7 @@ class Disco(object):
             byts = download(proxy_url('{0}{1}'.format(self.master, url), proxy=self.proxy),
                             data=data,
                             offset=offset)
+            return byts.decode('utf-8')
         except CommError as e:
             if e.code == None:
                 e.msg += " (is disco master running at {0}?)".format(self.master)
