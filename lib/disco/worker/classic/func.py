@@ -7,7 +7,7 @@ This module defines the interfaces for the job functions,
 some default values, as well as otherwise useful functions.
 """
 import re
-from disco.compat import pickle_loads, pickle_dumps
+from disco.compat import pickle_loads, pickle_dumps, bytes_to_str, str_to_bytes
 from disco.error import DataError
 
 def notifier(urls):
@@ -205,7 +205,7 @@ class InputStream:
         is not specified.
         """
 
-def old_netstr_reader(fd, size, fname, head=''):
+def old_netstr_reader(fd, size, fname, head=b''):
     """
     Reader for Disco's default/internal key-value format.
 
@@ -221,7 +221,7 @@ def old_netstr_reader(fd, size, fname, head=''):
         i = 0
         lenstr = ''
         if ldata - idx < 11:
-            data = data[idx:] + fd.read(8192)
+            data = data[idx:] + bytes_to_str(fd.read(8192))
             ldata = len(data)
             idx = 0
 
@@ -249,7 +249,7 @@ def old_netstr_reader(fd, size, fname, head=''):
         tot += len(lenstr)
 
         if ldata - idx < llen + 1:
-            data = data[idx:] + fd.read(llen + 8193)
+            data = data[idx:] + bytes_to_str(fd.read(llen + 8193))
             ldata = len(data)
             idx = 0
 
@@ -264,7 +264,7 @@ def old_netstr_reader(fd, size, fname, head=''):
         idx += llen + 1
         return idx, data, tot, msg
 
-    data = head + fd.read(8192)
+    data = bytes_to_str(head + fd.read(8192))
     tot = idx = 0
     while tot < size:
         key = val = ''
@@ -310,7 +310,7 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
 
     """
     item_re = re.compile(item_re_str)
-    buf = ""
+    buf = b""
     tot = 0
     while True:
         if size:
@@ -465,7 +465,7 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
         if not hunk_size:
             return
         hunk = stream.read(hunk_size)
-        data = ''
+        data = b''
         try:
             data = zlib.decompress(hunk) if is_compressed else hunk
             if checksum != (zlib.crc32(data) & 0xFFFFFFFF):
@@ -475,7 +475,7 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 raise DataError("Corrupted data between bytes {0}-{1}: {2}"
                                 .format(offset, offset + hunk_size, e), url)
         offset += hunk_size
-        hunk = cStringIO.StringIO(data)
+        hunk = BytesIO(data)
         while True:
             try:
                 yield pickle_load(hunk)
@@ -512,20 +512,21 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
     worker.send('MSG', "Downloading {0}".format(filename))
     out_fd = AtomicFile(filename)
     for key, value in input:
-        if not isinstance(key, str):
-            raise ValueError("Keys must be strings for external sort", key)
-        if '\xff' in key or '\x00' in key:
+        if not isinstance(key, bytes):
+            raise ValueError("Keys must be bytes for external sort", key)
+        if b'\xff' in key or b'\x00' in key:
             raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
         else:
             # value pickled using protocol 0 will always be printable ASCII
-            out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
+            out_fd.write(key + b'\xff')
+            out_fd.write(pickle_dumps(value, 0) + b'\x00')
     out_fd.close()
     worker.send('MSG', "Downloaded {0:s} OK".format(format_size(getsize(filename))))
     worker.send('MSG', "Sorting {0}...".format(filename))
     unix_sort(filename, sort_buffer_size=sort_buffer_size)
     worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
-    for k, v in re_reader("(?s)(.*?)\xff(.*?)\x00", fd, len(fd), fd.url):
+    for k, v in re_reader(b"(?s)(.*?)\xff(.*?)\x00", fd, len(fd), fd.url):
         yield k, pickle_loads(v)
 
 def unix_sort(filename, sort_buffer_size='10%'):

@@ -1,6 +1,6 @@
 import os, struct, sys, time, pickle
-from disco.compat import file, basestring
-from disco.compat import pickle_dumps
+from disco.compat import BytesIO, file, basestring
+from disco.compat import pickle_dumps, str_to_bytes, bytes_to_str
 from inspect import getmodule, getsourcefile
 from zipfile import ZipFile, ZIP_DEFLATED
 from zlib import compress, crc32
@@ -49,7 +49,7 @@ class Chunker(object):
         return out.stream.getvalue()
 
     def makeout(self):
-        return DiscoOutputStream(StringIO(), max_record_size=MAX_RECORD_SIZE)
+        return DiscoOutputStream(BytesIO(), max_record_size=MAX_RECORD_SIZE)
 
 class DiscoOutputStream_v0(object):
     def __init__(self, stream):
@@ -57,7 +57,7 @@ class DiscoOutputStream_v0(object):
 
     def add(self, k, v):
         k, v = str(k), str(v)
-        self.stream.write("%d %s %d %s\n" % (len(k), k, len(v), v))
+        self.stream.write(str_to_bytes("%d %s %d %s\n" % (len(k), k, len(v), v)))
 
     def close(self):
         pass
@@ -75,7 +75,7 @@ class DiscoOutputStream_v1(object):
         self.min_hunk_size = min_hunk_size
         self.size = 0
         self.hunk_size = 0
-        self.hunk = StringIO()
+        self.hunk = BytesIO()
 
     def add(self, k, v):
         self.append((k, v))
@@ -96,17 +96,17 @@ class DiscoOutputStream_v1(object):
         iscompressed = int(self.compression_level > 0)
         if iscompressed:
             hunk = compress(hunk, self.compression_level)
-        data = '%s%s' % (struct.pack('<BBIQ',
+        data = b''.join([struct.pack('<BBIQ',
                                      128 + self.version,
                                      iscompressed,
                                      checksum,
                                      len(hunk)),
-                         hunk)
+                         hunk])
 
         self.stream.write(data)
         self.size += len(data)
         self.hunk_size = 0
-        self.hunk = StringIO()
+        self.hunk = BytesIO()
 
     def hunk_write(self, data):
         size = len(data)
@@ -131,7 +131,7 @@ class DiscoOutput(DiscoOutputStream_v1):
 
 class DiscoZipFile(ZipFile, object):
     def __init__(self):
-        self.buffer = StringIO()
+        self.buffer = BytesIO()
         super(DiscoZipFile, self).__init__(self.buffer, 'w', ZIP_DEFLATED)
 
     def writepath(self, pathname, exclude=()):
@@ -172,14 +172,14 @@ class NonBlockingInput(object):
     def t_read(self, nbytes, spent=0, bytes=''):
         while True:
             spent += self.select(spent)
-            bytes += os.read(self.fd, nbytes - len(bytes))
+            bytes += bytes_to_str(os.read(self.fd, nbytes - len(bytes)))
             if nbytes <= len(bytes):
                 return spent, bytes
 
     def t_read_until(self, delim, spent=0, bytes=''):
         while not bytes.endswith(delim):
             spent += self.select(spent)
-            bytes += os.read(self.fd, 1)
+            bytes += bytes_to_str(os.read(self.fd, 1))
         return spent, bytes
 
 class AtomicFile(file):

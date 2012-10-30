@@ -13,7 +13,7 @@ internally.
 import os, sys, time
 import functools, gzip
 
-from disco.compat import StringIO, basestring
+from disco.compat import StringIO, basestring, bytes_to_str
 from itertools import chain, groupby, repeat
 
 from disco.error import DiscoError, DataError, CommError
@@ -292,7 +292,7 @@ def read_index(dir):
     if dir.endswith(".gz"):
         file = gzip.GzipFile(fileobj=file)
     for line in file:
-        yield line.split()
+        yield bytes_to_str(line).split()
 
 def ispartitioned(input):
     if isiterable(input):
