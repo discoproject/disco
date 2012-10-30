@@ -362,7 +362,8 @@ class DDFS(object):
             dst.write(b)
         return s
 
-    def _push(self, (source, target), replicas=None, exclude=[], **kwargs):
+    def _push(self, source_target, replicas=None, exclude=[], **kwargs):
+        source, target = source_target
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
         urls = self._download('{0}/ddfs/new_blob/{1}?{2}'.format(self.master,

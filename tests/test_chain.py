@@ -24,8 +24,8 @@ class ChainJobB(TestJob):
     sort = False
 
     @staticmethod
-    def map((k, v), params):
-        yield k + params['suffix'], v + 1
+    def map(k_v, params):
+        yield k_v[0] + params['suffix'], k_v[1] + 1
 
     reduce = staticmethod(ChainJobA.reduce)
 

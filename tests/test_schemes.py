@@ -16,8 +16,8 @@ class SchemesJobB(TestJob):
         return func.chain_reader(fd, size, url, params)
 
     @staticmethod
-    def map((k, v), params):
-        yield k, v
+    def map(k_v, params):
+        yield k_v[0], k_v[1]
 
 class SchemesTestCase(TestCase):
     animals = ['horse', 'sheep', 'whale', 'tiger']

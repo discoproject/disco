@@ -36,8 +36,8 @@ class netloc(tuple):
     def port(self):
         return self[1]
 
-    def __nonzero__((host, port)):
-        return bool(host)
+    def __nonzero__(host_port):
+        return bool(host_port[0])
 
     def __str__(host_port):
         host, port = host_port
@@ -99,8 +99,8 @@ def iterify(object):
 def ilen(iter):
     return sum(1 for _ in iter)
 
-def key((k, v)):
-    return k
+def key(k_v):
+    return k_v[0]
 
 def kvgroup(kviter):
     """
@@ -185,7 +185,8 @@ def urlsplit(url, localhost=None, disco_port=None, **kwargs):
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url, master=None):
-    def _master((host, port)):
+    def _master(host_port):
+        host, port = host_port
         if not host:
             return master or DiscoSettings()['DISCO_MASTER']
         if not port:

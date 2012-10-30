@@ -451,7 +451,7 @@ class InputIter(object):
         try:
             def skip(iter, N):
                 from itertools import dropwhile
-                return dropwhile(lambda (n, rec): n < N, enumerate(iter))
+                return dropwhile(lambda n_rec: n_rec[0] < N, enumerate(iter))
             self.iter = skip(self.open(self.urls.next()), self.last + 1)
         except DataError:
             self.swap(traceback.format_exc())
@@ -527,8 +527,8 @@ class Output(object):
 
         The underlying output file handle.
     """
-    def __init__(self, (path, type, partition), open=None):
-        self.path, self.type, self.partition = path, type, partition
+    def __init__(self, path_type_partition, open=None):
+        self.path, self.type, self.partition = path_type_partition
         self.open = open or DiscoOutput
         self.file = self.open(self.path)
 

@@ -2,8 +2,8 @@ from disco.test import TestCase, TestJob
 
 special = '--special_test_string--'
 
-def isspecial((offset, (time, node, message))):
-    return special in message
+def isspecial(offset__time_node_message):
+    return special in offset__time_node_message[1][2]
 
 class DiscoAPIJob(TestJob):
     @staticmethod
