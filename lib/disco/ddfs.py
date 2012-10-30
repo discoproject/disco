@@ -10,7 +10,7 @@ See also: :ref:`DDFS`.
         a `tag://` URL, or the name of the tag.
 """
 import os, re, random
-from disco.compat import StringIO, urlencode, basestring
+from disco.compat import StringIO, BytesIO, urlencode, basestring, bytes_to_str
 
 from disco import json
 from disco.comm import upload, download, open_remote
@@ -145,7 +145,7 @@ class DDFS(object):
             url = listify(replicas)[0]
             return self.safe_name('{0}-{1}'.format(os.path.basename(url), n))
 
-        blobs = [self._push((StringIO(chunk), chunk_name(reps, n)),
+        blobs = [self._push((BytesIO(chunk), chunk_name(reps, n)),
                             replicas=replicas,
                             retries=retries)
                  for reps in urls
@@ -370,7 +370,7 @@ class DDFS(object):
                                                                  qs))
 
         try:
-            return [json.loads(url)
+            return [json.loads(bytes_to_str(url))
                     for url in self._upload(urls, source, to_master=False, **kwargs)]
         except CommError as e:
             scheme, (host, port), path = urlsplit(e.url)
@@ -397,13 +397,14 @@ class DDFS(object):
         return urlresolve(url, master=self.master)
 
     def _download(self, url, data=None, token=None, method='GET', to_master=True):
-        return json.loads(download(self._resolve(proxy_url(url,
-                                                           proxy=self.proxy,
-                                                           meth=method,
-                                                           to_master=to_master)),
-                                   data=data,
-                                   method=method,
-                                   token=self._token(url, token, method)))
+        byts = download(self._resolve(proxy_url(url,
+                                                proxy=self.proxy,
+                                                meth=method,
+                                                to_master=to_master)),
+                        data=data,
+                        method=method,
+                        token=self._token(url, token, method))
+        return json.loads(bytes_to_str(byts))
 
     def _upload(self, urls, source, token=None, to_master=True, **kwargs):
         urls = [self._resolve(proxy_url(url,
