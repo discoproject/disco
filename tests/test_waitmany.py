@@ -1,6 +1,7 @@
 from disco.error import JobError
 from disco.job import JobChain
 from disco.test import TestCase, TestJob
+import time
 
 class WaitJob1(TestJob):
     @staticmethod
