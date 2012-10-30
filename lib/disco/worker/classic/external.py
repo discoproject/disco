@@ -412,7 +412,7 @@ def communicate(input_iter, oneshot=False):
                 parse_message(proc.stderr.readline())
             elif event & select.POLLOUT:
                 try:
-                    msg = pack_kv(input_iter.next())
+                    msg = pack_kv(next(input_iter))
                     proc.stdin.write(msg)
                     proc.stdin.flush()
                 except StopIteration:

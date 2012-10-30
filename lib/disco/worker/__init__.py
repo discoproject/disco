@@ -424,6 +424,9 @@ class ReplicaIter(object):
         self.input.unavailable(self.used)
         raise StopIteration
 
+    def __next__(self):
+        return self.next()
+
 class InputIter(object):
     def __init__(self, input, task=None, open=None, start=0):
         self.input = input
@@ -442,18 +445,21 @@ class InputIter(object):
 
     def next(self):
         try:
-            self.last, item = self.iter.next()
+            self.last, item = next(self.iter)
             return item
         except DataError:
             self.swap(traceback.format_exc())
             raise Wait(0)
+
+    def __next__(self):
+        return self.next()
 
     def swap(self, error=None):
         try:
             def skip(iter, N):
                 from itertools import dropwhile
                 return dropwhile(lambda n_rec: n_rec[0] < N, enumerate(iter))
-            self.iter = skip(self.open(self.urls.next()), self.last + 1)
+            self.iter = skip(self.open(next(self.urls)), self.last + 1)
         except DataError:
             self.swap(traceback.format_exc())
         except StopIteration:

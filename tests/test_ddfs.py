@@ -1,5 +1,6 @@
 from disco.test import TestCase
 from disco.compat import StringIO
+from functools import partial
 
 class DDFSUpdateTestCase(TestCase):
     data = StringIO('blobdata')
@@ -172,7 +173,7 @@ class DDFSReadTestCase(TestCase):
                           [('blobdata2', 'datablob2')])
         self.assertEquals([(len(fd), fd.read()) for fd in
                            self.ddfs.pull('disco:test:emptyblob')], [(0, '')])
-        self.assertCommErrorCode(404, self.ddfs.pull('disco:test:notag').next)
+        self.assertCommErrorCode(404, partial(next, self.ddfs.pull('disco:test:notag')))
 
     def test_exists(self):
         self.assertEquals(self.ddfs.exists('disco:test:tag'), True)

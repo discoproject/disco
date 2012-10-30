@@ -6,7 +6,7 @@ class InitJob(TestJob):
 
     @staticmethod
     def map_init(iter, params):
-        iter.next()
+        next(iter)
         params['x'] += 100
 
     @staticmethod
