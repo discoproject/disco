@@ -411,4 +411,5 @@ class DDFS(object):
                                         meth='PUT',
                                         to_master=to_master))
                 for url in iterify(urls)]
+        url = urls[0]
         return upload(urls, source, token=self._token(url, token, 'PUT'), **kwargs)
