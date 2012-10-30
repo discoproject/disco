@@ -152,7 +152,7 @@ class DiscoZipFile(ZipFile, object):
         handle.write(self.dumps())
 
     def dumps(self):
-        self.buffer.reset()
+        self.buffer.seek(0)
         return self.buffer.read()
 
 class NonBlockingInput(object):
