@@ -529,19 +529,15 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
         yield k, pickle_loads(v)
 
 def unix_sort(filename, sort_buffer_size='10%'):
-    import subprocess
+    import subprocess, os.path
+    if not os.path.isfile(filename):
+        raise DataError("Invalid sort input file {0}".format(filename), filename)
     try:
         env = os.environ.copy()
         env['LC_ALL'] = 'C'
-        subprocess.check_call(['sort',
-                               '-z',
-                               '-t', '\xff',
-                               '-k', '1,1',
-                               '-T', '.',
-                               '-S', sort_buffer_size,
-                               '-o', filename,
-                               filename],
-                               env=env)
+        cmd = (r"sort -z -t$'\xff' -k 1,1 -T . -S {0} -o {1} {1}"
+               .format(sort_buffer_size, filename))
+        subprocess.check_call(cmd, env=env, shell=True)
     except subprocess.CalledProcessError as e:
         raise DataError("Sorting {0} failed: {1}".format(filename, e), filename)
 
