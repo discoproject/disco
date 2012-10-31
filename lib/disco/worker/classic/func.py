@@ -7,7 +7,7 @@ This module defines the interfaces for the job functions,
 some default values, as well as otherwise useful functions.
 """
 import re
-from disco.compat import pickle_loads, pickle_dumps, bytes_to_str, str_to_bytes
+from disco.compat import pickle_loads, pickle_dumps, bytes_to_str, str_to_bytes, sort_cmd
 from disco.error import DataError
 
 def notifier(urls):
@@ -536,9 +536,8 @@ def unix_sort(filename, sort_buffer_size='10%'):
     try:
         env = os.environ.copy()
         env['LC_ALL'] = 'C'
-        cmd = (r"sort -z -t$'\xff' -k 1,1 -T . -S {0} -o {1} {1}"
-               .format(sort_buffer_size, filename))
-        subprocess.check_call(cmd, env=env, shell=True)
+        cmd, shell = sort_cmd(filename, sort_buffer_size)
+        subprocess.check_call(cmd, env=env, shell=shell)
     except subprocess.CalledProcessError as e:
         raise DataError("Sorting {0} failed: {1}".format(filename, e), filename)
 
