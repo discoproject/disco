@@ -365,10 +365,8 @@ class DDFS(object):
         source, target = source_target
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
                                             ('replicas', replicas)) if v])
-        urls = self._download('{0}/ddfs/new_blob/{1}?{2}'.format(self.master,
-                                                                 target,
-                                                                 qs))
-
+        urls = self._download('{0}/ddfs/new_blob/{1}?{2}'
+                              .format(self.master, target, qs))
         try:
             return [json.loads(bytes_to_str(url))
                     for url in self._upload(urls, source, to_master=False, **kwargs)]
