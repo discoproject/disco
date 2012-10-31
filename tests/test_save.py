@@ -27,8 +27,8 @@ class SaveJob2(SaveJob1):
     map_reader = staticmethod(chain_reader)
 
     @staticmethod
-    def map((k, v), params):
-        yield k + '!', ''
+    def map(k_v, params):
+        yield k_v[0] + '!', ''
 
 class SaveTestCase(TestCase):
     def serve(self, path):
