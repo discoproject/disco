@@ -94,7 +94,7 @@ def upload(urls, source, token=None, **kwargs):
     if nocurl:
         return [request('PUT', url, data=data, headers=headers).read()
                 for url in urls]
-    return list(comm_pycurl.upload(urls, source, token, **kwargs))
+    return list(comm_pycurl.upload(urls, data, token, **kwargs))
 
 def open_url(url, *args, **kwargs):
     from disco.util import schemesplit
