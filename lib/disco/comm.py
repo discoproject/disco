@@ -62,7 +62,7 @@ def request(method, url, data=None, headers={}, sleep=0):
       bucket = conn.create_bucket(netloc[0])
       key = Key(bucket, path)
       # grr urllib2 doesn't like wild card ssl certs, so force http
-      url = url.generate_url(60*60*24, force_http=True)
+      url = key.generate_url(60*60*24, force_http=True)
       conn_cls = HTTPConnection
       
     try:
