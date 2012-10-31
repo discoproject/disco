@@ -104,7 +104,7 @@ def open_url(url, *args, **kwargs):
     return open_remote(url, *args, **kwargs)
 
 def open_local(path):
-    return File(path, 'r', BUFFER_SIZE)
+    return File(path, 'rb', BUFFER_SIZE)
 
 def open_remote(url, token=None):
     return Connection(urlresolve(url), token)
@@ -123,7 +123,7 @@ class FileSource(object):
     def read(self):
         if self.isopen:
             return BytesIO(str_to_bytes(self.source)).read
-        return open(self.source, 'r').read
+        return open(self.source, 'rb').read
 
 class File(file):
     def __len__(self):
