@@ -130,7 +130,7 @@ def upload(urls, source, token=None, **kwargs):
     return [_upload(s3_url) for s3_url in s3_urls] + list(comm_pycurl.upload(non_s3_urls, source, token, **kwargs))
 
 def s3_put(bucket, key, source):
-    conn = S3Connection()
+    conn = S3Connection(settings['AWS_ACCESS_KEY_ID'], settings['AWS_SECRET_KEY'])
     bucket = conn.create_bucket(bucket)
     k = Key(bucket)
 
