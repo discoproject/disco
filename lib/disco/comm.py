@@ -57,6 +57,13 @@ def request(method, url, data=None, headers={}, sleep=0):
         conn_cls = HTTPConnection
     elif scheme == 'https':
         conn_cls = HTTPSConnection
+    elif scheme == 's3':
+      conn = S3Connection(settings['AWS_ACCESS_KEY_ID'], settings['AWS_SECRET_KEY'])
+      bucket = conn.create_bucket(netloc)
+      key = Key(bucket, path)
+      url = url.generate_url(60*60*24)
+      conn_cls = HTTPSConnection
+      
     try:
         conn = conn_cls(str(netloc))
         conn.request(method, '/%s' % path, body=data, headers=headers)
