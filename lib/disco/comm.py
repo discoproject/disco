@@ -61,8 +61,9 @@ def request(method, url, data=None, headers={}, sleep=0):
       conn = S3Connection(settings['AWS_ACCESS_KEY_ID'], settings['AWS_SECRET_KEY'])
       bucket = conn.create_bucket(netloc[0])
       key = Key(bucket, path)
-      url = url.generate_url(60*60*24)
-      conn_cls = HTTPSConnection
+      # grr urllib2 doesn't like wild card ssl certs, so force http
+      url = url.generate_url(60*60*24, force_http=True)
+      conn_cls = HTTPConnection
       
     try:
         conn = conn_cls(str(netloc))
