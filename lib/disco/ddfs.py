@@ -75,7 +75,7 @@ class DDFS(object):
 
     @classmethod
     def safe_name(cls, name):
-        return unsafe_re.sub('_', name)
+        return unsafe_re.sub('_', bytes_to_str(name))
 
     @classmethod
     def blob_name(cls, url):
