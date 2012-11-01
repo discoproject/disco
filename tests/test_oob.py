@@ -10,14 +10,15 @@ class OOBJob1(TestJob):
 
     @staticmethod
     def map(e, params):
-        v = 'value:{0}'.format(e)
-        put(e, v)
-        yield e, v
+        k = bytes_to_str(e)
+        v = 'value:{0}'.format(k)
+        put(k, v)
+        yield k, v
 
     @staticmethod
     def reduce(iter, params):
         for k, v in iter:
-            assert v == get(k)
+            assert v == bytes_to_str(get(k))
         x = 'reduce:{0}'.format(this_partition())
         put(x, 'value:{0}'.format(x))
         yield 'all', 'ok'
@@ -25,7 +26,7 @@ class OOBJob1(TestJob):
 class OOBJob2(TestJob):
     @staticmethod
     def map(e, params):
-        x = load_oob(Task.master, params['job'], e)
+        x = bytes_to_str(load_oob(Task.master, params['job'], e))
         assert x == 'value:{0}'.format(e)
         yield 'good', ''
 
