@@ -59,7 +59,7 @@ class TestCase(unittest.TestCase):
                 int(self.settings['DISCO_TEST_PORT']))
 
     def assertAllEqual(self, results, answers):
-        from disco.future import izip_longest as zip
+        from disco.compat import zip_longest as zip
         for result, answer in zip(results, answers):
             self.assertEquals(result, answer)
 

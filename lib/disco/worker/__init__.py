@@ -600,7 +600,7 @@ class MergedInput(ParallelInput):
     Produces an iterator over the minimal head elements of the inputs.
     """
     def __iter__(self):
-        from disco.future import merge
+        from heapq import merge
         iters = [self.input_iter(input) for input in self.input]
         heads = [Wait] * len(iters)
         return merge(*(self.couple(iters, heads, n) for n in range(len(iters))))

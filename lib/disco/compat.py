@@ -32,6 +32,8 @@ if sys.version_info[0] == 3:
     import http.client as httplib
     import http.server as http_server
 
+    from itertools import zip_longest
+
     def sort_cmd(filename, sort_buffer_size):
         return (r"sort -z -t$'\xff' -k 1,1 -T . -S {0} -o {1} {1}"
                 .format(sort_buffer_size, filename), True)
@@ -65,6 +67,8 @@ else:
     from urllib import urlencode
     import httplib as httplib
     import BaseHTTPServer as http_server
+
+    from itertools import izip_longest as zip_longest
 
     def sort_cmd(filename, sort_buffer_size):
         return (["sort", "-z", "-t", '\xff', "-k", "1,1", "-T", ".",
