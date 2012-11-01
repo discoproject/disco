@@ -12,11 +12,11 @@ class ChainJob(Job):
     map_reader = staticmethod(chain_reader)
 
     @staticmethod
-    def map((key, value), params):
-        yield int(key) + 1, value
+    def map(key_value, params):
+        yield int(key_value[0]) + 1, value
 
 if __name__ == "__main__":
     last = FirstJob().run()
     for i in xrange(9):
         last = ChainJob().run(input=last.wait())
-    print last.name
+    print(last.name)

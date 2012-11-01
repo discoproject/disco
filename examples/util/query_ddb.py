@@ -21,4 +21,4 @@ class Query(Job):
 if __name__ == '__main__':
     job = Query().run(input=sys.argv[2:], params=sys.argv[1])
     for k, vs in result_iterator(job.wait()):
-        print '%s\t%s' % (k, sum(int(v) for v in vs))
+        print('{0}\t{1}'.format(k, sum(int(v) for v in vs)))
