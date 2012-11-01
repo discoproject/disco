@@ -1,6 +1,7 @@
 from disco.test import TestCase, TestJob
 from disco.util import chainify, urlsplit
 from disco.comm import open_remote
+from disco.compat import bytes_to_str
 
 N = 4
 
@@ -12,12 +13,12 @@ class BlacklistJob(TestJob):
         # test that scheduler preserved data locality
         msg("NODE {0} GOT URL {1}".format(Task.host, url))
         assert Task.host == host
-        return open_remote("http://{0}/{1}".format((test_server, host)))
+        return open_remote("http://{0}/{1}".format(test_server, host))
     map_input_stream = [map_input_stream]
 
     @staticmethod
     def map(e, params):
-        yield e, ''
+        yield bytes_to_str(e), ''
 
 class BlacklistTestCase(TestCase):
     def serve(self, path):
