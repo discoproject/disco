@@ -126,6 +126,7 @@ class Task(object):
         """
         from disco.ddfs import DDFS
         from disco.util import save_oob
+        from disco.error import DiscoError
         if DDFS.safe_name(key) != key:
-            raise DiscoError("OOB key contains invalid characters (%s)" % key)
+            raise DiscoError("OOB key contains invalid characters ({0})".format(key))
         save_oob(self.master, self.jobname, key, value)
