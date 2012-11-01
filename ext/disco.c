@@ -43,7 +43,7 @@ void copy_entry(p_entry **dst, const p_entry *src)
         (*dst)->sze = src->len;
     }
     (*dst)->len = src->len;
-    memcpy((*dst)->data, src->data, src->len + 1); 
+    memcpy((*dst)->data, src->data, src->len + 1);
 }
 
 static void read_pentry(p_entry **e, unsigned int len)
@@ -105,34 +105,34 @@ static p_entry *read_netstr_entry(unsigned int *bytes)
         --n;
     *bytes += len + n + 1;
     return e;
-}      
+}
 
 Pvoid_t read_parameters()
 {
     Pvoid_t params = NULL;
     unsigned int len, bytes = 0;
     unsigned char tmp;
- 
+
     if (!fscanf(stdin, "%u", &len))
         die("Couldn't parse parameter set size");
-    /* Read a newline after the size spec. Earlier I did 
+    /* Read a newline after the size spec. Earlier I did
      * fscanf(stdin, "%u\n", &len)
      * on the line above, but this was a stupid idea. Fscanf interpretes
      * *any* whitespace character as a sign to read *any number* of
      * following whitespace characters, which obviously caused great havoc
      * here.
      * */
-    fread(&tmp, 1, 1, stdin);
+    if (!fread(&tmp, 1, 1, stdin))
+        die("Invalid parameter set");
     while (bytes < len){
-        p_entry *key = read_netstr_entry(&bytes);      
+        p_entry *key = read_netstr_entry(&bytes);
         p_entry *val = read_netstr_entry(&bytes);
         Word_t *ptr;
         JSLI(ptr, params, (unsigned char*)key->data);
         *ptr = (Word_t)val;
-        free(key); 
+        free(key);
     }
     if (bytes > len)
         die("Invalid parameter set size");
-    return params; 
+    return params;
 }
-
