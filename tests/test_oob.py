@@ -3,6 +3,7 @@ import string
 from disco.job import JobChain
 from disco.test import TestCase, TestJob
 from disco.util import load_oob
+from disco.compat import bytes_to_str
 
 class OOBJob1(TestJob):
     partitions = 10
@@ -54,7 +55,7 @@ class OOBTestCase(TestCase):
         self.job = LargeOOBJob().run(input=['raw://{0}'.format(i)
                                             for i in range(self.num_workers)])
         self.assertResults(self.job, [])
-        self.assertEquals(sorted((key, self.job.oob_get(key))
+        self.assertEquals(sorted((key, bytes_to_str(self.job.oob_get(key)))
                                  for key in self.job.oob_list()),
                           sorted(('{0}-{1}'.format(i, j), 'val:{0}-{1}'.format(i, j))
                                  for i in range(self.num_workers)
