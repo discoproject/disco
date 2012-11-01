@@ -13,7 +13,7 @@ class ChainJob(Job):
 
     @staticmethod
     def map(key_value, params):
-        yield int(key_value[0]) + 1, value
+        yield int(key_value[0]) + 1, key_value[1]
 
 if __name__ == "__main__":
     last = FirstJob().run()
