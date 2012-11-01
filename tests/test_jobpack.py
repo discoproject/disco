@@ -6,7 +6,7 @@ from disco.test import TestCase
 from disco.error import JobError
 
 def random_bytes(size):
-    return ''.join(chr(int(random() * 255)) for x in xrange(size))
+    return ''.join(chr(int(random() * 255)) for x in range(size))
 
 hdr_size = JobPack.HEADER_SIZE
 class JobPackTestCase(TestCase):

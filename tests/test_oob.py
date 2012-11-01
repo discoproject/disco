@@ -48,7 +48,7 @@ class OOBTestCase(TestCase):
         self.assertResults(b, [('good', '')] * 3)
         self.assertEquals(sorted(a.oob_list()),
                           sorted(list(string.ascii_lowercase) +
-                                 ['reduce:{0}'.format(i) for i in xrange(a.partitions)]))
+                                 ['reduce:{0}'.format(i) for i in range(a.partitions)]))
 
     def test_large(self):
         self.job = LargeOOBJob().run(input=['raw://{0}'.format(i)
