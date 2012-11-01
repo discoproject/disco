@@ -354,6 +354,7 @@ from disco.worker.classic.netstring import decode_netstring_str, encode_netstrin
 from disco.util import msg
 from disco.error import DiscoError
 from disco.worker import Worker
+from disco.compat import str_to_bytes, bytes_to_str
 
 MAX_ITEM_SIZE = 1024**3
 
@@ -364,10 +365,10 @@ def pack_kv(e):
     if isinstance(e, tuple):
         k, v = e
     else:
-        k = ''
+        k = b''
         v = e
-    return struct.pack("I", len(k)) + k +\
-           struct.pack("I", len(v)) + v
+    return struct.pack("I", len(k)) + str_to_bytes(k) \
+           + struct.pack("I", len(v)) + str_to_bytes(v)
 
 def unpack_kv():
     le = struct.unpack("I", proc.stdout.read(4))[0]
@@ -381,6 +382,7 @@ def unpack_kv():
     return k, v
 
 def parse_message(msg):
+    msg = bytes_to_str(msg)
     try:
         type, payload = msg.split('>', 1)
         payload = payload.strip()
@@ -445,7 +447,7 @@ def prepare(params, mode):
     register_poll()
 
     if params and isinstance(params, dict):
-        proc.stdin.write(encode_netstring_fd(params))
+        proc.stdin.write(str_to_bytes(encode_netstring_fd(params)))
     else:
         proc.stdin.write('0\n')
     return globals()[mode]
@@ -472,6 +474,6 @@ def package(files):
     All files listed in *files* are copied to the same directory so any file
     hierarchy is lost between the files.
     """
-    msg = dict((os.path.basename(f), open(f).read()) for f in files[1:])
-    msg['op'] = open(files[0]).read()
+    msg = dict((os.path.basename(f), open(f, 'rb').read()) for f in files[1:])
+    msg['op'] = open(files[0], 'rb').read()
     return msg
