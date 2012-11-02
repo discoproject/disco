@@ -283,7 +283,7 @@ class Worker(dict):
             name = 'profile-{0}'.format(task.uid)
             path = task.path(name)
             runctx('self.run(task, job, **jobargs)', globals(), locals(), path)
-            task.put(name, open(path).read())
+            task.put(name, open(path, 'rb').read())
         else:
             self.run(task, job, **jobargs)
         self.end(task, job, **jobargs)

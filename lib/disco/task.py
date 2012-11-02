@@ -118,7 +118,7 @@ class Task(object):
 
     def put(self, key, value):
         """
-        Stores an out-of-band result *value* with the key *key*.
+        Stores an out-of-band result *value* (bytes) with the key *key*.
 
         Key must be unique in this job.
         Maximum key length is 256 characters.

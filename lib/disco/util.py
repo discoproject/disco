@@ -13,7 +13,7 @@ internally.
 import os, sys, time
 import functools, gzip
 
-from disco.compat import StringIO, basestring, bytes_to_str
+from disco.compat import BytesIO, basestring, bytes_to_str
 from itertools import chain, groupby, repeat
 
 from disco.error import DiscoError, DataError, CommError
@@ -316,7 +316,7 @@ def inputlist(inputs, **kwargs):
 
 def save_oob(host, name, key, value, ddfs_token=None):
     from disco.ddfs import DDFS
-    DDFS(host).push(DDFS.job_oob(name), [(StringIO(value), key)], delayed=True)
+    DDFS(host).push(DDFS.job_oob(name), [(BytesIO(value), key)], delayed=True)
 
 def load_oob(host, name, key):
     from disco.ddfs import DDFS

@@ -3,7 +3,7 @@ import string
 from disco.job import JobChain
 from disco.test import TestCase, TestJob
 from disco.util import load_oob
-from disco.compat import bytes_to_str
+from disco.compat import bytes_to_str, str_to_bytes
 
 class OOBJob1(TestJob):
     partitions = 10
@@ -11,16 +11,16 @@ class OOBJob1(TestJob):
     @staticmethod
     def map(e, params):
         k = bytes_to_str(e)
-        v = 'value:{0}'.format(k)
+        v = str_to_bytes('value:{0}'.format(k))
         put(k, v)
         yield k, v
 
     @staticmethod
     def reduce(iter, params):
         for k, v in iter:
-            assert v == bytes_to_str(get(k))
+            assert v == get(k)
         x = 'reduce:{0}'.format(this_partition())
-        put(x, 'value:{0}'.format(x))
+        put(x, str_to_bytes('value:{0}'.format(x)))
         yield 'all', 'ok'
 
 class OOBJob2(TestJob):
@@ -34,7 +34,7 @@ class LargeOOBJob(TestJob):
     @staticmethod
     def map(e, params):
         for i in range(10):
-            put('{0}-{1}'.format(e, i), 'val:{0}-{1}'.format(e, i))
+            put('{0}-{1}'.format(e, i), str_to_bytes('val:{0}-{1}'.format(e, i)))
         return []
 
 class OOBTestCase(TestCase):
