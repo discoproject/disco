@@ -1,7 +1,7 @@
 Source: disco
 Section: admin
 Priority: extra
-Maintainer: Jared Flatow <jared.flatow@nokia.com>
+Maintainer: Prashanth Mundkur <prashanth.mundkur@nokia.com>
 Build-Depends: debhelper (>= 7), erlang-dev (>= 1:14.a-dfsg1), python-all-dev (>= 2.6), libcmph-dev (>= 0.9)
 Standards-Version: 3.9.3
 Vcs-Browser: https://github.com/discoproject/disco
