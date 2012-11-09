@@ -25,6 +25,7 @@ from disco import func, json, task, util
 from disco.error import JobError
 from disco.util import hexhash, isiterable, load_oob, save_oob
 from disco.settings import DiscoSettings
+from disco.compat import bytes_to_str
 
 class Job(object):
     """
