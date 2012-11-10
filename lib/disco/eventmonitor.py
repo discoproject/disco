@@ -1,5 +1,4 @@
-import sys, os, time
-from disco import json
+import sys, os, time, json
 from disco.error import DiscoError
 
 try:

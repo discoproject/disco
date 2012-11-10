@@ -338,7 +338,7 @@ class Worker(dict):
 
     @classmethod
     def send(cls, type, payload=''):
-        from disco.json import dumps, loads
+        from json import dumps, loads
         body = dumps(payload)
         sys.stderr.write('{0} {1} {2}\n'.format(type, len(body), body))
         sys.stderr.flush()
