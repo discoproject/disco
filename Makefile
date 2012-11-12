@@ -111,7 +111,7 @@ install: install-core install-node install-master
 
 uninstall: uninstall-master uninstall-node
 
-install-core:
+install-core: $(TARGETBIN)/disco $(TARGETBIN)/ddfs
 	(cd lib && $(PY_INSTALL))
 
 install-discodb: contrib
@@ -121,7 +121,6 @@ install-examples: $(TARGETLIB)/examples
 
 install-master: master \
 	$(TARGETDAT)/$(WWW) \
-	$(TARGETBIN)/disco $(TARGETBIN)/ddfs \
 	$(TARGETCFG)/settings.py
 
 uninstall-master:

@@ -96,6 +96,8 @@ class Worker(dict):
     :type  profile: bool
     :param profile: determines whether :meth:`run` will be profiled.
     """
+    stderr = sys.stderr
+
     def __init__(self, **kwargs):
         super(Worker, self).__init__(self.defaults())
         self.update(kwargs)
@@ -320,7 +322,7 @@ class Worker(dict):
         """
         try:
             sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
-            sys.stdout = MessageWriter(cls)
+            sys.stdout = sys.stderr = MessageWriter(cls)
             cls.send('WORKER', {'pid': os.getpid(), 'version': "1.0"})
             task = cls.get_task()
             job, jobargs = task.jobobjs
@@ -340,8 +342,8 @@ class Worker(dict):
     def send(cls, type, payload=''):
         from disco.json import dumps, loads
         body = dumps(payload)
-        sys.stderr.write('{0} {1} {2}\n'.format(type, len(body), body))
-        sys.stderr.flush()
+        cls.stderr.write('{0} {1} {2}\n'.format(type, len(body), body))
+        cls.stderr.flush()
         spent, rtype = sys.stdin.t_read_until(' ')
         spent, rsize = sys.stdin.t_read_until(' ', spent=spent)
         spent, rbody = sys.stdin.t_read(int(rsize) + 1, spent=spent)
