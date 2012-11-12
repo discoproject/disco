@@ -222,6 +222,12 @@ class DDFS(object):
             if blobfilter(self.blob_name(repl[0])):
                 random.shuffle(repl)
                 for url in repl:
+                    url = self._resolve(
+                        proxy_url(url,
+                                  meth='GET',
+                                  proxy=self.proxy,
+                                  to_master=False)
+                    )
                     try:
                         yield open_remote(url)
                         break
