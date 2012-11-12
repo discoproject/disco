@@ -12,7 +12,7 @@ Homepage: http://www.discoproject.org
 
 Package: disco-master
 Architecture: all
-Depends: ${misc:Depends}, disco-node (= ${source:Version}), python-disco (= ${source:Version}), python (>= 2.6)
+Depends: ${misc:Depends}, disco-node (= ${source:Version}), python-disco (= ${source:Version})
 Description: Disco master
  This is Disco master.
 
@@ -36,6 +36,12 @@ Section: python
 Depends: ${misc:Depends}, ${python3:Depends}, python3 (>= 3.2)
 Description: Disco client
  This is Disco client for Python3.
+
+Package: python3-disco-master
+Architecture: all
+Depends: ${misc:Depends}, disco-node (= ${source:Version}), python3-disco (= ${source:Version})
+Description: Disco master
+ This is Disco master.
 
 Package: python-discodb
 Architecture: any
