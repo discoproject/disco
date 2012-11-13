@@ -9,10 +9,8 @@ See also: :ref:`DDFS`.
         Parameters below which are indicated as tags can be specified as
         a `tag://` URL, or the name of the tag.
 """
-import os, re, random
+import os, re, random, json
 from disco.compat import StringIO, BytesIO, urlencode, basestring, bytes_to_str
-
-from disco import json
 from disco.comm import upload, download, open_remote
 from disco.error import CommError
 from disco.fileutils import Chunker, CHUNK_SIZE

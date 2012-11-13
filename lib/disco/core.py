@@ -343,17 +343,20 @@ class Disco(object):
                                      format=show,
                                      poll_interval=poll_interval)
         start_time    = time.time()
-        while True:
-            event_monitor.refresh()
-            try:
-                return self.check_results(jobname, start_time,
-                                          timeout, poll_interval * 1000)
-            except Continue:
-                continue
-            finally:
-                if clean:
-                    self.clean(jobname)
+        try:
+            while True:
                 event_monitor.refresh()
+                try:
+                    return self.check_results(jobname, start_time,
+                                              timeout, poll_interval * 1000)
+                except Continue:
+                    continue
+                finally:
+                    if clean:
+                        self.clean(jobname)
+                    event_monitor.refresh()
+        finally:
+            event_monitor.cleanup()
 
     def result_iterator(self, *args, **kwargs):
         kwargs['ddfs'] = self.master
