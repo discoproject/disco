@@ -13,6 +13,8 @@ D_MAKE = $(MAKE) -C .. UNAME=Debian PY_INSTALL_OPTS="--install-layout=deb --no-c
 
 override_dh_auto_install:
 	$(D_MAKE) install-master   DESTDIR=$(PKGDIR)/disco-master
+	$(D_MAKE) install-master   DESTDIR=$(PKGDIR)/python3-disco-master
+
 	$(D_MAKE) install-node     DESTDIR=$(PKGDIR)/disco-node
 	for python in $(PYTHON2); do \
 		$(D_MAKE) install-core    DESTDIR=$(PKGDIR)/python-disco   PYTHON=$$python; \

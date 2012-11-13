@@ -16,6 +16,12 @@ Depends: ${misc:Depends}, disco-node (= ${source:Version}), python-disco (= ${so
 Description: Disco master
  This is Disco master.
 
+Package: python3-disco-master
+Architecture: all
+Depends: ${misc:Depends}, disco-node (= ${source:Version}), python3-disco (= ${source:Version})
+Description: Disco master
+ This is Disco master.
+
 Package: disco-node
 Architecture: any
 Depends: ${misc:Depends}, erlang-base (>= 1:14.a-dfsg1), erlang-inets (>= 1:14.a-dfsg1), erlang-xmerl (>= 1:14.a-dfsg1), erlang-ssl (>= 1:14.a-dfsg1), erlang-crypto (>= 1:14.a-dfsg1), erlang-syntax-tools (>= 1:14.a-dfsg1), adduser
@@ -36,12 +42,6 @@ Section: python
 Depends: ${misc:Depends}, ${python3:Depends}, python3 (>= 3.2)
 Description: Disco client
  This is Disco client for Python3.
-
-Package: python3-disco-master
-Architecture: all
-Depends: ${misc:Depends}, disco-node (= ${source:Version}), python3-disco (= ${source:Version})
-Description: Disco master
- This is Disco master.
 
 Package: python-discodb
 Architecture: any

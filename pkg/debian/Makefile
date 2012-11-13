@@ -1,7 +1,8 @@
 export
 
-MAINTAINER_SCRIPTS = disco-master.init \
+MAINTAINER_SCRIPTS = disco-master.init python3-disco-master.init \
 		     disco-master.preinst disco-master.prerm \
+		     python3-disco-master.preinst python3-disco-master.prerm \
 		     disco-node.postinst disco-node.postrm
 
 .PHONY: build clean
@@ -17,10 +18,10 @@ clean:
 	(cd .. && dpkg-buildpackage -d)
 	(cd ../.. && dpkg-scanpackages . /dev/null | gzip -9c > $(@F))
 
-disco-master.init: gen.disco-master.sh
+disco-master.init python3-disco-master.init: gen.disco-master.sh
 	(./$< > $@ && chmod 755 $@)
 
-disco-master.preinst disco-master.prerm: gen.stop-master.sh
+disco-master.preinst disco-master.prerm python3-disco-master.preinst python3-disco-master.prerm: gen.stop-master.sh
 	(./$< > $@ && chmod 755 $@)
 
 disco-node.postinst: gen.create-disco-user.sh
