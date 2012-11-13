@@ -19,6 +19,8 @@ if sys.version_info[0] == 3:
         return b.decode('utf-8')
     def force_utf8(string):
         return string
+    def force_ascii(string):
+        return string
 
     from io import StringIO, BytesIO
     from io import FileIO as file
@@ -54,6 +56,8 @@ else:
         if isinstance(string, unicode):
             return string.encode('utf-8', 'replace')
         return string.decode('utf-8', 'replace').encode('utf-8')
+    def force_ascii(string):
+        return string.encode('ascii', 'replace')
 
     from cStringIO import StringIO
     BytesIO = StringIO
