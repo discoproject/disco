@@ -6,9 +6,9 @@ The :mod:`disco.core` module provides a high-level interface for
 communication with the Disco master. It provides functions for submitting
 new jobs, querying the status of the system, and getting results of jobs.
 """
-import os, time, sys
+import os, time, sys, json
 
-from disco import func, json, util
+from disco import func, util
 from disco.comm import download
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor

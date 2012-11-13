@@ -4,15 +4,14 @@ from disco.error import JobError
 class BadJob(TestJob):
     @staticmethod
     def map(e, params):
-        import sys, disco.json
-        msg = disco.json.dumps(e)
+        import sys, json
+        msg = json.dumps(e)
         sys.stderr.write('MSG {0} {1}\n'.format(len(msg), msg))
         return []
 
 class GoodJob(TestJob):
     @staticmethod
     def map(e, params):
-        import sys, disco.json
         print(e)
         return [(e.strip(), '')]
 

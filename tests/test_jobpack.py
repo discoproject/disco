@@ -1,6 +1,6 @@
 from random import random
+from json import loads
 
-from disco.json import loads
 from disco.job import JobPack
 from disco.test import TestCase
 from disco.error import JobError

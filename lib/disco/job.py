@@ -19,9 +19,9 @@ This can be accomplished using the :meth:`Job.wait` method::
         from disco.job import Job
         results = Job(name).run(**jobargs).wait()
 """
-import os, sys, time
+import os, sys, time, json
 
-from disco import func, json, task, util
+from disco import func, task, util
 from disco.error import JobError
 from disco.util import hexhash, isiterable, load_oob, save_oob
 from disco.settings import DiscoSettings
