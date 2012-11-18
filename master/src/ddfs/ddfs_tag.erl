@@ -512,7 +512,12 @@ get_tagdata(TagName) ->
     TagMinK = get(min_tagk),
     case RBSize >= TagMinK of
         true ->
-            {error, too_many_failed_nodes};
+            case disco_aws:try_s3_tagdata(get(s3_bucket), binary_to_list(TagName)) of
+                fail ->
+                    {error, too_many_failed_nodes};
+                {_TagID, TagData} ->
+                    {ok, TagData, []}
+            end;
         false ->
             {Replies, Failed} =
                 gen_server:multi_call(ReadableNodes,
