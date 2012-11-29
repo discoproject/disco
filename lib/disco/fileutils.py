@@ -1,4 +1,4 @@
-import os, struct, sys, time, pickle
+import os, struct, time
 from disco.compat import BytesIO, file, basestring
 from disco.compat import pickle_dumps, str_to_bytes, bytes_to_str
 from inspect import getmodule, getsourcefile
