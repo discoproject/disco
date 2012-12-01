@@ -182,7 +182,8 @@ delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
     timer:sleep(100),
     true;
 
-delete_if_expired(_Path, _Diff, _Expires, _Paranoid) ->
+delete_if_expired(Path, _Diff, _Expires, _Paranoid) ->
+    error_logger:info_msg("GC: Retaining orphan until expiry at ~p:~p", [node(), Path]),
     false.
 
 %%
