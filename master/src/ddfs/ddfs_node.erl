@@ -333,6 +333,8 @@ try_makedir(Dir) ->
 
 -spec init_vols(path(), [volume_name()]) -> {ok, [volume()]}.
 init_vols(Root, VolNames) ->
+    error_logger:info_msg("~p initialized on ~p with volumes: ~p",
+			  [?MODULE, node(), VolNames]),
     _ = [begin
              ok = try_makedir(filename:join([Root, VolName, "blob"])),
              ok = try_makedir(filename:join([Root, VolName, "tag"]))
