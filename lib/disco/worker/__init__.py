@@ -173,12 +173,17 @@ class Worker(dict):
 
         :return: the :term:`job dict`.
         """
-        from disco.util import inputlist, ispartitioned, read_index
+        from disco.util import isiterable, inputlist, ispartitioned, read_index
+        from disco.error import DiscoError
         def get(key, default=None):
             return self.getitem(key, job, jobargs, default)
         has_map = bool(get('map'))
         has_reduce = bool(get('reduce'))
-        input = inputlist(get('input', []),
+        job_input = get('input', [])
+        if not isiterable(job_input):
+            raise DiscoError("Job 'input' is not a list of input locations,"
+                             "or a list of such lists: {0}".format(job_input))
+        input = inputlist(job_input,
                           partition=None if has_map else False,
                           settings=job.settings)
 
