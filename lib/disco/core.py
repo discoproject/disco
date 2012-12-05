@@ -23,12 +23,15 @@ class Continue(Exception):
 
 def client_version():
     import disco, glob
-    from os.path import dirname, basename
+    from os.path import dirname, basename, join, splitext
     package_dir = dirname(dirname(disco.__file__))
-    eggs = glob.glob(os.path.join(package_dir, "disco*.egg-info"))
+    eggs = glob.glob(join(package_dir, "disco-*.egg-info"))
     if eggs:
-        try: return os.path.basename(eggs[0]).split('-')[1]
-        except: return "unknown"
+        try:
+            e = basename(eggs[0]).split('-')[1]
+            return e.split('.egg')[0]
+        except:
+            return "unknown"
     return "source"
 
 class Disco(object):
