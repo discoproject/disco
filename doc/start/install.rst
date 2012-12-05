@@ -46,6 +46,10 @@ Optionally, ``DISCO_PROXY`` needs one of
  * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
  * `Varnish 2.1.3 or newer <http://varnish-cache.org>`_
 
+Due to issues with unicode in Python2's httplib library, we recommend
+installing the pycurl package.  Disco will transparently use pycurl
+when available.
+
 .. _install_source:
 
 Install Disco
