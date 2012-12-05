@@ -1,8 +1,8 @@
-disco (0.4.3+nmu1) unstable; urgency=low
+disco (0.4.4) unstable; urgency=low
 
-  * Fix debian dependencies and install issues.
+  * New package for 0.4.4
 
- --  Prashanth Mundkur <mundkur@discodeb2>  Tue, 28 Aug 2012 17:35:51 +0000
+ --  Prashanth Mundkur <mundkur@discodeb2>  Wed, 05 Dec 2012 22:30:32 +0000
 
 disco (0.4.3) unstable; urgency=low
 
