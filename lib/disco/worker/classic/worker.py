@@ -18,15 +18,15 @@ For example, here's a simple distributed grep from the Disco ``examples/`` direc
 """
 
 import sys
-# In Python3, __pycache__ directories for .pyc files are created if
+# In Python3, __pycache__ directories and .pyc files are created if
 # needed on module imports in the job directory.  When multiple tasks
 # of the same job start executing in the same job directory, these
-# tasks race in this directory creation.  The resulting race
-# conditions result in random errors in module imports, which cause
-# task and job failures.  It appears that Python3 (at least upto
-# Python 3.2) does not correctly handle concurrent creation of
-# __pycache__ by independent processes.  So we turn off the writing of
-# .pyc files for Python3.
+# tasks race in their creation.  The resulting race conditions result
+# in random errors in module imports, which cause task and job
+# failures.  It appears that Python3 (at least upto Python 3.2) does
+# not correctly handle concurrent creation of __pycache__ and .pyc by
+# independent processes.  So we turn off the writing of .pyc files for
+# Python3.
 if sys.version_info[0] == 3:
     sys.dont_write_bytecode = 1
 
