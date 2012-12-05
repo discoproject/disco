@@ -54,6 +54,16 @@ class Job(object):
                 Defaults to :class:`disco.worker.classic.worker.Worker`.
                 If no `worker` parameter is specified,
                 :attr:`Worker` is called with no arguments to construct the :attr:`worker`.
+
+    .. note::
+
+       Note that due to the mechanism used for submitting jobs to the
+       Disco cluster, the submitted job class cannot belong to the
+       `__main__` module, but needs to be qualified with a module
+       name.  See ``examples/faq/chain.py`` for a simple solution for most
+       cases.
+
+
     """
     from disco.worker.classic.worker import Worker
     proxy_functions = ('clean',
