@@ -20,6 +20,16 @@ the same debugging techniques apply.
 .. note:: It's assumed that you have already followed the steps in
           :ref:`install_source`.
 
+First, ensure the following:
+
+- The version of Erlang is the same throughout the cluster.
+
+- The version of Disco is the same throughout the cluster, and
+  installed in the same location.
+
+- The 'python' executable or symbolic link points to the same version
+  of Python across the cluster, and on the clients from which Disco
+  jobs are submitted.
 
 .. _stopping_disco:
 
