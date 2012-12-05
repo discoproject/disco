@@ -106,7 +106,7 @@ def start(program):
 @Disco.command
 def status(program):
     """
-    Display running state of the master.
+    Display running state of the master.  This command should be run on the master.
     """
     for message in program.master.status():
         print(message)
