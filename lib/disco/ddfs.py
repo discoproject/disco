@@ -215,6 +215,10 @@ class DDFS(object):
         return self._download('{0}/ddfs/tags/{1}'.format(self.master, prefix))
 
     def pull(self, tag, blobfilter=lambda x: True, token=None):
+        """
+        Iterate over the blobs in a ``tag`` after optionally applying
+        a ``blobfilter`` over the blob names.
+        """
         comm_error = None
         for repl in self.urls(tag, token=token):
             if blobfilter(self.blob_name(repl[0])):
