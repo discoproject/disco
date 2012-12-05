@@ -21,6 +21,16 @@ from disco.compat import basestring
 class Continue(Exception):
     pass
 
+def client_version():
+    import disco, glob
+    from os.path import dirname, basename
+    package_dir = dirname(dirname(disco.__file__))
+    eggs = glob.glob(os.path.join(package_dir, "disco*.egg-info"))
+    if eggs:
+        try: return os.path.basename(eggs[0]).split('-')[1]
+        except: return "unknown"
+    return "source"
+
 class Disco(object):
     """
     The :class:`Disco` object provides an interface to the Disco master.
@@ -66,6 +76,9 @@ class Disco(object):
             raise DiscoError(response)
 
     config = property(get_config, set_config)
+
+    def master_version(self):
+        return json.loads(self.request('/disco/version'))
 
     @property
     def ddfs(self):
