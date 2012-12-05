@@ -429,6 +429,23 @@ def submit(program, *file):
     """
     print(program.disco.submit(''.join(fileinput.input(file))))
 
+@Disco.command
+def client_version(program):
+    """
+    Print the version of the Python Disco client library.
+    This assumes that the library has an installed egg file."
+    """
+    from disco.core import client_version
+    print(client_version())
+
+@Disco.command
+def master_version(program):
+    """
+    Print the version of the Disco master.
+    This assumes that the master is running."
+    """
+    print(program.disco.master_version())
+
 @Disco.job_command
 def wait(program, jobname):
     """Usage: jobname
