@@ -109,8 +109,12 @@ class Job(object):
         :meth:`disco.worker.Worker.jobdict`,
         :meth:`disco.worker.Worker.jobenvs`,
         :meth:`disco.worker.Worker.jobhome`,
-        :meth:`disco.task.jobdata`,
-        and attempts to submit it.
+        :meth:`disco.task.jobdata`, and attempts to submit it.  This
+        method executes on the client submitting a job to be run.
+        More information on how job inputs are specified is available
+        in :meth:`disco.worker.Worker.jobdict`.  The default worker
+        implementation is called ``classic``, and is implemented by
+        :class:`disco.worker.classic.worker`.
 
         :type  jobargs: dict
         :param jobargs: runtime parameters for the job.

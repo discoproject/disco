@@ -297,7 +297,10 @@ class Worker(dict):
 
     def run(self, task, job, **jobargs):
         """
-        Called to do the actual work of processing the :class:`disco.task.Task`.
+        Called to do the actual work of processing the
+        :class:`disco.task.Task`.  This method runs in the Disco
+        cluster, on a server that is executing one of the tasks in a
+        job submitted by a client.
         """
         self.getitem(task.mode, job, jobargs)(task, job, **jobargs)
 

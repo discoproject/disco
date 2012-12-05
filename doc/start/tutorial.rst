@@ -40,8 +40,7 @@ and make sure they contain what you think they do::
 .. note::
    Chunks are stored in Disco's internal compressed format,
    thus we use ``ddfs xcat`` instead of ``ddfs cat`` to view them.
-   ``ddfs xcat`` applies some
-   :func:`~disco.worker.classic.func.input_stream`\'s
+   ``ddfs xcat`` applies some :func:`~disco.worker.classic.func.input_stream`
    (by default, :func:`~disco.worker.classic.func.chain_reader`),
    whereas ``ddfs cat`` just dumps the raw bytes contained in the blobs.
 

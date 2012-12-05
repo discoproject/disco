@@ -173,9 +173,7 @@ class Disco(object):
 
     def new_job(self, name, **jobargs):
         """
-        Submits a new job request to the master using :class:`disco.job.Job`::
-
-                return Job(name=name, master=self.master).run(**jobargs)
+        Submits a new job request to the master using :class:`disco.job.Job`.
         """
         return Job(name=name, master=self.master).run(**jobargs)
 

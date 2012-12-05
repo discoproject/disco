@@ -17,8 +17,8 @@ It is intended to help you to get Disco working locally, on a single computer.
 After you have done this, distributing it should be rather straightforward:
 the same debugging techniques apply.
 
-.. note:: It's assumed that you have already followed the steps in
-          :ref:`install_source`.
+.. note:: It's assumed that you have already followed the steps
+          in :ref:`install_source`.
 
 First, ensure the following:
 
@@ -41,8 +41,7 @@ try to stop the :term:`master` using ``disco stop``
 (or :kbd:`C-c` if you are running with ``disco nodaemon``).
 If you cannot seem to stop Disco this way, kill the ``beam`` processes by hand,
 
-.. hint:: You can use
-   ::
+.. hint:: You can use::
 
         ps aux | grep beam.*disco
 

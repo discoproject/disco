@@ -56,10 +56,10 @@ same even if the order of the lines were scrambled in either of the two
 input data sets.
 
 .. note::
-If you're a big data fanatic and can't wait to get to a macho volume of
-input, *be patient*.  Let's make sure we get everything working right and we
-understand what's happening with small data first before turning up the
-volume.
+   If you're a big data fanatic and can't wait to get to a
+   macho volume of input, *be patient*.  Let's make sure we get
+   everything working right and we understand what's happening with
+   small data first before turning up the volume.
 
 You should now have two files in your working directory named ``set_A.csv``
 and ``set_B.csv`` which contain 5 and 6 lines, respectively, of text data.
