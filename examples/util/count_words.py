@@ -14,4 +14,4 @@ if __name__ == '__main__':
                     map=map,
                     reduce=reduce)
     for word, count in result_iterator(job.wait(show=True)):
-        print word, count
+        print(word, count)
