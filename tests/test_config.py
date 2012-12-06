@@ -2,9 +2,10 @@ import time
 
 from disco.test import TestCase, TestJob
 from disco.util import shuffled
+from disco.compat import str_to_bytes
 
 def unique_nodename(nodenames, count=0):
-    nodename = 'missingnode_%s' % count
+    nodename = 'missingnode_{0}'.format(count)
     if nodename not in nodenames:
         return nodename
     return unique_nodename(nodenames, count + 1)
@@ -18,7 +19,7 @@ class ConfigJob(TestJob):
 class ConfigTestCase(TestCase):
     def checkAnswers(self, job, input):
         self.assertEquals(sorted(self.results(job)),
-                          sorted((str(i), '') for i in input))
+                          sorted((str_to_bytes(str(i)), '') for i in input))
 
     def configTest(self, config):
         input = range(self.num_workers * 2)
@@ -37,10 +38,10 @@ class ConfigTestCase(TestCase):
         if len(self.nodes) < 2:
             self.skipTest("Cannot test node changes with < 2 nodes")
         else:
-            local = ['url://%s' % node
-                     for node, max_workers in self.nodes.iteritems()
-                     for x in xrange(max_workers * 2)]
-            input = shuffled(local + range(self.num_workers))
+            local = ['url://{0}'.format(node)
+                     for node, max_workers in self.nodes.items()
+                     for x in range(max_workers * 2)]
+            input = shuffled(local + list(range(self.num_workers)))
             self.job = ConfigJob().run(input=self.test_server.urls(input))
             time.sleep(5)
             self.disco.config = self.config[:2]

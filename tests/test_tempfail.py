@@ -1,4 +1,4 @@
-import thread
+import threading
 
 from disco.test import TestCase, TestJob, FailedReply
 
@@ -18,11 +18,11 @@ class TempFailTestCase(TestCase):
             raise FailedReply()
         else:
             self.lock.release()
-            return '%s\n' % (int(path) * 10)
+            return '{0}\n'.format(int(path) * 10)
 
     def setUp(self):
-        self.lock = thread.allocate_lock()
-        self.fail = map(str, self.input[::2])
+        self.lock = threading.Lock()
+        self.fail = list(map(str, self.input[::2]))
         super(TempFailTestCase, self).setUp()
 
     def runTest(self):

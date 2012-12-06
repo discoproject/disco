@@ -12,7 +12,7 @@ class AsyncJob(TestJob):
     @staticmethod
     def reduce(iter, params):
         for k, v in iter:
-            yield '[%s]' % k, v
+            yield '[{0}]'.format(k), v
 
 class AsyncTestCase(TestCase):
     def sample(self, n):
@@ -25,6 +25,6 @@ class AsyncTestCase(TestCase):
     def runTest(self):
         N = self.num_workers
         self.job = JobChain((AsyncJob(), self.test_server.urls(self.sample(N)))
-                            for x in xrange(5)).wait()
+                            for x in range(5)).wait()
         for job in self.job:
             self.assertEquals(sum(1 for result in self.results(job)), N * 20)

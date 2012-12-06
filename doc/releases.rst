@@ -1,8 +1,58 @@
 Release notes
 =============
 
+Disco 0.4.4 (Dec 5, 2012)
+-------------------------
+
+New features
+''''''''''''
+
+- The Python client library should now be Python3 compatible (version
+  3.2 or higher).  As usual, the Python versions on the client and in
+  the Disco cluster should match; mixed configurations are not
+  supported.  Since Python3 differentiates between string and unicode
+  objects, Disco jobs will need to do the same.  In particular, the
+  default *map_reader* will provide ``bytes`` objects to the ``map``
+  function.
+
+- Client and master version commands have been added to the
+  :mod:`disco <discocli>` command-line interface (issue #283).
+  Currently, the client version command only works for Disco installed
+  as a python egg.
+
+- Installation support for NetBSD, thanks to Yamamoto Takashi.
+
+- There is now a script to ease the creation of Disco debian packages,
+  used to create the Debian packages provided from `discoproject.org
+  <http://discoproject.org/doc/disco/start/download.html>`_.  Note
+  that this script does *not* follow Debian packaging guidelines; use
+  at your own risk!
+
+- Small efficiency and logging improvements to DDFS.
+
+Changes
+'''''''
+
+- The ``disco`` and ``ddfs`` command-line scripts are now packaged as
+  part of python-disco Debian package, so that they can be used on
+  clients.  Thanks to Daniel Graña.
+
+Bugfixes
+''''''''
+
+- :func:`disco.ddfs.DDFS.pull` should now obey DISCO_PROXY settings.
+  Thanks to Daniel Graña.
+
+- Intercept Python warning messages to sys.stderr, which break the
+  Disco worker protocol.  They are now logged as messages.  Thanks to
+  Daniel Graña.
+
+- The HTTP header handling in the Disco client library is more
+  case-resilient.
+
+
 Disco 0.4.3 (Aug 22, 2012)
------------------
+--------------------------
 
 New features
 ''''''''''''

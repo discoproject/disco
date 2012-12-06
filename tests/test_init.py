@@ -6,7 +6,7 @@ class InitJob(TestJob):
 
     @staticmethod
     def map_init(iter, params):
-        iter.next()
+        next(iter)
         params['x'] += 100
 
     @staticmethod
@@ -24,7 +24,7 @@ class InitJob(TestJob):
 
 class InitTestCase(TestCase):
     def serve(self, path):
-        return 'skipthis\n' + ('%s\n' % path) * 10
+        return 'skipthis\n' + ('{0}\n'.format(path)) * 10
 
     def runTest(self):
         self.job = InitJob().run(input=self.test_server.urls(range(10)))

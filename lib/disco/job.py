@@ -19,12 +19,13 @@ This can be accomplished using the :meth:`Job.wait` method::
         from disco.job import Job
         results = Job(name).run(**jobargs).wait()
 """
-import os, sys, time
+import os, sys, time, json
 
-from disco import func, json, task, util
+from disco import func, task, util
 from disco.error import JobError
 from disco.util import hexhash, isiterable, load_oob, save_oob
 from disco.settings import DiscoSettings
+from disco.compat import bytes_to_str
 
 class Job(object):
     """
@@ -53,6 +54,16 @@ class Job(object):
                 Defaults to :class:`disco.worker.classic.worker.Worker`.
                 If no `worker` parameter is specified,
                 :attr:`Worker` is called with no arguments to construct the :attr:`worker`.
+
+    .. note::
+
+       Note that due to the mechanism used for submitting jobs to the
+       Disco cluster, the submitted job class cannot belong to the
+       `__main__` module, but needs to be qualified with a module
+       name.  See ``examples/faq/chain.py`` for a simple solution for most
+       cases.
+
+
     """
     from disco.worker.classic.worker import Worker
     proxy_functions = ('clean',
@@ -108,8 +119,12 @@ class Job(object):
         :meth:`disco.worker.Worker.jobdict`,
         :meth:`disco.worker.Worker.jobenvs`,
         :meth:`disco.worker.Worker.jobhome`,
-        :meth:`disco.task.jobdata`,
-        and attempts to submit it.
+        :meth:`disco.task.jobdata`, and attempts to submit it.  This
+        method executes on the client submitting a job to be run.
+        More information on how job inputs are specified is available
+        in :meth:`disco.worker.Worker.jobdict`.  The default worker
+        implementation is called ``classic``, and is implemented by
+        :class:`disco.worker.classic.worker`.
 
         :type  jobargs: dict
         :param jobargs: runtime parameters for the job.
@@ -212,15 +227,17 @@ class JobPack(object):
     def header(self, offsets, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
         from struct import pack
         toc = pack(format, magic, *(o for o in offsets))
-        return toc + '\0' * (size - len(toc))
+        return toc + b'\0' * (size - len(toc))
 
     def contents(self, offset=HEADER_SIZE):
-        for field in (json.dumps(self.jobdict),
-                      json.dumps(self.jobenvs),
+        cont = []
+        for field in (json.dumps(self.jobdict).encode(),
+                      json.dumps(self.jobenvs).encode(),
                       self.jobhome,
                       self.jobdata):
-            yield offset, field
+            cont.append((offset, field))
             offset += len(field)
+        return cont
 
     def dumps(self):
         """
@@ -230,7 +247,7 @@ class JobPack(object):
         and prepends a valid header.
         """
         offsets, fields = zip(*self.contents())
-        return self.header(offsets) + ''.join(fields)
+        return self.header(offsets) + b''.join(fields)
 
     @classmethod
     def offsets(cls, jobfile, magic=MAGIC, format=HEADER_FORMAT, size=HEADER_SIZE):
@@ -255,13 +272,13 @@ class PackedJobPack(JobPack):
     def jobdict(self):
         dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
         self.jobfile.seek(dict_offset)
-        return json.loads(self.jobfile.read(envs_offset - dict_offset))
+        return json.loads(bytes_to_str(self.jobfile.read(envs_offset - dict_offset)))
 
     @property
     def jobenvs(self):
         dict_offset, envs_offset, home_offset, data_offset = self.offsets(self.jobfile)
         self.jobfile.seek(envs_offset)
-        return json.loads(self.jobfile.read(home_offset - envs_offset))
+        return json.loads(bytes_to_str(self.jobfile.read(home_offset - envs_offset)))
 
     @property
     def jobhome(self):

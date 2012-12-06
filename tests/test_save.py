@@ -2,14 +2,18 @@ from disco.ddfs import DDFS
 from disco.job import JobChain
 from disco.test import TestCase, TestJob
 from disco.worker.classic.func import chain_reader
+from disco.compat import str_to_bytes
 
 class SaveMapJob(TestJob):
     partitions = None
     save = True
 
+    # This method needs to yield the same key type as SaveJob2:map,
+    # since both maps are consumed by SaveJob1:reduce.  However,
+    # SaveJob2:map keys are sorted; hence, they need to be bytes.
     @staticmethod
     def map(e, params):
-        yield e.strip() + '!', ''
+        yield e.strip() + b'!', ''
 
 class SaveJob1(SaveMapJob):
     partitions = 3
@@ -18,7 +22,7 @@ class SaveJob1(SaveMapJob):
     @staticmethod
     def reduce(iter, params):
         for k, v in iter:
-            yield k + '?', v
+            yield k + b'?', v
 
 class SaveJob2(SaveJob1):
     partitions = 1
@@ -27,12 +31,12 @@ class SaveJob2(SaveJob1):
     map_reader = staticmethod(chain_reader)
 
     @staticmethod
-    def map((k, v), params):
-        yield k + '!', ''
+    def map(k_v, params):
+        yield k_v[0] + b'!', ''
 
 class SaveTestCase(TestCase):
     def serve(self, path):
-        return '%s\n' % path
+        return '{0}\n'.format(path)
 
     def test_save_map(self):
         input = range(10)
@@ -40,7 +44,7 @@ class SaveTestCase(TestCase):
         results = sorted(self.results(self.job))
         self.tag = self.disco.results(self.job.name)[1][0]
         self.assertEquals(len(list(self.ddfs.blobs(self.tag))), len(input))
-        self.assertEquals(results, [('%s!' % e, '') for e in input])
+        self.assertEquals(results, [(str_to_bytes(str(e)+'!'), '') for e in input])
 
     def test_save(self):
         ducks = ['dewey', 'huey', 'louie']
@@ -49,7 +53,7 @@ class SaveTestCase(TestCase):
                              b: a}).wait()
         self.tag = self.disco.results(b)[1][0]
         self.assertAllEqual(sorted(self.results(b)),
-                            [('%s!?!?' % d, '') for d in ducks])
+                            [(str_to_bytes('{0}!?!?'.format(d)), '') for d in ducks])
 
     def tearDown(self):
         super(SaveTestCase, self).tearDown()

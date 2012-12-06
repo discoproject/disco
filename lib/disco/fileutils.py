@@ -1,6 +1,6 @@
-import os, struct, sys, time
-from cPickle import dumps
-from cStringIO import StringIO
+import os, struct, time
+from disco.compat import BytesIO, file, basestring
+from disco.compat import pickle_dumps, str_to_bytes, bytes_to_str
 from inspect import getmodule, getsourcefile
 from zipfile import ZipFile, ZIP_DEFLATED
 from zlib import compress, crc32
@@ -49,7 +49,7 @@ class Chunker(object):
         return out.stream.getvalue()
 
     def makeout(self):
-        return DiscoOutputStream(StringIO(), max_record_size=MAX_RECORD_SIZE)
+        return DiscoOutputStream(BytesIO(), max_record_size=MAX_RECORD_SIZE)
 
 class DiscoOutputStream_v0(object):
     def __init__(self, stream):
@@ -57,7 +57,7 @@ class DiscoOutputStream_v0(object):
 
     def add(self, k, v):
         k, v = str(k), str(v)
-        self.stream.write("%d %s %d %s\n" % (len(k), k, len(v), v))
+        self.stream.write(str_to_bytes("%d %s %d %s\n" % (len(k), k, len(v), v)))
 
     def close(self):
         pass
@@ -75,13 +75,13 @@ class DiscoOutputStream_v1(object):
         self.min_hunk_size = min_hunk_size
         self.size = 0
         self.hunk_size = 0
-        self.hunk = StringIO()
+        self.hunk = BytesIO()
 
     def add(self, k, v):
         self.append((k, v))
 
     def append(self, record):
-        self.hunk_write(dumps(record, 1))
+        self.hunk_write(pickle_dumps(record, 1))
         if self.hunk_size > self.min_hunk_size:
             self.flush()
 
@@ -96,17 +96,17 @@ class DiscoOutputStream_v1(object):
         iscompressed = int(self.compression_level > 0)
         if iscompressed:
             hunk = compress(hunk, self.compression_level)
-        data = '%s%s' % (struct.pack('<BBIQ',
+        data = b''.join([struct.pack('<BBIQ',
                                      128 + self.version,
                                      iscompressed,
                                      checksum,
                                      len(hunk)),
-                         hunk)
+                         hunk])
 
         self.stream.write(data)
         self.size += len(data)
         self.hunk_size = 0
-        self.hunk = StringIO()
+        self.hunk = BytesIO()
 
     def hunk_write(self, data):
         size = len(data)
@@ -131,7 +131,7 @@ class DiscoOutput(DiscoOutputStream_v1):
 
 class DiscoZipFile(ZipFile, object):
     def __init__(self):
-        self.buffer = StringIO()
+        self.buffer = BytesIO()
         super(DiscoZipFile, self).__init__(self.buffer, 'w', ZIP_DEFLATED)
 
     def writepath(self, pathname, exclude=()):
@@ -152,7 +152,7 @@ class DiscoZipFile(ZipFile, object):
         handle.write(self.dumps())
 
     def dumps(self):
-        self.buffer.reset()
+        self.buffer.seek(0)
         return self.buffer.read()
 
 class NonBlockingInput(object):
@@ -167,19 +167,19 @@ class NonBlockingInput(object):
         if spent < self.timeout:
             if any(select([self.fd], [], [], self.timeout - spent)):
                 return time.time() - started
-        raise IOError("Reading timed out after %s seconds" % self.timeout)
+        raise IOError("Reading timed out after {0} seconds".format(self.timeout))
 
     def t_read(self, nbytes, spent=0, bytes=''):
         while True:
             spent += self.select(spent)
-            bytes += os.read(self.fd, nbytes - len(bytes))
+            bytes += bytes_to_str(os.read(self.fd, nbytes - len(bytes)))
             if nbytes <= len(bytes):
                 return spent, bytes
 
     def t_read_until(self, delim, spent=0, bytes=''):
         while not bytes.endswith(delim):
             spent += self.select(spent)
-            bytes += os.read(self.fd, 1)
+            bytes += bytes_to_str(os.read(self.fd, 1))
         return spent, bytes
 
 class AtomicFile(file):
@@ -188,7 +188,7 @@ class AtomicFile(file):
         ensure_path(dir)
         ensure_free_space(dir)
         self.path = path
-        self.partial = '%s.partial' % path
+        self.partial = '{0}.partial'.format(path)
         self.isopen = True
         super(AtomicFile, self).__init__(self.partial, 'w')
 
@@ -214,7 +214,7 @@ def ensure_path(path):
     from errno import EEXIST
     try:
         os.makedirs(path)
-    except OSError, x:
+    except OSError as x:
         # File exists is ok.
         # It may happen if two tasks are racing to create the directory
         if x.errno != EEXIST:
@@ -224,7 +224,8 @@ def ensure_free_space(fname):
     s = os.statvfs(fname)
     free = s.f_bsize * s.f_bavail
     if free < MIN_DISK_SPACE:
-        raise DataError("Only %d KB disk space available. Task failed." % (free / 1024), fname)
+        raise DataError("Only {0} KB disk space available. Task failed."
+                        .format((free / 1024), fname))
 
 def files(path):
     if os.path.isdir(path):

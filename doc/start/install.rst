@@ -35,14 +35,20 @@ On each server the following are required:
 
  * `SSH daemon and client <http://www.openssh.com>`_
  * `Erlang/OTP R14A or newer <http://www.erlang.org>`_
- * `Python 2.6 or newer <http://www.python.org>`_
+ * `Python 2.6.6 or newer, or Python 3.2 or newer <http://www.python.org>`_
 
-The same version of Erlang should be installed on all servers.
+The same version of Erlang and Python should be installed on all
+servers.  The default version of Python on the clients from which
+Disco jobs are submitted should also match that on the servers.
 
 Optionally, ``DISCO_PROXY`` needs one of
 
  * `Lighttpd 1.4.17 or newer <http://lighttpd.net>`_
  * `Varnish 2.1.3 or newer <http://varnish-cache.org>`_
+
+Due to issues with unicode in Python2's httplib library, we recommend
+installing the pycurl package.  Disco will transparently use pycurl
+when available.
 
 .. _install_source:
 

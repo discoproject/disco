@@ -16,8 +16,21 @@ For example, here's a simple distributed grep from the Disco ``examples/`` direc
     .. literalinclude:: ../../../examples/util/grep.py
 
 """
-import os, sys
 
+import sys
+# In Python3, __pycache__ directories and .pyc files are created if
+# needed on module imports in the job directory.  When multiple tasks
+# of the same job start executing in the same job directory, these
+# tasks race in their creation.  The resulting race conditions result
+# in random errors in module imports, which cause task and job
+# failures.  It appears that Python3 (at least upto Python 3.2) does
+# not correctly handle concurrent creation of __pycache__ and .pyc by
+# independent processes.  So we turn off the writing of .pyc files for
+# Python3.
+if sys.version_info[0] == 3:
+    sys.dont_write_bytecode = 1
+
+import os
 from disco import util, worker
 from disco.worker.classic import external
 from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
@@ -182,7 +195,7 @@ class Worker(worker.Worker):
                    The object is serialized using the *pickle* module,
                    so it should be pickleable.
 
-                   A convience class :class:`Params` is provided that
+                   A convenience class :class:`Params` is provided that
                    provides an easy way to encapsulate a set of parameters.
                    :class:`Params` allows including functions  in the parameters.
 
@@ -244,8 +257,8 @@ class Worker(worker.Worker):
         def get(key):
             return self.getitem(key, job, jobargs)
         if isinstance(get('required_files'), dict):
-            for path, bytes in get('required_files').iteritems():
-                    jobzip.writestr(path, bytes)
+            for path, bytes in get('required_files').items():
+                jobzip.writestr(path, bytes)
         else:
             for path in get('required_files'):
                 jobzip.write(path, os.path.join('lib', os.path.basename(path)))
@@ -260,8 +273,8 @@ class Worker(worker.Worker):
                 jobzip.writepath(mod[1])
         for func in ('map', 'reduce'):
             if isinstance(get(func), dict):
-                for path, bytes in get(func).iteritems():
-                    jobzip.writestr(os.path.join('ext.%s' % func, path), bytes)
+                for path, bytes in get(func).items():
+                    jobzip.writestr(os.path.join('ext.{0}'.format(func), path), bytes)
         return jobzip
 
     def run(self, task, job, **jobargs):
@@ -269,7 +282,7 @@ class Worker(worker.Worker):
         Task = task
         for key in self:
             self[key] = self.getitem(key, job, jobargs)
-        assert self['version'] == '%s.%s' % sys.version_info[:2], "Python version mismatch"
+        assert self['version'] == '{0[0]}.{0[1]}'.format(sys.version_info[:2]), "Python version mismatch"
 
         params = self['params']
         if isinstance(self[task.mode], dict):
@@ -350,15 +363,15 @@ class Worker(worker.Worker):
             if status_interval and (n + 1) % status_interval == 0:
                 self.send('MSG', message_template % (n + 1))
             yield item
-        self.send('MSG', "Done: %s" % (message_template % (n + 1)))
+        self.send('MSG', "Done: {0}".format(message_template % (n + 1)))
 
     def opener(self, mode, direction, params):
         if direction == 'in':
             from itertools import chain
-            streams = filter(None, chain(self['%s_input_stream' % mode],
-                                         [self['%s_reader' % mode]]))
+            streams = [s for s in chain(self['{0}_input_stream'.format(mode)],
+                                        [self['{0}_reader'.format(mode)]]) if s]
         else:
-            streams = self['%s_output_stream' % mode]
+            streams = self['{0}_output_stream'.format(mode)]
         def open(url):
             return ClassicFile(url, streams, params)
         return open

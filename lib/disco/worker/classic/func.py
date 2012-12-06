@@ -6,7 +6,8 @@ A Classic Disco job is specified by one or more :term:`job functions`.
 This module defines the interfaces for the job functions,
 some default values, as well as otherwise useful functions.
 """
-import re, cPickle
+import re
+from disco.compat import pickle_loads, pickle_dumps, bytes_to_str, str_to_bytes, sort_cmd
 from disco.error import DataError
 
 def notifier(urls):
@@ -204,7 +205,7 @@ class InputStream:
         is not specified.
         """
 
-def old_netstr_reader(fd, size, fname, head=''):
+def old_netstr_reader(fd, size, fname, head=b''):
     """
     Reader for Disco's default/internal key-value format.
 
@@ -220,49 +221,50 @@ def old_netstr_reader(fd, size, fname, head=''):
         i = 0
         lenstr = ''
         if ldata - idx < 11:
-            data = data[idx:] + fd.read(8192)
+            data = data[idx:] + bytes_to_str(fd.read(8192))
             ldata = len(data)
             idx = 0
 
         i = data.find(' ', idx, idx + 11)
         if i == -1:
-            raise DataError("Corrupted input: "\
-                            "Could not parse a value length at %d bytes."\
-                            % (tot), fname)
+            raise DataError("Corrupted input: "
+                            "Could not parse a value length at {0} bytes."
+                            .format(tot), fname)
         else:
             lenstr = data[idx:i + 1]
             idx = i + 1
 
         if ldata < i + 1:
-            raise DataError("Truncated input: "\
-                            "Expected %d bytes, got %d" % (size, tot), fname)
+            raise DataError("Truncated input: "
+                            "Expected {0} bytes, got {1}"
+                            .format(size, tot), fname)
 
         try:
             llen = int(lenstr)
         except ValueError:
-            raise DataError("Corrupted input: "\
-                            "Could not parse a value length at %d bytes."\
-                            % (tot), fname)
+            raise DataError("Corrupted input: "
+                            "Could not parse a value length at {0} bytes."
+                            .format(tot), fname)
 
         tot += len(lenstr)
 
         if ldata - idx < llen + 1:
-            data = data[idx:] + fd.read(llen + 8193)
+            data = data[idx:] + bytes_to_str(fd.read(llen + 8193))
             ldata = len(data)
             idx = 0
 
         msg = data[idx:idx + llen]
 
         if idx + llen + 1 > ldata:
-            raise DataError("Truncated input: "\
-                            "Expected a value of %d bytes (offset %u bytes)"\
-                            % (llen + 1, tot), fname)
+            raise DataError("Truncated input: "
+                            "Expected a value of {0} bytes (offset {1} bytes)"
+                            .format(llen + 1, tot), fname)
 
         tot += llen + 1
         idx += llen + 1
         return idx, data, tot, msg
 
-    data = head + fd.read(8192)
+    data = bytes_to_str(head + fd.read(8192))
     tot = idx = 0
     while tot < size:
         key = val = ''
@@ -308,7 +310,7 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
 
     """
     item_re = re.compile(item_re_str)
-    buf = ""
+    buf = b""
     tot = 0
     while True:
         if size:
@@ -326,14 +328,15 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
 
         if not len(r) or (size!=None and tot >= size):
             if size != None and tot < size:
-                raise DataError("Truncated input: "\
-                "Expected %d bytes, got %d" % (size, tot), fname)
+                raise DataError("Truncated input: "
+                                "Expected {0} bytes, got {1}"
+                                .format(size, tot), fname)
             if len(buf):
                 if output_tail:
                     yield [buf]
                 else:
-                    print "Couldn't match the last %d bytes in %s. "\
-                    "Some bytes may be missing from input." % (len(buf), fname)
+                    print("Couldn't match the last {0} bytes in {1}. "
+                          "Some bytes may be missing from input.".format(len(buf), fname))
             break
 
 def default_partition(key, nr_partitions, params):
@@ -348,8 +351,8 @@ def make_range_partition(min_val, max_val):
     The number of partitions is defined by the *partitions* parameter
     """
     r = max_val - min_val
-    f = "lambda k, n, p: int(round(float(int(k) - %d) / %d * (n - 1)))" %\
-        (min_val, r)
+    f = ("lambda k_n_p: int(round(float(int(k_n_p[0]) - {0}) / {1} * (k_n_p[1] - 1)))"
+         .format(min_val, r))
     return eval(f)
 
 def noop(*args, **kwargs):
@@ -382,7 +385,7 @@ def sum_combiner(key, value, buf, done, params):
     if not done:
         buf[key] = buf.get(key, 0) + value
     else:
-        return buf.iteritems()
+        return buf.items()
 
 def sum_reduce(iter, params):
     """
@@ -393,7 +396,7 @@ def sum_reduce(iter, params):
     buf = {}
     for key, value in iter:
         buf[key] = buf.get(key, 0) + value
-    return buf.iteritems()
+    return buf.items()
 
 def gzip_reader(fd, size, url, params):
     """Wraps the input in a :class:`gzip.GzipFile` object."""
@@ -406,8 +409,8 @@ def gzip_line_reader(fd, size, url, params):
     try:
         for line in GzipFile(fileobj=fd):
             yield line
-    except Exception, e:
-        print e
+    except Exception as e:
+        print(e)
 
 def task_input_stream(stream, size, url, params):
     """
@@ -423,7 +426,7 @@ def task_input_stream(stream, size, url, params):
 map_input_stream = reduce_input_stream = task_input_stream
 
 def string_input_stream(string, size, url, params):
-    from cStringIO import StringIO
+    from disco.compat import StringIO
     return StringIO(string), len(string), url
 
 def task_output_stream(stream, partition, url, params):
@@ -442,13 +445,15 @@ def disco_output_stream(stream, partition, url, params):
 
 def disco_input_stream(stream, size, url, ignore_corrupt = False):
     """Input stream for Disco's internal compression format."""
-    import struct, cStringIO, gzip, cPickle, zlib
+    from disco.compat import BytesIO, int_of_byte
+    from disco.compat import pickle_load
+    import struct, gzip, zlib
     offset = 0
     while True:
         header = stream.read(1)
         if not header:
             return
-        if ord(header[0]) < 128:
+        if int_of_byte(header[0]) < 128:
             for e in old_netstr_reader(stream, size, url, header):
                 yield e
             return
@@ -456,24 +461,24 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
             is_compressed, checksum, hunk_size =\
                 struct.unpack('<BIQ', stream.read(13))
         except:
-            raise DataError("Truncated data at %d bytes" % offset, url)
+            raise DataError("Truncated data at {0} bytes".format(offset), url)
         if not hunk_size:
             return
         hunk = stream.read(hunk_size)
-        data = ''
+        data = b''
         try:
             data = zlib.decompress(hunk) if is_compressed else hunk
             if checksum != (zlib.crc32(data) & 0xFFFFFFFF):
                 raise ValueError("Checksum does not match")
-        except (ValueError, zlib.error), e:
+        except (ValueError, zlib.error) as e:
             if not ignore_corrupt:
-                raise DataError("Corrupted data between bytes %d-%d: %s" %
-                                (offset, offset + hunk_size, e), url)
+                raise DataError("Corrupted data between bytes {0}-{1}: {2}"
+                                .format(offset, offset + hunk_size, e), url)
         offset += hunk_size
-        hunk = cStringIO.StringIO(data)
+        hunk = BytesIO(data)
         while True:
             try:
-                yield cPickle.load(hunk)
+                yield pickle_load(hunk)
             except EOFError:
                 break
 
@@ -497,48 +502,44 @@ class DiscoDBOutput(object):
 
 def discodb_output(stream, partition, url, params):
     from disco.worker.classic.func import DiscoDBOutput
-    return DiscoDBOutput(stream, params), 'discodb:%s' % url.split(':', 1)[1]
+    return DiscoDBOutput(stream, params), 'discodb:{0}'.format(url.split(':', 1)[1])
 
 def disk_sort(worker, input, filename, sort_buffer_size='10%'):
     from os.path import getsize
     from disco.comm import open_local
     from disco.util import format_size
     from disco.fileutils import AtomicFile
-    worker.send('MSG', "Downloading %s" % filename)
+    worker.send('MSG', "Downloading {0}".format(filename))
     out_fd = AtomicFile(filename)
     for key, value in input:
-        if not isinstance(key, str):
-            raise ValueError("Keys must be strings for external sort", key)
-        if '\xff' in key or '\x00' in key:
+        if not isinstance(key, bytes):
+            raise ValueError("Keys must be bytes for external sort", key)
+        if b'\xff' in key or b'\x00' in key:
             raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
         else:
             # value pickled using protocol 0 will always be printable ASCII
-            out_fd.write('%s\xff%s\x00' % (key, cPickle.dumps(value, 0)))
+            out_fd.write(key + b'\xff')
+            out_fd.write(pickle_dumps(value, 0) + b'\x00')
     out_fd.close()
-    worker.send('MSG', "Downloaded %s OK" % format_size(getsize(filename)))
-    worker.send('MSG', "Sorting %s..." % filename)
+    worker.send('MSG', "Downloaded {0:s} OK".format(format_size(getsize(filename))))
+    worker.send('MSG', "Sorting {0}...".format(filename))
     unix_sort(filename, sort_buffer_size=sort_buffer_size)
     worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
-    for k, v in re_reader("(?s)(.*?)\xff(.*?)\x00", fd, len(fd), fd.url):
-        yield k, cPickle.loads(v)
+    for k, v in re_reader(b"(?s)(.*?)\xff(.*?)\x00", fd, len(fd), fd.url):
+        yield k, pickle_loads(v)
 
 def unix_sort(filename, sort_buffer_size='10%'):
-    import subprocess
+    import subprocess, os.path
+    if not os.path.isfile(filename):
+        raise DataError("Invalid sort input file {0}".format(filename), filename)
     try:
         env = os.environ.copy()
         env['LC_ALL'] = 'C'
-        subprocess.check_call(['sort',
-                               '-z',
-                               '-t', '\xff',
-                               '-k', '1,1',
-                               '-T', '.',
-                               '-S', sort_buffer_size,
-                               '-o', filename,
-                               filename],
-                               env=env)
-    except subprocess.CalledProcessError, e:
-        raise DataError("Sorting %s failed: %s" % (filename, e), filename)
+        cmd, shell = sort_cmd(filename, sort_buffer_size)
+        subprocess.check_call(cmd, env=env, shell=shell)
+    except subprocess.CalledProcessError as e:
+        raise DataError("Sorting {0} failed: {1}".format(filename, e), filename)
 
 chain_reader = disco_input_stream
 chain_stream = (task_input_stream, chain_reader)

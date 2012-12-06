@@ -26,8 +26,8 @@ This document describes how the worker should communicate with
 Disco, while it is executing.  For more on creating and submitting
 the :term:`job pack`, see :ref:`jobpack`.
 
-.. note:: The same executable is launched to perform :term:`map` and
-          :term:`reduce` tasks.
+.. note:: The same executable is launched to perform :term:`map`
+          and :term:`reduce` tasks.
 
 A worker-initiated synchronous message-based protocol is used for this
 communication.  That is, all communication is initiated by the worker
@@ -42,7 +42,9 @@ waiting this long.
 
 .. note:: Workers should not write anything to :term:`stderr`,
           except messages formatted as described below.
-          :term:`stdout` is also initially redirected to stderr.
+          A worker's :term:`stdout` is also initially redirected to
+          stderr.
+
 
 .. note:: In Python, :class:`Workers <disco.worker.Worker>` wrap all
           exceptions, and everything written to :term:`stdout`, with

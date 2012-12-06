@@ -3,36 +3,38 @@ import string
 from disco.job import JobChain
 from disco.test import TestCase, TestJob
 from disco.util import load_oob
+from disco.compat import bytes_to_str, str_to_bytes
 
 class OOBJob1(TestJob):
     partitions = 10
 
     @staticmethod
     def map(e, params):
-        v = 'value:%s' % e
-        put(e, v)
-        yield e, v
+        k = bytes_to_str(e)
+        v = str_to_bytes('value:{0}'.format(k))
+        put(k, v)
+        yield k, v
 
     @staticmethod
     def reduce(iter, params):
         for k, v in iter:
             assert v == get(k)
-        x = 'reduce:%d' % this_partition()
-        put(x, 'value:%s' % x)
+        x = 'reduce:{0}'.format(this_partition())
+        put(x, str_to_bytes('value:{0}'.format(x)))
         yield 'all', 'ok'
 
 class OOBJob2(TestJob):
     @staticmethod
     def map(e, params):
-        x = load_oob(Task.master, params['job'], e)
-        assert x == 'value:%s' % e
+        x = bytes_to_str(load_oob(Task.master, params['job'], e))
+        assert x == 'value:{0}'.format(e)
         yield 'good', ''
 
 class LargeOOBJob(TestJob):
     @staticmethod
     def map(e, params):
         for i in range(10):
-            put('%s-%d' % (e, i), 'val:%s-%d' % (e, i))
+            put('{0}-{1}'.format(e, i), str_to_bytes('val:{0}-{1}'.format(e, i)))
         return []
 
 class OOBTestCase(TestCase):
@@ -48,14 +50,14 @@ class OOBTestCase(TestCase):
         self.assertResults(b, [('good', '')] * 3)
         self.assertEquals(sorted(a.oob_list()),
                           sorted(list(string.ascii_lowercase) +
-                                 ['reduce:%s' % i for i in xrange(a.partitions)]))
+                                 ['reduce:{0}'.format(i) for i in range(a.partitions)]))
 
     def test_large(self):
-        self.job = LargeOOBJob().run(input=['raw://%d' % i
+        self.job = LargeOOBJob().run(input=['raw://{0}'.format(i)
                                             for i in range(self.num_workers)])
         self.assertResults(self.job, [])
-        self.assertEquals(sorted((key, self.job.oob_get(key))
+        self.assertEquals(sorted((key, bytes_to_str(self.job.oob_get(key)))
                                  for key in self.job.oob_list()),
-                          sorted(('%d-%d' % (i, j), 'val:%d-%d' % (i, j))
+                          sorted(('{0}-{1}'.format(i, j), 'val:{0}-{1}'.format(i, j))
                                  for i in range(self.num_workers)
                                  for j in range(10)))

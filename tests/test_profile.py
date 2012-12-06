@@ -1,6 +1,7 @@
-import cStringIO
+from disco.compat import StringIO
 from disco.test import TestCase, TestJob
 from disco.util import kvgroup
+from disco.compat import bytes_to_str
 
 class ProfileJob(TestJob):
     partitions = 30
@@ -9,7 +10,7 @@ class ProfileJob(TestJob):
 
     @staticmethod
     def map(e, params):
-        return [(w, 1) for w in re.sub('\W', ' ', e).lower().split()]
+        return [(w, 1) for w in re.sub('\W', ' ', bytes_to_str(e)).lower().split()]
 
     @staticmethod
     def reduce(iter, params):
@@ -21,7 +22,7 @@ class ProfileTestCase(TestCase):
         return "Gutta cavat cavat lapidem\n" * 10
 
     def reduce_calls(self):
-        out = cStringIO.StringIO()
+        out = StringIO()
         self.job.profile_stats(stream=out).print_stats('worker', 'reduce')
         for line in out.getvalue().splitlines():
             if 'worker.py' in line:

@@ -17,9 +17,19 @@ It is intended to help you to get Disco working locally, on a single computer.
 After you have done this, distributing it should be rather straightforward:
 the same debugging techniques apply.
 
-.. note:: It's assumed that you have already followed the steps in
-          :ref:`install_source`.
+.. note:: It's assumed that you have already followed the steps
+          in :ref:`install_source`.
 
+First, ensure the following:
+
+- The version of Erlang is the same throughout the cluster.
+
+- The version of Disco is the same throughout the cluster, and
+  installed in the same location.
+
+- The 'python' executable or symbolic link points to the same version
+  of Python across the cluster, and on the clients from which Disco
+  jobs are submitted.
 
 .. _stopping_disco:
 
@@ -31,8 +41,7 @@ try to stop the :term:`master` using ``disco stop``
 (or :kbd:`C-c` if you are running with ``disco nodaemon``).
 If you cannot seem to stop Disco this way, kill the ``beam`` processes by hand,
 
-.. hint:: You can use
-   ::
+.. hint:: You can use::
 
         ps aux | grep beam.*disco
 

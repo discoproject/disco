@@ -90,11 +90,12 @@ is a valid expression.
 Functions
 ---------
 """
-import re, struct, sys, os, imp, modulefinder
+import sys, os
+import imp, modulefinder, struct, dis
 import functools
 from os.path import abspath, dirname
-from opcode import opname
 
+from disco.compat import bytes_of_int, int_of_byte
 from disco.error import DiscoError
 
 class ModUtilImportError(DiscoError, ImportError):
@@ -105,13 +106,55 @@ class ModUtilImportError(DiscoError, ImportError):
 
     def __str__(self):
         # XXX! Add module name below
-        return ("%s: Could not find module defined in %s. Maybe it is a typo. "
+        return ("{0}: Could not find module defined in {1}. Maybe it is a typo. "
                 "See documentation of the required_modules parameter for details "
-                "on how to include modules." % (self.error, self.function.func_name))
+                "on how to include modules.".format(self.error, self.function.__name__))
 
 def user_paths():
     return set([os.path.abspath(path)
                 for path in os.getenv('PYTHONPATH', '').split(':')] + [''])
+
+# The scanner returns imports used in the function, both direct
+# imports (using 'import X') as well as implicit imports (using
+# X.attr).  This is based on code from modulefinder.py.
+LOAD_CONST    = bytes_of_int(dis.opname.index('LOAD_CONST'))
+LOAD_GLOBAL   = bytes_of_int(dis.opname.index('LOAD_GLOBAL'))
+LOAD_ATTR     = bytes_of_int(dis.opname.index('LOAD_ATTR'))
+IMPORT_NAME   = bytes_of_int(dis.opname.index('IMPORT_NAME'))
+HAVE_ARGUMENT = dis.HAVE_ARGUMENT
+
+def scanner(func_code):
+    code   = func_code.co_code
+    names  = func_code.co_names
+    consts = func_code.co_consts
+    LOAD_LOAD_AND_IMPORT = LOAD_CONST + LOAD_CONST + IMPORT_NAME
+    LOAD_GLOBAL_ATTR = LOAD_GLOBAL + LOAD_ATTR
+    while code:
+        # The below code captures use of direct imports, which can be
+        # useful.  However, it also captures imports of disco modules,
+        # which imp.find_module() may not find, resulting in failures
+        # for existing code when before there were none.  Hence, it is
+        # commented out for now, until we can handle imported packages
+        # better or screen out disco modules properly.
+
+        # if code[:9:3] == LOAD_LOAD_AND_IMPORT:
+        #     oparg_1, oparg_2, oparg_3 = struct.unpack('<xHxHxH', code[:9])
+        #     level = consts[oparg_1]
+        #     if level == -1 or level == 0:  # normal or absolute import
+        #         yield names[oparg_3]
+        #     # we do not support relative imports.
+        #     code = code[9:]
+        #     continue
+
+        if code[:6:3] == LOAD_GLOBAL_ATTR:
+            oparg, = struct.unpack('<xH', code[:3])
+            yield names[oparg]
+            code = code[6:]
+            continue
+        if int_of_byte(code[0]) >= HAVE_ARGUMENT:
+            code = code[3:]
+        else:
+            code = code[1:]
 
 def parse_function(function):
     """
@@ -137,15 +180,12 @@ def parse_function(function):
     """
     if isinstance(function, functools.partial):
         return parse_function(function.func)
-    code = function.func_code
-    mod = re.compile(r'\x%.2x(..)\x%.2x' % (opname.index('LOAD_GLOBAL'),
-                        opname.index('LOAD_ATTR')), re.DOTALL)
-    return [code.co_names[struct.unpack('<H', x)[0]] for x in mod.findall(code.co_code)]
+    return [m for m in scanner(function.__code__)]
 
 def recurse_module(module, path):
     finder = modulefinder.ModuleFinder(path=list(user_paths()))
     finder.run_script(path)
-    return dict((name, os.path.realpath(module.__file__)) for name, module in finder.modules.iteritems()
+    return dict((name, os.path.realpath(module.__file__)) for name, module in finder.modules.items()
                 if name != '__main__' and module.__file__)
 
 def locate_modules(modules, recurse=True, include_sys=False):
@@ -207,7 +247,7 @@ def find_modules(functions, send_modules=True, recurse=True, exclude=()):
         if send_modules:
             try:
                 m = locate_modules(fmod, recurse, include_sys=True)
-            except ImportError, e:
+            except ImportError as e:
                 raise ModUtilImportError(e, function)
             modules.update((k, v) if v else k for k, v in m)
         else:

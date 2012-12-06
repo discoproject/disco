@@ -10,7 +10,7 @@
 -include("gs_util.hrl").
 
 -export([start/2, init/1, handle_call/3, handle_cast/2,
-        handle_info/2, terminate/2, code_change/3]).
+         handle_info/2, terminate/2, code_change/3]).
 
 -type replyto() :: {pid(), reference()}.
 
@@ -42,14 +42,14 @@
 % Special messages for the +deleted tag.
 -type has_tagname_msg() :: {has_tagname, tagname()}.
 -type get_tagnames_msg() :: get_tagnames.
--type delete_tagname_msg() :: {delete_tagname, tagname()}.
+-type delete_tagnames_msg() :: {delete_tagnames, [tagname()]}.
 
 % Notifications.
 -type notify_msg() :: {notify, term()}.
 
 -type call_msg() :: get_msg() | put_msg() | update_msg() | delayed_update_msg()
                   | delete_attrib_msg() | delete_msg()
-                  | has_tagname_msg() | get_tagnames_msg() | delete_tagname_msg()
+                  | has_tagname_msg() | get_tagnames_msg() | delete_tagnames_msg()
                   | gc_get_msg().
 -type cast_msg() :: notify_msg().
 
@@ -270,18 +270,27 @@ handle_cast({get_tagnames, ReplyTo},
     gen_server:reply(ReplyTo, {ok, Cache}),
     {noreply, S, TO};
 
-handle_cast({{delete_tagname, Name}, ReplyTo}, #state{url_cache = Cache} = S) ->
-    S1 = case gb_sets:is_member(Name, Cache) of
+handle_cast({{delete_tagnames, Names}, ReplyTo}, #state{url_cache = Cache,
+                                                        locations = Locs} = S) ->
+    {Updated, NewCache} =
+        lists:foldl(
+          fun(TagName, {_, C} = Acc) ->
+                  case gb_sets:is_member(TagName, C) of
+                      true  -> {true, gb_sets:delete_any(TagName, C)};
+                      false -> Acc
+                  end
+          end, {false, Cache}, Names),
+    S1 = case Updated of
              true ->
-                 NewDel = gb_sets:delete_any(Name, Cache),
                  NewUrls = [[<<"tag://", Tag/binary>>]
-                            || Tag <- gb_sets:to_list(NewDel)],
+                            || Tag <- gb_sets:to_list(NewCache)],
                  do_put({write, null},
                         urls,
                         NewUrls,
                         ReplyTo,
-                        S#state{url_cache = NewDel});
+                        S#state{url_cache = NewCache});
              false ->
+                 _ = send_replies(ReplyTo, {ok, Locs}),
                  S
          end,
     {noreply, S1, S1#state.timeout}.
@@ -617,7 +626,7 @@ do_get(_TokenInfo, {user, A}, D) ->
         _ -> {error, unknown_attribute}
     end.
 
--spec do_put({tokentype(), token()}, attrib(), string(), replyto(), state())
+-spec do_put({tokentype(), token()}, attrib(), term(), replyto(), state())
             -> state().
 do_put({_, Token},
        Field,
@@ -631,7 +640,7 @@ do_put({_, Token},
             case put_distribute({TagID, NewTagData}) of
                 {ok, DestNodes, DestUrls} ->
                     if TagData =:= {missing, deleted} ->
-                            {ok, _} = remove_from_deleted(TagName),
+                            {ok, _} = remove_from_deleted([TagName]),
                             ok;
                        true -> ok
                     end,
@@ -749,9 +758,9 @@ add_to_deleted(Tag) ->
     Urls = [[<<"tag://", Tag/binary>>]],
     deleted_op({update, Urls, internal, [nodup]}, ?TAG_UPDATE_TIMEOUT).
 
--spec remove_from_deleted(tagname()) -> _.
-remove_from_deleted(Tag) ->
-    deleted_op({delete_tagname, Tag}, ?NODEOP_TIMEOUT).
+-spec remove_from_deleted([tagname()]) -> _.
+remove_from_deleted(Tags) ->
+    deleted_op({delete_tagnames, Tags}, ?NODEOP_TIMEOUT).
 
 deleted_op(Op, Timeout) ->
     ddfs_master:tag_operation(Op, <<"+deleted">>, Timeout).

@@ -9,8 +9,8 @@ def check_reify(option, opt, val):
     from disco.util import reify
     try:
         return reify(val)
-    except Exception, e:
-        raise OptionValueError('%s option: %s' % (opt, str(e)))
+    except Exception as e:
+        raise OptionValueError('{0} option: {1}'.format(opt, str(e)))
 
 class Option(Opt):
     actions = ('setitem', 'setitem2')
@@ -119,8 +119,8 @@ class Program(clx.Program):
 
     def default(self, program, *args):
         if args:
-            raise Exception("unrecognized command: %s" % ' '.join(args))
-        print self.disco
+            raise Exception("unrecognized command: {0}".format(' '.join(args)))
+        print(self.disco)
 
     def job_history(self, jobname):
         if jobname == '@':
@@ -197,22 +197,23 @@ class Master(clx.server.Server):
         edep = lambda d: os.path.join(settings['DISCO_MASTER_HOME'], 'deps', d, 'ebin')
         def lager_config(log_dir):
             return ['-lager', 'handlers',
-                    '[{lager_console_backend, info},'
-                     '{lager_file_backend,'
-                      '[{"%s/error.log", error, 1048576000, "$D0", 5},'
-                       '{"%s/console.log", debug, 104857600, "$D0", 5}]}]' % (log_dir, log_dir),
-                    '-lager', 'crash_log', '"%s/crash.log"' % (log_dir)]
-        return settings['DISCO_ERLANG'].split() + \
-               lager_config(settings['DISCO_LOG_DIR']) + \
-               ['+K', 'true',
-                '+P', '10000000',
-                '-rsh', 'ssh',
-                '-connect_all', 'false',
-                '-sname', self.name,
-                '-pa', epath('ebin'),
-                '-pa', edep('mochiweb'),
-                '-pa', edep('lager'),
-                '-eval', 'application:start(disco)']
+                    ('[{lager_console_backend, info},'
+                     +'{lager_file_backend,'
+                     +' [{' + '"{0}/error.log"'.format(log_dir)   + ', error, 1048576000, "$D0", 5},'
+                     +'  {' + '"{0}/console.log"'.format(log_dir) + ', debug, 1048576000, "$D0", 5}]}]'),
+                    '-lager', 'crash_log', '"{0}/crash.log"'.format(log_dir)]
+        ret = (settings['DISCO_ERLANG'].split() +
+                lager_config(settings['DISCO_LOG_DIR']) +
+                ['+K', 'true',
+                 '+P', '10000000',
+                 '-rsh', 'ssh',
+                 '-connect_all', 'false',
+                 '-sname', self.name,
+                 '-pa', epath('ebin'),
+                 '-pa', edep('mochiweb'),
+                 '-pa', edep('lager'),
+                 '-eval', 'application:start(disco)'])
+        return ret
 
     @property
     def host(self):
@@ -241,11 +242,11 @@ class Master(clx.server.Server):
 
     @property
     def name(self):
-        return '%s_master' % self.settings['DISCO_NAME']
+        return '{0}_master'.format(self.settings['DISCO_NAME'])
 
     @property
     def nodename(self):
-        return '%s@%s' % (self.name, self.host.split('.', 1)[0])
+        return '{0}@{1}'.format(self.name, self.host.split('.', 1)[0])
 
     def nodaemon(self):
         return ('' for x in self.start(*self.basic_args))
@@ -261,5 +262,5 @@ class Master(clx.server.Server):
                 os.setgid(gid)
                 os.setuid(uid)
                 os.environ['HOME'] = home
-            except Exception, x:
-                raise Exception("Could not switch to the user '%s'" % user)
+            except Exception as x:
+                raise Exception("Could not switch to the user '{0}'".format(user))

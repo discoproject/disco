@@ -8,6 +8,7 @@ This module defines objects for interfacing with
 """
 import os, time
 
+from disco.compat import basestring
 from disco import dPickle
 from disco.util import hexhash
 
@@ -63,7 +64,7 @@ class Task(object):
         self.host = host
         self.jobfile = jobfile
         self.jobname = jobname
-        self.jobpack = JobPack.load(open(jobfile))
+        self.jobpack = JobPack.load(open(jobfile, 'rb'))
         self.jobobjs = dPickle.loads(self.jobpack.jobdata)
         self.master = master
         self.disco_port = disco_port
@@ -74,10 +75,10 @@ class Task(object):
         self.group = group
         self.taskid = taskid
         self.outputs = {}
-        self.uid = '%s:%s-%s-%x' % (self.mode,
-                                    taskid,
-                                    hexhash(str((time.time()))),
-                                    os.getpid())
+        self.uid = '{0}:{1}-{2}-{3}'.format(self.mode,
+                                            taskid,
+                                            hexhash(str((time.time())).encode()),
+                                            os.getpid())
 
     @property
     def jobpath(self):
@@ -85,7 +86,7 @@ class Task(object):
 
     @property
     def taskpath(self):
-        return os.path.join(hexhash(self.uid), self.uid)
+        return os.path.join(hexhash(self.uid.encode()), self.uid)
 
     def makedirs(self):
         from disco.fileutils import ensure_path
@@ -119,7 +120,7 @@ class Task(object):
 
     def put(self, key, value):
         """
-        Stores an out-of-band result *value* with the key *key*.
+        Stores an out-of-band result *value* (bytes) with the key *key*.
 
         Key must be unique in this job.
         Maximum key length is 256 characters.
@@ -127,6 +128,7 @@ class Task(object):
         """
         from disco.ddfs import DDFS
         from disco.util import save_oob
+        from disco.error import DiscoError
         if DDFS.safe_name(key) != key:
-            raise DiscoError("OOB key contains invalid characters (%s)" % key)
+            raise DiscoError("OOB key contains invalid characters ({0})".format(key))
         save_oob(self.master, self.jobname, key, value)

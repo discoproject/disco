@@ -13,9 +13,8 @@ internally.
 import os, sys, time
 import functools, gzip
 
-from cStringIO import StringIO
+from disco.compat import BytesIO, basestring, bytes_to_str
 from itertools import chain, groupby, repeat
-from urllib import urlencode
 
 from disco.error import DiscoError, DataError, CommError
 from disco.settings import DiscoSettings
@@ -36,24 +35,25 @@ class netloc(tuple):
     def port(self):
         return self[1]
 
-    def __nonzero__((host, port)):
-        return bool(host)
+    def __nonzero__(host_port):
+        return bool(host_port[0])
 
-    def __str__((host, port)):
-        return '%s:%s' % (host, port) if port else host
+    def __str__(host_port):
+        host, port = host_port
+        return '{0}:{1}'.format(host, port) if port else host
 
 def chainify(iterable):
     return list(chain(*iterable))
 
 def dsorted(iterable, buffer_size=1e6, tempdir='.'):
-    from cPickle import dump, load
+    from disco.compat import pickle_load, pickle_dump
     from heapq import merge
     from itertools import islice
     from tempfile import TemporaryFile
     def read(handle):
         while True:
             try:
-                yield load(handle)
+                yield pickle_load(handle)
             except EOFError:
                 return
     iterator = iter(iterable)
@@ -62,7 +62,7 @@ def dsorted(iterable, buffer_size=1e6, tempdir='.'):
         buffer = sorted(islice(iterator, buffer_size))
         handle = TemporaryFile(dir=tempdir)
         for item in buffer:
-            dump(item, handle, -1)
+            pickle_dump(item, handle, -1)
         handle.seek(0)
         subiters.append(read(handle))
         if len(buffer) < buffer_size:
@@ -85,7 +85,7 @@ def identity(object):
     return object
 
 def isiterable(object):
-    return hasattr(object, '__iter__')
+    return hasattr(object, '__iter__') and not isinstance(object, str)
 
 def iskv(object):
     return isinstance(object, tuple) and len(object) is 2
@@ -98,8 +98,8 @@ def iterify(object):
 def ilen(iter):
     return sum(1 for _ in iter)
 
-def key((k, v)):
-    return k
+def key(k_v):
+    return k_v[0]
 
 def kvgroup(kviter):
     """
@@ -137,22 +137,23 @@ def shuffled(object):
     return shuffled
 
 def argcount(object):
-    if hasattr(object, 'func_code'):
-        return object.func_code.co_argcount
-    argcount = object.func.func_code.co_argcount
+    if hasattr(object, '__code__'):
+        return object.__code__.co_argcount
+    argcount = object.func.__code__.co_argcount
     return argcount - len(object.args or ()) - len(object.keywords or ())
 
 def globalize(object, globals):
     if isinstance(object, functools.partial):
         object = object.func
-    if hasattr(object, 'func_globals'):
-        for k, v in globals.iteritems():
-            object.func_globals.setdefault(k, v)
+    if hasattr(object, '__globals__'):
+        for k, v in globals.items():
+            object.__globals__.setdefault(k, v)
 
-def urljoin((scheme, netloc, path)):
-    return '%s%s%s' % ('%s://' % scheme if scheme else '',
-                       '%s/' % (netloc, ) if netloc else '',
-                       path)
+def urljoin(scheme_netloc_path):
+    scheme, netloc, path = scheme_netloc_path
+    return ('{0}{1}{2}'.format('{0}://'.format(scheme if scheme else ''),
+                               '{0}/'.format(netloc if netloc else ''),
+                               path))
 
 def schemesplit(url):
     return url.split('://', 1) if '://' in url else ('', url)
@@ -179,22 +180,23 @@ def urlsplit(url, localhost=None, disco_port=None, **kwargs):
                 path = localize(path, **kwargs)
             elif scheme == 'disco':
                 scheme = 'http'
-                locstr = '%s:%s' % (host, disco_port)
+                locstr = '{0}:{1}'.format(host, disco_port)
     return scheme, netloc.parse(locstr), path
 
 def urlresolve(url, master=None):
-    def _master((host, port)):
+    def _master(host_port):
+        host, port = host_port
         if not host:
             return master or DiscoSettings()['DISCO_MASTER']
         if not port:
-            return 'disco://%s' % host
-        return 'http://%s:%s' % (host, port)
+            return 'disco://{0}'.format(host)
+        return 'http://{0}:{1}'.format(host, port)
     scheme, netloc, path = urlsplit(url)
     if scheme == 'dir':
-        return urlresolve('%s/%s' % (_master(netloc), path))
+        return urlresolve('{0}/{1}'.format(_master(netloc), path))
     if scheme == 'tag':
-        return urlresolve('%s/ddfs/tag/%s' % (_master(netloc), path))
-    return '%s://%s/%s' % (scheme, netloc, path)
+        return urlresolve('{0}/ddfs/tag/{1}'.format(_master(netloc), path))
+    return '{0}://{1}/{2}'.format(scheme, netloc, path)
 
 def urltoken(url):
     _scheme, rest = schemesplit(url)
@@ -212,7 +214,7 @@ def msg(message):
     master, the maximum *message* size is set to 255 characters and job is
     allowed to send at most 10 messages per second.
     """
-    print message
+    print(message)
 
 def err(message):
     """
@@ -253,7 +255,7 @@ def jobname(url):
     scheme, x, path = urlsplit(url)
     if scheme in ('disco', 'dir', 'http'):
         return path.strip('/').split('/')[-2]
-    raise DiscoError("Cannot parse jobname from %s" % url)
+    raise DiscoError("Cannot parse jobname from {0}".format(url))
 
 def external(files):
     from disco.worker.classic.external import package
@@ -280,8 +282,8 @@ def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET', to_master=T
     scheme, (host, port), path = urlsplit(url)
     if proxy and scheme != "tag":
         if to_master:
-            return '%s/%s' % (proxy, path)
-        return '%s/proxy/%s/%s/%s' % (proxy, host, meth, path)
+            return '{0}/{1}'.format(proxy, path)
+        return '{0}/proxy/{1}/{2}/{3}'.format(proxy, host, meth, path)
     return url
 
 def read_index(dir):
@@ -290,7 +292,7 @@ def read_index(dir):
     if dir.endswith(".gz"):
         file = gzip.GzipFile(fileobj=file)
     for line in file:
-        yield line.split()
+        yield bytes_to_str(line).split()
 
 def ispartitioned(input):
     if isiterable(input):
@@ -309,11 +311,12 @@ def inputexpand(input, partition=None, settings=DiscoSettings()):
     return [input]
 
 def inputlist(inputs, **kwargs):
-    return filter(None, chainify(inputexpand(input, **kwargs) for input in inputs))
+    return [inp for inp in chainify(inputexpand(input, **kwargs)
+                                    for input in inputs) if inp]
 
 def save_oob(host, name, key, value, ddfs_token=None):
     from disco.ddfs import DDFS
-    DDFS(host).push(DDFS.job_oob(name), [(StringIO(value), key)], delayed=True)
+    DDFS(host).push(DDFS.job_oob(name), [(BytesIO(value), key)], delayed=True)
 
 def load_oob(host, name, key):
     from disco.ddfs import DDFS
@@ -326,5 +329,5 @@ def load_oob(host, name, key):
 def format_size(num):
     for unit in [' bytes','KB','MB','GB','TB']:
         if num < 1024.:
-            return "%3.1f%s" % (num, unit)
+            return "{0:3.1f}{1}".format(num, unit)
         num /= 1024.

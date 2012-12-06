@@ -3,7 +3,7 @@ from disco.test import TestCase, TestJob
 class RawJob(TestJob):
     @staticmethod
     def map(e, params):
-        yield 'raw://%s' % e, ''
+        yield 'raw://{0}'.format(e), ''
 
 class RawTestCase(TestCase):
     def runTest(self):

@@ -1,7 +1,6 @@
 import os, signal, unittest
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-from SocketServer import ThreadingMixIn
-from httplib import OK, INTERNAL_SERVER_ERROR
+from disco.compat import http_server, socket_server, httplib
+from disco.compat import str_to_bytes
 from threading import Thread
 
 try:
@@ -15,6 +14,13 @@ from disco.job import Job
 from disco.ddfs import DDFS
 from disco.settings import DiscoSettings
 from disco.util import iterify
+
+BaseHTTPRequestHandler = http_server.BaseHTTPRequestHandler
+HTTPServer = http_server.HTTPServer
+ThreadingMixIn = socket_server.ThreadingMixIn
+
+OK = httplib.OK
+INTERNAL_SERVER_ERROR = httplib.INTERNAL_SERVER_ERROR
 
 class InterruptTest(KeyboardInterrupt, SkipTest):
     def __init__(self, test):
@@ -53,7 +59,7 @@ class TestCase(unittest.TestCase):
                 int(self.settings['DISCO_TEST_PORT']))
 
     def assertAllEqual(self, results, answers):
-        from disco.future import izip_longest as zip
+        from disco.compat import zip_longest as zip
         for result, answer in zip(results, answers):
             self.assertEquals(result, answer)
 
@@ -61,12 +67,12 @@ class TestCase(unittest.TestCase):
         from disco.error import CommError
         try:
             ret = callable()
-        except CommError, e:
+        except CommError as e:
             return self.assertEquals(code, e.code)
-        except Exception, e:
-            raise AssertionError('CommError not raised, got %s' % e)
-        raise AssertionError('CommError not raised (expected %d), '
-            'returned %s' % (code, ret))
+        except Exception as e:
+            raise AssertionError('CommError not raised, got {0}'.format(e))
+        raise AssertionError('CommError not raised (expected {0}), '
+                             'returned {1}'.format(code, ret))
 
     def assertResults(self, job, answers):
         self.assertAllEqual(self.results(job), answers)
@@ -97,7 +103,7 @@ class TestCase(unittest.TestCase):
         # (until we drop 2.5 support)
         try:
             super(TestCase, self).skipTest(message)
-        except AttributeError, e:
+        except AttributeError as e:
             pass
 
 class TestJob(Job):
@@ -130,7 +136,7 @@ class TestServer(ThreadingMixIn, HTTPServer):
 
     @property
     def address(self):
-        return 'http://%s:%d' % self.server_address
+        return 'http://{0[0]}:{0[1]:d}'.format(self.server_address)
 
     @classmethod
     def create(cls, server_address, data_generator):
@@ -148,7 +154,7 @@ class TestServer(ThreadingMixIn, HTTPServer):
 
     def urls(self, inputs):
         def serverify(input):
-            return '%s/%s' % (self.address, input)
+            return '{0}/{1}'.format(self.address, input)
         return [[serverify(url) for url in iterify(input)] for input in inputs]
 
 class FailedReply(Exception):
@@ -160,12 +166,12 @@ def handler(data_generator):
             self.send_response(OK)
             self.send_header('Content-length', len(data or []))
             self.end_headers()
-            self.wfile.write(data)
+            self.wfile.write(str_to_bytes(data))
 
         def do_GET(self):
             try:
                 self.send_data(data_generator(self.path.strip('/')))
-            except FailedReply, e:
+            except FailedReply as e:
                 self.send_error(INTERNAL_SERVER_ERROR, str(e))
 
         def log_request(*args):

@@ -1,5 +1,5 @@
-import httplib, time, base64
-from cStringIO import StringIO
+import time, base64
+from disco.compat import StringIO, httplib, basestring
 
 import pycurl
 
@@ -56,11 +56,11 @@ class HTTPConnection(object):
         if self.response.status in httplib.responses:
             self.response.reason = httplib.responses[self.response.status]
         else:
-            self.response.reason = "Unknown status code %d" % self.response.status
+            self.response.reason = "Unknown status code {0:d}".format(self.response.status)
         return self.response
 
     def prepare(self, method, url, body=None, headers={}):
-        self['URL'] = '%s%s' % (self.netloc, url)
+        self['URL'] = '{0}{1}'.format(self.netloc, url)
 
         if method == 'DELETE':
             self['CUSTOMREQUEST'] = method
@@ -82,7 +82,7 @@ class HTTPConnection(object):
                 self['POSTFIELDSIZE'] = size if size is not None else -1
             self['READFUNCTION'] = read
 
-        self['HTTPHEADER'] = ['%s:%s' % item for item in headers.items()] +\
+        self['HTTPHEADER'] = ['{0[0]}:{0[1]}'.format(item) for item in headers.items()] +\
                              ['Expect:'] # work-around for lighttpd
         return self
 
@@ -92,7 +92,7 @@ class HTTPConnection(object):
         self.prepare(method, url, body=body, headers=headers)
         try:
             self.handle.perform()
-        except pycurl.error, e:
+        except pycurl.error as e:
             raise httplib.HTTPException(self.handle.errstr())
 
 class MultiPut(object):
@@ -138,7 +138,7 @@ def upload(urls, source, token, retries=10):
                 raise CommError("Maximum number of retries reached", url)
             unavailable.append(url)
         else:
-            raise CommError("Upload failed: %s" % response.read(), url, status)
+            raise CommError("Upload failed: {0}".format(response.read()), url, status)
 
     if unavailable:
         for response in upload(unavailable, source, token, retries=retries-1):

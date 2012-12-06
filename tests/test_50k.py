@@ -26,14 +26,14 @@ class ManyMapTestCase(TestCase):
         self.job = ManyMapJob().run(input=self.test_server.urls([''] * 5),
                                     partitions=self.partitions)
         self.assertEquals(dict(self.results(self.job)),
-                          {'gutta':   int(5e2),
-                           'cavat':   int(1e3),
-                           'lapidem': int(5e2)})
+                          {b'gutta':   int(5e2),
+                           b'cavat':   int(1e3),
+                           b'lapidem': int(5e2)})
 
     def test_50k(self):
         self.job = ManyMapJob().run(input=self.test_server.urls([''] * int(5e4)),
                                     partitions=self.partitions)
         self.assertEquals(dict(self.results(self.job)),
-                          {'gutta':   int(5e6),
-                           'cavat':   int(1e7),
-                           'lapidem': int(5e6)})
+                          {b'gutta':   int(5e6),
+                           b'cavat':   int(1e7),
+                           b'lapidem': int(5e6)})

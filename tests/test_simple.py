@@ -1,9 +1,10 @@
 from disco.test import TestCase, TestJob
+from disco.compat import bytes_to_str
 
 class SimpleJob(TestJob):
     @staticmethod
     def map(e, params):
-        yield int(e), e.strip()
+        yield int(e), (bytes_to_str(e)).strip()
 
     @staticmethod
     def reduce(iter, out, params):
@@ -19,7 +20,7 @@ class SimpleTestCase(TestCase):
     input = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31]
 
     def answers(self):
-        return ((i, str(i)) for i in self.input for x in xrange(10))
+        return ((i, str(i)) for i in self.input for x in range(10))
 
     def serve(self, path):
         return '\n'.join([path] * 10)

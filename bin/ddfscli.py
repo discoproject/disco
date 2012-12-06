@@ -47,7 +47,7 @@ def attrs(program, tag):
     Get the attributes of a tag.
     """
     for k, v in program.ddfs.attrs(tag).items():
-        print '%s\t%s' % (k, v)
+        print('{0}\t{1}'.format(k, v))
 
 @DDFS.add_program_blobs
 @DDFS.command
@@ -57,7 +57,7 @@ def blobs(program, *tags):
     List all blobs reachable from tag[s].
     """
     for replicas in program.blobs(*tags):
-        print '\t'.join(replicas)
+        print('\t'.join(replicas))
 
 @DDFS.add_job_mode
 @DDFS.add_program_blobs
@@ -82,10 +82,10 @@ def cat(program, *urls):
             try:
                 return download(proxy_url(urlresolve(replica, master=program.ddfs.master),
                                           to_master=False))
-            except Exception, e:
-                sys.stderr.write("%s\n" % e)
+            except Exception as e:
+                sys.stderr.write("{0}\n".format(e))
         if not ignore_missing:
-            raise Exception("Failed downloading all replicas: %s" % replicas)
+            raise Exception("Failed downloading all replicas: {0}".format(replicas))
         return ''
 
     for replicas in deref(chain(urls, program.blobs(*tags))):
@@ -130,7 +130,7 @@ def chunk(program, tag, *urls):
                                     replicas=program.options.replicas,
                                     update=program.options.update)
     for replicas in blobs:
-        print 'created: %s' % '\t'.join(replicas)
+        print('created: {0}'.format('\t'.join(replicas)))
 
 chunk.add_option('-n', '--replicas',
                  help='number of replicas to create')
@@ -178,7 +178,7 @@ def exists(program, tag):
     """
     if not program.ddfs.exists(tag):
         raise Exception("False")
-    print "True"
+    print("True")
 
 @DDFS.add_ignore_missing
 @DDFS.add_prefix_mode
@@ -203,11 +203,11 @@ def find(program, *tags):
         found = program.ddfs.walk(tag, ignore_missing=ignore_missing)
         for tagpath, subtags, blobs in found:
             if subtags == blobs == None:
-                print "Tag not found: %s" % "\t".join(tagpath)
+                print("Tag not found: {0}".format("\t".join(tagpath)))
             elif subtags == blobs == () and warn_missing:
-                print "Tag not found: %s" % "\t".join(tagpath)
+                print("Tag not found: {0}".format("\t".join(tagpath)))
             else:
-                print '\t'.join(tagpath)
+                print('\t'.join(tagpath))
 
 find.add_option('-w', '--warn-missing',
                 action='store_true',
@@ -219,7 +219,7 @@ def get(program, tag):
 
     Gets the contents of the tag.
     """
-    print program.ddfs.get(tag)
+    print(program.ddfs.get(tag))
 
 @DDFS.command
 def getattr(program, tag, attr):
@@ -227,7 +227,7 @@ def getattr(program, tag, attr):
 
     Get an attribute of a tag.
     """
-    print program.ddfs.getattr(tag, attr)
+    print(program.ddfs.getattr(tag, attr))
 
 def grep(program, *args):
     """Usage: <undefined>
@@ -247,13 +247,13 @@ def ls(program, *prefixes):
 
     for prefix in prefixes or ('', ):
         for tag in program.ddfs.list(prefix):
-            print tag
+            print(tag)
             if program.options.recursive:
                 try:
                     blobs(program, tag)
-                except CommError, e:
-                    print e
-                print
+                except CommError as e:
+                    print(e)
+                print()
 
 ls.add_option('-r', '--recursive',
               action='store_true',
@@ -276,7 +276,7 @@ def push(program, tag, *files):
             for name, buf, size in program.ddfs.tarblobs(file,
                                                          include=program.options.include,
                                                          exclude=program.options.exclude):
-                print "extracted %s" % name
+                print("extracted {0}".format(name))
                 blobs += [(buf, name)]
         elif os.path.isdir(file):
             if program.options.recursive:
@@ -284,8 +284,8 @@ def push(program, tag, *files):
                           for path, dirs, blobs in os.walk(file)
                           for blob in blobs]
             else:
-                print "%s is a directory (not pushing)." % file
-    print "pushing..."
+                print("{0} is a directory (not pushing).".format(file))
+    print("pushing...")
     program.ddfs.push(tag, blobs, replicas=replicas)
 
 push.add_option('-E', '--exclude',
@@ -322,7 +322,7 @@ def rm(program, *tags):
     Remove the tag[s].
     """
     for tag in program.prefix_mode(*tags):
-        print program.ddfs.delete(tag)
+        print(program.ddfs.delete(tag))
 
 @DDFS.command
 def setattr(program, tag, attr, val):
@@ -341,7 +341,7 @@ def stat(program, *tags):
     """
     for tag in program.prefix_mode(*tags):
         tag = program.ddfs.get(tag)
-        print '\t'.join('%s' % tag[key] for key in tag.keys() if key != 'urls')
+        print('\t'.join('{0}'.format(tag[key]) for key in tag.keys() if key != 'urls'))
 
 @DDFS.command
 def tag(program, tag, *urls):
@@ -371,7 +371,7 @@ def urls(program, *tags):
     """
     for tag in program.prefix_mode(*tags):
         for replicas in program.ddfs.urls(tag):
-            print '\t'.join(replicas)
+            print('\t'.join(replicas))
 
 @DDFS.add_job_mode
 @DDFS.add_classic_reads
@@ -395,7 +395,7 @@ def xcat(program, *urls):
     for record in classic_iterator(chain(urls, program.blobs(*tags)),
                                    input_stream=stream,
                                    reader=reader):
-        print '\t'.join('%s' % (e,) for e in iterify(record)).rstrip()
+        print('\t'.join('{0}'.format((e,)) for e in iterify(record)).rstrip())
 
 if __name__ == '__main__':
     DDFS(option_parser=OptionParser()).main()

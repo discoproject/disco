@@ -4,16 +4,15 @@ from disco.error import JobError
 class BadJob(TestJob):
     @staticmethod
     def map(e, params):
-        import sys, disco.json
-        msg = disco.json.dumps(e)
-        sys.stderr.write('MSG %d %s\n' % (len(msg), msg))
+        import sys, json
+        msg = json.dumps(e)
+        sys.stderr.write('MSG {0} {1}\n'.format(len(msg), msg))
         return []
 
 class GoodJob(TestJob):
     @staticmethod
     def map(e, params):
-        import sys, disco.json
-        print e
+        print(e)
         return [(e.strip(), '')]
 
 
@@ -22,7 +21,7 @@ class RateLimitTestCase(TestCase):
     inputs = [1]
 
     def serve(self, path):
-        return 'badger\n' * self.num_lines
+        return b'badger\n' * self.num_lines
 
     def answers(self):
         return [(l, '') for l in self.serve('').splitlines()]

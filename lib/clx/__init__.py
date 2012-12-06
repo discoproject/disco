@@ -5,11 +5,11 @@ from PROJECT.settings import ProjectSettings
 
 >>> @ConcreteProgram.command
 ... def test(*args, **options):
-...     print 'command', args
+...     print('command', args)
 
 >>> @test.subcommand('subcommand')
 ... def sub_command(*args, **options):
-...     print 'named subcommand'
+...     print('named subcommand')
 
 >>> ConcreteProgram(['test']).main()
 command ()
@@ -41,15 +41,15 @@ def command(obj, name_or_function):
     def _command(obj, name, function):
         obj.commands[name] = Command(function)
         return obj.commands[name]
-    if isinstance(name_or_function, basestring):
+    if isinstance(name_or_function, str):
         return partial(_command, obj, name_or_function)
     return _command(obj, name_or_function.__name__, name_or_function)
 
 def walk(commands):
-    for name, command in commands.iteritems():
+    for name, command in commands.items():
         yield name, command
-        for subname, subcommand in command.commands.iteritems():
-            yield ('%s %s' % (name, subname)), subcommand
+        for subname, subcommand in command.commands.items():
+            yield '{0} {1}'.format(name, subname), subcommand
 
 def search(receiver, commands, options=()):
     path, args = [], []
@@ -99,7 +99,7 @@ class Command(object):
         return option_parser
 
     def format_help(self, invocation):
-        return "%s\n" % usage_re.sub("Usage: %s %s" % (invocation, usage(self)), str(self), 1)
+        return "{0}\n".format(usage_re.sub("Usage: {0} {1}".format(invocation, usage(self)), str(self), 1))
 
 class Program(Command):
     _options       = []
@@ -116,7 +116,7 @@ class Program(Command):
 
         if self.options.settings:
             if not self.settings_class.settings_file_var:
-                raise Exception("%s does not use a settings file" % self.settings_class)
+                raise Exception("{0} does not use a settings file".format(self.settings_class))
             open(self.options.settings)
             os.environ[self.settings_class.settings_file_var] = self.options.settings
         self.settings = self.settings_class()
@@ -125,7 +125,7 @@ class Program(Command):
         return self.default(*args)
 
     def __str__(self):
-        return self.default.__doc__ or 'Usage:\n%s\n' % self.usage
+        return self.default.__doc__ or 'Usage:\n{0}\n'.format(self.usage)
 
     @property
     def name(self):
@@ -133,9 +133,9 @@ class Program(Command):
 
     @property
     def usage(self):
-        return '\n'.join('\t%s' % usage for usage in
-                         ['%s %s' % (self.name, usage(self.default))] +
-                         ['%s %s %s' % (self.name, name, usage(command))
+        return '\n'.join('\t{0}'.format(usage) for usage in
+                         ['{0} {1}'.format(self.name, usage(self.default))] +
+                         ['{0} {1} {2}'.format(self.name, name, usage(command))
                           for name, command in sorted(walk(self.commands))])
 
     def default(self, *args):
@@ -146,13 +146,13 @@ class Program(Command):
         if self.options.verbose:
             sys.stdout.write(
                 """
-%s settings are:
+{0} settings are:
 
-                %s
+                {1}
 
 If this is not what you want, see the `--help` option
-                """ % (self.name,
-                       '\n\t\t'.join('%s = %s' % item
+                """.format(self.name,
+                       '\n\t\t'.join('{0[0]} = {0[1]}'.format(item)
                                      for item in sorted((k, self.settings[k])
                                                         for k in self.settings.defaults))))
             sys.stdout.write("\n")
@@ -168,10 +168,10 @@ If this is not what you want, see the `--help` option
             return self.dispatch()
         except KeyboardInterrupt:
             sys.exit(1)
-        except Exception, e:
+        except Exception as e:
             if self.options.verbose:
                 raise
-            sys.exit("%s" % e)
+            sys.exit("{0}".format(e))
 
     def search(self, args, options=()):
         return search(self, args, options=options)

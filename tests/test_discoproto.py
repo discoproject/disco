@@ -1,6 +1,7 @@
-import time, cStringIO
+import time
 from random import randint, choice
 from string import ascii_lowercase
+from disco.compat import BytesIO
 from disco.error import DataError
 from disco.fileutils import DiscoOutputStream
 from disco.test import TestCase
@@ -32,19 +33,19 @@ class DiscoProtoTestCase(TestCase):
               corrupt=False,
               ignore_corrupt=False,
               **kwargs):
-        buf = cStringIO.StringIO()
+        buf = BytesIO()
         stream = DiscoOutputStream(buf, version=version, **kwargs)
         t = self.encode(stream, self.data)
         final_size = len(buf.getvalue())
         final_mb = final_size / 1024**2
-        msg = "%1.2fMB encoded in %1.3fs (%1.2fMB/s), "\
-              "encoded size %1.3fMB (version: %d, %s)" %\
-                    (self.size, t, self.size / t, final_mb, version, kwargs)
+        msg = (("{0:1.2f}MB encoded in {1:1.3f}s ({2:1.2f}MB/s), "
+                "encoded size {3:1.3f}MB (version: {4}, {5})")
+               .format(self.size, t, self.size / t, final_mb, version, kwargs))
         if corrupt:
             buf.seek(0)
-            new = cStringIO.StringIO()
+            new = BytesIO()
             new.write(buf.read(100))
-            new.write('X')
+            new.write(b'X')
             buf.read(1)
             new.write(buf.read())
             buf = new
@@ -53,7 +54,8 @@ class DiscoProtoTestCase(TestCase):
         t, res = self.decode(buf, final_size, "nourl",
                              ignore_corrupt=ignore_corrupt)
         if not ignore_corrupt:
-            print "%s, decoded in %1.3fs (%1.2fMB/s)" % (msg, t, self.size / t)
+            print("{0}, decoded in {1:1.3f}s ({2:1.2f}MB/s)"
+                  .format(msg, t, self.size / t))
         return res
 
     def test_compress(self):

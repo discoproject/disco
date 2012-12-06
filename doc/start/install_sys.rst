@@ -7,8 +7,8 @@ Installing Disco System-Wide
 
 .. note:: **Shortcut for Debian / Ubuntu users:**
    If you run Debian or some recent version of Ubuntu on the AMD64 architecture,
-   you may try out our *experimental* deb-packages which are available at the
-   :doc:`Disco download page <download>`.
+   you may try out our *experimental* deb-packages which are available at
+   the :doc:`Disco download page <download>`.
    If the packages installed properly, you should :ref:`configauth`.
 
 Install From Source

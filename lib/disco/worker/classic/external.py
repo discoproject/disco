@@ -218,8 +218,8 @@ dictionary contains at least a single key-value pair where key is the string
 
         disco.job("disco://localhost:5000",
                   ["disco://localhost/myjob/file1"],
-                  fun_map = {"op": file("bin/external_map").read(),
-                             "config.txt": file("bin/config.txt").read()})
+                  fun_map = {"op": open("bin/external_map").read(),
+                             "config.txt": open("bin/config.txt").read()})
 
 The dictionary may contain other keys as well, which correspond to the
 file names (not paths) of the supporting files, such as *"config.txt"*
@@ -350,10 +350,11 @@ In addition, the library contains the following utility functions:
 """
 import os, time, struct, marshal, stat, select, sys
 from subprocess import Popen, PIPE
-from netstring import decode_netstring_str, encode_netstring_fd
+from disco.worker.classic.netstring import decode_netstring_str, encode_netstring_fd
 from disco.util import msg
 from disco.error import DiscoError
 from disco.worker import Worker
+from disco.compat import str_to_bytes, bytes_to_str
 
 MAX_ITEM_SIZE = 1024**3
 
@@ -364,23 +365,24 @@ def pack_kv(e):
     if isinstance(e, tuple):
         k, v = e
     else:
-        k = ''
+        k = b''
         v = e
-    return struct.pack("I", len(k)) + k +\
-           struct.pack("I", len(v)) + v
+    return struct.pack("I", len(k)) + str_to_bytes(k) \
+           + struct.pack("I", len(v)) + str_to_bytes(v)
 
 def unpack_kv():
     le = struct.unpack("I", proc.stdout.read(4))[0]
     if le > MAX_ITEM_SIZE:
-        raise DiscoError("External key size exceeded: %d bytes" % le)
+        raise DiscoError("External key size exceeded: {0:d} bytes".format(le))
     k = proc.stdout.read(le)
     le = struct.unpack("I", proc.stdout.read(4))[0]
     if le > MAX_ITEM_SIZE:
-        raise DiscoError("External key size exceeded: %d bytes" % le)
+        raise DiscoError("External key size exceeded: {0:d} bytes".format(le))
     v = proc.stdout.read(le)
     return k, v
 
 def parse_message(msg):
+    msg = bytes_to_str(msg)
     try:
         type, payload = msg.split('>', 1)
         payload = payload.strip()
@@ -412,7 +414,7 @@ def communicate(input_iter, oneshot=False):
                 parse_message(proc.stderr.readline())
             elif event & select.POLLOUT:
                 try:
-                    msg = pack_kv(input_iter.next())
+                    msg = pack_kv(next(input_iter))
                     proc.stdin.write(msg)
                     proc.stdin.flush()
                 except StopIteration:
@@ -439,13 +441,13 @@ def prepare(params, mode):
     global proc
     # op -> worker
     # find required files
-    path = os.path.join('ext.%s' % mode, 'op')
+    path = os.path.join('ext.{0}'.format(mode), 'op')
     os.chmod(path, stat.S_IEXEC)
     proc = Popen([path, mode], stdin=PIPE, stdout=PIPE, stderr=PIPE)
     register_poll()
 
     if params and isinstance(params, dict):
-        proc.stdin.write(encode_netstring_fd(params))
+        proc.stdin.write(str_to_bytes(encode_netstring_fd(params)))
     else:
         proc.stdin.write('0\n')
     return globals()[mode]
@@ -472,6 +474,6 @@ def package(files):
     All files listed in *files* are copied to the same directory so any file
     hierarchy is lost between the files.
     """
-    msg = dict((os.path.basename(f), open(f).read()) for f in files[1:])
-    msg['op'] = open(files[0]).read()
+    msg = dict((os.path.basename(f), open(f, 'rb').read()) for f in files[1:])
+    msg['op'] = open(files[0], 'rb').read()
     return msg

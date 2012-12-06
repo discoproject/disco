@@ -27,7 +27,7 @@ class JobError(DiscoError):
         self.job, self.message = job, message
 
     def __str__(self):
-        return "Job %s failed: %s" % (self.job.name, self.message)
+        return "Job {0} failed: {1}".format(self.job.name, self.message)
 
 class DataError(DiscoError):
     """
@@ -44,8 +44,8 @@ class DataError(DiscoError):
 
     def __str__(self):
         def msg(msg):
-            return msg if self.code is None else '%s (%s)' % (msg, self.code)
-        return 'Unable to access resource (%s): %s' % (self.url, msg(self.msg))
+            return msg if self.code is None else '{0} ({1})'.format(msg, self.code)
+        return 'Unable to access resource ({0}): {1}'.format(self.url, msg(self.msg))
 
 class CommError(DataError):
     """An error caused by the inability to access a resource over the network."""

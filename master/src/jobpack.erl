@@ -89,7 +89,7 @@ jobenvs(<<?MAGIC:16/big,
     JobEnvsLength = JobHomeOffset - JobEnvsOffset,
     <<_:JobEnvsOffset/bytes, JobEnvs:JobEnvsLength/bytes, _/binary>> = JobPack,
     {struct, Envs} = mochijson2:decode(JobEnvs),
-    Envs.
+    [{binary_to_list(K), binary_to_list(V)} || {K, V} <- Envs].
 
 -spec jobzip(jobpack()) -> binary().
 jobzip(<<?MAGIC:16/big,

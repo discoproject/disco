@@ -5,7 +5,7 @@ from disco.worker.classic import func
 
 class ChainJobA(TestJob):
     partitions = 4
-    params = {'suffix': '0'}
+    params = {'suffix': b'0'}
     sort = False
 
     @staticmethod
@@ -15,25 +15,25 @@ class ChainJobA(TestJob):
     @staticmethod
     def reduce(iter, params):
         for k, v in iter:
-            yield k + '-', v
+            yield k + b'-', v
 
 class ChainJobB(TestJob):
     map_reader = staticmethod(func.chain_reader)
     partitions = 4
-    params = {'suffix': '1'}
+    params = {'suffix': b'1'}
     sort = False
 
     @staticmethod
-    def map((k, v), params):
-        yield k + params['suffix'], v + 1
+    def map(k_v, params):
+        yield k_v[0] + params['suffix'], k_v[1] + 1
 
     reduce = staticmethod(ChainJobA.reduce)
 
 class ChainTestCase(TestCase):
-    animals = ['horse', 'sheep', 'whale', 'tiger']
+    animals = [b'horse', b'sheep', b'whale', b'tiger']
 
     def serve(self, path):
-        return '\n'.join(self.animals)
+        return b'\n'.join(self.animals)
 
     def runTest(self):
         a, b = ChainJobA(), ChainJobB()
@@ -41,7 +41,7 @@ class ChainTestCase(TestCase):
                              b: a}).wait()
         for key, value in self.results(b):
             self.assert_(key[:5] in self.animals)
-            self.assertEquals(key[5:], '0-1-')
+            self.assertEquals(key[5:], b'0-1-')
             self.assertEquals(value, 1)
 
 class DavinChainJobA(TestJob):
@@ -59,4 +59,4 @@ class DavinChainTestCase(TestCase):
                              b: ['raw://3', 'raw://4', 'raw://5'],
                              c: [a, b]}).wait()
         self.assertAllEqual(sorted(self.results(c)),
-                            ((str(x), '') for x in xrange(6)))
+                            ((str(x), '') for x in range(6)))

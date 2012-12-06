@@ -17,7 +17,8 @@ class Settings(dict):
         if self.settings_file_var:
             settings_file = self[self.settings_file_var]
             if os.path.exists(settings_file):
-                execfile(settings_file, {}, self.settings_file_defs)
+                exec(compile(open(settings_file).read(), settings_file, 'exec'),
+                     {}, self.settings_file_defs)
 
     def __getitem__(self, key):
         """Get `key`: check the instance, then the env, then defaults."""

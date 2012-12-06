@@ -2,20 +2,21 @@ import base64, string
 
 from disco.test import TestCase, TestJob
 from disco.util import kvgroup, shuffled
+from disco.compat import bytes_to_str, str_to_bytes
 
-alphanum = list(string.ascii_letters) + map(str, xrange(10))
+alphanum = list(string.ascii_letters) + list(map(str, range(10)))
 
 class SortJob(TestJob):
     sort = True
 
     @staticmethod
     def map(string, params):
-        return shuffled((base64.encodestring(c), '') for c in string * 10)
+        return shuffled((base64.encodestring(str_to_bytes(c)), b'') for c in bytes_to_str(string * 10))
 
     @staticmethod
     def reduce(iter, params):
         for k, vs in kvgroup(iter):
-            yield base64.decodestring(k), len(list(vs))
+            yield bytes_to_str(base64.decodestring(k)), len(list(vs))
 
 class SortTestCase(TestCase):
     def serve(self, path):

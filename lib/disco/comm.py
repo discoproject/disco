@@ -1,6 +1,5 @@
-import httplib, os, random, struct, time, socket, base64
-from cStringIO import StringIO
-
+import os, random, struct, time, socket, base64
+from disco.compat import BytesIO, file, httplib, basestring, str_to_bytes
 from disco.error import CommError
 from disco.settings import DiscoSettings
 from disco.util import iterify, urlresolve, urlsplit
@@ -17,7 +16,7 @@ except ImportError:
     nocurl = True
 
 if nocurl:
-    from httplib import HTTPConnection
+    HTTPConnection = httplib.HTTPConnection
 else:
     from disco import comm_pycurl
     from disco.comm_pycurl import HTTPConnection
@@ -33,37 +32,37 @@ def isunavailable(status):
 
 def range_header(offset):
     def httprange(start='', end=''):
-        return '%s-%s' % (start, end)
+        return '{0}-{1}'.format(start, end)
     if offset:
-        return {'Range': 'bytes=%s' % httprange(*tuple(iterify(offset)))}
+        return {'Range': 'bytes={0}'.format(httprange(*tuple(iterify(offset))))}
     return {}
 
 def auth_header(token):
     if token != None:
-        return {'Authorization': 'Basic ' + base64.b64encode("token:" + token)}
+        return {'Authorization': b'Basic ' + base64.b64encode(b"token:" + token.encode('utf-8'))}
     return {}
 
 def resolveuri(baseuri, uri):
     if uri.startswith('/'):
         scheme, netloc, _path = urlsplit(baseuri)
-        return '%s://%s%s' % (scheme, netloc, uri)
-    return '%s/%s' % (baseuri, uri)
+        return '{0}://{1}{2}'.format(scheme, netloc, uri)
+    return '{0}/{1}'.format(baseuri, uri)
 
 def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
 
     try:
         conn = HTTPConnection(str(netloc))
-        conn.request(method, '/%s' % path, body=data, headers=headers)
+        conn.request(method, '/{0}'.format(path), body=data, headers=headers)
         response = conn.getresponse()
         status = response.status
         errmsg = response.reason
-    except httplib.HTTPException, e:
+    except httplib.HTTPException as e:
         status = None
         errmsg = str(e) or repr(e)
-    except (httplib.socket.error, socket.error), e:
+    except (httplib.socket.error, socket.error) as e:
         status = None
-        errmsg = e if isinstance(e, basestring) else e[1]
+        errmsg = e if isinstance(e, basestring) else str(e) or repr(e)
 
     if not status or isunavailable(status):
         if sleep == 9:
@@ -90,13 +89,12 @@ def download(url, method='GET', data=None, offset=(), token=None):
                    headers=headers).read()
 
 def upload(urls, source, token=None, **kwargs):
-    source = FileSource(source)
+    data = FileSource(source).read()
+    headers = auth_header(token)
     if nocurl:
-        return [request('PUT',
-                        url,
-                        data=source.read(),
-                        headers=auth_header(token)).read() for url in urls]
-    return list(comm_pycurl.upload(urls, source, token, **kwargs))
+        return [request('PUT', url, data=data, headers=headers).read()
+                for url in urls]
+    return list(comm_pycurl.upload(urls, data, token, **kwargs))
 
 def open_url(url, *args, **kwargs):
     from disco.util import schemesplit
@@ -106,7 +104,7 @@ def open_url(url, *args, **kwargs):
     return open_remote(url, *args, **kwargs)
 
 def open_local(path):
-    return File(path, 'r', BUFFER_SIZE)
+    return File(path, 'rb', BUFFER_SIZE)
 
 def open_remote(url, token=None):
     return Connection(urlresolve(url), token)
@@ -124,8 +122,8 @@ class FileSource(object):
     @property
     def read(self):
         if self.isopen:
-            return StringIO(self.source).read
-        return open(self.source, 'r').read
+            return BytesIO(str_to_bytes(self.source)).read
+        return open(self.source, 'rb').read
 
 class File(file):
     def __len__(self):
@@ -133,7 +131,7 @@ class File(file):
 
     @property
     def url(self):
-        return 'file://%s' % self.name
+        return 'file://{0}'.format(self.name)
 
 # should raise DataError
 class Connection(object):
@@ -144,7 +142,7 @@ class Connection(object):
         self.offset = 0
         self.orig_offset = 0
         self.eof = False
-        self.headers = {}
+        self.response = None
         self.read(1)
         self.i = 0
 
@@ -152,22 +150,24 @@ class Connection(object):
         chunk = self._read_chunk(CHUNK_SIZE)
         while chunk:
             next_chunk = self._read_chunk(CHUNK_SIZE)
-            lines = list(StringIO(chunk))
-            last  = lines.pop() if next_chunk else ''
+            lines = list(BytesIO(chunk))
+            last  = lines.pop() if next_chunk else b''
             for line in lines:
                 yield line
             chunk = last + next_chunk
 
     def __len__(self):
-        if 'content-range' in self.headers:
-            return int(self.headers['content-range'].split('/')[1])
-        return int(self.headers.get('content-length', 0))
+        if self.response == None:
+            return 0
+        if self.response.getheader('content-range', None) != None:
+            return int(self.response.getheader('content-range').split('/')[1])
+        return int(self.response.getheader('content-length', 0))
 
     def close(self):
         pass
 
     def read(self, size=-1):
-        buf = StringIO()
+        buf = BytesIO()
         while size:
             bytes = self._read_chunk(size if size > 0 else CHUNK_SIZE)
             if not bytes:
@@ -179,7 +179,7 @@ class Connection(object):
     def _read_chunk(self, n):
         if self.buf is None or self.i >= len(self.buf):
             if self.eof:
-                return ''
+                return b''
             self.i = 0
             if len(self):
                 end = min(len(self), self.offset + CHUNK_SIZE) - 1
@@ -187,16 +187,15 @@ class Connection(object):
                 end = self.offset + CHUNK_SIZE - 1
             headers = auth_header(self.token)
             headers.update(range_header((self.offset, end)))
-            response = request('GET',
-                               self.url,
-                               headers=headers)
-            self.buf = response.read()
-            self.headers = dict(response.getheaders())
+            self.response = request('GET',
+                                    self.url,
+                                    headers=headers)
+            self.buf = self.response.read()
             self.orig_offset = self.offset
             self.offset += len(self.buf)
             if len(self) and self.offset >= len(self):
                 self.eof = True
-            elif self.buf == '':
+            elif self.buf == b'':
                 self.eof = True
         ret = self.buf[self.i:self.i + n]
         self.i += len(ret)

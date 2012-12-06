@@ -6,9 +6,9 @@ The :mod:`disco.core` module provides a high-level interface for
 communication with the Disco master. It provides functions for submitting
 new jobs, querying the status of the system, and getting results of jobs.
 """
-import os, time, sys
+import os, time, sys, json
 
-from disco import func, json, util
+from disco import func, util
 from disco.comm import download
 from disco.error import DiscoError, JobError, CommError
 from disco.eventmonitor import EventMonitor
@@ -16,9 +16,23 @@ from disco.job import Job
 from disco.settings import DiscoSettings
 from disco.util import proxy_url
 from disco.worker.classic.worker import Params # backwards compatibility XXX: deprecate
+from disco.compat import basestring
 
 class Continue(Exception):
     pass
+
+def client_version():
+    import disco, glob
+    from os.path import dirname, basename, join, splitext
+    package_dir = dirname(dirname(disco.__file__))
+    eggs = glob.glob(join(package_dir, "disco-*.egg-info"))
+    if eggs:
+        try:
+            e = basename(eggs[0]).split('-')[1]
+            return e.split('.egg')[0]
+        except:
+            return "unknown"
+    return "source"
 
 class Disco(object):
     """
@@ -37,22 +51,23 @@ class Disco(object):
         self.master = master or self.settings['DISCO_MASTER']
 
     def __repr__(self):
-        return 'Disco master at %s' % self.master
+        return 'Disco master at {0}'.format(self.master)
 
     def request(self, url, data=None, offset=0):
         try:
-            return download(proxy_url('%s%s' % (self.master, url), proxy=self.proxy),
+            byts = download(proxy_url('{0}{1}'.format(self.master, url), proxy=self.proxy),
                             data=data,
                             offset=offset)
-        except CommError, e:
+            return byts.decode('utf-8')
+        except CommError as e:
             if e.code == None:
-                e.msg += " (is disco master running at %s?)" % self.master
+                e.msg += " (is disco master running at {0}?)".format(self.master)
             raise
 
     def submit(self, jobpack):
         status, body = json.loads(self.request('/disco/job/new', jobpack))
         if status != 'ok':
-            raise DiscoError("Failed to submit jobpack: %s" % body)
+            raise DiscoError("Failed to submit jobpack: {0}".format(body))
         return body
 
     def get_config(self):
@@ -64,6 +79,9 @@ class Disco(object):
             raise DiscoError(response)
 
     config = property(get_config, set_config)
+
+    def master_version(self):
+        return json.loads(self.request('/disco/version'))
 
     @property
     def ddfs(self):
@@ -87,7 +105,7 @@ class Disco(object):
 
         .. versionadded:: 0.2.4
         """
-        self.request('/disco/ctrl/blacklist', '"%s"' % node)
+        self.request('/disco/ctrl/blacklist', '"{0}"'.format(node))
 
     def whitelist(self, node):
         """
@@ -95,7 +113,7 @@ class Disco(object):
 
         .. versionadded:: 0.2.4
         """
-        self.request('/disco/ctrl/whitelist', '"%s"' % node)
+        self.request('/disco/ctrl/whitelist', '"{0}"'.format(node))
 
     def oob_get(self, jobname, key):
         """
@@ -106,7 +124,7 @@ class Disco(object):
         """
         try:
             return util.load_oob(self.master, jobname, key)
-        except CommError, e:
+        except CommError as e:
             if e.code == 404:
                 raise DiscoError("Unknown key or jobname")
             raise
@@ -140,7 +158,7 @@ class Disco(object):
 
         .. versionadded:: 0.2.1
         """
-        prefix = 'profile-%s' % mode
+        prefix = 'profile-{0}'.format(mode)
         f = [s for s in self.oob_list(jobname) if s.startswith(prefix)]
         if not f:
             raise JobError(Job(name=jobname, master=self), "No profile data")
@@ -155,15 +173,13 @@ class Disco(object):
 
     def new_job(self, name, **jobargs):
         """
-        Submits a new job request to the master using :class:`disco.job.Job`::
-
-                return Job(name=name, master=self.master).run(**jobargs)
+        Submits a new job request to the master using :class:`disco.job.Job`.
         """
         return Job(name=name, master=self.master).run(**jobargs)
 
     def kill(self, jobname):
         """Kills the job."""
-        self.request('/disco/ctrl/kill_job', '"%s"' % jobname)
+        self.request('/disco/ctrl/kill_job', '"{0}"'.format(jobname))
 
     def clean(self, jobname):
         """
@@ -178,17 +194,17 @@ class Disco(object):
                   However, no data is actually deleted by :meth:`Disco.clean`,
                   in contrast to :meth:`Disco.purge`.
         """
-        self.request('/disco/ctrl/clean_job', '"%s"' % jobname)
+        self.request('/disco/ctrl/clean_job', '"{0}"'.format(jobname))
 
     def purge(self, jobname):
         """Deletes all metadata and data related to the job."""
-        self.request('/disco/ctrl/purge_job', '"%s"' % jobname)
+        self.request('/disco/ctrl/purge_job', '"{0}"'.format(jobname))
 
     def jobpack(self, jobname):
         """Return the :class:`disco.job.JobPack` submitted for the job."""
-        from cStringIO import StringIO
+        from disco.compat import StringIO
         from disco.job import JobPack
-        return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name=%s' % jobname)))
+        return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name={0}'.format(jobname))))
 
     def events(self, jobname, offset=0):
         """
@@ -224,12 +240,12 @@ class Disco(object):
         return event_iter(self.rawevents(jobname, offset=offset))
 
     def rawevents(self, jobname, offset=0):
-        return self.request("/disco/ctrl/rawevents?name=%s" % jobname,
+        return self.request("/disco/ctrl/rawevents?name={0}".format(jobname),
                             offset=offset)
 
     def mapresults(self, jobname):
         return json.loads(
-            self.request('/disco/ctrl/get_mapresults?name=%s' % jobname))
+            self.request('/disco/ctrl/get_mapresults?name={0}'.format(jobname)))
 
     def results(self, jobspec, timeout=2000):
         """
@@ -268,7 +284,7 @@ class Disco(object):
                   for jobname, (status, results) in inactive:
                     if status == 'ready':
                       for k, v in result_iterator(results):
-                        print k, v
+                        print(k, v)
                       disco.purge(jobname)
 
         Note how the list of active jobs, ``active``,
@@ -296,17 +312,17 @@ class Disco(object):
 
     def jobinfo(self, jobname):
         """Returns a dict containing information about the job."""
-        return json.loads(self.request('/disco/ctrl/jobinfo?name=%s' % jobname))
+        return json.loads(self.request('/disco/ctrl/jobinfo?name={0}'.format(jobname)))
 
     def check_results(self, jobname, start_time, timeout, poll_interval):
         try:
             status, results = self.results(jobname, timeout=poll_interval)
-        except CommError, e:
+        except CommError as e:
             status = 'active'
         if status == 'ready':
             return results
         if status != 'active':
-            raise JobError(Job(name=jobname, master=self), "Status %s" % status)
+            raise JobError(Job(name=jobname, master=self), "Status {0}".format(status))
         if timeout and time.time() - start_time > timeout:
             raise JobError(Job(name=jobname, master=self), "Timeout")
         raise Continue()
@@ -341,17 +357,20 @@ class Disco(object):
                                      format=show,
                                      poll_interval=poll_interval)
         start_time    = time.time()
-        while True:
-            event_monitor.refresh()
-            try:
-                return self.check_results(jobname, start_time,
-                                          timeout, poll_interval * 1000)
-            except Continue:
-                continue
-            finally:
-                if clean:
-                    self.clean(jobname)
+        try:
+            while True:
                 event_monitor.refresh()
+                try:
+                    return self.check_results(jobname, start_time,
+                                              timeout, poll_interval * 1000)
+                except Continue:
+                    continue
+                finally:
+                    if clean:
+                        self.clean(jobname)
+                    event_monitor.refresh()
+        finally:
+            event_monitor.cleanup()
 
     def result_iterator(self, *args, **kwargs):
         kwargs['ddfs'] = self.master

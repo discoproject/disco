@@ -69,13 +69,13 @@ def debug(program, host=''):
     """
     from subprocess import Popen
     master = program.master
-    nodename = '%s@%s' % (master.name, host) if host else master.nodename
+    nodename = '{0}@{1}'.format(master.name, host) if host else master.nodename
     args = program.settings['DISCO_ERLANG'].split() + \
            ['-remsh', nodename,
-            '-sname', '%s_remsh' % os.getpid()]
+            '-sname', '{0}_remsh'.format(os.getpid())]
     if Popen(args).wait():
-        raise Exception("Could not connect to %s (%s)" % (host, nodename))
-    print "closing remote shell to %s (%s)" % (host, nodename)
+        raise Exception("Could not connect to {0} ({1})".format(host, nodename))
+    print("closing remote shell to {0} ({1})".format(host, nodename))
 
 @Disco.command
 def nodaemon(program):
@@ -85,7 +85,7 @@ def nodaemon(program):
     Note: quitting the shell will stop the master.
     """
     for message in program.master.nodaemon():
-        print message
+        print(message)
 
 @Disco.command
 def restart(program):
@@ -93,7 +93,7 @@ def restart(program):
     Restart the master.
     """
     for message in program.master.restart():
-        print message
+        print(message)
 
 @Disco.command
 def start(program):
@@ -101,15 +101,15 @@ def start(program):
     Start the master.
     """
     for message in program.master.start():
-        print message
+        print(message)
 
 @Disco.command
 def status(program):
     """
-    Display running state of the master.
+    Display running state of the master.  This command should be run on the master.
     """
     for message in program.master.status():
-        print message
+        print(message)
 
 @Disco.command
 def stop(program):
@@ -117,7 +117,7 @@ def stop(program):
     Stop the master.
     """
     for message in program.master.stop():
-        print message
+        print(message)
 
 @Disco.command
 def test(program, *tests):
@@ -142,7 +142,7 @@ def config(program):
     Print the disco master configuration.
     """
     for config in program.disco.config:
-        print "\t".join(config)
+        print("\t".join(config))
 
 @Disco.add_job_mode
 @Disco.command
@@ -154,7 +154,7 @@ def deref(program, *urls):
     """
     from disco.util import deref
     for input in deref(program.input(*urls), resolve=program.options.resolve):
-        print "\t".join(input)
+        print("\t".join(input))
 
 deref.add_option('-r', '--resolve',
                  action='store_true',
@@ -166,7 +166,7 @@ def events(program, jobname):
 
     Print the events for the named job.
     """
-    print program.disco.rawevents(jobname, offset=int(program.options.offset))
+    print(program.disco.rawevents(jobname, offset=int(program.options.offset)))
 
 events.add_option('-o', '--offset',
                   default=0,
@@ -207,18 +207,18 @@ def job(program, worker, *inputs):
     jobdata = jobdata(program.options.data)
     jobpack = JobPack(jobdict, jobenvs, jobzip.dumps(), jobdata)
     if program.options.verbose:
-        print "jobdict:"
-        print "\n".join("\t%s\t%s" % item for item in jobdict.items())
-        print "jobenvs:"
-        print "\n".join("\t%s\t%s" % item for item in jobenvs.items())
-        print "jobzip:"
-        print "\n".join("\t%s" % name for name in jobzip.namelist())
-        print "jobdata:"
-        print "\n".join("\t%s" % line for line in jobdata.splitlines())
+        print("jobdict:")
+        print("\n".join("\t{0[0]}\t{0[1]}".format(item) for item in jobdict.items()))
+        print("jobenvs:")
+        print("\n".join("\t{0[0]}\t{0[1]}".format(item) for item in jobenvs.items()))
+        print("jobzip:")
+        print("\n".join("\t{0}".format(name) for name in jobzip.namelist()))
+        print("jobdata:")
+        print("\n".join("\t{0}".format(line) for line in jobdata.splitlines()))
     if program.options.dump_jobpack:
-        print jobpack.dumps()
+        print(jobpack.dumps())
     else:
-        print program.disco.submit(jobpack.dumps())
+        print(program.disco.submit(jobpack.dumps()))
 
 job.add_option('-m', '--has-map',
                action='store_true',
@@ -263,9 +263,9 @@ def jobdict(program, jobname):
 
     Print the jobdict for the named job.
     """
-    print jobname
+    print(jobname)
     for key, value in program.disco.jobpack(jobname).jobdict.iteritems():
-        print "\t%s\t%s" % (key, value)
+        print("\t{0}\t{1}".format(key, value))
 
 @Disco.command
 def jobs(program):
@@ -273,7 +273,7 @@ def jobs(program):
     Print a list of disco jobs and optionally their statuses.
     """
     for offset, status, job in program.disco.joblist():
-        print "%s\t%s" % (job, status) if program.options.status else job
+        print("{0}\t{1}".format(job, status) if program.options.status else job)
 
 jobs.add_option('-S', '--status',
                 action='store_true',
@@ -297,7 +297,7 @@ def mapresults(program, jobname):
     """
     from disco.util import iterify
     for result in program.disco.mapresults(jobname):
-        print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
+        print('\t'.join('{0}'.format((e,)) for e in iterify(result)).rstrip())
 
 @Disco.command
 def nodeinfo(program):
@@ -305,8 +305,8 @@ def nodeinfo(program):
 
     Print the node information.
     """
-    for item in program.disco.nodeinfo().iteritems():
-        print '%s\t%s' % item
+    for item in program.disco.nodeinfo().items():
+        print('{0[0]}\t{0[1]}'.format(item))
 
 @Disco.job_command
 def oob(program, jobname):
@@ -316,7 +316,7 @@ def oob(program, jobname):
     """
     from disco.job import Job
     for key in Job(name=jobname, master=program.disco).oob_list():
-        print key
+        print(key)
 
 @oob.subcommand
 def get(program, key, jobname):
@@ -325,7 +325,7 @@ def get(program, key, jobname):
     Print the oob value for the given key and jobname.
     """
     from disco.job import Job
-    print Job(name=program.job_history(jobname), master=program.disco).oob_get(key)
+    print(Job(name=program.job_history(jobname), master=program.disco).oob_get(key))
 
 @Disco.job_command
 def pstats(program, jobname):
@@ -360,7 +360,7 @@ def results(program, jobname):
     from disco.util import iterify
     status, results = program.disco.results(jobname)
     for result in results:
-        print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
+        print('\t'.join('{0}'.format((e,)) for e in iterify(result)).rstrip())
 
 @Disco.command
 def run(program, jobclass, *inputs):
@@ -380,7 +380,7 @@ def run(program, jobclass, *inputs):
     if program.options.scheduler:
         program.options.jobargs['scheduler'] = program.scheduler
     job.run(**program.options.jobargs)
-    print job.name
+    print(job.name)
 
 run.add_option('-n', '--name',
                help='prefix to use for submitting a job')
@@ -427,7 +427,24 @@ def submit(program, *file):
     Submit a jobpack to the master.
     Reads the jobpack from file or stdin.
     """
-    print program.disco.submit(''.join(fileinput.input(file)))
+    print(program.disco.submit(''.join(fileinput.input(file))))
+
+@Disco.command
+def client_version(program):
+    """
+    Print the version of the Python Disco client library.
+    This assumes that the library has an installed egg file."
+    """
+    from disco.core import client_version
+    print(client_version())
+
+@Disco.command
+def master_version(program):
+    """
+    Print the version of the Disco master.
+    This assumes that the master is running."
+    """
+    print(program.disco.master_version())
 
 @Disco.job_command
 def wait(program, jobname):
@@ -437,7 +454,7 @@ def wait(program, jobname):
     """
     from disco.util import iterify
     for result in program.disco.wait(jobname):
-        print '\t'.join('%s' % (e,) for e in iterify(result)).rstrip()
+        print('\t'.join('{0}'.format(e,) for e in iterify(result)).rstrip())
 
 if __name__ == '__main__':
     Disco(option_parser=OptionParser()).main()

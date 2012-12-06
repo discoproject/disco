@@ -10,6 +10,6 @@ for modname in (n[:-3] for n in glob.glob('test_*.py')):
             tests = loader.getTestCaseNames(cls)
             if tests:
                 for n in tests:
-                    print '%s.%s.%s' % (modname, cls.__name__, n)
+                    print('{0}.{1}.{2}'.format(modname, cls.__name__, n))
             else:
-                print '%s.%s' % (modname, cls.__name__)
+                print('{0}.{1}'.format(modname, cls.__name__))

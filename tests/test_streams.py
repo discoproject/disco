@@ -1,11 +1,13 @@
+from disco.compat import StringIO
 from disco.test import TestCase, TestJob
 from disco.func import map_input_stream, reduce_output_stream, disco_output_stream
+from disco.compat import bytes_to_str
 
 def map_input_stream1(stream, size, url, params):
-    return cStringIO.StringIO('a' + stream.read())
+    return StringIO('a' + bytes_to_str(stream.read()))
 
 def map_input_stream2(stream, size, url, params):
-    return cStringIO.StringIO('b' + stream.read())
+    return StringIO('b' + bytes_to_str(stream.read()))
 
 class StreamsJob(TestJob):
     map_input_stream = [map_input_stream,
@@ -33,4 +35,4 @@ class StreamsTestCase(TestCase):
     def runTest(self):
         input = ['apple', 'orange', 'pear']
         self.job = StreamsJob().run(input=self.test_server.urls(input))
-        self.assertResults(self.job, (('red:ba%s' % i, '') for i in input))
+        self.assertResults(self.job, (('red:ba{0}'.format(i), '') for i in input))

@@ -35,9 +35,9 @@ class ForceSchedulerTestCase(TestCase):
 
     @property
     def real_input(self):
-        return ['http://%s' % node
-                for node, max_workers in self.nodes.iteritems()
-                for x in xrange(max_workers * 2)]
+        return ['http://{0}'.format(node)
+                for node, max_workers in self.nodes.items()
+                for x in range(max_workers * 2)]
 
     def assertResults(self, job, input):
         self.assertAllEqual(sorted(self.results(job)),

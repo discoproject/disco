@@ -1,11 +1,6 @@
-import sys, os, time
-from disco import json
+import sys, os, time, json, curses
 from disco.error import DiscoError
-
-try:
-    import curses
-except ImportError:
-    curses = None
+from disco.compat import str_to_bytes, force_ascii
 
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 
@@ -28,13 +23,16 @@ class OutputStream(object):
     def hascolor(self): # Based on Python cookbook, #475186
         try:
             if self.handle.isatty():
-                curses.setupterm()
+                curses.setupterm(fd=self.handle.fileno())
                 return curses.tigetnum('colors') > 2
-        except Exception, e:
+        except Exception as e:
             pass
 
     def write(self, *args, **kwargs):
         self.writer.write(*args, **kwargs)
+
+    def cleanup(self):
+        self.writer.cleanup()
 
 class EventWriter(object):
     def __init__(self, handle):
@@ -43,16 +41,30 @@ class EventWriter(object):
     def write(self, *args, **kwargs):
         pass
 
+    def cleanup(self):
+        pass
+
 class TextEventWriter(EventWriter):
     def write(self, status=None, timestamp=None, host=None, message=None):
         if timestamp:
-            self.handle.write('%s %s %s\n' % (timestamp, host, message))
+            self.handle.write('{0} {1} {2}\n'.format(timestamp, host, message))
         elif status:
-            self.handle.write('%s\n' % status)
+            self.handle.write('{0}\n'.format(status))
 
 class ANSIEventWriter(EventWriter):
     def __init__(self, handle):
         super(ANSIEventWriter, self).__init__(handle)
+        #self.w = curses.initscr()
+
+    def cleanup(self):
+        # This effort at cleanup also clears the shown messages, which
+        # does not preserve previous behavior.  For now, we disable
+        # it, and live with the colored result output in Py3.
+
+        #curses.echo()
+        #curses.nocbreak()
+        #curses.endwin()
+        pass
 
     @staticmethod
     def background(color):
@@ -71,7 +83,7 @@ class ANSIEventWriter(EventWriter):
         return self.reset + curses.tigetstr("el")
 
     def ansi_text(self, text, bgcolor=WHITE, fgcolor=BLACK):
-        return self.background(bgcolor) + self.foreground(fgcolor) + text
+        return self.background(bgcolor) + self.foreground(fgcolor) + str_to_bytes(text)
 
     def colorbar(self, length, color=WHITE):
         return self.ansi_text(' ' * length, bgcolor=color)
@@ -82,7 +94,7 @@ class ANSIEventWriter(EventWriter):
         elif text.startswith('WARN'):
             return self.warning(text)
         elif text.startswith('READY'):
-            return self.ready('%s ' % text)
+            return self.ready('{0} '.format(text))
         return self.message(text)
 
     def error(self, error):
@@ -98,7 +110,7 @@ class ANSIEventWriter(EventWriter):
         return self.ansi_text(heading, bgcolor=BLUE, fgcolor=WHITE) + self.end_line
 
     def ready(self, ready):
-         return self.ansi_text(' %s' % ready, bgcolor=GREEN, fgcolor=WHITE) + self.end_line
+         return self.ansi_text(' {0}'.format(ready), bgcolor=GREEN, fgcolor=WHITE) + self.end_line
 
     def status(self, status):
         return self.ansi_text(status, fgcolor=CYAN) + self.end_line
@@ -110,22 +122,22 @@ class ANSIEventWriter(EventWriter):
         return self.ansi_text(warning, fgcolor=MAGENTA) + self.end_line
 
     def write(self, status=None, timestamp=None, host=None, message=None):
-        if message:
-            message = message.encode('ascii', 'replace')
+        message = force_ascii(message) if message else ''
         if status:
-            return self.handle.write('%s\n' % self.status(status))
+            return curses.putp(self.status(status + '\r\n') + self.end_line)
 
         if not timestamp:
-            return self.handle.write('%s\n' % self.heading(message + ":"))
+            return curses.putp(self.heading(message + ":\r\n") + self.end_line)
 
-        self.handle.write('%s %s %s\n' % (self.timestamp('%s ' % timestamp),
-                          self.host('%-10s' % host),
-                          self.format(message)))
+        curses.putp(self.timestamp('{0} '.format(timestamp))
+                    + self.host('{0:<10s} '.format(host))
+                    + self.format(message + '\r\n')
+                    + self.end_line)
 
 class JSONEventWriter(EventWriter):
     def write(self, status=None, timestamp=None, host=None, message=None):
         if timestamp:
-            print json.dumps([timestamp, host, message])
+            print(json.dumps([timestamp, host, message]))
 
 
 class EventMonitor(object):
@@ -136,6 +148,9 @@ class EventMonitor(object):
         self.prev_status   = None
         self.output        = OutputStream(format)
         self.output.write(message=self.job.name)
+
+    def cleanup(self):
+        self.output.cleanup()
 
     @property
     def events(self):
@@ -154,7 +169,8 @@ class EventMonitor(object):
 
     @property
     def status(self):
-        return "Status: [%s] %d waiting, %d running, %d done, %d failed" % tuple(self.stats)
+        return ("Status: [{0[0]}] {0[1]} waiting, {0[2]} running, {0[3]} done, {0[4]} failed"
+                .format(tuple(self.stats)))
 
     def log_events(self):
         for offset, (timestamp, host, message) in self.events:
