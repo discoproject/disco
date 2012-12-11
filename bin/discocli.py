@@ -264,7 +264,7 @@ def jobdict(program, jobname):
     Print the jobdict for the named job.
     """
     print(jobname)
-    for key, value in program.disco.jobpack(jobname).jobdict.iteritems():
+    for key, value in program.disco.jobpack(jobname).jobdict.items():
         print("\t{0}\t{1}".format(key, value))
 
 @Disco.command
