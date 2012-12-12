@@ -395,7 +395,7 @@ def xcat(program, *urls):
     for record in classic_iterator(chain(urls, program.blobs(*tags)),
                                    input_stream=stream,
                                    reader=reader):
-        print('\t'.join('{0}'.format((e,)) for e in iterify(record)).rstrip())
+        print('\t'.join('{0}'.format(e) for e in iterify(record)).rstrip())
 
 if __name__ == '__main__':
     DDFS(option_parser=OptionParser()).main()
