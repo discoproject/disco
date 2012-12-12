@@ -53,11 +53,13 @@ class Disco(object):
     def __repr__(self):
         return 'Disco master at {0}'.format(self.master)
 
-    def request(self, url, data=None, offset=0):
+    def request(self, url, data=None, offset=0, as_bytes=False):
         try:
             byts = download(proxy_url('{0}{1}'.format(self.master, url), proxy=self.proxy),
                             data=data,
                             offset=offset)
+            if as_bytes:
+                return byts
             return byts.decode('utf-8')
         except CommError as e:
             if e.code == None:
@@ -202,9 +204,10 @@ class Disco(object):
 
     def jobpack(self, jobname):
         """Return the :class:`disco.job.JobPack` submitted for the job."""
-        from disco.compat import StringIO
+        from disco.compat import BytesIO
         from disco.job import JobPack
-        return JobPack.load(StringIO(self.request('/disco/ctrl/parameters?name={0}'.format(jobname))))
+        return JobPack.load(BytesIO(self.request('/disco/ctrl/parameters?name={0}'.format(jobname),
+                                                 as_bytes=True)))
 
     def events(self, jobname, offset=0):
         """
