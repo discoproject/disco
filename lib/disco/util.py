@@ -151,8 +151,8 @@ def globalize(object, globals):
 
 def urljoin(scheme_netloc_path):
     scheme, netloc, path = scheme_netloc_path
-    return ('{0}{1}{2}'.format('{0}://'.format(scheme if scheme else ''),
-                               '{0}/'.format(netloc if netloc else ''),
+    return ('{0}{1}{2}'.format('{0}://'.format(scheme) if scheme else '',
+                               '{0}/'.format(netloc) if netloc else '',
                                path))
 
 def schemesplit(url):
