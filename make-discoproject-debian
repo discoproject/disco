@@ -6,4 +6,8 @@
 # in this script if backwards-compatibility is not an issue for you.
 
 make clean debian-clean
+
+# Use 'make debian' below to generate more Debian compliant packages.
+# The prefix and RELSRV settings ensure backwards-compatibility with
+# Disco debian packages available from discoproject.org.
 make debian prefix=/usr RELSRV=/srv/disco
