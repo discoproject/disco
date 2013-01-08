@@ -73,6 +73,7 @@ def cat(program, *urls):
     from subprocess import call
     from disco.comm import download
     from disco.util import deref, urlresolve, proxy_url
+    from disco.compat import bytes_to_str
 
     ignore_missing = program.options.ignore_missing
     tags, urls     = program.separate_tags(*urls)
@@ -89,7 +90,7 @@ def cat(program, *urls):
         return ''
 
     for replicas in deref(chain(urls, program.blobs(*tags))):
-        sys.stdout.write(curl(replicas))
+        sys.stdout.write(bytes_to_str(curl(replicas)))
 
 @DDFS.command
 def chtok(program, tag, token):
