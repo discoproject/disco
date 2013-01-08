@@ -377,7 +377,8 @@ class Worker(dict):
             done, inputs = cls.send('INPUT')
             for id, _status, label, _replicas in inputs:
                 if id not in exclude:
-                    yield IDedInput((cls, id, int(label)))
+                    label = label if label == 'all' else int(label)
+                    yield IDedInput((cls, id, label))
                     exclude += (id, )
 
     @classmethod
