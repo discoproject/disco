@@ -114,7 +114,7 @@ jobzip(<<?MAGIC:16/big,
                     reduce :: boolean()}).
 -record(ver2_info, {pipeline     = []    :: pipeline(),
                     schedule     = none  :: task_schedule(),
-                    inputs       = []    :: [task_output()],
+                    inputs       = []    :: [data_input()],
                     save_results = false :: boolean()}).
 
 -spec version_info(non_neg_integer(), dict()) -> #ver1_info{} | #ver2_info{}.
@@ -142,10 +142,12 @@ version_info(V, _JobDict) ->
 fixup_versions(JobInfo, #ver1_info{} = V1) ->
     {I, P} = job_from_ver1(V1),
     S = schedule_option1(V1),
-    JobInfo#jobinfo{inputs = I, pipeline = P, schedule = S};
+    OI = disco:enum(I),
+    JobInfo#jobinfo{inputs = OI, pipeline = P, schedule = S};
 fixup_versions(JobInfo, #ver2_info{inputs = I, pipeline = P,
                                    schedule = S, save_results = SR}) ->
-    JobInfo#jobinfo{inputs = I, pipeline = P, schedule = S, save_results = SR}.
+    OI = disco:enum(I),
+    JobInfo#jobinfo{inputs = OI, pipeline = P, schedule = S, save_results = SR}.
 
 % Validation
 
@@ -313,7 +315,7 @@ tempname(JobHome) ->
 % Compatibility utility: construct a pipeline from a job packet of
 % Disco 0.4.2 or earlier.
 
--spec job_from_ver1(#ver1_info{}) -> {[task_output()],
+-spec job_from_ver1(#ver1_info{}) -> {[data_input()],
                                       pipeline() | unsupported_job}.
 job_from_ver1(#ver1_info{inputs = JI, map = M, reduce = R, nr_reduce = NR}) ->
     job_from_ver1(JI, M, R, NR).
@@ -323,12 +325,12 @@ job_from_ver1(JobInputs, Map, Reduce, Nr_reduce) ->
     Pipeline = pipeline1(Map, Reduce, Nr_reduce),
     {Inputs, Pipeline}.
 
--spec task_inputs1([url() | [url()]]) -> [task_output()].
+-spec task_inputs1([url() | [url()]]) -> [data_input()].
 task_inputs1(Inputs) ->
     % Currently, we assume that all pipeline inputs are data file
     % inputs; dir-files as job inputs in the job pack are not
     % supported.
-    [{N, {data, {0, 0, input_replicas1(I)}}} || {N, I} <- disco:enum(Inputs)].
+    [{data, {0, 0, input_replicas1(I)}} || I <- Inputs].
 
 -spec input_replicas1([url() | [url()]]) -> [data_replica()].
 input_replicas1(Input) when is_binary(Input) ->

@@ -189,7 +189,7 @@ init_state(#jobinfo{schedule = Schedule,
     % Create a dummy completed 'input' task.
     Tasks = gb_trees:from_orddict([{input,
                                     #task_info{spec = input,
-                                               outputs = disco:enum(Inputs)}}]),
+                                               outputs = Inputs}}]),
     % Mark the 'input' stage as done, and send notification.
     InputStage = #stage_info{all = 1, done = [input]},
     SI = gb_trees:from_orddict([{?INPUT, InputStage}]),
