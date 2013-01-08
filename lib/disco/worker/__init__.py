@@ -397,7 +397,7 @@ class Worker(dict):
     def send_outputs(self):
         for output in self.outputs.values():
             output.file.close()
-            self.send('OUTPUT', [output.label, output.path, 0])
+            self.send('OUTPUT', [output.label, output.path, output.size()])
 
 class IDedInput(tuple):
     @property
@@ -553,6 +553,9 @@ class Output(object):
         self.label = 0 if label is None else int(label)
         self.open = open or DiscoOutput
         self.file = self.open(self.path)
+
+    def size(self):
+        return os.path.getsize(self.path)
 
 class SerialInput(Input):
     """
