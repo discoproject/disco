@@ -23,7 +23,7 @@
 -type rep_id() :: non_neg_integer().
 
 -type replica() :: [rep_id() | url(), ...].
--type worker_input() :: {seq_id(), [replica()]}.
+-type worker_input() :: {seq_id(), label(), [replica()]}.
 
 -spec init([{input_id(), data_input()}], label_grouping(), group()) -> state().
 init(Inputs, Grouping, Group) ->
@@ -35,15 +35,16 @@ init(Inputs, Grouping, Group) ->
            max_seq_id = length(Inputs)}.
 
 -spec init_replicas(seq_id(), data_input(), label_grouping(), group())
-                   -> [{{seq_id(), rep_id()}, fail_info()}].
+                   -> [{{seq_id(), rep_id()}, {all | label(), fail_info()}}].
 init_replicas(SeqId, DI, Grouping, Group) ->
-    [{{SeqId, RepId}, #fail_info{url = Url, last_fail = {0, 0, 0}}}
-     || {RepId, Url}
-            <- disco:enum(pipeline_utils:input_urls(DI, Grouping, Group))].
+    {L, Urls} = pipeline_utils:input_urls(DI, Grouping, Group),
+    [{{SeqId, RepId}, {L, #fail_info{url = Url, last_fail = {0, 0, 0}}}}
+     || {RepId, Url} <- disco:enum(Urls)].
 
 -spec include([seq_id()], state()) -> [worker_input()].
 include(SeqIds, #state{input_map = Map}) ->
-    [{SeqId, replicas(SeqId, 0, [], Map)} || SeqId <- SeqIds].
+    [{SeqId, L, Reps} || SeqId <- SeqIds,
+                         {L, Reps} <- [replicas(SeqId, 0, 0, [], Map)]].
 
 -spec exclude([seq_id()], state()) -> [worker_input()].
 exclude(Exc, S) ->
@@ -54,15 +55,15 @@ exclude(Exc, S) ->
 all(S) ->
     include(all_seq_ids(S), S).
 
--spec replicas(seq_id(), rep_id(), [{erlang:timestamp(), replica()}], gb_tree())
-              -> [replica()].
-replicas(SeqId, Rid, Replicas, Map) ->
+-spec replicas(seq_id(), rep_id(), label(), [{erlang:timestamp(), replica()}],
+               gb_tree()) -> {all | label(), [replica()]}.
+replicas(SeqId, Rid, Label, Replicas, Map) ->
     case gb_trees:lookup({SeqId, Rid}, Map) of
         none ->
-            [Repl || {_, Repl} <- lists:sort(Replicas)];
-        {value, #fail_info{url = Url, last_fail = LastFail}} ->
-            L = [{LastFail, [Rid, Url]}|Replicas],
-            replicas(SeqId, Rid + 1, L, Map)
+            {Label, [Repl || {_, Repl} <- lists:sort(Replicas)]};
+        {value, {L, #fail_info{url = Url, last_fail = LastFail}}} ->
+            Reps = [{LastFail, [Rid, Url]}|Replicas],
+            replicas(SeqId, Rid + 1, L, Reps, Map)
     end.
 
 -spec fail(seq_id(), [rep_id()], state()) -> state().

@@ -165,7 +165,8 @@ group_outputs(group_all, Outputs) ->
                                  Reps =/= []],
     [{{0, none}, Dirs ++ Dats}].  % '0', 'none' indicate no assigned host or label.
 
--spec input_urls(data_input(), label_grouping(), group()) -> [url()].
+-spec input_urls(data_input(), label_grouping(), group())
+                -> {all | label(), [url()]}.
 input_urls({data, {L, _Sz, Reps}}, _LG, _G) ->
     labelled_urls([U || {U, _H} <- Reps], L, [{L, 0}]);
 input_urls({dir, {_H1, U, LS}}, split, {L, _H2}) ->
@@ -175,19 +176,17 @@ input_urls({dir, {_H1, U, LS}}, group_node_label, {L, _H2}) ->
 input_urls({dir, {_H1, U, LS}}, group_label, {L, _H2}) ->
     labelled_urls([U], L, LS);
 input_urls({dir, {_H1, U, _LS}}, group_node, {_L, _H2}) ->
-    [U];
+    {all, [U]};
 input_urls({dir, {_H1, U, _LS}}, group_all, {_L, _H2}) ->
-    [U].
+    {all, [U]}.
 
--spec labelled_urls([url()], label(), [{label(), data_size()}]) -> [url()].
+-spec labelled_urls([url()], label(), [{label(), data_size()}])
+                   -> {label(), [url()]}.
 labelled_urls(Urls, Label, LabelSizes) ->
     Labels = [L || {L, _Sz} <- LabelSizes],
     case lists:member(Label, Labels) of
-        true ->
-            LB = list_to_binary(["#", integer_to_list(Label)]),
-            [<<U/binary, LB/binary>> || U <- Urls];
-        false ->
-            []
+        true  -> {Label, Urls};
+        false -> {Label, []}
     end.
 
 -spec output_urls(task_output_type()) -> [url()].

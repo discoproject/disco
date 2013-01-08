@@ -150,7 +150,7 @@ do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
 do_handle({<<"INPUT_ERR">>, [Iid, Rids]}, #state{inputs = Inputs,
                                                  failed_inputs = Failed} = S) ->
     Inputs1 = worker_inputs:fail(Iid, Rids, Inputs),
-    [{_, Replicas} | _] = worker_inputs:include([Iid], Inputs1),
+    [{_, _L, Replicas} | _] = worker_inputs:include([Iid], Inputs1),
     R = gb_sets:from_list(Rids),
     case [E || [Rid, _Url] = E <- Replicas, not gb_sets:is_member(Rid, R)] of
         [] ->
@@ -194,7 +194,8 @@ do_handle({<<"DONE">>, _Body}, #state{task = Task,
 % Input utilities.
 -spec input_reply([worker_inputs:worker_input()]) -> worker_msg().
 input_reply(Inputs) ->
-    {"INPUT", [<<"done">>, [[Iid, <<"ok">>, Repl] || {Iid, Repl} <- Inputs]]}.
+    {"INPUT", [<<"done">>, [[Iid, <<"ok">>, L, Repl]
+                            || {Iid, L, Repl} <- Inputs]]}.
 
 % Output utilities.
 
