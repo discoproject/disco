@@ -285,9 +285,9 @@ class Worker(worker.Worker):
         assert self['version'] == '{0[0]}.{0[1]}'.format(sys.version_info[:2]), "Python version mismatch"
 
         params = self['params']
-        if isinstance(self[task.mode], dict):
+        if isinstance(self[task.stage], dict):
             params = self['ext_params']
-            self[task.mode] = external.prepare(params, task.mode)
+            self[task.stage] = external.prepare(params, task.stage)
 
         globals_ = globals().copy()
         for module in self['required_modules']:
@@ -296,11 +296,11 @@ class Worker(worker.Worker):
         for obj in util.flatten(self.values()):
             util.globalize(obj, globals_)
 
-        getattr(self, task.mode)(task, params)
+        getattr(self, task.stage)(task, params)
         external.close()
 
     def map(self, task, params):
-        if self['save'] and self['partitions'] and not self['reduce']:
+        if self['save_results'] and self['partitions'] and not self['reduce']:
             raise NotImplementedError("Storing partitioned outputs in DDFS is not yet supported")
         entries = self.status_iter(self.input(task, open=self.opener('map', 'in', params)),
                                    "%s entries mapped")
@@ -312,7 +312,7 @@ class Worker(worker.Worker):
             for key, val in self['map'](entry, params):
                 part = None
                 if self['partitions']:
-                    part = str(self['partition'](key, self['partitions'], params))
+                    part = int(self['partition'](key, self['partitions'], params))
                 if self['combiner']:
                     if part not in bufs:
                         bufs[part] = {}
