@@ -59,6 +59,7 @@ class Task(object):
                  disco_data='',
                  stage=None,
                  group=None,
+                 grouping=None,
                  taskid=-1):
         from disco.job import JobPack
         self.host = host
@@ -71,14 +72,17 @@ class Task(object):
         self.put_port = put_port
         self.ddfs_data = ddfs_data
         self.disco_data = disco_data
-        self.mode = stage
-        self.group = group
+        self.stage = stage
+        self.group = '{0[0]}-{0[1]}'.format(group)
+        self.group_label, self.group_host = group
+        self.grouping = grouping
         self.taskid = taskid
         self.outputs = {}
-        self.uid = '{0}:{1}-{2}-{3}'.format(self.mode,
-                                            taskid,
-                                            hexhash(str((time.time())).encode()),
-                                            os.getpid())
+        self.uid = '{0}:{1}-{2}-{3}-{4}'.format(self.stage,
+                                                self.group,
+                                                self.taskid,
+                                                hexhash(str((time.time())).encode()),
+                                                os.getpid())
 
     @property
     def jobpath(self):
@@ -92,12 +96,12 @@ class Task(object):
         from disco.fileutils import ensure_path
         ensure_path(self.taskpath)
 
-    def output(self, partition=None, type='disco'):
-        if partition is None:
-            return self.path(self.uid), type, 0
-        elif not isinstance(partition, basestring):
-            raise ValueError("Partition label must be an integer or None")
-        return self.path('%s-%s' % (self.mode, partition)), 'part', partition
+    def output(self, label=None, typ='disco'):
+        if label is None:
+            return self.path(self.uid), typ, 0
+        elif not isinstance(label, int):
+            raise ValueError("Output label ({0} : {1}) must be an integer or None".format(label, type(label)))
+        return self.path('{0}-{1}-{2}'.format(self.stage, self.group, label)), 'part', label
 
     def path(self, name):
         """
@@ -106,7 +110,7 @@ class Task(object):
         return os.path.join(self.taskpath, name)
 
     def url(self, name, scheme='disco'):
-        return '%s://%s/disco/%s/%s/%s' % (scheme, self.host, self.jobpath, self.taskpath, name)
+        return '{0}://{1}/disco/{2}/{3}/{4}'.format(scheme, self.host, self.jobpath, self.taskpath, name)
 
     def get(self, key):
         """

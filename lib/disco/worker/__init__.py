@@ -3,38 +3,36 @@
 :mod:`disco.worker` -- Python Worker Interface
 ==============================================
 
-In Disco, :term:`workers <worker>` do the brunt of the data processing work.
-When a :class:`disco.job.Job` is created, it gets passed a :class:`Worker` instance,
-which is responsible for defining the fields used by the :class:`disco.job.JobPack`.
-In most cases, you don't need to define your own Worker subclass in order to run a job.
-The Worker classes defined in :mod:`disco` will take care of the details
-of creating the fields necessary for the :class:`disco.job.JobPack`,
-and when executed on the nodes,
-will handle the implementation of the :ref:`worker_protocol`.
+In Disco, :term:`workers <worker>` do the brunt of the data processing
+work.  When a :class:`disco.job.Job` is created, it gets passed
+a :class:`Worker` instance, which is responsible for defining the fields
+used by the :class:`disco.job.JobPack`.  In most cases, you don't need
+to define your own Worker subclass in order to run a job.  The Worker
+classes defined in :mod:`disco` will take care of the details of
+creating the fields necessary for the :class:`disco.job.JobPack`, and
+when executed on the nodes, will handle the implementation of
+the :ref:`worker_protocol`.
 
 There is perhaps a subtle, but important, distinction between
-a :term:`worker` and a :class:`Worker`.
-The former refers to any binary that gets executed on the nodes,
-specified by :attr:`jobdict.worker`.
-The latter is a Python class,
-which handles details of submitting the job on the client side,
-as well as controlling the execution of user-defined code on the nodes.
-A :class:`Worker` can be subclassed trivially to create a new :term:`worker`,
-without having to worry about fulfilling many of the requirements
-for a well-behaving worker.
-In short,
-a :class:`Worker` provides Python library support for a Disco :term:`worker`.
-Those wishing to write a worker in a language besides Python may make use of
-the Worker class for submitting jobs to the master,
-but generally need to handle the :ref:`worker_protocol`
-in the language used for the worker executable.
+a :term:`worker` and a :class:`Worker`.  The former refers to any binary
+that gets executed on the nodes, specified by :attr:`jobdict.worker`.
+The latter is a Python class, which handles details of submitting the
+job on the client side, as well as controlling the execution of
+user-defined code on the nodes.  A :class:`Worker` can be subclassed
+trivially to create a new :term:`worker`, without having to worry
+about fulfilling many of the requirements for a well-behaving worker.
+In short, a :class:`Worker` provides Python library support for a
+Disco :term:`worker`.  Those wishing to write a worker in a language
+besides Python may make use of the Worker class for submitting jobs to
+the master, but generally need to handle the :ref:`worker_protocol` in
+the language used for the worker executable.
 
-The :class:`Classic Worker <disco.worker.classic.worker.Worker>`
-is a subclass of :class:`Worker`,
-which implements the classic Disco :term:`mapreduce` interface.
+The :class:`Classic Worker <disco.worker.classic.worker.Worker>` is
+a subclass of :class:`Worker`, which implements the classic
+Disco :term:`mapreduce` interface.
 
-The following steps illustrate the sequence of events for running a :term:`job`
-using a standard :class:`Worker`:
+The following steps illustrate the sequence of events for running
+a :term:`job` using a standard :class:`Worker`:
 
 #. (client) instantiate a :class:`disco.job.Job`
         #. if a worker is supplied, use that worker
@@ -74,9 +72,10 @@ class MessageWriter(object):
 
 class Worker(dict):
     """
-    A :class:`Worker` is a :class:`dict` subclass,
-    with special methods defined for serializing itself,
-    and possibly reinstantiating itself on the nodes where :term:`tasks <task>` are run.
+    A :class:`Worker` is a :class:`dict` subclass, with special
+    methods defined for serializing itself, and possibly
+    reinstantiating itself on the nodes where :term:`tasks <task>` are
+    run.
 
     The :class:`Worker` base class defines the following parameters:
 
@@ -90,8 +89,8 @@ class Worker(dict):
                    :class:`disco.task.Task` in mode *reduce*.
                    Also used by :meth:`jobdict` to set :attr:`jobdict.reduce?`.
 
-    :type  save: bool
-    :param save: whether or not to save the output to :ref:`DDFS`.
+    :type  save_results: bool
+    :param save_results: whether or not to save the output to :ref:`DDFS`.
 
     :type  profile: bool
     :param profile: determines whether :meth:`run` will be profiled.
@@ -119,7 +118,7 @@ class Worker(dict):
         return {'map': None,
                 'merge_partitions': False, # XXX: maybe deprecated
                 'reduce': None,
-                'save': False,
+                'save_results': False,
                 'partitions': 1,  # move to classic once partitions are dynamic
                 'profile': False}
 
@@ -141,8 +140,8 @@ class Worker(dict):
         """
         Creates :ref:`jobdict` for the :class:`Worker`.
 
-        Makes use of the following parameters,
-        in addition to those defined by the :class:`Worker` itself:
+        Makes use of the following parameters, in addition to those
+        defined by the :class:`Worker` itself:
 
         :type  input: list of urls or list of list of urls
         :param input: used to set :attr:`jobdict.input`.
@@ -180,6 +179,7 @@ class Worker(dict):
         has_map = bool(get('map'))
         has_reduce = bool(get('reduce'))
         job_input = get('input', [])
+        has_save_results = get('save', False) or get('save_results', False)
         if not isiterable(job_input):
             raise DiscoError("Job 'input' is not a list of input locations,"
                              "or a list of such lists: {0}".format(job_input))
@@ -210,6 +210,7 @@ class Worker(dict):
                 'map?': has_map,
                 'reduce?': has_reduce,
                 'nr_reduces': nr_reduces,
+                'save_results': has_save_results,
                 'prefix': get('name'),
                 'scheduler': get('scheduler', {}),
                 'owner': get('owner', job.settings['DISCO_JOB_OWNER'])}
@@ -263,23 +264,23 @@ class Worker(dict):
             return MergedInput(self.get_inputs(), task=task, **kwds)
         return SerialInput(self.get_inputs(), task=task, **kwds)
 
-    def output(self, task, partition=None, **kwds):
+    def output(self, task, label=None, **kwds):
         """
         :type  task: :class:`disco.task.Task`
         :param task: the task for which to create output.
 
-        :type  partition: string or None
-        :param partition: the label of the output partition to get.
+        :type  label: int or None
+        :param label: the label of the output partition to get.
 
         :type  kwds: dict
         :param kwds: additional keyword arguments for the :class:`Output`.
 
-        :return: the previously opened :class:`Output` for *partition*,
+        :return: the previously opened :class:`Output` for *label*,
                  or if necessary, a newly opened one.
         """
-        if partition not in self.outputs:
-            self.outputs[partition] = Output(task.output(partition=partition), **kwds)
-        return self.outputs[partition]
+        if label not in self.outputs:
+            self.outputs[label] = Output(task.output(label=label), **kwds)
+        return self.outputs[label]
 
     def start(self, task, job, **jobargs):
         from disco.sysutil import set_mem_limit
@@ -302,12 +303,12 @@ class Worker(dict):
         cluster, on a server that is executing one of the tasks in a
         job submitted by a client.
         """
-        self.getitem(task.mode, job, jobargs)(task, job, **jobargs)
+        self.getitem(task.stage, job, jobargs)(task, job, **jobargs)
 
     def end(self, task, job, **jobargs):
         def get(key):
             return self.getitem(key, job, jobargs)
-        if not get('save') or (task.mode == 'map' and get('reduce')):
+        if not get('save_results') or (task.stage == 'map' and get('reduce')):
             self.send_outputs()
             self.send('MSG', "Results sent to master")
         else:
@@ -362,7 +363,7 @@ class Worker(dict):
     @classmethod
     def get_input(cls, id):
         done, inputs = cls.send('INPUT', ['include', [id]])
-        _id, status, replicas = inputs[0]
+        _id, status, _label, replicas = inputs[0]
 
         if status == 'busy':
             raise Wait
@@ -374,9 +375,9 @@ class Worker(dict):
     def get_inputs(cls, done=False, exclude=()):
         while not done:
             done, inputs = cls.send('INPUT')
-            for id, _status, _replicas in inputs:
+            for id, _status, label, _replicas in inputs:
                 if id not in exclude:
-                    yield IDedInput((cls, id))
+                    yield IDedInput((cls, id, int(label)))
                     exclude += (id, )
 
     @classmethod
@@ -395,7 +396,7 @@ class Worker(dict):
     def send_outputs(self):
         for output in self.outputs.values():
             output.file.close()
-            self.send('OUTPUT', [output.partition, output.path, 0])
+            self.send('OUTPUT', [output.label, output.path, 0])
 
 class IDedInput(tuple):
     @property
@@ -405,6 +406,10 @@ class IDedInput(tuple):
     @property
     def id(self):
         return self[1]
+
+    @property
+    def label(self):
+        return self[2]
 
     @property
     def replicas(self):
@@ -534,17 +539,17 @@ class Output(object):
 
         The type of output.
 
-    .. attribute:: partition
+    .. attribute:: label
 
-        The partition label for the output (or None).
+        The label for the output (or None).
 
     .. attribute:: file
 
         The underlying output file handle.
     """
-    def __init__(self, path_type_partition, open=None):
-        self.path, self.type, partition = path_type_partition
-        self.partition = 0 if partition is None else int(partition)
+    def __init__(self, path_type_label, open=None):
+        self.path, self.type, label = path_type_label
+        self.label = 0 if label is None else int(label)
         self.open = open or DiscoOutput
         self.file = self.open(self.path)
 
