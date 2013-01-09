@@ -126,9 +126,9 @@ Possible settings for Disco are as follows:
 
         .. envvar:: DISCO_GC_AFTER
 
-                How long to wait before garbage collecting data.
+                How long to wait before garbage collecting job-generated intermediate and result data.
                 Only results explictly saved to DDFS won't be garbage collected.
-                Default is ``100 * 365 * 24 * 60 * 60`` (100 years).
+                Default is ``100 * 365 * 24 * 60 * 60`` (100 years).  (Note that this setting does not affect data in DDFS.)
 
         .. envvar:: DISCO_WORKER_MAX_MEM
 
