@@ -188,7 +188,7 @@ class Worker(dict):
             raise DiscoError("Job 'input' is not a list of input locations,"
                              "or a list of such lists: {0}".format(job_input))
         input = inputlist(job_input,
-                          partition=None if has_map else False,
+                          label=None if has_map else False,
                           settings=job.settings)
 
         # -- nr_reduces --

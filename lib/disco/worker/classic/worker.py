@@ -348,7 +348,7 @@ class Worker(worker.Worker):
         label = None
         if ispartitioned(inputs) and not self['merge_partitions']:
             label = task.group_label
-        return self.sort(SerialInput(shuffled(inputlist(inputs, partition=label)),
+        return self.sort(SerialInput(shuffled(inputlist(inputs, label=label)),
                                      task=task,
                                      open=self.opener('reduce', 'in', params)),
                          task)

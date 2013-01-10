@@ -3,6 +3,6 @@ from disco.util import inputlist, shuffled
 from disco.worker import SerialInput
 
 def open(url, task=None):
-    partition = str(task.taskid) if task else None
-    return SerialInput(shuffled(inputlist([url], partition=partition)),
+    label = task.group_label if task else None
+    return SerialInput(shuffled(inputlist([url], label=label)),
                        open=lambda url: schemes.open_chain(url, task=task))

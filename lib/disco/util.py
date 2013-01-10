@@ -300,12 +300,12 @@ def ispartitioned(input):
         return all(ispartitioned(i) for i in input) and len(input)
     return input.startswith('dir://')
 
-def inputexpand(input, partition=None, settings=DiscoSettings()):
+def inputexpand(input, label=None, settings=DiscoSettings()):
     from disco.ddfs import DDFS, istag
-    if ispartitioned(input) and partition is not False:
-        return zip(*(parse_dir(i, label=partition) for i in iterify(input)))
+    if ispartitioned(input) and label is not False:
+        return zip(*(parse_dir(i, label=label) for i in iterify(input)))
     if isiterable(input):
-        return [inputlist(input, partition=partition, settings=settings)]
+        return [inputlist(input, label=label, settings=settings)]
     if istag(input):
         ddfs = DDFS(settings=settings)
         return chainify(blobs for name, tags, blobs in ddfs.findtags(input))
