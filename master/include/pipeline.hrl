@@ -117,8 +117,8 @@
 -define(INPUT, <<"input">>).
 -define(REDUCE, <<"reduce">>).
 -define(MAP, <<"map">>).
--define(MAP_SHUFFLE, <<"map-shuffle">>).
--define(REDUCE_SHUFFLE, <<"reduce-shuffle">>).
+-define(MAP_SHUFFLE, <<"map_shuffle">>).
+-define(REDUCE_SHUFFLE, <<"reduce_shuffle">>).
 
 % The submitted pipeline jobpack.
 -record(jobinfo, {jobname       :: jobname(),
