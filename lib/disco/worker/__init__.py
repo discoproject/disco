@@ -396,7 +396,7 @@ class Worker(dict):
 
     def send_outputs(self):
         for output in self.outputs.values():
-            output.file.close()
+            output.close()
             self.send('OUTPUT', [output.label, output.path, output.size()])
 
 class IDedInput(tuple):
@@ -519,7 +519,18 @@ class Input(object):
             return schemes.open(url, task=task)
         return open
 
-class Output(object):
+class BaseOutput(object):
+    def __init__(self, path_type_label):
+        self.path, self.type, label = path_type_label
+        self.label = 0 if label is None else int(label)
+
+    def size(self):
+        return os.path.getsize(self.path)
+
+    def close(self):
+        pass
+
+class Output(BaseOutput):
     """
     A container for outputs from :class:`workers <Worker>`.
 
@@ -549,13 +560,12 @@ class Output(object):
         The underlying output file handle.
     """
     def __init__(self, path_type_label, open=None):
-        self.path, self.type, label = path_type_label
-        self.label = 0 if label is None else int(label)
+        super(Output, self).__init__(path_type_label)
         self.open = open or DiscoOutput
         self.file = self.open(self.path)
 
-    def size(self):
-        return os.path.getsize(self.path)
+    def close(self):
+        self.file.close()
 
 class SerialInput(Input):
     """
