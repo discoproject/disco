@@ -96,12 +96,18 @@ class Task(object):
         from disco.fileutils import ensure_path
         ensure_path(self.taskpath)
 
+    def output_filename(self, label):
+        if not isinstance(label, int):
+            raise ValueError("Output label ({0} : {1}) must be an integer or None".format(label, type(label)))
+        return '{0}-{1}-{2}'.format(self.stage, self.group, label)
+
+    def output_path(self, label):
+        return self.path(self.output_filename(label))
+
     def output(self, label=None, typ='disco'):
         if label is None:
             return self.path(self.uid), typ, 0
-        elif not isinstance(label, int):
-            raise ValueError("Output label ({0} : {1}) must be an integer or None".format(label, type(label)))
-        return self.path('{0}-{1}-{2}'.format(self.stage, self.group, label)), 'part', label
+        return self.output_path(label), 'part', label
 
     def path(self, name):
         """
