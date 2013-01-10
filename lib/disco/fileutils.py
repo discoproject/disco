@@ -192,6 +192,10 @@ class AtomicFile(file):
         self.isopen = True
         super(AtomicFile, self).__init__(self.partial, 'w')
 
+    def size(self):
+        assert not self.isopen
+        return os.path.getsize(self.path)
+
     def close(self):
         if self.isopen:
             sync(self)
