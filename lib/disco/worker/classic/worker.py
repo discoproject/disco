@@ -324,6 +324,22 @@ class Worker(worker.Worker):
             for record in self['combiner'](None, None, buf, True, params) or ():
                 output(part).add(*record)
 
+    def shuffle(self, task, params):
+        inputs = [i for i in self.get_inputs()]
+        getattr(self, 'shuffle_' + task.grouping)(task, params, inputs)
+
+    map_shuffle = reduce_shuffle = shuffle
+
+    def shuffle_group_node(self, task, params, inputs):
+        from disco.worker import BaseOutput
+        label_map = self.labelled_input_map(task, inputs)
+        for label in label_map:
+            if len(label_map[label]) > 0:
+                outpath, _size = self.concat_input(task, label, label_map[label])
+                self.outputs[label] = BaseOutput((outpath, 'disco', label))
+        self.send('MSG', ("Shuffled {0} inputs into {1} label(s)"
+                          .format(len(inputs), len(label_map))))
+
     def reduce_input(self, task, params):
         # master should feed only the partitioned inputs to reduce (and shuffle them?)
         from disco.worker import SerialInput

@@ -56,7 +56,8 @@ import os, sys, time, traceback
 
 from disco.compat import basestring, force_utf8
 from disco.error import DataError
-from disco.fileutils import DiscoOutput, NonBlockingInput, Wait
+from disco.fileutils import DiscoOutput, NonBlockingInput, Wait, AtomicFile
+from disco.comm import open_url
 
 class MessageWriter(object):
     def __init__(self, worker):
@@ -118,6 +119,9 @@ class Worker(dict):
         return {'map': None,
                 'merge_partitions': False, # XXX: maybe deprecated
                 'reduce': None,
+                'map_shuffle': None,
+                'reduce_shuffle': None,
+                'shuffle': None,
                 'save_results': False,
                 'partitions': 1,  # move to classic once partitions are dynamic
                 'profile': False}
@@ -380,6 +384,40 @@ class Worker(dict):
                     label = label if label == 'all' else int(label)
                     yield IDedInput((cls, id, label))
                     exclude += (id, )
+
+    @classmethod
+    def labelled_input_map(cls, task, inputs):
+        from disco.util import ispartitioned, read_index
+        from collections import defaultdict
+        def update_label_map(lm, i):
+            reps = [url for rid, url in i.replicas]
+            if ispartitioned(reps):
+                for l, url, size in read_index(reps[0]):
+                    if i.label in ('all', l):
+                        lm[l].append([url])
+            else:
+                lm[i.label].append(reps)
+        label_map = defaultdict(list)
+        for i in inputs:
+            update_label_map(label_map, i)
+        return label_map
+
+    @classmethod
+    def concat_input(cls, task, output_label, replicas):
+        output = AtomicFile(task.output_path(output_label))
+        BUFFER_SIZE = 1024*1024
+        for reps in replicas:
+            # Use only the first replica for now, since a set of one
+            # is the most common case.
+            # TODO: handle falling back to alternative replicas.
+            inp = open_url(reps[0])
+            buf = inp.read(BUFFER_SIZE)
+            while (len(buf) > 0):
+                output.write(buf)
+                buf = inp.read(BUFFER_SIZE)
+            inp.close()
+        output.close()
+        return output.path, output.size()
 
     @classmethod
     def get_task(cls):
