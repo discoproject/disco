@@ -266,7 +266,7 @@ def deref(inputs, resolve=False):
     for input in inputlist(inputs):
         yield [resolve(i) for i in iterify(input)]
 
-def parse_dir(dir, partition=None):
+def parse_dir(dir, label=None):
     """
     Translates a directory URL (``dir://...``) to a list of normal URLs.
 
@@ -276,7 +276,7 @@ def parse_dir(dir, partition=None):
     :param dir: a directory url, such as ``dir://nx02/test_simple@12243344``
     """
     # XXX: guarantee indices are read in the same order (task/labels) (for redundancy)
-    return [url for id, url, size in sorted(read_index(dir)) if partition in (None, id)]
+    return [url for lab, url, size in sorted(read_index(dir)) if label in (None, lab)]
 
 def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET', to_master=True):
     scheme, (host, port), path = urlsplit(url)
@@ -292,7 +292,8 @@ def read_index(dir):
     if dir.endswith(".gz"):
         file = gzip.GzipFile(fileobj=file)
     for line in file:
-        yield bytes_to_str(line).split()
+        label, url, size = bytes_to_str(line).split()
+        yield int(label), url, int(size)
 
 def ispartitioned(input):
     if isiterable(input):
@@ -302,7 +303,7 @@ def ispartitioned(input):
 def inputexpand(input, partition=None, settings=DiscoSettings()):
     from disco.ddfs import DDFS, istag
     if ispartitioned(input) and partition is not False:
-        return zip(*(parse_dir(i, partition=partition) for i in iterify(input)))
+        return zip(*(parse_dir(i, label=partition) for i in iterify(input)))
     if isiterable(input):
         return [inputlist(input, partition=partition, settings=settings)]
     if istag(input):
