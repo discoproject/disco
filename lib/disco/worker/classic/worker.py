@@ -345,10 +345,10 @@ class Worker(worker.Worker):
         from disco.worker import SerialInput
         from disco.util import inputlist, ispartitioned, shuffled
         inputs = [[url for rid, url in i.replicas] for i in self.get_inputs()]
-        partition = None
+        label = None
         if ispartitioned(inputs) and not self['merge_partitions']:
-            partition = str(task.taskid)
-        return self.sort(SerialInput(shuffled(inputlist(inputs, partition=partition)),
+            label = task.group_label
+        return self.sort(SerialInput(shuffled(inputlist(inputs, partition=label)),
                                      task=task,
                                      open=self.opener('reduce', 'in', params)),
                          task)
