@@ -78,6 +78,7 @@ master: dep
 clean:
 	@ (cd master && ./rebar clean)
 	- rm -Rf lib/build lib/disco.egg-info
+	- find lib -name __pycache__ | xargs rm -rf
 
 xref: master
 	@ (cd master && ./rebar xref)
