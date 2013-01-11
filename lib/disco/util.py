@@ -287,6 +287,8 @@ def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET', to_master=T
     return url
 
 def read_index(dir):
+    # We might be given replicas of dirs; choose the first.
+    if isiterable(dir): dir = dir[0]
     from disco.comm import open_url
     file = open_url(proxy_url(dir, to_master=False))
     if dir.endswith(".gz"):
