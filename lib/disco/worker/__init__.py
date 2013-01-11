@@ -201,7 +201,7 @@ class Worker(dict):
             # no map, with partitions: len(dir://) specifies nr_reduces
             nr_reduces = 1 + max(int(id)
                                  for dir in input
-                                 for id, url in read_index(dir))
+                                 for id, url, size in read_index(dir))
         else:
             # no map, without partitions can only have 1 reduce
             nr_reduces = 1
