@@ -87,6 +87,10 @@ submit_tasks(JobCoord, Mode, Tasks) ->
 kill_job(Reason) ->
     gen_server:cast(self(), {kill_job, Reason}).
 
+-spec use_inputs(pid(), [task_output()]) -> ok.
+use_inputs(Coord, Inputs) ->
+    gen_server:cast(Coord, {inputs, Inputs}).
+
 -spec stage_done(stage_name()) -> ok.
 stage_done(Stage) ->
     gen_server:cast(self(), {stage_done, Stage}).
@@ -100,6 +104,7 @@ stage_done(Stage) ->
                 schedule         :: task_schedule(),
                 next_taskid = 0  :: task_id(),
                 next_runid  = 0  :: task_run_id(),
+                input_pid = none :: none | pid(),
                 % cluster membership: [host()]
                 hosts      = gb_sets:empty()  :: gb_set(),
                 % input | task_id() -> task_info().
@@ -119,6 +124,7 @@ init({Starter, JobPack}) ->
         {error, E} ->
             {stop, E};
         K:V ->
+            lager:error("job submission failed: ~p", [erlang:get_stacktrace()]),
             {stop, disco:format("job init error: ~p:~p", [K, V])}
     end.
 
@@ -127,6 +133,7 @@ handle_call(_M, _F, S) ->
     {noreply, S}.
 
 -spec handle_cast({update_nodes, [host()]}, state()) -> gs_noreply();
+                 ({inputs, [task_output()]}, state()) -> gs_noreply();
                  ({stage_done, stage_name()}, state()) -> gs_noreply();
                  ({submit_tasks, submit_mode(), [task_id()]}, state()) ->
                          gs_noreply();
@@ -136,10 +143,12 @@ handle_call(_M, _F, S) ->
                  ({kill_job, term()}, state()) -> gs_noreply().
 handle_cast({update_nodes, Hosts}, S) ->
     {noreply, do_update_nodes(Hosts, S)};
-handle_cast({submit_tasks, Mode, Tasks}, S) ->
-    {noreply, do_submit_tasks(Mode, Tasks, S)};
+handle_cast({inputs, Inputs}, S) ->
+    {noreply, do_use_inputs(Inputs, S)};
 handle_cast({stage_done, Stage}, S) ->
     {noreply, do_stage_done(Stage, S)};
+handle_cast({submit_tasks, Mode, Tasks}, S) ->
+    {noreply, do_submit_tasks(Mode, Tasks, S)};
 handle_cast({task_done, TaskId, Host, Results}, S) ->
     {noreply, do_task_done(TaskId, Host, Results, S)};
 handle_cast(pipeline_done, S) ->
@@ -148,12 +157,16 @@ handle_cast({kill_job, Reason}, S) ->
     do_kill_job(Reason, S),
     {stop, Reason, S}.
 
--spec handle_info(term(), state()) -> gs_noreply().
+-spec handle_info(term(), state()) -> gs_noreply() | gs_stop(tuple()).
+handle_info({'EXIT', Pid, Reason}, #state{input_pid = Pid} = S) ->
+    {stop, {"input_processor exited", Reason}, S#state{input_pid = none}};
 handle_info(_M, S) ->
     {noreply, S}.
 
 -spec terminate(term(), state()) -> ok.
-terminate(normal, _S) -> ok;
+terminate(normal, _S) ->
+    lager:warning("job_coord terminating normally!"),
+    ok;
 terminate(Reason, #state{jobinfo = #jobinfo{jobname = JobName}}) ->
     lager:warning("job coordinator for ~s dies: ~p", [JobName, Reason]).
 
@@ -183,23 +196,33 @@ setup_job(JobPack, JobCoord) ->
     {JobInfo#jobinfo{jobname = JobName, jobfile = JobFile}, Hosts}.
 
 -spec init_state(jobinfo(), [host()]) -> state().
-init_state(#jobinfo{schedule = Schedule,
+init_state(#jobinfo{jobname  = _JobName,
+                    schedule = Schedule,
                     inputs   = Inputs,
                     pipeline = Pipeline} = JobInfo, Hosts) ->
     % Create a dummy completed 'input' task.
     Tasks = gb_trees:from_orddict([{input,
                                     #task_info{spec = input,
                                                outputs = Inputs}}]),
-    % Mark the 'input' stage as done, and send notification.
-    InputStage = #stage_info{all = 1, done = [input]},
-    SI = gb_trees:from_orddict([{?INPUT, InputStage}]),
-    stage_done(?INPUT),
+    lager:info("initialized job ~p with pipeline ~p and inputs ~p",
+               [_JobName, Pipeline, Inputs]),
+    % Convert inputs into pipeline form.
+    Coord = self(),
+    InputPid = spawn_link(fun() -> do_preprocess_inputs(Coord, Inputs) end),
     #state{jobinfo    = JobInfo,
            pipeline   = Pipeline,
            schedule   = Schedule,
+           input_pid  = InputPid,
            hosts      = gb_sets:from_list(Hosts),
-           tasks      = Tasks,
-           stage_info = SI}.
+           tasks      = Tasks}.
+
+%% We need to convert any dir:// urls into pipeline form, which
+%% involves reading and parsing the dir files.  We hence do this in a
+%% separate process.
+
+do_preprocess_inputs(Coord, Inputs) ->
+    % TODO.
+    use_inputs(Coord, Inputs).
 
 %% ===================================================================
 %% state access and update utils
@@ -211,6 +234,16 @@ stage_outputs(Stage, #state{stage_info = SI, tasks = Tasks}) ->
 
 %% ===================================================================
 %% Callback implementations.
+
+-spec do_use_inputs([task_output()], state()) -> state().
+do_use_inputs(Inputs, #state{jobinfo = JobInfo} = S) ->
+    % Mark the 'input' stage as done, and send notification.
+    InputStage = #stage_info{all = 1, done = [input]},
+    SI = gb_trees:from_orddict([{?INPUT, InputStage}]),
+    stage_done(?INPUT),
+    S#state{jobinfo    = JobInfo#jobinfo{inputs = Inputs},
+            input_pid  = none,
+            stage_info = SI}.
 
 -spec do_update_nodes([host()], state()) -> state().
 do_update_nodes(Hosts, S) ->
