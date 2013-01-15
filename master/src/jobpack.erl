@@ -349,10 +349,9 @@ pipeline1(false, false, _NR) ->
 pipeline1(false, true, 1) ->
     [{?REDUCE, group_all}];
 pipeline1(false, true, _NR) ->
-    % This was used to support reduce-only jobs with partitioned
-    % inputs from dir:// files. This is now unsupported; instead, the
-    % job-submitter will need to prepare an explicit pipeline.
-    unsupported_job;
+    % This is used to support reduce-only jobs with partitioned
+    % inputs from dir:// files.
+    [{?REDUCE, group_label}, {?REDUCE_SHUFFLE, group_node}];
 pipeline1(true, false, _NR) ->
     [{?MAP, split}, {?MAP_SHUFFLE, group_node}];
 pipeline1(true, true, 1) ->
