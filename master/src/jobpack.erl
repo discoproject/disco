@@ -325,11 +325,13 @@ job_from_ver1(JobInputs, Map, Reduce, Nr_reduce) ->
     Pipeline = pipeline1(Map, Reduce, Nr_reduce),
     {Inputs, Pipeline}.
 
+% Parse job input urls into pipeline format.
 -spec task_inputs1([url() | [url()]]) -> [data_input()].
+% Dir input urls are currently always present in singletons, since
+% they are not replicated.
+task_inputs1([<<"dir://", _/binary>> = Url | _]) ->
+    [{dir, {disco:preferred_host(Url), Url, []}}];
 task_inputs1(Inputs) ->
-    % Currently, we assume that all pipeline inputs are data file
-    % inputs; dir-files as job inputs in the job pack are not
-    % supported.
     [{data, {0, 0, input_replicas1(I)}} || I <- Inputs].
 
 -spec input_replicas1([url() | [url()]]) -> [data_replica()].
