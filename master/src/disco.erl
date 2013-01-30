@@ -5,7 +5,7 @@
 -export([slave_name/1, slave_node/1, slave_safe/1, slave_for_url/1]).
 -export([jobhome/1, jobhome/2, joburl/2, joburl_to_localpath/1]).
 -export([data_root/1, data_path/2, ddfs_root/2]).
--export([local_cluster/0, preferred_host/1, disco_url_path/1]).
+-export([local_cluster/0, preferred_host/1, disco_url_path/1, dir_to_url/1]).
 -export([enum/1, hexhash/1, oob_name/1, debug_flags/1]).
 -export([format/2, format_time/1, format_time/4, format_time_since/1]).
 -export([make_dir/1, ensure_dir/1, is_file/1, is_dir/1]).
@@ -166,6 +166,14 @@ disco_url_path(Url) ->
     Opts = [{capture, all_but_first, list}],
     {match, [Path]} = re:run(Url, ".*?://.*?/disco/(.*)", Opts),
     Path.
+
+-spec dir_to_url(url()) -> url().
+dir_to_url(<<"dir://", _/binary>> = Dir) ->
+    {_S, Host, P, Q, F} = mochiweb_util:urlsplit(binary_to_list(Dir)),
+    Url = {"http", Host ++ ":" ++ get_setting("DISCO_PORT"), P, Q, F},
+    mochiweb_util:urlunsplit(Url);
+dir_to_url(<<_/binary>> = Url) ->
+    Url.
 
 -spec preferred_host(url()) -> url_host().
 preferred_host(Url) ->
