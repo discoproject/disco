@@ -87,7 +87,7 @@ submit_tasks(JobCoord, Mode, Tasks) ->
 kill_job(Reason) ->
     gen_server:cast(self(), {kill_job, Reason}).
 
--spec use_inputs(pid(), [task_output()]) -> ok.
+-spec use_inputs(pid(), {ok, [task_output()]} | {error, term()}) -> ok.
 use_inputs(Coord, Inputs) ->
     gen_server:cast(Coord, {inputs, Inputs}).
 
@@ -117,6 +117,12 @@ stage_done(Stage) ->
 
 -spec init({pid(), binary()}) -> gs_init() | {stop, term()}.
 init({Starter, JobPack}) ->
+    % Note: we cannot set trap_exit here, due to an implementation bug
+    % (IMHO) in Erlang.  If we do set it, we will get our terminate
+    % callback called when the inner spawned helper function in new()
+    % above terminates (normally or not).  The bug is that our
+    % terminate should get called _only_ when the helper does _not_
+    % terminate normally.
     try  {JobInfo, Hosts} = setup_job(JobPack, self()),
          Starter ! {job_started, JobInfo#jobinfo.jobname},
          {ok, init_state(JobInfo, Hosts)}
@@ -132,8 +138,10 @@ init({Starter, JobPack}) ->
 handle_call(_M, _F, S) ->
     {noreply, S}.
 
--spec handle_cast({update_nodes, [host()]}, state()) -> gs_noreply();
-                 ({inputs, [task_output()]}, state()) -> gs_noreply();
+-spec handle_cast({start, [task_output()]}, state()) -> gs_noreply();
+                 ({update_nodes, [host()]}, state()) -> gs_noreply();
+                 ({inputs, {ok, [task_output()]} | {error, term()}}, state()) ->
+                         gs_noreply();
                  ({stage_done, stage_name()}, state()) -> gs_noreply();
                  ({submit_tasks, submit_mode(), [task_id()]}, state()) ->
                          gs_noreply();
@@ -141,9 +149,14 @@ handle_call(_M, _F, S) ->
                          gs_noreply();
                  (pipeline_done, state()) -> gs_noreply();
                  ({kill_job, term()}, state()) -> gs_noreply().
+handle_cast({start, Inputs}, S) ->
+    {noreply, do_start(Inputs, S)};
 handle_cast({update_nodes, Hosts}, S) ->
     {noreply, do_update_nodes(Hosts, S)};
-handle_cast({inputs, Inputs}, S) ->
+handle_cast({inputs, {error, E}}, S) ->
+    % TODO: log an appropriate job event.
+    {stop, {"fetching inputs failed", E}, S#state{input_pid = none}};
+handle_cast({inputs, {ok, Inputs}}, S) ->
     {noreply, do_use_inputs(Inputs, S)};
 handle_cast({stage_done, Stage}, S) ->
     {noreply, do_stage_done(Stage, S)};
@@ -159,13 +172,18 @@ handle_cast({kill_job, Reason}, S) ->
 
 -spec handle_info(term(), state()) -> gs_noreply() | gs_stop(tuple()).
 handle_info({'EXIT', Pid, Reason}, #state{input_pid = Pid} = S) ->
+    % Note: this callback clause will never get called useless, due to
+    % the trap_exit issue mentioned above.  We leave it in here for
+    % clarity, and in case this issue is fixed.
+    lager:warning("stopping due to input_pid (~p) failure: ~p (self ~p)",
+                  [Pid, Reason, self()]),
     {stop, {"input_processor exited", Reason}, S#state{input_pid = none}};
-handle_info(_M, S) ->
+handle_info(M, S) ->
+    lager:warning("Ignoring unexpected info event: ~p (self ~p)", [M, self()]),
     {noreply, S}.
 
 -spec terminate(term(), state()) -> ok.
 terminate(normal, _S) ->
-    lager:warning("job_coord terminating normally!"),
     ok;
 terminate(Reason, #state{jobinfo = #jobinfo{jobname = JobName}}) ->
     lager:warning("job coordinator for ~s dies: ~p", [JobName, Reason]).
@@ -206,23 +224,25 @@ init_state(#jobinfo{jobname  = _JobName,
                                                outputs = Inputs}}]),
     lager:info("initialized job ~p with pipeline ~p and inputs ~p",
                [_JobName, Pipeline, Inputs]),
-    % Convert inputs into pipeline form.
-    Coord = self(),
-    InputPid = spawn_link(fun() -> do_preprocess_inputs(Coord, Inputs) end),
+    gen_server:cast(self(), {start, Inputs}),
     #state{jobinfo    = JobInfo,
            pipeline   = Pipeline,
            schedule   = Schedule,
-           input_pid  = InputPid,
            hosts      = gb_sets:from_list(Hosts),
            tasks      = Tasks}.
 
-%% We need to convert any dir:// urls into pipeline form, which
-%% involves reading and parsing the dir files.  We hence do this in a
-%% separate process.
-
-do_preprocess_inputs(Coord, Inputs) ->
-    % TODO.
-    use_inputs(Coord, Inputs).
+preprocess_inputs(Coord, Inputs) ->
+    % Fetch and parse any dir:// inputs to extract labels/sizes.
+    RealInputs =
+        lists:foldl(fun (_I, {error, _} = Err) ->
+                            Err;
+                        ({Id, I}, {ok, Acc}) ->
+                            case worker_utils:annotate_input(I) of
+                                {ok, ParsedI} -> {ok, [{Id, ParsedI} | Acc]};
+                                {error, _} = Err -> Err
+                            end
+                    end, {ok, []}, Inputs),
+    use_inputs(Coord, RealInputs).
 
 %% ===================================================================
 %% state access and update utils
@@ -234,6 +254,14 @@ stage_outputs(Stage, #state{stage_info = SI, tasks = Tasks}) ->
 
 %% ===================================================================
 %% Callback implementations.
+-spec do_start([task_output()], state()) -> state().
+do_start(Inputs, S) ->
+    % We need to convert any dir:// urls into pipeline form, which
+    % involves retrieving and parsing the dir files.  We hence do this
+    % in a separate process.
+    Coord = self(),
+    InputPid = spawn_link(fun() -> preprocess_inputs(Coord, Inputs) end),
+    S#state{input_pid = InputPid}.
 
 -spec do_use_inputs([task_output()], state()) -> state().
 do_use_inputs(Inputs, #state{jobinfo = JobInfo} = S) ->
