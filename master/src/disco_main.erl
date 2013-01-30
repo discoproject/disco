@@ -37,6 +37,7 @@ start(_Type, _Args) ->
     ok = application:start(compiler),
     ok = application:start(syntax_tools),
     ok = application:start(lager),
+    ok = inets:start(),
     init_settings(),
     write_pid(disco:get_setting("DISCO_MASTER_PID")),
     Port = disco:get_setting("DISCO_PORT"),
