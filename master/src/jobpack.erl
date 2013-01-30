@@ -327,14 +327,25 @@ job_from_ver1(JobInputs, Map, Reduce, Nr_reduce) ->
 
 % Parse job input urls into pipeline format.
 -spec task_inputs1([url() | [url()]]) -> [data_input()].
-% Dir input urls are currently always present in singletons, since
-% they are not replicated.
-task_inputs1([<<"dir://", _/binary>> = Url | _]) ->
-    [{dir, {disco:preferred_host(Url), Url, []}}];
 task_inputs1(Inputs) ->
-    [{data, {0, 0, input_replicas1(I)}} || I <- Inputs].
+    [task_input(I) || I <- Inputs].
+-spec task_input(url() | [url()]) -> data_input().
+task_input(<<"dir://", _/binary>> = Url) ->
+    {dir, {disco:preferred_host(Url), Url, []}};
+task_input(<<_/binary>> = Url) ->
+    {data, {0, 0, input_replicas1(Url)}};
+task_input([<<"dir://", _/binary>> = Url]) ->
+    {dir, {disco:preferred_host(Url), Url, []}};
+task_input([<<"dir://", _/binary>> = Url | _] = Inputs) ->
+    % We do not output replicated dir:// urls, so we don't handle them
+    % as input.
+    lager:warning("Skipping redundant dir:// inputs, taking only first of ~p",
+                  [Inputs]),
+    task_input(Url);
+task_input(Urls) ->
+    {data, {0, 0, input_replicas1(Urls)}}.
 
--spec input_replicas1([url() | [url()]]) -> [data_replica()].
+-spec input_replicas1(url() | [url()]) -> [data_replica()].
 input_replicas1(Input) when is_binary(Input) ->
     % Single replica
     [{Input, disco:preferred_host(Input)}];
