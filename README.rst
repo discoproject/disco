@@ -13,3 +13,9 @@ balancing, locking, job scheduling or fault tolerance, all of which are taken
 care by Disco.
 
 See `discoproject.org <http://discoproject.org>`_ for more information.
+
+
+.. image:: https://d2weczhvl823v0.cloudfront.net/discoproject/disco/trend.png
+   :alt: Bitdeli badge
+   :target: https://bitdeli.com/free
+
