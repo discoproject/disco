@@ -269,18 +269,33 @@ count_mr_stages(L) ->
                          end, {0, 0}, L),
     {M, N - M}.
 
+dict_fetch_default(Key, Dict, Default) ->
+    case dict:find(Key, Dict) of
+        {ok, Value} -> Value;
+        error       -> Default
+    end.
+
 -spec render_jobinfo(event_server:job_eventinfo(), {[host()], [stage_name()]})
                     -> term().
-render_jobinfo({Start, _Status0, _JobInfo, Results, Ready, Failed},
+render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
                {Hosts, Stages}) ->
     {NMapRun, NRedRun} = count_mr_stages(Stages),
-    NMapDone = dict:fetch(?MAP, Ready),
-    NRedDone = dict:fetch(?REDUCE, Ready),
-    NMapFail = dict:fetch(?MAP, Failed),
-    NRedFail = dict:fetch(?REDUCE, Failed),
+    NMapDone = dict_fetch_default(?MAP, Ready, 0),
+    NRedDone = dict_fetch_default(?REDUCE, Ready, 0),
+    NMapFail = dict_fetch_default(?MAP, Failed, 0),
+    NRedFail = dict_fetch_default(?REDUCE, Failed, 0),
     {Status, MapI, RedI, Reduce, Inputs, Worker, Owner} =
-        %TODO: render UI for pipeline jobs.
-        {<<"initializing">>, 0, 0, true, [], <<"">>, <<"">>},
+        case JobInfo of
+            none ->
+                % The job is still initializing; use some defaults.
+                {<<"initializing">>, 0, 0, true, [], <<"">>, <<"">>};
+            #jobinfo{pipeline = P, worker = W, owner = O} ->
+                {list_to_binary(atom_to_list(Status0)),
+                 0, 0,
+                 proplists:is_defined(<<"reduce">>, P),
+                 [],
+                 W, O}
+        end,
     {struct, [{timestamp, disco_util:format_timestamp(Start)},
               {active, Status},
               {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
