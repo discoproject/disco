@@ -123,9 +123,10 @@ init({Starter, JobPack}) ->
     % above terminates (normally or not).  The bug is that our
     % terminate should get called _only_ when the helper does _not_
     % terminate normally.
-    try  {JobInfo, Hosts} = setup_job(JobPack, self()),
-         Starter ! {job_started, JobInfo#jobinfo.jobname},
-         {ok, init_state(JobInfo, Hosts)}
+    try  {#jobinfo{jobname = Name} = Info, Hosts} = setup_job(JobPack, self()),
+         Starter ! {job_started, Name},
+         event_server:event(Name, "Created job ~p", [Name], {job_data, Info}),
+         {ok, init_state(Info, Hosts)}
     catch
         {error, E} ->
             {stop, E};
