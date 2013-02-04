@@ -496,11 +496,11 @@ setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs, S) ->
     % stage.
     Outputs = stage_outputs(Prev, S),
     GOutputs = pipeline_utils:group_outputs(Grouping, Outputs),
-    make_stage_tasks(Stage, Grouping, SaveOutputs, GOutputs, S, []).
+    make_stage_tasks(Stage, Grouping, SaveOutputs, GOutputs, S, {0, []}).
 
 make_stage_tasks(Stage, _Grouping, _SaveOutputs, [],
-                 #state{stage_info = SI} = S, Tasks) ->
-    StageInfo = #stage_info{start = now(), all = length(Tasks)},
+                 #state{stage_info = SI} = S, {TaskNum, Tasks}) ->
+    StageInfo = #stage_info{start = now(), all = TaskNum},
     SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
     {Tasks, S#state{stage_info = SI1}};
 make_stage_tasks(Stage, Grouping, SaveOutputs, [{G, Inputs}|Rest],
@@ -511,7 +511,7 @@ make_stage_tasks(Stage, Grouping, SaveOutputs, [{G, Inputs}|Rest],
                         schedule    = Schedule,
                         next_taskid = NextTaskId,
                         data_map    = OldDataMap} = S,
-                 Acc) ->
+                 {TaskNum, Acc}) ->
     DataMap = lists:foldl(
                 fun({InputId, DataInput}, DM) ->
                         DataHosts = pipeline_utils:locations(DataInput),
@@ -529,6 +529,7 @@ make_stage_tasks(Stage, Grouping, SaveOutputs, [{G, Inputs}|Rest],
     TaskSpec = #task_spec{jobname = JN,
                           stage   = Stage,
                           taskid  = NextTaskId,
+                          tasknum = TaskNum,
                           group   = G,
                           jobenvs = JE,
                           worker  = W,
@@ -541,7 +542,8 @@ make_stage_tasks(Stage, Grouping, SaveOutputs, [{G, Inputs}|Rest],
     S1 = S#state{next_taskid = NextTaskId + 1,
                  data_map    = DataMap,
                  tasks = jc_utils:add_task_spec(NextTaskId, TaskSpec, Tasks)},
-    make_stage_tasks(Stage, Grouping, SaveOutputs, Rest, S1, [NextTaskId | Acc]).
+    make_stage_tasks(Stage, Grouping, SaveOutputs, Rest, S1,
+                     {TaskNum + 1, [NextTaskId | Acc]}).
 
 -spec do_submit_tasks(submit_mode(), [task_id()], state()) -> state().
 do_submit_tasks(_Mode, [], S) -> S;

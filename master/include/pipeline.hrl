@@ -89,6 +89,7 @@
 -record(task_spec, {jobname   :: jobname(),
                     stage     :: stage_name(),
                     taskid    :: task_id(),
+                    tasknum   :: integer(),
                     grouping  :: label_grouping(),
                     group     :: group(),
                     job_coord :: pid(),
