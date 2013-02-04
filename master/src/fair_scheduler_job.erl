@@ -82,7 +82,8 @@ schedule(Mode, Job, Jobs, AvailableNodes) ->
                 schedule(schedule_remote, Job, Jobs, Empty)
         end
     catch K:V ->
-            lager:warning("Scheduling error: ~p:~p!", [K, V]),
+            lager:warning("Scheduling error (~p:~p): ~p",
+                          [K, V, erlang:get_stacktrace()]),
             gen_server:cast(Job, {die, "Scheduling error (system busy?)"}),
             none
     end.

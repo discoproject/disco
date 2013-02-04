@@ -49,9 +49,11 @@ dispatch(Req, Module, Path) ->
     try Module:op(Req:get(method), Path, Req)
     catch
         E ->
-            lager:error("Request ~p failed: ~p", [Req:get(path), E]),
+            lager:error("Request ~p failed: ~p: ~p",
+                        [Req:get(path), E, erlang:get_stacktrace()]),
             Req:respond({400, [], [disco:format("~p", [E])]});
         K:V ->
-            lager:error("Request ~p failed: ~p:~p", [Req:get(path), K,V]),
+            lager:error("Request ~p failed (~p:~p): ~p",
+                        [Req:get(path), K, V, erlang:get_stacktrace()]),
             Req:respond({500, [], ["Internal server error"]})
     end.
