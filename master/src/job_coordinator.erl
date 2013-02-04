@@ -219,18 +219,13 @@ init_state(#jobinfo{jobname  = _JobName,
                     schedule = Schedule,
                     inputs   = Inputs,
                     pipeline = Pipeline} = JobInfo, Hosts) ->
-    % Create a dummy completed 'input' task.
-    Tasks = gb_trees:from_orddict([{input,
-                                    #task_info{spec = input,
-                                               outputs = Inputs}}]),
     lager:info("initialized job ~p with pipeline ~p and inputs ~p",
                [_JobName, Pipeline, Inputs]),
     gen_server:cast(self(), {start, Inputs}),
     #state{jobinfo    = JobInfo,
            pipeline   = Pipeline,
            schedule   = Schedule,
-           hosts      = gb_sets:from_list(Hosts),
-           tasks      = Tasks}.
+           hosts      = gb_sets:from_list(Hosts)}.
 
 preprocess_inputs(Coord, Inputs) ->
     % Fetch and parse any dir:// inputs to extract labels/sizes.
@@ -266,13 +261,18 @@ do_start(Inputs, S) ->
 
 -spec do_use_inputs([task_output()], state()) -> state().
 do_use_inputs(Inputs, #state{jobinfo = JobInfo} = S) ->
+    % Create a dummy completed 'input' task.
+    Tasks = gb_trees:from_orddict([{input,
+                                    #task_info{spec = input,
+                                               outputs = Inputs}}]),
     % Mark the 'input' stage as done, and send notification.
     InputStage = #stage_info{all = 1, done = [input]},
     SI = gb_trees:from_orddict([{?INPUT, InputStage}]),
     stage_done(?INPUT),
     S#state{jobinfo    = JobInfo#jobinfo{inputs = Inputs},
             input_pid  = none,
-            stage_info = SI}.
+            stage_info = SI,
+            tasks      = Tasks}.
 
 -spec do_update_nodes([host()], state()) -> state().
 do_update_nodes(Hosts, S) ->
