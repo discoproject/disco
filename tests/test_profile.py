@@ -18,8 +18,10 @@ class ProfileJob(TestJob):
             yield k, sum(int(v) for v in vs)
 
 class ProfileTestCase(TestCase):
+    INPUT = "Gutta cavat cavat lapidem"
+
     def serve(self, path):
-        return "Gutta cavat cavat lapidem\n" * 10
+        return ("{0}\n".format(self.INPUT)) * 10
 
     def reduce_calls(self):
         out = StringIO()
@@ -32,4 +34,5 @@ class ProfileTestCase(TestCase):
         self.job = ProfileJob().run(input=self.test_server.urls(['']))
         self.assertEquals(dict(self.results(self.job)),
                           {'gutta': 10, 'cavat': 20, 'lapidem': 10})
-        self.assertEquals(self.reduce_calls(), ProfileJob.partitions)
+        n_reduces = len(set([w.lower() for w in self.INPUT.split()]))
+        self.assertEquals(self.reduce_calls(), n_reduces)
