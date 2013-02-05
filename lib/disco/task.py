@@ -60,8 +60,7 @@ class Task(object):
                  stage=None,
                  group=None,
                  grouping=None,
-                 taskid=-1,
-                 tasknum=-1):
+                 taskid=-1):
         from disco.job import JobPack
         from disco.ddfs import DDFS
         self.host = host
@@ -79,7 +78,6 @@ class Task(object):
         self.group_label, self.group_host = group
         self.grouping = grouping
         self.taskid = taskid
-        self.tasknum = tasknum
         self.outputs = {}
         self.uid = '{0}:{1}-{2}-{3}-{4}'.format(self.stage,
                                                 DDFS.safe_name(self.group),

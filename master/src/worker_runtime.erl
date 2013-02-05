@@ -112,7 +112,7 @@ do_handle({<<"WORKER">>, {struct, Worker}}, S) ->
     end;
 
 do_handle({<<"TASK">>, _Body}, #state{host = Host, task = {TS, _TR}} = S) ->
-    #task_spec{jobname = JN, taskid = TaskId, tasknum = TaskNum, stage = Stage,
+    #task_spec{jobname = JN, taskid = TaskId, stage = Stage,
                group = G, grouping = Gg} = TS,
     Master = disco:get_setting("DISCO_MASTER"),
     JobFile = jobpack:jobfile(disco_worker:jobhome(JN)),
@@ -121,7 +121,6 @@ do_handle({<<"TASK">>, _Body}, #state{host = Host, task = {TS, _TR}} = S) ->
     DDFSData = disco:get_setting("DDFS_DATA"),
     DiscoData = disco:get_setting("DISCO_DATA"),
     TaskInfo = {struct, [{<<"taskid">>, TaskId},
-                         {<<"tasknum">>, TaskNum},
                          {<<"master">>, list_to_binary(Master)},
                          {<<"disco_port">>, DiscoPort},
                          {<<"put_port">>, PutPort},
