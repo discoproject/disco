@@ -358,7 +358,7 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
                 {ok, TagReps} ->
                     lager:info("Job ~s done, results saved to ~p at ~p",
                                [JobName, T, TagReps]),
-                    event_server:job_done_event(JobName, [[T]]);
+                    event_server:job_done_event(JobName, [T]);
                 E ->
                     M = "Job ~s failed to save results to ~s: ~p",
                     MArgs = [JobName, T, E],

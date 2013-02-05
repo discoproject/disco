@@ -43,7 +43,16 @@ class SaveTestCase(TestCase):
         self.job = SaveMapJob().run(input=self.test_server.urls(input))
         results = sorted(self.results(self.job))
         self.tag = self.disco.results(self.job.name)[1][0]
-        self.assertEquals(len(list(self.ddfs.blobs(self.tag))), len(input))
+
+        # Previously, each map would save one blob into DDFS.  Now,
+        # the pipeline termination does it, using the output of the
+        # shuffle stage.  So now, the number of blobs in the tag
+        # depends on the grouping used for shuffle, and also the
+        # number of nodes used.  Hence, we cannot anymore assert on
+        # the number of blobs in the tag.
+
+        # self.assertEquals(len(list(self.ddfs.blobs(self.tag))), len(input))
+
         self.assertEquals(results, [(str_to_bytes(str(e)+'!'), '') for e in input])
 
     def test_save(self):

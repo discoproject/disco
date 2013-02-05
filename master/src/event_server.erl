@@ -29,7 +29,7 @@
                | {task_ready, stage_name()}
                | {task_failed, stage_name()}
                | {stage_ready, stage_name(), [[url()]]}
-               | {ready, [[url()]]}.
+               | {ready, [url() | [url()]]}.
 
 -type task_info() :: {jobname(), stage_name(), task_id()}.
 
@@ -93,7 +93,7 @@ get_job_msgs(JobName, Q, N) ->
 get_map_results(JobName) ->
     gen_server:call(?MODULE, {get_map_results, JobName}).
 
--spec get_results(jobname()) -> invalid_job | {ready, pid(), [[url()]]}
+-spec get_results(jobname()) -> invalid_job | {ready, pid(), [url() | [url()]]}
                                     | {job_status(), pid()}.
 get_results(JobName) ->
     gen_server:call(?MODULE, {get_results, JobName}).
@@ -121,7 +121,7 @@ event(EventServer, Host, JobName, MsgFormat, Args, Event) ->
     Msg = list_to_binary(Json),
     gen_server:cast(EventServer, {add_job_event, Host, JobName, Msg, Event}).
 
--spec job_done_event(jobname(), [[url()]]) -> ok.
+-spec job_done_event(jobname(), [url()|[url()]]) -> ok.
 job_done_event(JobName, Results) ->
     gen_server:cast(?MODULE, {job_done_event, JobName, Results}).
 
@@ -239,7 +239,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
                   task_ready         :: dict(), % stage_name() -> count
                   task_failed        :: dict(), % stage_name() -> count
                   stage_results      :: dict(), % stage_name() -> results
-                  job_results = none :: none | [[url()]]}).
+                  job_results = none :: none | [url() | [url()]]}).
 -type job_ent() :: #job_ent{}.
 
 -spec new_job_ent(pid(), [stage_name()]) -> job_ent().
@@ -301,7 +301,7 @@ do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
 
 -spec do_get_results(jobname(), dict())
                     -> invalid_job | {job_status(), pid()}
-                           | {ready, pid(), [[url()]]}.
+                           | {ready, pid(), [url() | [url()]]}.
 do_get_results(JobName, Events) ->
     case dict:find(JobName, Events) of
         error ->
@@ -390,7 +390,7 @@ do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->
         {ok, _} -> S#state{msgbuf = dict:erase(JobName, MsgBuf)}
     end.
 
--spec do_job_done_event(jobname(), [[url()]], state()) -> state().
+-spec do_job_done_event(jobname(), [url() | [url()]], state()) -> state().
 do_job_done_event(JobName, Results, #state{events = Events} = S) ->
     case dict:find(JobName, Events) of
         {ok, #job_ent{start = Start}} ->
