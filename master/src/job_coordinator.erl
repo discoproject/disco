@@ -165,7 +165,8 @@ handle_cast({submit_tasks, Mode, Tasks}, S) ->
     {noreply, do_submit_tasks(Mode, Tasks, S)};
 handle_cast({task_done, TaskId, Host, Results}, S) ->
     {noreply, do_task_done(TaskId, Host, Results, S)};
-handle_cast(pipeline_done, S) ->
+handle_cast(pipeline_done, #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
+    event_server:end_job(JobName),
     {stop, normal, S};
 handle_cast({kill_job, Reason}, S) ->
     do_kill_job(Reason, S),
