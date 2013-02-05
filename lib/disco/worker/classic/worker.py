@@ -471,7 +471,7 @@ def this_partition():
     identifies this partition. You can use a custom partitioning function to
     assign key-value pairs to a particular partition.
     """
-    return Task.tasknum
+    return Task.group_label
 
 if __name__ == '__main__':
     Worker.main()
