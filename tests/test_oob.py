@@ -4,6 +4,7 @@ from disco.job import JobChain
 from disco.test import TestCase, TestJob
 from disco.util import load_oob
 from disco.compat import bytes_to_str, str_to_bytes
+from disco.worker.classic.func import default_partition
 
 class OOBJob1(TestJob):
     partitions = 10
@@ -48,9 +49,12 @@ class OOBTestCase(TestCase):
         b.run(input=['raw://a', 'raw://b', 'raw://c'],
               params={'job': a.name})
         self.assertResults(b, [('good', '')] * 3)
+        ascii = list(string.ascii_lowercase)
+        labels = list(set([default_partition(k, a.partitions, None)
+                           for k in ascii]))
         self.assertEquals(sorted(a.oob_list()),
                           sorted(list(string.ascii_lowercase) +
-                                 ['reduce:{0}'.format(i) for i in range(a.partitions)]))
+                                 ['reduce:{0}'.format(i) for i in labels]))
 
     def test_large(self):
         self.job = LargeOOBJob().run(input=['raw://{0}'.format(i)
