@@ -74,9 +74,11 @@ jobdict(<<?MAGIC:16/big,
 -spec core_jobinfo(jobpack(), dict()) -> {jobname(), jobinfo()}.
 core_jobinfo(JobPack, JobDict) ->
     Prefix  = find(<<"prefix">>, JobDict),
+    SaveResults = find(<<"save_results">>, JobDict),
     JobInfo = #jobinfo{jobenvs = jobenvs(JobPack),
                        worker  = find(<<"worker">>, JobDict),
-                       owner   = find(<<"owner">>, JobDict)},
+                       owner   = find(<<"owner">>, JobDict),
+                       save_results = validate_save_results(SaveResults)},
     {validate_prefix(Prefix), JobInfo}.
 
 -spec jobenvs(jobpack()) -> [{nonempty_string(), string()}].
@@ -114,8 +116,7 @@ jobzip(<<?MAGIC:16/big,
                     reduce :: boolean()}).
 -record(ver2_info, {pipeline     = []    :: pipeline(),
                     schedule     = none  :: task_schedule(),
-                    inputs       = []    :: [data_input()],
-                    save_results = false :: boolean()}).
+                    inputs       = []    :: [data_input()]}).
 
 -spec version_info(non_neg_integer(), dict()) -> #ver1_info{} | #ver2_info{}.
 version_info(?VERSION_1, JobDict) ->
@@ -130,11 +131,9 @@ version_info(?VERSION_1, JobDict) ->
 version_info(?VERSION_2, JobDict) ->
     Pipeline = find(<<"pipeline">>, JobDict),
     Inputs   = find(<<"inputs">>, JobDict),
-    SaveResults = find(<<"save_results">>, JobDict, false),
     #ver2_info{schedule = none,  % No scheduling options supported for now.
                pipeline = validate_pipeline(Pipeline),
-               inputs   = validate_inputs(Inputs),
-               save_results = validate_save_results(SaveResults)};
+               inputs   = validate_inputs(Inputs)};
 version_info(V, _JobDict) ->
     throw({error, disco:format("unsupported version '~p'", [V])}).
 
@@ -144,10 +143,9 @@ fixup_versions(JobInfo, #ver1_info{} = V1) ->
     S = schedule_option1(V1),
     OI = disco:enum(I),
     JobInfo#jobinfo{inputs = OI, pipeline = P, schedule = S};
-fixup_versions(JobInfo, #ver2_info{inputs = I, pipeline = P,
-                                   schedule = S, save_results = SR}) ->
+fixup_versions(JobInfo, #ver2_info{inputs = I, pipeline = P, schedule = S}) ->
     OI = disco:enum(I),
-    JobInfo#jobinfo{inputs = OI, pipeline = P, schedule = S, save_results = SR}.
+    JobInfo#jobinfo{inputs = OI, pipeline = P, schedule = S}.
 
 % Validation
 
