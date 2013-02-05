@@ -90,8 +90,10 @@ getop("rawevents", {_Query, Name}) ->
     job_file(Name, "events");
 
 getop("jobevents", {Query, Name}) ->
-    {_, NumS} = lists:keyfind("num", 1, Query),
-    Num = list_to_integer(NumS),
+    Num = case lists:keyfind("num", 1, Query) of
+              false  -> 10;
+              {_, N} -> list_to_integer(N)
+          end,
     Q = case lists:keyfind("filter", 1, Query) of
             false  -> "";
             {_, F} -> string:to_lower(F)
