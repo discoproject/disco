@@ -6,13 +6,11 @@ from disco.compat import bytes_to_str
 N = 4
 
 class BlacklistJob(TestJob):
-    scheduler = {'max_cores': 1}
-
     def map_input_stream(stream, size, url, params):
         scheme, (host, port), test_server = urlsplit(url)
-        # test that scheduler preserved data locality
+        # test that scheduler observed the blacklist
         msg("NODE {0} GOT URL {1}".format(Task.host, url))
-        assert Task.host == host
+        assert Task.host <= host
         return open_remote("http://{0}/{1}".format(test_server, host))
     map_input_stream = [map_input_stream]
 
@@ -38,7 +36,6 @@ class BlacklistTestCase(TestCase):
             self.whitelist[self.blacklist[i]] = (N, self.blacklist[i + 1])
 
     def runTest(self):
-        # assumption: scheduler starts scheduling tasks in the order of input
         host, port = self.test_server_address
         input = chainify(['http://{0}/{1}:{2}'.format(node, host, port)] * N
                          for node in self.blacklist)
@@ -50,4 +47,3 @@ class BlacklistTestCase(TestCase):
         super(BlacklistTestCase, self).tearDown()
         for node in self.blacklist:
             self.disco.whitelist(node)
-
