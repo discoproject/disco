@@ -1,4 +1,3 @@
-
 -module(fair_scheduler_job).
 -behaviour(gen_server).
 
@@ -387,24 +386,21 @@ assign_task(JC, {TS, #task_run{failed_hosts = Blacklist, input = Inputs} = TR} =
             assign_task(JC, T1, LoadStats, HQ, Cluster);
         false ->
             % We need to select the best host for the task.
-            Host = best_host(HostCandidates, LoadStats, Inputs),
+            Host = best_host(HostCandidates, Inputs),
             {N, Count, Tasks} = get_default(Host, HQ, {0, 0, []}),
             gb_trees:enter(Host, {N + 1, Count + 1, [T|Tasks]}, HQ)
     end.
 
--spec best_host(gb_set(), loadstats(), [{input_id(), data_input()}])
-               -> url_host().
-best_host(HostCandidates, LoadStats, Inputs) ->
-    Hosts = gb_sets:to_list(HostCandidates),
-    ByLoad = [{case gb_trees:lookup(H, LoadStats) of none -> 0; L -> L end, H}
-              || H <- Hosts],
+-spec best_host(gb_set(), [{input_id(), data_input()}]) -> url_host().
+best_host(HostCandidates, Inputs) ->
     ByLocality = lists:flatten([pipeline_utils:ranked_locations(I)
                                 || {_Id, I} <- Inputs]),
-    % Prefer least-loaded, then input-locality, in that order.
-    case {lists:reverse(lists:sort(ByLoad)), lists:sort(ByLocality)} of
-        {_, [{_S, H}|_]} -> H;
-        {[{_L, H}|_], _} -> H;
-        {[], []}         -> none
+    % Prefer host with most local input.
+    case lists:filter(fun ({_, H}) -> gb_sets:is_member(H, HostCandidates) end,
+                      ByLocality)
+    of
+        [{_S, H}|_] -> H;
+        []          -> none
     end.
 
 % The cluster topology might have changed, with new hosts appearing or
