@@ -277,8 +277,8 @@ pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
             case choose_host(Task, AvailableNodes) of
                 {ok, Target} -> {{run, Target, Task}, UTasks};
 
-		% The primary choice isn't ok. Find any other task
-		% that is ok.
+                % The primary choice isn't ok. Find any other task
+                % that is ok.
                 false        -> pop_suitable(Tasks, Nodes, AvailableNodes)
             end
     end.
@@ -378,16 +378,16 @@ assign_task(JC, {TS, #task_run{failed_hosts = Blacklist, input = Inputs} = TR} =
     case gb_sets:is_empty(HostCandidates) of
         true ->
             % We have exhausted all cluster hosts.
-	    case gb_sets:is_empty(Cluster) orelse gb_sets:is_empty(Blacklist) of
-		true ->
-		    % Mark the task as unassigned.
-		    {N, Count, Tasks} = get_default(none, HQ, {0, 0, []}),
-		    gb_trees:enter(none, {N + 1, Count + 1, [T|Tasks]}, HQ);
-		false ->
-		    % Reset blacklist and retry.
-		    T1 = {TS, TR#task_run{failed_hosts = gb_sets:empty()}},
-		    assign_task(JC, T1, LoadStats, HQ, Cluster)
-	    end;
+            case gb_sets:is_empty(Cluster) orelse gb_sets:is_empty(Blacklist) of
+                true ->
+                    % Mark the task as unassigned.
+                    {N, Count, Tasks} = get_default(none, HQ, {0, 0, []}),
+                    gb_trees:enter(none, {N + 1, Count + 1, [T|Tasks]}, HQ);
+                false ->
+                    % Reset blacklist and retry.
+                    T1 = {TS, TR#task_run{failed_hosts = gb_sets:empty()}},
+                    assign_task(JC, T1, LoadStats, HQ, Cluster)
+            end;
         false ->
             % We need to select the best host for the task.
             Host = best_host(HostCandidates, Inputs),
