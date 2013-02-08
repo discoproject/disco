@@ -394,7 +394,7 @@ do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->
 do_job_done_event(JobName, Results, #state{events = Events} = S) ->
     case dict:find(JobName, Events) of
         {ok, #job_ent{start = Start}} ->
-            Msg = disco:format("READY: Job done in ~s",
+            Msg = disco:format("\"READY: Job done in ~s\"",
                                [disco:format_time_since(Start)]),
             Event = {ready, Results},
             add_event("master", JobName, list_to_binary(Msg), Event, S);
