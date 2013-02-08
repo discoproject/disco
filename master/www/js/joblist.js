@@ -3,20 +3,19 @@
 
 /* http://www.mjijackson.com/2008/02/rgb-to-hsl-and-rgb-to-hsv-color-model-conversion-algorithms-in-javascript */
 function hslToRgb(h, s, l){
+    function hue2rgb(p, q, t){
+        if(t < 0) t += 1;
+        if(t > 1) t -= 1;
+        if(t < 1/6) return p + (q - p) * 6 * t;
+        if(t < 1/2) return q;
+        if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+        return p;
+    }
+
     var r, g, b;
-
-    if(s == 0)
+    if(s === 0) {
         r = g = b = l; // achromatic
-    else {
-        function hue2rgb(p, q, t){
-            if(t < 0) t += 1;
-            if(t > 1) t -= 1;
-            if(t < 1/6) return p + (q - p) * 6 * t;
-            if(t < 1/2) return q;
-            if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-            return p;
-        }
-
+    } else {
         var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
         var p = 2 * l - q;
         r = hue2rgb(p, q, h + 1/3);
@@ -53,7 +52,7 @@ function start_joblist(){
     var options = {callback: filter_jobs,
                    wait: 500,
                    highlight: true,
-                   enterkey: true}
+                   enterkey: true};
     $("#joblist input").typeWatch(options);
     $.getJSON("/disco/ctrl/joblist", update_joblist);
 }
