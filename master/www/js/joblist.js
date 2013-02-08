@@ -43,8 +43,10 @@ function job_click(){
 }
 
 function filter_jobs(txt){
-    $(".job").css("display", "none");
-    $(".job:contains('" + txt + "')").css("display", "block");
+    if (txt) {
+        $(".job").css("display", "none");
+        $(".job:contains('" + txt + "')").css("display", "block");
+    }
 }
 
 function start_joblist(){
@@ -65,7 +67,7 @@ function update_joblist(jobs){
 }
 
 function job_element(job, i){
-    var prio = job[0];        /* [-1.0..1.0] */
+    var prio = job[0];        /* start time */
     var job_status = job[1];
     var name = job[2];
 
@@ -74,10 +76,9 @@ function job_element(job, i){
 
     cbox = $.create("div", {"class": "live " + job_status}, []);
     jbox = $.create("div", {"class": "job"}, [cbox, name]);
-    jbox.onmouseover = job_mouseover;
-    jbox.onmouseout = job_mouseout;
-    jbox.onclick = job_click;
-
+    $(jbox).on({mouseover: job_mouseover,
+                mouseout: job_mouseout,
+                click: job_click});
     return jbox;
 }
 
