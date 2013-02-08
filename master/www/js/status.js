@@ -85,11 +85,15 @@ function update_gcstats(data){
 }
 
 function update_gcstatus(data){
-    $("#gcstatus").unbind('click').empty();
-    if (data === "")
-        $("#gcstatus").append('<a href="#">Start GC</a>').show().click(start_gc);
-    else
+    $("#gcstatus").off('click').empty();
+    if (data === "") {
+        $("#gcstatus")
+            .append('<a href="#">Start GC</a>')
+            .show()
+            .on("click", start_gc);
+    } else {
         $("#gcstatus").text(data);
+    }
     setTimeout(function(){
         $.getJSON("/ddfs/ctrl/gc_status", update_gcstatus);
     }, 10000);
@@ -97,6 +101,10 @@ function update_gcstatus(data){
 
 function start_gc(){
     $.getJSON("/ddfs/ctrl/gc_start", function(resp){
-        $("#gcstatus").unbind('click').text(resp).show().fadeOut(2000);
+        $("#gcstatus")
+            .off('click')
+            .text(resp)
+            .show()
+            .fadeOut(2000);
     });
 }

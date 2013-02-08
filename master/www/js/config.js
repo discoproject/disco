@@ -1,18 +1,18 @@
 $(document).ready(function(){
-    $("#add_row").click(function(){
+    $("#add_row").on("click", function(){
         $("tbody").append(
             "<tr class='node'><td><a class='remove' href='#'>remove</a></td><td class='editable'>&nbsp;</td><td class='editable'>&nbsp;</td></tr>");
         $.uiTableEdit($("table"), {find: 'tbody > tr > td.editable', dataVerify: check_cell});
     });
-    $("#save_table").click(send_table);
-    $("#add_to_bl").click(add_to_blacklist);
-    $("#add_to_gc_bl").click(add_to_gc_blacklist);
-    $("#save_settings").click(save_settings);
+    $("#save_table").on("click", send_table);
+    $("#add_to_bl").on("click", add_to_blacklist);
+    $("#add_to_gc_bl").on("click", add_to_gc_blacklist);
+    $("#save_settings").on("click", save_settings);
     $.getJSON("/disco/ctrl/load_config_table", new_table);
     $.getJSON("/disco/ctrl/get_blacklist", update_blacklist);
     $.getJSON("/disco/ctrl/get_gc_blacklist", update_gc_blacklist);
     $.getJSON("/disco/ctrl/get_settings", update_settings);
-    $('tbody').click(function(event){	// event delegation - to hook event handlers for dynamic contents
+    $('tbody').on("click", function(event){	// event delegation - to hook event handlers for dynamic contents
         var $real_target = $(event.target);
         if ($real_target.is('a.remove'))
             $real_target.parents("tr").remove();
@@ -23,7 +23,7 @@ function update_blacklist(data){
     $("#blacklist").html($.map(data, function(item, i){
         return $.create("div", {"class": "bnode"}, [item]);
     }));
-    $(".bnode").click(whitelist);
+    $(".bnode").on("click", whitelist);
 }
 
 function update_gc_blacklist(blacklist){
@@ -32,7 +32,7 @@ function update_gc_blacklist(blacklist){
             var c = Array.prototype.indexOf.call(safe, item) < 0 ? "bnode" : "bnode_safe";
             return $.create("div", {"class": c}, [item]);
         }));
-        $(".bnode").click(gc_whitelist);
+        $(".bnode").on("click", gc_whitelist);
     });
 }
 
@@ -119,4 +119,3 @@ function new_table(data){
     }));
     $.uiTableEdit($("table"), {find: 'tbody > tr > td.editable', dataVerify: check_cell});
 }
-

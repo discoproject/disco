@@ -1,10 +1,10 @@
 $(document).ready(function(){
     var job = new Job(document.location.search.substr(6));
     $("#hd #title").append(job.name);
-    $("#kill_job").click(job.kill);
-    $("#purge_job").click(job.purge);
-    $("#find_page").click(job.find);
-    $("#find_events").submit(job.find);
+    $("#kill_job").on("click", job.kill);
+    $("#purge_job").on("click", job.purge);
+    $("#find_page").on("click", job.find);
+    $("#find_events").on("submit", job.find);
 });
 
 function repeat(func, every, until){
@@ -77,7 +77,7 @@ function Job(name){
 
     self.update_events = function(events){
         $(".events").html($.map(events, make_event));
-        $(".event .node").click(click_node);
+        $(".event .node").on("click", click_node);
     }
 
     repeat(self.request_info, 10000);
