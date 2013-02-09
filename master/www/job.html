@@ -1,10 +1,10 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
           "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <title>disco job</title>
-    <link rel="stylesheet" href="/css/reset-fonts-grids.css" type="text/css">
-    <link rel="stylesheet" href="/css/style.css" type="text/css">
+    <link rel="stylesheet" href="/css/reset-fonts-grids.css" type="text/css"/>
+    <link rel="stylesheet" href="/css/style.css" type="text/css"/>
 
     <script type="text/javascript" src="/js/jquery-1.9.1.js"></script>
     <script type="text/javascript" src="/js/jquery-dom.js"></script>
@@ -20,10 +20,10 @@
 
       <div id="hd">
         <div id="title">
-          <span class="">job:</span>
+          <span>job:</span>
         </div>
         <div id="logo">
-          <img src="/images/balls.png"/>
+          <img src="/images/balls.png" alt="party!"/>
         </div>
       </div>
 
@@ -45,7 +45,7 @@
                     <b>started:</b> <span class="val" id="nfo_started"></span><br/>
                     <b>by:</b> <span class="val" id="nfo_owner"></span><br/>
 
-                    <table cols="5">
+                    <table>
                       <thead>
                         <tr class="title">
                           <td></td>
@@ -55,7 +55,7 @@
                           <td>Failed</td>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody id="nfo_pipeline">
                         <tr id="nfo_map">
                           <td class="title">Map</td>
                           <td>0</td>
@@ -70,7 +70,7 @@
                           <td>0</td>
                           <td>0</td>
                         </tr>
-                      <tbody>
+                      </tbody>
                     </table>
                   </div>
                 </div>
@@ -81,8 +81,8 @@
                 </div>
 
                 <div class="infobox">
-                  <div class="title">Map Inputs</div>
-                  <div id="map_inputs" class="body"></div>
+                  <div class="title">Job Inputs</div>
+                  <div id="pipe_inputs" class="body"></div>
                 </div>
 
                 <div class="infobox">
@@ -93,7 +93,7 @@
                 <div class="event_nav">
                   Filter:
                   <form action="" id="find_events">
-                    <input id="pagesearch" type="text" size="15" />
+                    <input id="pagesearch" type="text" size="15"/>
                     <a id="find_page" href="#">show</a>
                   </form>
                   <br/>
