@@ -265,13 +265,7 @@ update_setting(<<"max_failure_rate">>, Val, App) ->
 update_setting(Key, Val, _) ->
     lager:info("Unknown setting: ~p = ~p", [Key, Val]).
 
-count_mr_stages(L) ->
-    {M, N} = lists:foldl(fun (?MAP, {M, N})    -> {M + 1, N + 1};
-                             (?REDUCE, {M, N}) -> {M, N + 1}
-                         end, {0, 0}, L),
-    {M, N - M}.
-
-dict_fetch_default(Key, Dict, Default) ->
+dfind(Key, Dict, Default) ->
     case dict:find(Key, Dict) of
         {ok, Value} -> Value;
         error       -> Default
@@ -279,30 +273,27 @@ dict_fetch_default(Key, Dict, Default) ->
 
 -spec render_jobinfo(event_server:job_eventinfo(), {[host()], [stage_name()]})
                     -> term().
-render_jobinfo({Start, Status0, JobInfo, Results, Ready, Failed},
+render_jobinfo({Start, Status0, JobInfo, Results, Ready, Fail},
                {Hosts, Stages}) ->
-    {NMapRun, NRedRun} = count_mr_stages(Stages),
-    NMapDone = dict_fetch_default(?MAP, Ready, 0),
-    NRedDone = dict_fetch_default(?REDUCE, Ready, 0),
-    NMapFail = dict_fetch_default(?MAP, Failed, 0),
-    NRedFail = dict_fetch_default(?REDUCE, Failed, 0),
-    {Status, MapI, RedI, Reduce, Inputs, Worker, Owner} =
+    Run = lists:foldl(fun(S, D) -> dict:update_counter(S, 1, D) end,
+                      dict:new(),
+                      Stages),
+    {Status, Pipeline, Inputs, Worker, Owner} =
         case JobInfo of
             none ->
                 % The job is still initializing; use some defaults.
-                {<<"initializing">>, 0, 0, true, [], <<"">>, <<"">>};
+                {<<"initializing">>, [], [], <<"">>, <<"">>};
             #jobinfo{pipeline = P, worker = W, owner = O} ->
                 {list_to_binary(atom_to_list(Status0)),
-                 0, 0,
-                 proplists:is_defined(<<"reduce">>, P),
+                 % TODO: compute waiting
+                 [[S, 0, dfind(S, Run, 0), dfind(S, Ready, 0), dfind(S, Fail, 0)]
+                  || {S, _} <- P],
                  [],
                  W, O}
         end,
     {struct, [{timestamp, disco_util:format_timestamp(Start)},
               {active, Status},
-              {mapi, [MapI, NMapRun, NMapDone, NMapFail]},
-              {redi, [RedI, NRedRun, NRedDone, NRedFail]},
-              {reduce, Reduce},
+              {pipeline, Pipeline},
               {results, lists:flatten(Results)},
               {inputs, Inputs},
               {worker, Worker},

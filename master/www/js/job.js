@@ -25,25 +25,25 @@ function Job(name){
     self.kill = function(){
         if (confirm("Do you really want to kill " + self.name + "?"))
             post_req("/disco/ctrl/kill_job", JSON.stringify(self.name));
-    }
+    };
 
     self.purge = function(){
         if (confirm("Do you really want to delete all data of " + self.name + "?"))
             post_req("/disco/ctrl/purge_job", JSON.stringify(self.name), show_status);
-    }
+    };
 
     self.find = function(){
         self.request_events();
         return false;
-    }
+    };
 
     self.isactive = function(){
         return self.status == "active";
-    }
+    };
 
     self.request_info = function(){
         $.getJSON("/disco/ctrl/jobinfo", {name: self.name}, self.update_info);
-    }
+    };
 
     self.update_info = function(data){
         self.status = data.active;
@@ -53,35 +53,44 @@ function Job(name){
         $("#nfo_status").text(self.status);
         $("#nfo_started").text(self.started);
         $("#nfo_owner").text(self.owner);
-        $("#nfo_map").html(make_jobinfo_row(data.mapi, "Map"));
-        $("#nfo_red").html(make_jobinfo_row(data.redi, "Reduce"));
+        $("#nfo_pipeline").html($.map(data.pipeline, make_stage_info));
 
         if (data.inputs.length >= 100) {
-            $("#map_inputs").html("Showing the first 100 inputs<br/>" +
+            $("#pipe_inputs").html("Showing the first 100 inputs<br/>" +
                                   prepare_urls(data.inputs.slice(0, 100)));
         } else {
-            $("#map_inputs").html(prepare_urls(data.inputs));
+            $("#pipe_inputs").html(prepare_urls(data.inputs));
         }
         $("#cur_nodes").html(data.hosts.join("<br/>"));
         $("#results").html(prepare_urls(data.results));
 
         $(".url:odd").css({"background": "#eee"});
-    }
+    };
 
     self.request_events = function(){
         $.getJSON("/disco/ctrl/jobevents", {name: self.name,
                                             num: 100,
                                             filter: $("#pagesearch").val()},
                   self.update_events);
-    }
+    };
 
     self.update_events = function(events){
         $(".events").html($.map(events, make_event));
         $(".event .node").on("click", click_node);
-    }
+    };
 
     repeat(self.request_info, 10000);
     repeat(self.request_events, 10000, self.isactive);
+}
+
+function make_stage_info(stage, pi){
+    return $.create("tr", {},
+                    $.map(stage, function(X, i){
+                        if (i === 0)
+                            return $.create("td", {"class": "title"}, [X]);
+                        else
+                            return $.create("td", {}, [String(X)]);
+                    }));
 }
 
 function make_jobinfo_row(dlist, mode){
@@ -127,11 +136,11 @@ function click_node(){
 function make_event(E, i){
     var tstamp = E[0];
     var host = E[1];
-    var msg = E[2];
-    var type = (msg.match("^(WARNING|ERROR|READY)") || [""])[0].toLowerCase();
+    var msg_content = E[2];
+    var type = (msg_content.match("^(WARNING|ERROR|READY)") || [""])[0].toLowerCase();
 
-    var msg = $.map(msg.split("\n"), function(x, i){
-        return $.create("pre", {}, [x])
+    var msg = $.map(msg_content.split("\n"), function(x, i){
+        return $.create("pre", {}, [x]);
     });
 
     var body = [$.create("div", {"class": "tstamp"}, [tstamp]),
