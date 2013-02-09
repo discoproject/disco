@@ -28,6 +28,7 @@
 -type event() :: {job_data, jobinfo()}
                | {task_ready, stage_name()}
                | {task_failed, stage_name()}
+               | {stage_start, stage_name(), integer()}
                | {stage_ready, stage_name(), [[url()]]}
                | {ready, [url() | [url()]]}.
 
@@ -45,6 +46,7 @@
                           Status  :: job_status(),
                           JobInfo :: none | jobinfo(),
                           Results :: [[url()]],
+                          Count   :: dict(),
                           Ready   :: dict(),
                           Failed  :: dict()}.
 
@@ -236,6 +238,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 -record(job_ent, {job_coord :: pid(),
                   start     :: erlang:timestamp(),
                   job_data    = none :: none | jobinfo(),
+                  task_count         :: dict(), % stage_name() -> count
                   task_ready         :: dict(), % stage_name() -> count
                   task_failed        :: dict(), % stage_name() -> count
                   stage_results      :: dict(), % stage_name() -> results
@@ -244,19 +247,20 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 -spec new_job_ent(pid(), [stage_name()]) -> job_ent().
 new_job_ent(JobCoord, Stages) ->
-    Counts = [{S, 0} || S <- Stages],
-    TaskReady  = dict:from_list(Counts),
-    TaskFailed = dict:from_list(Counts),
+    InitCounts = dict:from_list([{S, 0} || S <- Stages]),
     StageResults = dict:new(),
     #job_ent{job_coord = JobCoord,
              start     = now(),
-             task_ready    = TaskReady,
-             task_failed   = TaskFailed,
+             task_count    = InitCounts,
+             task_ready    = InitCounts,
+             task_failed   = InitCounts,
              stage_results = StageResults}.
 
 -spec update_job_ent(job_ent(), event()) -> job_ent().
 update_job_ent(JE, {job_data, JobData}) ->
     JE#job_ent{job_data = JobData};
+update_job_ent(#job_ent{task_count = TaskCount} = JE, {stage_start, Stage, Tasks}) ->
+    JE#job_ent{task_count = dict:store(Stage, Tasks, TaskCount)};
 update_job_ent(#job_ent{task_ready = TaskReady} = JE, {task_ready, Stage}) ->
     JE#job_ent{task_ready = dict:update_counter(Stage, 1, TaskReady)};
 update_job_ent(#job_ent{task_failed = TaskFailed} = JE, {task_failed, Stage}) ->
@@ -332,10 +336,11 @@ do_get_jobinfo(JobName, Events) ->
         error ->
             invalid_job;
         {ok, #job_ent{start = Start, job_data = JobNfo, job_results = Results,
-                      task_ready = Ready, task_failed = Failed} = JE} ->
+                      task_count = Count, task_ready = Ready,
+                      task_failed = Failed} = JE} ->
             {ok, {Start, job_status(JE), JobNfo,
                   case Results of none -> []; _ -> Results end,
-                  Ready, Failed}}
+                  Count, Ready, Failed}}
     end.
 
 -spec do_add_job_event(host(), jobname(), binary(), event(), state()) -> state().

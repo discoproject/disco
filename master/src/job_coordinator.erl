@@ -482,11 +482,18 @@ do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname      = JobName,
                     S
             end
     end.
-start_next_stage(Prev, Stage, Grouping, SaveOutputs, S) ->
+start_next_stage(Prev, Stage, Grouping, SaveOutputs,
+                 #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
     {Tasks, S1} = setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs, S),
     case Tasks of
-        []    -> do_stage_done(Stage, S1);
-        [_|_] -> do_submit_tasks(first_run, Tasks, S1)
+        [] ->
+            do_stage_done(Stage, S1);
+        [_|_] ->
+            NTasks = length(Tasks),
+            Event = {stage_start, Stage, NTasks},
+            event_server:event(JobName, "Stage ~s scheduled with ~p tasks",
+                               [Stage, NTasks], Event),
+            do_submit_tasks(first_run, Tasks, S1)
     end.
 
 -spec setup_stage_tasks(stage_name(), stage_name(), label_grouping(),
