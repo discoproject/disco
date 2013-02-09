@@ -13,9 +13,9 @@ $(document).ready(function(){
 function format_size(num){
     units = ['KB', 'MB', 'GB', 'TB'];
     for (i = 0; i < units.length; i++) {
-	if (num < 1024)
-	    return num.toPrecision(3) + units[i];
-	num /= 1024;
+        if (num < 1024)
+            return num.toPrecision(3) + units[i];
+        num /= 1024;
     }
 }
 
@@ -30,12 +30,12 @@ function post_req(url, data, func){
             type: "POST",
             processData: false,
             error: function (XMLHttpRequest, textStatus, errorThrown){
-		show_msg("Request to " + url + " failed: " + textStatus);
-	    },
+                show_msg("Request to " + url + " failed: " + textStatus);
+            },
             success: function (x){
-		show_msg(x);
-		if (func)
-		    func(x);
-	    }
-	   });
+                show_msg(x);
+                if (func)
+                    func(x);
+            }
+           });
 }
