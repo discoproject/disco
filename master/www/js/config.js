@@ -53,7 +53,7 @@ function gc_whitelist(){
 }
 
 function save_settings(){
-    var s = {}
+    var s = {};
     $.each($(".setting"), function(){
         s[$(this).attr("id")] = $(this).val();
     });
@@ -110,10 +110,10 @@ function check_cell(val, orig, ev){
 function new_table(data){
     $("tbody").html($.map(data, function(item, i){
         return $.create("tr", {'class': 'node'}, $.map(item, function(item2, i){
-            if (i % 2 == 0)
+            if (i % 2 === 0)
                 return [$.create("td", {}, [$.create("a", {'class':'remove','href':'#'}, ["remove"])]),
                         $.create("td", {'class':'editable'}, [item2])];
-	    else
+            else
                 return $.create("td", {'class':'editable'}, [item2]);
         }));
     }));
