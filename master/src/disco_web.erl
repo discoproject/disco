@@ -278,24 +278,30 @@ render_jobinfo({Start, Status0, JobInfo, Results, Count, Ready, Fail},
     Run = lists:foldl(fun(S, D) -> dict:update_counter(S, 1, D) end,
                       dict:new(),
                       Stages),
-    {Status, Pipeline, Inputs, Worker, Owner} =
+    {Status, Pipeline, JobInputs, Worker, Owner} =
         case JobInfo of
             none ->
                 % The job is still initializing; use some defaults.
                 {<<"initializing">>, [], [], <<"">>, <<"">>};
-            #jobinfo{pipeline = P, worker = W, owner = O} ->
+            #jobinfo{pipeline = P, worker = W, owner = O, inputs = I} ->
+                % Show each input individually in the UI, regardless
+                % of grouping.  The UI should be fixed to give a
+                % better idea of what the input grouping is, and how
+                % the inputs are grouped accordingly.
+                Inputs = lists:flatten([pipeline_utils:input_urls(Input, split, {0, ""})
+                                        || {_Id, Input} <- I]),
                 {list_to_binary(atom_to_list(Status0)),
                  [[S, dfind(S, Count, 0) - (R + D), R, D, dfind(S, Fail, 0)]
                   || {S, _} <- P,
                      R <- [dfind(S, Run, 0)], D <- [dfind(S, Ready, 0)]],
-                 [],
+                 lists:flatten([Urls || {_L, Urls} <- Inputs]),
                  W, O}
         end,
     {struct, [{timestamp, disco_util:format_timestamp(Start)},
               {active, Status},
               {pipeline, Pipeline},
               {results, lists:flatten(Results)},
-              {inputs, Inputs},
+              {inputs, JobInputs},
               {worker, Worker},
               {hosts, [list_to_binary(Host) || Host <- Hosts]},
               {owner, Owner}
