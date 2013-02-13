@@ -162,10 +162,12 @@ class EventMonitor(object):
 
     @property
     def stats(self):
-        jobinfo = self.job.jobinfo()
-        if sum(jobinfo['redi'][1:]):
-            return ['reduce'] + jobinfo['redi']
-        return ['map'] + jobinfo['mapi']
+        pipeline = self.job.jobinfo()['pipeline']
+        first = pipeline[0]
+        pipeline.reverse()
+        for stage in pipeline:
+            if sum(stage[1:]): return stage
+        return first
 
     @property
     def status(self):
