@@ -170,7 +170,7 @@ handle_cast(pipeline_done, #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
     {stop, normal, S};
 handle_cast({kill_job, Reason}, S) ->
     do_kill_job(Reason, S),
-    {stop, Reason, S}.
+    {stop, normal, S}.
 
 -spec handle_info(term(), state()) -> gs_noreply() | gs_stop(tuple()).
 handle_info({'EXIT', Pid, Reason}, #state{input_pid = Pid} = S) ->
