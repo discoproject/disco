@@ -568,7 +568,7 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
     % the cluster; otherwise, we let the host-allocator choose it.
     Host = case {Mode, gb_sets:is_member(H, Hosts)} of
                {first_run, true}  -> H;
-               {_,         false} -> none
+               {_,            _}  -> none
            end,
     TaskRun = #task_run{runid  = RunId,
                         host   = Host,
