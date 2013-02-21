@@ -30,6 +30,11 @@ File format::
         |                               jobdata                              |
         +--------------------------------------------------------------------+
 
+.. _jobpack_version:
+
+The current supported jobpack version is ``0x0002``.  Limited support
+is provided for jobpacks of version ``0x0001``.
+
 .. _jobdict:
 
 The Job Dict
@@ -37,63 +42,121 @@ The Job Dict
 
 The :term:`job dict` is a :term:`JSON` dictionary.
 
+    .. attribute:: jobdict.pipeline
+
+       A list of tuples (tuples are lists in JSON), with each tuple
+       specifying a stage in the pipeline in the following form::
+
+           stage_name, grouping
+
+       Stage names in a pipeline have to be unique.  ``grouping``
+       should be one of :term:`split`, :term:`group_label`,
+       :term:`group_all`, :term:`group_node` and
+       :term:`group_node_label`.
+
+       .. seealso:: :ref:`pipeline`
+
     .. attribute:: jobdict.input
 
-       A list of urls or a list of lists of urls.
-       Each url is a string.
+       A list of inputs, with each input specified in a tuple of the
+       following form::
 
-       .. note::
-              An inner list of urls gives replica urls for the same data.
-              This lets you specify redundant versions of an input file.
-              If a list of redundant inputs is specified,
-              the scheduler chooses the input that is located on the node
-              with the lowest load at the time of scheduling.
-              Redundant inputs are tried one by one until the task succeeds.
-              Redundant inputs require that :attr:`map?` is specified.
+           label, size_hint, url_location_1, url_location_2, ...
+
+       The ``label`` and ``size_hint`` are specified as integers,
+       while each ``url_location`` is a string.  The ``size_hint`` is
+       a hint indicating the size of this input, and is only used to
+       optimize scheduling.
 
     .. attribute:: jobdict.worker
 
-       The path to the :term:`worker` binary, relative to the :term:`job home`.
-       The master will execute this binary after it unpacks it from :ref:`jobhome`.
-
-    .. attribute:: jobdict.map?
-
-       Boolean telling whether or not this job should have a :term:`map` phase.
-
-    .. attribute:: jobdict.reduce?
-
-       Boolean telling whether or not this job should have a :term:`reduce` phase.
-
-    .. attribute:: jobdict.nr_reduces
-
-       Non-negative integer telling the master how many reduces to run.
-
-       .. warning:: This attribute will soon be removed,
-                    as the number of reduces can be inferred in all cases.
+       The path to the :term:`worker` binary, relative to the
+       :term:`job home`.  The master will execute this binary after it
+       unpacks it from :ref:`jobhome`.
 
     .. attribute:: jobdict.prefix
 
-       String giving the prefix the master should use for assigning a unique job name.
+       String giving the prefix the master should use for assigning a
+       unique job name.
 
        .. note:: Only characters in ``[a-zA-Z0-9_]`` are allowed in the prefix.
-
-    .. attribute:: jobdict.scheduler
-
-       Dictionary of options for the job scheduler.
-       Currently supports the following keys:
-
-                  * *max_cores* - use at most this many cores (applies to both map and reduce).
-                    Default is ``2**31``.
-                  * *force_local* - always run task on the node where input data is located;
-                    never use HTTP to access data remotely.
-                  * *force_remote* - never run task on the node where input data is located;
-                    always use HTTP to access data remotely.
-
-       .. versionadded:: 0.2.4
 
     .. attribute:: jobdict.owner
 
        String name of the owner of the :term:`job`.
+
+
+.. note::
+
+    The following applies to jobdict attributes in jobpack version
+    ``0x0001``.  Support for this version might be removed in a future
+    release.
+
+    .. attribute:: jobdict.input
+
+       A list of urls or a list of lists of urls.  Each url is a
+       string.
+
+       .. note::
+              An inner list of urls gives replica urls for the same
+              data.  This lets you specify redundant versions of an
+              input file.  If a list of redundant inputs is specified,
+              the scheduler chooses the input that is located on the
+              node with the lowest load at the time of scheduling.
+              Redundant inputs are tried one by one until the task
+              succeeds.  Redundant inputs require that :attr:`map?` is
+              specified.
+
+       .. note::
+              In the pipeline model, the ``label`` associated with
+              each of these inputs are all 0, and all inputs are
+              assumed to have a ``size_hint`` of 0.
+
+       .. deprecated:: 0.5
+
+    .. attribute:: jobdict.map?
+
+       Boolean telling whether or not this job should have a
+       :term:`map` phase.
+
+       .. deprecated:: 0.5
+
+    .. attribute:: jobdict.reduce?
+
+       Boolean telling whether or not this job should have a
+       :term:`reduce` phase.
+
+       .. deprecated:: 0.5
+
+    .. attribute:: jobdict.nr_reduces
+
+       Non-negative integer that used to tell the master how many
+       reduces to run.  Now, if the value is not 1, then the number of
+       reduces actually run by the pipeline depends on the labels
+       output by the tasks in the map stage.
+
+       .. deprecated:: 0.5
+
+    .. attribute:: jobdict.scheduler
+
+       Dictionary of options for the job scheduler.  The following
+       were the allowed keys; however, all are now ignored as of
+       release 0.5:
+
+                  * *max_cores* - use at most this many cores (applies
+                    to both map and reduce).  Default is ``2**31``.
+
+                  * *force_local* - always run task on the node where
+                    input data is located; never use HTTP to access
+                    data remotely.
+
+                  * *force_remote* - never run task on the node where
+                    input data is located; always use HTTP to access
+                    data remotely.
+
+       .. versionadded:: 0.2.4
+       .. deprecated:: 0.5
+
 
 .. _jobenvs:
 
