@@ -117,5 +117,5 @@ Merge Partitioned Reduce
 
 .. figure:: ../images/dataflow/merge_partitioned_reduce_flow.png
 
-Or to use the normal, distributed reduce, in which there are ``N``
-reduces for ``N`` partitions:
+The above extends simply to the normal, distributed reduce, in which
+there are ``N`` reduces for ``N`` partitions.
