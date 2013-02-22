@@ -374,6 +374,10 @@ assign_task(JC, {#task_spec{taskid = TaskId}, #task_run{host = Host}} = T,
     end;
 assign_task(JC, {TS, #task_run{failed_hosts = Blacklist, input = Inputs} = TR} = T,
             LoadStats, HQ, Cluster) ->
+    % Check if we've exhausted all hosts in the cluster.  Note that
+    % the job-coordinator also does this test, but since some time may
+    % have elapsed since that check, we need to do it here too to
+    % avoid race conditions.
     HostCandidates = gb_sets:subtract(Cluster, Blacklist),
     case gb_sets:is_empty(HostCandidates) of
         true ->

@@ -373,7 +373,7 @@ retry_task(Host, _Error,
                                         stage   = Stage},
                       failed_count = FailedCnt,
                       failed_hosts = FH} = TInfo,
-           #state{tasks = Tasks} = S) ->
+           #state{tasks = Tasks, hosts = Cluster} = S) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     FC = FailedCnt + 1,
     case FC > MaxFail of
@@ -391,15 +391,24 @@ retry_task(Host, _Error,
                               lists:min([FC * ?FAILED_MIN_PAUSE,
                                          ?FAILED_MAX_PAUSE])
                               + random:uniform(?FAILED_PAUSE_RANDOMIZE),
-                          M = "Task ~s:~B failed for the ~Bth time."
+                          M = "Task ~s:~B failed on ~p, ~Bth failures so far."
                               " Sleeping ~B seconds before retrying.",
-                          MArgs = [Stage, TaskId, FC, round(Sleep / 1000)],
+                          MArgs = [Stage, TaskId, Host, FC, round(Sleep / 1000)],
                           event_server:event(JobName, M, MArgs, none),
                           timer:sleep(Sleep),
                           submit_tasks(JobCoord, re_run, [TaskId])
                   end),
+            % We need to update the task's host blacklist.  If we've
+            % already exhausted all cluster hosts, reset the
+            % blacklist.
+            FailedHosts = gb_sets:add(Host, FH),
+            Blacklist =
+                case gb_sets:is_empty(gb_sets:subtract(Cluster, FailedHosts)) of
+                    true  -> gb_sets:empty();
+                    false -> FailedHosts
+                end,
             TInfo1 = TInfo#task_info{failed_count = FC,
-                                     failed_hosts = gb_sets:add(Host, FH)},
+                                     failed_hosts = Blacklist},
             S#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks)}
     end.
 
