@@ -1,0 +1,24 @@
+Release Process for Disco
+=========================
+
+- Ensure Python and Erlang test suites pass.
+- Review documentation.
+- Ensure documentation builds cleanly.
+
+- Update AUTHORS file.
+
+- Increment version number in Makefile.
+- Update debian changelog for version.
+- Update dummy version file in master/.version (for rebar).  This
+  should be commit that gets tagged as the release commit.
+
+- Build debian packages. Ensure version is correct.
+
+- Install in production.
+
+- Copy debian packages to discoproject:www/debian.
+- Update website with docs from release.
+- Check website.
+
+- Push release blog post, send release email.
+
