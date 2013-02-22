@@ -54,26 +54,51 @@ The simplest ones are ``split``, ``group_all`` and ``group_label``,
 since they do not take into account the cluster node on which the
 inputs reside, so lets explain them first.
 
+.. _group_split:
+
+Split
+'''''
+
 The ``split`` operation puts each input into its own group, regardless
 of the label of the input, or the cluster node on which it resides.
 The grey boxes below indicate the cluster nodes on which the inputs
-reside.
+reside, while labels are indicated by the colors of the inputs.
 
 .. figure:: ../images/dataflow/group_split.png
 
+.. _group_all:
+
+Group_all
+'''''''''
+
 The ``group_all`` operation puts all inputs into a single group, again
-regardless of their labels or hosting cluster nodes.
+regardless of their labels or hosting cluster nodes, illustrated
+below.
 
 .. figure:: ../images/dataflow/group_all.png
 
+.. _group_label:
+
+Group_label
+'''''''''''
+
 On the other hand, the ``group_label`` operation takes into account
 the labels, and puts all inputs with the same label into the same
-group.
+group.  As before, this is done without regard to the cluster nodes
+hosting the inputs, below.
 
 .. figure:: ../images/dataflow/group_label.png
 
+Map-Reduce
+''''''''''
+
 To illustrate the pipeline model, we can now use it to express a
-simple Map-Reduce job::
+simple Map-Reduce job, show below, with job inputs and outputs shown
+in black.
+
+.. figure:: ../images/dataflow/map_shuffle_reduce.png
+
+When expressed as a pipeline, this becomes simply::
 
     map-reduce = {split, <map>}, {group_label, <reduce>}
 
@@ -97,4 +122,52 @@ pipeline, so what labels are attached to them?  The answer is that the
 labels for the job inputs are derived from :ref:`jobpack` submitted to
 Disco by the user, and hence are user-specified.  (However, see the
 discussion of backward-compatibility issues in :ref:`jobpack`.)
+
+One issue that may be clear from the diagram is that the
+``group_label`` operation, also known as :term:`shuffle` in map-reduce
+terminology, can involve a lot of network traffic.  It would be nice
+to optimize the network transfers involved.  Indeed, that is precisely
+what the remaining grouping operations will let us do.
+
+.. _group_label_node:
+
+Group_label_node
+''''''''''''''''
+
+The ``group_label_node`` operation is essentially the ``group_label``
+operation, but performed on every cluster node.
+
+.. figure:: ../images/dataflow/group_node_label.png
+
+We can use this operation to condense intermediate data belonging to
+the same label and residing on the same node, before the data is
+transmitted across the network.
+
+.. figure:: ../images/dataflow/group_node_label_output.png
+
+We can use this in the map-reduce pipeline by adding an additional
+stage with this grouping operation::
+
+    map-condense-reduce = {split, <map>}, {group_node_label, <condense>}, {group_label, <reduce>}
+
+.. _group_node:
+
+Group_node
+''''''''''
+
+The last grouping operation, ``group__node``, similarly is essentially
+the ``group_all`` operation, but performed on every cluster node.
+
+.. figure:: ../images/dataflow/group_node.png
+
+This provides an alternative to ``group_node_label`` to users when
+trying to condense intermediate data on a node-local basis.  The
+choice between the two will be determined by the fact that a
+``group_node_label`` stage will typically have more tasks each of
+which will process less data (and hence probably have lower memory
+requirements) than a corresponding ``group_node`` stage.
+
+It should be clear now that the five grouping operations provide the
+user a range of complementary options in constructing a flexible
+data processing pipeline.
 
