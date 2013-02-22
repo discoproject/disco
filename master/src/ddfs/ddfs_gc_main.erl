@@ -241,7 +241,7 @@ gc_status(Master, From) ->
 %% internal API
 
 -spec is_orphan(pid(), object_type(), object_name(), volume_name())
-               -> {ok, boolean()}.
+               -> {ok, boolean() | unknown}.
 is_orphan(Master, Type, ObjName, Vol) ->
     gen_server:call(Master, {is_orphan, Type, ObjName, node(), Vol}).
 
@@ -294,7 +294,7 @@ init({Root, DeletedAges}) ->
 
 -type is_orphan_msg() :: {is_orphan, object_type(), object_name(),
                           node(), volume_name()}.
--spec handle_call(is_orphan_msg(), from(), state()) -> gs_reply(boolean());
+-spec handle_call(is_orphan_msg(), from(), state()) -> gs_reply(boolean() | unknown);
                  (dbg_state_msg(), from(), state()) -> gs_reply(state()).
 handle_call({is_orphan, Type, ObjName, Node, Vol}, _, S) ->
     S1 = S#state{last_response_time = now()},
@@ -815,17 +815,18 @@ start_gc_phase(#state{gc_peers = Peers} = S) ->
             last_response_time = now()}.
 
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
-                     -> {ok, boolean()}.
+                     -> {ok, boolean() | unknown}.
 check_is_orphan(_S, tag, Tag, _Node, _Vol) ->
     {TagName, Tstamp} = ddfs_util:unpack_objname(Tag),
     case ets:lookup(gc_tag_map, TagName) of
         [] ->
             % This tag was not present in our snapshot, but could have
-            % been newly created.  Mark it as an orphan, but the node
+            % been newly created.  Mark it as unknown, and the node
             % will not delete it if it is recent.
-            {ok, true};
+            {ok, unknown};
         [{_, GcTstamp}] when Tstamp < GcTstamp ->
-            % This is an older incarnation of the tag, hence an orphan.
+            % This is an older incarnation of the tag, hence
+            % definitely an orphan.
             {ok, true};
         [{_, _GcTstamp}] ->
             % This is a current or newer incarnation.
@@ -842,9 +843,9 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
     case ets:lookup(gc_blobs, BlobName) of
         [] ->
             % This blob was not present in our snapshot, but could
-            % have been newly created.  Mark it as an orphan, but the
+            % have been newly created.  Mark it as unknown, but the
             % node will not delete it if it is recent.
-            {ok, true};
+            {ok, unknown};
         [{_, Present, Recovered, _}] ->
             PresentNodes = [N || {N, _V} <- Present],
             case {lists:member(Node, PresentNodes),

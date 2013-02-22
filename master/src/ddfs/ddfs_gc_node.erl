@@ -80,7 +80,8 @@ handle_file("!partial" ++ _ = File, Dir, _, _, Now) ->
     {_, Time} = ddfs_util:unpack_objname(Obj),
     Diff = timer:now_diff(Now, Time) / 1000,
     Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
-    delete_if_expired(filename:join(Dir, File), Diff, ?PARTIAL_EXPIRES, Paranoid);
+    Path = filename:join(Dir, File),
+    delete_if_expired(unknown, Path, Diff, ?PARTIAL_EXPIRES, Paranoid);
 handle_file(Obj, Dir, VolName, Type, _) ->
     Size = case prim_file:read_file_info(filename:join(Dir, Obj)) of
                {ok, #file_info{size = S}} -> S;
@@ -149,12 +150,12 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
                   ddfs_util:hashdir(Obj, "nonode!", atom_to_list(Type), Root, VolName),
               FullPath = filename:join(Path, binary_to_list(Obj)),
               Diff = timer:now_diff(Now, Time) / 1000,
-              Orphan = try ddfs_gc_main:is_orphan(Master, Type, Obj, VolName)
-                       catch _:_ -> false
-                       end,
-              case Orphan of
-                  {ok, true} ->
-                      Deleted = delete_if_expired(FullPath, Diff, Expires, Paranoid),
+              Test = try ddfs_gc_main:is_orphan(Master, Type, Obj, VolName)
+                     catch _:_ -> false
+                     end,
+              case Test of
+                  {ok, Orphan} when Orphan =:= true orelse Orphan =:= unknown ->
+                      Deleted = delete_if_expired(Orphan, FullPath, Diff, Expires, Paranoid),
                       true = ets:update_element(Type, Obj, {4, not Deleted});
                   _E ->
                       % Do not delete if not orphan, timeout or error.
@@ -163,9 +164,10 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
               end
       end, ets:match(Type, {'$1', '$2', '_', false})).
 
--spec delete_if_expired(file:filename(), float(),
+-spec delete_if_expired(true | unknown, file:filename(), float(),
                         non_neg_integer(), boolean()) -> boolean().
-delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
+delete_if_expired(Orphan, Path, Diff, Expires, true)
+  when Orphan =:= true orelse Diff > Expires ->
     error_logger:info_msg("GC: Deleting expired object (paranoid) at ~p", [Path]),
     Trash = "!trash." ++ filename:basename(Path),
     Deleted = filename:join(filename:dirname(Path), Trash),
@@ -175,14 +177,19 @@ delete_if_expired(Path, Diff, Expires, true) when Diff > Expires ->
     % Sleep here two prevent master being DDOS'ed by info_reports above
     timer:sleep(100),
     true;
-
-delete_if_expired(Path, Diff, Expires, _Paranoid) when Diff > Expires ->
+delete_if_expired(true, Path, _Diff, _Expired, false) ->
+    % Known garbage is deleted without waiting for timeout expiry.
+    error_logger:info_msg("GC: Deleting garbage object at ~p:~p", [node(), Path]),
+    _ = prim_file:delete(Path),
+    timer:sleep(100),
+    true;
+delete_if_expired(_Orphan, Path, Diff, Expires, false) when Diff > Expires ->
     error_logger:info_msg("GC: Deleting expired object at ~p:~p", [node(), Path]),
     _ = prim_file:delete(Path),
     timer:sleep(100),
     true;
 
-delete_if_expired(Path, _Diff, _Expires, _Paranoid) ->
+delete_if_expired(_Orphan, Path, _Diff, _Expires, _Paranoid) ->
     error_logger:info_msg("GC: Retaining orphan until expiry at ~p:~p", [node(), Path]),
     false.
 
