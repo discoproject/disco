@@ -288,7 +288,7 @@ render_jobinfo({Start, Status0, JobInfo, Results, Count, Ready, Fail},
                 % of grouping.  The UI should be fixed to give a
                 % better idea of what the input grouping is, and how
                 % the inputs are grouped accordingly.
-                Inputs = lists:flatten([pipeline_utils:input_urls(Input, split, {0, ""})
+                Inputs = lists:flatten([pipeline_utils:input_urls(Input, split, {0, " "})
                                         || {_Id, Input} <- I]),
                 {list_to_binary(atom_to_list(Status0)),
                  [[S, dfind(S, Count, 0) - (R + D), R, D, dfind(S, Fail, 0)]
