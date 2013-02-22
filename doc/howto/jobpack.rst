@@ -85,6 +85,14 @@ The :term:`job dict` is a :term:`JSON` dictionary.
 
        String name of the owner of the :term:`job`.
 
+    .. attribute:: jobdict.save_results
+
+       Boolean that when set to true tells Disco to save the job
+       results to DDFS.  The output of the job is then the DDFS tag
+       name containing the job results.
+
+       .. versionadded:: 0.5
+
 
 .. note::
 
