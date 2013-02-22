@@ -18,13 +18,13 @@ Worker Protocol, allows you to write Disco jobs in
 `the O'Caml language <http://caml.inria.fr/ocaml/index.en.html>`_.
 
 There are two parts to using a binary executable as a Disco worker.
-The first part is the submission of the executable to the Disco master.
-The second part is the interaction of the executable with its
+The first part is the submission of the executable to the Disco
+master.  The second part is the interaction of the executable with its
 execution environment, when running a :term:`task`.
 
-This document describes how the worker should communicate with
-Disco, while it is executing.  For more on creating and submitting
-the :term:`job pack`, see :ref:`jobpack`.
+This document describes how the worker should communicate with Disco,
+while it is executing.  For more on creating and submitting the
+:term:`job pack`, see :ref:`jobpack`.
 
 .. note:: The same executable is launched to perform :term:`map`
           and :term:`reduce` tasks.
@@ -32,13 +32,13 @@ the :term:`job pack`, see :ref:`jobpack`.
 A worker-initiated synchronous message-based protocol is used for this
 communication.  That is, all communication is initiated by the worker
 by sending a message to Disco, and Disco in turn sends a reply to each
-message.  A worker could pipeline several messages to Disco, and
-it will receive a response to each message in order.
+message.  A worker could pipeline several messages to Disco, and it
+will receive a response to each message in order.
 
-The worker sends messages over :term:`stderr` to Disco, and
-receives responses over :term:`stdin`.  Disco should respond
-within *600 seconds*: it is advised for the worker to timeout after
-waiting this long.
+The worker sends messages over :term:`stderr` to Disco, and receives
+responses over :term:`stdin`.  Disco should respond within *600
+seconds*: it is advised for the worker to timeout after waiting this
+long.
 
 .. note:: Workers should not write anything to :term:`stderr`,
           except messages formatted as described below.
@@ -98,7 +98,7 @@ WORKER
 
    "version"
         The version of the message protocol the worker is using, as a
-        string.  The current version is `"1.0"`.
+        string.  The current version is `"1.1"`.
 
    "pid"
         The integer :term:`pid` of the worker.
@@ -135,10 +135,19 @@ TASK
    "taskid"
         The internal Disco id of the :term:`task`.
 
-   "mode"
-        The mode or phase of the :term:`job`.  This is currently
-        either `"map"` or `"reduce"`, although more modes may be added
-        in future releases.
+   "stage"
+        The :term:`stage` of the :term:`pipeline` this task belongs to.
+
+   "grouping"
+        The :term:`grouping` specified in the :term:`pipeline` for the
+        above :term:`stage`.
+
+   "group"
+        The group this task will get its inputs from, as computed by
+        the :term:`grouping`.  This is a tuple consisting of an
+        integer :term:`label` and a host name.  Note that due to
+        re-executions, this host name may not match the value in the
+        above "host" field.
 
    "disco_port"
         The value of the :envvar:`DISCO_PORT` setting, which is the
@@ -165,6 +174,7 @@ TASK
         can be used to access any :ref:`jobdata` that was uploaded as
         part of the :ref:`jobpack`.
 
+
 .. _INPUT:
 
 INPUT
@@ -185,10 +195,11 @@ INPUT
    The second element is a list of inputs, where each input is a
    specified as a three-element tuple::
 
-           input_id, status, replicas
+           input_id, status, label, replicas
 
-   where `input_id` is an integer identifying the input, and `status`
-   and `replicas` follow the format::
+   where `input_id` is an integer identifying the input, `label` is
+   the :term:`label` attached to the input, and `status` and
+   `replicas` follow the format::
 
            status ::= 'ok' | 'busy' | 'failed'
            replicas ::= [replica]
@@ -207,15 +218,16 @@ INPUT
    for instance using Base64 encoding. The `dir` is like the `disco`
    scheme, except that the file pointed to contains lines of the form
 
-   *<label>* 'SP' *<url>* '\\n'
+   *<label>* 'SP' *<url>* 'SP' *<output_size>* '\\n'
 
    The `'label'` comes from the `'label'` specified in an `OUTPUT`
    message by a task, while the `'url'` points to a file containing
-   output data generated with that label.  This is currently how
-   labeled output data is communicated by upstream tasks to downstream
-   ones, e.g. from map tasks to reduce tasks, or from tasks in the
-   final phase of a previous job to the tasks in the first phase of a
-   subsequent job (see :ref:`dataflow`).
+   output data generated with that label.  The `'output_size'`
+   specifies the size of the output file.
+
+   This is currently how labeled output data is communicated by
+   upstream tasks to downstream ones in the Disco :ref:`pipeline
+   <pipeline>`.
 
    One important optimization is to use the local filesystem instead
    of HTTP for accessing inputs when they are local.  This can be
@@ -307,18 +319,11 @@ OUTPUT
 
    For each output generated by the worker, it should send an `OUTPUT`
    message specifying the type and location of the output, and
-   optionally, its label::
+   its :ref:`label`::
 
-      [output_location, output_type, label]
-
-   The `output_type` can be either `'disco'`, `'part'` or `'tag'`.
-   `'disco'` and `'part'` outputs are used for local outputs, while
-   `'tag'` specifies a location within :ref:`DDFS <ddfs>`.
+      [label, output_location, output_size]
 
    Local outputs have locations that are paths relative to `jobhome`.
-
-   Labels are currently only interpreted for `'part'` outputs, and are
-   integers that are used to denote the partition for the output.
 
 .. _DONE:
 
@@ -440,7 +445,9 @@ generator.  Fetching data from the replica locations specified in the
 Disco `INPUT` responses will need an implementation of a simple HTTP
 client.  This HTTP client and :term:`JSON` tool can also be used to
 persistently store computed results in :ref:`DDFS <ddfs>` using the
-REST API.
+REST API.  Optionally, there is support to use the Disco master itself
+to save job-results to DDFS, using the ``save_results`` field in the
+:ref:`jobdict <jobdict>`.
 
 The protocol does not specify the data contents of the Disco job
 inputs or outputs.  This leaves the implementor freedom to choose an
