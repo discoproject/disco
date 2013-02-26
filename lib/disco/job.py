@@ -126,13 +126,13 @@ class Job(object):
         implementation is called ``classic``, and is implemented by
         :class:`disco.worker.classic.worker`.
         :type  jobargs: dict
-        :param jobargs: runtime parameters for the job.
-                        Passed to the :class:`disco.worker.Worker`
-                        methods listed above, along with the job
-                        itself.  The interpretation of the jobargs is
-                        performed by the worker interface
-                        in :class:`disco.worker.Worker` and the class
-                        implementing that interface (which defaults
+        :param jobargs: runtime parameters for the job.               \
+                        Passed to the :class:`disco.worker.Worker`    \
+                        methods listed above, along with the job      \
+                        itself.  The interpretation of the jobargs is \
+                        performed by the worker interface             \
+                        in :class:`disco.worker.Worker` and the class \
+                        implementing that interface (which defaults   \
                         to :class:`disco.worker.classic.worker`).
 
         :raises: :class:`disco.error.JobError` if the submission fails.
