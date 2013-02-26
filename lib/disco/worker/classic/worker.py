@@ -48,7 +48,7 @@ class Worker(worker.Worker):
                   to nodes by default.
 
                   If guessing fails, or you have other requirements,
-                  see :mod:`disco.worker.classic.modutil` for options.
+                  see :mod:`disco.worker.modutil` for options.
 
     :type  map: :func:`disco.worker.classic.func.map`
     :param map: a function that defines the map task.
@@ -338,7 +338,7 @@ class Worker(worker.Worker):
 
     def jobzip(self, job, **jobargs):
         from disco.util import iskv
-        from disco.worker.classic.modutil import find_modules
+        from disco.worker.modutil import find_modules
         jobzip = super(Worker, self).jobzip(job, **jobargs)
         def get(key):
             return self.getitem(key, job, jobargs)
