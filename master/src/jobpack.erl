@@ -74,7 +74,7 @@ jobdict(<<?MAGIC:16/big,
 -spec core_jobinfo(jobpack(), dict()) -> {jobname(), jobinfo()}.
 core_jobinfo(JobPack, JobDict) ->
     Prefix  = find(<<"prefix">>, JobDict),
-    SaveResults = find(<<"save_results">>, JobDict),
+    SaveResults = find(<<"save_results">>, JobDict, false),
     JobInfo = #jobinfo{jobenvs = jobenvs(JobPack),
                        worker  = find(<<"worker">>, JobDict),
                        owner   = find(<<"owner">>, JobDict),
