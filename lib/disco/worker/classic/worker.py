@@ -222,27 +222,113 @@ class Worker(worker.Worker):
     """
     def defaults(self):
         defaults = super(Worker, self).defaults()
-        defaults.update({'map_init': init,
+        defaults.update({'map': None,
+                         'map_init': init,
                          'map_reader': None,
                          'map_input_stream': (map_input_stream, ),
                          'map_output_stream': (map_output_stream,
                                                disco_output_stream),
+                         'map_shuffle': None,
                          'combiner': None,
+                         'merge_partitions': False, # XXX: maybe deprecated
                          'partition': default_partition,
+                         'partitions': 1,
+                         'reduce': None,
                          'reduce_init': init,
                          'reduce_reader': chain_reader,
                          'reduce_input_stream': (reduce_input_stream, ),
                          'reduce_output_stream': (reduce_output_stream,
                                                   disco_output_stream),
+                         'reduce_shuffle': None,
                          'required_files': {},
                          'required_modules': None,
                          'ext_params': {},
                          'params': Params(),
+                         'shuffle': None,
                          'sort': False,
                          'sort_buffer_size': '10%',
                          'status_interval': 100000,
                          'version': '.'.join(str(s) for s in sys.version_info[:2])})
         return defaults
+
+    def jobdict(self, job, **jobargs):
+        """
+        Creates :ref:`jobdict` for the :class:`Worker`.
+
+        Makes use of the following parameters, in addition to those
+        defined by the :class:`Worker` itself:
+
+        :type  input: list of urls or list of list of urls
+        :param input: used to set :attr:`jobdict.input`.
+                Disco natively handles the following url schemes:
+
+                * ``http://...`` - any HTTP address
+                * ``file://...`` or no scheme - a local file.
+                    The file must exist on all nodes where the tasks are run.
+                    Due to these restrictions, this form has only limited use.
+                * ``tag://...`` - a tag stored in :ref:`DDFS`
+                * ``raw://...`` - pseudo-address: use the address itself as data.
+                * ``dir://...`` - used by Disco internally.
+                * ``disco://...`` - used by Disco internally.
+
+                .. seealso:: :mod:`disco.schemes`.
+
+        :type  name: string
+        :param name: directly sets :attr:`jobdict.prefix`.
+
+        :type  owner: string
+        :param owner: directly sets :attr:`jobdict.owner`.
+                      If not specified, uses :envvar:`DISCO_JOB_OWNER`.
+
+        :type  scheduler: dict
+        :param scheduler: directly sets :attr:`jobdict.scheduler`.
+
+        Uses :meth:`getitem` to resolve the values of parameters.
+
+        :return: the :term:`job dict`.
+        """
+        from disco.util import isiterable, inputlist, ispartitioned, read_index
+        from disco.error import DiscoError
+        def get(key, default=None):
+            return self.getitem(key, job, jobargs, default)
+        has_map = bool(get('map'))
+        has_reduce = bool(get('reduce'))
+        job_input = get('input', [])
+        has_save_results = get('save', False) or get('save_results', False)
+        if not isiterable(job_input):
+            raise DiscoError("Job 'input' is not a list of input locations,"
+                             "or a list of such lists: {0}".format(job_input))
+        input = inputlist(job_input,
+                          label=None if has_map else False,
+                          settings=job.settings)
+
+        # -- nr_reduces --
+        # ignored if there is not actually a reduce specified
+        # XXX: master should always handle this
+        if has_map:
+            # partitioned map has N reduces; non-partitioned map has 1 reduce
+            nr_reduces = get('partitions') or 1
+        elif ispartitioned(input):
+            # no map, with partitions: len(dir://) specifies nr_reduces
+            nr_reduces = 1 + max(int(id)
+                                 for dir in input
+                                 for id, url, size in read_index(dir))
+        else:
+            # no map, without partitions can only have 1 reduce
+            nr_reduces = 1
+
+        if get('merge_partitions'):
+            nr_reduces = 1
+
+        return {'input': input,
+                'worker': self.bin,
+                'map?': has_map,
+                'reduce?': has_reduce,
+                'nr_reduces': nr_reduces,
+                'save_results': has_save_results,
+                'prefix': get('name'),
+                'scheduler': get('scheduler', {}),
+                'owner': get('owner', job.settings['DISCO_JOB_OWNER'])}
 
     def jobenvs(self, job, **jobargs):
         envs = super(Worker, self).jobenvs(job, **jobargs)
