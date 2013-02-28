@@ -414,6 +414,24 @@ class Worker(dict):
             output.close()
             self.send('OUTPUT', [output.label, output.path, output.size()])
 
+class Params(object):
+    """
+    Classic parameter container for tasks.
+
+    This object provides a way to contain custom parameters, or state,
+    in your tasks.
+
+    You can specify any number of ``key, value`` pairs to the
+    :class:`Params`.  The pairs will be available to task functions
+    through the *params* argument.  Each task receives its own copy of
+    the initial params object.
+
+    *key* must be a valid Python identifier.  value* can be any Python
+    *object.
+    """
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
 class IDedInput(tuple):
     @property
     def worker(self):

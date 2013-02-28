@@ -35,6 +35,7 @@ from disco import util, worker
 from disco.worker.classic import external
 from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
 from disco.job import JOBPACK_VERSION1
+from disco.worker import Params
 
 class Worker(worker.Worker):
     """
@@ -461,27 +462,6 @@ class ClassicFile(object):
         for fd in reversed(self.fds):
             if hasattr(fd, 'close'):
                 fd.close()
-
-class Params(object):
-    """
-    .. deprecated:: 0.4
-              :class:`Params` objects aren't generally needed,
-              since entire modules are sent with the :class:`Worker`,
-              state can be stored as in normal Python.
-
-    Classic parameter container for map / reduce tasks.
-
-    This object provides a way to contain custom parameters,
-    or state, in your tasks.
-
-    You can specify any number of ``key, value`` pairs to the :class:`Params`.
-    The pairs will be available to task functions through the *params* argument.
-    Each task receives its own copy of the initial params object.
-    *key* must be a valid Python identifier.
-    *value* can be any Python object.
-    """
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
 
 from disco.util import msg, err, data_err
 
