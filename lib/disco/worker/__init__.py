@@ -153,6 +153,17 @@ class Worker(dict):
 
     def jobdict(self, job, **jobargs):
         """
+        Creates a basic :ref:`jobdict` for the :class:`Worker`.
+
+        Makes use of the following parameters:
+
+        :type  name: string
+        :param name: directly sets :attr:`jobdict.prefix`.
+
+        :type  owner: string
+        :param owner: directly sets :attr:`jobdict.owner`.
+                      If not specified, uses :envvar:`DISCO_JOB_OWNER`.
+
         :return: :ref:`jobdict` dict.
         """
         return {'prefix': self.getitem('name', job, jobargs),

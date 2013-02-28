@@ -247,13 +247,6 @@ class Worker(worker.Worker):
 
                 .. seealso:: :mod:`disco.schemes`.
 
-        :type  name: string
-        :param name: directly sets :attr:`jobdict.prefix`.
-
-        :type  owner: string
-        :param owner: directly sets :attr:`jobdict.owner`.
-                      If not specified, uses :envvar:`DISCO_JOB_OWNER`.
-
         :type  scheduler: dict
         :param scheduler: directly sets :attr:`jobdict.scheduler`.
 
