@@ -8,9 +8,6 @@
 .. automodule:: disco.worker.classic.func
    :members:
 
-.. automodule:: disco.worker.classic.modutil
-   :members:
-
 .. automodule:: disco.worker.classic.external
    :members:
 """

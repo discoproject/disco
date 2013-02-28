@@ -40,16 +40,6 @@ class Worker(worker.Worker):
     A :class:`disco.worker.Worker`, which additionally supports the following parameters,
     to maintain the **Classic Disco Interface**:
 
-        .. note:: The classic worker tries to guess which modules are needed automatically,
-                  for all of the :term:`job functions` specified below,
-                  if the *required_modules* parameter is not specified.
-                  It sends any local dependencies
-                  (i.e. modules not included in the Python standard library)
-                  to nodes by default.
-
-                  If guessing fails, or you have other requirements,
-                  see :mod:`disco.worker.modutil` for options.
-
     :type  map: :func:`disco.worker.classic.func.map`
     :param map: a function that defines the map task.
 

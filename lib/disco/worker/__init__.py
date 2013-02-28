@@ -78,6 +78,18 @@ class Worker(dict):
     reinstantiating itself on the nodes where :term:`tasks <task>` are
     run.
 
+    .. note:: The base worker tries to guess which modules are needed
+              automatically, for all of the :term:`job functions`
+              specified below, if the *required_modules* parameter is
+              not specified.  It sends any local dependencies
+              (i.e. modules not included in the Python standard
+              library) to nodes by default.
+
+              If guessing fails, or you have other requirements, see
+              :mod:`disco.worker.modutil` for options.
+
+
+
     The :class:`Worker` base class defines the following parameters:
 
     :type  save_results: bool
