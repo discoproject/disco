@@ -99,7 +99,7 @@ class Worker(worker.Worker):
     :param reduce_init: initialization function for the reduce task.
                         This function is called once before the task starts.
 
-                     .. deprecated:: 0.4
+                        .. deprecated:: 0.4
                                 *reduce_init* has not been needed ever since
                                 :func:`InputStreams <disco.worker.classic.func.InputStream>`
                                 were introduced.
@@ -224,6 +224,17 @@ class Worker(worker.Worker):
                          'status_interval': 100000,
                          'version': '.'.join(str(s) for s in sys.version_info[:2])})
         return defaults
+
+    def get_modules(self, job, **jobargs):
+        from disco.worker.modutil import find_modules
+        from disco.util import iterify
+        def get(key):
+            return self.getitem(key, job, jobargs)
+        return find_modules([obj
+                             for key in self
+                             for obj in iterify(get(key))
+                             if callable(obj)],
+                            exclude=['Task'])
 
     def jobdict(self, job, **jobargs):
         """

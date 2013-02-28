@@ -151,6 +151,9 @@ class Worker(dict):
             return getattr(job, key)
         return self.get(key, default)
 
+    def get_modules(self, job, **jobargs):
+        return []
+
     def jobdict(self, job, **jobargs):
         """
         Creates a basic :ref:`jobdict` for the :class:`Worker`.
@@ -208,8 +211,7 @@ class Worker(dict):
         jobzip.writesource(job)
         jobzip.writesource(self)
         # Then, add any user-specified required files.
-        from disco.worker.modutil import find_modules
-        from disco.util import iskv, iterify
+        from disco.util import iskv
         def get(key):
             return self.getitem(key, job, jobargs)
         if isinstance(get('required_files'), dict):
@@ -219,11 +221,7 @@ class Worker(dict):
             for path in get('required_files'):
                 jobzip.write(path, os.path.join('lib', os.path.basename(path)))
         if get('required_modules') is None:
-            self['required_modules'] = find_modules([obj
-                                                     for key in self
-                                                     for obj in iterify(get(key))
-                                                     if callable(obj)],
-                                                    exclude=['Task'])
+            self['required_modules'] = self.get_modules(job, **jobargs)
         for mod in get('required_modules'):
             if iskv(mod):
                 jobzip.writepath(mod[1])
