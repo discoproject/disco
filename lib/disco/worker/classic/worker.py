@@ -140,20 +140,6 @@ class Worker(worker.Worker):
 
                           .. versionadded:: 0.2
 
-    :type  required_files: list of paths or dict
-    :param required_files: additional files that are required by the worker.
-                           Either a list of paths to files to include,
-                           or a dictionary which contains items of the form
-                           ``(filename, filecontents)``.
-
-                           .. versionchanged:: 0.4
-                              The worker includes *required_files* in :meth:`jobzip`,
-                              so they are available relative to the working directory
-                              of the worker.
-
-    :type  required_modules: see :ref:`modspec`
-    :param required_modules: required modules to send with the worker.
-
     :type  merge_partitions: bool
     :param merge_partitions: whether or not to merge partitioned inputs during reduce.
 
@@ -240,8 +226,6 @@ class Worker(worker.Worker):
                          'reduce_output_stream': (reduce_output_stream,
                                                   disco_output_stream),
                          'reduce_shuffle': None,
-                         'required_files': {},
-                         'required_modules': None,
                          'ext_params': {},
                          'params': Params(),
                          'shuffle': None,
@@ -320,15 +304,15 @@ class Worker(worker.Worker):
         if get('merge_partitions'):
             nr_reduces = 1
 
-        return {'input': input,
-                'worker': self.bin,
-                'map?': has_map,
-                'reduce?': has_reduce,
-                'nr_reduces': nr_reduces,
-                'save_results': has_save_results,
-                'prefix': get('name'),
-                'scheduler': get('scheduler', {}),
-                'owner': get('owner', job.settings['DISCO_JOB_OWNER'])}
+        jobdict = super(Worker, self).jobdict(job, **jobargs)
+        jobdict.update({'input': input,
+                        'worker': self.bin,
+                        'map?': has_map,
+                        'reduce?': has_reduce,
+                        'nr_reduces': nr_reduces,
+                        'save_results': has_save_results,
+                        'scheduler': get('scheduler', {})})
+        return jobdict
 
     def jobenvs(self, job, **jobargs):
         envs = super(Worker, self).jobenvs(job, **jobargs)
@@ -337,26 +321,10 @@ class Worker(worker.Worker):
         return envs
 
     def jobzip(self, job, **jobargs):
-        from disco.util import iskv
-        from disco.worker.modutil import find_modules
         jobzip = super(Worker, self).jobzip(job, **jobargs)
         def get(key):
             return self.getitem(key, job, jobargs)
-        if isinstance(get('required_files'), dict):
-            for path, bytes in get('required_files').items():
-                jobzip.writestr(path, bytes)
-        else:
-            for path in get('required_files'):
-                jobzip.write(path, os.path.join('lib', os.path.basename(path)))
-        if get('required_modules') is None:
-            self['required_modules'] = find_modules([obj
-                                                     for key in self
-                                                     for obj in util.iterify(get(key))
-                                                     if callable(obj)],
-                                                    exclude=['Task'])
-        for mod in get('required_modules'):
-            if iskv(mod):
-                jobzip.writepath(mod[1])
+        # Support for external interface.
         for func in ('map', 'reduce'):
             if isinstance(get(func), dict):
                 for path, bytes in get(func).items():

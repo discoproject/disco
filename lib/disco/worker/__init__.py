@@ -85,6 +85,20 @@ class Worker(dict):
 
     :type  profile: bool
     :param profile: determines whether :meth:`run` will be profiled.
+
+    :type  required_files: list of paths or dict
+    :param required_files: additional files that are required by the worker.
+                           Either a list of paths to files to include,
+                           or a dictionary which contains items of the form
+                           ``(filename, filecontents)``.
+
+                           .. versionchanged:: 0.4
+                              The worker includes *required_files* in :meth:`jobzip`,
+                              so they are available relative to the working directory
+                              of the worker.
+
+    :type  required_modules: see :ref:`modspec`
+    :param required_modules: required modules to send with the worker.
     """
     stderr = sys.stderr
 
@@ -107,7 +121,9 @@ class Worker(dict):
         :return: dict of default values for the :class:`Worker`.
         """
         return {'save_results': False,
-                'profile': False}
+                'profile': False,
+                'required_files': {},
+                'required_modules': None}
 
     def getitem(self, key, job, jobargs, default=None):
         """
@@ -122,6 +138,14 @@ class Worker(dict):
         elif hasattr(job, key):
             return getattr(job, key)
         return self.get(key, default)
+
+    def jobdict(self, job, **jobargs):
+        """
+        :return: :ref:`jobdict` dict.
+        """
+        return {'prefix': self.getitem('name', job, jobargs),
+                'owner': self.getitem('owner', job, jobargs,
+                                      job.settings['DISCO_JOB_OWNER'])}
 
     def jobenvs(self, job, **jobargs):
         """
@@ -141,10 +165,14 @@ class Worker(dict):
 
     def jobzip(self, job, **jobargs):
         """
-        A hook provided by the :class:`Worker` for creating the :term:`job home` zip.
+        A hook provided by the :class:`Worker` for creating the
+        :term:`job home` zip.  The base implementation creates a
+        minimal zip file containing the Disco standard library, and
+        any user-specified required files and modules.
 
         :return: a :class:`disco.fileutils.DiscoZipFile`.
         """
+        # First, add the disco standard library.
         from clx import __file__ as clxpath
         from disco import __file__ as discopath
         from disco.fileutils import DiscoZipFile
@@ -153,6 +181,27 @@ class Worker(dict):
         jobzip.writepath(os.path.dirname(discopath), exclude=('.pyc', '__pycache__'))
         jobzip.writesource(job)
         jobzip.writesource(self)
+        # Then, add any user-specified required files.
+        from disco.worker.modutil import find_modules
+        from disco.util import iskv, iterify
+        def get(key):
+            return self.getitem(key, job, jobargs)
+        if isinstance(get('required_files'), dict):
+            for path, bytes in get('required_files').items():
+                jobzip.writestr(path, bytes)
+        else:
+            for path in get('required_files'):
+                jobzip.write(path, os.path.join('lib', os.path.basename(path)))
+        if get('required_modules') is None:
+            self['required_modules'] = find_modules([obj
+                                                     for key in self
+                                                     for obj in iterify(get(key))
+                                                     if callable(obj)],
+                                                    exclude=['Task'])
+        for mod in get('required_modules'):
+            if iskv(mod):
+                jobzip.writepath(mod[1])
+        # Done with basic minimal zip.
         return jobzip
 
     def input(self, task, merged=False, **kwds):
