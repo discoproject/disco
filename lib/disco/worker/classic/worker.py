@@ -34,6 +34,7 @@ import os
 from disco import util, worker
 from disco.worker.classic import external
 from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
+from disco.job import JOBPACK_VERSION1
 
 class Worker(worker.Worker):
     """
@@ -196,6 +197,9 @@ class Worker(worker.Worker):
 
                             Default is ``100000``.
     """
+
+    jobpack_version = JOBPACK_VERSION1
+
     def defaults(self):
         defaults = super(Worker, self).defaults()
         defaults.update({'map': None,

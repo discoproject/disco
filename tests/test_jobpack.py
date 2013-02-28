@@ -1,7 +1,7 @@
 from random import random
 from json import loads
 
-from disco.job import JobPack
+from disco.job import JobPack, JOBPACK_VERSION1
 from disco.test import TestCase
 from disco.error import JobError
 
@@ -47,7 +47,7 @@ class JobPackInfoTestCase(TestCase):
     def test_badinfo(self):
         jobenvs, jobzip, jobdata = {}, b'', b''
         jobdict = {}
-        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
+        jobpack = JobPack(JOBPACK_VERSION1, jobdict, jobenvs, jobzip, jobdata)
         status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
         self.assertEquals(status, 'error')
         self.assertTrue(response.find("missing key") >= 0)
@@ -56,14 +56,14 @@ class JobPackInfoTestCase(TestCase):
         jobenvs, jobzip, jobdata = {}, b'', b''
         jobdict = {'prefix':'a/b', 'scheduler':{}, 'input':[],
                    'worker':"w", 'owner':"o", 'nr_reduces':"2"}
-        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
+        jobpack = JobPack(JOBPACK_VERSION1, jobdict, jobenvs, jobzip, jobdata)
         status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
         self.assertEquals(status, 'error')
         self.assertTrue(response.find("invalid prefix") >= 0)
 
         jobdict = {'prefix':'a.b', 'scheduler':{}, 'input':[],
                    'worker':"w", 'owner':"o", 'nr_reduces':"2"}
-        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata)
+        jobpack = JobPack(JOBPACK_VERSION1, jobdict, jobenvs, jobzip, jobdata)
         status, response = loads(self.disco.request('/disco/job/new', jobpack.dumps()))
         self.assertEquals(status, 'error')
         self.assertTrue(response.find("invalid prefix") >= 0)
@@ -73,7 +73,7 @@ class JobPackLengthTestCase(TestCase):
         jobenvs, jobzip, jobdata = {}, b'0'*64, b'0'*64
         jobdict = {'prefix':'JobPackBadLength', 'scheduler':{}, 'input':["raw://data"],
                    "map?":True, 'worker':"w", 'owner':"o", 'nr_reduces':"2"}
-        jobpack = JobPack(jobdict, jobenvs, jobzip, jobdata).dumps()
+        jobpack = JobPack(JOBPACK_VERSION1, jobdict, jobenvs, jobzip, jobdata).dumps()
         jobpack = jobpack[:(len(jobpack)-len(jobdata)-1)]
         status, response = loads(self.disco.request('/disco/job/new', jobpack))
         self.assertEquals(status, 'error')

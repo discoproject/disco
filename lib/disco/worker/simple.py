@@ -8,8 +8,11 @@ which simply calls a method corresponding to the :attr:`disco.task.Task.stage`.
 The method to call is determined using :meth:`disco.worker.Worker.getitem`.
 """
 from disco import worker
+from disco.job import JOBPACK_VERSION1
 
 class Worker(worker.Worker):
+    jobpack_version = JOBPACK_VERSION1
+
     def run(self, task, job, **jobargs):
         self.getitem(task.stage, job, jobargs)(self, task, **jobargs)
 
