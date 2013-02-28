@@ -163,7 +163,10 @@ class Worker(dict):
         """
         :return: :ref:`jobenvs` dict.
         """
-        return {'PYTHONPATH': ':'.join([path.strip('/') for path in sys.path])}
+        envs = {'PYTHONPATH': ':'.join([path.strip('/') for path in sys.path])}
+        envs['LD_LIBRARY_PATH'] = 'lib'
+        envs['PYTHONPATH'] = ':'.join(('lib', envs.get('PYTHONPATH', '')))
+        return envs
 
     def jobhome(self, job, **jobargs):
         """
