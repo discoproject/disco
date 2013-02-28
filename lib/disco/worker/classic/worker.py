@@ -261,6 +261,9 @@ class Worker(worker.Worker):
         :type  scheduler: dict
         :param scheduler: directly sets :attr:`jobdict.scheduler`.
 
+                          .. deprecated:: 0.5
+                                  *scheduler* params are now ignored.
+
         Uses :meth:`getitem` to resolve the values of parameters.
 
         :return: the :term:`job dict`.
