@@ -38,5 +38,5 @@ def open(url, task=None):
     return import_scheme(url).open(url, task=task)
 
 def open_chain(url, task=None):
-    from disco.worker.classic.func import chain_reader
+    from disco.worker.task_io import chain_reader
     return chain_reader(open(url, task=task), None, url)

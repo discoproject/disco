@@ -3,7 +3,7 @@ import time
 from disco.core import JobError
 from disco.test import TestCase, TestJob
 from disco.util import urlsplit
-from disco.worker.classic.func import string_input_stream
+from disco.worker.task_io import string_input_stream
 
 class ForceLocalJob(TestJob):
     scheduler = {'force_local': True}

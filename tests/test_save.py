@@ -1,7 +1,7 @@
 from disco.ddfs import DDFS
 from disco.job import JobChain
 from disco.test import TestCase, TestJob
-from disco.worker.classic.func import chain_reader
+from disco.worker.task_io import chain_reader
 from disco.compat import str_to_bytes
 
 class SaveMapJob(TestJob):

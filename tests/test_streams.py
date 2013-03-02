@@ -1,6 +1,7 @@
 from disco.compat import StringIO
 from disco.test import TestCase, TestJob
-from disco.func import map_input_stream, reduce_output_stream, disco_output_stream
+from disco.worker.task_io import disco_output_stream
+from disco.worker.classic.func import map_input_stream, reduce_output_stream
 from disco.compat import bytes_to_str
 
 def map_input_stream1(stream, size, url, params):

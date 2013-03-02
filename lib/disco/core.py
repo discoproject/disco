@@ -15,6 +15,7 @@ from disco.eventmonitor import EventMonitor
 from disco.job import Job
 from disco.settings import DiscoSettings
 from disco.util import proxy_url
+from disco.worker import task_io
 from disco.worker.classic.worker import Params # backwards compatibility XXX: deprecate
 from disco.compat import basestring
 
@@ -380,7 +381,7 @@ class Disco(object):
         return result_iterator(*args, **kwargs)
 
 def classic_iterator(urls,
-                     reader=func.chain_reader,
+                     reader=task_io.chain_reader,
                      input_stream=(func.map_input_stream, ),
                      notifier=func.notifier,
                      params=None,
@@ -388,13 +389,13 @@ def classic_iterator(urls,
     """
     An iterator over records as seen by the classic map interface.
 
-    :type  reader: :func:`disco.classic.worker.func.input_stream`
+    :type  reader: :func:`disco.worker.task_io.input_stream`
     :param reader: shortcut for the last input stream applied.
 
-    :type  input_stream: sequence of :func:`disco.classic.worker.func.input_stream`
+    :type  input_stream: sequence of :func:`disco.worker.task_io.input_stream`
     :param input_stream: used to read from a custom file format.
 
-    :type  notifier: :func:`disco.classic.worker.func.notifier`
+    :type  notifier: :func:`disco.func.notifier`
     :param notifier: called when the task opens a url.
     """
     from disco.worker import Input

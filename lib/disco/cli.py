@@ -51,7 +51,7 @@ class Program(clx.Program):
         command.add_option('-R', '--reader',
                            help='input reader to import and use')
         command.add_option('-T', '--stream',
-                           default='disco.func.default_stream',
+                           default='disco.worker.task_io.default_stream',
                            help='input stream to import and use')
         return command
 

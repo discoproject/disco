@@ -10,7 +10,7 @@ def init(items, params, extra):
     pass
 
 def reader(fd, size, fname, extra):
-    from disco.worker.classic.func import chain_reader
+    from disco.worker.task_io import chain_reader
     for k, v in chain_reader(fd, size, fname):
         yield k + extra, v
 

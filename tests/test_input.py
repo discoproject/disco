@@ -1,7 +1,7 @@
 from disco.job import JobChain
 from disco.error import JobError
 from disco.test import TestCase, TestJob
-from disco.worker.classic import func
+from disco.worker import task_io
 
 class MapJob(TestJob):
     partitions = 3
@@ -55,7 +55,7 @@ class InputTestCase(TestCase):
     def test_partitioned_mapreduce(self):
         self.job = MapReduceJob().run(input=self.test_server.urls(['test']),
                                       partitions=8,
-                                      reduce_reader=func.chain_reader)
+                                      reduce_reader=task_io.chain_reader)
         self.assertResults(self.job, [((b'smoothies', 'against_me'), 'mmm')])
 
     def test_partitioned_reduce(self):

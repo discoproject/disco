@@ -111,6 +111,11 @@ class TestJob(Job):
     def profile(self):
         return bool(self.settings['DISCO_TEST_PROFILE'])
 
+class TestPipe(TestJob):
+    def __init__(self):
+        from disco.worker.pipeline.worker import Worker
+        super(TestPipe, self).__init__(worker = Worker())
+
 class TestLoader(unittest.TestLoader):
     def __init__(self, settings):
         super(TestLoader, self).__init__()

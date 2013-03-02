@@ -18,7 +18,7 @@ First, let's modify the :ref:`word count example <tutorial>` to write its output
 .. literalinclude:: ../../examples/util/wordcount_ddb.py
 
 Notice how all we needed to do was change the
-*reduce_output_stream* to :func:`disco.worker.classic.func.discodb_stream`,
+*reduce_output_stream* to :func:`disco.worker.task_io.discodb_stream`,
 and turn the count into a :class:`str`.
 Remember, DiscoDBs only store byte sequences as keys and values,
 its up to the user to serialize objects; in this case we just use str.
@@ -48,7 +48,7 @@ Now let's try creating our word count db from scratch, and querying it::
 There are a few things to note in this example.
 First of all, we use a :func:`disco.worker.classic.func.nop_map`,
 since we do all the real work in our *map_reader*.
-We use a builtin :func:`disco.worker.classic.input_stream`,
+We use a builtin :func:`disco.worker.task_io.input_stream`,
 to return a :class:`DiscoDB <discodb.DiscoDB>` from the file on disk,
 and that's the object our *map_reader* gets as a handle.
 

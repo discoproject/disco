@@ -12,9 +12,9 @@ class SchemesJobB(TestJob):
 
     @staticmethod
     def map_reader(fd, size, url, params):
-        from disco.worker.classic import func
+        from disco.worker import task_io
         assert isinstance(fd, file)
-        return func.chain_reader(fd, size, url, params)
+        return task_io.chain_reader(fd, size, url, params)
 
     @staticmethod
     def map(k_v, params):

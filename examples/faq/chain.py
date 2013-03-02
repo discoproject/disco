@@ -1,5 +1,5 @@
 from disco.job import Job
-from disco.worker.classic.func import chain_reader
+from disco.worker.task_io import chain_reader
 
 class FirstJob(Job):
     input = ['raw://0', 'raw://0']

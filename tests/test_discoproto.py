@@ -5,7 +5,7 @@ from disco.compat import BytesIO
 from disco.error import DataError
 from disco.fileutils import DiscoOutputStream
 from disco.test import TestCase
-from disco.worker.classic.func import disco_input_stream
+from disco.worker.task_io import disco_input_stream
 
 class DiscoProtoTestCase(TestCase):
 

@@ -40,8 +40,8 @@ and make sure they contain what you think they do::
 .. note::
    Chunks are stored in Disco's internal compressed format,
    thus we use ``ddfs xcat`` instead of ``ddfs cat`` to view them.
-   ``ddfs xcat`` applies some :func:`~disco.worker.classic.func.input_stream`
-   (by default, :func:`~disco.worker.classic.func.chain_reader`),
+   ``ddfs xcat`` applies some :func:`~disco.worker.task_io.input_stream`
+   (by default, :func:`~disco.worker.task_io.chain_reader`),
    whereas ``ddfs cat`` just dumps the raw bytes contained in the blobs.
 
 If you used the file provided above,
@@ -168,7 +168,7 @@ follow-on tutorial to this one.
 
 If you pushed the data to :ref:`DDFS`,
 you could try changing the input to ``tag://data:bigtxt``,
-and add ``map_reader = disco.worker.classic.func.chain_reader``.
+and add ``map_reader = disco.worker.task_io.chain_reader``.
 
 You could follow the :ref:`discodb_tutorial`,
 to learn more about using :mod:`discodb` with Disco.

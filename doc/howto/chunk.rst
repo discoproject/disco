@@ -21,6 +21,6 @@ argument to ``ddfs chunk``.
 
 The chunked data in DDFS is stored in Disco's internal format, which
 means that when you read chunked data in your job, you will need to
-use the ``disco.func.chain_reader``.  Hence, as is typical, if your
+use the ``disco.worker.task_io.chain_reader``.  Hence, as is typical, if your
 map tasks are reading chunked data, specify
-``map_reader=disco.func.chain_reader`` in your job.
+``map_reader=disco.worker.task_io.chain_reader`` in your job.

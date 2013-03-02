@@ -5,7 +5,7 @@ More details to be added...
 """
 
 from disco.core import Disco, Params, result_iterator
-from disco.func import chain_reader
+from disco.worker.task_io import chain_reader
 from optparse import OptionParser
 from os import getenv
 

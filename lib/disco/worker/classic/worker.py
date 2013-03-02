@@ -51,31 +51,31 @@ class Worker(worker.Worker):
 
                      .. deprecated:: 0.4
                                 *map_init* has not been needed ever since
-                                :func:`InputStreams <disco.worker.classic.func.InputStream>`
+                                :func:`InputStreams <disco.worker.task_io.InputStream>`
                                 were introduced.
                                 Use *map_input_stream* and/or *map_reader* instead.
 
-    :type  map_input_stream: sequence of :func:`disco.worker.classic.func.input_stream`
+    :type  map_input_stream: sequence of :func:`disco.worker.task_io.input_stream`
     :param map_input_stream: The given functions are chained together and the final resulting
-                             :class:`disco.worker.classic.func.InputStream` object is used
+                             :class:`disco.worker.task_io.InputStream` object is used
                              to iterate over input entries.
 
                              .. versionadded:: 0.2.4
 
-    :type  map_output_stream: sequence of :func:`disco.worker.classic.func.output_stream`
+    :type  map_output_stream: sequence of :func:`disco.worker.task_io.output_stream`
     :param map_output_stream: The given functions are chained together and the
-                              :meth:`disco.worker.classic.func.OutputStream.add` method of the last
-                              returned :class:`disco.worker.classic.func.OutputStream` object is used
+                              :meth:`disco.worker.task_io.OutputStream.add` method of the last
+                              returned :class:`disco.worker.task_io.OutputStream` object is used
                               to serialize key, value pairs output by the map.
 
                               .. versionadded:: 0.2.4
 
-    :type  map_reader: ``None`` or :func:`disco.worker.classic.func.input_stream`
-    :param map_reader: Convenience function to define the last :func:`disco.worker.classic.func.input_stream`
+    :type  map_reader: ``None`` or :func:`disco.worker.task_io.input_stream`
+    :param map_reader: Convenience function to define the last :func:`disco.worker.task_io.input_stream`
                        function in the *map_input_stream* chain.
 
                        If you want to use outputs of an earlier job as inputs,
-                       use :func:`disco.worker.classic.func.chain_reader` as the *map_reader*.
+                       use :func:`disco.worker.task_io.chain_reader` as the *map_reader*.
 
                        .. versionchanged:: 0.3.1
                           The default is ``None``.
@@ -103,32 +103,32 @@ class Worker(worker.Worker):
 
                         .. deprecated:: 0.4
                                 *reduce_init* has not been needed ever since
-                                :func:`InputStreams <disco.worker.classic.func.InputStream>`
+                                :func:`InputStreams <disco.worker.task_io.InputStream>`
                                 were introduced.
                                 Use *reduce_input_stream* and/or *reduce_reader* instead.
 
-    :type  reduce_input_stream: sequence of :func:`disco.worker.classic.func.output_stream`
+    :type  reduce_input_stream: sequence of :func:`disco.worker.task_io.output_stream`
     :param reduce_input_stream: The given functions are chained together and the last
-                              returned :class:`disco.worker.classic.func.InputStream` object is
+                              returned :class:`disco.worker.task_io.InputStream` object is
                               given to *reduce* as its first argument.
 
                               .. versionadded:: 0.2.4
 
-    :type  reduce_output_stream: sequence of :func:`disco.worker.classic.func.output_stream`
+    :type  reduce_output_stream: sequence of :func:`disco.worker.task_io.output_stream`
     :param reduce_output_stream: The given functions are chained together and the last
-                              returned :class:`disco.worker.classic.func.OutputStream` object is
+                              returned :class:`disco.worker.task_io.OutputStream` object is
                               given to *reduce* as its second argument.
 
                               .. versionadded:: 0.2.4
 
-    :type  reduce_reader: :func:`disco.worker.classic.func.input_stream`
-    :param reduce_reader: Convenience function to define the last :func:`disco.worker.classic.func.input_stream`
+    :type  reduce_reader: :func:`disco.worker.task_io.input_stream`
+    :param reduce_reader: Convenience function to define the last :func:`disco.worker.task_io.input_stream`
                           if *map* is specified.
                           If *map* is not specified,
                           you can read arbitrary inputs with this function,
                           similar to *map_reader*.
 
-                          Default is :func:`disco.worker.classic.func.chain_reader`.
+                          Default is :func:`disco.worker.task_io.chain_reader`.
 
                           .. versionadded:: 0.2
 
@@ -441,27 +441,6 @@ class Worker(worker.Worker):
         def open(url):
             return ClassicFile(url, streams, params)
         return open
-
-class ClassicFile(object):
-    def __init__(self, url, streams, params, fd=None, size=None):
-        self.fds = []
-        for stream in streams:
-            maybe_params = (params,) if util.argcount(stream) == 4 else ()
-            fd = stream(fd, size, url, *maybe_params)
-            if isinstance(fd, tuple):
-                if len(fd) == 3:
-                    fd, size, url = fd
-                else:
-                    fd, url = fd
-            self.fds.append(fd)
-
-    def __iter__(self):
-        return iter(self.fds[-1])
-
-    def close(self):
-        for fd in reversed(self.fds):
-            if hasattr(fd, 'close'):
-                fd.close()
 
 from disco.util import msg, err, data_err
 

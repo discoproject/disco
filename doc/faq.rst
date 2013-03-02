@@ -144,7 +144,7 @@ See also :ref:`worker_protocol`.
 My input files are stored in CSV / XML / XYZ format. What is the easiest to use them in Disco?
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-See :func:`disco.worker.classic.func.input_stream`.
+See :func:`disco.worker.task_io.input_stream`.
 
 For `CSV <http://en.wikipedia.org/wiki/Comma-separated_values>`_ files
 you can also have a look at

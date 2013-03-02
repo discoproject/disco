@@ -392,7 +392,7 @@ def xcat(program, *urls):
     tags, urls = program.separate_tags(*program.input(*urls))
     stream = reify(program.options.stream)
     reader = program.options.reader
-    reader = reify('disco.func.chain_reader' if reader is None else reader)
+    reader = reify('disco.worker.task_io.chain_reader' if reader is None else reader)
     for record in classic_iterator(chain(urls, program.blobs(*tags)),
                                    input_stream=stream,
                                    reader=reader):

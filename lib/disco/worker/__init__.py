@@ -426,8 +426,8 @@ class Params(object):
     through the *params* argument.  Each task receives its own copy of
     the initial params object.
 
-    *key* must be a valid Python identifier.  value* can be any Python
-    *object.
+    *key* must be a valid Python identifier.  *value* can be any Python
+    object.
     """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
