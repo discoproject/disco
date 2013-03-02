@@ -9,6 +9,7 @@
 *.pyc
 *.dialyzer_plt
 *.eunit
+*~
 master/deps
 master/ebin
 doc/.build/
