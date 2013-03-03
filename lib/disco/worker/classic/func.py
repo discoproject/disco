@@ -54,7 +54,9 @@ def combiner(key, value, buffer, done, params):
                    that combiner can use to save its state.
                    The function must control the *buffer* size,
                    to prevent it from consuming too much memory, by calling
-                   ``buffer.clear()`` after each block of results.
+                   ``buffer.clear()`` after each block of results. Note that
+                   each partion (as determined by the key and 
+                   :func:`partition`) gets its own buffer object.
     :param done: flag indicating if this is the last call with a given *buffer*
     :param params: the object specified by the *params* parameter
 
