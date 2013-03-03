@@ -1,5 +1,6 @@
 $(document).ready(function(){
-    var job = new Job(document.location.search.substr(6));
+    var jobname = decodeURI(document.location.search.substr(6));
+    var job = new Job(jobname);
     $("#hd #title").append(job.name);
     $("#kill_job").click(job.kill);
     $("#purge_job").click(job.purge);
