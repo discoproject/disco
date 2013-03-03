@@ -283,10 +283,14 @@ The request body must be a JSON-encoded message of the form
 
 ``[["http://node1/blob1", "http://node2/blob1"], ["http://node1/blob2"...]]``
 
-which lists the replication sets to be added to the tag. Typically, this request
-is made after successfully pushing blobs to storage nodes. In this case, the
-list of URLs is the list received from storage nodes, in response to the HTTP PUT
-calls.
+which lists the replication sets to be added to the tag.
+
+Typically, this request is made after successfully pushing blobs to
+storage nodes. In this case, the list of URLs is the list received
+from storage nodes, in response to the HTTP PUT calls, and the request
+body typically looks like
+
+``[["disco://node1/blob1", "disco://node2/blob1"], ["disco://node1/blob2"...]]``
 
 Alternatively, you can specify
 
