@@ -138,7 +138,7 @@ uninstall-node:
 
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
 
-install-erl-syslog: $(TARGETLIB)/$(EDEP)/syslog/priv/syslog.so
+install-erl-syslog: $(TARGETLIB)/$(EDEP)/syslog/priv/syslog_drv.so
 
 dialyzer: $(EPLT) master
 	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
