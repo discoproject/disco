@@ -198,9 +198,10 @@ class Master(clx.server.Server):
         def lager_config(log_dir):
             return ['-lager', 'handlers',
                     ('[{lager_console_backend, info},'
-                     +'{lager_file_backend,'
-                     +' [{' + '"{0}/error.log"'.format(log_dir)   + ', error, 1048576000, "$D0", 5},'
-                     +'  {' + '"{0}/console.log"'.format(log_dir) + ', debug, 1048576000, "$D0", 5}]}]'),
+                     + '{lager_syslog_backend,'
+                     + ' ["disco", ' + '{0},'.format(settings['DISCO_LOG_FACILITY'])
+                     + ' {0}'.format(settings['DISCO_LOG_LEVEL'])
+                     + ']}]'),
                     '-lager', 'crash_log', '"{0}/crash.log"'.format(log_dir)]
         ret = (settings['DISCO_ERLANG'].split() +
                 lager_config(settings['DISCO_LOG_DIR']) +
@@ -212,6 +213,8 @@ class Master(clx.server.Server):
                  '-pa', epath('ebin'),
                  '-pa', edep('mochiweb'),
                  '-pa', edep('lager'),
+                 '-pa', edep('lager_syslog'),
+                 '-pa', edep('syslog'),
                  '-eval', 'application:start(disco)'])
         return ret
 
