@@ -51,7 +51,7 @@ EBIN  = master/ebin
 ESRC  = master/src
 EDEP  = master/deps
 
-DEPS     = mochiweb lager
+DEPS     = mochiweb lager lager_syslog syslog
 EDEPS    = $(foreach dep,$(DEPS),$(EDEP)/$(dep)/ebin)
 ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
@@ -107,7 +107,7 @@ doc-clean:
 doc-test:
 	$(MAKE) -C doc doctest -e
 
-install: install-core install-node install-master
+install: install-core install-node install-master install-erl-syslog
 
 uninstall: uninstall-master uninstall-node
 
@@ -137,6 +137,8 @@ uninstall-node:
 	- rm -Rf $(TARGETLIB) $(TARGETSRV)
 
 install-tests: $(TARGETLIB)/ext $(TARGETLIB)/tests
+
+install-erl-syslog: $(TARGETLIB)/$(EDEP)/syslog/priv/syslog.so
 
 dialyzer: $(EPLT) master
 	$(DIALYZER) --get_warnings -Wunmatched_returns -Werror_handling --plt $(EPLT) -r $(EBIN)
