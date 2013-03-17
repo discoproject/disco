@@ -449,6 +449,15 @@ class IDedInput(tuple):
     def replicas(self):
         return self.worker.get_input(self.id)
 
+    @property
+    def isindex(self):
+        from disco.util import ispartitioned
+        return ispartitioned(self.locations)
+
+    @property
+    def locations(self):
+        return [r for rid, r in self.replicas]
+
     def unavailable(self, tried):
         return self.worker.send('INPUT_ERR', [self.id, list(tried)])
 
