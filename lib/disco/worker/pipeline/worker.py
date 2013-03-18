@@ -9,14 +9,6 @@ every job task.  This module reconstructs the :class:`Worker` on the
 node where it is run, in order to execute the :term:`job functions`
 which were used to create it.
 
-Workers resolve all parameters using :meth:`~disco.worker.Worker.getitem`.
-
-Thus, users can subclass :class:`Job` as a convenient way to specify
-fixed parameters.  For example, here's a simple distributed grep from
-the Disco ``examples/`` directory:
-
-    .. literalinclude:: ../../../examples/util/grep.py
-
 """
 
 import sys

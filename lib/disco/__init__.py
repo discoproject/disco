@@ -9,4 +9,5 @@
    *
    worker/index
    worker/classic
+   worker/pipeline
 """
