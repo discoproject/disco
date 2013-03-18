@@ -6,8 +6,8 @@
 When a Job is constructed using the :class:`Worker` defined in this
 module, Disco runs the :mod:`disco.worker.pipeline.worker` module for
 every job task.  This module reconstructs the :class:`Worker` on the
-node where it is run, in order to execute the :term:`job functions`
-which were used to create it.
+node where it is run, in order to execute the :term:`pipeline` of
+:term:`stages <stage>` that were specified in it.
 
 """
 
@@ -32,9 +32,63 @@ from disco.worker import task_io
 from disco.job import JOBPACK_VERSION2
 
 def input_hook(state, input_labels):
+    """The default input label hook for a stage does no re-ordering of the labels."""
     return input_labels
 
 class Stage(object):
+    """
+    A :class:`Stage` specifies various entry points for a :term:`task`
+    in the :term:`stage`.
+
+    The *name* argument specifies the name of the stage.  The *init*
+    argument, if specified, is the first function called in the task.
+    This function initializes the state for the task, and this state
+    is passed to the other task entry points.
+
+    The *process* function is the main entry of the task.  It is
+    called once for every input to the task.  The order of the inputs
+    can be controlled to some extent by the *input_hook* function,
+    which allows the user to specify the order in which the input
+    labels should be iterated over.
+
+    The *done* function, if specified, is called once after all inputs
+    have been passed to the *process* function.
+
+    Hence, the order of invocation of the task entry points of a stage
+    are: *input_hook*, *init*, *process*, and *done*, where *init* and
+    *done* are optional and called only once, while *process* is
+    called once for every task input.
+
+    :type name: string
+    :param name: the name of the stage
+
+    :type init: func
+    :param init: a function that initializes the task state for later entry points.
+
+    :type process: func
+    :param func: a function that gets called once for every input
+
+    :type done: func
+    :param done: a function that gets called once after all the inputs
+                 have been processed by *process*
+
+    :type input_hook: func
+    :param input_hook: a function that is passed the input labels for
+                       the task, and returns the sequence controlling
+                       the order in which the labels should be passed
+                       to the *process* function.
+
+    :type input_chain: list of :func:`input_stream` functions
+    :param input_chain: this sequence of input_streams controls how
+                       input files are parsed for the *process*
+                       function
+    :type output_chain: list of :func:`output_stream` functions
+
+    :param output_chain: this sequence of output_streams controls how
+                       data output from the *process* function is
+                       marshalled into byte sequences persisted in
+                       output files.
+    """
     def __init__(self, name='', init=None, process=None, done=None,
                  input_hook=input_hook, input_chain=[], output_chain=[]):
         self.name = name
@@ -70,7 +124,7 @@ class Worker(worker.Worker):
     Disco job model.
 
     :type  pipeline: list of pairs
-    :param pipeline: sequence of pairs of grouping operations and stage names
+    :param pipeline: sequence of pairs of :term:`grouping` operations and :term:`stage` objects.  See :ref:`pipeline`.
     """
 
     jobpack_version = JOBPACK_VERSION2
@@ -134,11 +188,9 @@ class Worker(worker.Worker):
         return jobdict
 
     def run(self, task, job, **jobargs):
-        """
-        Entry point into the executing pipeline worker task.  This
-        initializes the task environment, sets up the current stage,
-        and then executes it.
-        """
+        # Entry point into the executing pipeline worker task.  This
+        # initializes the task environment, sets up the current stage,
+        # and then executes it.
         for key in self:
             self[key] = self.getitem(key, job, jobargs)
         sys_version = '{0[0]}.{0[1]}'.format(sys.version_info[:2])
@@ -164,6 +216,7 @@ class Worker(worker.Worker):
             stage.input_chain = Stage.default_input_chain(pipe_idx)
         if not stage.output_chain:
             stage.output_chain = Stage.default_output_chain
+        # And now run it.
         self.run_stage(task, stage, params)
 
     def make_interface(self, task, stage, params):
@@ -186,6 +239,8 @@ class Worker(worker.Worker):
             yield input.label, make_input(input)
 
     def prepare_input_map(self, task, stage, params):
+        # The input map maps a label to a sequence of inputs with that
+        # label.
         map = defaultdict(list)
         for l, i in util.chainify(self.labelexpand(task, stage, i, params)
                                   for i in self.get_inputs()):
@@ -193,6 +248,7 @@ class Worker(worker.Worker):
         return map
 
     def run_stage(self, task, stage, params):
+        # Call the various entry points of the stage task in order.
         interface = self.make_interface(task, stage, params)
         state = stage.init(interface, params) if callable(stage.init) else None
         if callable(stage.process):
