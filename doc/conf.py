@@ -22,6 +22,8 @@ sys.path.insert(0, os.path.abspath('../lib'))
 # General configuration
 # ---------------------
 
+on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
+
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest', 'sphinx.ext.todo', 'sphinx.ext.intersphinx']
@@ -42,13 +44,14 @@ master_doc = 'index'
 project = 'Disco'
 copyright = '2008-2012, Nokia Corporation and the Disco Project'
 
+if not on_rtd:
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
 #
 # The short X.Y version.
-version = '%DISCO_VERSION%'
+    version = '%DISCO_VERSION%'
 # The full version, including alpha/beta/rc tags.
-release = '%DISCO_RELEASE%'
+    release = '%DISCO_RELEASE%'
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
