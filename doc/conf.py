@@ -19,6 +19,12 @@ import sys, os
 sys.path.insert(0, os.path.abspath('../bin'))
 sys.path.insert(0, os.path.abspath('../lib'))
 
+# Python 3.3 has mock; use it.
+try: import mock
+except ImportError:
+    sys.path.insert(0, os.path.abspath('.'))
+    import mock
+
 # General configuration
 # ---------------------
 
@@ -44,7 +50,11 @@ master_doc = 'index'
 project = 'Disco'
 copyright = '2008-2012, Nokia Corporation and the Disco Project'
 
-if not on_rtd:
+if on_rtd:
+    MOCK_MODULES = ['discodb']
+    for mod_name in MOCK_MODULES:
+        sys.modules[mod_name] = mock.Mock()
+else:
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
 #
