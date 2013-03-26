@@ -34,9 +34,6 @@ on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest', 'sphinx.ext.todo', 'sphinx.ext.intersphinx']
 
-intersphinx_mapping = {'discodb': ('http://discoproject.org/doc/discodb', None),
-                       'discodex': ('http://discoproject.org/doc/discodex', None)}
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['.templates']
 
@@ -54,7 +51,9 @@ if on_rtd:
     MOCK_MODULES = ['discodb']
     for mod_name in MOCK_MODULES:
         sys.modules[mod_name] = mock.Mock()
+    discodb_docurl = 'http://discodb.readthedocs.org/en/latest'
 else:
+    discodb_docurl = 'http://discoproject.org/doc/discodb'
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
 #
@@ -62,6 +61,9 @@ else:
     version = '%DISCO_VERSION%'
 # The full version, including alpha/beta/rc tags.
     release = '%DISCO_RELEASE%'
+
+intersphinx_mapping = {'discodb':  (discodb_docurl, None),
+                       'discodex': ('http://discoproject.org/doc/discodex', None)}
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
