@@ -1,6 +1,44 @@
 Release notes
 =============
 
+Disco 0.4.5 (Mar 28, 2013)
+--------------------------
+
+Changes
+'''''''
+
+- Disco documentation is now also at `ReadTheDocs
+  <http://disco.readthedocs.org>`_, along with documentation for
+  `DiscoDB <http://discodb.readthedocs.org>`_.
+
+- Mochiweb has been updated to fix compilation issues with Erlang 16B,
+  which removed support for parameterized modules.
+
+- Disco debian packages are no longer hosted on discoproject.org.
+  Instead, Debian/Ubuntu users are encouraged to build their own
+  packages for their particular Erlang/Python environment using the
+  ``make-discoproject-debian`` script in the source tree.  Please read
+  the comments in the script.
+
+Bugfixes
+''''''''
+
+- Fix ``ddfs xcat`` display output, thanks to John Emhoff.
+
+- Fix ``disco jobdict`` command (#341).
+
+- Clarify the documentation in several places, thanks to feedback from
+  Pavel Hančar, and fixes from John Emhoff.
+
+- Fix a formatting bug in ``disco.util:urljoin``.
+
+- Fixed job deletion from UI when job has quotes in name, thanks to
+  @nvdev on Github.
+
+- Ensure that *known* garbage in DDFS is deleted immediately, without
+  waiting for the safety timeout required for blobs and tags of
+  indeterminate status.
+
 Disco 0.4.4 (Dec 5, 2012)
 -------------------------
 
