@@ -1,5 +1,6 @@
 from disco import util
 from discodb import DiscoDB, Q
+import __builtin__
 
 def open(url, task=None):
     if task:
@@ -12,7 +13,7 @@ def open(url, task=None):
         ddfs_data = settings['DDFS_DATA']
     scheme, netloc, rest = util.urlsplit(url)
     path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
-    discodb = DiscoDB.load(__builtins__.open(util.localize(path,
+    discodb = DiscoDB.load(__builtin__.open(util.localize(path,
                                                            disco_data=disco_data,
                                                            ddfs_data=ddfs_data)))
 
