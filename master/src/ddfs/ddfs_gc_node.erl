@@ -110,7 +110,8 @@ check_server(Master, Root) ->
 check_blob(ObjName) ->
     case ets:update_element(blob, ObjName, {4, true}) of
         false -> false;
-        true  -> {true, ets:lookup_element(blob, ObjName, 2)}
+        true  -> {true, ets:lookup_element(blob, ObjName, 2),
+                  ets:lookup_element(blob, ObjName, 3)}
     end.
 
 % Perform GC

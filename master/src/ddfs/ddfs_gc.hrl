@@ -5,7 +5,8 @@
 
 -type blob_update() :: {object_name(), 'filter' | [url()]}.
 
--type check_blob_result() :: 'false' | {'true', volume_name()}.
+% {In use, Volume, Size}
+-type check_blob_result() :: 'false' | {'true', volume_name(), non_neg_integer()}.
 
 % GC statistics
 

@@ -773,18 +773,19 @@ start_gc_phase(#state{gc_peers = Peers} = S) ->
     % gc_blobs: {Key :: object_name(),
     %            Present :: [object_location()],
     %            Recovered :: [object_location()],
-    %            Update :: rep_update()}
+    %            Update :: rep_update(),
+    %            Size :: 'undefined' | non_neg_integer()}
     _ = ets:new(gc_blobs, [named_table, set, private]),
 
     _ = ets:foldl(
           % There is no clause for the 'pending' status, so that we
           % can assert if we start gc with any still-pending entries.
-          fun({{BlobName, Node}, {true, Vol}}, _) ->
+          fun({{BlobName, Node}, {true, Vol, Size}}, _) ->
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {BlobName, [{Node, Vol}], [], noupdate},
+                          Entry = {BlobName, [{Node, Vol}], [], noupdate, Size},
                           ets:insert(gc_blobs, Entry);
-                      [{_, Present, _, _}] ->
+                      [{_, Present, _, _, _}] ->
                           Acc = [{Node, Vol} | Present],
                           ets:update_element(gc_blobs, BlobName, {2, Acc})
                   end;
@@ -795,9 +796,9 @@ start_gc_phase(#state{gc_peers = Peers} = S) ->
                   % (e.g. after hostname changes).
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {BlobName, [], [], noupdate},
+                          Entry = {BlobName, [], [], noupdate, undefined},
                           ets:insert(gc_blobs, Entry);
-                      [{_, _, _, _}] ->
+                      [{_, _, _, _, _}] ->
                           true
                   end
           end, true, gc_blob_map),
@@ -843,7 +844,7 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
             % have been newly created.  Mark it as unknown, but the
             % node will not delete it if it is recent.
             {ok, unknown};
-        [{_, Present, Recovered, _}] ->
+        [{_, Present, Recovered, _, _}] ->
             PresentNodes = [N || {N, _V} <- Present],
             case {lists:member(Node, PresentNodes),
                   lists:member({Node, Vol}, Recovered)} of
@@ -1009,7 +1010,7 @@ rereplicate_blob(_S, '$end_of_table' = End) ->
     gen_server:cast(self(), {rr_blob, End}),
     0;
 rereplicate_blob(S, BlobName) ->
-    [{_, Present, Recovered, _}] = ets:lookup(gc_blobs, BlobName),
+    [{_, Present, Recovered, _, _}] = ets:lookup(gc_blobs, BlobName),
     {FinalReps, Reqs} = rereplicate_blob(S, BlobName, Present, Recovered, S#state.blobk),
     ets:update_element(gc_blobs, BlobName, {4, FinalReps}),
     Next = ets:next(gc_blobs, BlobName),
@@ -1091,7 +1092,7 @@ try_put_blob(#state{rr_pid = RR, gc_peers = Peers}, BlobName, OkNodes, BL) ->
 update_replicas(_S, BlobName, NewUrls) ->
     % An update can only arrive for a blob that was marked for replication
     % (see rereplicate_blob/5).
-    [{_, _P, _R, {update, Urls}}] = ets:lookup(gc_blobs, BlobName),
+    [{_, _P, _R, {update, Urls}, _}] = ets:lookup(gc_blobs, BlobName),
     Update = {update, NewUrls ++ Urls},
     _ = ets:update_element(gc_blobs, BlobName, {4, Update}),
     ok.
@@ -1283,9 +1284,9 @@ usable_locations(S, BlobName) ->
         [] ->
             % New blob added after GC/RR started.
             [];
-        [{_, P, R, noupdate}] ->
+        [{_, P, R, noupdate, _}] ->
             usable_locations(S, BlobName, P ++ R, []);
-        [{_, P, R, {update, NewUrls}}] ->
+        [{_, P, R, {update, NewUrls}, _}] ->
             usable_locations(S, BlobName, P ++ R, NewUrls)
     end.
 
