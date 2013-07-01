@@ -42,6 +42,8 @@ gc_node_init(Master, Now, Phase) ->
 -spec gc_node(pid(), erlang:timestamp(), path(), phase()) -> 'ok'.
 gc_node(Master, Now, Root, Phase)
   when Phase =:= start; Phase =:= build_map; Phase =:= map_wait ->
+    Diskinfo = gen_server:call(ddfs_node, get_diskspace),
+    Master ! {diskinfo, node(), Diskinfo},
     check_server(Master, Root),
     local_gc(Master, Now, Root),
     replica_server(Master, Root);

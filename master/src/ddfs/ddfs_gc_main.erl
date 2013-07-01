@@ -195,6 +195,7 @@
 
 -define(NODE_RETRY_WAIT, 30000).
 
+-type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -type rr_next() :: object_name().
 -record(state, {
           % dynamic state
@@ -211,6 +212,7 @@
           rr_reqs           = 0               :: non_neg_integer(),       % rr_blobs
           rr_pid            = undefined       :: 'undefined' | pid(),     % rr_blobs
           safe_blacklist    = gb_sets:empty() :: gb_set(),                % rr_tags
+          nodestats         = []              :: [node_info()],
 
           % static state
           tags              = []      :: [object_name()],
@@ -482,9 +484,17 @@ handle_cast({rr_tags, [], Count}, #state{phase = rr_tags, gc_peers = Peers,
 
 -type check_blob_result_msg() :: {check_blob_result, local_object(),
                                   check_blob_result()}.
--spec handle_info(check_blob_result_msg() | check_progress
+-spec handle_info({diskinfo, node(), diskinfo()}
+                  | check_blob_result_msg() | check_progress
                   | {'EXIT', pid(), term()} | {reference(), term()},
                   state()) -> gs_noreply() | gs_stop(shutdown).
+
+handle_info({diskinfo, Node, Diskinfo},
+            #state{nodestats = NodeStats} = S) ->
+    case lists:keymember(Node, 1, NodeStats) of
+        true -> {noreply, S};
+        false -> {noreply, S#state{nodestats = [{Node, Diskinfo} | NodeStats]}}
+    end;
 
 handle_info({check_blob_result, LocalObj, Status},
             #state{phase = Phase, num_pending_reqs = NumPendingReqs} = S)
