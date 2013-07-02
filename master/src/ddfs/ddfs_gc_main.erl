@@ -213,6 +213,8 @@
           rr_pid            = undefined       :: 'undefined' | pid(),     % rr_blobs
           safe_blacklist    = gb_sets:empty() :: gb_set(),                % rr_tags
           nodestats         = []              :: [node_info()],
+          overused_nodes    = []              :: [node()],
+          underused_nodes   = []              :: [node()],
 
           % static state
           tags              = []      :: [object_name()],
@@ -772,7 +774,7 @@ check_blob_result(LocalObj, Status) ->
 %% gc phase and replica recovery
 
 -spec start_gc_phase(state()) -> state().
-start_gc_phase(#state{gc_peers = Peers} = S) ->
+start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     % We are done with building the in-use map.  Now, we need to
     % collect the nodes that host a replica of each known in-use blob,
     % and also add the nodes that host any recovered replicas.  We
@@ -814,13 +816,53 @@ start_gc_phase(#state{gc_peers = Peers} = S) ->
           end, true, gc_blob_map),
     ets:delete(gc_blob_map),
 
+    Avg = avg_disk_usage(NodeStats),
+    OverusedNodes = overused_nodes(NodeStats, Avg),
+    UnderusedNodes = underused_nodes(NodeStats, Avg),
+    lager:info("GC: average disk utilization: ~p, "
+               "over utilized nodes: ~p, "
+               "under utilized nodes: ~p",
+               [Avg, length(OverusedNodes), length(UnderusedNodes)]),
     lager:info("GC: entering gc phase"),
     node_broadcast(Peers, start_gc),
     % Update the last_response_time to indicate forward progress.
     S#state{num_pending_reqs  = 0,
             pending_nodes = gb_sets:from_list(gb_trees:keys(Peers)),
             phase = gc,
-            last_response_time = now()}.
+            last_response_time = now(),
+            overused_nodes = OverusedNodes,
+            underused_nodes = UnderusedNodes}.
+
+-spec avg_disk_usage([node_info()]) -> non_neg_integer().
+avg_disk_usage(NodeStats) ->
+    Sum = lists:foldl(
+        fun({_N, {Free, Used}}, S) ->
+            S + (Used / (Used + Free))
+        end, 0, NodeStats),
+    case length(NodeStats) of
+        0 -> 0;
+        _ -> Sum / length(NodeStats)
+    end.
+
+-spec overused_nodes([node_info()], non_neg_integer()) -> [node()].
+overused_nodes(NodeStats, AverageUsage) ->
+    lists:foldl(
+        fun({N, {Free, Used}}, L) ->
+            case (Used / (Used + Free)) >= AverageUsage + ?GC_BALANCE_THRESHOLD of
+                true -> [N|L];
+                false -> L
+            end
+        end, [], NodeStats).
+
+-spec underused_nodes([node_info()], non_neg_integer()) -> [node()].
+underused_nodes(NodeStats, AverageUsage) ->
+    lists:foldl(
+        fun({N, {Free, Used}}, L) ->
+            case (Used / (Used + Free)) =< AverageUsage - ?GC_BALANCE_THRESHOLD of
+                true -> [N|L];
+                false -> L
+            end
+        end, [], NodeStats).
 
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
                      -> {ok, boolean() | unknown}.
