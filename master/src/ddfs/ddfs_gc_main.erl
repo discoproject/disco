@@ -816,8 +816,8 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     ets:delete(gc_blob_map),
 
     Avg = avg_disk_usage(NodeStats),
-    OverusedNodes = overused_nodes(NodeStats, Avg),
-    UnderusedNodes = underused_nodes(NodeStats, Avg),
+    OverusedNodes = find_unstable_nodes(overused, NodeStats, Avg),
+    UnderusedNodes = find_unstable_nodes(underused, NodeStats, Avg),
     lager:info("GC: average disk utilization: ~p, "
                "over utilized nodes: ~p, "
                "under utilized nodes: ~p",
@@ -844,25 +844,17 @@ avg_disk_usage(NodeStats) ->
         _ -> Sum / NumNodes
     end.
 
--spec overused_nodes([node_info()], non_neg_integer()) -> [node()].
-overused_nodes(NodeStats, AverageUsage) ->
-    lists:foldl(
-        fun({N, {Free, Used}}, L) ->
-            case (Used / (Used + Free)) >= AverageUsage + ?GC_BALANCE_THRESHOLD of
-                true -> [N|L];
-                false -> L
-            end
-        end, [], NodeStats).
-
--spec underused_nodes([node_info()], non_neg_integer()) -> [node()].
-underused_nodes(NodeStats, AverageUsage) ->
-    lists:foldl(
-        fun({N, {Free, Used}}, L) ->
-            case (Used / (Used + Free)) =< AverageUsage - ?GC_BALANCE_THRESHOLD of
-                true -> [N|L];
-                false -> L
-            end
-        end, [], NodeStats).
+-spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
+                         -> [node()].
+find_unstable_nodes(Type, NodeStats, AvgUsage) ->
+    case Type of
+        underused ->
+            [N || {N, {Free, Used}} <- NodeStats,
+            Used / (Free + Used) < AvgUsage - ?GC_BALANCE_THRESHOLD];
+        overused ->
+            [N || {N, {Free, Used}} <- NodeStats,
+            Used / (Free + Used) > AvgUsage + ?GC_BALANCE_THRESHOLD]
+    end.
 
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
                      -> {ok, boolean() | unknown}.
