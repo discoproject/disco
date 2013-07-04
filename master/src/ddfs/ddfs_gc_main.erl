@@ -838,9 +838,10 @@ avg_disk_usage(NodeStats) ->
         fun({_N, {Free, Used}}, S) ->
             S + (Used / (Used + Free))
         end, 0, NodeStats),
-    case length(NodeStats) of
+    NumNodes = length(NodeStats),
+    case NumNodes of
         0 -> 0;
-        _ -> Sum / length(NodeStats)
+        _ -> Sum / NumNodes
     end.
 
 -spec overused_nodes([node_info()], non_neg_integer()) -> [node()].
