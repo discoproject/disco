@@ -491,12 +491,11 @@ handle_cast({rr_tags, [], Count}, #state{phase = rr_tags, gc_peers = Peers,
                   | {'EXIT', pid(), term()} | {reference(), term()},
                   state()) -> gs_noreply() | gs_stop(shutdown).
 
-handle_info({diskinfo, Node, Diskinfo},
-            #state{nodestats = NodeStats} = S) ->
-    case lists:keymember(Node, 1, NodeStats) of
-        true -> {noreply, S};
-        false -> {noreply, S#state{nodestats = [{Node, Diskinfo} | NodeStats]}}
-    end;
+handle_info({diskinfo, Node, {Free, Used}}, #state{nodestats = NodeStats} = S) ->
+    lager:info("GC: disk information for ~p (free: ~p bytes, used: ~p bytes)",
+               [Node, Free, Used]),
+    {noreply, S#state{nodestats = lists:keystore(Node, 1, NodeStats,
+                                                 {Node, {Free, Used}})}};
 
 handle_info({check_blob_result, LocalObj, Status},
             #state{phase = Phase, num_pending_reqs = NumPendingReqs} = S)
