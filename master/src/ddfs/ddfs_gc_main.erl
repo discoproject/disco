@@ -411,15 +411,17 @@ handle_cast({build_map, []}, #state{phase = build_map} = S) ->
          end,
     {noreply, S1};
 
-handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
+handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                                                gc_stats = Stats,
                                                pending_nodes = Pending,
                                                deleted_ages = DeletedAges,
                                                rr_reqs = RReqs,
+                                               nodestats = NodeStats,
                                                tags = Tags} = S) ->
-    print_gc_stats(Node, NodeStats),
-    NewStats = add_gc_stats(Stats, NodeStats),
+    print_gc_stats(Node, GCNodeStats),
+    NewStats = add_gc_stats(Stats, GCNodeStats),
     NewPending = gb_sets:delete(Node, Pending),
+    NewNodeStats = update_nodestats(Node, GCNodeStats, NodeStats),
     S1 = case gb_sets:size(NewPending) of
              0 ->
                  % This was the last node we were waiting for to
@@ -431,6 +433,16 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  % Update stats.
                  print_gc_stats(all, NewStats),
                  ddfs_master:update_gc_stats(NewStats),
+                 AvgDiskUsage = avg_disk_usage(NewNodeStats),
+                 UnderusedNodes = find_unstable_nodes(underused, NewNodeStats,
+                                                      AvgDiskUsage),
+                 OverusedNodes = find_unstable_nodes(overused, NewNodeStats,
+                                                     AvgDiskUsage),
+                 lager:info("GC: average disk utilization: ~p, "
+                            "over utilized nodes: ~p, "
+                            "under utilized nodes: ~p",
+                            [AvgDiskUsage, length(OverusedNodes),
+                            length(UnderusedNodes)]),
 
                  lager:info("GC: entering rr_blobs phase"),
                  % Start the replicator process which will
@@ -439,14 +451,18 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  Sr = S#state{rr_pid = start_replicator(self())},
                  Start = ets:first(gc_blobs),
                  Reqs = rereplicate_blob(Sr, Start),
-                 Sr#state{phase = rr_blobs, rr_reqs = RReqs + Reqs};
+                 Sr#state{phase = rr_blobs,
+                          rr_reqs = RReqs + Reqs,
+                          underused_nodes = UnderusedNodes,
+                          overused_nodes = OverusedNodes};
              Remaining ->
                  lager:info("GC: ~p nodes pending in gc", [Remaining]),
                  S
          end,
     {noreply, S1#state{pending_nodes = NewPending,
                        gc_stats = NewStats,
-                       last_response_time = now()}};
+                       last_response_time = now(),
+                       nodestats = NewNodeStats}};
 
 handle_cast({rr_blob, '$end_of_table'},
             #state{phase = rr_blobs, rr_pid = RR, rr_reqs = RReqs} = S) ->
@@ -855,6 +871,14 @@ find_unstable_nodes(Type, NodeStats, AvgUsage) ->
             [N || {N, {Free, Used}} <- NodeStats,
             Used / (Free + Used) > AvgUsage + ?GC_BALANCE_THRESHOLD]
     end.
+
+-spec update_nodestats(node(), gc_run_stats(), [node_info()]) -> [node_info()].
+update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
+    {_, {_, DelTag}} = Tags,
+    {_, {_, DelBlob}} = Blobs,
+    {_, {Free, Used}} = lists:keyfind(Node, 1, NodeStats),
+    lists:keystore(Node, 1, NodeStats,
+                   {Node, {Free + DelTag + DelBlob, Used - DelTag - DelBlob}}).
 
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
                      -> {ok, boolean() | unknown}.
