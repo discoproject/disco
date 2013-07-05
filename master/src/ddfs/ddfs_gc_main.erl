@@ -862,15 +862,12 @@ avg_disk_usage(NodeStats) ->
 
 -spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
                          -> [node()].
-find_unstable_nodes(Type, NodeStats, AvgUsage) ->
-    case Type of
-        underused ->
-            [N || {N, {Free, Used}} <- NodeStats,
-            Used / (Free + Used) < AvgUsage - ?GC_BALANCE_THRESHOLD];
-        overused ->
-            [N || {N, {Free, Used}} <- NodeStats,
-            Used / (Free + Used) > AvgUsage + ?GC_BALANCE_THRESHOLD]
-    end.
+find_unstable_nodes(underused, NodeStats, AvgUsage) ->
+    [N || {N, {Free, Used}} <- NodeStats,
+        Used / (Free + Used) < AvgUsage - ?GC_BALANCE_THRESHOLD];
+find_unstable_nodes(overused, NodeStats, AvgUsage) ->
+    [N || {N, {Free, Used}} <- NodeStats,
+        Used / (Free + Used) > AvgUsage + ?GC_BALANCE_THRESHOLD].
 
 -spec update_nodestats(node(), gc_run_stats(), [node_info()]) -> [node_info()].
 update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
