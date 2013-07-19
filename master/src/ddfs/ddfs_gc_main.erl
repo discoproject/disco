@@ -416,12 +416,12 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                                                pending_nodes = Pending,
                                                deleted_ages = DeletedAges,
                                                rr_reqs = RReqs,
-                                               nodestats = NodeStats,
+                                               nodestats = NS,
                                                tags = Tags} = S) ->
     print_gc_stats(Node, GCNodeStats),
     NewStats = add_gc_stats(Stats, GCNodeStats),
     NewPending = gb_sets:delete(Node, Pending),
-    NewNodeStats = update_nodestats(Node, GCNodeStats, NodeStats),
+    NewNS = update_nodestats(Node, GCNodeStats, NS),
     S1 = case gb_sets:size(NewPending) of
              0 ->
                  % This was the last node we were waiting for to
@@ -433,16 +433,21 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                  % Update stats.
                  print_gc_stats(all, NewStats),
                  ddfs_master:update_gc_stats(NewStats),
-                 AvgDiskUsage = avg_disk_usage(NewNodeStats),
-                 UnderusedNodes = find_unstable_nodes(underused, NewNodeStats,
-                                                      AvgDiskUsage),
-                 OverusedNodes = find_unstable_nodes(overused, NewNodeStats,
-                                                     AvgDiskUsage),
+                 DiskUsage = avg_disk_usage(NewNS),
+                 Underused = find_unstable_nodes(underused, NewNS, DiskUsage),
+                 Overused = find_unstable_nodes(overused, NewNS, DiskUsage),
                  lager:info("GC: average disk utilization: ~p, "
                             "over utilized nodes: ~p, "
                             "under utilized nodes: ~p",
-                            [AvgDiskUsage, length(OverusedNodes),
-                            length(UnderusedNodes)]),
+                            [DiskUsage, length(Overused), length(Underused)]),
+                 FutureNS = estimate_rr_blobs(S#state{nodestats = NewNS}),
+                 NewDiskUsage = avg_disk_usage(FutureNS),
+                 NewUnderused = find_unstable_nodes(underused, FutureNS, NewDiskUsage),
+                 NewOverused = find_unstable_nodes(overused, FutureNS, NewDiskUsage),
+                 lager:info("GC: average disk utilization: ~p, "
+                            "over utilized nodes: ~p, "
+                            "under utilized nodes: ~p",
+                            [NewDiskUsage, length(NewOverused), length(NewUnderused)]),
 
                  lager:info("GC: entering rr_blobs phase"),
                  % Start the replicator process which will
@@ -453,16 +458,16 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                  Reqs = rereplicate_blob(Sr, Start),
                  Sr#state{phase = rr_blobs,
                           rr_reqs = RReqs + Reqs,
-                          underused_nodes = UnderusedNodes,
-                          overused_nodes = OverusedNodes};
+                          nodestats = FutureNS,
+                          underused_nodes = NewUnderused,
+                          overused_nodes = NewOverused};
              Remaining ->
                  lager:info("GC: ~p nodes pending in gc", [Remaining]),
-                 S
+                 S#state{nodestats = NewNS}
          end,
     {noreply, S1#state{pending_nodes = NewPending,
                        gc_stats = NewStats,
-                       last_response_time = now(),
-                       nodestats = NewNodeStats}};
+                       last_response_time = now()}};
 
 handle_cast({rr_blob, '$end_of_table'},
             #state{phase = rr_blobs, rr_pid = RR, rr_reqs = RReqs} = S) ->
@@ -876,6 +881,46 @@ update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
     {_, {Free, Used}} = lists:keyfind(Node, 1, NodeStats),
     lists:keystore(Node, 1, NodeStats,
                    {Node, {Free + DelTag + DelBlob, Used - DelTag - DelBlob}}).
+
+-spec estimate_rr_blobs(state()) -> [node_info()].
+estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
+    SortedNS = lists:sort(
+                 fun({_N1, {F1, U1}}, {_N2, {F2, U2}}) ->
+                         U1 / (U1 + F1) =< U2 / (U2 + F2)
+                 end, NS),
+    ets:foldl(
+      fun({BlobName, Present, Recovered, _Update, Size}, NodeStats) ->
+              PresentNodes = [N || {N, _V} <- Present],
+              SafePresent = find_usable(BL, PresentNodes),
+              SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
+              case {length(SafePresent), length(SafeRecovered)} of
+                  {NumPresent, NumRecovered}
+                    when NumPresent + NumRecovered >= BlobK ->
+                      NodeStats;
+                  {0, 0}
+                    when Present =:= [], Recovered =:= [] ->
+                      NodeStats;
+                  {_NumPresent, _NumRecovered} ->
+                      ets:update_element(gc_blobs, BlobName, {4, {update, []}}),
+                      {RepNodes, _RepVols} = lists:unzip(SafeRecovered),
+                      Exclude = RepNodes ++ PresentNodes,
+                      [{Node, {Free, Used}} | _OkNodes] =
+                          [{N, S} || {N, S} <- NodeStats, not lists:member(N, Exclude)],
+                      NewNodeStats = lists:keydelete(Node, 1, NodeStats),
+                      insert_nodestats({Node, {Free - Size, Used + Size}}, NewNodeStats)
+              end
+      end, SortedNS, gc_blobs).
+
+-spec insert_nodestats(node_info(), [node_info()]) -> [node_info()].
+insert_nodestats(NodeInfo, NodeStats) ->
+    insert_nodestats(NodeInfo, NodeStats, []).
+
+-spec insert_nodestats(node_info(), [node_info()], [node_info()]) -> [node_info()].
+insert_nodestats({N, {F, U}}, [{N2, {F2, U2}} | NodeStats], Acc)
+  when U / (U + F) >= U2 / (U2 + F2) ->
+    insert_nodestats({N, {F, U}}, NodeStats, [{N2, {F2, U2}} | Acc]);
+insert_nodestats(NodeInfo, NodeStats, Acc) ->
+    lists:reverse(Acc) ++ [NodeInfo | NodeStats].
 
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
                      -> {ok, boolean() | unknown}.
