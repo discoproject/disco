@@ -836,13 +836,13 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
           end, true, gc_blob_map),
     ets:delete(gc_blob_map),
 
-    Avg = avg_disk_usage(NodeStats),
-    OverusedNodes = find_unstable_nodes(overused, NodeStats, Avg),
-    UnderusedNodes = find_unstable_nodes(underused, NodeStats, Avg),
+    DiskUsage = avg_disk_usage(NodeStats),
+    OverusedNodes = find_unstable_nodes(overused, NodeStats, DiskUsage),
+    UnderusedNodes = find_unstable_nodes(underused, NodeStats, DiskUsage),
     lager:info("GC: average disk utilization: ~p, "
                "over utilized nodes: ~p, "
                "under utilized nodes: ~p",
-               [Avg, length(OverusedNodes), length(UnderusedNodes)]),
+               [DiskUsage, length(OverusedNodes), length(UnderusedNodes)]),
     lager:info("GC: entering gc phase"),
     node_broadcast(Peers, start_gc),
     % Update the last_response_time to indicate forward progress.
