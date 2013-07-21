@@ -1,3 +1,9 @@
+disco (0.4.5) unstable; urgency=low
+
+  * New package for 0.4.5
+
+ -- Prashanth Mundkur <mundkur@discodeb2>  Wed, 27 Mar 2013 23:30:26 -0700
+
 disco (0.4.4) unstable; urgency=low
 
   * New package for 0.4.4

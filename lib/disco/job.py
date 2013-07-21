@@ -128,6 +128,7 @@ class Job(object):
         in :meth:`disco.worker.Worker.jobdict`.  The default worker
         implementation is called ``classic``, and is implemented by
         :class:`disco.worker.classic.worker`.
+
         :type  jobargs: dict
         :param jobargs: runtime parameters for the job.               \
                         Passed to the :class:`disco.worker.Worker`    \
