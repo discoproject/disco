@@ -417,7 +417,8 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                                                deleted_ages = DeletedAges,
                                                rr_reqs = RReqs,
                                                nodestats = NS,
-                                               tags = Tags} = S) ->
+                                               tags = Tags,
+                                               blacklist = BL} = S) ->
     print_gc_stats(Node, GCNodeStats),
     NewStats = add_gc_stats(Stats, GCNodeStats),
     NewPending = gb_sets:delete(Node, Pending),
@@ -448,6 +449,10 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                             "over utilized nodes: ~p, "
                             "under utilized nodes: ~p",
                             [NewDiskUsage, length(NewOverused), length(NewUnderused)]),
+                 ok = case NewOverused =/= [] of
+                        true -> rebalance(NewOverused, BL, FutureNS);
+                        false -> ok
+                 end,
 
                  lager:info("GC: entering rr_blobs phase"),
                  % Start the replicator process which will
@@ -806,7 +811,8 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     %            Present :: [object_location()],
     %            Recovered :: [object_location()],
     %            Update :: rep_update(),
-    %            Size :: 'undefined' | non_neg_integer()}
+    %            Size :: 'undefined' | non_neg_integer(),
+    %            Rebalance :: 'rebalance' | 'norebalance'}
     _ = ets:new(gc_blobs, [named_table, set, private]),
 
     _ = ets:foldl(
@@ -815,9 +821,10 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
           fun({{BlobName, Node}, {true, Vol, Size}}, _) ->
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {BlobName, [{Node, Vol}], [], noupdate, Size},
+                          Entry = {BlobName, [{Node, Vol}], [],
+                                   noupdate, Size, norebalance},
                           ets:insert(gc_blobs, Entry);
-                      [{_, Present, _, _, _}] ->
+                      [{_, Present, _, _, _, _}] ->
                           Acc = [{Node, Vol} | Present],
                           ets:update_element(gc_blobs, BlobName, {2, Acc})
                   end;
@@ -828,9 +835,9 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
                   % (e.g. after hostname changes).
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {BlobName, [], [], noupdate, undefined},
+                          Entry = {BlobName, [], [], noupdate, undefined, norebalance},
                           ets:insert(gc_blobs, Entry);
-                      [{_, _, _, _, _}] ->
+                      [{_, _, _, _, _, _}] ->
                           true
                   end
           end, true, gc_blob_map),
@@ -889,7 +896,7 @@ estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
                          U1 / (U1 + F1) =< U2 / (U2 + F2)
                  end, NS),
     ets:foldl(
-      fun({BlobName, Present, Recovered, _Update, Size}, NodeStats) ->
+      fun({BlobName, Present, Recovered, _Update, Size, _Rebalance}, NodeStats) ->
               PresentNodes = [N || {N, _V} <- Present],
               SafePresent = find_usable(BL, PresentNodes),
               SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
@@ -921,6 +928,37 @@ insert_nodestats({N, {F, U}}, [{N2, {F2, U2}} | NodeStats], Acc)
     insert_nodestats({N, {F, U}}, NodeStats, [{N2, {F2, U2}} | Acc]);
 insert_nodestats(NodeInfo, NodeStats, Acc) ->
     lists:reverse(Acc) ++ [NodeInfo | NodeStats].
+
+-spec rebalance([node()], [node()], [node_info()]) -> ok.
+rebalance(Overused, BL, NodeStats) ->
+    RebalanceStats =
+       [{N, {F + U, 0}} || {N, {F, U}} <- NodeStats, lists:member(N, Overused)],
+    ets:foldl(
+      fun({BlobName, Present, Recovered, Update, Size, _}, Stats) ->
+              PresentNodes = [N || {N, _V} <- Present],
+              SafePresent = find_usable(BL, PresentNodes),
+              SafeRecovered = [N || {N, _V} <- Recovered, not lists:member(N, BL)],
+              OverusedPresent =
+                 [N || N <- SafePresent ++ SafeRecovered, lists:member(N, Overused)],
+              case {Update, length(OverusedPresent)} of
+                  {noupdate, NumPresent}
+                    when NumPresent > 0 ->
+                      PresentStats =
+                         [{N, S} || {N, S} <- Stats, lists:member(N, OverusedPresent)],
+                      [{N, {Total, Balanced}} | _Nodes] =
+                         lists:sort(fun({_N1, {_T1, B1}}, {_N2, {_T2, B2}}) ->
+                                            B1 =< B2
+                                    end, PresentStats),
+                      case (Balanced / Total) > ?GC_BALANCE_THRESHOLD of
+                          true -> Stats;
+                          false ->
+                              ets:update_element(gc_blobs, BlobName, {6, rebalance}),
+                              lists:keyreplace(N, 1, Stats, {N, {Total, Balanced + Size}})
+                      end;
+                  _ -> Stats
+              end
+      end, RebalanceStats, gc_blobs),
+  ok.
 
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
                      -> {ok, boolean() | unknown}.
@@ -954,7 +992,7 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
             % have been newly created.  Mark it as unknown, but the
             % node will not delete it if it is recent.
             {ok, unknown};
-        [{_, Present, Recovered, _, _}] ->
+        [{_, Present, Recovered, _, _, _}] ->
             PresentNodes = [N || {N, _V} <- Present],
             case {lists:member(Node, PresentNodes),
                   lists:member({Node, Vol}, Recovered)} of
@@ -1120,7 +1158,7 @@ rereplicate_blob(_S, '$end_of_table' = End) ->
     gen_server:cast(self(), {rr_blob, End}),
     0;
 rereplicate_blob(S, BlobName) ->
-    [{_, Present, Recovered, _, _}] = ets:lookup(gc_blobs, BlobName),
+    [{_, Present, Recovered, _, _, _}] = ets:lookup(gc_blobs, BlobName),
     {FinalReps, Reqs} = rereplicate_blob(S, BlobName, Present, Recovered, S#state.blobk),
     ets:update_element(gc_blobs, BlobName, {4, FinalReps}),
     Next = ets:next(gc_blobs, BlobName),
@@ -1202,7 +1240,7 @@ try_put_blob(#state{rr_pid = RR, gc_peers = Peers}, BlobName, OkNodes, BL) ->
 update_replicas(_S, BlobName, NewUrls) ->
     % An update can only arrive for a blob that was marked for replication
     % (see rereplicate_blob/5).
-    [{_, _P, _R, {update, Urls}, _}] = ets:lookup(gc_blobs, BlobName),
+    [{_, _P, _R, {update, Urls}, _, _}] = ets:lookup(gc_blobs, BlobName),
     Update = {update, NewUrls ++ Urls},
     _ = ets:update_element(gc_blobs, BlobName, {4, Update}),
     ok.
@@ -1394,9 +1432,9 @@ usable_locations(S, BlobName) ->
         [] ->
             % New blob added after GC/RR started.
             [];
-        [{_, P, R, noupdate, _}] ->
+        [{_, P, R, noupdate, _, _}] ->
             usable_locations(S, BlobName, P ++ R, []);
-        [{_, P, R, {update, NewUrls}, _}] ->
+        [{_, P, R, {update, NewUrls}, _, _}] ->
             usable_locations(S, BlobName, P ++ R, NewUrls)
     end.
 
