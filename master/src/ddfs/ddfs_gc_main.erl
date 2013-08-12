@@ -812,7 +812,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     %            Recovered :: [object_location()],
     %            Update :: rep_update(),
     %            Size :: 'undefined' | non_neg_integer(),
-    %            Rebalance :: 'rebalance' | 'norebalance'}
+    %            Rebalance :: rebalance()}
     _ = ets:new(gc_blobs, [named_table, set, private]),
 
     _ = ets:foldl(
@@ -1157,8 +1157,8 @@ rereplicate_blob(_S, '$end_of_table' = End) ->
     gen_server:cast(self(), {rr_blob, End}),
     0;
 rereplicate_blob(S, BlobName) ->
-    [{_, Present, Recovered, _, _, _}] = ets:lookup(gc_blobs, BlobName),
-    {FinalReps, Reqs} = rereplicate_blob(S, BlobName, Present, Recovered, S#state.blobk),
+    [{_, Present, Recovered, _, _, Rebalance}] = ets:lookup(gc_blobs, BlobName),
+    {FinalReps, Reqs} = rereplicate_blob(S, BlobName, Present, Recovered, Rebalance, S#state.blobk),
     ets:update_element(gc_blobs, BlobName, {4, FinalReps}),
     Next = ets:next(gc_blobs, BlobName),
     gen_server:cast(self(), {rr_blob, Next}),
@@ -1167,30 +1167,30 @@ rereplicate_blob(S, BlobName) ->
 % RR1) Re-replicate blobs that don't have enough replicas
 
 -spec rereplicate_blob(state(), object_name(), [object_location()],
-                       [object_location()], non_neg_integer())
+                       [object_location()], rebalance(), non_neg_integer())
                       -> {rep_result(), non_neg_integer()}.
 rereplicate_blob(#state{blacklist = BL} = S,
-                 BlobName, Present, Recovered, Blobk) ->
+                 BlobName, Present, Recovered, Rebalance, Blobk) ->
     PresentNodes = [N || {N, _V} <- Present],
     SafePresent = find_usable(BL, PresentNodes),
     SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
-    case {length(SafePresent), length(SafeRecovered)} of
-        {NumPresent, NumRecovered}
+    case {length(SafePresent), length(SafeRecovered), Rebalance} of
+        {NumPresent, NumRecovered, norebalance}
           when NumRecovered =:= 0, NumPresent >= Blobk ->
             % No need for replication or blob update.
             {noupdate, 0};
-        {NumPresent, NumRecovered}
+        {NumPresent, NumRecovered, norebalance}
           when NumRecovered > 0, NumPresent + NumRecovered >= Blobk ->
             % No need for new replication; containing tags need updating to
             % recover lost blob replicas.
             {{update, []}, 0};
-        {0, 0}
+        {0, 0, _}
           when Present =:= [], Recovered =:= [] ->
             % We have no good copies from which to generate new replicas;
             % we have no option but to live with the current information.
             lager:warning("GC: all replicas missing for ~p!!!", [BlobName]),
             {noupdate, 0};
-        {NumPresent, NumRecovered} ->
+        {NumPresent, NumRecovered, _} ->
             % Extra replicas are needed; we generate one new replica at a
             % time, in a single-shot way. We use any available replicas as
             % sources, including those from blacklisted nodes.
