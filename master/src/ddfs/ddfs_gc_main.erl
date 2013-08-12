@@ -896,10 +896,10 @@ estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
                          U1 / (U1 + F1) =< U2 / (U2 + F2)
                  end, NS),
     ets:foldl(
-      fun({BlobName, Present, Recovered, _Update, Size, _Rebalance}, NodeStats) ->
+      fun({BlobName, Present, Recovered, _, Size, _}, NodeStats) ->
               PresentNodes = [N || {N, _V} <- Present],
               SafePresent = find_usable(BL, PresentNodes),
-              SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
+              SafeRecovered = [N || {N, _V} <- Recovered, not lists:member(N, BL)],
               case {length(SafePresent), length(SafeRecovered)} of
                   {NumPresent, NumRecovered}
                     when NumPresent + NumRecovered >= BlobK ->
@@ -909,8 +909,7 @@ estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
                       NodeStats;
                   {_NumPresent, _NumRecovered} ->
                       ets:update_element(gc_blobs, BlobName, {4, {update, []}}),
-                      {RepNodes, _RepVols} = lists:unzip(SafeRecovered),
-                      Exclude = RepNodes ++ PresentNodes,
+                      Exclude = SafeRecovered ++ PresentNodes,
                       [{Node, {Free, Used}} | _OkNodes] =
                           [{N, S} || {N, S} <- NodeStats, not lists:member(N, Exclude)],
                       NewNodeStats = lists:keydelete(Node, 1, NodeStats),
