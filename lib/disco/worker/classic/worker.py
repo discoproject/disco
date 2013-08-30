@@ -34,7 +34,7 @@ import os
 from disco import util, worker
 from disco.worker.classic import external
 from disco.worker.classic.func import * # XXX: hack so func fns dont need to import
-from disco.job import JOBPACK_VERSION1
+from disco import JOBPACK_VERSION1
 from disco.worker import Params
 
 class Worker(worker.Worker):
