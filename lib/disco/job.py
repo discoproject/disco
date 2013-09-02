@@ -26,9 +26,8 @@ from disco.error import JobError
 from disco.util import hexhash, isiterable, load_oob, save_oob
 from disco.settings import DiscoSettings
 from disco.compat import bytes_to_str
+from disco import JOBPACK_VERSION1
 
-JOBPACK_VERSION1 = 0x0001
-JOBPACK_VERSION2 = 0x0002
 
 class Job(object):
     """
