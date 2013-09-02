@@ -29,7 +29,7 @@ from collections import namedtuple, defaultdict
 from itertools import chain
 from disco import util, worker
 from disco.worker import task_io
-from disco.job import JOBPACK_VERSION2
+from disco import JOBPACK_VERSION2
 
 def input_hook(state, input_labels):
     """The default input label hook for a stage does no re-ordering of the labels."""
