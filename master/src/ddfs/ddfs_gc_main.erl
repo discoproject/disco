@@ -215,6 +215,7 @@
           nodestats         = []              :: [node_info()],
           overused_nodes    = []              :: [node()],
           underused_nodes   = []              :: [node()],
+          most_overused_node = undefined      :: 'undefined' | node(),
 
           % static state
           tags              = []      :: [object_name()],
@@ -846,6 +847,13 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     DiskUsage = avg_disk_usage(NodeStats),
     OverusedNodes = find_unstable_nodes(overused, NodeStats, DiskUsage),
     UnderusedNodes = find_unstable_nodes(underused, NodeStats, DiskUsage),
+    Utilization = [{N, Used / (Used + Free)} || {N, {Free, Used}} <- NodeStats,
+        lists:member(N, OverusedNodes)],
+    SortedUtilization = [N || {N, _} <- lists:reverse(lists:keysort(2, Utilization))],
+    MostOverused = case SortedUtilization of
+                       [] -> undefined;
+                       [N | _] -> N
+                   end,
     lager:info("GC: average disk utilization: ~p, "
                "over utilized nodes: ~p, "
                "under utilized nodes: ~p",
@@ -858,7 +866,8 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
             phase = gc,
             last_response_time = now(),
             overused_nodes = OverusedNodes,
-            underused_nodes = UnderusedNodes}.
+            underused_nodes = UnderusedNodes,
+            most_overused_node = MostOverused}.
 
 -spec avg_disk_usage([node_info()]) -> non_neg_integer().
 avg_disk_usage(NodeStats) ->
@@ -977,8 +986,8 @@ check_is_orphan(_S, tag, Tag, _Node, _Vol) ->
             % This is a current or newer incarnation.
             {ok, false}
     end;
-check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
-                blob, BlobName, Node, Vol) ->
+check_is_orphan(#state{blobk = BlobK, blacklist = BlackList,
+                most_overused_node = MostOverused}, blob, BlobName, Node, Vol) ->
     MaxReps = BlobK + ?NUM_EXTRA_REPLICAS,
     % The gc mark/in-use protocol is resumable, but the node loses its
     % in-use knowledge when it goes down.  On reconnect, it might
@@ -994,16 +1003,17 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
         [{_, Present, Recovered, _, _, _}] ->
             PresentNodes = [N || {N, _V} <- Present],
             case {lists:member(Node, PresentNodes),
-                  lists:member({Node, Vol}, Recovered)} of
-                {true, _} ->
+                  lists:member({Node, Vol}, Recovered),
+                  Node =:= MostOverused} of
+                {true, _, false} ->
                     % Re-check of an already marked blob.
                     {ok, false};
-                {_, true} ->
+                {_, true, false} ->
                     % Re-check of an already recovered blob.
                     {ok, false};
                 % Use a fast path for the normal case when there is no
                 % blacklist.
-                {false, false}
+                {false, false, false}
                   when BlackList =:= [],
                        length(Present) + length(Recovered) > MaxReps ->
                     % This is a newly recovered replica, but we have
@@ -1012,7 +1022,7 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
                     lager:info("GC: discarding replica of ~p on ~p/~p",
                                [BlobName, Node, Vol]),
                     {ok, true};
-                {false, false}
+                {false, false, false}
                   when BlackList =:= [] ->
                     % This is a usable, newly-recovered, lost replica;
                     % record the volume for later use.
@@ -1021,7 +1031,7 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
                     NewRecovered = [{Node, Vol} | Recovered],
                     ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                     {ok, false};
-                {false, false} ->
+                {false, false, false} ->
                     {RepNodes, _RepVols} = lists:unzip(Recovered),
                     Usable = find_usable(BlackList, lists:usort(RepNodes ++ PresentNodes)),
                     case length(Usable) > MaxReps of
@@ -1031,6 +1041,25 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
                             % Note that Node could belong to the blacklist; we
                             % still record the replica so that we can use it for
                             % re-replication if needed.
+                            lager:info("GC: recovering replica of ~p from ~p/~p",
+                                       [BlobName, Node, Vol]),
+                            NewRecovered = [{Node, Vol} | Recovered],
+                            ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
+                            {ok, false}
+                    end;
+                {IsPresent, IsRecovered, true} ->
+                    {RepNodes, _RepVols} = lists:unzip(Recovered),
+                    Usable = find_usable(BlackList, lists:usort(RepNodes ++ PresentNodes)),
+                    case {IsPresent orelse IsRecovered, length(Usable) > BlobK} of
+                        {_, true} ->
+                            % This blob can be deleted since it has more than BlobK
+                            % replicas and is located on the most over-utilized node.
+                            lager:info("GC: discarding replica of ~p on ~p/~p",
+                                       [BlobName, Node, Vol]),
+                            {ok, true};
+                        {true, false} ->
+                            {ok, false};
+                        {false, false} ->
                             lager:info("GC: recovering replica of ~p from ~p/~p",
                                        [BlobName, Node, Vol]),
                             NewRecovered = [{Node, Vol} | Recovered],
