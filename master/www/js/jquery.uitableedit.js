@@ -44,7 +44,7 @@ jQuery.uiTableEdit = function(jq, options){
   function td_edit(){
     var td = jQuery(this);
     function restore(e){
-      var val = td.find(':text').attr('value')
+      var val = td.find(':text').prop('value')
       if( options.dataVerify ){
         var value = options.dataVerify.call(this, val, orig_text, e);
         if( value == false ){ return false; }
