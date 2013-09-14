@@ -347,9 +347,15 @@ handle_cast(start, #state{phase = start} = S) ->
 
 handle_cast({retry_node, Node},
             #state{phase = Phase, gc_peers = GCPeers,
-                   num_pending_reqs = NumPendingReqs} = S) ->
+                   num_pending_reqs = NumPendingReqs, most_overused_node = Overused} = S) ->
     lager:info("GC: retrying connection to ~p (in phase ~p)", [Node, Phase]),
-    Pid = ddfs_gc_node:start_gc_node(Node, self(), now(), Phase),
+    Mode = case Node =:= Overused of
+               true ->
+                   overused;
+               false ->
+                   normal
+           end,
+    Pid = ddfs_gc_node:start_gc_node(Node, self(), now(), Phase, Mode),
     Peers = update_peer(GCPeers, Node, Pid),
     case Phase of
         P when P =:= build_map; P =:= map_wait ->
@@ -631,7 +637,7 @@ schedule_retry(Node) ->
 start_gc_peers(Nodes, Self, Now, Phase) ->
     lists:foldl(
       fun(N, Peers) ->
-              Pid = ddfs_gc_node:start_gc_node(N, Self, Now, Phase),
+              Pid = ddfs_gc_node:start_gc_node(N, Self, Now, Phase, normal),
               gb_trees:insert(N, {Pid, 0}, Peers)
       end, gb_trees:empty(), Nodes).
 
@@ -858,8 +864,17 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
                "over utilized nodes: ~p, "
                "under utilized nodes: ~p",
                [DiskUsage, length(OverusedNodes), length(UnderusedNodes)]),
+
     lager:info("GC: entering gc phase"),
-    node_broadcast(Peers, start_gc),
+    OverusedPeer = find_peer(Peers, MostOverused),
+    NewPeers = case OverusedPeer =/= undefined of
+                   true ->
+                       node_send(OverusedPeer, {start_gc, overused}),
+                       gb_trees:delete(Peers, OverusedPeer);
+                   false ->
+                       Peers
+               end,
+    node_broadcast(NewPeers, {start_gc, normal}),
     % Update the last_response_time to indicate forward progress.
     S#state{num_pending_reqs  = 0,
             pending_nodes = gb_sets:from_list(gb_trees:keys(Peers)),

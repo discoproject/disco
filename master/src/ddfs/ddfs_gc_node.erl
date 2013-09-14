@@ -1,5 +1,5 @@
 -module(ddfs_gc_node).
--export([start_gc_node/4]).
+-export([start_gc_node/5]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -11,12 +11,12 @@
 % The module contains the node-local portion of the DDFS GC/RR
 % algorithm.
 
--spec start_gc_node(node(), pid(), erlang:timestamp(), phase()) -> pid().
-start_gc_node(Node, Master, Now, Phase) ->
-    spawn_link(Node, fun () -> gc_node_init(Master, Now, Phase) end).
+-spec start_gc_node(node(), pid(), erlang:timestamp(), phase(), mode()) -> pid().
+start_gc_node(Node, Master, Now, Phase, Mode) ->
+    spawn_link(Node, fun () -> gc_node_init(Master, Now, Phase, Mode) end).
 
--spec gc_node_init(pid(), erlang:timestamp(), phase()) -> 'ok'.
-gc_node_init(Master, Now, Phase) ->
+-spec gc_node_init(pid(), erlang:timestamp(), phase(), mode()) -> 'ok'.
+gc_node_init(Master, Now, Phase, Mode) ->
     register(?MODULE, self()),
     % All phases of GC/RR require that we build a snapshot of our
     % node-local DDFS content across all volumes.
@@ -37,22 +37,22 @@ gc_node_init(Master, Now, Phase) ->
     error_logger:info_msg("GC: found ~p blob, ~p tag candidates on ~p",
                           [ets:info(blob, size), ets:info(tag, size), node()]),
     % Now, dispatch to the phase that is running on the master.
-    gc_node(Master, Now, Root, Phase).
+    gc_node(Master, Now, Root, Phase, Mode).
 
--spec gc_node(pid(), erlang:timestamp(), path(), phase()) -> 'ok'.
-gc_node(Master, Now, Root, Phase)
+-spec gc_node(pid(), erlang:timestamp(), path(), phase(), mode()) -> 'ok'.
+gc_node(Master, Now, Root, Phase, _Mode)
   when Phase =:= start; Phase =:= build_map; Phase =:= map_wait ->
     Diskinfo = gen_server:call(ddfs_node, get_diskspace),
     Master ! {diskinfo, node(), Diskinfo},
-    check_server(Master, Root),
-    local_gc(Master, Now, Root),
+    {ok, Mode} = check_server(Master, Root),
+    local_gc(Master, Now, Root, Mode),
     replica_server(Master, Root);
 
-gc_node(Master, Now, Root, gc) ->
-    local_gc(Master, Now, Root),
+gc_node(Master, Now, Root, gc, Mode) ->
+    local_gc(Master, Now, Root, Mode),
     replica_server(Master, Root);
 
-gc_node(Master, _Now, Root, Phase)
+gc_node(Master, _Now, Root, Phase, _Mode)
   when Phase =:= rr_blobs; Phase =:= rr_blobs_wait; Phase =:= rr_tags ->
     replica_server(Master, Root).
 
@@ -101,8 +101,8 @@ check_server(Master, Root) ->
             LocalObj = {ObjName, node()},
             Master ! {check_blob_result, LocalObj, check_blob(ObjName)},
             check_server(Master, Root);
-        start_gc ->
-            ok;
+        {start_gc, Mode} ->
+            {ok, Mode};
         E ->
             ddfs_gc:abort({"GC: Erroneous message received", E},
                           node_request_failed)
@@ -121,9 +121,9 @@ check_blob(ObjName) ->
 % GC2) Remove orphaned tags (old versions and deleted tags)
 % GC3) Remove orphaned blobs (blobs not referred by any tag)
 
-local_gc(Master, Now, Root) ->
-    delete_orphaned(Master, Now, Root, blob, ?ORPHANED_BLOB_EXPIRES),
-    delete_orphaned(Master, Now, Root, tag, ?ORPHANED_TAG_EXPIRES),
+local_gc(Master, Now, Root, Mode) ->
+    delete_orphaned(Master, Now, Root, blob, Mode, ?ORPHANED_BLOB_EXPIRES),
+    delete_orphaned(Master, Now, Root, tag, Mode, ?ORPHANED_TAG_EXPIRES),
     ddfs_gc_main:node_gc_done(Master, gc_run_stats()),
     ddfs_node:rescan_tags(),  % update local node cache
     ok.
@@ -143,9 +143,15 @@ gc_run_stats() ->
     {obj_stats(tag), obj_stats(blob)}.
 
 -spec delete_orphaned(pid(), erlang:timestamp(), path(), object_type(),
-                      non_neg_integer()) -> 'ok'.
-delete_orphaned(Master, Now, Root, Type, Expires) ->
+                      mode(), non_neg_integer()) -> 'ok'.
+delete_orphaned(Master, Now, Root, Type, Mode, Expires) ->
     Paranoid = disco:has_setting("DDFS_PARANOID_DELETE"),
+    InUse = case Mode of
+                normal ->
+                    false;
+                overused ->
+                    '_'
+            end,
     lists:foreach(
       fun([Obj, VolName]) ->
               {_, Time} = ddfs_util:unpack_objname(Obj),
@@ -165,7 +171,7 @@ delete_orphaned(Master, Now, Root, Type, Expires) ->
                       % Mark the object as in-use for stats.
                       true = ets:update_element(Type, Obj, {4, true})
               end
-      end, ets:match(Type, {'$1', '$2', '_', false})).
+      end, ets:match(Type, {'$1', '$2', '_', InUse})).
 
 -spec delete_if_expired(true | unknown, file:filename(), float(),
                         non_neg_integer(), boolean()) -> boolean().
