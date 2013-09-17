@@ -487,11 +487,11 @@ gc_update_urls(Id, [[Url|_] = BlobSet | Rest], Map, Blacklist, UpdateId, Acc) ->
                     % The tag was modified after the filter safety
                     % check was done; skip the update.
                     gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc]);
-                {value, NewUrls_} ->
+                {value, {NewUrls_, Remove}} ->
                     % Ensure that new locations use the same scheme as
                     % the existing locations.
                     NewUrls = rewrite_scheme(Url, NewUrls_),
-                    NewBlobSet = lists:usort(NewUrls ++ BlobSet),
+                    NewBlobSet = lists:usort(NewUrls ++ BlobSet -- Remove),
                     gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [NewBlobSet|Acc])
             end
     end.

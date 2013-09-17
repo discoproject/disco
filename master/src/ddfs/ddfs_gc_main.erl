@@ -1458,11 +1458,12 @@ collect(#state{blacklist = BL, blobk = BlobK} = S,
             % Any referenced nodes are not safe to be removed from DDFS.
             NewSBL = gb_sets:subtract(SBL, gb_sets:from_list(Nodes)),
 
+            Remove = removable_locations(BlobSet),
             NewLocations = usable_locations(S, BlobName) -- BlobSet,
             BListed = find_unusable(BL, Nodes),
             Usable  = find_usable(BL, Nodes),
             CanFilter = [] =/= BListed andalso length(Usable) >= BlobK,
-            case {NewLocations, CanFilter} of
+            case {NewLocations ++ Remove, CanFilter} of
                 {[], false} ->
                     % Blacklist filtering is not needed, and there are
                     % no updates.
@@ -1475,9 +1476,24 @@ collect(#state{blacklist = BL, blobk = BlobK} = S,
                     collect(S, Rest, {[Update | Updates], NewSBL});
                 {[_|_], _} ->
                     % There are new usable locations for the blobset.
-                    Update = {BlobName, NewLocations},
+                    Update = {BlobName, {NewLocations, Remove}},
                     collect(S, Rest, {[Update | Updates], NewSBL})
             end
+    end.
+
+-spec removable_locations([url()]) -> [url()].
+removable_locations(BlobSet) ->
+    [{BlobName, _} | _] = Locations = [ddfs_url(Url) || Url <- BlobSet],
+    case ets:lookup(gc_blobs, BlobName) of
+        [] ->
+            % New blob added after GC/RR started.
+            [];
+        [_, _, _, _, _, _, []] ->
+            % No locations need to be removed
+            [];
+        [_, _, _, _, _, _, UpdateMissing] ->
+            Remove = [{B, N} || {B, N} <- Locations, lists:member(N, UpdateMissing)],
+            [Url || Url <- BlobSet, lists:member(ddfs_url(Url), Remove)]
     end.
 
 -spec usable_locations(state(), object_name()) -> [url()].
