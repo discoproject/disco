@@ -4,7 +4,7 @@
 -type mode() :: 'normal' | 'overused'.
 -type protocol_msg() :: {'check_blob', object_name()} | {'start_gc', mode()} | 'end_rr'.
 
--type blob_update() :: {object_name(), 'filter' | [url()]}.
+-type blob_update() :: {object_name(), 'filter' | {[url()], [url()]}}.
 
 % {In use, Volume, Size}
 -type check_blob_result() :: 'false' | {'true', volume_name(), non_neg_integer()}.
