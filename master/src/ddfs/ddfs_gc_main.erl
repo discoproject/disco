@@ -829,8 +829,9 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
           fun({{BlobName, Node}, {true, Vol, Size}}, _) ->
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
+                          SizeKB = trunc(Size / 1000),
                           Entry = {BlobName, [{Node, Vol}], [],
-                                   noupdate, Size, norebalance, []},
+                                   noupdate, SizeKB, norebalance, []},
                           ets:insert(gc_blobs, Entry);
                       [{_, Present, _, _, _, _, _}] ->
                           Acc = [{Node, Vol} | Present],
