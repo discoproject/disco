@@ -910,11 +910,19 @@ avg_disk_usage(NodeStats) ->
 -spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
                          -> [node()].
 find_unstable_nodes(underused, NodeStats, AvgUsage) ->
-    [N || {N, {Free, Used}} <- NodeStats,
-        Used / (Free + Used) < AvgUsage - ?GC_BALANCE_THRESHOLD];
+    Threshold =
+        case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
+            true  -> list_to_integer(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD"));
+            false -> ?GC_BALANCE_THRESHOLD
+        end,
+    [N || {N, {Free, Used}} <- NodeStats, Used / (Free + Used) < AvgUsage - Threshold];
 find_unstable_nodes(overused, NodeStats, AvgUsage) ->
-    [N || {N, {Free, Used}} <- NodeStats,
-        Used / (Free + Used) > AvgUsage + ?GC_BALANCE_THRESHOLD].
+    Threshold =
+        case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
+            true  -> list_to_integer(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD"));
+            false -> ?GC_BALANCE_THRESHOLD
+        end,
+    [N || {N, {Free, Used}} <- NodeStats, Used / (Free + Used) > AvgUsage + Threshold].
 
 -spec update_nodestats(node(), gc_run_stats(), [node_info()]) -> [node_info()].
 update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
@@ -968,6 +976,11 @@ rebalance(Overused, BL, NodeStats) ->
     % [{Node, {Total disk space, Bytes to replicate}}]
     RebalanceStats = [{N, {F + U, 0}} || {N, {F, U}} <- NodeStats,
                                          lists:member(N, Overused)],
+    Threshold =
+        case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
+            true  -> list_to_integer(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD"));
+            false -> ?GC_BALANCE_THRESHOLD
+        end,
     ets:foldl(
       fun({BlobName, Present, Recovered, Update, Size, _, _}, Stats) ->
               PresentNodes = [N || {N, _V} <- Present],
@@ -988,7 +1001,7 @@ rebalance(Overused, BL, NodeStats) ->
                             fun({_, {DS1, B1}}, {_, {DS2, B2}}) ->
                                     B1 / DS1 =< B2 / DS2
                             end, PresentStats),
-                      case (Balanced / DiskSpace) > ?GC_BALANCE_THRESHOLD of
+                      case (Balanced / DiskSpace) > Threshold of
                           true ->
                               % The node has passed the threshold for how much of
                               % its diskspace that can be selected to replicate 

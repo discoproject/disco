@@ -239,6 +239,11 @@ Settings used by DDFS:
                 The amount of time to wait after startup before running GC (in minutes).
                 Default is ``''``, which triggers an internal default of 5 minutes.
 
+        .. envvar:: DDFS_GC_BALANCE_THRESHOLD
+                The distance a node's disk utilization can be from the average
+                disk utilization of the cluster before the node is considered
+                to be over-utilized or under-utilized.
+
         .. envvar:: DDFS_PARANOID_DELETE
 
                 Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_DATA = "/srv/disco/ddfs"``)::
@@ -328,7 +333,8 @@ class DiscoSettings(Settings):
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
         'DDFS_PARANOID_DELETE':  "''",
-        'DDFS_GC_INITIAL_WAIT':  "''"
+        'DDFS_GC_INITIAL_WAIT':  "''",
+        'DDFS_GC_BALANCE_THRESHOLD':  "''"
         }
 
     globals = globals()
