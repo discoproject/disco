@@ -898,9 +898,12 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
 -spec avg_disk_usage([node_info()]) -> non_neg_integer().
 avg_disk_usage(NodeStats) ->
     Sum = lists:foldl(
-        fun({_N, {Free, Used}}, S) ->
-            S + (Used / (Used + Free))
-        end, 0, NodeStats),
+            fun({_, {Free, Used}}, S)
+                  when (Used + Free) > 0 ->
+                    S + (Used / (Used + Free));
+               (_, S) ->
+                    S
+            end, 0, NodeStats),
     NumNodes = length(NodeStats),
     case NumNodes of
         0 -> 0;
