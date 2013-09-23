@@ -881,7 +881,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     NewPeers = case OverusedPeer =/= undefined of
                    true ->
                        node_send(OverusedPeer, {start_gc, overused}),
-                       gb_trees:delete(Peers, OverusedPeer);
+                       gb_trees:delete(MostOverused, Peers);
                    false ->
                        Peers
                end,
