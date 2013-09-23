@@ -965,31 +965,46 @@ insert_nodestats(NodeInfo, NodeStats, Acc) ->
 
 -spec rebalance([node()], [node()], [node_info()]) -> ok.
 rebalance(Overused, BL, NodeStats) ->
-    RebalanceStats =
-       [{N, {F + U, 0}} || {N, {F, U}} <- NodeStats, lists:member(N, Overused)],
+    % [{Node, {Total disk space, Bytes to replicate}}]
+    RebalanceStats = [{N, {F + U, 0}} || {N, {F, U}} <- NodeStats,
+                                         lists:member(N, Overused)],
     ets:foldl(
       fun({BlobName, Present, Recovered, Update, Size, _, _}, Stats) ->
               PresentNodes = [N || {N, _V} <- Present],
               SafePresent = find_usable(BL, PresentNodes),
               SafeRecovered = [N || {N, _V} <- Recovered, not lists:member(N, BL)],
-              OverusedPresent =
-                 [N || N <- SafePresent ++ SafeRecovered, lists:member(N, Overused)],
+              OverusedPresent = [N || N <- SafePresent ++ SafeRecovered,
+                                      lists:member(N, Overused)],
               case {Update, length(OverusedPresent)} of
                   {noupdate, NumPresent}
                     when NumPresent > 0 ->
-                      PresentStats =
-                         [{N, S} || {N, S} <- Stats, lists:member(N, OverusedPresent)],
-                      [{N, {Total, Balanced}} | _Nodes] =
-                         lists:sort(fun({_N1, {_T1, B1}}, {_N2, {_T2, B2}}) ->
-                                            B1 =< B2
-                                    end, PresentStats),
-                      case (Balanced / Total) > ?GC_BALANCE_THRESHOLD of
-                          true -> Stats;
+                      % The blob is present on an over-utilized node and not already
+                      % marked for rereplication due to insuffcient number of replicas.
+                      % Possibly mark the blob for replication to balance the cluster.
+                      PresentStats = [{N, S} || {N, S} <- Stats,
+                                                lists:member(N, OverusedPresent)],
+                      [{N, {DiskSpace, Balanced}} | _] =
+                          lists:sort(
+                            fun({_, {DS1, B1}}, {_, {DS2, B2}}) ->
+                                    B1 / DS1 =< B2 / DS2
+                            end, PresentStats),
+                      case (Balanced / DiskSpace) > ?GC_BALANCE_THRESHOLD of
+                          true ->
+                              % The node has passed the threshold for how much of
+                              % its diskspace that can be selected to replicate 
+                              % for balancing.
+                              Stats;
                           false ->
+                              % The blob is present on an over-utilized node which
+                              % has not passed the rebalancing threshold. Mark the
+                              % blob for replication to balance the cluster and
+                              % update the stats.
                               ets:update_element(gc_blobs, BlobName, {6, rebalance}),
-                              lists:keyreplace(N, 1, Stats, {N, {Total, Balanced + Size}})
+                              lists:keyreplace(N, 1, Stats,
+                                               {N, {DiskSpace, Balanced + Size}})
                       end;
-                  _ -> Stats
+                  {_, _} ->
+                      Stats
               end
       end, RebalanceStats, gc_blobs),
   ok.
