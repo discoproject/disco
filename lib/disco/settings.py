@@ -242,7 +242,7 @@ Settings used by DDFS:
         .. envvar:: DDFS_GC_BALANCE_THRESHOLD
                 The distance a node's disk utilization can be from the average
                 disk utilization of the cluster before the node is considered
-                to be over-utilized or under-utilized.
+                to be over-utilized or under-utilized.  Default is ``0.1``.
 
         .. envvar:: DDFS_PARANOID_DELETE
 
@@ -334,7 +334,7 @@ class DiscoSettings(Settings):
         'DDFS_BLOB_REPLICAS':    "1",
         'DDFS_PARANOID_DELETE':  "''",
         'DDFS_GC_INITIAL_WAIT':  "''",
-        'DDFS_GC_BALANCE_THRESHOLD':  "''"
+        'DDFS_GC_BALANCE_THRESHOLD': "0.1"
         }
 
     globals = globals()

@@ -89,7 +89,7 @@
 % than the average utilization for all nodes minus the threshold and
 % less than the average utilization for all nodes plus the threshold.
 % Utilization is defined as the percentage of its used space
--define(GC_BALANCE_THRESHOLD, 10).
+-define(GC_BALANCE_THRESHOLD, 0.1).
 
 % Number of extra replicas (i.e. lost replicas recovered during GC) to
 % allow before deleting extra replicas.
