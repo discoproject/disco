@@ -429,7 +429,12 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
     print_gc_stats(Node, GCNodeStats),
     NewStats = add_gc_stats(Stats, GCNodeStats),
     NewPending = gb_sets:delete(Node, Pending),
-    NewNS = update_nodestats(Node, GCNodeStats, NS),
+    NewNS = case lists:member(Node, BL) of
+                true ->
+                    NS;
+                false ->
+                    update_nodestats(Node, GCNodeStats, NS)
+            end,
     S1 = case gb_sets:size(NewPending) of
              0 ->
                  % This was the last node we were waiting for to
@@ -524,11 +529,17 @@ handle_cast({rr_tags, [], Count}, #state{phase = rr_tags, gc_peers = Peers,
                   | {'EXIT', pid(), term()} | {reference(), term()},
                   state()) -> gs_noreply() | gs_stop(shutdown).
 
-handle_info({diskinfo, Node, {Free, Used}}, #state{nodestats = NodeStats} = S) ->
+handle_info({diskinfo, Node, {Free, Used}},
+            #state{nodestats = NodeStats, blacklist = BL} = S) ->
     lager:info("GC: disk information for ~p (free: ~p bytes, used: ~p bytes)",
                [Node, Free, Used]),
-    {noreply, S#state{nodestats = lists:keystore(Node, 1, NodeStats,
-                                                 {Node, {Free, Used}})}};
+    case lists:member(Node, BL) of
+        true ->
+            {noreply, S};
+        false ->
+            {noreply, S#state{nodestats = lists:keystore(Node, 1, NodeStats,
+                                                         {Node, {Free, Used}})}}
+    end;
 
 handle_info({check_blob_result, LocalObj, Status},
             #state{phase = Phase, num_pending_reqs = NumPendingReqs} = S)
