@@ -944,8 +944,8 @@ update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
     {_, {_, DelTag}} = Tags,
     {_, {_, DelBlob}} = Blobs,
     {_, {Free, Used}} = lists:keyfind(Node, 1, NodeStats),
-    lists:keystore(Node, 1, NodeStats,
-                   {Node, {Free + DelTag + DelBlob, Used - DelTag - DelBlob}}).
+    Deleted = trunc((DelTag + DelBlob) / 1000),
+    lists:keystore(Node, 1, NodeStats, {Node, {Free + Deleted, Used - Deleted}}).
 
 -spec estimate_rr_blobs(state()) -> [node_info()].
 estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
