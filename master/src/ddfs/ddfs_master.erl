@@ -8,7 +8,7 @@
          get_hosted_tags/1,
          gc_blacklist/0, gc_blacklist/1,
          gc_stats/0,
-         choose_write_nodes/2,
+         choose_write_nodes/3,
          new_blob/3, new_blob/4,
          safe_gc_blacklist/0, safe_gc_blacklist/1,
          refresh_tag_cache/0,
@@ -98,9 +98,9 @@ gc_stats() ->
 get_hosted_tags(Host) ->
     gen_server:call(?MODULE, {get_hosted_tags, Host}).
 
--spec choose_write_nodes(non_neg_integer(), [node()]) -> {ok, [node()]}.
-choose_write_nodes(K, Exclude) ->
-    gen_server:call(?MODULE, {choose_write_nodes, K, Exclude}).
+-spec choose_write_nodes(non_neg_integer(), [node()], [node()]) -> {ok, [node()]}.
+choose_write_nodes(K, Include, Exclude) ->
+    gen_server:call(?MODULE, {choose_write_nodes, K, Include, Exclude}).
 
 -spec get_tags(gc) -> {ok, [tagname()], [node()]} | too_many_failed_nodes;
               (safe) -> {ok, [binary()]} | too_many_failed_nodes.
@@ -164,7 +164,7 @@ init(_Args) ->
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
     {ok, #state{cache_refresher = Refresher}}.
 
--type choose_write_nodes_msg() :: {choose_write_nodes, non_neg_integer(), [node()]}.
+-type choose_write_nodes_msg() :: {choose_write_nodes, non_neg_integer(), [node()], [node()]}.
 -type new_blob_msg() :: {new_blob, string() | object_name(), non_neg_integer(), [node()]}.
 -type tag_msg() :: {tag, ddfs_tag:call_msg(), tagname()}.
 -spec handle_call(dbg_state_msg(), from(), state()) ->
@@ -204,10 +204,10 @@ handle_call(gc_blacklist, _F, #state{gc_blacklist = Nodes} = S) ->
 handle_call(gc_stats, _F, #state{gc_stats = Stats} = S) ->
     {reply, {ok, Stats}, S};
 
-handle_call({choose_write_nodes, K, Exclude}, _,
+handle_call({choose_write_nodes, K, Include, Exclude}, _,
             #state{nodes = N, write_blacklist = WBL, gc_blacklist = GBL} = S) ->
     BL = lists:umerge(WBL, GBL),
-    {reply, do_choose_write_nodes(N, K, [], Exclude, BL), S};
+    {reply, do_choose_write_nodes(N, K, Include, Exclude, BL), S};
 
 handle_call({new_blob, Obj, K, Exclude}, _,
             #state{nodes = N, gc_blacklist = GBL, write_blacklist = WBL} = S) ->
