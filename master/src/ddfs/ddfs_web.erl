@@ -107,7 +107,7 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
             false -> BlobK;
             {_, X} -> list_to_integer(X)
     end,
-    Exc = parse_exclude(lists:keysearch("exclude", 1, QS)),
+    Exc = parse_inclusion(lists:keysearch("exclude", 1, QS)),
     case ddfs:new_blob(ddfs_master, BlobName, K, Exc) of
         {ok, Urls} when length(Urls) < K ->
             Req:respond({403, [], ["Not enough nodes for replicas."]});
@@ -299,7 +299,7 @@ process_payload(Fun, Req) ->
     catch _:_ -> Req:respond({403, [], ["Invalid request."]})
     end.
 
--spec parse_exclude('false' | {'value', {_, string()}}) -> [node()].
-parse_exclude(false) -> [];
-parse_exclude({value, {_, ExcStr}}) ->
-    [disco:slave_safe(Host) || Host <- string:tokens(ExcStr, ",")].
+-spec parse_inclusion('false' | {'value', {_, string()}}) -> [node()].
+parse_inclusion(false) -> [];
+parse_inclusion({value, {_, Str}}) ->
+    [disco:slave_safe(Host) || Host <- string:tokens(Str, ",")].
