@@ -207,7 +207,7 @@ handle_call(gc_stats, _F, #state{gc_stats = Stats} = S) ->
 handle_call({choose_write_nodes, K, Exclude}, _,
             #state{nodes = N, write_blacklist = WBL, gc_blacklist = GBL} = S) ->
     BL = lists:umerge(WBL, GBL),
-    {reply, do_choose_write_nodes(N, K, Exclude, BL), S};
+    {reply, do_choose_write_nodes(N, K, [], Exclude, BL), S};
 
 handle_call({new_blob, Obj, K, Exclude}, _,
             #state{nodes = N, gc_blacklist = GBL, write_blacklist = WBL} = S) ->
@@ -296,9 +296,11 @@ do_get_readable_nodes(Nodes, ReadBlacklist) ->
     ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
     {ok, gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
--spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()]) ->
+-spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
                                    {ok, [node()]}.
-do_choose_write_nodes(Nodes, K, Exclude, BlackList) ->
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
+    % Include is the list of nodes that must be included
+    %
     % Node selection algorithm:
     % 1. try to choose K nodes randomly from all the nodes which have
     %    more than ?MIN_FREE_SPACE bytes free space available and which
@@ -308,10 +310,11 @@ do_choose_write_nodes(Nodes, K, Exclude, BlackList) ->
     Primary = ([N || {N, {Free, _Total}} <- Nodes, Free > ?MIN_FREE_SPACE / 1024]
                -- (Exclude ++ BlackList)),
     if length(Primary) >= K ->
-            {ok, disco_util:choose_random(Primary, K)};
+            {ok, Include ++ disco_util:choose_random(Primary -- Include , K - length(Include))};
        true ->
             Preferred = [N || {N, _} <- lists:reverse(lists:keysort(2, Nodes))],
-            Secondary = lists:sublist(Preferred -- (Exclude ++ BlackList), K),
+            Secondary = Include ++ lists:sublist(Preferred -- (Include ++ Exclude ++ BlackList),
+                                                 K - length(Include)),
             {ok, Secondary}
     end.
 
@@ -321,7 +324,7 @@ do_choose_write_nodes(Nodes, K, Exclude, BlackList) ->
 do_new_blob(_Obj, K, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;
 do_new_blob(Obj, K, Exclude, BlackList, Nodes) ->
-    {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, Exclude, BlackList),
+    {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, [], Exclude, BlackList),
     Urls = [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj]
             || N <- WriteNodes],
     {ok, Urls}.
