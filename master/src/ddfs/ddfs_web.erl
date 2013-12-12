@@ -108,7 +108,8 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
             {_, X} -> list_to_integer(X)
     end,
     Exc = parse_inclusion(lists:keysearch("exclude", 1, QS)),
-    case ddfs:new_blob(ddfs_master, BlobName, K, Exc) of
+    Inc = parse_inclusion(lists:keysearch("include", 1, QS)),
+    case ddfs:new_blob(ddfs_master, BlobName, K, Inc, Exc) of
         {ok, Urls} when length(Urls) < K ->
             Req:respond({403, [], ["Not enough nodes for replicas."]});
         too_many_replicas ->
