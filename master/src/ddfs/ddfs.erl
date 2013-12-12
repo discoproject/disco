@@ -5,18 +5,18 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
--export([new_blob/4, tags/2, get_tag/4, update_tag/5, update_tag_delayed/5,
+-export([new_blob/5, tags/2, get_tag/4, update_tag/5, update_tag_delayed/5,
          replace_tag/5, delete/3, delete_attrib/4]).
 
 % dummy
 -type state() :: none.
 
--spec new_blob(server(), string(), non_neg_integer(), [node()])
+-spec new_blob(server(), string(), non_neg_integer(), [node()], [node()])
               -> invalid_name | too_many_replicas | {ok, [string()]} | _.
-new_blob(Server, Blob, Replicas, Exclude) ->
+new_blob(Server, Blob, Replicas, Include, Exclude) ->
     validate(Blob, fun() ->
                        Obj = lists:flatten([Blob, "$", ddfs_util:timestamp()]),
-                       ddfs_master:new_blob(Server, Obj, Replicas, Exclude)
+                       ddfs_master:new_blob(Server, Obj, Replicas, Include, Exclude)
                    end).
 
 -spec tags(server(), binary()) -> {ok, [binary()]} | {error, term()}.
