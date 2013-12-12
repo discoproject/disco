@@ -9,7 +9,7 @@
          gc_blacklist/0, gc_blacklist/1,
          gc_stats/0,
          choose_write_nodes/3,
-         new_blob/3, new_blob/4,
+         new_blob/4, new_blob/5,
          safe_gc_blacklist/0, safe_gc_blacklist/1,
          refresh_tag_cache/0,
          tag_notify/2,
@@ -114,15 +114,15 @@ get_tags(Mode) ->
 get_tags(Server, Mode, Timeout) ->
     gen_server:call(Server, {get_tags, Mode}, Timeout).
 
--spec new_blob(string()|object_name(), non_neg_integer(), [node()]) ->
+-spec new_blob(string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
-new_blob(Obj, K, Exclude) ->
-    gen_server:call(?MODULE, {new_blob, Obj, K, Exclude}).
+new_blob(Obj, K, Include, Exclude) ->
+    gen_server:call(?MODULE, {new_blob, Obj, K, Include, Exclude}).
 
--spec new_blob(server(), string()|object_name(), non_neg_integer(), [node()]) ->
+-spec new_blob(server(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
-new_blob(Master, Obj, K, Exclude) ->
-    gen_server:call(Master, {new_blob, Obj, K, Exclude}).
+new_blob(Master, Obj, K, Include, Exclude) ->
+    gen_server:call(Master, {new_blob, Obj, K, Include, Exclude}).
 
 -spec safe_gc_blacklist() -> {ok, [node()]} | {error, term()}.
 safe_gc_blacklist() ->
@@ -209,10 +209,10 @@ handle_call({choose_write_nodes, K, Include, Exclude}, _,
     BL = lists:umerge(WBL, GBL),
     {reply, do_choose_write_nodes(N, K, Include, Exclude, BL), S};
 
-handle_call({new_blob, Obj, K, Exclude}, _,
+handle_call({new_blob, Obj, K, Include, Exclude}, _,
             #state{nodes = N, gc_blacklist = GBL, write_blacklist = WBL} = S) ->
     BL = lists:umerge(WBL, GBL),
-    {reply, do_new_blob(Obj, K, Exclude, BL, N), S};
+    {reply, do_new_blob(Obj, K, Include, Exclude, BL, N), S};
 
 handle_call({tag, _M, _Tag}, _From, #state{nodes = []} = S) ->
     {reply, {error, no_nodes}, S};
@@ -319,12 +319,12 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
     end.
 
 -type new_blob_result() :: too_many_replicas | {ok, [nonempty_string()]}.
--spec do_new_blob(string()|object_name(), non_neg_integer(), [node()], [node()], [node_info()]) ->
+-spec do_new_blob(string()|object_name(), non_neg_integer(), [node()], [node()], [node()], [node_info()]) ->
                          new_blob_result().
-do_new_blob(_Obj, K, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
+do_new_blob(_Obj, K, _Include, _Exclude, _BlackList, Nodes) when K > length(Nodes) ->
     too_many_replicas;
-do_new_blob(Obj, K, Exclude, BlackList, Nodes) ->
-    {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, [], Exclude, BlackList),
+do_new_blob(Obj, K, Include, Exclude, BlackList, Nodes) ->
+    {ok, WriteNodes} = do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList),
     Urls = [["http://", disco:host(N), ":", get(put_port), "/ddfs/", Obj]
             || N <- WriteNodes],
     {ok, Urls}.
