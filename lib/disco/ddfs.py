@@ -120,6 +120,7 @@ class DDFS(object):
 
     def chunk(self, tag, urls,
               replicas=None,
+              forceon=[],
               retries=10,
               delayed=False,
               update=False,
@@ -144,7 +145,7 @@ class DDFS(object):
             return self.safe_name('{0}-{1}'.format(os.path.basename(url), n))
 
         blobs = [self._push((BytesIO(chunk), chunk_name(reps, n)),
-                            replicas=replicas,
+                            replicas=replicas, forceon=forceon,
                             retries=retries)
                  for reps in urls
                  for n, chunk in enumerate(chunk_iter(reps))]
@@ -243,6 +244,7 @@ class DDFS(object):
              tag,
              files,
              replicas=None,
+             forceon=[],
              retries=10,
              delayed=False,
              update=False,
@@ -265,7 +267,7 @@ class DDFS(object):
                 source, target = tuple_or_path
             return source, target
 
-        urls = [self._push(aim(f), replicas=replicas, retries=retries)
+        urls = [self._push(aim(f), replicas=replicas, forceon=forceon, retries=retries)
                 for f in files]
         return self.tag(tag, urls, delayed=delayed, update=update, token=token), urls
 
@@ -369,9 +371,10 @@ class DDFS(object):
             dst.write(b)
         return s
 
-    def _push(self, source_target, replicas=None, exclude=[], **kwargs):
+    def _push(self, source_target, replicas=None, forceon=[], exclude=[], **kwargs):
         source, target = source_target
         qs = urlencode([(k, v) for k, v in (('exclude', ','.join(exclude)),
+                                            ('include', ','.join(forceon)),
                                             ('replicas', replicas)) if v])
         urls = self._download('{0}/ddfs/new_blob/{1}?{2}'
                               .format(self.master, target, qs))
@@ -382,6 +385,7 @@ class DDFS(object):
             scheme, (host, port), path = urlsplit(e.url)
             return self._push((source, target),
                               replicas=replicas,
+                              forceon=forceon,
                               exclude=exclude + [host],
                               **kwargs)
 
