@@ -108,19 +108,17 @@ op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
             {_, X} -> list_to_integer(X)
     end,
     Exc = parse_inclusion(lists:keysearch("exclude", 1, QS)),
-    Inc = parse_inclusion(lists:keysearch("include", 1, QS)),
-    case ddfs:new_blob(ddfs_master, BlobName, K, Inc, Exc) of
-        {ok, Urls} when length(Urls) < K ->
-            Req:respond({403, [], ["Not enough nodes for replicas."]});
-        too_many_replicas ->
-            Req:respond({403, [], ["Not enough nodes for replicas."]});
-        invalid_name ->
-            Req:respond({403, [], ["Invalid prefix."]});
-        {ok, Urls} ->
-            okjson([list_to_binary(U) || U <- Urls], Req);
-        E ->
-            lager:warning("/ddfs/new_blob failed: ~p", [E]),
-            on_error(E, Req)
+    Include = lists:keysearch("include", 1, QS),
+    Inc = parse_inclusion(Include),
+    case {Include, Inc} of
+        {false, [_H|_T]} ->
+            Req:respond({403, [], ["This must not happen."]});
+        {false, _} ->
+            new_blob(Req, BlobName, K, Inc, Exc);
+        {_, [false]} ->
+            Req:respond({403, [], ["Requested Replica not found."]});
+        {_, [_H|_T]} ->
+            new_blob(Req, BlobName, K, Inc, Exc)
     end;
 
 op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
@@ -304,3 +302,20 @@ process_payload(Fun, Req) ->
 parse_inclusion(false) -> [];
 parse_inclusion({value, {_, Str}}) ->
     [disco:slave_safe(Host) || Host <- string:tokens(Str, ",")].
+
+-spec new_blob(module(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
+                      too_many_replicas | {ok, [nonempty_string()]}.
+new_blob(Req, BlobName, K, Inc, Exc) ->
+    case ddfs:new_blob(ddfs_master, BlobName, K, Inc, Exc) of
+        {ok, Urls} when length(Urls) < K ->
+            Req:respond({403, [], ["Not enough nodes for replicas."]});
+        too_many_replicas ->
+            Req:respond({403, [], ["Not enough nodes for replicas."]});
+        invalid_name ->
+            Req:respond({403, [], ["Invalid prefix."]});
+        {ok, Urls} ->
+            okjson([list_to_binary(U) || U <- Urls], Req);
+        E ->
+            lager:warning("/ddfs/new_blob failed: ~p", [E]),
+            on_error(E, Req)
+    end.
