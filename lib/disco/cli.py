@@ -37,6 +37,8 @@ class OptionParser(clx.OptionParser):
         clx.OptionParser.__init__(self, option_class=Option, **kwargs)
         self.add_option('-t', '--token',
                         help='authorization token to use for tags')
+        self.add_option('-M', '--master',
+                        help='set master of ddfs')
 
 class Program(clx.Program):
     def __init__(self, *args, **kwargs):
@@ -45,6 +47,13 @@ class Program(clx.Program):
         if token is not None:
             self.settings['DDFS_READ_TOKEN']  = token
             self.settings['DDFS_WRITE_TOKEN'] = token
+
+        master = self.options.master
+        if master is not None:
+            if master.find(':') == -1:
+                port = self.settings['DISCO_PORT']
+                master += ':' + str(port)
+            self.settings['DISCO_MASTER'] = master
 
     @classmethod
     def add_classic_reads(cls, command):
