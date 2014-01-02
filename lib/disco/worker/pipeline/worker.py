@@ -31,6 +31,12 @@ from disco import util, worker
 from disco.worker import task_io
 from disco import JOBPACK_VERSION2
 
+def SerialInput(inputs):
+    for inp in inputs:
+        for k, v in inp:
+            yield k, v
+
+
 def input_hook(state, input_labels):
     """The default input label hook for a stage does no re-ordering of the labels."""
     return input_labels
@@ -90,7 +96,8 @@ class Stage(object):
                        output files.
     """
     def __init__(self, name='', init=None, process=None, done=None,
-                 input_hook=input_hook, input_chain=[], output_chain=[]):
+                 input_hook=input_hook, input_chain=[], output_chain=[],
+                 combine=False, sort=False):
         self.name = name
         self.init = init
         self.done = done
@@ -99,6 +106,8 @@ class Stage(object):
         self.input_hook   = input_hook
         self.input_chain  = input_chain
         self.output_chain = output_chain
+        self.combine = combine
+        self.sort = sort
 
     pipeline_input_chain = [task_io.task_input_stream]
     interior_input_chain = [task_io.task_input_stream, task_io.chain_reader]
@@ -247,6 +256,11 @@ class Worker(worker.Worker):
             map[l].append(i)
         return map
 
+    def sort(self, input, task):
+        from disco.util import disk_sort
+        return disk_sort(None, input,
+                         task.path('sort.dl'),
+                         sort_buffer_size='10%')
     def run_stage(self, task, stage, params):
         # Call the various entry points of the stage task in order.
         interface = self.make_interface(task, stage, params)
@@ -254,8 +268,15 @@ class Worker(worker.Worker):
         if callable(stage.process):
             input_map = self.prepare_input_map(task, stage, params)
             for label in stage.input_hook(state, input_map.keys()):
-                for inp in input_map[label]:
-                    stage.process(interface, state, label, inp)
+                if stage.combine:
+                    if stage.sort:
+                        stage.process(interface, state, label,
+                            self.sort(SerialInput(input_map[label]), task))
+                    else:
+                        stage.process(interface, state, label, SerialInput(input_map[label]))
+                else:
+                    for inp in input_map[label]:
+                        stage.process(interface, state, label, inp)
         if callable(stage.done):
             stage.done(interface, state)
 

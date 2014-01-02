@@ -415,6 +415,7 @@ class Worker(worker.Worker):
             self['reduce'](entries, output, params)
 
     def sort(self, input, task):
+        from disco.util import disk_sort
         if self['sort']:
             return disk_sort(self,
                              input,

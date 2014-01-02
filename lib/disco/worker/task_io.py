@@ -300,6 +300,7 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
                 yield x[0]
 
     """
+    import re
     item_re = re.compile(item_re_str)
     buf = b""
     tot = 0
