@@ -349,6 +349,24 @@ def unix_sort(filename, sort_buffer_size='10%'):
         raise DataError("Sorting {0} failed: {1}".format(filename, e), filename)
 
 
+def sort_reader(fd, fname, read_buffer_size=8192):
+    buf = b""
+    while True:
+        r = fd.read(read_buffer_size)
+        if not len(r):
+            break
+        if len(buf) > read_buffer_size:
+            raise DataError("Could not parse the sorted file.", fname)
+        buf += r
+        keyValues = buf.split(b"\x00")
+        buf = keyValues[-1]
+        for keyValue in keyValues[:-1]:
+            key, value = keyValue.split(b"\xff")
+            yield key, value
+
+    if len(buf):
+        raise DataError("Could not parse the tail of the sorted file.", fname)
+
 def disk_sort(worker, input, filename, sort_buffer_size='10%'):
     from os.path import getsize
     from disco.comm import open_local
@@ -374,5 +392,5 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
     if worker:
         worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
-    for k, v in re_reader(b"(?s)(.*?)\xff(.*?)\x00", fd, len(fd), fd.url):
+    for k, v in sort_reader(fd, fd.url):
         yield k, pickle_loads(v)
