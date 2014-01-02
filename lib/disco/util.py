@@ -14,6 +14,7 @@ import os, sys, time
 import functools, gzip
 
 from disco.compat import BytesIO, basestring, bytes_to_str
+from disco.compat import pickle_loads, pickle_dumps, sort_cmd
 from itertools import chain, groupby, repeat
 
 from disco.error import DiscoError, DataError, CommError
@@ -334,3 +335,44 @@ def format_size(num):
         if num < 1024.:
             return "{0:3.1f}{1}".format(num, unit)
         num /= 1024.
+
+def unix_sort(filename, sort_buffer_size='10%'):
+    import subprocess, os.path
+    if not os.path.isfile(filename):
+        raise DataError("Invalid sort input file {0}".format(filename), filename)
+    try:
+        env = os.environ.copy()
+        env['LC_ALL'] = 'C'
+        cmd, shell = sort_cmd(filename, sort_buffer_size)
+        subprocess.check_call(cmd, env=env, shell=shell)
+    except subprocess.CalledProcessError as e:
+        raise DataError("Sorting {0} failed: {1}".format(filename, e), filename)
+
+
+def disk_sort(worker, input, filename, sort_buffer_size='10%'):
+    from os.path import getsize
+    from disco.comm import open_local
+    from disco.fileutils import AtomicFile
+    from disco.worker.task_io import re_reader
+    if worker:
+        worker.send('MSG', "Downloading {0}".format(filename))
+    out_fd = AtomicFile(filename)
+    for key, value in input:
+        if not isinstance(key, bytes):
+            raise ValueError("Keys must be bytes for external sort", key)
+        if b'\xff' in key or b'\x00' in key:
+            raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
+        else:
+            # value pickled using protocol 0 will always be printable ASCII
+            out_fd.write(key + b'\xff')
+            out_fd.write(pickle_dumps(value, 0) + b'\x00')
+    out_fd.close()
+    if worker:
+        worker.send('MSG', "Downloaded {0:s} OK".format(format_size(getsize(filename))))
+        worker.send('MSG', "Sorting {0}...".format(filename))
+    unix_sort(filename, sort_buffer_size=sort_buffer_size)
+    if worker:
+        worker.send('MSG', ("Finished sorting"))
+    fd = open_local(filename)
+    for k, v in re_reader(b"(?s)(.*?)\xff(.*?)\x00", fd, len(fd), fd.url):
+        yield k, pickle_loads(v)
