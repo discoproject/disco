@@ -161,6 +161,8 @@ class Connection(object):
             return 0
         if self.response.getheader('content-range', None) != None:
             return int(self.response.getheader('content-range').split('/')[1])
+        elif self.response.getheader('transfer-encoding') == 'chunked':
+            return len(self.buf)
         return int(self.response.getheader('content-length', 0))
 
     def close(self):
