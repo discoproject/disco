@@ -349,6 +349,18 @@ def unix_sort(filename, sort_buffer_size='10%'):
         raise DataError("Sorting {0} failed: {1}".format(filename, e), filename)
 
 
+def encode(p0):
+    p1 = p0.replace(b'\x01', b'\x01\x01')
+    p2 = p1.replace(b'\x02', b'\x02\x02')
+    p3 = p2.replace(b'\x00', b'\x02\x01\x02')
+    return p3
+
+def decode(p0):
+    p1 = p0.replace(b'\x02\x01\x02', b'\x00')
+    p2 = p1.replace(b'\x02\x02', b'\x02')
+    p3 = p2.replace(b'\x01\x01', b'\x01')
+    return p3
+
 def sort_reader(fd, fname, read_buffer_size=8192):
     buf = b""
     while True:
@@ -383,7 +395,7 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
         else:
             # value pickled using protocol 0 will always be printable ASCII
             out_fd.write(key + b'\xff')
-            out_fd.write(pickle_dumps(value, 0) + b'\x00')
+            out_fd.write(encode(pickle_dumps(value, 0)) + b'\x00')
     out_fd.close()
     if worker:
         worker.send('MSG', "Downloaded {0:s} OK".format(format_size(getsize(filename))))
@@ -393,4 +405,4 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
         worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
     for k, v in sort_reader(fd, fd.url):
-        yield k, pickle_loads(v)
+        yield k, decode(pickle_loads(v))
