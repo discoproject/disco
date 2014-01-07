@@ -36,6 +36,7 @@ write_pid(PidFile) ->
 start(_Type, _Args) ->
     ok = application:start(compiler),
     ok = application:start(syntax_tools),
+    ok = application:start(goldrush),
     ok = application:start(lager),
     ok = inets:start(),
     init_settings(),
