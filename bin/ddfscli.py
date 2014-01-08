@@ -129,12 +129,16 @@ def chunk(program, tag, *urls):
                                     input_stream=stream,
                                     reader=reader,
                                     replicas=program.options.replicas,
+                                    forceon=[] if not program.options.forceon else
+                                        [program.options.forceon],
                                     update=program.options.update)
     for replicas in blobs:
         print('created: {0}'.format('\t'.join(replicas)))
 
 chunk.add_option('-n', '--replicas',
                  help='number of replicas to create')
+chunk.add_option('-F', '--forceon',
+                 help='The node we want a replica on.')
 chunk.add_option('-u', '--update',
                  action='store_true',
                  help='whether to perform an update or an append')
@@ -268,6 +272,7 @@ def push(program, tag, *files):
     """
     replicas = program.options.replicas
     tarballs = program.options.tarballs
+    forceon= [] if not program.options.forceon else [program.options.forceon]
 
     blobs = [] if tarballs else [file for file in files
                                  if os.path.isfile(file)]
@@ -287,7 +292,7 @@ def push(program, tag, *files):
             else:
                 print("{0} is a directory (not pushing).".format(file))
     print("pushing...")
-    program.ddfs.push(tag, blobs, replicas=replicas)
+    program.ddfs.push(tag, blobs, replicas=replicas, forceon=forceon)
 
 push.add_option('-E', '--exclude',
                 help='exclude tar blobs that contain string')
@@ -295,6 +300,8 @@ push.add_option('-I', '--include',
                 help='include tar blobs that contain string')
 push.add_option('-n', '--replicas',
                 help='number of replicas to create')
+push.add_option('-F', '--forceon',
+                 help='The node we want a replica on.')
 push.add_option('-r', '--recursive',
                 action='store_true',
                 help='recursively push directories')
