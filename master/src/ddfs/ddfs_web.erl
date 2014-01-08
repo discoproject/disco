@@ -101,24 +101,29 @@ op('GET', "/ddfs/ctrl/safe_gc_blacklist", Req) ->
     end;
 
 op('GET', "/ddfs/new_blob/" ++ BlobName, Req) ->
-    BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
-    QS = Req:parse_qs(),
-    K = case lists:keyfind("replicas", 1, QS) of
-            false -> BlobK;
-            {_, X} -> list_to_integer(X)
-    end,
-    Exc = parse_inclusion(lists:keysearch("exclude", 1, QS)),
-    Include = lists:keysearch("include", 1, QS),
-    Inc = parse_inclusion(Include),
-    case {Include, Inc} of
-        {false, [_H|_T]} ->
-            Req:respond({403, [], ["This must not happen."]});
-        {false, _} ->
-            new_blob(Req, BlobName, K, Inc, Exc);
-        {_, [false]} ->
-            Req:respond({403, [], ["Requested Replica not found."]});
-        {_, [_H|_T]} ->
-            new_blob(Req, BlobName, K, Inc, Exc)
+    case is_ddfs_write_allowed() of
+        false ->
+            Req:respond({403, [], ["DDFS is in read only mode."]});
+        true ->
+            BlobK = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
+            QS = Req:parse_qs(),
+            K = case lists:keyfind("replicas", 1, QS) of
+                    false -> BlobK;
+                    {_, X} -> list_to_integer(X)
+            end,
+            Exc = parse_inclusion(lists:keysearch("exclude", 1, QS)),
+            Include = lists:keysearch("include", 1, QS),
+            Inc = parse_inclusion(Include),
+            case {Include, Inc} of
+                {false, [_H|_T]} ->
+                    Req:respond({403, [], ["This must not happen."]});
+                {false, _} ->
+                    new_blob(Req, BlobName, K, Inc, Exc);
+                {_, [false]} ->
+                    Req:respond({403, [], ["Requested Replica not found."]});
+                {_, [_H|_T]} ->
+                    new_blob(Req, BlobName, K, Inc, Exc)
+            end
     end;
 
 op('GET', "/ddfs/tags" ++ Prefix0, Req) ->
@@ -154,60 +159,80 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
     end;
 
 op('POST', "/ddfs/tag/" ++ Tag, Req) ->
-    Token = parse_auth_token(Req),
-    QS = Req:parse_qs(),
-    Opt = if_set("update", QS, [nodup], []),
-    process_payload(
-      fun(Urls, _Size) ->
-              case is_set("delayed", QS) of
-                  true ->
-                      ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token, Opt);
-                  false ->
-                      ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
-              end
-      end, Req);
+    case is_ddfs_write_allowed() of
+        false ->
+            Req:respond({403, [], ["DDFS is in read only mode."]});
+        true ->
+            Token = parse_auth_token(Req),
+            QS = Req:parse_qs(),
+            Opt = if_set("update", QS, [nodup], []),
+            process_payload(
+                fun(Urls, _Size) ->
+                        case is_set("delayed", QS) of
+                            true ->
+                                ddfs:update_tag_delayed(ddfs_master, Tag, Urls, Token, Opt);
+                            false ->
+                                ddfs:update_tag(ddfs_master, Tag, Urls, Token, Opt)
+                        end
+                end, Req)
+    end;
 
 op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     % for backward compatibility, return urls if no attribute is specified
-    {Tag, Attrib} = parse_tag_attribute(TagAttrib, urls),
-    Token = parse_auth_token(Req),
-    case Attrib of
-        unknown_attribute ->
-            Req:respond({404, [], ["Tag attribute not found."]});
-        {user, AttribName} when size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
-            Req:respond({403, [], ["Attribute name too big."]});
-        _ ->
-            Op = fun(Value, Size) ->
-                     case Attrib of
-                         {user, _} when Size > ?MAX_TAG_ATTRIB_VALUE_SIZE ->
-                             Req:respond({403, [], ["Attribute value too big."]});
-                         _ ->
-                             ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
-                                              Token)
-                     end
-                 end,
-            process_payload(Op, Req)
+    case is_ddfs_write_allowed() of
+        false ->
+            Req:respond({403, [], ["DDFS is in read only mode."]});
+        true ->
+            case is_ddfs_write_allowed() of
+                false ->
+                    Req:respond({403, [], ["DDFS is in read only mode."]});
+                true ->
+                    {Tag, Attrib} = parse_tag_attribute(TagAttrib, urls),
+                    Token = parse_auth_token(Req),
+                    case Attrib of
+                        unknown_attribute ->
+                            Req:respond({404, [], ["Tag attribute not found."]});
+                        {user, AttribName} when size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
+                            Req:respond({403, [], ["Attribute name too big."]});
+                        _ ->
+                            Op = fun(Value, Size) ->
+                                     case Attrib of
+                                         {user, _} when Size > ?MAX_TAG_ATTRIB_VALUE_SIZE ->
+                                             Req:respond({403, [], ["Attribute value too big."]});
+                                         _ ->
+                                             ddfs:replace_tag(ddfs_master, Tag, Attrib, Value,
+                                                              Token)
+                                     end
+                                 end,
+                            process_payload(Op, Req)
+                    end
+            end
     end;
 
 op('DELETE', "/ddfs/tag/" ++ TagAttrib, Req) ->
-    {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
-    Token = parse_auth_token(Req),
-    case Attrib of
-        unknown_attribute ->
-            Req:respond({404, [], ["Tag attribute not found."]});
-        all ->
-            case ddfs:delete(ddfs_master, Tag, Token) of
-                ok ->
-                    Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
-                E ->
-                    on_error(E, Req)
-            end;
-        _ ->
-            case ddfs:delete_attrib(ddfs_master, Tag, Attrib, Token) of
-                ok ->
-                    Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
-                E ->
-                    on_error(E, Req)
+    case is_ddfs_write_allowed() of
+        false ->
+            Req:respond({403, [], ["DDFS is in read only mode."]});
+        true ->
+            {Tag, Attrib} = parse_tag_attribute(TagAttrib, all),
+            Token = parse_auth_token(Req),
+            case Attrib of
+                unknown_attribute ->
+                    Req:respond({404, [], ["Tag attribute not found."]});
+                all ->
+                    case ddfs:delete(ddfs_master, Tag, Token) of
+                        ok ->
+                            Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
+                        E ->
+                            on_error(E, Req)
+                    end;
+                _ ->
+                    case ddfs:delete_attrib(ddfs_master, Tag, Attrib, Token) of
+                        ok ->
+                            Req:ok({"application/json", [], mochijson2:encode(<<"deleted">>)});
+                        E ->
+                            on_error(E, Req)
+                    end
             end
     end;
 
@@ -318,4 +343,14 @@ new_blob(Req, BlobName, K, Inc, Exc) ->
         E ->
             lager:warning("/ddfs/new_blob failed: ~p", [E]),
             on_error(E, Req)
+    end.
+
+-spec is_ddfs_write_allowed() -> true | false.
+
+is_ddfs_write_allowed() ->
+    case application:get_env(accept_ddfs_writes) of
+        {ok, 0} ->
+            false;
+        _ ->
+            true
     end.

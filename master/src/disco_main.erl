@@ -23,6 +23,7 @@ set_env(Key, Default) ->
 
 init_settings() ->
     set_env(accept_new_jobs, 1),
+    set_env(accept_ddfs_writes, 1),
     set_env(max_failure_rate, ?TASK_MAX_FAILURES).
 
 -spec write_pid(path()) -> ok.

@@ -78,10 +78,16 @@
                 Max failures per task:
                 <input size="4" class="setting" id="max_failure_rate" value="" />
                 <br/>
-                Cluster accepts new jobs:
+                Disco Operation Mode:
                 <select class="setting" id="accept_new_jobs">
-                    <option value="1">Yes</option>
-                    <option value="0">No</option>
+                    <option value="1">Normal</option>
+                    <option value="0">Maintenance</option>
+                </select>
+                <br/>
+                DDFS mode:
+                <select class="setting" id="accept_ddfs_writes">
+                    <option value="1">Read and Write</option>
+                    <option value="0">Read Only</option>
                 </select>
                 <br/>
                 <a id="save_settings" href="#">save settings</a>

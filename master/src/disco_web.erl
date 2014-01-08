@@ -146,7 +146,7 @@ getop("get_gc_blacklist", _Query) ->
     {ok, [list_to_binary(disco:host(N)) || N <- Nodes]};
 
 getop("get_settings", _Query) ->
-    L = [max_failure_rate, accept_new_jobs],
+    L = [max_failure_rate, accept_new_jobs, accept_ddfs_writes],
     {ok, {struct, lists:filter(fun(X) -> is_tuple(X) end,
                                lists:map(
                                  fun(S) ->
@@ -270,6 +270,17 @@ update_setting(<<"max_failure_rate">>, Val, App) ->
 update_setting(<<"accept_new_jobs">>, Val, App) ->
     ok = application:set_env(App, accept_new_jobs,
                              list_to_integer(binary_to_list(Val)));
+
+update_setting(<<"accept_ddfs_writes">>, Val, App) ->
+    %if we disallow ddfs writes, the disco moves into maintenance too.
+    case Val of
+        <<"0">> -> application:set_env(App, accept_new_jobs,
+                list_to_integer(binary_to_list(Val)));
+        <<"1">> -> ok
+    end,
+    ok = application:set_env(App, accept_ddfs_writes,
+                             list_to_integer(binary_to_list(Val)));
+
 
 update_setting(Key, Val, _) ->
     lager:info("Unknown setting: ~p = ~p", [Key, Val]).
