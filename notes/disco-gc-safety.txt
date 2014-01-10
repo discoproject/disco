@@ -1,0 +1,371 @@
+Naming and Timing Assumptions
+=============================
+
+DDFS does not rely on all the cluster nodes having synchronized times.
+Instead, it uses the time at the master to compute timestamps, and
+these timestamps are appended to blob names to uniqify any new blobs
+added to the system.  For example, a blob named A pushed into DDFS at
+time T1 will be stored with a different internal blob name (A-T1) than
+another (or same) blob pushed at a later time T2 (which will use
+internal blob name A-T2).  In what follows, blob names will refer to
+these internal blob names unless explicitly stated otherwise.
+
+Internal naming of tags is implemented differently: tags are tracked
+using exactly the name given by the user; however, timestamps are used
+to different versions of the same tag.  Whenever a tag T is created or
+modified at time T1, the tag is stored in a new file named (T-T1).
+This makes it easy to find the latest version of any tag T by scanning
+all the nodes in DDFS.
+
+Hence, one key assumption made in DDFS is that the time at the master
+increases monotonically.  This assumption is crucial, otherwise the
+uniqueness guarantee of the blob naming scheme breaks down, as does
+the versioning guarantee of the tag naming scheme.
+
+
+Garbage Collection (GC)
+=======================
+
+It would be nice to check the following safety and liveness properties
+of GC in a model-checking environment, preferably directly using
+the source-code via PropEr/Concuerror or McErlang, or via a formal
+model, e.g. using say Maude.
+
+- Map Safety:
+
+ If GC is not able to build a map safely, it should fail (i.e. not
+ perform any destructive operation like deleting a blob or deleting or
+ modifying a tag).  Map building involves:
+
+ . getting a list of active (i.e. non-deleted) tags
+
+ . getting the content (contained tags or blobs) of each active tag
+
+ For the map to be safe, each of these operations needs to be
+ performed safely.  Any of these operations cannot be performed safely
+ if DDFS_TAG_MIN_REPLICAS or more nodes are down.
+
+ The map GC builds with the above information should be a "correct
+ snapshot" of the DDFS filesystem.  Since map building is not an
+ atomic operation, and DDFS can be actively used and modified_during_
+ GC's map building (i.e. tags could be added, modified and deleted
+ during the map building), we need to define "correct snapshot" here.
+ We define it loosely as:
+
+ . each tag in the list of active tags was active at some point after
+   GC entered build_map.  That is, it is okay if a tag was deleted by
+   a user after GC retrieved it as an active tag.  Since the
+   consequence is only that GC will not find garbage that was recently
+   created, safety is still preserved.  Liveness is ensured since the
+   next run of GC will find it.
+
+ . the version of each tag in the active list was current at some
+   point after GC entered build_map.  That is, it is okay if a tag was
+   modified after its contents were modified after GC retrieved them.
+   If blobs were removed by the modification, GC will not find
+   recently created garbage.  But newly added blobs will not appear in
+   the map, and should not be treated as garbage.  To ensure this,
+   when GC finds a potentially garbage blob, it does not delete it if
+   it was created within ORPHANED_BLOB_EXPIRES seconds.
+
+ However, any active tag that was created after GC retrieved the list
+ of active tags will not be present in the snapshot.  To avoid
+ treating such recently created tags as garbage, GC again does not
+ delete non-active tag if it was created within ORPHANED_TAG_EXPIRES.
+ This also applies in the case when existing tags are modified.
+
+ Note: this implies that the duration from the start of GC to the end
+ of GC's deletion phase should last less than
+ min(ORPHANED_{BLOB,TAG}_EXPIRES).
+
+ Map-Safety can be checked by examining the state of the entire DDFS
+ and comparing it to the map built by GC when it exits the map_wait
+ phase.
+
+- Deletion Safety:
+
+ The following properties should hold at the time of any deletion.
+
+ . Less than min(ORPHANED_{BLOB,TAG}_EXPIRES) should have transpired
+   since the start of GC.  (FIXME: This is currently not enforced in
+   the code!)
+
+ . GC should not delete a blob that is contained by an active tag in
+   the map.  (This will need to change once we start deleting
+   overly-replicated or dead blobs, see #310).
+
+ . GC should not delete a blob that was added by the user to DDFS
+   after GC started running, and is not contained in the map built by
+   GC.  See discussion of ORPHANED_BLOB_EXPIRES above.
+
+ . GC should not delete a tag that was added by the user to DDFS after
+   GC started running and is not contained in the map built by GC. See
+   discussion of ORPHANED_TAG_EXPIRES above.
+
+ . GC should not delete a tag file with a version that is later than
+   the one contained in the active map built by GC, which corresponds
+   to a tag modified by the user after GC started running.  See
+   discussion of ORPHANED_TAG_EXPIRES above.
+
+ . GC should delete a blob or tag if the above do not hold.  It is
+   important to note that the deletion of the tag or blob might fail.
+
+- Liveness of map building:
+
+ GC should be able to handle transient node failures, and make
+ progress on building the map after the node reconnects (upto a max
+ number of node failures).  It should handle transient and concurrent
+ failures of multiple nodes, as long as the Map-Safety rule above is
+ not violated.
+
+ Liveness can be tested by shooting down node connections during the
+ build_map and map_wait phases, and ensuring that a map still gets
+ built that satisfies Map-Safety.
+
+- Handling tag deletion:
+
+ Tags that are deleted are recorded in the '+deleted' "meta-tag",
+ ie. a tag whose only contents are the names of the tags that have
+ been deleted.  This record is kept since not all nodes that host
+ versions of a deleted tag T may be up at the time of deletion, and
+ when these nodes come back online, the rediscovery of any existing
+ versions of T on the nodes' DDFS volumes would effectively cause T to
+ appear to be a valid active tag if no record of deleted tags was
+ kept.  So the '+deleted' tag functions as a collection of tombstones,
+ that stay around so that the deletion information is eventually
+ propagated to all nodes in the cluster.
+
+ Like any tag, the +deleted tag is stored in a replicated fashion
+ across the cluster.
+
+ When a tag T is deleted, the only action that is taken is the
+ addition of the deleted tag's name T to the tombstone list in the
+ +deleted tag.  This ensures that T will be removed from the list
+ of active tags for any future DDFS operation.  The actual deletion of
+ any existing versions of T is done during the deletion phase of GC.
+
+ When a tag T is created by a DDFS user, either (i) the name T exists
+ as a tombstone for a previously deleted tag in +deleted, or (ii) the
+ name T is absent from +deleted, and hence is for all purposes a brand
+ new name to DDFS.  In case (i), the operation that creates tag T
+ should also remove T from +deleted.  Safety is ensured by sequencing
+ actions in the following order, with an action being performed only
+ if the previous action completed successfully:
+
+ . K copies of a new version of T are created with contents as
+   specified by the user
+
+ . T is removed from the +deleted tag
+
+ . a success indication is returned to the user
+
+ As tags get deleted, their names continue to get added to the
+ +deleted tag, and it needs to be pruned in a safe manner in order to
+ prevent its size from growing in an unbounded fashion.  This is done
+ by keeping in memory a table containing the tombstones found in a
+ version of the +deleted tag, and the time at which the tombstone was
+ first found.  This table is initialized in the first run of GC using
+ the tombstones in the version of +deleted current at that time, and
+ subsequently updated at each GC run with the contents of the latest
+ version of +deleted, and a list of _all_ non-active tags (i.e. tags
+ with existing versions who have tombstones in +deleted) found in
+ DDFS.  It is important to note that the latter list may be non-empty
+ due to any failures in deleting the files backing tag objects from
+ the native host filesystem (FIXME: this is currently not done in the
+ code!).
+
+ At each such table update,
+
+ . if a new tombstone is found in +deleted that is not present in the
+   table, a new table entry is created for it timestamped with the
+   current time
+
+ . the timestamp in the table for any tag in the non-active list (and
+   hence with a tombstone in +deleted) is updated to the current time.
+   This is done since there are still tags marked deleted but still
+   present in DDFS, most likely due to failures in deleting the
+   underlying file objects for the tag.
+
+ . any table entry that does not have a matching tombstone in the
+   latest +deleted, is deleted.  The absence of the tombstone in
+   +deleted indicates either that a tag with that name has been
+   created by the user since the previous update, or that the
+   tombstone has finally expired and been removed from +deleted (as in
+   the next step)
+
+ . if there is any other table entry that is older than
+   DELETED_TAG_EXPIRES, its corresponding tombstone is removed from
+   the +deleted tag since it has expired.  The table entry is
+   retained, and will be removed on the next update (unless the
+   +deleted tag could not be updated due to errors)
+
+
+Re-replication (RR)
+===================
+
+Once GC has run and the deletion phase has created some free disk
+space if possible, RR then creates additional replicas of blobs and
+tags if needed, the determination of need based on the DDFS snaphot
+map computed for GC, and the scanning of DDFS performed during the
+deletion phase of GC.
+
+- Blob re-replication
+
+ The list of active blobs (i.e. blobs referenced by active tags) is
+ derived from the GC map, and a blob table is built to track the
+ replicas for each blob.  These replicas are tracked using three
+ lists: (i) a list for replicas that are both recorded in the
+ containing tags as well as found during the GC scan, (ii) a list for
+ replicas that are not recorded in any containing tag, but were found
+ during the GC scan, and (iii) a list that records any new replicas
+ successfully created by the current RR run.  New replicas are created
+ and added to (iii) if the sum of the replicas in (i) and (ii) are
+ insufficient to meet the desired replica count.
+
+ Currently, the creation of only one new replica is initiated per blob
+ during a run of RR; this means that several runs of RR might be
+ required before all needed replicas are generated.  This restriction
+ can easily be removed, and the only reason for it was to do the
+ simplest thing first.
+
+ The creation of a new replica is initiated by selecting a source
+ replica at random from the known set in (i) and (ii), selecting a
+ suitable target node to host the new replica, and scheduling the
+ replication asynchronously.  The target node should not be known to
+ host an existing replica[*], and should not appear on the
+ node-removal blacklist (see below).  When the replication is
+ successfully completed, the location of the new replica is sent to
+ the GC/RR process, and the new location is added to (iii).
+
+ Since the creation of additional blob replicas is an inherently safe
+ operation, there are only liveness requirements for blob RR.  The
+ liveness of the current implementation could be improved by
+ initiating the creation of all additional needed replicas, instead of
+ just one.  The liveness of blob RR relies on the liveness of non-dead
+ DDFS nodes, which allows the quorum the regularly repeated running of RR
+
+ [*] Note that a node could have been down when the GC run began, but
+ then re-joined the cluster later but before RR initiated the replica
+ creation.  In this case, it is possible for the node to actually host
+ a replica that was not found during the GC scan; in this case, the
+ replication will fail.  The expectation is that this node will
+ eventually participate in GC, and its replica will be recovered and
+ recorded in any containing tag if necessary.
+
+- Tag re-replication and update
+
+ Since unlike blobs, a tag can be modified by user operations, any
+ update to a tag needs to take into account any modifications to the
+ tag performed after the GC/RR map was built.  Hence, any tag update
+ is applied to the latest version of the tag at the time of RR.
+
+ A tag might need updating for one or more of the following reasons:
+
+ . it needs to be updated to take into account newly recovered or
+   created replica locations for some of its blobs
+
+ . it needs to be updated to remove replica locations that refer to a
+   node on the node-removal list (or ddfs-blacklist).  This is done
+   only once sufficient replacement replicas have been successfully
+   created and recorded, and hence the safety of the removal is
+   assured[+].
+
+ . it has a fewer than desired number of replicas.  This case is
+   equivalent to updating the tag with an empty modification, since
+   tag update results in the attempt to store K replicas of the newly
+   modified tag.
+
+ For each tag, the updates for each blob present in a tag are
+ collected, and this set of blob updates is applied to the latest
+ version of the tag, and a new version of the updated tag is written.
+ A blob update in the update set is applied only if the blob is still
+ present in the tag.
+
+ The update for a blob is currently of one of two types:
+
+ . adding new replicas: These new replicas are merged with the current
+   replicas present in the tag.
+
+   One assumption here is that a user will not want to shrink the list
+   of replicas for a blob without removing the blob from the tag.
+   Such shrinking will not work, since the replica list will likely be
+   grown back with any recovered replicas at the next RR.
+
+ . removing a replica on a node in the node-removal list: The replica
+   is removed only if the tag has not been modified since GC started;
+   i.e. if the version of the tag at the time of GC is the latest
+   version of the tag at the time of RR.  This is a simple way of
+   ensuring that the safety check[+] performed at the time of
+   computing the tag update is still valid.  There are other
+   approaches to ensuring the validity of the safety check; however,
+   these require larger update messages from the GC/RR process (in
+   ddfs_gc_main) to the tag-update process (in ddfs_tag), especially
+   when a large number of blobs in each tag need such a node-removal
+   update, which is quite often the case in such updates.
+
+ We could add the additional following blob update type (FIXME: this
+ is currently not implemented, and is issue #310):
+
+ . removal of a dead replica location: A replica location can be
+   marked as dead when a node that participated in GC/RR does not
+   confirm the presence of a local replica that is recorded for the
+   blob in the tag.  Such a dead replica can be safely removed if the
+   blob otherwise still has the appropriate number of replicas.  The
+   validity of this safety check can be ensured at the time of
+   applying the update using the same version comparison mechanism as
+   used in the node-removal case.
+
+
+Node Removal
+============
+
+For a DDFS node to be safely removed from the cluster, the following
+conditions have to be satisfied:
+
+1. No new blobs or tags, or replicas of existing blobs or new versions
+   of existing tags, should be written to the node while the removal
+   is in progress.
+
+2. the blobs and tags already on the node need to be replicated to the
+   other nodes in the cluster, so that blob and tag replica quotas can
+   be met without counting the replicas hosted on the node.
+
+3. All references to blob replicas on the node should be removed from
+   their containing tags.
+
+The third step is safety-critical: for instance, it should not
+result in a reference to the last available blob being removed, in
+case the other replicas of the blob are on nodes that are currently
+down.
+
+A node pending removal is put on a 'blacklist'.  This blacklist is
+removed from the set of the candidate writable DDFS nodes for replica
+locations when new blobs or tags are created, or when existing ones
+are re-replicated.  This ensures (1).
+
+Any blob or tag replicas found on a blacklisted node are not counted
+towards satisfying their replica quotas (2), and blob and tag
+replication is initiated if those quotas are not met (in phase
+rr_blobs and rr_tags).  Once enough backup blob replicas are ensured
+to be available, a 'filter' update message is sent to the tag update
+process (in phase rr_tags) to remove any references to blob replicas
+hosted on the blacklisted node (3).
+
+The blob reference removal requires an invariant: that any operations
+on a tag do not modify the replica set for a blob in the tag, other
+than perhaps removing the replica set completely.  This is because the
+safety computation is not atomic with the reference removal.  If the
+replica set is modified (e.g. by removing some replicas from the set
+that were relied on by the safety check) after the safety check but
+before the reference removal, the removal becomes unsafe (as discussed
+as [+] above).  This invariant is ensured by comparing the version of
+the tag used for the safety check, with the tag version at the time of
+the filter operation.  If the two differ, the filter operation is not
+performed (as discussed in the node-removal blob update type above).
+
+In the tag RR phase of GC/RR, as the tags are scanned for updates, we
+also track whether there exist references to blob replicas on
+blacklisted nodes (i.e. nodes that are to be removed), and whether
+sufficient tag replicas exist on non-blacklisted nodes.  At the end of
+the phase, we then compute the set of blacklisted nodes that can be
+safely removed from DDFS.
