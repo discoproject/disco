@@ -1,7 +1,7 @@
 from disco import util
 from discodb import DiscoDB, Q
 
-def open(url, task=None):
+def Open(url, task=None):
     if task:
         disco_data = task.disco_data
         ddfs_data = task.ddfs_data
@@ -12,9 +12,8 @@ def open(url, task=None):
         ddfs_data = settings['DDFS_DATA']
     scheme, netloc, rest = util.urlsplit(url)
     path, rest = rest.split('!', 1) if '!' in rest else (rest, '')
-    discodb = DiscoDB.load(__builtins__.open(util.localize(path,
-                                                           disco_data=disco_data,
-                                                           ddfs_data=ddfs_data)))
+    discodb = DiscoDB.load(open(util.localize(path, disco_data=disco_data,
+                                ddfs_data=ddfs_data)))
 
     if rest:
         method_name, arg = rest.split('/', 1) if '/' in rest else (rest, None)
@@ -25,4 +24,4 @@ def open(url, task=None):
     return discodb
 
 def input_stream(fd, size, url, params):
-    return open(url, task=globals().get('Task')), size, url
+    return Open(url, task=globals().get('Task')), size, url
