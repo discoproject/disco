@@ -155,7 +155,7 @@ handle_cast({start, Inputs}, S) ->
 handle_cast({update_nodes, Hosts}, S) ->
     {noreply, do_update_nodes(Hosts, S)};
 handle_cast({inputs, {error, E}}, S) ->
-    % TODO: log an appropriate job event.
+    lager:warning("fetching inputs failed: ~p", [erlang:get_stacktrace()]),
     {stop, {"fetching inputs failed", E}, S#state{input_pid = none}};
 handle_cast({inputs, {ok, Inputs}}, S) ->
     {noreply, do_use_inputs(Inputs, S)};
