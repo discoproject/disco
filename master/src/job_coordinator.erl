@@ -50,7 +50,7 @@ new(JobPack) ->
 
 -spec start_job(pid(), binary()) -> ok | {error, term()}.
 start_job(Starter, JobPack) ->
-    case gen_server:start_link(?MODULE, {Starter, JobPack}, []) of
+    case gen_server:start(?MODULE, {Starter, JobPack}, []) of
         {ok, _Pid} -> ok;
         {error, _E} = E -> E
     end.
@@ -117,12 +117,8 @@ stage_done(Stage) ->
 
 -spec init({pid(), binary()}) -> gs_init() | {stop, term()}.
 init({Starter, JobPack}) ->
-    % Note: we cannot set trap_exit here, due to an implementation bug
-    % (IMHO) in Erlang.  If we do set it, we will get our terminate
-    % callback called when the inner spawned helper function in new()
-    % above terminates (normally or not).  The bug is that our
-    % terminate should get called _only_ when the helper does _not_
-    % terminate normally.
+    link(Starter),
+    process_flag(trap_exit, true),
     try  {#jobinfo{jobname = Name} = Info, Hosts} = setup_job(JobPack, self()),
          Starter ! {job_started, Name},
          event_server:event(Name, "Created job ~p", [Name], {job_data, Info}),
@@ -174,12 +170,11 @@ handle_cast({kill_job, Reason}, S) ->
 
 -spec handle_info(term(), state()) -> gs_noreply() | gs_stop(tuple()).
 handle_info({'EXIT', Pid, Reason}, #state{input_pid = Pid} = S) ->
-    % Note: this callback clause will never get called useless, due to
-    % the trap_exit issue mentioned above.  We leave it in here for
-    % clarity, and in case this issue is fixed.
     lager:warning("stopping due to input_pid (~p) failure: ~p (self ~p)",
                   [Pid, Reason, self()]),
     {stop, {"input_processor exited", Reason}, S#state{input_pid = none}};
+handle_info({'EXIT', _Pid, normal}, S) ->
+    {noreply, S};
 handle_info(M, S) ->
     lager:warning("Ignoring unexpected info event: ~p (self ~p)", [M, self()]),
     {noreply, S}.
