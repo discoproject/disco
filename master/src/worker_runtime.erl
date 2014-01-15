@@ -391,7 +391,7 @@ save_locals([{L, Loc, Sz} = _H | Rest], K, M, JN, TaskId, RunId, Acc) ->
 ddfs_save(_M, _B, _P, _K, 0, _) ->
     {error, too_many_save_failures};
 ddfs_save(M, BlobName, Path, K, Attempts, {Acc, Exclude}) ->
-    case ddfs_master:new_blob({ddfs_master, M}, BlobName, K, Exclude) of
+    case ddfs_master:new_blob({ddfs_master, M}, BlobName, K, [], Exclude) of
         {ok, Dests} ->
             error_logger:info_msg("Replicating ~s from ~p to ~p (excluding ~p)",
                                   [BlobName, Path, Dests, Exclude]),
