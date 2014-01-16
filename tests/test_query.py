@@ -6,12 +6,14 @@ import sys
 import csv
 from functools import partial
 
+PREFIX='/tmp/'
+
 def read(interface, state, label, inp):
     from disco import util
     for e in inp:
         scheme, netloc, _ = util.urlsplit(e)
         fileName, joinColumn = str(netloc).split('?')
-        File = open('/tmp/' + fileName, 'r')
+        File = open(PREFIX + fileName, 'r')
         col = int(joinColumn)
 
         reader = csv.reader(File)
@@ -94,26 +96,24 @@ class PipeJob(TestPipe):
     pipeline = _getPipeline()
 
 class JoinTestCase(TestCase):
-    """
-    The input files are cities.csv with the following content:
-        cities
-        Edmonton,-45
-        Calgary,-35
-        Montreal,-25
-        Toronto,-15
-
-    and packages.csv with the following content:
-        packages
-        0,2013-10-2,2013-11-3,Edmonton,Calgary
-        1,2013-11-3,2013-12-3,Calgary,Toronto
-        2,2013-10-4,2013-10-6,Edmonton,Montreal
-    """
     #input contains the file name and the join column
     input = ['raw://cities.csv?0', 'raw://packages.csv?3']
+
+    def SetUpFiles(self):
+        F1 = open(PREFIX + 'cities.csv', 'w')
+        F1.write("cities\nEdmonton,-45\nCalgary,-35\nMontreal,-25\nToronto,-15\n")
+        F1.close()
+
+        F2 = open(PREFIX + 'packages.csv', 'w')
+        F2.write("packages\n0,2013-10-2,2013-11-3,Edmonton,Calgary\n" +
+                 "1,2013-11-3,2013-12-3,Calgary,Toronto\n" +
+                 "2,2013-10-4,2013-10-6,Edmonton,Montreal\n")
+        F2.close()
 
     def serve(self, path):
         return path
 
     def test_per_node(self):
+        self.SetUpFiles()
         self.job = PipeJob().run(input=self.test_server.urls(self.input))
         self.assertEqual(sorted(self.results(self.job)), [('Calgary', 1), ('Edmonton', 2)])
