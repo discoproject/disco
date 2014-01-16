@@ -26,13 +26,13 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 def startServer():
     server_class = BaseHTTPServer.HTTPServer
-    httpd = server_class(('localhost', PORT), MyHandler)
+    httpd = server_class(('', PORT), MyHandler)
     httpd.handle_request()
     httpd.server_close()
 
 class RawTestCase(TestCase):
     def runTest(self):
         threading.Thread(target=startServer).start()
-        input = 'http://localhost:' + str(PORT)
+        input = 'http:' + self.disco.master.split(':')[1] + ":" + str(PORT)
         self.job = Job().run(input=[input], map=map, reduce=reduce)
         self.assertEqual(sorted(self.results(self.job)), [('Hello', 1), ('World', 1)])
