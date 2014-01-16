@@ -36,7 +36,6 @@
 -define(ERROR_TIMEOUT, 10 * 1000).
 -define(MESSAGE_TIMEOUT, 30 * 1000).
 -define(MAX_ERROR_BUFFER_SIZE, 100 * 1024).
--define(LOG_PROTOCOL, false).
 
 -spec start_link_remote(host(), pid(), task()) -> no_return().
 start_link_remote(Host, NodeMon, Task) ->
@@ -182,16 +181,15 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 -spec proto_log(task(), to|from, nonempty_string(), [term()]) -> ok.
+-ifdef(LOG_PROTOCOL).
 proto_log(T, Dir, Format, Args) ->
-    case ?LOG_PROTOCOL of
-        true ->
-            {#task_spec{jobname = J, stage = S, taskid = Tid}, _} = T,
-            D = case Dir of to -> "->"; from -> "<-" end,
-            Msg = disco:format(Format, Args),
-            error_logger:info_msg("~p:~s:~p ~s ~p", [J, S, Tid, D, Msg]);
-        _ ->
-            ok
-    end.
+    {#task_spec{jobname = J, stage = S, taskid = Tid}, _} = T,
+    D = case Dir of to -> "->"; from -> "<-" end,
+    Msg = disco:format(Format, Args),
+    error_logger:info_msg("~p:~s:~p ~s ~p", [J, S, Tid, D, Msg]).
+-else.
+proto_log(_T, _Dir, _Format, _Args) -> ok.
+-endif.
 
 -spec update(state()) -> {'noreply', state()} | {'stop', shutdown(), state()}.
 % Note that size(Buffer) =:= 0 is here to avoid preventing delayed sub
