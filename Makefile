@@ -84,7 +84,8 @@ xref: master
 	@ (cd master && ./rebar xref)
 
 test:
-	@ (cd master && ./rebar -C eunit.config get-deps eunit)
+	@ (cd master && ./rebar -C eunit.config clean get-deps compile &&\
+	./rebar -C eunit.config eunit skip_deps=true)
 
 contrib:
 	git submodule init
