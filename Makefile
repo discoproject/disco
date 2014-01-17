@@ -89,7 +89,7 @@ erlangtest:
 
 pythontest:
 	@ (cd lib && python setup.py install --user)
-	@ (cd lib/test && pip install nose --user && nosetests)
+	@ (cd lib/test && pip install nose --user && PATH=${PATH}:~/.local/bin nosetests)
 
 test: pythontest dialyzer erlangtest
 
