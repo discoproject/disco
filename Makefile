@@ -89,9 +89,9 @@ erlangtest:
 
 pythontest:
 	@ (cd lib && python setup.py install --user)
-	@ (cd lib/test && pip install nose && nosetests)
+	@ (cd lib/test && pip install nose --user && nosetests)
 
-test: dialyzer erlangtest pythontest
+test: pythontest dialyzer erlangtest
 
 contrib:
 	git submodule init
