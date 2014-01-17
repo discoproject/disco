@@ -87,7 +87,8 @@ erlangtest:
 	@ (cd master && ./rebar -C eunit.config clean get-deps compile &&\
 	./rebar -C eunit.config eunit skip_deps=true && cd -)
 
-pythontest: install-core
+pythontest:
+	@ (cd lib && $(PY_INSTALL))
 	@ (cd lib/test && pip install nose && nosetests)
 
 test: dialyzer erlangtest pythontest
