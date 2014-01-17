@@ -83,7 +83,7 @@ clean:
 xref: master
 	@ (cd master && ./rebar xref)
 
-test:
+test: dialyzer
 	@ (cd master && ./rebar -C eunit.config clean get-deps compile &&\
 	./rebar -C eunit.config eunit skip_deps=true)
 
