@@ -83,9 +83,14 @@ clean:
 xref: master
 	@ (cd master && ./rebar xref)
 
-test: dialyzer
+erlangtest:
 	@ (cd master && ./rebar -C eunit.config clean get-deps compile &&\
-	./rebar -C eunit.config eunit skip_deps=true)
+	./rebar -C eunit.config eunit skip_deps=true && cd -)
+
+pythontest: install-core
+	@ (cd lib/test && pip install nose && nosetests)
+
+test: dialyzer erlangtest pythontest
 
 contrib:
 	git submodule init
