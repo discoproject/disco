@@ -1,4 +1,3 @@
-
 Disco - Massive data, Minimal code
 ==================================
 
@@ -15,7 +14,5 @@ care by Disco.
 See `discoproject.org <http://discoproject.org>`_ for more information.
 
 
-.. image:: https://d2weczhvl823v0.cloudfront.net/discoproject/disco/trend.png
-   :alt: Bitdeli badge
-   :target: https://bitdeli.com/free
+Build Status: [Travis-CI](http://travis-ci.org/discoproject/disco) :: ![Travis-CI](https://secure.travis-ci.org/discoproject/disco.png)
 
