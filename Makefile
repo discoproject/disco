@@ -1,5 +1,3 @@
-export
-
 DISCO_VERSION = 0.4.5
 DISCO_RELEASE = 0.4.5
 
@@ -36,9 +34,6 @@ TARGETSRV = $(DESTDIR)$(RELSRV)
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
 SPHINXOPTS = -D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)
-
-# used to choose which conf file will be generated
-UNAME = $(shell uname)
 
 # utilities used for building disco
 DIALYZER   = dialyzer
@@ -140,7 +135,6 @@ uninstall-master:
 	- rm -Ri $(TARGETCFG)
 
 install-node: master \
-	$(TARGETLIB)/$(EBIN) \
 	$(addprefix $(TARGETLIB)/,$(EDEPS)) \
 	$(TARGETSRV)
 
@@ -166,13 +160,22 @@ $(TARGETDAT)/% $(TARGETLIB)/%: %
 	$(INSTALL) -d $(@D)
 	$(INSTALL_TREE) $< $(@D)
 
-$(TARGETBIN)/%: bin/%
+$(TARGETDAT)/$(WWW) $(TARGETLIB)/$(WWW): $(WWW)
 	$(INSTALL) -d $(@D)
-	$(INSTALL_PROGRAM) $< $@
+	$(INSTALL_TREE) $(WWW) $(@D)
+
+
+$(TARGETBIN)/disco: bin/disco
+	$(INSTALL) -d $(@D)
+	$(INSTALL_PROGRAM) bin/disco $@
+
+$(TARGETBIN)/ddfs: bin/ddfs
+	$(INSTALL) -d $(@D)
+	$(INSTALL_PROGRAM) bin/ddfs $@
 
 $(TARGETCFG)/settings.py:
 	$(INSTALL) -d $(@D)
-	(cd conf && ./gen.settings.sys-$(UNAME) > $@ && chmod 644 $@)
+	(cd conf && ./gen.settings.sys-`uname -s` > $@ && chmod 644 $@)
 
 $(TARGETSRV):
 	$(INSTALL) -d $@
