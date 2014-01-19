@@ -25,7 +25,7 @@ handle(Q) ->
     end.
 
 -spec throttle(queue(), non_neg_integer()) -> throttle().
-throttle(_Q, N) when N > ?MAX_EVENTS_PER_SECOND * 3 ->
+throttle(_Q, N) when N >= ?MAX_EVENTS_PER_SECOND * 2 ->
     {error, ["Worker is behaving badly: Sent ",
              integer_to_list(N), " events in a second, ignoring replies."]};
 
