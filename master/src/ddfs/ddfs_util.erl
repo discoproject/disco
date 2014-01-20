@@ -171,7 +171,7 @@ safe_rename(Src, Dst) ->
                       end;
                 {error, E}           -> {error, {chmod_failed, E}}
             end;
-        _ -> {error, file_exists}
+        {ok, _} -> {error, file_exists}
     end.
 
 -spec concatenate(file:filename(), file:filename()) -> ok | {error, term()}.
