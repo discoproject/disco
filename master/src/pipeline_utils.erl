@@ -190,8 +190,7 @@ labelled_urls(Urls, Label, LabelSizes) ->
     end.
 
 -spec output_urls(task_output_type()) -> [url()].
-output_urls({data, {L, _Sz, Reps}}) ->
-    LB = list_to_binary(["#", integer_to_list(L)]),
-    [<<U/binary, LB/binary>> || {U, _H} <- Reps];
+output_urls({data, {_L, _Sz, Reps}}) ->
+    [<<U/binary>> || {U, _H} <- Reps];
 output_urls({dir, {_H1, U, _LS}}) ->
     [U].
