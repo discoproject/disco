@@ -53,7 +53,7 @@ job_done(JobName) ->
 
 -spec next_task([host()]) -> nojobs | {ok, {pid(), {host(), task()}}}.
 next_task(AvailableNodes) ->
-    gen_server:call(?MODULE, {next_task, AvailableNodes}).
+    gen_server:call(?MODULE, {next_task, AvailableNodes}, infinity).
 
 % These are calls and not casts, since we don't want to race against
 % disco_server. We need to send the new_job and new_task messages to
@@ -141,7 +141,7 @@ handle_call({next_task, AvailableNodes}, _From, S) ->
     {reply, next_task(AvailableNodes, Jobs, []), S}.
 
 next_task(AvailableNodes, Jobs, NotJobs) ->
-    case gen_server:call(sched_policy, {next_job, NotJobs}) of
+    case gen_server:call(sched_policy, {next_job, NotJobs}, infinity) of
         {ok, JobPid} ->
             case fair_scheduler_job:next_task(JobPid, Jobs, AvailableNodes) of
                 {ok, {_Host, _Task} = Res} -> {ok, {JobPid, Res}};

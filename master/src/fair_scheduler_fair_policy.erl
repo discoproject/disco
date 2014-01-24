@@ -169,7 +169,7 @@ fairness_fairy(NumCores) ->
 -spec update_priorities(priority(), non_neg_integer()) -> ok.
 update_priorities(_, 0) -> ok;
 update_priorities(Alpha, NumCores) ->
-    {ok, Jobs} = gen_server:call(sched_policy, priv_get_jobs),
+    {ok, Jobs} = gen_server:call(sched_policy, priv_get_jobs, infinity),
     NumJobs = gb_trees:size(Jobs),
 
     % Get the status of each running job
