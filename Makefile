@@ -135,6 +135,7 @@ uninstall-master:
 	- rm -Ri $(TARGETCFG)
 
 install-node: master \
+	$(TARGETLIB)/$(EBIN) \
 	$(addprefix $(TARGETLIB)/,$(EDEPS)) \
 	$(TARGETSRV)
 
