@@ -139,6 +139,10 @@ install-node: master \
 	$(addprefix $(TARGETLIB)/,$(EDEPS)) \
 	$(TARGETSRV)
 
+$(TARGETLIB)/$(EBIN):
+    $(INSTALL) -d $(@D)
+    $(INSTALL_TREE) $(EBIN) $(@D)
+
 uninstall-node:
 	- rm -Rf $(TARGETLIB) $(TARGETSRV)
 
