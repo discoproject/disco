@@ -229,7 +229,7 @@ def ensure_free_space(fname):
     free = s.f_bsize * s.f_bavail
     if free < MIN_DISK_SPACE:
         raise DataError("Only {0} KB disk space available. Task failed."
-                        .format((free / 1024), fname))
+                        .format(free / 1024), fname)
 
 def files(path):
     if os.path.isdir(path):
