@@ -140,8 +140,8 @@ install-node: master \
 	$(TARGETSRV)
 
 $(TARGETLIB)/$(EBIN):
-    $(INSTALL) -d $(@D)
-    $(INSTALL_TREE) $(EBIN) $(@D)
+	$(INSTALL) -d $(@D)
+	$(INSTALL_TREE) $(EBIN) $(@D)
 
 uninstall-node:
 	- rm -Rf $(TARGETLIB) $(TARGETSRV)
