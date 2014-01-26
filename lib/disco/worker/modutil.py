@@ -185,7 +185,8 @@ def parse_function(function):
 def recurse_module(module, path):
     finder = modulefinder.ModuleFinder(path=list(user_paths()))
     finder.run_script(path)
-    return dict((name, os.path.realpath(module.__file__)) for name, module in finder.modules.items()
+    from disco.fileutils import get_valid_path
+    return dict((name, get_valid_path(module.__file__)) for name, module in finder.modules.items()
                 if name != '__main__' and module.__file__)
 
 def locate_modules(modules, recurse=True, include_sys=False):
@@ -210,7 +211,8 @@ def locate_modules(modules, recurse=True, include_sys=False):
 
     for module in modules:
         file, path, x = imp.find_module(module)
-        path = os.path.realpath(path)
+        from disco.fileutils import get_valid_path
+        path = get_valid_path(path)
 
         if dirname(path) in LOCALDIRS and os.path.isfile(path):
             found[module] = path

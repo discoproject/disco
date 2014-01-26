@@ -347,7 +347,8 @@ def guess_erlang():
 
 def guess_home():
     from disco.error import DiscoError
-    disco_lib  = os.path.dirname(os.path.realpath(__file__))
+    from disco.fileutils import get_valid_path
+    disco_lib  = os.path.dirname(get_valid_path(__file__))
     disco_home = os.path.dirname(os.path.dirname(disco_lib))
     if os.path.exists(os.path.join(disco_home, '.disco-home')):
         return disco_home
