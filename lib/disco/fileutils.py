@@ -238,3 +238,6 @@ def files(path):
                 yield file
     else:
         yield path
+
+def get_valid_path(path):
+    return os.path.realpath(path) if os.path.islink(path) else path
