@@ -281,7 +281,8 @@ def parse_dir(dir, label=None):
 
 def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET', to_master=True):
     scheme, (host, port), path = urlsplit(url)
-    if proxy and scheme != "tag":
+    # if the url contains a dot, it is an external resource, so do not proxy it
+    if proxy and scheme == "http" and url.find('.') == -1:
         if to_master:
             return '{0}/{1}'.format(proxy, path)
         return '{0}/proxy/{1}/{2}/{3}'.format(proxy, host, meth, path)
