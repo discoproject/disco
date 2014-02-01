@@ -4,14 +4,6 @@ from disco.error import JobError
 class BadJob(TestJob):
     @staticmethod
     def map(e, params):
-        import sys, json
-        msg = json.dumps(e)
-        sys.stderr.write('MSG {0} {1}\n'.format(len(msg), msg))
-        return []
-
-class GoodJob(TestJob):
-    @staticmethod
-    def map(e, params):
         print(e)
         return [(e.strip(), '')]
 
@@ -34,10 +26,3 @@ class RateLimitTestCase(TestCase):
         self.job = BadJob().run(input=self.test_server.urls([1]))
         self.assertRaises(JobError, self.job.wait)
         self.assertEquals(self.job.jobinfo()['active'], 'dead')
-
-    def test_good(self):
-        self.job = GoodJob().run(input=self.test_server.urls([1]))
-        self.assertResults(self.job, self.answers())
-        num_messages = sum(1 for msg in self.messages() if 'badger' in msg)
-        self.assertEquals(num_messages, self.num_lines)
-

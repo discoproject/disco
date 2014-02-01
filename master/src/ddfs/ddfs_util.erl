@@ -6,6 +6,8 @@
 -export([cluster_url/2, parse_url/1, url_to_name/1]).
 -export([format_timestamp/0, timestamp/0, timestamp/1, timestamp_to_time/1]).
 
+-export([start_web/3]).
+
 % For tests.
 -export([to_hex/1]).
 
@@ -169,7 +171,7 @@ safe_rename(Src, Dst) ->
                       end;
                 {error, E}           -> {error, {chmod_failed, E}}
             end;
-        _ -> {error, file_exists}
+        {ok, _} -> {error, file_exists}
     end.
 
 -spec concatenate(file:filename(), file:filename()) -> ok | {error, term()}.
@@ -216,3 +218,17 @@ fold_files(Dir, Fun, Acc0) ->
                       Fun(F, Dir, Acc)
               end
       end, Acc0, L).
+
+-spec start_web(non_neg_integer(), fun() , term()) -> {ok, pid()} | {error, term()}.
+start_web(Port, Func, Name) ->
+    Ret = mochiweb_http:start([{name, Name},
+                               {max, ?HTTP_MAX_CONNS},
+                               {loop, Func},
+                               {port, Port}]),
+    case Ret of
+        {ok, _Pid} -> error_logger:info_msg("Started ~p at ~p on port ~p",
+                                            [Name, node(), Port]);
+        E ->          error_logger:error_msg("~p failed at ~p on port ~p: ~p",
+                                             [Name, node(), Port, E])
+    end,
+    Ret.

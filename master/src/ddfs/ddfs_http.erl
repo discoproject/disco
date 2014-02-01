@@ -36,7 +36,7 @@ http_put_conn(SrcPath, DstUrl, Parent) ->
     {_, Addr, Path, _, _} = mochiweb_util:urlsplit(lists:flatten(DstUrl)),
     {Host, Port} = parse_host(Addr),
     Size = content_length(SrcPath, Parent),
-    Head = ["PUT ", Path, " HTTP/1.1\r\n",
+    Head = ["PUT ", Path, " HTTP/1.0\r\n",
             "User-Agent: ddfs_http\r\n",
             "Host: ", Host, "\r\n",
             "Content-Length: ", Size, "\r\n\r\n"],
@@ -83,9 +83,9 @@ read_response(Socket) ->
     H = string:str(Resp, "\r\n\r\n"),
     Body = lists:nthtail(H + 3, Resp),
     case string:tokens(Resp, "\r\n") of
-        ["HTTP/1.1 201" ++ _|_] ->
+        ["HTTP/1.0 201" ++ _|_] ->
             {ok, list_to_binary(Body)};
-        ["HTTP/1.1 " ++ Code|_] ->
+        ["HTTP/1.0 " ++ Code|_] ->
             {error, {list_to_integer(string:sub_word(Code, 1, 32)), Body}};
         _ ->
             {error, invalid_response}

@@ -457,7 +457,7 @@ do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
                              <- gb_trees:values(Nodes), X > Y, allow_task(Node)],
     {_, AvailableNodes} = lists:unzip(lists:keysort(1, Running)),
     if AvailableNodes =/= [] ->
-        case fair_scheduler:next_task(AvailableNodes) of
+        try fair_scheduler:next_task(AvailableNodes) of
             {ok, {JobSchedPid, {Node, Task}}} ->
                 M = gb_trees:get(Node, Nodes),
                 WorkerPid = start_worker(Node, M#dnode.node_mon, Task),
@@ -470,6 +470,9 @@ do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
                 do_schedule_next(S1);
             nojobs ->
                 S
+        catch K:{timeout, E} ->
+            lager:error("fair_scheduler timed out: ~p:~p", [K, E]),
+            do_schedule_next(S)
         end;
        true -> S
     end.

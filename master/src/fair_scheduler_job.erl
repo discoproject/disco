@@ -5,8 +5,6 @@
 -export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
--define(SCHEDULE_TIMEOUT, 1000).
-
 -include("common_types.hrl").
 -include("gs_util.hrl").
 -include("disco.hrl").
@@ -68,7 +66,7 @@ update_nodes(Job, NewNodes) ->
               -> {ok, {host(), task()}} | none.
 schedule(Mode, Job, Jobs, AvailableNodes) ->
     % First try to find a node-local or remote task to execute.
-    try case gen_server:call(Job, {Mode, AvailableNodes}, ?SCHEDULE_TIMEOUT) of
+    try case gen_server:call(Job, {Mode, AvailableNodes}, infinity) of
             {run, Node, Task} ->
                 {ok, {Node, Task}};
             nonodes ->
@@ -80,7 +78,14 @@ schedule(Mode, Job, Jobs, AvailableNodes) ->
                 Empty = all_empty_nodes(Jobs, AvailableNodes),
                 schedule(schedule_remote, Job, Jobs, Empty)
         end
-    catch K:V ->
+    catch
+        exit:{noproc, V} ->
+            lager:info("Job has already finished: ~p", [V]),
+            none;
+        exit:{normal, V} ->
+            lager:info("Job has already exited normally: ~p", [V]),
+            none;
+        K:V ->
             lager:warning("Scheduling error (~p:~p): ~p",
                           [K, V, erlang:get_stacktrace()]),
             gen_server:cast(Job, {die, "Scheduling error (system busy?)"}),

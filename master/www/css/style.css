@@ -61,8 +61,7 @@ input {
 /* Nodes */
 
 .nodebox {
-    width: 15em;
-    height: 6em;
+    width: 140px;
     border: 1px solid #666;
     float: left;
     margin: 10px;
@@ -85,16 +84,17 @@ input {
 }
 
 .nodebox .status {
-    height: 1em;
     border-bottom: 1px solid #000;
+    line-height: 0px;
 }
 
 .nodebox .status .jbox {
-    height: 1em;
-    width: 1em;
+    height: 10px;
+    width: 10px;
     background: #B280FF;
-    border-right: 1px solid #000;
-    float: left;
+    border: 1px solid #000;
+    display: inline-block;
+    margin: 1px;
 }
 
 .nodebox .status .busy {

@@ -1,0 +1,4 @@
+#!/bin/sh
+# This file is used by "make install" on OpenBSD.
+
+. ./gen.settings.sh

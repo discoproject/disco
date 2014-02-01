@@ -65,7 +65,7 @@ start_link() ->
 -spec tag_operation(term(), tagname()) -> term().
 tag_operation(Op, Tag) ->
     gen_server:call(?MODULE, {tag, Op, Tag}).
--spec tag_operation(term(), tagname(), non_neg_integer()) ->
+-spec tag_operation(term(), tagname(), non_neg_integer() | infinity) ->
                            term().
 tag_operation(Op, Tag, Timeout) ->
     gen_server:call(?MODULE, {tag, Op, Tag}, Timeout).
@@ -80,7 +80,7 @@ get_nodeinfo(all) ->
 
 -spec get_read_nodes() -> {ok, [node()], non_neg_integer()} | {error, term()}.
 get_read_nodes() ->
-    gen_server:call(?MODULE, get_read_nodes).
+    gen_server:call(?MODULE, get_read_nodes, infinity).
 
 -spec gc_blacklist() -> {ok, [node()]}.
 gc_blacklist() ->
@@ -117,12 +117,12 @@ get_tags(Server, Mode, Timeout) ->
 -spec new_blob(string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
 new_blob(Obj, K, Include, Exclude) ->
-    gen_server:call(?MODULE, {new_blob, Obj, K, Include, Exclude}).
+    gen_server:call(?MODULE, {new_blob, Obj, K, Include, Exclude}, infinity).
 
 -spec new_blob(server(), string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
 new_blob(Master, Obj, K, Include, Exclude) ->
-    gen_server:call(Master, {new_blob, Obj, K, Include, Exclude}).
+    gen_server:call(Master, {new_blob, Obj, K, Include, Exclude}, infinity).
 
 -spec safe_gc_blacklist() -> {ok, [node()]} | {error, term()}.
 safe_gc_blacklist() ->

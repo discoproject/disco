@@ -4,6 +4,8 @@
 """
 
 from disco import util
+from disco.error import DataError
+from disco.compat import bytes_to_str, UnpicklingError
 
 def gzip_reader(fd, size, url, params):
     """Wraps the input in a :class:`gzip.GzipFile` object."""
@@ -90,6 +92,10 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 yield pickle_load(hunk)
             except EOFError:
                 break
+            except UnpicklingError as e:
+                if not ignore_corrupt:
+                    raise DataError("Corrupted data between bytes {0}-{1}: {2}"
+                                    .format(offset - hunk_size, offset, e), url)
 
 class DiscoDBOutput(object):
     def __init__(self, stream, params):
@@ -300,6 +306,7 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
                 yield x[0]
 
     """
+    import re
     item_re = re.compile(item_re_str)
     buf = b""
     tot = 0

@@ -4,7 +4,6 @@
 -include_lib("kernel/include/file.hrl").
 
 -include("common_types.hrl").
--include("config.hrl").
 -include("ddfs.hrl").
 
 -export([start/1]).
@@ -14,19 +13,7 @@
 
 -spec start(non_neg_integer()) -> {ok, pid()} | {error, term()}.
 start(Port) ->
-    Ret = mochiweb_http:start([{name, ddfs_put},
-                               {max, ?HTTP_MAX_CONNS},
-                               {loop, fun(Req) ->
-                                              loop(Req:get(path), Req)
-                                      end},
-                               {port, Port}]),
-    case Ret of
-        {ok, _Pid} -> error_logger:info_msg("Started ~p at ~p on port ~p",
-                                            [?MODULE, node(), Port]);
-        E ->          error_logger:error_msg("~p failed at ~p on port ~p: ~p",
-                                             [?MODULE, node(), Port, E])
-    end,
-    Ret.
+    ddfs_util:start_web(Port, fun(Req) -> loop(Req:get(path), Req) end, ?MODULE).
 
 -spec loop(path(), module()) -> _.
 loop("/proxy/" ++ Path, Req) ->

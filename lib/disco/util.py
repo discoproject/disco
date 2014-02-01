@@ -14,6 +14,7 @@ import os, sys, time
 import functools, gzip
 
 from disco.compat import BytesIO, basestring, bytes_to_str
+from disco.compat import pickle_loads, pickle_dumps, sort_cmd
 from itertools import chain, groupby, repeat
 
 from disco.error import DiscoError, DataError, CommError
@@ -280,7 +281,8 @@ def parse_dir(dir, label=None):
 
 def proxy_url(url, proxy=DiscoSettings()['DISCO_PROXY'], meth='GET', to_master=True):
     scheme, (host, port), path = urlsplit(url)
-    if proxy and scheme != "tag":
+    # if the url contains a dot, it is an external resource, so do not proxy it
+    if proxy and scheme == "http" and url.find('.') == -1:
         if to_master:
             return '{0}/{1}'.format(proxy, path)
         return '{0}/proxy/{1}/{2}/{3}'.format(proxy, host, meth, path)
@@ -334,3 +336,74 @@ def format_size(num):
         if num < 1024.:
             return "{0:3.1f}{1}".format(num, unit)
         num /= 1024.
+
+def unix_sort(filename, sort_buffer_size='10%'):
+    import subprocess, os.path
+    if not os.path.isfile(filename):
+        raise DataError("Invalid sort input file {0}".format(filename), filename)
+    try:
+        env = os.environ.copy()
+        env['LC_ALL'] = 'C'
+        cmd, shell = sort_cmd(filename, sort_buffer_size)
+        subprocess.check_call(cmd, env=env, shell=shell)
+    except subprocess.CalledProcessError as e:
+        raise DataError("Sorting {0} failed: {1}".format(filename, e), filename)
+
+
+def encode(p0):
+    p1 = p0.replace(b'\x01', b'\x01\x01')
+    p2 = p1.replace(b'\x02', b'\x02\x02')
+    p3 = p2.replace(b'\x00', b'\x02\x01\x02')
+    return p3
+
+def decode(p0):
+    p1 = p0.replace(b'\x02\x01\x02', b'\x00')
+    p2 = p1.replace(b'\x02\x02', b'\x02')
+    p3 = p2.replace(b'\x01\x01', b'\x01')
+    return p3
+
+def sort_reader(fd, fname, read_buffer_size=8192):
+    buf = b""
+    while True:
+        r = fd.read(read_buffer_size)
+        if not len(r):
+            break
+        if len(buf) > read_buffer_size:
+            raise DataError("Could not parse the sorted file.", fname)
+        buf += r
+        keyValues = buf.split(b"\x00")
+        buf = keyValues[-1]
+        for keyValue in keyValues[:-1]:
+            key, value = keyValue.split(b"\xff")
+            yield key, value
+
+    if len(buf):
+        raise DataError("Could not parse the tail of the sorted file.", fname)
+
+def disk_sort(worker, input, filename, sort_buffer_size='10%'):
+    from os.path import getsize
+    from disco.comm import open_local
+    from disco.fileutils import AtomicFile
+    from disco.worker.task_io import re_reader
+    if worker:
+        worker.send('MSG', "Downloading {0}".format(filename))
+    out_fd = AtomicFile(filename)
+    for key, value in input:
+        if not isinstance(key, bytes):
+            raise ValueError("Keys must be bytes for external sort", key)
+        if b'\xff' in key or b'\x00' in key:
+            raise ValueError("Cannot sort key with 0xFF or 0x00 bytes", key)
+        else:
+            # value pickled using protocol 0 will always be printable ASCII
+            out_fd.write(key + b'\xff')
+            out_fd.write(encode(pickle_dumps(value, 0)) + b'\x00')
+    out_fd.close()
+    if worker:
+        worker.send('MSG', "Downloaded {0:s} OK".format(format_size(getsize(filename))))
+        worker.send('MSG', "Sorting {0}...".format(filename))
+    unix_sort(filename, sort_buffer_size=sort_buffer_size)
+    if worker:
+        worker.send('MSG', ("Finished sorting"))
+    fd = open_local(filename)
+    for k, v in sort_reader(fd, fd.url):
+        yield k, decode(pickle_loads(v))

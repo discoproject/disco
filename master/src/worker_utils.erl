@@ -13,7 +13,8 @@ annotate_input({data, _} = I) ->
 annotate_input({dir, {Host, DirUrl, []}}) ->
     Url = disco:dir_to_url(DirUrl),
     Fetch = try
-                {ok, {_S, _H, Content}} = httpc:request(Url),
+                {ok, {_S, _H, Content}} = httpc:request(get, {Url, []},
+                    [{version, "HTTP/1.0"}], []),
                 {ok, Content}
             catch K:V ->
                     lager:error("Error (~p:~p) fetching ~p (~p): ~p",

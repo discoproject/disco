@@ -2,6 +2,7 @@
 -export([init/0, handle/1]).
 
 -define(MAX_EVENTS_PER_SECOND, 5).
+-define(MICROSECONDS_IN_SECOND, 1000000).
 
 -opaque state() :: queue().
 -type throttle() :: {ok, non_neg_integer(), state()} | {error, term()}.
@@ -16,8 +17,8 @@ init() ->
 handle(Q) ->
     Now = now(),
     Q1 = queue:in(Now, Q),
-    Diff = timer:now_diff(Now, queue:get(Q1)) / 1000,
-    if Diff > 1000 ->
+    Diff = timer:now_diff(Now, queue:get(Q1)),
+    if Diff > ?MICROSECONDS_IN_SECOND ->
         Q2 = queue:drop(Q1),
         throttle(Q2, queue:len(Q2));
     true ->
@@ -25,7 +26,7 @@ handle(Q) ->
     end.
 
 -spec throttle(queue(), non_neg_integer()) -> throttle().
-throttle(_Q, N) when N > ?MAX_EVENTS_PER_SECOND * 3 ->
+throttle(_Q, N) when N >= ?MAX_EVENTS_PER_SECOND * 2 ->
     {error, ["Worker is behaving badly: Sent ",
              integer_to_list(N), " events in a second, ignoring replies."]};
 

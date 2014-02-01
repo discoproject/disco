@@ -28,6 +28,7 @@ if sys.version_info[0] == 3:
     import pickle
     pickle_loads, pickle_dumps = pickle.loads, pickle.dumps
     pickle_load,  pickle_dump  = pickle.load,  pickle.dump
+    UnpicklingError = pickle.UnpicklingError
 
     import socketserver as socket_server
     from urllib.parse import urlencode
@@ -66,6 +67,7 @@ else:
     import cPickle
     pickle_loads, pickle_dumps = cPickle.loads, cPickle.dumps
     pickle_load,  pickle_dump  = cPickle.load,  cPickle.dump
+    UnpicklingError = cPickle.UnpicklingError
 
     import SocketServer as socket_server
     from urllib import urlencode
