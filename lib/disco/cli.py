@@ -211,6 +211,7 @@ class Master(clx.server.Server):
                      +'[{file,' + '"{0}/error.log"'.format(log_dir)   + '}, {level, error}, {size, 1048576000}, {date, "$D0"}, {count, 5}]},'
                      +'{lager_file_backend,'
                      +'[{file,' + '"{0}/console.log"'.format(log_dir) + '}, {level, debug}, {size, 1048576000}, {date, "$D0"}, {count, 5}]}]'),
+                    '-lager', 'error_logger_hwm', '200',
                     '-lager', 'crash_log', '"{0}/crash.log"'.format(log_dir)]
         ret = (settings['DISCO_ERLANG'].split() +
                 lager_config(settings['DISCO_LOG_DIR']) +
