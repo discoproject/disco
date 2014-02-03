@@ -22,8 +22,15 @@
 start_link() ->
     process_flag(trap_exit, true),
     case gen_server:start_link({local, ?MODULE}, ?MODULE, [], []) of
-        {ok, _Server} -> ok;
-	{error, {already_started, _Server}} -> exit(already_started)
+        {ok, _Server} ->
+            error_logger:info_msg("~p starts on ~p", [?MODULE, node()]),
+            ok;
+        {error, {already_started, _Server}} ->
+            error_logger:info_msg("~p already started on ~p", [?MODULE, node()]),
+            exit(already_started);
+        Error ->
+            error_logger:info_msg("~p failed to start on ~p: ~p", [?MODULE, node(), Error]),
+            exit(Error)
     end,
     receive
         {'EXIT', _, Reason0} -> exit(Reason0)
