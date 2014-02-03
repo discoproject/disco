@@ -146,3 +146,5 @@
 % large enough to read a large tag object off the disk and send it
 % over the network.
 -define(GET_TAG_TIMEOUT, (5 * ?MINUTE)).
+
+-define(FOLSOM_HISTOGRAM_SIZE, 1000).
