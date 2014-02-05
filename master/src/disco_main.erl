@@ -41,6 +41,7 @@ start(_Type, _Args) ->
     ok = application:start(bear),
     ok = application:start(meck),
     ok = application:start(folsom),
+    ok = application:start(folsomite),
     ok = inets:start(),
     init_settings(),
     write_pid(disco:get_setting("DISCO_MASTER_PID")),

@@ -30,7 +30,8 @@ start_link(Config, NodeMon) ->
             error_logger:info_msg("~p starts on ~p", [?MODULE, node()]),
             ok = case node() =:= node(NodeMon) of
                 false ->
-                    application:start(folsom);
+                    application:start(folsom),
+                    application:start(folsomite);
                 true -> ok
             end,
             folsom_metrics:new_histogram(ddfs_put, exdec, ?FOLSOM_HISTOGRAM_SIZE);
