@@ -249,7 +249,7 @@ class Disco(object):
 
     def mapresults(self, jobname):
         return json.loads(
-            self.request('/disco/ctrl/get_mapresults?name={0}'.format(jobname)))
+            self.request('/disco/ctrl/get_stageresults?name={0}&stage=map'.format(jobname)))
 
     def results(self, jobspec, timeout=2000):
         """
