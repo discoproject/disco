@@ -7,7 +7,7 @@
 -export([new_job/3, end_job/1, clean_job/1]).
 % Retrieval.
 -export([get_jobs/0, get_jobs/1, get_jobinfo/1, get_job_msgs/3,
-         get_map_results/1, get_results/1]).
+         get_stage_results/2, get_results/1]).
 % Event logging.
 -export([event/4, event/5, event/6,
          task_event/2, task_event/3, task_event/4, task_event/5,
@@ -90,10 +90,10 @@ get_jobinfo(JobName) ->
 get_job_msgs(JobName, Q, N) ->
     gen_server:call(?MODULE, {get_job_msgs, JobName, string:to_lower(Q), N}).
 
--spec get_map_results(jobname()) -> invalid_job | not_ready
+-spec get_stage_results(jobname(), stage_name()) -> invalid_job | not_ready
                                         | {ok, [[url()]]}.
-get_map_results(JobName) ->
-    gen_server:call(?MODULE, {get_map_results, JobName}).
+get_stage_results(JobName, StageName) ->
+    gen_server:call(?MODULE, {get_stage_results, JobName, StageName}).
 
 -spec get_results(jobname()) -> invalid_job | {ready, pid(), [url() | [url()]]}
                                     | {job_status(), pid()}.
@@ -195,8 +195,8 @@ handle_call({get_job_msgs, JobName, Query, N}, _F, #state{msgbuf = MB} = S) ->
     {reply, do_get_job_msgs(JobName, Query, N, MB), S};
 handle_call({get_results, JobName}, _F, #state{events = Events} = S) ->
     {reply, do_get_results(JobName, Events), S};
-handle_call({get_map_results, JobName}, _F, #state{events = Events} = S) ->
-    {reply, do_get_map_results(JobName, Events), S};
+handle_call({get_stage_results, JobName, StageName}, _F, #state{events = Events} = S) ->
+    {reply, do_get_stage_results(JobName, StageName, Events), S};
 handle_call({job_initialized, JobName, JobEventHandler}, _F, S) ->
     ets:insert(event_files, {JobName, JobEventHandler}),
     S1 = add_event("master", JobName, <<"\"New job initialized!\"">>, none, S),
@@ -316,15 +316,15 @@ do_get_results(JobName, Events) ->
             {job_status(JE), Pid}
     end.
 
--spec do_get_map_results(jobname(), dict())
+-spec do_get_stage_results(jobname(), stage_name(), dict())
                         -> invalid_job | not_ready
                                | {ok, [[url()]]}.
-do_get_map_results(JobName, Events) ->
+do_get_stage_results(JobName, StageName, Events) ->
     case dict:find(JobName, Events) of
         error ->
             invalid_job;
         {ok, #job_ent{stage_results = PR}} ->
-            case dict:find(?MAP, PR) of
+            case dict:find(StageName, PR) of
                 error -> not_ready;
                 {ok, _Res} = Ret -> Ret
             end

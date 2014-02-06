@@ -152,7 +152,7 @@ getop("get_settings", _Query) ->
                                  end, L))}};
 
 getop("get_mapresults", {_Query, Name}) ->
-    case event_server:get_map_results(Name) of
+    case event_server:get_stage_results(Name, ?MAP) of
         {ok, _Res} = OK -> OK;
         _               -> not_found
     end;
