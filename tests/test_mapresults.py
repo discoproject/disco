@@ -20,7 +20,7 @@ class MapResultsTestCase(TestCase):
         self.job = MapResultsJob().run(input=['raw://{0}'.format(d) for d in ducks])
         self.assertAllEqual(sorted(result_iterator(self.job.wait())),
                             sorted(('{0}!?'.format(d), '') for d in ducks))
-        self.assertAllEqual(sorted(result_iterator(self.job.mapresults())),
+        self.assertAllEqual(sorted(result_iterator(self.job.stageresults("map"))),
                             sorted(('{0}!'.format(d), '') for d in ducks))
 
 
