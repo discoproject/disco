@@ -247,9 +247,10 @@ class Disco(object):
         return self.request("/disco/ctrl/rawevents?name={0}".format(jobname),
                             offset=offset)
 
-    def mapresults(self, jobname):
+    def stageresults(self, jobname, stagename):
         return json.loads(
-            self.request('/disco/ctrl/get_stageresults?name={0}&stage=map'.format(jobname)))
+            self.request('/disco/ctrl/get_stageresults?name={0}&stage={1}'.
+                         format(jobname, stagename)))
 
     def results(self, jobspec, timeout=2000):
         """

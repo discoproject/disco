@@ -78,7 +78,7 @@ class Job(object):
                        'profile_stats',
                        'purge',
                        'results',
-                       'mapresults',
+                       'stageresults',
                        'wait')
     """
     These methods from :class:`disco.core.Disco`,

@@ -289,15 +289,21 @@ def kill(program, *jobnames):
         program.disco.kill(jobname)
 
 @Disco.job_command
-def mapresults(program, jobname):
-    """Usage: jobname
+def stageresults(program, jobname):
+    """Usage: jobname -S stage
 
-    Print the list of results from the map phase of a job.
-    This is useful for resuming a job which has failed during reduce.
+    Print the list of results from a stage of a job.
+    This is useful for resuming a job which has failed during
+    following stages.
     """
     from disco.util import iterify
-    for result in program.disco.mapresults(jobname):
+    stagename = program.options.stage
+    for result in program.disco.stageresults(jobname, stagename):
         print('\t'.join('{0}'.format((e,)) for e in iterify(result)).rstrip())
+
+stageresults.add_option('-S', '--stage',
+                        default='map',
+                        help='target stage.')
 
 @Disco.command
 def nodeinfo(program):
