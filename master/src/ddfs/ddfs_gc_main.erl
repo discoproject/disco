@@ -1531,10 +1531,10 @@ removable_locations(BlobSet) ->
         [] ->
             % New blob added after GC/RR started.
             [];
-        [_, _, _, _, _, _, []] ->
+        [{_, _, _, _, _, _, []}] ->
             % No locations need to be removed
             [];
-        [_, _, _, _, _, _, UpdateMissing] ->
+        [{_, _, _, _, _, _, UpdateMissing}] ->
             Remove = [{B, N} || {B, N} <- Locations, lists:member(N, UpdateMissing)],
             [Url || Url <- BlobSet, lists:member(ddfs_url(Url), Remove)]
     end.
