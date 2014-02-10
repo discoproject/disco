@@ -919,21 +919,21 @@ avg_disk_usage(NodeStats) ->
         _ -> Sum / NumNodes
     end.
 
+-spec get_balance_threshold() -> float().
+get_balance_threshold() ->
+    case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
+        true  -> element(1,
+                string:to_float(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD")));
+        false -> ?GC_BALANCE_THRESHOLD
+    end.
+
 -spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
                          -> [node()].
 find_unstable_nodes(underused, NodeStats, AvgUsage) ->
-    Threshold =
-        case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
-            true  -> list_to_integer(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD"));
-            false -> ?GC_BALANCE_THRESHOLD
-        end,
+    Threshold = get_balance_threshold(),
     [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) < AvgUsage - Threshold];
 find_unstable_nodes(overused, NodeStats, AvgUsage) ->
-    Threshold =
-        case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
-            true  -> list_to_integer(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD"));
-            false -> ?GC_BALANCE_THRESHOLD
-        end,
+    Threshold = get_balance_threshold(),
     [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) > AvgUsage + Threshold].
 
 -spec update_nodestats(node(), gc_run_stats(), [node_info()]) -> [node_info()].
@@ -988,11 +988,7 @@ rebalance(Overused, BL, NodeStats) ->
     % [{Node, {Total disk space, Bytes to replicate}}]
     RebalanceStats = [{N, {F + U, 0}} || {N, {F, U}} <- NodeStats,
                                          lists:member(N, Overused)],
-    Threshold =
-        case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
-            true  -> list_to_integer(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD"));
-            false -> ?GC_BALANCE_THRESHOLD
-        end,
+    Threshold = get_balance_threshold(),
     ets:foldl(
       fun({BlobName, Present, Recovered, Update, Size, _, _}, Stats) ->
               PresentNodes = [N || {N, _V} <- Present],
