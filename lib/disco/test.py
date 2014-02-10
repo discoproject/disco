@@ -22,7 +22,7 @@ ThreadingMixIn = socket_server.ThreadingMixIn
 OK = httplib.OK
 INTERNAL_SERVER_ERROR = httplib.INTERNAL_SERVER_ERROR
 
-class InterruptTest(KeyboardInterrupt, SkipTest):
+class InterruptTest(SkipTest):
     def __init__(self, test):
         super(InterruptTest, self).__init__("Test interrupted: May not have finished cleaning up")
         self.test = test
