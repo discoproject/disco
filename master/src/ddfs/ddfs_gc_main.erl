@@ -876,7 +876,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     DiskUsage = avg_disk_usage(NodeStats),
     OverusedNodes = find_unstable_nodes(overused, NodeStats, DiskUsage),
     UnderusedNodes = find_unstable_nodes(underused, NodeStats, DiskUsage),
-    Utilization = [{N, Used / (Used + Free)} || {N, {Free, Used}} <- NodeStats,
+    Utilization = [{N, ddfs_master:get_utilization_index(Node)} || {N, _} = Node <- NodeStats,
         lists:member(N, OverusedNodes)],
     SortedUtilization = [N || {N, _} <- lists:reverse(lists:keysort(2, Utilization))],
     MostOverused = case SortedUtilization of
@@ -910,11 +910,8 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
 -spec avg_disk_usage([node_info()]) -> non_neg_integer().
 avg_disk_usage(NodeStats) ->
     Sum = lists:foldl(
-            fun({_, {Free, Used}}, S)
-                  when (Used + Free) > 0 ->
-                    S + (Used / (Used + Free));
-               (_, S) ->
-                    S
+            fun(Node, S) ->
+                    S + ddfs_master:get_utilization_index(Node)
             end, 0, NodeStats),
     NumNodes = length(NodeStats),
     case NumNodes of
@@ -930,14 +927,14 @@ find_unstable_nodes(underused, NodeStats, AvgUsage) ->
             true  -> list_to_integer(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD"));
             false -> ?GC_BALANCE_THRESHOLD
         end,
-    [N || {N, {Free, Used}} <- NodeStats, Used / (Free + Used) < AvgUsage - Threshold];
+    [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) < AvgUsage - Threshold];
 find_unstable_nodes(overused, NodeStats, AvgUsage) ->
     Threshold =
         case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
             true  -> list_to_integer(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD"));
             false -> ?GC_BALANCE_THRESHOLD
         end,
-    [N || {N, {Free, Used}} <- NodeStats, Used / (Free + Used) > AvgUsage + Threshold].
+    [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) > AvgUsage + Threshold].
 
 -spec update_nodestats(node(), gc_run_stats(), [node_info()]) -> [node_info()].
 update_nodestats(Node, {Tags, Blobs}, NodeStats) ->

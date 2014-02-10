@@ -15,7 +15,8 @@
          tag_notify/2,
          tag_operation/2, tag_operation/3,
          update_gc_stats/1,
-         update_nodes/1
+         update_nodes/1,
+         get_utilization_index/1
         ]).
 -export([init/1,
          handle_call/3,
@@ -301,11 +302,19 @@ do_get_readable_nodes(Nodes, ReadBlacklist) ->
     ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
     {ok, gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
+-spec get_utilization_index(node_info()) -> non_neg_integer().
+get_utilization_index({_N, {Free, Used}}) ->
+    Sum = Free + Used,
+    case Sum of
+        0 -> 0;
+        _ -> Used / Sum
+    end.
+
 -spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
                                    {ok, [node()]}.
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
     CandidateNodes = Nodes -- (Exclude ++ BlackList ++ Include),
-    Utilization = [{N, Used / (Used + Free)} || {N, {Free, Used}} <- CandidateNodes],
+    Utilization = [{N, get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
     Preferred = [N || {N, _} <- lists:keysort(2, Utilization)],
     WriteNodes = Include ++ lists:sublist(Preferred, K - length(Include)),
     {ok, WriteNodes}.
