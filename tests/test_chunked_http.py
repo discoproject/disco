@@ -22,7 +22,7 @@ class MyHandler(http_server.BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html")
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
-        self.wfile.write("b\r\nHello World\r\n0\r\n\r\n")
+        self.wfile.write(b"b\r\nHello World\r\n0\r\n\r\n")
 
 def startServer():
     server_class = http_server.HTTPServer
@@ -35,4 +35,4 @@ class RawTestCase(TestCase):
         threading.Thread(target=startServer).start()
         input = 'http:' + self.disco.master.split(':')[1] + ":" + str(PORT)
         self.job = Job().run(input=[input], map=map, reduce=reduce)
-        self.assertEqual(sorted(self.results(self.job)), [('Hello', 1), ('World', 1)])
+        self.assertEqual(sorted(self.results(self.job)), [(b'Hello', 1), (b'World', 1)])
