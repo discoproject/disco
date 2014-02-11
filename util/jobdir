@@ -1,2 +1,0 @@
-H=$(echo -n $1 | md5sum - | head -c 2)
-echo "$H/$1"
