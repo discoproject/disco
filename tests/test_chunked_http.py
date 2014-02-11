@@ -1,8 +1,8 @@
 from disco.test import TestCase, TestJob
 from disco.core import Job
+from disco.compat import http_server
 import disco
 import threading
-import BaseHTTPServer
 
 
 def map(line, params):
@@ -16,7 +16,7 @@ def reduce(iter, params):
 
 PORT = 1234
 
-class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+class MyHandler(http_server.BaseHTTPRequestHandler):
     def do_GET(s):
         s.send_response(200)
         s.send_header("Content-type", "text/html")
@@ -25,7 +25,7 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         s.wfile.write("b\r\nHello World\r\n0\r\n\r\n")
 
 def startServer():
-    server_class = BaseHTTPServer.HTTPServer
+    server_class = http_server.HTTPServer
     httpd = server_class(('', PORT), MyHandler)
     httpd.handle_request()
     httpd.server_close()
