@@ -17,12 +17,12 @@ def reduce(iter, params):
 PORT = 1234
 
 class MyHandler(http_server.BaseHTTPRequestHandler):
-    def do_GET(s):
-        s.send_response(200)
-        s.send_header("Content-type", "text/html")
-        s.send_header("Transfer-Encoding", "chunked")
-        s.end_headers()
-        s.wfile.write("b\r\nHello World\r\n0\r\n\r\n")
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        self.wfile.write("b\r\nHello World\r\n0\r\n\r\n")
 
 def startServer():
     server_class = http_server.HTTPServer
