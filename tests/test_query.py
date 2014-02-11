@@ -21,7 +21,6 @@ def read(interface, state, label, inp):
         for row in reader:
             if firstRow:
                 tableName = row[0]
-                print "joinColumn is: ", str(col), " tableName is: ", tableName
                 firstRow = False
             else:
                 fullName = tableName + '?' + str(col)
@@ -41,7 +40,6 @@ def join_done(interface, state):
     if len(state) > 2:
         sys.exit("Cannot join more than two state: %d given" % len(state))
     if len(state) < 2:
-        print "Nothing to join here!"
         return
 
     name0 = state.keys()[0]
