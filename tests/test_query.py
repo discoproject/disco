@@ -2,7 +2,6 @@ from disco.test import TestCase, TestPipe
 from disco.compat import bytes_to_str
 from disco.worker.pipeline.worker import Stage
 from disco.worker.task_io import task_input_stream
-import sys
 import csv
 from functools import partial
 
@@ -37,9 +36,7 @@ def join(interface, state, label, inp):
             state[k].append(v)
 
 def join_done(interface, state):
-    if len(state) > 2:
-        sys.exit("Cannot join more than two state: %d given" % len(state))
-    if len(state) < 2:
+    if len(state) != 2:
         return
 
     name0 = state.keys()[0]
