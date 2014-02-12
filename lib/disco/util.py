@@ -4,11 +4,6 @@
 
 This module provides utility functions that are mostly used by Disco
 internally.
-
-.. deprecated:: 0.4
-                :func:`disco.util.data_err`, :func:`disco.util.err`, and :func:`disco.util.msg`
-                will be removed completely in the next release,
-                in favor of using normal Python **raise** and **print** statements.
 """
 import os, sys, time
 import functools, gzip
@@ -205,38 +200,6 @@ def urltoken(url):
     if '@' in locstr:
         auth = locstr.split('@', 1)[0]
         return auth.split(':')[1] if ':' in auth else auth
-
-def msg(message):
-    """
-    .. deprecated:: 0.4 use **print** instead.
-
-    Sends the string *message* to the master for logging. The message is
-    shown on the web interface. To prevent a rogue job from overwhelming the
-    master, the maximum *message* size is set to 255 characters and job is
-    allowed to send at most 10 messages per second.
-    """
-    print(message)
-
-def err(message):
-    """
-    .. deprecated:: 0.4
-                    raise :class:`disco.error.DiscoError` instead.
-
-    Raises a :class:`disco.error.DiscoError`. This terminates the job.
-    """
-    raise DiscoError(message)
-
-def data_err(message, url):
-    """
-    .. deprecated:: 0.4
-                    raise :class:`disco.error.DataError` instead.
-
-    Raises a :class:`disco.error.DataError`.
-    A data error should only be raised if it is likely that the error is transient.
-    Typically this function is used by map readers to signal a temporary failure
-    in accessing an input file.
-    """
-    raise DataError(message, url)
 
 def jobname(url):
     """
