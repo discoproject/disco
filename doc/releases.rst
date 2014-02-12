@@ -64,6 +64,13 @@ The new pipeline model comes with several changes.
 - The web UI for jobs has changed slightly in order to show the stages
   of a job pipeline.
 
+- Disco now uses lager 2.0 which can be integrated with syslog.
+
+- Disco now works on FreeBSD 10.0.
+
+_ A continuous integration has been set up to compile the Erlang code,
+  and make sure it passes the dialyzer and all of the unittests.
+
 Backwards incompatible changes
 ''''''''''''''''''''''''''''''
 - See above discussion of the Disco worker protocol.
