@@ -443,7 +443,6 @@ class Worker(worker.Worker):
             return ClassicFile(url, streams, params)
         return open
 
-from disco.util import msg, err, data_err
 
 def get(*args, **kwargs):
     """See :meth:`disco.task.Task.get`."""
