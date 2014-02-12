@@ -9,7 +9,7 @@ class BlacklistJob(TestJob):
     def map_input_stream(stream, size, url, params):
         scheme, (host, port), test_server = urlsplit(url)
         # test that scheduler observed the blacklist
-        msg("NODE {0} GOT URL {1}".format(Task.host, url))
+        print("NODE {0} GOT URL {1}".format(Task.host, url))
         assert Task.host <= host
         return open_remote("http://{0}/{1}".format(test_server, host))
     map_input_stream = [map_input_stream]
