@@ -8,7 +8,7 @@ internally.
 import os, sys, time
 import functools, gzip
 
-from disco.compat import BytesIO, basestring, bytes_to_str
+from disco.compat import BytesIO, basestring, bytes_to_str, str_to_bytes
 from disco.compat import pickle_loads, pickle_dumps, sort_cmd
 from itertools import chain, groupby, repeat
 
@@ -152,7 +152,7 @@ def urljoin(scheme_netloc_path):
                                path))
 
 def schemesplit(url):
-    return url.split('://', 1) if '://' in url else ('', url)
+    return bytes_to_str(url).split('://', 1) if '://' in bytes_to_str(url) else ('', url)
 
 def localize(path, ddfs_data=None, disco_data=None):
     prefix, fname = path.split('/', 1)
@@ -369,4 +369,4 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
         worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
     for k, v in sort_reader(fd, fd.url):
-        yield k, decode(pickle_loads(v))
+        yield k, bytes_to_str(decode(str_to_bytes(pickle_loads(v))))
