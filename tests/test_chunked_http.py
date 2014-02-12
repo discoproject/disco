@@ -1,8 +1,8 @@
 from disco.test import TestCase, TestJob
 from disco.core import Job
+from disco.compat import http_server
 import disco
 import threading
-import BaseHTTPServer
 
 
 def map(line, params):
@@ -16,16 +16,16 @@ def reduce(iter, params):
 
 PORT = 1234
 
-class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-    def do_GET(s):
-        s.send_response(200)
-        s.send_header("Content-type", "text/html")
-        s.send_header("Transfer-Encoding", "chunked")
-        s.end_headers()
-        s.wfile.write("b\r\nHello World\r\n0\r\n\r\n")
+class MyHandler(http_server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+        self.wfile.write(b"b\r\nHello World\r\n0\r\n\r\n")
 
 def startServer():
-    server_class = BaseHTTPServer.HTTPServer
+    server_class = http_server.HTTPServer
     httpd = server_class(('', PORT), MyHandler)
     httpd.handle_request()
     httpd.server_close()
@@ -35,4 +35,4 @@ class RawTestCase(TestCase):
         threading.Thread(target=startServer).start()
         input = 'http:' + self.disco.master.split(':')[1] + ":" + str(PORT)
         self.job = Job().run(input=[input], map=map, reduce=reduce)
-        self.assertEqual(sorted(self.results(self.job)), [('Hello', 1), ('World', 1)])
+        self.assertEqual(sorted(self.results(self.job)), [(b'Hello', 1), (b'World', 1)])
