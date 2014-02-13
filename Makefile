@@ -25,11 +25,11 @@ RELCFG = $(sysconfdir)/disco
 RELSRV = $(localstatedir)/disco
 
 # installation directories
-TARGETBIN = $(DESTDIR)$(RELBIN)
-TARGETLIB = $(DESTDIR)$(RELLIB)
-TARGETDAT = $(DESTDIR)$(RELDAT)
-TARGETCFG = $(DESTDIR)$(RELCFG)
-TARGETSRV = $(DESTDIR)$(RELSRV)
+export TARGETBIN = $(DESTDIR)$(RELBIN)
+export TARGETLIB = $(DESTDIR)$(RELLIB)
+export TARGETDAT = $(DESTDIR)$(RELDAT)
+export TARGETCFG = $(DESTDIR)$(RELCFG)
+export TARGETSRV = $(DESTDIR)$(RELSRV)
 
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
@@ -41,7 +41,7 @@ TYPER      = typer
 PYTHON     = python
 PY_INSTALL = $(PYTHONENVS) $(PYTHON) setup.py install --root=$(DESTDIR)/ --prefix=$(prefix) $(PY_INSTALL_OPTS)
 
-WWW   = master/www
+export WWW   = master/www
 EBIN  = master/ebin
 ESRC  = master/src
 EDEP  = master/deps
