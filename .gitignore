@@ -9,6 +9,7 @@
 *.pyc
 *.dialyzer_plt
 *.eunit
+*.ropeproject
 *~
 master/deps
 master/ebin
