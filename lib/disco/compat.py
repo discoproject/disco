@@ -40,6 +40,7 @@ if sys.version_info[0] == 3:
     def sort_cmd(filename, sort_buffer_size):
         return (r"sort -z -t$'\xff' -k 1,1 -T . -S {0} -o {1} {1}"
                 .format(sort_buffer_size, filename), True)
+    integer_types = (int)
 
 else:
 
@@ -80,3 +81,5 @@ else:
         return (["sort", "-z", "-t", '\xff', "-k", "1,1", "-T", ".",
                  "-S", sort_buffer_size,
                  "-o", filename, filename], False)
+
+    integer_types = (int, long)
