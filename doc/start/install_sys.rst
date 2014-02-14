@@ -7,6 +7,8 @@ Installing Disco System-Wide
 Install From Source
 ===================
 
+Note: On FreeBSD, replace all of the instances of make with gmake.
+
 Assuming you have already gotten Disco running out of the source directory,
 as described in :ref:`install_source`,
 to install system-wide, just run ``make install`` as root::
