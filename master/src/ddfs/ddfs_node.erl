@@ -28,7 +28,13 @@ start_link(Config, NodeMon) ->
                  {local, ?MODULE}, ?MODULE, Config, [{timeout, ?NODE_STARTUP}]) of
         {ok, _Server} ->
             error_logger:info_msg("~p starts on ~p", [?MODULE, node()]),
-            ok;
+            ok = case node() =:= node(NodeMon) of
+                false ->
+                    application:start(folsom),
+                    application:start(folsomite);
+                true -> ok
+            end,
+            folsom_metrics:new_histogram(ddfs_put, exdec, ?FOLSOM_HISTOGRAM_SIZE);
         {error, {already_started, _Server}} ->
             error_logger:info_msg("~p already started on ~p", [?MODULE, node()]),
             exit(already_started);

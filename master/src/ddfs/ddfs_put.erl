@@ -61,6 +61,7 @@ valid_blob({Name, _}) ->
 
 -spec receive_blob(module(), {path(), path()}, url()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
+    StartTime = now(),
     Dir = filename:join(Path, Fname),
     case prim_file:read_file_info(Dir) of
         {error, enoent} ->
@@ -68,7 +69,10 @@ receive_blob(Req, {Path, Fname}, Url) ->
             Partial = lists:flatten(["!partial-", Tstamp, ".", Fname]),
             Dst = filename:join(Path, Partial),
             case prim_file:open(Dst, [write, raw, binary]) of
-                {ok, IO} -> receive_blob(Req, IO, Dst, Url);
+                {ok, IO} ->
+                    Ret = receive_blob(Req, IO, Dst, Url),
+                    folsom_metrics:notify(?MODULE, timer:now_diff(now(), StartTime)),
+                    Ret;
                 Error -> error_reply(Req, "Opening file failed", Dst, Error)
             end;
         _ ->

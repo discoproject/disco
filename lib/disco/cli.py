@@ -224,6 +224,10 @@ class Master(clx.server.Server):
                  '-pa', edep('mochiweb'),
                  '-pa', edep('goldrush'),
                  '-pa', edep('lager'),
+                 '-pa', edep('meck'),
+                 '-pa', edep('bear'),
+                 '-pa', edep('folsom'),
+                 '-pa', edep('folsomite'),
                  '-eval', 'application:start(disco)'])
         return ret
 

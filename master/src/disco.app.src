@@ -4,5 +4,9 @@
   {registered, [disco_server, event_server]},
   {applications, [kernel, stdlib]},
   {mod, {disco_main, []}},
-  {env, []},
+  {env, [{graphite_host, "carbon.hostedgraphite.com"},
+         {graphite_port, 2003},
+         {flush_interval, 5000},
+         {api_key, "f0094638-e063-43bf-853e-e3f1df9b1cef"},
+         {tags, []}]},
   {modules,[]}]}.

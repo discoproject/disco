@@ -7,6 +7,7 @@
 
 -spec start(string()) -> {ok, pid()} | {error, term()}.
 start(Port) ->
+    folsom_metrics:new_histogram(?MODULE, exdec, ?FOLSOM_HISTOGRAM_SIZE),
     Conf = [{loop, fun loop/1},
             {name, web_server},
             {max, ?MAX_HTTP_CONNECTIONS},
@@ -29,6 +30,7 @@ loop("/proxy/" ++ Path, Req) ->
     {_Meth, RealPath} = mochiweb_util:path_split(Rest),
     loop("/" ++ RealPath, Req);
 loop("/" ++ Path = P, Req) ->
+    StartTime = now(),
     {Root, _Rest} = mochiweb_util:path_split(Path),
     case lists:member(Root, ?HANDLERS) of
         true ->
@@ -37,7 +39,8 @@ loop("/" ++ Path = P, Req) ->
             Req:serve_file("index.html", docroot());
         _ ->
             Req:serve_file(Path, docroot())
-    end;
+    end,
+    folsom_metrics:notify(?MODULE, timer:now_diff(now(), StartTime));
 loop(_, Req) ->
     Req:not_found().
 
