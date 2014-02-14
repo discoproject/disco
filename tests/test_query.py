@@ -1,9 +1,10 @@
 from disco.test import TestCase, TestPipe
-from disco.compat import bytes_to_str
+from disco.compat import bytes_to_str, str_to_bytes
 from disco.worker.pipeline.worker import Stage
 from disco.worker.task_io import task_input_stream
 import csv
 from functools import partial
+import hashlib
 
 PREFIX='/tmp/'
 
@@ -23,7 +24,8 @@ def read(interface, state, label, inp):
                 firstRow = False
             else:
                 fullName = tableName + '?' + str(col)
-                interface.output(hash(row[col]) % 160).add(fullName, row)
+                Hash = int(hashlib.md5(str_to_bytes(row[col])).hexdigest(), 16) % 160
+                interface.output(Hash).add(fullName, row)
 
 def join_init(interface, params):
     return {}
@@ -39,8 +41,9 @@ def join_done(interface, state):
     if len(state) != 2:
         return
 
-    name0 = state.keys()[0]
-    name1 = state.keys()[1]
+    name0 = list(state.keys())[0]
+    name1 = list(state.keys())[1]
+
     _, strCol0 = name0.split('?')
     _, strCol1 = name1.split('?')
     col0 = int(strCol0)

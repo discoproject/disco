@@ -8,7 +8,7 @@ This module defines objects for interfacing with
 """
 import os, time
 
-from disco.compat import basestring
+from disco.compat import basestring, integer_types
 from disco import dPickle
 from disco.util import hexhash
 
@@ -98,7 +98,7 @@ class Task(object):
         ensure_path(self.taskpath)
 
     def output_filename(self, label):
-        if not isinstance(label, int):
+        if not isinstance(label, integer_types):
             raise ValueError("Output label ({0} : {1}) must be an integer or None".format(label, type(label)))
         return '{0}-{1}-{2}'.format(self.stage, self.group, label)
 
