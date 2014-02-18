@@ -162,6 +162,10 @@ refresh_tag_cache() ->
 -spec init(_) -> gs_init().
 init(_Args) ->
     folsom_metrics:new_histogram(get_tags, exdec, ?FOLSOM_HISTOGRAM_SIZE),
+    folsom_metrics:new_histogram(do_get_tags_all, exdec, ?FOLSOM_HISTOGRAM_SIZE),
+    folsom_metrics:new_histogram(do_get_tags_filter, exdec, ?FOLSOM_HISTOGRAM_SIZE),
+    folsom_metrics:new_histogram(do_get_tags_safe, exdec, ?FOLSOM_HISTOGRAM_SIZE),
+    folsom_metrics:new_histogram(do_get_tags_gc, exdec, ?FOLSOM_HISTOGRAM_SIZE),
     spawn_link(fun() -> monitor_diskspace() end),
     spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
@@ -413,27 +417,35 @@ do_tag_exit(Pid, S) ->
                  (safe, [node()]) -> {ok, [binary()]} | too_many_failed_nodes;
                  (gc, [node()]) -> {ok, [binary()], [node()]} | too_many_failed_nodes.
 do_get_tags(all, Nodes) ->
+    Start = os:timestamp(),
     {Replies, Failed} =
         gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
     {OkNodes, Tags} = lists:unzip(Replies),
-    {OkNodes, Failed, lists:usort(lists:flatten(Tags))};
+    Ret = {OkNodes, Failed, lists:usort(lists:flatten(Tags))},
+    folsom_metrics:notify(do_get_tags_all, timer:now_diff(os:timestamp(), Start)),
+    Ret;
+
 
 do_get_tags(filter, Nodes) ->
+    Start = os:timestamp(),
     {OkNodes, Failed, Tags} = do_get_tags(all, Nodes),
     case tag_operation(get_tagnames, <<"+deleted">>, ?NODEOP_TIMEOUT) of
         {ok, Deleted} ->
             TagSet = gb_sets:from_ordset(Tags),
             DelSet = gb_sets:insert(<<"+deleted">>, Deleted),
             NotDeleted = gb_sets:to_list(gb_sets:subtract(TagSet, DelSet)),
+            folsom_metrics:notify(do_get_tags_filter, timer:now_diff(os:timestamp(), Start)),
             {OkNodes, Failed, NotDeleted};
         E ->
             E
     end;
 
 do_get_tags(safe, Nodes) ->
+    Start = os:timestamp(),
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     case do_get_tags(filter, Nodes) of
         {_OkNodes, Failed, Tags} when length(Failed) < TagMinK ->
+            folsom_metrics:notify(do_get_tags_safe, timer:now_diff(os:timestamp(), Start)),
             {ok, Tags};
         _ ->
             too_many_failed_nodes
@@ -441,6 +453,7 @@ do_get_tags(safe, Nodes) ->
 
 % The returned tag list may include +deleted.
 do_get_tags(gc, Nodes) ->
+    Start = os:timestamp(),
     {OkNodes, Failed, Tags} = do_get_tags(all, Nodes),
     TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
     case length(Failed) < TagMinK of
@@ -451,7 +464,9 @@ do_get_tags(gc, Nodes) ->
                 {ok, Deleted} ->
                     TagSet = gb_sets:from_ordset(Tags),
                     NotDeleted = gb_sets:subtract(TagSet, Deleted),
-                    {ok, gb_sets:to_list(NotDeleted), OkNodes};
+                    Ret = {ok, gb_sets:to_list(NotDeleted), OkNodes},
+                    folsom_metrics:notify(do_get_tags_safe, timer:now_diff(os:timestamp(), Start)),
+                    Ret;
                 E ->
                     E
             end
