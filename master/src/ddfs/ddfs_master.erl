@@ -112,7 +112,10 @@ get_tags(Mode) ->
               (server(), safe, non_neg_integer()) ->
                       {ok, [binary()]} | too_many_failed_nodes.
 get_tags(Server, Mode, Timeout) ->
-    gen_server:call(Server, {get_tags, Mode}, Timeout).
+    Start = os:timestamp(),
+    Ret = gen_server:call(Server, {get_tags, Mode}, Timeout),
+    folsom_metrics:notify(get_tags, timer:now_diff(os:timestamp(), Start)),
+    Ret.
 
 -spec new_blob(string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
@@ -158,6 +161,7 @@ refresh_tag_cache() ->
 
 -spec init(_) -> gs_init().
 init(_Args) ->
+    folsom_metrics:new_histogram(get_tags, exdec, ?FOLSOM_HISTOGRAM_SIZE),
     spawn_link(fun() -> monitor_diskspace() end),
     spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
