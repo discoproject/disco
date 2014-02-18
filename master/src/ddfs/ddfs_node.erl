@@ -28,7 +28,11 @@ start_link(Config, NodeMon) ->
                  {local, ?MODULE}, ?MODULE, Config, [{timeout, ?NODE_STARTUP}]) of
         {ok, _Server} ->
             error_logger:info_msg("~p starts on ~p", [?MODULE, node()]),
-            ok;
+            ok = case node() =:= node(NodeMon) of
+                false ->
+                    application:start(folsom);
+                true -> ok
+            end,
         {error, {already_started, _Server}} ->
             error_logger:info_msg("~p already started on ~p", [?MODULE, node()]),
             exit(already_started);
