@@ -112,7 +112,9 @@ get_tags(Mode) ->
               (server(), safe, non_neg_integer()) ->
                       {ok, [binary()]} | too_many_failed_nodes.
 get_tags(Server, Mode, Timeout) ->
-    gen_server:call(Server, {get_tags, Mode}, Timeout).
+    disco_profile:timed_run(
+        fun() -> gen_server:call(Server, {get_tags, Mode}, Timeout) end,
+        get_tags).
 
 -spec new_blob(string()|object_name(), non_neg_integer(), [node()], [node()]) ->
                       too_many_replicas | {ok, [nonempty_string()]}.
@@ -158,6 +160,9 @@ refresh_tag_cache() ->
 
 -spec init(_) -> gs_init().
 init(_Args) ->
+    _ = [disco_profile:new_histogram(Name)
+        || Name <- [get_tags, do_get_tags_all, do_get_tags_filter,
+            do_get_tags_safe, do_get_tags_gc]],
     spawn_link(fun() -> monitor_diskspace() end),
     spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
@@ -409,49 +414,61 @@ do_tag_exit(Pid, S) ->
                  (safe, [node()]) -> {ok, [binary()]} | too_many_failed_nodes;
                  (gc, [node()]) -> {ok, [binary()], [node()]} | too_many_failed_nodes.
 do_get_tags(all, Nodes) ->
-    {Replies, Failed} =
-        gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
-    {OkNodes, Tags} = lists:unzip(Replies),
-    {OkNodes, Failed, lists:usort(lists:flatten(Tags))};
+    disco_profile:timed_run(
+        fun() ->
+            {Replies, Failed} =
+                gen_server:multi_call(Nodes, ddfs_node, get_tags, ?NODE_TIMEOUT),
+            {OkNodes, Tags} = lists:unzip(Replies),
+            {OkNodes, Failed, lists:usort(lists:flatten(Tags))}
+        end, do_get_tags_all);
 
 do_get_tags(filter, Nodes) ->
-    {OkNodes, Failed, Tags} = do_get_tags(all, Nodes),
-    case tag_operation(get_tagnames, <<"+deleted">>, ?NODEOP_TIMEOUT) of
-        {ok, Deleted} ->
-            TagSet = gb_sets:from_ordset(Tags),
-            DelSet = gb_sets:insert(<<"+deleted">>, Deleted),
-            NotDeleted = gb_sets:to_list(gb_sets:subtract(TagSet, DelSet)),
-            {OkNodes, Failed, NotDeleted};
-        E ->
-            E
-    end;
-
-do_get_tags(safe, Nodes) ->
-    TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
-    case do_get_tags(filter, Nodes) of
-        {_OkNodes, Failed, Tags} when length(Failed) < TagMinK ->
-            {ok, Tags};
-        _ ->
-            too_many_failed_nodes
-    end;
-
-% The returned tag list may include +deleted.
-do_get_tags(gc, Nodes) ->
-    {OkNodes, Failed, Tags} = do_get_tags(all, Nodes),
-    TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
-    case length(Failed) < TagMinK of
-        false ->
-            too_many_failed_nodes;
-        true ->
+    disco_profile:timed_run(
+        fun() ->
+            {OkNodes, Failed, Tags} = do_get_tags(all, Nodes),
             case tag_operation(get_tagnames, <<"+deleted">>, ?NODEOP_TIMEOUT) of
                 {ok, Deleted} ->
                     TagSet = gb_sets:from_ordset(Tags),
-                    NotDeleted = gb_sets:subtract(TagSet, Deleted),
-                    {ok, gb_sets:to_list(NotDeleted), OkNodes};
+                    DelSet = gb_sets:insert(<<"+deleted">>, Deleted),
+                    NotDeleted = gb_sets:to_list(gb_sets:subtract(TagSet, DelSet)),
+                    {OkNodes, Failed, NotDeleted};
                 E ->
                     E
             end
-    end.
+        end, do_get_tags_filter);
+
+do_get_tags(safe, Nodes) ->
+    disco_profile:timed_run(
+        fun() ->
+            TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
+            case do_get_tags(filter, Nodes) of
+                {_OkNodes, Failed, Tags} when length(Failed) < TagMinK ->
+                    {ok, Tags};
+                _ ->
+                    too_many_failed_nodes
+            end
+        end, do_get_tags_safe);
+
+% The returned tag list may include +deleted.
+do_get_tags(gc, Nodes) ->
+    disco_profile:timed_run(
+        fun() ->
+            {OkNodes, Failed, Tags} = do_get_tags(all, Nodes),
+            TagMinK = list_to_integer(disco:get_setting("DDFS_TAG_MIN_REPLICAS")),
+            case length(Failed) < TagMinK of
+                false ->
+                    too_many_failed_nodes;
+                true ->
+                    case tag_operation(get_tagnames, <<"+deleted">>, ?NODEOP_TIMEOUT) of
+                        {ok, Deleted} ->
+                            TagSet = gb_sets:from_ordset(Tags),
+                            NotDeleted = gb_sets:subtract(TagSet, Deleted),
+                            {ok, gb_sets:to_list(NotDeleted), OkNodes};
+                        E ->
+                            E
+                    end
+            end
+        end, do_get_tags_gc).
 
 % Timeouts in this call by the below processes can cause ddfs_master
 % itself to crash, since the processes are linked to it.

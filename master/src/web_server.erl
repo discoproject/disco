@@ -7,6 +7,7 @@
 
 -spec start(string()) -> {ok, pid()} | {error, term()}.
 start(Port) ->
+    disco_profile:new_histogram(?MODULE),
     Conf = [{loop, fun loop/1},
             {name, web_server},
             {max, ?MAX_HTTP_CONNECTIONS},
@@ -29,15 +30,18 @@ loop("/proxy/" ++ Path, Req) ->
     {_Meth, RealPath} = mochiweb_util:path_split(Rest),
     loop("/" ++ RealPath, Req);
 loop("/" ++ Path = P, Req) ->
-    {Root, _Rest} = mochiweb_util:path_split(Path),
-    case lists:member(Root, ?HANDLERS) of
-        true ->
-            dispatch(Req, list_to_atom(Root ++ "_web"), P);
-        false when Path =:= "" ->
-            Req:serve_file("index.html", docroot());
-        _ ->
-            Req:serve_file(Path, docroot())
-    end;
+    disco_profile:timed_run(
+        fun() ->
+            {Root, _Rest} = mochiweb_util:path_split(Path),
+            case lists:member(Root, ?HANDLERS) of
+                true ->
+                    dispatch(Req, list_to_atom(Root ++ "_web"), P);
+                false when Path =:= "" ->
+                    Req:serve_file("index.html", docroot());
+                _ ->
+                    Req:serve_file(Path, docroot())
+            end
+        end, ?MODULE);
 loop(_, Req) ->
     Req:not_found().
 
