@@ -31,7 +31,7 @@ start_apps() ->
     end,
     ok.
 
--spec new_histogram(term()) -> ok.
+-spec new_histogram(atom()) -> ok.
 new_histogram(Name) ->
     case is_profile_on() of
         true ->
@@ -40,7 +40,7 @@ new_histogram(Name) ->
         false -> ok
     end.
 
--spec timed_run(fun(), term()) -> term().
+-spec timed_run(fun(), atom()) -> term().
 timed_run(Fun, Name) ->
     case is_profile_on() of
         true ->

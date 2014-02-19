@@ -33,6 +33,7 @@ start_link(Config, NodeMon) ->
                     disco_profile:start_apps();
                 true -> ok
             end,
+            disco_profile:new_histogram(ddfs_put);
         {error, {already_started, _Server}} ->
             error_logger:info_msg("~p already started on ~p", [?MODULE, node()]),
             exit(already_started);
