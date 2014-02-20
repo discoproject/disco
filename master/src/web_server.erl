@@ -8,6 +8,8 @@
 -spec start(string()) -> {ok, pid()} | {error, term()}.
 start(Port) ->
     disco_profile:new_histogram(?MODULE),
+    disco_profile:new_histogram(disco_web),
+    disco_profile:new_histogram(ddfs_web),
     Conf = [{loop, fun loop/1},
             {name, web_server},
             {max, ?MAX_HTTP_CONNECTIONS},
@@ -35,7 +37,11 @@ loop("/" ++ Path = P, Req) ->
             {Root, _Rest} = mochiweb_util:path_split(Path),
             case lists:member(Root, ?HANDLERS) of
                 true ->
-                    dispatch(Req, list_to_atom(Root ++ "_web"), P);
+                    Module = list_to_atom(Root ++ "_web"),
+                    disco_profile:timed_run(
+                        fun() ->
+                                dispatch(Req, Module, P)
+                        end, Module);
                 false when Path =:= "" ->
                     Req:serve_file("index.html", docroot());
                 _ ->
