@@ -29,7 +29,8 @@ class SchemesTestCase(TestCase):
     def test_scheme_disco(self):
         a, b = SchemesJobA(), SchemesJobB()
         self.job = JobChain({a: self.test_server.urls([''] * 10),
-                             b: a}).wait()
+                             b: a})
+        self.job.wait()
         for key, value in self.results(b):
             self.assert_(key in self.animals)
             self.assertEquals(value, None)
