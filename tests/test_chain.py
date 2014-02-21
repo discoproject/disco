@@ -38,7 +38,8 @@ class ChainTestCase(TestCase):
     def runTest(self):
         a, b = ChainJobA(), ChainJobB()
         self.job = JobChain({a: self.test_server.urls([''] * 100),
-                             b: a}).wait()
+                             b: a})
+        self.job.wait()
         for key, value in self.results(b):
             self.assert_(key[:5] in self.animals)
             self.assertEquals(key[5:], b'0-1-')
@@ -57,6 +58,7 @@ class DavinChainTestCase(TestCase):
         a, b, c = DavinChainJobA(), DavinChainJobA(), DavinChainJobC()
         self.job = JobChain({a: ['raw://0', 'raw://1', 'raw://2'],
                              b: ['raw://3', 'raw://4', 'raw://5'],
-                             c: [a, b]}).wait()
+                             c: [a, b]})
+        self.job.wait()
         self.assertAllEqual(sorted(self.results(c)),
                             ((str(x), '') for x in range(6)))
