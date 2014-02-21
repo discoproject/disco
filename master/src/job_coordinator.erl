@@ -175,6 +175,10 @@ handle_info({'EXIT', Pid, Reason}, #state{input_pid = Pid} = S) ->
     {stop, {"input_processor exited", Reason}, S#state{input_pid = none}};
 handle_info({'EXIT', _Pid, normal}, S) ->
     {noreply, S};
+
+handle_info({'EXIT', _Pid, kill_worker}, S) ->
+    {stop, normal, S};
+
 handle_info(M, S) ->
     lager:warning("Ignoring unexpected info event: ~p (self ~p)", [M, self()]),
     {noreply, S}.
