@@ -256,7 +256,7 @@ do_get_tag_timestamp(TagName, #state{tags = Tags}) ->
 -spec do_get_tag_data(tagid(), volume_name(), {pid(), _}, state()) -> ok.
 do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
     {ok, TagDir} = ddfs_util:hashdir(TagId, "tag", Root, VolName),
-    TagPath = filename:join(TagDir, binary_to_list(TagId)),
+    TagPath = TagDir ++ "/" ++ binary_to_list(TagId),
     case prim_file:read_file(TagPath) of
         {ok, Binary} ->
             gen_server:reply(From, {ok, Binary});
@@ -282,7 +282,7 @@ do_put_tag_data(Tag, Data, #state{nodename = NodeName,
     case ddfs_util:ensure_dir(Local) of
         ok ->
             Partial = lists:flatten(["!partial.", binary_to_list(Tag)]),
-            Filename = filename:join(Local, Partial),
+            Filename = Local ++ "/" ++ Partial,
             case prim_file:write_file(Filename, Data) of
                 ok ->
                     {ok, VolName};
@@ -307,8 +307,8 @@ do_put_tag_commit(Tag, TagVol, #state{nodename = NodeName,
     {TagName, Time} = ddfs_util:unpack_objname(Tag),
 
     TagL = binary_to_list(Tag),
-    Src = filename:join(Local, lists:flatten(["!partial.", TagL])),
-    Dst = filename:join(Local,  TagL),
+    Src = Local ++ "/" ++ lists:flatten(["!partial.", TagL]),
+    Dst = Local ++ "/" ++ TagL,
     case ddfs_util:safe_rename(Src, Dst) of
         ok ->
             {{ok, Url},

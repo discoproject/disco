@@ -116,21 +116,21 @@ to_hex(Int, L) ->
 hashdir(Name, Host, Type, Root, Vol) ->
     Path = hashpath(Name, Type, Vol),
     Url = list_to_binary(["disco://", Host, "/ddfs/", Path, "/", Name]),
-    Local = filename:join(Root, Path),
+    Local = Root ++ "/" ++ Path,
     {ok, Local, Url}.
 
 -spec hashdir(binary(), nonempty_string(), nonempty_string(),
     nonempty_string()) -> {ok, string()}.
 hashdir(Name, Type, Root, Vol) ->
     Path = hashpath(Name, Type, Vol),
-    Local = filename:join(Root, Path),
+    Local = Root ++ "/" ++ Path,
     {ok, Local}.
 
 hashpath(Name, Type, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
     D1 = to_hex(D0),
     Dir = lists:flatten([case D1 of [_] -> "0"; _ -> "" end, D1]),
-    filename:join([Vol, Type, Dir]).
+    Vol ++ "/" ++ Type ++ "/" ++ Dir.
 
 -spec parse_url(binary() | string())
                -> not_ddfs |
@@ -217,10 +217,11 @@ diskspace(Path) ->
 
 -spec fold_files(string(), fun((string(), string(), T) -> T), T) -> T.
 fold_files(Dir, Fun, Acc0) ->
+    Base = Dir ++ "/",
     {ok, L} = prim_file:list_dir(Dir),
     lists:foldl(
       fun(F, Acc) ->
-              Path = filename:join(Dir, F),
+              Path =  Base ++ F,
               case prim_file:read_file_info(Path) of
                   {ok, #file_info{type = directory}} ->
                       fold_files(Path, Fun, Acc);
