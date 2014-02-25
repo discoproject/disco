@@ -255,11 +255,7 @@ do_get_tag_timestamp(TagName, #state{tags = Tags}) ->
 
 -spec do_get_tag_data(tagid(), volume_name(), {pid(), _}, state()) -> ok.
 do_get_tag_data(TagId, VolName, From, #state{root = Root}) ->
-    {ok, TagDir, _Url} = ddfs_util:hashdir(TagId,
-                                           disco:host(node()),
-                                           "tag",
-                                           Root,
-                                           VolName),
+    {ok, TagDir} = ddfs_util:hashdir(TagId, "tag", Root, VolName),
     TagPath = filename:join(TagDir, binary_to_list(TagId)),
     case prim_file:read_file(TagPath) of
         {ok, Binary} ->
