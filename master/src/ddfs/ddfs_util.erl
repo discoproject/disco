@@ -40,10 +40,10 @@ make_valid_name(Path) ->
     [make_valid_char(C) || C <- Path].
 
 -spec startswith(binary(), binary()) -> boolean().
-startswith(B, Prefix) when size(B) < size(Prefix) ->
+startswith(B, Prefix) when byte_size(B) < byte_size(Prefix) ->
     false;
 startswith(B, Prefix) ->
-    {Head, _} = split_binary(B, size(Prefix)),
+    {Head, _} = split_binary(B, byte_size(Prefix)),
     Head =:= Prefix.
 
 -spec timestamp() -> string().

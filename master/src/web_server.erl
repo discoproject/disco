@@ -37,7 +37,10 @@ loop("/" ++ Path = P, Req) ->
             {Root, _Rest} = mochiweb_util:path_split(Path),
             case lists:member(Root, ?HANDLERS) of
                 true ->
-                    Module = list_to_atom(Root ++ "_web"),
+                    Module = case Root of
+                        "ddfs" -> ddfs_web;
+                        "disco" -> disco_web
+                    end,
                     disco_profile:timed_run(
                         fun() ->
                                 dispatch(Req, Module, P)
