@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND noninteractive
 
 ## install requirements
 RUN apt-get update
-RUN apt-get install -y curl erlang-base git make python erlang-parsetools erlang-inets erlang-dev openssh-server supervisor
+RUN apt-get install -y curl erlang git make python openssh-server supervisor
 
 ## add user for disco
 RUN adduser --system disco --shell /bin/sh
@@ -30,7 +30,7 @@ RUN chown -R disco /usr/local/var/disco
 ADD supervisor.conf /etc/supervisor/conf.d/disco.conf
 
 EXPOSE 22
-EXPORT 8990
+EXPOSE 8990
 EXPOSE 8989
 CMD ["/usr/bin/supervisord"]
 
