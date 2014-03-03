@@ -217,6 +217,8 @@ class Master(clx.server.Server):
                 lager_config(settings['DISCO_LOG_DIR']) +
                 ['+K', 'true',
                  '+P', '10000000',
+                 '+scl', 'false',
+                 '+stbt', 's',
                  '-rsh', 'ssh',
                  '-connect_all', 'false',
                  '-sname', self.name,
