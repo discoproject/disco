@@ -79,7 +79,7 @@ xref: master
 	@ (cd master && ./rebar xref)
 
 erlangtest:
-	@ (cd master && ./rebar -C eunit.config clean get-deps compile &&\
+	@ (cd master && ./rebar -C eunit.config get-deps compile &&\
 	./rebar -C eunit.config eunit skip_deps=true && cd -)
 
 pythontest:
