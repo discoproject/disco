@@ -20,7 +20,8 @@ class ExamplesTestCase(TestCase):
     def test_chain(self):
         a, b = FirstJob(), ChainJob()
         self.job = JobChain({a: ['raw://0'],
-                             b: a}).wait()
+                             b: a})
+        self.job.wait()
         self.assertResults(b, [(2, '')])
 
     def test_chunk(self):
@@ -32,7 +33,8 @@ class ExamplesTestCase(TestCase):
         if self.settings['DISCO_TEST_DISCODB']:
             a, b = WordCountDDB(), Query()
             b.params = 'discover'
-            self.job = JobChain({a: [chekhov], b: a}).wait()
+            self.job = JobChain({a: [chekhov], b: a})
+            self.job.wait()
             self.assertEquals(self.results(b).next()[1], ['2'])
         else:
             self.skipTest("DISCO_TEST_DISCODB not set")

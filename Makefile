@@ -46,7 +46,7 @@ EBIN  = master/ebin
 ESRC  = master/src
 EDEP  = master/deps
 
-DEPS     = mochiweb lager goldrush
+DEPS     = mochiweb lager goldrush folsom bear meck folsomite
 EDEPS    = $(foreach dep,$(DEPS),$(EDEP)/$(dep)/ebin)
 ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
@@ -79,7 +79,7 @@ xref: master
 	@ (cd master && ./rebar xref)
 
 erlangtest:
-	@ (cd master && ./rebar -C eunit.config clean get-deps compile &&\
+	@ (cd master && ./rebar -C eunit.config get-deps compile &&\
 	./rebar -C eunit.config eunit skip_deps=true && cd -)
 
 pythontest:

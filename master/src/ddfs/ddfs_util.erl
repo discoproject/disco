@@ -1,6 +1,6 @@
 -module(ddfs_util).
 -export([concatenate/2, diskspace/1, ensure_dir/1, fold_files/3,
-         hashdir/5, safe_rename/2]).
+         hashdir/5, hashdir/4, safe_rename/2]).
 -export([startswith/2, is_valid_name/1, make_valid_name/1,
          unpack_objname/1, pack_objname/2]).
 -export([cluster_url/2, parse_url/1, url_to_name/1]).
@@ -40,10 +40,10 @@ make_valid_name(Path) ->
     [make_valid_char(C) || C <- Path].
 
 -spec startswith(binary(), binary()) -> boolean().
-startswith(B, Prefix) when size(B) < size(Prefix) ->
+startswith(B, Prefix) when byte_size(B) < byte_size(Prefix) ->
     false;
 startswith(B, Prefix) ->
-    {Head, _} = split_binary(B, size(Prefix)),
+    {Head, _} = split_binary(B, byte_size(Prefix)),
     Head =:= Prefix.
 
 -spec timestamp() -> string().
@@ -114,13 +114,23 @@ to_hex(Int, L) ->
 -spec hashdir(binary(), nonempty_string(), nonempty_string(),
               nonempty_string(), nonempty_string()) -> {ok, string(), binary()}.
 hashdir(Name, Host, Type, Root, Vol) ->
+    Path = hashpath(Name, Type, Vol),
+    Url = list_to_binary(["disco://", Host, "/ddfs/", Path, "/", Name]),
+    Local = Root ++ "/" ++ Path,
+    {ok, Local, Url}.
+
+-spec hashdir(binary(), nonempty_string(), nonempty_string(),
+    nonempty_string()) -> {ok, string()}.
+hashdir(Name, Type, Root, Vol) ->
+    Path = hashpath(Name, Type, Vol),
+    Local = Root ++ "/" ++ Path,
+    {ok, Local}.
+
+hashpath(Name, Type, Vol) ->
     <<D0:8, _/binary>> = erlang:md5(Name),
     D1 = to_hex(D0),
     Dir = lists:flatten([case D1 of [_] -> "0"; _ -> "" end, D1]),
-    Path = filename:join([Vol, Type, Dir]),
-    Url = list_to_binary(["disco://", Host, "/ddfs/", Path, "/", Name]),
-    Local = filename:join(Root, Path),
-    {ok, Local, Url}.
+    Vol ++ "/" ++ Type ++ "/" ++ Dir.
 
 -spec parse_url(binary() | string())
                -> not_ddfs |
@@ -207,10 +217,11 @@ diskspace(Path) ->
 
 -spec fold_files(string(), fun((string(), string(), T) -> T), T) -> T.
 fold_files(Dir, Fun, Acc0) ->
+    Base = Dir ++ "/",
     {ok, L} = prim_file:list_dir(Dir),
     lists:foldl(
       fun(F, Acc) ->
-              Path = filename:join(Dir, F),
+              Path =  Base ++ F,
               case prim_file:read_file_info(Path) of
                   {ok, #file_info{type = directory}} ->
                       fold_files(Path, Fun, Acc);

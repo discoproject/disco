@@ -59,7 +59,8 @@ class SaveTestCase(TestCase):
         ducks = ['dewey', 'huey', 'louie']
         a, b = SaveJob1(), SaveJob2()
         self.job = JobChain({a: self.test_server.urls(ducks),
-                             b: a}).wait()
+                             b: a})
+        self.job.wait()
         self.tag = self.disco.results(b)[1][0]
         self.assertAllEqual(sorted(self.results(b)),
                             [(str_to_bytes('{0}!?!?'.format(d)), '') for d in ducks])

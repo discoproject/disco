@@ -217,6 +217,8 @@ class Master(clx.server.Server):
                 lager_config(settings['DISCO_LOG_DIR']) +
                 ['+K', 'true',
                  '+P', '10000000',
+                 '+scl', 'false',
+                 '+stbt', 's',
                  '-rsh', 'ssh',
                  '-connect_all', 'false',
                  '-sname', self.name,
@@ -224,6 +226,10 @@ class Master(clx.server.Server):
                  '-pa', edep('mochiweb'),
                  '-pa', edep('goldrush'),
                  '-pa', edep('lager'),
+                 '-pa', edep('meck'),
+                 '-pa', edep('bear'),
+                 '-pa', edep('folsom'),
+                 '-pa', edep('folsomite'),
                  '-eval', 'application:start(disco)'])
         return ret
 

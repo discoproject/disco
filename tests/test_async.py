@@ -25,6 +25,7 @@ class AsyncTestCase(TestCase):
     def runTest(self):
         N = self.num_workers
         self.job = JobChain((AsyncJob(), self.test_server.urls(self.sample(N)))
-                            for x in range(5)).wait()
+                            for x in range(5))
+        self.job.wait()
         for job in self.job:
             self.assertEquals(sum(1 for result in self.results(job)), N * 20)

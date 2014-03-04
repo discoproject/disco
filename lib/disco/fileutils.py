@@ -198,7 +198,7 @@ class AtomicFile(file):
 
     def close(self):
         if self.isopen:
-            sync(self)
+            self.flush()
             super(AtomicFile, self).close()
             os.rename(self.partial, self.path)
             self.isopen = False
@@ -209,10 +209,6 @@ class Wait(Exception):
     def __init__(self, retry_after=None):
         if retry_after is not None:
             self.retry_after = retry_after
-
-def sync(fd):
-    fd.flush()
-    os.fsync(fd.fileno())
 
 def ensure_path(path):
     from errno import EEXIST
