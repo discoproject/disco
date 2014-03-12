@@ -2,4 +2,4 @@ language: erlang
 notification:
     email: false
 otp_release:
-  - 17.0-rc1
+  - 17.0-rc2
