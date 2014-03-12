@@ -324,7 +324,7 @@ results(#state{jobname = JobName,
                                  {ok, [remote_output()]} | {error, term()}.
 save_locals_to_ddfs(JN, FileName, Master, Task) ->
     IndexFile = filename:join(disco_worker:jobhome(JN), FileName),
-    K = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
+    NReplicas = list_to_integer(disco:get_setting("DDFS_BLOB_REPLICAS")),
     {#task_spec{taskid = TaskId}, #task_run{runid = RunId}} = Task,
     case prim_file:read_file(IndexFile) of
         {ok, Index} ->
@@ -341,7 +341,7 @@ save_locals_to_ddfs(JN, FileName, Master, Task) ->
                         {error, bad_index_file}
                 end,
             case Locals of
-                {ok, L} -> save_locals(L, K, Master, JN, TaskId, RunId, []);
+                {ok, L} -> save_locals(L, NReplicas, Master, JN, TaskId, RunId, []);
                 {error, _} = E1 -> E1
             end;
         {error, _} = E2 ->
