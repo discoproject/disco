@@ -33,12 +33,13 @@ http_put(SrcPath, DstUrl, Timeout) ->
 
 -spec http_put_conn(path(), nonempty_string(), pid()) -> _.
 http_put_conn(SrcPath, DstUrl, Parent) ->
-    {_, Addr, Path, _, _} = mochiweb_util:urlsplit(lists:flatten(DstUrl)),
+    {_, Addr, Path, Query, _} = mochiweb_util:urlsplit(lists:flatten(DstUrl)),
     {Host, Port} = parse_host(Addr),
     Size = content_length(SrcPath, Parent),
-    Head = ["PUT ", Path, " HTTP/1.0\r\n",
+    Head = ["PUT ", Path, "?", Query, " HTTP/1.0\r\n",
             "User-Agent: ddfs_http\r\n",
-            "Host: ", Host, "\r\n",
+            "Host: ", Addr , "\r\n",
+            "Accept: */*", "\r\n",
             "Content-Length: ", Size, "\r\n\r\n"],
     case gen_tcp:connect(Host, Port, [binary, {packet, raw}, {active, false}],
             ?CONNECT_TIMEOUT) of
@@ -85,7 +86,11 @@ read_response(Socket) ->
     case string:tokens(Resp, "\r\n") of
         ["HTTP/1.0 201" ++ _|_] ->
             {ok, list_to_binary(Body)};
+        ["HTTP/1.1 201" ++ _|_] ->
+            {ok, list_to_binary(Body)};
         ["HTTP/1.0 " ++ Code|_] ->
+            {error, {list_to_integer(string:sub_word(Code, 1, 32)), Body}};
+        ["HTTP/1.1 " ++ Code|_] ->
             {error, {list_to_integer(string:sub_word(Code, 1, 32)), Body}};
         _ ->
             {error, invalid_response}
