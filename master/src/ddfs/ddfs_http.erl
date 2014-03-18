@@ -1,5 +1,5 @@
 -module(ddfs_http).
--export([http_put/3]).
+-export([http_put/3, http_put_conn/3]).
 
 -include_lib("kernel/include/file.hrl").
 

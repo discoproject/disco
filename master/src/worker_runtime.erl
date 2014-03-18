@@ -344,12 +344,29 @@ save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
                         {error, bad_index_file}
                 end,
             case Locals of
-                {ok, L} -> save_locals(L, NReplicas, Master, JN, TaskId, RunId, []);
+                {ok, L} ->
+                        case lists:prefix("hdfs", SaveInfo) of
+                            true  -> save_hdfs(JN, L, SaveInfo),
+                                save_locals(L, NReplicas, Master, JN, TaskId,
+                                    RunId, []);
+
+                            false -> save_locals(L, NReplicas, Master, JN, TaskId, RunId, [])
+                        end;
                 {error, _} = E1 -> E1
             end;
         {error, _} = E2 ->
             E2
     end.
+
+save_hdfs(_JobName, [], _SaveInfo) ->
+    ok;
+
+save_hdfs(JobName, [{_L, Loc, _Sz} = _H | Rest], SaveInfo) ->
+    ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
+    LocalPath = disco:joburl_to_localpath(Loc),
+    hdfs:save_to_hdfs(NameNode, HdfsDir ++ hdfs:get_compliant_name(JobName),
+                      User, LocalPath),
+    save_hdfs(JobName, Rest, SaveInfo).
 
 -spec parse_index(binary()) -> [{label(), url(), data_size()}].
 parse_index(Index) ->
