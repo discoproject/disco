@@ -12,7 +12,7 @@ get_data_node_link(NameNode, HdfsPath, User) ->
 save_to_hdfs(NameNode, HdfsPath, User, LocalPath) ->
     DataNodeUrl = get_data_node_link(NameNode, HdfsPath, User),
     Self = self(),
-    spawn_link(fun() -> ddfs_http:http_put_conn(LocalPath, DataNodeUrl,
+    spawn_link(fun() -> http_client:http_put_conn(LocalPath, DataNodeUrl,
                     Self) end),
     receive S ->
             error_logger:info_msg("Hdfs operation done: ~p~n", [S]),
