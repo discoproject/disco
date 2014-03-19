@@ -1,7 +1,43 @@
 """
 K-clustering with MapReduce
 ===========================
-More details to be added...
+The input of this job should be something like this:
+
+$ cat input
+1 1 4
+2 1 3
+3 2 3
+4 6 1
+5 7 1
+6 7 2
+
+Where the first column is the id of the point and the remaining columns are
+the values of the point in d dimensions (So we have d+1 columns for a
+d-dimensional space). These dimensions should be separated with only
+whitespaces, if the input is in another format, you have to change the reader
+function to parse the input lines and yield a key-value pair containing the
+point-id as the key and the rest as the value, like:
+    (id, [x, y, z, ...])
+
+If we want to use ddfs for the input dataset, we should first chunk the data
+into ddfs under a tag name:
+
+$ ddfs chunk cluster ./input
+
+and then we can use the tag as the input to the job:
+
+$ python kclustering.py --clusters 2 --iterations 3  'tag://cluster'
+
+And it finds the two clusters for these points:
+    ('1', (0.55555555555555536, 0))
+    ('2', (0.22222222222222227, 0))
+    ('3', (0.5555555555555558, 0))
+    ('4', (0.55555555555555591, 1))
+    ('5', (0.22222222222222199, 1))
+    ('6', (0.55555555555555547, 1))
+
+The first item in the value is the euclidean distance between the node and the
+average and the second item is the cluster id.
 """
 
 from disco.core import Disco, Params, result_iterator
