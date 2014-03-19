@@ -9,6 +9,10 @@ from disco.worker.task_io import chain_reader
 from optparse import OptionParser
 from os import getenv
 
+def reader(fd, size, url, params):
+    for e in chain_reader(fd, size, url):
+        L = e.split()
+        yield L[0], [float(s) for s in L[1:]]
 
 # HACK: The following dictionary will be transformed into a class once
 # class support in Params has been added to Disco.
@@ -52,7 +56,7 @@ def predict_map(e, params):
     """Determine the closest cluster for the datapoint `e`."""
     yield (e[0], min((params.dist(c,e[1]), i) for i,c in params.centers))
 
-def estimate(master, input, center, k, iterations, map_reader = chain_reader):
+def estimate(master, input, center, k, iterations, map_reader = reader):
     """
     Optimize k-clustering for `iterations` iterations with cluster
     center definitions as given in `center`.
@@ -88,7 +92,7 @@ def estimate(master, input, center, k, iterations, map_reader = chain_reader):
     return centers
 
 
-def predict(master, input, center, centers, map_reader = chain_reader):
+def predict(master, input, center, centers, map_reader = reader):
     """
     Predict the closest clusters for the datapoints in input.
     """
@@ -123,4 +127,5 @@ if __name__ == '__main__':
 
     res = predict(master, input, mean_point_center, centers)
 
-    print '\n'.join(res)
+    for e in result_iterator(res):
+        print(e)
