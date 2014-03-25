@@ -189,6 +189,13 @@ class Program(clx.Program):
     def tests_path(self):
         return os.path.join(self.settings['DISCO_HOME'], 'tests')
 
+def isErlOptionAvailable(option, value):
+    if os.system("erl " + option  + " " + value +
+            " -noshell -s erlang halt 2>/dev/null") == 0:
+        return True
+    else:
+        return False
+
 class Master(clx.server.Server):
     def __init__(self, settings):
         super(Master, self).__init__(settings, settings['DISCO_ROTATE_LOG'])
@@ -213,13 +220,18 @@ class Master(clx.server.Server):
                      +'[{file,' + '"{0}/console.log"'.format(log_dir) + '}, {level, debug}, {size, 1048576000}, {date, "$D0"}, {count, 5}]}]'),
                     '-lager', 'error_logger_hwm', '200',
                     '-lager', 'crash_log', '"{0}/crash.log"'.format(log_dir)]
+
+        SchedulerOptions = ['+K', 'true',
+                '+P', '10000000']
+
+        for option, value in [('+scl', 'false'), ('+stbt', 's')]:
+            if isErlOptionAvailable(option, value):
+                SchedulerOptions += [option, value]
+
         ret = (settings['DISCO_ERLANG'].split() +
                 lager_config(settings['DISCO_LOG_DIR']) +
-                ['+K', 'true',
-                 '+P', '10000000',
-                 '+scl', 'false',
-                 '+stbt', 's',
-                 '-rsh', 'ssh',
+                SchedulerOptions +
+                 ['-rsh', 'ssh',
                  '-connect_all', 'false',
                  '-sname', self.name,
                  '-pa', epath('ebin'),
