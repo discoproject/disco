@@ -74,21 +74,30 @@ def xml_reader(stream, size, url, params):
     q = Queue()
     xml_reader.rproxy = ReadProxy(stream, q)
     s = xml.sax.parse(xml_reader.rproxy, ABContentHandler(q))
-    counter = 0
     while True:
         item = q.get()
         if item == 0:
             return
-        yield counter, item
-        counter += 1
+        yield item
         q.task_done()
 
 def map(line, params):
-    yield line, 1
+    import __builtin__
+    unwanted = u",!.#()][{}-><=|/\"'*:?"
+    words = line.translate(__builtin__.dict.fromkeys([ord(x) for x in
+        unwanted], u" ")).lower()
+    for word in words.split():
+        yield word, 1
+
+def reduce(iter, params):
+    from disco.util import kvgroup
+    for word, counts in kvgroup(sorted(iter)):
+        yield word, sum(counts)
 
 if __name__ == '__main__':
     job = Job().run(input=["tag://" + DDFS_TAG],
                     map=map,
+                    reduce=reduce,
                     map_reader = chain_reader)
 
     for line, count in result_iterator(job.wait(show=True)):
