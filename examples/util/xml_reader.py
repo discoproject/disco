@@ -10,7 +10,7 @@ For using this example, you should obtain an sml corpus and do the following:
     $ export PYTHONPATH=$PYTHONPATH:.
 
 2. For the xml file, we will use a very small portion of wikipedia dump:
-    $ wget https://raw.githubusercontent.com/pooya/discostuff/master/sample.xml
+    $ wget --no-check-certificate https://raw.githubusercontent.com/pooya/discostuff/master/sample.xml
 
 (The actual wikipedia dump can be found here (very large file):
 http://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2)
