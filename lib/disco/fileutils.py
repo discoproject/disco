@@ -112,7 +112,8 @@ class DiscoOutputStream_v1(object):
     def hunk_write(self, data):
         size = len(data)
         if self.max_record_size and size > self.max_record_size:
-            raise ValueError("Record too big to write to hunk")
+            raise ValueError("Record of size " + str(size) +
+                             " is larger than max_record_size: " + str(self.max_record_size))
         self.hunk.write(data)
         self.hunk_size += size
 
