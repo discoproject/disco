@@ -143,7 +143,7 @@ def chunk(program, tag, *urls):
                                     replicas=program.options.replicas,
                                     forceon=[] if not program.options.forceon else
                                         [program.options.forceon],
-                                    chunk_size = chunk_size,
+                                    chunk_size=chunk_size,
                                     max_record_size=max_record_size,
                                     update=program.options.update)
     for replicas in blobs:
@@ -157,7 +157,7 @@ chunk.add_option('-u', '--update',
                  action='store_true',
                  help='whether to perform an update or an append')
 chunk.add_option('-S', '--size',
-                 help='The size of the desired chunks in megabyte')
+                 help='The size of the desired chunks (in megabytes)')
 chunk.add_option('-Z', '--max-record-size',
                  help='The maximum permitted record size (in megabytes)')
 
