@@ -1,4 +1,5 @@
 import xml.sax
+import threading
 from Queue import Queue
 from disco.core import Job, result_iterator
 from disco.worker.classic.func import chain_reader
@@ -26,6 +27,7 @@ http://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles.xml.bz2)
 
 XML_TAG = "text"
 DDFS_TAG = "data:xml:read"
+QUEUE_SIZE = 8192
 
 class ABContentHandler(xml.sax.ContentHandler):
     def __init__(self, q):
@@ -71,9 +73,10 @@ class ReadProxy(object):
         return buffer
 
 def xml_reader(stream, size, url, params):
-    q = Queue()
+    q = Queue(QUEUE_SIZE)
     xml_reader.rproxy = ReadProxy(stream, q)
-    s = xml.sax.parse(xml_reader.rproxy, ABContentHandler(q))
+    threading.Thread(target=lambda q: xml.sax.parse(xml_reader.rproxy, ABContentHandler(q)),
+                     args=(q,)).start()
     while True:
         item = q.get()
         if item == 0:

@@ -13,7 +13,7 @@ import os, re, random, json
 from disco.compat import StringIO, BytesIO, urlencode, basestring, bytes_to_str
 from disco.comm import upload, download, open_remote
 from disco.error import CommError
-from disco.fileutils import Chunker, CHUNK_SIZE
+from disco.fileutils import Chunker, CHUNK_SIZE, MAX_RECORD_SIZE
 from disco.settings import DiscoSettings
 from disco.util import isiterable, iterify, listify, partition
 from disco.util import urljoin, urlsplit, urlresolve, urltoken, proxy_url
@@ -126,6 +126,7 @@ class DDFS(object):
               update=False,
               token=None,
               chunk_size=CHUNK_SIZE,
+              max_record_size=MAX_RECORD_SIZE,
               **kwargs):
         """
         Chunks the contents of `urls`,
@@ -137,7 +138,8 @@ class DDFS(object):
             kwargs['reader'] = None
 
         def chunk_iter(replicas):
-            chunker = Chunker(chunk_size=chunk_size)
+            chunker = Chunker(chunk_size=chunk_size,
+                    max_record_size=max_record_size)
             return chunker.chunks(classic_iterator([replicas], **kwargs))
 
         def chunk_name(replicas, n):
