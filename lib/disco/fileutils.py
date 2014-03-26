@@ -31,8 +31,9 @@ class Chunker(object):
       a new hunk is added with size ((H - 1) + (R - 1)) * S
       sizoof(chunk) = C - 1 + ((H - 1) + (R - 1)) * S + len(header)
     """
-    def __init__(self, chunk_size=CHUNK_SIZE):
+    def __init__(self, chunk_size=CHUNK_SIZE, max_record_size=MAX_RECORD_SIZE):
         self.chunk_size = chunk_size
+        self.max_record_size = max_record_size
 
     def chunks(self, records):
         out = self.makeout()
@@ -49,7 +50,7 @@ class Chunker(object):
         return out.stream.getvalue()
 
     def makeout(self):
-        return DiscoOutputStream(BytesIO(), max_record_size=MAX_RECORD_SIZE)
+        return DiscoOutputStream(BytesIO(), max_record_size=self.max_record_size)
 
 class DiscoOutputStream_v0(object):
     def __init__(self, stream):

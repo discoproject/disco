@@ -123,12 +123,17 @@ def chunk(program, tag, *urls):
 
     tags, urls = program.separate_tags(*program.input(*urls))
     stream = reify(program.options.stream)
-    if program.options.size is not None:
-        from disco.fileutils import MB
-        chunk_size = int(float(program.options.size) * MB)
-    else:
-        from disco.fileutils import CHUNK_SIZE
-        chunk_size = CHUNK_SIZE
+
+    def getSizeIfSupplied(value, default):
+        if value is not None:
+            from disco.fileutils import MB
+            return int(float(value) * MB)
+        else:
+            return default
+
+    from disco.fileutils import CHUNK_SIZE, MAX_RECORD_SIZE
+    chunk_size = getSizeIfSupplied(program.options.size, CHUNK_SIZE)
+    max_record_size = getSizeIfSupplied(program.options.max_record_size, MAX_RECORD_SIZE)
 
     reader = reify(program.options.reader or 'None')
     tag, blobs = program.ddfs.chunk(tag,
@@ -139,6 +144,7 @@ def chunk(program, tag, *urls):
                                     forceon=[] if not program.options.forceon else
                                         [program.options.forceon],
                                     chunk_size = chunk_size,
+                                    max_record_size=max_record_size,
                                     update=program.options.update)
     for replicas in blobs:
         print('created: {0}'.format('\t'.join(replicas)))
@@ -152,6 +158,8 @@ chunk.add_option('-u', '--update',
                  help='whether to perform an update or an append')
 chunk.add_option('-S', '--size',
                  help='The size of the desired chunks in megabyte')
+chunk.add_option('-Z', '--max-record-size',
+                 help='The maximum permitted record size (in megabytes)')
 
 @DDFS.command
 def cp(program, source_tag, target_tag):
