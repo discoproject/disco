@@ -315,7 +315,7 @@ get_utilization_index({_N, {Free, Used}}) ->
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
     CandidateNodes = Nodes -- (Exclude ++ BlackList ++ Include),
     Utilization = [{N, get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
-    Preferred = [N || {N, _} <- lists:keysort(2, Utilization)],
+    Preferred = disco_util:weighted_select_items(Utilization, K - length(Include)),
     WriteNodes = Include ++ lists:sublist(Preferred, K - length(Include)),
     {ok, WriteNodes}.
 
