@@ -1,6 +1,6 @@
 -module(disco_util).
 -export([choose_random/1, choose_random/2, groupby/2,
-         format_timestamp/1]).
+         format_timestamp/1, weighted_select_items/2]).
 
 -spec format_timestamp(erlang:timestamp()) -> binary().
 format_timestamp(TimeStamp) ->
@@ -32,3 +32,24 @@ choose_random(_, R, 0) -> R;
 choose_random(L, R, N) ->
     C = choose_random(L),
     choose_random(L -- [C], [C|R], N - 1).
+
+-spec weighted_select_items(list(T), non_neg_integer()) -> list(T) | error.
+weighted_select_items(L, K) when length(L) < K ->
+    error;
+weighted_select_items(L, K) ->
+    weighted_select_items(L, K, []).
+
+weighted_select_items(_, 0, Items) ->
+    Items;
+weighted_select_items(L, K, Items) ->
+    P = random:uniform(),
+    Item = weighted_choose(L, P),
+    Rest = lists:keydelete(Item, 1, L),
+    weighted_select_items(Rest, K - 1, [Item|Items]).
+
+weighted_choose([{Node, Weight}|_], P) when Weight > P ->
+    Node;
+weighted_choose([{Node, _}|[]], _) ->
+    Node;
+weighted_choose([{_, Weight}|Rest], P) ->
+    weighted_choose(Rest, P - Weight).
