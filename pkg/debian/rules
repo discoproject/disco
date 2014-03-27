@@ -23,3 +23,5 @@ override_dh_auto_install:
 	for python in $(PYTHON3); do \
 		$(D_MAKE) install-core    DESTDIR=$(PKGDIR)/python3-disco  PYTHON=$$python; \
 	done
+
+override_dh_usrlocal:
