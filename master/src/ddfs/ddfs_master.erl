@@ -310,14 +310,38 @@ get_utilization_index({_N, {Free, Used}}) ->
         _ -> Used / Sum
     end.
 
--spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
-                                   {ok, [node()]}.
-do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
+    % Include is the list of nodes that must be included
+    %
+    % Node selection algorithm:
+    % 1. try to choose K nodes randomly from all the nodes which have
+    %    more than ?MIN_FREE_SPACE bytes free space available and which
+    %    are not excluded or blacklisted.
+    % 2. if K nodes cannot be found this way, choose the K emptiest
+    %    nodes which are not excluded or blacklisted.
+    Primary = ([N || {N, {Free, _Total}} <- Nodes, Free > ?MIN_FREE_SPACE / 1024]
+               -- (Exclude ++ BlackList)),
+    if length(Primary) >= K ->
+            {ok, Include ++ disco_util:choose_random(Primary -- Include , K - length(Include))};
+       true ->
+            Preferred = [N || {N, _} <- lists:reverse(lists:keysort(2, Nodes))],
+            Secondary = Include ++ lists:sublist(Preferred -- (Include ++ Exclude ++ BlackList),
+                                                 K - length(Include)),
+            {ok, Secondary}
+    end;
+
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
     CandidateNodes = Nodes -- (Exclude ++ BlackList ++ Include),
     Utilization = [{N, get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
     Preferred = disco_util:weighted_select_items(Utilization, K - length(Include)),
     WriteNodes = Include ++ lists:sublist(Preferred, K - length(Include)),
     {ok, WriteNodes}.
+
+-spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
+                                   {ok, [node()]}.
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
+    do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList,
+        disco:has_setting("DDFS_SPACE_AWARE")).
 
 -type new_blob_result() :: too_many_replicas | {ok, [nonempty_string()]}.
 -spec do_new_blob(string()|object_name(), non_neg_integer(), [node()], [node()], [node()], [node_info()]) ->

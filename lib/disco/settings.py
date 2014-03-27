@@ -270,6 +270,12 @@ The following settings are used by DDFS to determine the number of replicas for 
 
                 The number of replicas of blobs that DDFS should aspire to keep.
                 Default is ``1``.
+
+        .. envvar:: DDFS_SPACE_AWARE
+
+                Whether DDFS should take the amount of free space in the nodes
+                into account when choosing the nodes to write to.  Default is
+                ``1``.
 """
 import os, socket, pwd
 
@@ -322,6 +328,7 @@ class DiscoSettings(Settings):
         'DISCO_TEST_PROFILE':    "''",
         'DISCO_TEST_PURGE':      "'purge'",
 # DDFS
+        'DDFS_SPACE_AWARE':      "'1'",
         'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_DATA':             "DDFS_ROOT",
         'DDFS_PUT_PORT':         "8990",
