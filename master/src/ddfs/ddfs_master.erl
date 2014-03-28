@@ -333,9 +333,17 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
     CandidateNodes = Nodes -- (Exclude ++ BlackList ++ Include),
     Utilization = [{N, get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
-    Preferred = disco_util:weighted_select_items(Utilization, K - length(Include)),
-    WriteNodes = Include ++ lists:sublist(Preferred, K - length(Include)),
-    {ok, WriteNodes}.
+    TotalSum = lists:foldl(fun({_, I}, S) -> S + I end, 0, Utilization),
+    case TotalSum of
+        0 -> do_choose_write_nodes(Nodes, K, Include, Exclude,
+                BlackList, false);
+        _ ->
+            NormalizedUtil = lists:foldl(fun({N, I}, L) -> [{N, I / TotalSum} | L] end, [],
+                Utilization),
+            Preferred = disco_util:weighted_select_items(NormalizedUtil, K - length(Include)),
+            WriteNodes = Include ++ lists:sublist(Preferred, K - length(Include)),
+            {ok, WriteNodes}
+    end.
 
 -spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
                                    {ok, [node()]}.
