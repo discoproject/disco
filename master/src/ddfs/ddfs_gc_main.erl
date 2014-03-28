@@ -446,21 +446,9 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                  % Update stats.
                  print_gc_stats(all, NewStats),
                  ddfs_master:update_gc_stats(NewStats),
-                 DiskUsage = avg_disk_usage(NewNS),
-                 Underused = find_unstable_nodes(underused, NewNS, DiskUsage),
-                 Overused = find_unstable_nodes(overused, NewNS, DiskUsage),
-                 lager:info("GC: average disk utilization: ~p, "
-                            "over utilized nodes: ~p, "
-                            "under utilized nodes: ~p",
-                            [DiskUsage, length(Overused), length(Underused)]),
+                 find_unstable_nodes(NewNS),
                  FutureNS = estimate_rr_blobs(S#state{nodestats = NewNS}),
-                 NewDiskUsage = avg_disk_usage(FutureNS),
-                 NewUnderused = find_unstable_nodes(underused, FutureNS, NewDiskUsage),
-                 NewOverused = find_unstable_nodes(overused, FutureNS, NewDiskUsage),
-                 lager:info("GC: average disk utilization: ~p, "
-                            "over utilized nodes: ~p, "
-                            "under utilized nodes: ~p",
-                            [NewDiskUsage, length(NewOverused), length(NewUnderused)]),
+                 {NewUnderused , NewOverused} = find_unstable_nodes(FutureNS),
                  ok = case NewOverused =/= [] of
                         true -> rebalance(NewOverused, BL, FutureNS);
                         false -> ok
@@ -873,9 +861,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
           end, true, gc_blob_map),
     ets:delete(gc_blob_map),
 
-    DiskUsage = avg_disk_usage(NodeStats),
-    OverusedNodes = find_unstable_nodes(overused, NodeStats, DiskUsage),
-    UnderusedNodes = find_unstable_nodes(underused, NodeStats, DiskUsage),
+    {UnderusedNodes, OverusedNodes} = find_unstable_nodes(NodeStats),
     Utilization = [{N, ddfs_master:get_utilization_index(Node)} || {N, _} = Node <- NodeStats,
         lists:member(N, OverusedNodes)],
     SortedUtilization = [N || {N, _} <- lists:reverse(lists:keysort(2, Utilization))],
@@ -883,10 +869,6 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
                        [] -> undefined;
                        [N | _] -> N
                    end,
-    lager:info("GC: average disk utilization: ~p, "
-               "over utilized nodes: ~p, "
-               "under utilized nodes: ~p",
-               [DiskUsage, length(OverusedNodes), length(UnderusedNodes)]),
 
     lager:info("GC: entering gc phase"),
     OverusedPeer = find_peer(Peers, MostOverused),
@@ -929,15 +911,6 @@ get_balance_threshold() ->
                 string:to_float(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD")));
         false -> ?GC_BALANCE_THRESHOLD
     end.
-
--spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
-                         -> [node()].
-find_unstable_nodes(underused, NodeStats, AvgUsage) ->
-    Threshold = get_balance_threshold(),
-    [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) < AvgUsage - Threshold];
-find_unstable_nodes(overused, NodeStats, AvgUsage) ->
-    Threshold = get_balance_threshold(),
-    [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) > AvgUsage + Threshold].
 
 -spec update_nodestats(node(), gc_run_stats(), [node_info()]) -> [node_info()].
 update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
@@ -1558,3 +1531,22 @@ usable_locations(#state{blacklist = BL, root = Root},
 url(N, V, Blob, Root) ->
     {ok, _Local, Url} = ddfs_util:hashdir(Blob, disco:host(N), "blob", Root, V),
     Url.
+
+find_unstable_nodes(NS) ->
+     DiskUsage = avg_disk_usage(NS),
+     UnderUsed = find_unstable_nodes(underused, NS, DiskUsage),
+     OverUsed = find_unstable_nodes(overused, NS, DiskUsage),
+     lager:info("GC: average disk utilization: ~p, "
+                "over utilized nodes: ~p, "
+                "under utilized nodes: ~p",
+                [DiskUsage, length(OverUsed), length(UnderUsed)]),
+    {UnderUsed, OverUsed}.
+
+-spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
+                         -> [node()].
+find_unstable_nodes(underused, NodeStats, AvgUsage) ->
+    Threshold = get_balance_threshold(),
+    [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) < AvgUsage - Threshold];
+find_unstable_nodes(overused, NodeStats, AvgUsage) ->
+    Threshold = get_balance_threshold(),
+    [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) > AvgUsage + Threshold].
