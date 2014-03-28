@@ -332,7 +332,7 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
 
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
     CandidateNodes = Nodes -- (Exclude ++ BlackList ++ Include),
-    Utilization = [{N, get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
+    Utilization = [{N, 1 - get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
     TotalSum = lists:foldl(fun({_, I}, S) -> S + I end, 0, Utilization),
     case TotalSum of
         0 -> do_choose_write_nodes(Nodes, K, Include, Exclude,
