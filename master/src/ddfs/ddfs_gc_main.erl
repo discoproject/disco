@@ -349,11 +349,9 @@ handle_cast({retry_node, Node},
             #state{phase = Phase, gc_peers = GCPeers,
                    num_pending_reqs = NumPendingReqs, most_overused_node = Overused} = S) ->
     lager:info("GC: retrying connection to ~p (in phase ~p)", [Node, Phase]),
-    Mode = case Node =:= Overused of
-               true ->
-                   overused;
-               false ->
-                   normal
+    Mode = case Node of
+                Overused -> overused;
+                _ ->        normal
            end,
     Pid = ddfs_gc_node:start_gc_node(Node, self(), now(), Phase, Mode),
     Peers = update_peer(GCPeers, Node, Pid),
@@ -449,9 +447,9 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                  find_unstable_nodes(NewNS),
                  FutureNS = estimate_rr_blobs(S#state{nodestats = NewNS}),
                  {NewUnderused , NewOverused} = find_unstable_nodes(FutureNS),
-                 ok = case NewOverused =/= [] of
-                        true -> rebalance(NewOverused, BL, FutureNS);
-                        false -> ok
+                 ok = case NewOverused of
+                     [] -> ok;
+                     _  -> rebalance(NewOverused, BL, FutureNS)
                  end,
 
                  lager:info("GC: entering rr_blobs phase"),
@@ -872,12 +870,12 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
 
     lager:info("GC: entering gc phase"),
     OverusedPeer = find_peer(Peers, MostOverused),
-    NewPeers = case OverusedPeer =/= undefined of
-                   true ->
+    NewPeers = case OverusedPeer of
+                   undefined ->
+                       Peers;
+                   _ ->
                        node_send(OverusedPeer, {start_gc, overused}),
-                       gb_trees:delete(MostOverused, Peers);
-                   false ->
-                       Peers
+                       gb_trees:delete(MostOverused, Peers)
                end,
     node_broadcast(NewPeers, {start_gc, normal}),
     % Update the last_response_time to indicate forward progress.
