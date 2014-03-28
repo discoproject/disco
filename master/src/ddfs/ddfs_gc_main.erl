@@ -909,14 +909,17 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
 
 -spec avg_disk_usage([node_info()]) -> non_neg_integer().
 avg_disk_usage(NodeStats) ->
-    Sum = lists:foldl(
-            fun(Node, S) ->
-                    S + ddfs_master:get_utilization_index(Node)
-            end, 0, NodeStats),
+    {SumFree, SumUsed} = lists:foldl(
+            fun({_N, {Free, Used}}, {SFree, SmUsed}) ->
+                    {SFree + Free, SmUsed + Used}
+            end, {0, 0}, NodeStats),
     NumNodes = length(NodeStats),
     case NumNodes of
         0 -> 0;
-        _ -> Sum / NumNodes
+        _ -> case SumFree + SumUsed of
+                0 -> 0;
+                _ -> SumUsed / (NumNodes * (SumFree + SumUsed))
+            end
     end.
 
 -spec get_balance_threshold() -> float().
