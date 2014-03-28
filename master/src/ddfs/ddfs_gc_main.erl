@@ -444,7 +444,7 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                  % Update stats.
                  print_gc_stats(all, NewStats),
                  ddfs_master:update_gc_stats(NewStats),
-                 find_unstable_nodes(NewNS),
+                 {_, _} = find_unstable_nodes(NewNS), % print the current stats.
                  FutureNS = estimate_rr_blobs(S#state{nodestats = NewNS}),
                  {NewUnderused , NewOverused} = find_unstable_nodes(FutureNS),
                  ok = case NewOverused of
@@ -920,10 +920,11 @@ update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
 
 -spec estimate_rr_blobs(state()) -> [node_info()].
 estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
-    SortedNS = lists:sort(
-                 fun({_N1, {F1, U1}}, {_N2, {F2, U2}}) ->
-                         U1 / (U1 + F1) =< U2 / (U2 + F2)
-                 end, NS),
+    SortedNS =
+        lists:sort(
+            fun(Node1, Node2) ->
+                ddfs_master:get_utilization_index(Node1) =< ddfs_master:get_utilization_index(Node2)
+            end, NS),
     ets:foldl(
       fun({BlobName, Present, Recovered, _, Size, _, _}, NodeStats) ->
               PresentNodes = [N || {N, _V} <- Present],
