@@ -303,11 +303,20 @@ do_get_readable_nodes(Nodes, ReadBlacklist) ->
     {ok, gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
 -spec get_utilization_index(node_info()) -> non_neg_integer().
-get_utilization_index({_N, {Free, Used}}) ->
+get_utilization_index(Node) ->
+    get_utilization_index(Node, disco:has_setting("DDFS_ABSOLUTE_SPACE")).
+
+get_utilization_index({_N, {Free, Used}}, false) ->
     Sum = Free + Used,
     case Sum of
         0 -> 0;
         _ -> Used / Sum
+    end;
+
+get_utilization_index({_N, {Free, _Used}}, true) ->
+    case Free of
+        0 -> 0;
+        _ -> 1 / Free
     end.
 
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
@@ -332,7 +341,13 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
 
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
     CandidateNodes = Nodes -- (Exclude ++ BlackList ++ Include),
-    Utilization = [{N, 1 - get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
+    Utilization = case disco:has_setting("DDFS_ABSOLUTE_SPACE") of
+        true ->
+            [{N, Free} || {N, {Free, _Used}} <- CandidateNodes];
+        false ->
+            [{N, 1 - get_utilization_index(Node, false)} ||
+                ({N, _} = Node) <- CandidateNodes]
+    end,
     TotalSum = lists:foldl(fun({_, I}, S) -> S + I end, 0, Utilization),
     case TotalSum of
         0 -> do_choose_write_nodes(Nodes, K, Include, Exclude,

@@ -276,6 +276,14 @@ The following settings are used by DDFS to determine the number of replicas for 
                 Whether DDFS should take the amount of free space in the nodes
                 into account when choosing the nodes to write to.  Default is
                 ``1``.
+
+        .. envvar:: DDFS_ABSOLUTE_SPACE
+
+                Only effective in the space-aware mode.
+                If set, the nodes with the higher absolute free space will be
+                given precedence for hosting replicas.  If unset, the nodes with
+                the highest ratio of the free space to the total space will be
+                given precedence for hosting the replicas.
 """
 import os, socket, pwd
 
@@ -329,6 +337,7 @@ class DiscoSettings(Settings):
         'DISCO_TEST_PURGE':      "'purge'",
 # DDFS
         'DDFS_SPACE_AWARE':      "'1'",
+        'DDFS_ABSOLUTE_SPACE':   "''",
         'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_DATA':             "DDFS_ROOT",
         'DDFS_PUT_PORT':         "8990",
