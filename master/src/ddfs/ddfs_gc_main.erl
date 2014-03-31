@@ -920,11 +920,6 @@ update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
 
 -spec estimate_rr_blobs(state()) -> [node_info()].
 estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
-    SortedNS =
-        lists:sort(
-            fun(Node1, Node2) ->
-                ddfs_master:get_utilization_index(Node1) =< ddfs_master:get_utilization_index(Node2)
-            end, NS),
     ets:foldl(
       fun({BlobName, Present, Recovered, _, Size, _, _}, NodeStats) ->
               PresentNodes = [N || {N, _V} <- Present],
@@ -940,23 +935,19 @@ estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
                   {_NumPresent, _NumRecovered} ->
                       ets:update_element(gc_blobs, BlobName, {4, {update, []}}),
                       Exclude = SafeRecovered ++ PresentNodes,
-                      [{Node, {Free, Used}} | _OkNodes] =
-                          [{N, S} || {N, S} <- NodeStats, not lists:member(N, Exclude)],
-                      NewNodeStats = lists:keydelete(Node, 1, NodeStats),
-                      insert_nodestats({Node, {Free - Size, Used + Size}}, NewNodeStats)
+                      OtherNodes = [{N, S} || {N, S} <- NodeStats, not lists:member(N, Exclude)],
+                      case disco_util:weighted_select_items(OtherNodes, 1) of
+                          error  ->
+                              lager:warning("Could not replicate ~s.", BlobName),
+                              NodeStats;
+                          [Node] ->
+                              {Node, {Free, Used}} = lists:keyfind(Node, 1,
+                                  NodeStats),
+                              lists:keyreplace(Node, 1, NodeStats,
+                                  {Node, {Free - Size, Used + Size}})
+                      end
               end
-      end, SortedNS, gc_blobs).
-
--spec insert_nodestats(node_info(), [node_info()]) -> [node_info()].
-insert_nodestats(NodeInfo, NodeStats) ->
-    insert_nodestats(NodeInfo, NodeStats, []).
-
--spec insert_nodestats(node_info(), [node_info()], [node_info()]) -> [node_info()].
-insert_nodestats({N, {F, U}}, [{N2, {F2, U2}} | NodeStats], Acc)
-  when U / (U + F) >= U2 / (U2 + F2) ->
-    insert_nodestats({N, {F, U}}, NodeStats, [{N2, {F2, U2}} | Acc]);
-insert_nodestats(NodeInfo, NodeStats, Acc) ->
-    lists:reverse(Acc) ++ [NodeInfo | NodeStats].
+      end, NS, gc_blobs).
 
 -spec rebalance([node()], [node()], [node_info()]) -> ok.
 rebalance(Overused, BL, NodeStats) ->
