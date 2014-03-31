@@ -808,8 +808,14 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     % collect the nodes that host a replica of each known in-use blob,
     % and also add the nodes that host any recovered replicas.  We
     % store this in a new ETS, gc_blobs, which will store for each
-    % blob, (a) the known locations, (b) any recovered locations,
-    % and (c) for each blob, any new replicated locations.
+    % blob,
+    % (1) key: the blob name,
+    % (2) the known locations,
+    % (3) Recovered locations,
+    % (4) New replica locations,
+    % (5) Size of the blob in kilobytes
+    % (6) rebalance | norebalance
+    % (7) nodes that do not host the blob, but received a request about it
 
     % gc_blobs: {Key :: object_name(),
     %            Present :: [object_location()],
@@ -1508,13 +1514,13 @@ url(N, V, Blob, Root) ->
     Url.
 
 find_unstable_nodes(NS) ->
-     DiskUsage = ddfs_master:avg_disk_usage(NS),
-     UnderUsed = find_unstable_nodes(underused, NS, DiskUsage),
-     OverUsed = find_unstable_nodes(overused, NS, DiskUsage),
-     lager:info("GC: average disk utilization: ~p, "
-                "over utilized nodes: ~p, "
-                "under utilized nodes: ~p",
-                [DiskUsage, length(OverUsed), length(UnderUsed)]),
+    DiskUsage = ddfs_master:avg_disk_usage(NS),
+    UnderUsed = find_unstable_nodes(underused, NS, DiskUsage),
+    OverUsed = find_unstable_nodes(overused, NS, DiskUsage),
+    lager:info("GC: average disk utilization: ~p, "
+               "over utilized nodes: ~p, "
+               "under utilized nodes: ~p",
+               [DiskUsage, length(OverUsed), length(UnderUsed)]),
     {UnderUsed, OverUsed}.
 
 -spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
@@ -1522,6 +1528,7 @@ find_unstable_nodes(NS) ->
 find_unstable_nodes(underused, NodeStats, AvgUsage) ->
     Threshold = get_balance_threshold(),
     [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) < AvgUsage - Threshold];
+
 find_unstable_nodes(overused, NodeStats, AvgUsage) ->
     Threshold = get_balance_threshold(),
     [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) > AvgUsage + Threshold].
