@@ -866,7 +866,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     ets:delete(gc_blob_map),
 
     {UnderusedNodes, OverusedNodes} = find_unstable_nodes(NodeStats),
-    Utilization = [{N, ddfs_master:get_utilization_index(Node)} || {N, _} = Node <- NodeStats,
+    Utilization = [{N, ddfs_rebalance:utility(Node)} || {N, _} = Node <- NodeStats,
         lists:member(N, OverusedNodes)],
     SortedUtilization = [N || {N, _} <- lists:reverse(lists:keysort(2, Utilization))],
     MostOverused = case SortedUtilization of
@@ -892,14 +892,6 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
             overused_nodes = OverusedNodes,
             underused_nodes = UnderusedNodes,
             most_overused_node = MostOverused}.
-
--spec get_balance_threshold() -> float().
-get_balance_threshold() ->
-    case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
-        true  -> element(1,
-                string:to_float(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD")));
-        false -> ?GC_BALANCE_THRESHOLD
-    end.
 
 -spec update_nodestats(node(), gc_run_stats(), [node_info()]) -> [node_info()].
 update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
@@ -945,7 +937,7 @@ rebalance(Overused, BL, NodeStats) ->
     % [{Node, {Total disk space, Bytes to replicate}}]
     RebalanceStats = [{N, {F + U, 0}} || {N, {F, U}} <- NodeStats,
                                          lists:member(N, Overused)],
-    Threshold = get_balance_threshold(),
+    Threshold = ddfs_rebalance:threshold(),
     ets:foldl(
       fun({BlobName, Present, Recovered, Update, Size, _, _}, Stats) ->
               PresentNodes = [N || {N, _V} <- Present],
@@ -1514,7 +1506,7 @@ url(N, V, Blob, Root) ->
     Url.
 
 find_unstable_nodes(NS) ->
-    DiskUsage = ddfs_master:avg_disk_usage(NS),
+    DiskUsage = ddfs_rebalance:avg_disk_usage(NS),
     UnderUsed = find_unstable_nodes(underused, NS, DiskUsage),
     OverUsed = find_unstable_nodes(overused, NS, DiskUsage),
     lager:info("GC: average disk utilization: ~p, "
@@ -1526,9 +1518,9 @@ find_unstable_nodes(NS) ->
 -spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
                          -> [node()].
 find_unstable_nodes(underused, NodeStats, AvgUsage) ->
-    Threshold = get_balance_threshold(),
-    [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) < AvgUsage - Threshold];
+    Threshold = ddfs_rebalance:threshold(),
+    [N || {N, _} = Node <- NodeStats, ddfs_rebalance:utility(Node) < AvgUsage - Threshold];
 
 find_unstable_nodes(overused, NodeStats, AvgUsage) ->
-    Threshold = get_balance_threshold(),
-    [N || {N, _} = Node <- NodeStats, ddfs_master:get_utilization_index(Node) > AvgUsage + Threshold].
+    Threshold = ddfs_rebalance:threshold(),
+    [N || {N, _} = Node <- NodeStats, ddfs_rebalance:utility(Node) > AvgUsage + Threshold].

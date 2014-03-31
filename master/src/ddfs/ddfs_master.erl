@@ -15,9 +15,7 @@
          tag_notify/2,
          tag_operation/2, tag_operation/3,
          update_gc_stats/1,
-         update_nodes/1,
-         get_utilization_index/1,
-         avg_disk_usage/1
+         update_nodes/1
         ]).
 -export([init/1,
          handle_call/3,
@@ -303,50 +301,6 @@ do_get_readable_nodes(Nodes, ReadBlacklist) ->
     ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
     {ok, gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
--spec get_utilization_index(node_info()) -> non_neg_integer().
-get_utilization_index(Node) ->
-    get_utilization_index(Node, disco:has_setting("DDFS_ABSOLUTE_SPACE")).
-
-get_utilization_index({_N, {Free, Used}}, false) ->
-    Sum = Free + Used,
-    case Sum of
-        0 -> 0;
-        _ -> Used / Sum
-    end;
-
-get_utilization_index({_N, {Free, _Used}}, true) ->
-    -Free.
-
--spec avg_disk_usage([node_info()]) -> non_neg_integer().
-avg_disk_usage(NodeStats) ->
-    avg_disk_usage(NodeStats, disco:has_setting("DDFS_ABSOLUTE_SPACE")).
-
-avg_disk_usage(NodeStats, false) ->
-    {SumFree, SumUsed} = lists:foldl(
-            fun({_N, {Free, Used}}, {SFree, SmUsed}) ->
-                    {SFree + Free, SmUsed + Used}
-            end, {0, 0}, NodeStats),
-    NumNodes = length(NodeStats),
-    case NumNodes of
-        0 -> 0;
-        _ -> case SumFree + SumUsed of
-                0 -> 0;
-                _ -> SumUsed / (NumNodes * (SumFree + SumUsed))
-            end
-    end;
-
-avg_disk_usage(NodeStats, true) ->
-    SumFree = lists:foldl(
-            fun({_N, {Free, _}}, SFree) ->
-                    SFree + Free
-            end,
-            0, NodeStats),
-    NumNodes = length(NodeStats),
-    case NumNodes of
-        0 -> 0;
-        _ -> -SumFree / NumNodes
-    end.
-
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
     % Include is the list of nodes that must be included
     %
@@ -369,7 +323,7 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
 
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
     CandidateNodes = Nodes -- (Exclude ++ BlackList ++ Include),
-    Utilization = [{N, 1 - get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
+    Utilization = [{N, 1 - ddfs_rebalance:utility(Node)} || ({N, _} = Node) <- CandidateNodes],
     TotalSum = lists:foldl(fun({_, I}, S) -> S + I end, 0, Utilization),
     case TotalSum of
         0 -> do_choose_write_nodes(Nodes, K, Include, Exclude,
