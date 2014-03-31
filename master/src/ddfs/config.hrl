@@ -3,6 +3,7 @@
 -define(MINUTE, (60 * ?SECOND)).
 -define(HOUR, (60 * ?MINUTE)).
 -define(DAY, (24 * ?HOUR)).
+-define(KB, 1024).
 -define(MB, (1024 * 1024)).
 
 % Maximum length of tag/blob prefix

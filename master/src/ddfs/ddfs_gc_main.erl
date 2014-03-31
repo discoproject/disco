@@ -826,7 +826,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
           fun({{BlobName, Node}, {true, Vol, Size}}, _) ->
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          SizeKB = trunc(Size / 1000),
+                          SizeKB = trunc(Size / ?KB),
                           Entry = {BlobName, [{Node, Vol}], [],
                                    noupdate, SizeKB, norebalance, []},
                           ets:insert(gc_blobs, Entry);
@@ -915,7 +915,7 @@ update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
     {_, {_, DelTag}} = Tags,
     {_, {_, DelBlob}} = Blobs,
     {_, {Free, Used}} = lists:keyfind(Node, 1, NodeStats),
-    Deleted = trunc((DelTag + DelBlob) / 1000),
+    Deleted = trunc((DelTag + DelBlob) / ?KB),
     lists:keystore(Node, 1, NodeStats, {Node, {Free + Deleted, Used - Deleted}}).
 
 -spec estimate_rr_blobs(state()) -> [node_info()].
