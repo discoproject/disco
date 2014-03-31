@@ -2,7 +2,9 @@
 -export([
          utility/1,
          avg_disk_usage/1,
-         threshold/0
+         threshold/0,
+         is_balanced/3,
+         less/4
      ]).
 
 -include("config.hrl").
@@ -60,3 +62,25 @@ threshold() ->
                 string:to_float(disco:get_setting("DDFS_GC_BALANCE_THRESHOLD")));
         false -> ?GC_BALANCE_THRESHOLD
     end.
+
+-spec is_balanced(non_neg_integer(), non_neg_integer(), float()) -> true | false.
+is_balanced(Balanced, Threshold, DiskSpace) ->
+    is_balanced(Balanced, Threshold, DiskSpace, disco:has_setting("DDFS_ABSOLUTE_SPACE")).
+
+is_balanced(Balanced, Threshold, DiskSpace, false) ->
+    (Balanced / DiskSpace) > Threshold;
+
+is_balanced(Balanced, Threshold, _DiskSpace, true) ->
+    Balanced > Threshold.
+
+-spec less(non_neg_integer(), non_neg_integer(),
+        non_neg_integer(), non_neg_integer()) -> true | false.
+
+less(B1, DS1, B2, DS2) ->
+    less(B1, DS1, B2, DS2, disco:has_setting("DDFS_ABSOLUTE_SPACE")).
+
+less(B1, DS1, B2, DS2, false) ->
+    B1 / DS1 =< B2 / DS2;
+
+less(B1, _DS1, B2, _DS2, true) ->
+    B1 =< B2.

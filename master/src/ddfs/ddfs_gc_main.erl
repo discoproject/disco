@@ -955,10 +955,11 @@ rebalance(Overused, BL, NodeStats) ->
                                                 lists:member(N, OverusedPresent)],
                       [{N, {DiskSpace, Balanced}} | _] =
                           lists:sort(
+
                             fun({_, {DS1, B1}}, {_, {DS2, B2}}) ->
-                                    B1 / DS1 =< B2 / DS2
+                                    ddfs_rebalance:less(B1, DS1, B2, DS2)
                             end, PresentStats),
-                      case (Balanced / DiskSpace) > Threshold of
+                          case ddfs_rebalance:is_balanced(Balanced, DiskSpace, Threshold) of
                           true ->
                               % The node has passed the threshold for how much of
                               % its diskspace that can be selected to replicate 
