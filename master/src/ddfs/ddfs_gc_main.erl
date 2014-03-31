@@ -926,8 +926,11 @@ estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
                           [Node] ->
                               {Node, {Free, Used}} = lists:keyfind(Node, 1,
                                   NodeStats),
-                              lists:keyreplace(Node, 1, NodeStats,
-                                  {Node, {Free - Size, Used + Size}})
+                              case Size of
+                                  undefined -> NodeStats;
+                                  _ -> lists:keyreplace(Node, 1, NodeStats,
+                                          {Node, {Free - Size, Used + Size}})
+                              end
                       end
               end
       end, NS, gc_blobs).
