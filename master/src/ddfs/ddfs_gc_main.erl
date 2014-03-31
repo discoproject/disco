@@ -887,21 +887,6 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
             underused_nodes = UnderusedNodes,
             most_overused_node = MostOverused}.
 
--spec avg_disk_usage([node_info()]) -> non_neg_integer().
-avg_disk_usage(NodeStats) ->
-    {SumFree, SumUsed} = lists:foldl(
-            fun({_N, {Free, Used}}, {SFree, SmUsed}) ->
-                    {SFree + Free, SmUsed + Used}
-            end, {0, 0}, NodeStats),
-    NumNodes = length(NodeStats),
-    case NumNodes of
-        0 -> 0;
-        _ -> case SumFree + SumUsed of
-                0 -> 0;
-                _ -> SumUsed / (NumNodes * (SumFree + SumUsed))
-            end
-    end.
-
 -spec get_balance_threshold() -> float().
 get_balance_threshold() ->
     case disco:has_setting("DDFS_GC_BALANCE_THRESHOLD") of
@@ -1523,7 +1508,7 @@ url(N, V, Blob, Root) ->
     Url.
 
 find_unstable_nodes(NS) ->
-     DiskUsage = avg_disk_usage(NS),
+     DiskUsage = ddfs_master:avg_disk_usage(NS),
      UnderUsed = find_unstable_nodes(underused, NS, DiskUsage),
      OverUsed = find_unstable_nodes(overused, NS, DiskUsage),
      lager:info("GC: average disk utilization: ~p, "

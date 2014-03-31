@@ -16,7 +16,8 @@
          tag_operation/2, tag_operation/3,
          update_gc_stats/1,
          update_nodes/1,
-         get_utilization_index/1
+         get_utilization_index/1,
+         avg_disk_usage/1
         ]).
 -export([init/1,
          handle_call/3,
@@ -314,9 +315,36 @@ get_utilization_index({_N, {Free, Used}}, false) ->
     end;
 
 get_utilization_index({_N, {Free, _Used}}, true) ->
-    case Free of
+    -Free.
+
+-spec avg_disk_usage([node_info()]) -> non_neg_integer().
+avg_disk_usage(NodeStats) ->
+    avg_disk_usage(NodeStats, disco:has_setting("DDFS_ABSOLUTE_SPACE")).
+
+avg_disk_usage(NodeStats, false) ->
+    {SumFree, SumUsed} = lists:foldl(
+            fun({_N, {Free, Used}}, {SFree, SmUsed}) ->
+                    {SFree + Free, SmUsed + Used}
+            end, {0, 0}, NodeStats),
+    NumNodes = length(NodeStats),
+    case NumNodes of
         0 -> 0;
-        _ -> 1 / Free
+        _ -> case SumFree + SumUsed of
+                0 -> 0;
+                _ -> SumUsed / (NumNodes * (SumFree + SumUsed))
+            end
+    end;
+
+avg_disk_usage(NodeStats, true) ->
+    SumFree = lists:foldl(
+            fun({_N, {Free, _}}, SFree) ->
+                    SFree + Free
+            end,
+            0, NodeStats),
+    NumNodes = length(NodeStats),
+    case NumNodes of
+        0 -> 0;
+        _ -> -SumFree / NumNodes
     end.
 
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
@@ -341,13 +369,7 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
 
 do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
     CandidateNodes = Nodes -- (Exclude ++ BlackList ++ Include),
-    Utilization = case disco:has_setting("DDFS_ABSOLUTE_SPACE") of
-        true ->
-            [{N, Free} || {N, {Free, _Used}} <- CandidateNodes];
-        false ->
-            [{N, 1 - get_utilization_index(Node, false)} ||
-                ({N, _} = Node) <- CandidateNodes]
-    end,
+    Utilization = [{N, 1 - get_utilization_index(Node)} || ({N, _} = Node) <- CandidateNodes],
     TotalSum = lists:foldl(fun({_, I}, S) -> S + I end, 0, Utilization),
     case TotalSum of
         0 -> do_choose_write_nodes(Nodes, K, Include, Exclude,
