@@ -973,9 +973,13 @@ rebalance(Overused, BL, NodeStats) ->
                               % has not passed the rebalancing threshold. Mark the
                               % blob for replication to balance the cluster and
                               % update the stats.
-                              ets:update_element(gc_blobs, BlobName, {6, rebalance}),
-                              lists:keyreplace(N, 1, Stats,
-                                               {N, {DiskSpace, Balanced + Size}})
+                              case Size of
+                                  undefined -> Stats;
+                                  _ ->
+                                      ets:update_element(gc_blobs, BlobName, {6, rebalance}),
+                                      lists:keyreplace(N, 1, Stats,
+                                                       {N, {DiskSpace, Balanced + Size}})
+                              end
                       end;
                   {_, _} ->
                       Stats
