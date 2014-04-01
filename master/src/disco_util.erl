@@ -37,19 +37,19 @@ choose_random(L, R, N) ->
 weighted_select_items(L, K) when length(L) < K ->
     error;
 weighted_select_items(L, K) ->
-    weighted_select_items(L, K, []).
+    weighted_select_items(L, K, [], 0).
 
-weighted_select_items(_, 0, Items) ->
+weighted_select_items(_, 0, Items, _) ->
     Items;
-weighted_select_items(L, K, Items) ->
-    P = random:uniform(),
-    Item = weighted_choose(L, P),
+weighted_select_items(L, K, Items, Consumed) ->
+    P = random:uniform() * (1 - Consumed),
+    {Item, Weight} = weighted_choose(L, P),
     Rest = lists:keydelete(Item, 1, L),
-    weighted_select_items(Rest, K - 1, [Item|Items]).
+    weighted_select_items(Rest, K - 1, [Item|Items], Consumed + Weight).
 
 weighted_choose([{Node, Weight}|_], P) when Weight > P ->
-    Node;
-weighted_choose([{Node, _}|[]], _) ->
-    Node;
+    {Node, Weight};
+weighted_choose([{Node, Weight}|[]], _) ->
+    {Node, Weight};
 weighted_choose([{_, Weight}|Rest], P) ->
     weighted_choose(Rest, P - Weight).
