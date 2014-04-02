@@ -25,6 +25,7 @@ real-time.
 Summary: Disco Master
 Group: System Environment/Daemon
 Requires: erlang
+Requires: python-%{name} == %{version}-%{release}
 BuildRequires: erlang
 
 %description master
@@ -34,6 +35,7 @@ This package contains the required files to run the disco master
 Summary: Disco Node
 Group: System Environment/Daemon
 Requires: erlang
+Requires: python-%{name} == %{version}-%{release}
 BuildRequires: erlang
 
 %description node
@@ -123,3 +125,8 @@ if [ "$1" = 0 ]; then
        /bin/rm -f /usr/bin/disco
        /bin/rm -f /usr/bin/ddfs
 fi
+
+%changelog
+* Wed Apr 02 2014 Shayan Pooya <shayan@liveve.org> - 0.5.0-1
+- Initial packaging
+- Make python-disco a dependency of node and master subpackages
