@@ -60,9 +60,10 @@ Short Version
 
 ::
 
-        git clone git://github.com/discoproject/disco.git DISCO_HOME
-        cd DISCO_HOME
+        git clone git://github.com/discoproject/disco.git $DISCO_HOME
+        cd $DISCO_HOME
         make
+        cd lib && python setup.py install --user && cd ..
         bin/disco nodaemon
 
 .. hint:: Its convenient to add the :mod:`disco <discocli>` command to your path.
@@ -81,7 +82,18 @@ Now compile Disco::
 
 This is often the easiest and the least intrusive way to get started with Disco.
 
-You should repeat the above command on all machines in your Disco cluster.
+You should repeat the above command on all machines in your Disco cluster.  You
+can also install disco systemwide::
+
+        make install
+
+Install the python libraries for the local user::
+
+        cd lib
+        python setup.py install --user
+        cd ..
+
+Or you can install these libraries in your favorite place.
 
 .. note:: Disco must be located at the same path on all the nodes.
 
