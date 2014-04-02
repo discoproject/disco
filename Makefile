@@ -31,6 +31,10 @@ export TARGETDAT = $(DESTDIR)$(RELDAT)
 export TARGETCFG = $(DESTDIR)$(RELCFG)
 export TARGETSRV = $(DESTDIR)$(RELSRV)
 
+export ABSTARGETLIB = $(RELLIB)
+export ABSTARGETSRV = $(RELSRV)
+export ABSTARGETDAT = $(RELDAT)
+
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
 SPHINXOPTS = -D version=$(DISCO_VERSION) -D release=$(DISCO_RELEASE)
