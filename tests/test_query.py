@@ -1,10 +1,10 @@
 from disco.test import TestCase, TestPipe
-from disco.compat import bytes_to_str
+from disco.compat import bytes_to_str, str_to_bytes
 from disco.worker.pipeline.worker import Stage
 from disco.worker.task_io import task_input_stream
-import sys
 import csv
 from functools import partial
+import hashlib
 
 PREFIX='/tmp/'
 
@@ -21,11 +21,11 @@ def read(interface, state, label, inp):
         for row in reader:
             if firstRow:
                 tableName = row[0]
-                print "joinColumn is: ", str(col), " tableName is: ", tableName
                 firstRow = False
             else:
                 fullName = tableName + '?' + str(col)
-                interface.output(hash(row[col]) % 160).add(fullName, row)
+                Hash = int(hashlib.md5(str_to_bytes(row[col])).hexdigest(), 16) % 160
+                interface.output(Hash).add(fullName, row)
 
 def join_init(interface, params):
     return {}
@@ -38,14 +38,12 @@ def join(interface, state, label, inp):
             state[k].append(v)
 
 def join_done(interface, state):
-    if len(state) > 2:
-        sys.exit("Cannot join more than two state: %d given" % len(state))
-    if len(state) < 2:
-        print "Nothing to join here!"
+    if len(state) != 2:
         return
 
-    name0 = state.keys()[0]
-    name1 = state.keys()[1]
+    name0 = list(state.keys())[0]
+    name1 = list(state.keys())[1]
+
     _, strCol0 = name0.split('?')
     _, strCol1 = name1.split('?')
     col0 = int(strCol0)

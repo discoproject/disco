@@ -337,6 +337,20 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
                           "Some bytes may be missing from input.".format(len(buf), fname))
             break
 
+class DiscoPlainOut(object):
+    def __init__(self, stream):
+        self.stream = stream
+
+    def add(self, k, v):
+        k, v = str(k), str(v)
+        self.stream.write(str_to_bytes("%d %s %d %s\n" % (len(k), k, len(v), v)))
+
+    def close(self):
+        pass
+
+def plain_output_stream(stream, partition, url, params):
+    return DiscoPlainOut(stream)
+
 chain_reader = disco_input_stream
 chain_stream = (task_input_stream, chain_reader)
 default_stream = (task_input_stream, )

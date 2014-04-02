@@ -1,25 +1,13 @@
-
 .. _install_sys:
 
 ============================
 Installing Disco System-Wide
 ============================
 
-.. note:: **Shortcut for Debian / Ubuntu users:**
-
-   If you run Debian or some recent version of Ubuntu on the AMD64
-   architecture, you can use the ``make-discoproject-debian`` script
-   in the source tree to build your own deb-packages.  This will
-   ensure that the packages are compatible with the software
-   (particularly Python) versions in your cluster.
-
-   Alternatively, you may try out our *experimental* deb-packages
-   which are available at the :doc:`Disco download page <download>`.
-
-   If the packages installed properly, you should :ref:`configauth`.
-
 Install From Source
 ===================
+
+Note: On FreeBSD, replace all of the instances of make with gmake.
 
 Assuming you have already gotten Disco running out of the source directory,
 as described in :ref:`install_source`,

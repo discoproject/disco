@@ -10,12 +10,12 @@ import sys
 def Map(interface, state, label, inp):
     out = interface.output(0)
     for i in inp:
-        out.add(str(i), u'\x00\x00')
+        out.add(str_to_bytes(i), u'\x00\x00')
 
 def Reduce(interface, state, label, inp):
     out = interface.output(0)
     for k, vs in kvgroup(inp):
-        out.add(str(k), 0)
+        out.add(str_to_bytes(k), 0)
 
 class SortJob(TestPipe):
     pipeline = [("split", Stage("Map", process=Map)),
@@ -28,4 +28,4 @@ class SortTestCase(TestCase):
     def runTest(self):
         self.job = SortJob().run(input=self.test_server.urls([''] * 10))
         result = [i for i in self.results(self.job)]
-        self.assertResults(self.job, [('a', 0)])
+        self.assertResults(self.job, [(b'a', 0)])

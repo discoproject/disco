@@ -1,5 +1,5 @@
 {application, disco,
- [{description, "Disco"},
+ [{description, "Disco: a Map/Reduce framework for distributed computing"},
   {vsn, git},
   {registered, [disco_server, event_server]},
   {applications, [kernel, stdlib]},

@@ -3,6 +3,7 @@ $(document).ready(function(){
     var job = new Job(jobname);
     $("#hd #title").append(job.name);
     $("#kill_job").on("click", job.kill);
+    $("#copy_name").on("click", job.copy);
     $("#purge_job").on("click", job.purge);
     $("#find_page").on("click", job.find);
     $("#find_events").on("submit", job.find);
@@ -27,6 +28,10 @@ function Job(name){
         if (confirm("Do you really want to kill " + self.name + "?"))
             post_req("/disco/ctrl/kill_job", JSON.stringify(self.name));
     };
+
+    self.copy = function() {
+        window.prompt("Copy to clipboard: Ctrl+C, Enter", self.name);
+    }
 
     self.purge = function(){
         if (confirm("Do you really want to delete all data of " + self.name + "?"))

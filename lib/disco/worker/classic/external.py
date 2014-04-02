@@ -351,7 +351,6 @@ In addition, the library contains the following utility functions:
 import os, time, struct, marshal, stat, select, sys
 from subprocess import Popen, PIPE
 from disco.worker.classic.netstring import decode_netstring_str, encode_netstring_fd
-from disco.util import msg
 from disco.error import DiscoError
 from disco.worker import Worker
 from disco.compat import str_to_bytes, bytes_to_str

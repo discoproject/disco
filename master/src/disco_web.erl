@@ -151,8 +151,13 @@ getop("get_settings", _Query) ->
                                      end
                                  end, L))}};
 
-getop("get_mapresults", {_Query, Name}) ->
-    case event_server:get_map_results(Name) of
+getop("get_stageresults", {Query, Name}) ->
+    Stage = case lists:keyfind("stage", 1, Query) of
+        {_, N} -> N;
+        _      -> not_found
+    end,
+    StageName = list_to_binary(Stage),
+    case event_server:get_stage_results(Name, StageName) of
         {ok, _Res} = OK -> OK;
         _               -> not_found
     end;

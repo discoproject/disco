@@ -1,11 +1,11 @@
-import pickle
 import unittest
 from random import random
 from disco.util import encode, decode
+from disco.compat import pickle_dumps
 
 class TransTest(unittest.TestCase):
     def transform(self, s):
-        pickled = pickle.dumps(s, 2)
+        pickled = pickle_dumps(s, 2)
         self.assertEqual(pickled, decode(encode(pickled)))
 
     def test_0(self):
@@ -20,7 +20,7 @@ class TransTest(unittest.TestCase):
     def test_rand(self):
         for i in range(1000):
             tokens = []
-            items = [b'\x00', b'\x01', b'\x02']
+            items = ['\x00', '\x01', '\x02']
             for i in range(200):
                 tokens.append(items[int(random() * len(items))])
             s = u''.join(tokens)

@@ -23,5 +23,5 @@ class PickleTestCase(TestCase):
         self.assertEquals(p('a', b='b'), loads(dumps(p))('a', b='b'))
 
     def test_pattern(self):
-        pattern = re.compile(r'pattern.*!')
+        pattern = re.compile(b'pattern.*!')
         self.assertEquals(pattern, loads(dumps(pattern)))

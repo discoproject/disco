@@ -95,6 +95,9 @@ class Worker(dict):
     :type  save_results: bool
     :param save_results: whether or not to save the output to :ref:`DDFS`.
 
+    :type save_info: string
+    :param save_info: the information about saving into a DFS.
+
     :type  profile: bool
     :param profile: determines whether :meth:`run` will be profiled.
 

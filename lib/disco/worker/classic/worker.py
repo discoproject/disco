@@ -281,6 +281,8 @@ class Worker(worker.Worker):
         has_reduce = bool(get('reduce'))
         job_input = get('input', [])
         has_save_results = get('save', False) or get('save_results', False)
+        save_info = get('save_info', "ddfs")
+
         if not isiterable(job_input):
             raise DiscoError("Job 'input' is not a list of input locations,"
                              "or a list of such lists: {0}".format(job_input))
@@ -313,6 +315,7 @@ class Worker(worker.Worker):
                         'reduce?': has_reduce,
                         'nr_reduces': nr_reduces,
                         'save_results': has_save_results,
+                        'save_info': save_info,
                         'scheduler': get('scheduler', {})})
         return jobdict
 
@@ -443,7 +446,6 @@ class Worker(worker.Worker):
             return ClassicFile(url, streams, params)
         return open
 
-from disco.util import msg, err, data_err
 
 def get(*args, **kwargs):
     """See :meth:`disco.task.Task.get`."""

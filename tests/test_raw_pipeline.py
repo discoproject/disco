@@ -1,5 +1,6 @@
 from disco.test import TestCase, TestPipe
 from disco.worker.pipeline.worker import Stage
+from disco.compat import str_to_bytes
 
 def map(interface, state, label, inp):
     out = interface.output(0)
@@ -18,5 +19,5 @@ class RawTestCase(TestCase):
     def runTest(self):
         self.job = RawJob().run(input=self.test_server.urls(self.input))
         self.assertEqual(sorted(self.results(self.job)),
-                         sorted((i, '') for i in self.input))
+                         sorted((str_to_bytes(i), '') for i in self.input))
 

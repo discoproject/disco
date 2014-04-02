@@ -11,7 +11,7 @@ if sys.platform == "darwin":
             c_char_p, c_void_p, c_void_p, c_void_p, c_ulong
         ]
         libc.sysctlbyname(
-            "hw.memsize",
+            b"hw.memsize",
             c_voidp(addressof(mem)),
             c_voidp(addressof(size)),
             None,

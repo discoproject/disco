@@ -4,16 +4,11 @@
 
 This module provides utility functions that are mostly used by Disco
 internally.
-
-.. deprecated:: 0.4
-                :func:`disco.util.data_err`, :func:`disco.util.err`, and :func:`disco.util.msg`
-                will be removed completely in the next release,
-                in favor of using normal Python **raise** and **print** statements.
 """
 import os, sys, time
 import functools, gzip
 
-from disco.compat import BytesIO, basestring, bytes_to_str
+from disco.compat import BytesIO, basestring, bytes_to_str, str_to_bytes
 from disco.compat import pickle_loads, pickle_dumps, sort_cmd
 from itertools import chain, groupby, repeat
 
@@ -157,7 +152,7 @@ def urljoin(scheme_netloc_path):
                                path))
 
 def schemesplit(url):
-    return url.split('://', 1) if '://' in url else ('', url)
+    return bytes_to_str(url).split('://', 1) if '://' in bytes_to_str(url) else ('', url)
 
 def localize(path, ddfs_data=None, disco_data=None):
     prefix, fname = path.split('/', 1)
@@ -205,38 +200,6 @@ def urltoken(url):
     if '@' in locstr:
         auth = locstr.split('@', 1)[0]
         return auth.split(':')[1] if ':' in auth else auth
-
-def msg(message):
-    """
-    .. deprecated:: 0.4 use **print** instead.
-
-    Sends the string *message* to the master for logging. The message is
-    shown on the web interface. To prevent a rogue job from overwhelming the
-    master, the maximum *message* size is set to 255 characters and job is
-    allowed to send at most 10 messages per second.
-    """
-    print(message)
-
-def err(message):
-    """
-    .. deprecated:: 0.4
-                    raise :class:`disco.error.DiscoError` instead.
-
-    Raises a :class:`disco.error.DiscoError`. This terminates the job.
-    """
-    raise DiscoError(message)
-
-def data_err(message, url):
-    """
-    .. deprecated:: 0.4
-                    raise :class:`disco.error.DataError` instead.
-
-    Raises a :class:`disco.error.DataError`.
-    A data error should only be raised if it is likely that the error is transient.
-    Typically this function is used by map readers to signal a temporary failure
-    in accessing an input file.
-    """
-    raise DataError(message, url)
 
 def jobname(url):
     """
@@ -406,4 +369,4 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
         worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
     for k, v in sort_reader(fd, fd.url):
-        yield k, decode(pickle_loads(v))
+        yield k, bytes_to_str(decode(str_to_bytes(pickle_loads(v))))

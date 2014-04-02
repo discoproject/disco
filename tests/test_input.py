@@ -65,5 +65,6 @@ class InputTestCase(TestCase):
         self.job = JobChain({a: input,
                              b: input,
                              c: [a, b],
-                             d: [a, b]}).wait()
+                             d: [a, b]})
+        self.job.wait()
         self.assertAllEqual(sorted(self.results(c)), sorted(self.results(d)))
