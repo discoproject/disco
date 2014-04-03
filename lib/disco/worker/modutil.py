@@ -223,7 +223,7 @@ def locate_modules(modules, recurse=True, include_sys=False):
     return found.items()
 
 
-def find_modules(functions, send_modules=True, recurse=True, exclude=()):
+def find_modules(functions, send_modules=True, job_path=None, recurse=True, exclude=()):
     """
     Tries to guess and locate modules that are used by *functions*.
     Returns a list of required modules as specified in :ref:`modspec`.
@@ -254,4 +254,12 @@ def find_modules(functions, send_modules=True, recurse=True, exclude=()):
             modules.update((k, v) if v else k for k, v in m)
         else:
             modules.update(fmod)
+
+    if job_path:
+        module_name = job_path.split('/')[-1].split('.')[0]
+        if dirname(job_path) in user_paths():
+            modules.update(set([(module_name, job_path)]))
+            if recurse:
+                modules.update(recurse_module(module_name, job_path).items())
+
     return list(modules)

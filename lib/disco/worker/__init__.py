@@ -155,7 +155,20 @@ class Worker(dict):
         return self.get(key, default)
 
     def get_modules(self, job, **jobargs):
-        return []
+        from disco.worker.modutil import find_modules
+        from disco.util import iterify
+        def get(key):
+            return self.getitem(key, job, jobargs)
+        from inspect import getsourcefile, getmodule
+        job_path = getsourcefile(getmodule(job))
+
+        return find_modules([obj
+                             for key in self
+                             for obj in iterify(get(key))
+                             if callable(obj)],
+                             job_path=job_path,
+                            exclude=['Task'])
+
 
     def jobdict(self, job, **jobargs):
         """

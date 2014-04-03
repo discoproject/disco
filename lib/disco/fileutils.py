@@ -238,4 +238,7 @@ def files(path):
         yield path
 
 def get_valid_path(path):
-    return os.path.realpath(path) if os.path.islink(path) else path
+    if os.path.islink(path) or not path.startswith('/'):
+        return os.path.realpath(path)
+    else:
+        return path
