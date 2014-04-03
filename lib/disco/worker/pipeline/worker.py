@@ -149,15 +149,6 @@ class Worker(worker.Worker):
                          'version': '.'.join(str(s) for s in sys.version_info[:2])})
         return defaults
 
-    def get_modules(self, job, **jobargs):
-        from disco.worker.modutil import find_modules
-        def get(key, default=None):
-            return self.getitem(key, job, jobargs, default)
-        return find_modules([obj
-                             for g, s in get('pipeline', [])
-                             for obj in s._callables()],
-                            exclude=['Task'])
-
     def jobdict(self, job, **jobargs):
         """
         Creates :ref:`jobdict` for the :class:`Worker`.
