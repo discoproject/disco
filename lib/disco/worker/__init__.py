@@ -186,6 +186,7 @@ class Worker(dict):
         :return: :ref:`jobdict` dict.
         """
         return {'prefix': self.getitem('name', job, jobargs),
+                'save_info': self.getitem('save_info', job, jobargs, "ddfs"),
                 'owner': self.getitem('owner', job, jobargs,
                                       job.settings['DISCO_JOB_OWNER'])}
 

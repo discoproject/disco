@@ -270,7 +270,6 @@ class Worker(worker.Worker):
         has_reduce = bool(get('reduce'))
         job_input = get('input', [])
         has_save_results = get('save', False) or get('save_results', False)
-        save_info = get('save_info', "ddfs")
 
         if not isiterable(job_input):
             raise DiscoError("Job 'input' is not a list of input locations,"
@@ -304,7 +303,6 @@ class Worker(worker.Worker):
                         'reduce?': has_reduce,
                         'nr_reduces': nr_reduces,
                         'save_results': has_save_results,
-                        'save_info': save_info,
                         'scheduler': get('scheduler', {})})
         return jobdict
 
