@@ -5,7 +5,7 @@
 
 from disco import util
 from disco.error import DataError
-from disco.compat import bytes_to_str, UnpicklingError
+from disco.compat import bytes_to_str, str_to_bytes, UnpicklingError
 
 def gzip_reader(fd, size, url, params):
     """Wraps the input in a :class:`gzip.GzipFile` object."""

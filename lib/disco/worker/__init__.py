@@ -186,6 +186,8 @@ class Worker(dict):
         :return: :ref:`jobdict` dict.
         """
         return {'prefix': self.getitem('name', job, jobargs),
+                'save_results': self.getitem('save_results', job, jobargs, False),
+                'save_info': self.getitem('save_info', job, jobargs, "ddfs"),
                 'owner': self.getitem('owner', job, jobargs,
                                       job.settings['DISCO_JOB_OWNER'])}
 
@@ -303,14 +305,12 @@ class Worker(dict):
         self.getitem(task.stage, job, jobargs)(task, job, **jobargs)
 
     def end(self, task, job, **jobargs):
-        def get(key):
-            return self.getitem(key, job, jobargs)
-        if not get('save_results') or (task.stage == 'map' and get('reduce')):
-            self.send_outputs()
-            self.send('MSG', "Results sent to master")
-        else:
+        if self.should_save_results(task, job, jobargs):
             self.save_outputs(task.jobname, master=task.master)
             self.send('MSG', "Results saved to DDFS")
+        else:
+            self.send_outputs()
+            self.send('MSG', "Results sent to master")
 
     @classmethod
     def main(cls):

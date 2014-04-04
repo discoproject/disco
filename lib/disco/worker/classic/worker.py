@@ -270,7 +270,6 @@ class Worker(worker.Worker):
         has_reduce = bool(get('reduce'))
         job_input = get('input', [])
         has_save_results = get('save', False) or get('save_results', False)
-        save_info = get('save_info', "ddfs")
 
         if not isiterable(job_input):
             raise DiscoError("Job 'input' is not a list of input locations,"
@@ -304,7 +303,6 @@ class Worker(worker.Worker):
                         'reduce?': has_reduce,
                         'nr_reduces': nr_reduces,
                         'save_results': has_save_results,
-                        'save_info': save_info,
                         'scheduler': get('scheduler', {})})
         return jobdict
 
@@ -318,6 +316,11 @@ class Worker(worker.Worker):
                 for path, bytes in get(func).items():
                     jobzip.writestr(os.path.join('ext.{0}'.format(func), path), bytes)
         return jobzip
+
+    def should_save_results(self, task, job, jobargs):
+        def get(key):
+            return self.getitem(key, job, jobargs)
+        return get('save_results') and (task.stage == 'map' or get('reduce'))
 
     def run(self, task, job, **jobargs):
         global Task
