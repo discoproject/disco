@@ -18,11 +18,11 @@ INSTALL_DATA    = $(INSTALL) -m 644
 INSTALL_TREE    = cp -r
 
 # relative directory paths
-RELBIN = $(bindir)
-RELLIB = $(libdir)/disco
-RELDAT = $(datadir)/disco
-RELCFG = $(sysconfdir)/disco
-RELSRV = $(localstatedir)/disco
+export RELBIN = $(bindir)
+export RELLIB = $(libdir)/disco
+export RELDAT = $(datadir)/disco
+export RELCFG = $(sysconfdir)/disco
+export RELSRV = $(localstatedir)/disco
 
 # installation directories
 export TARGETBIN = $(DESTDIR)$(RELBIN)
