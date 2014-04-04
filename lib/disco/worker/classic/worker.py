@@ -319,6 +319,11 @@ class Worker(worker.Worker):
                     jobzip.writestr(os.path.join('ext.{0}'.format(func), path), bytes)
         return jobzip
 
+    def should_save_results(self, task, job, jobargs):
+        def get(key):
+            return self.getitem(key, job, jobargs)
+        return get('save_results') and (task.stage == 'map' or get('reduce'))
+
     def run(self, task, job, **jobargs):
         global Task
         Task = task
