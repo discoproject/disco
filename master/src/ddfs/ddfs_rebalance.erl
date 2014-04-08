@@ -95,5 +95,26 @@ weighted_select_from_nodes(List, K) ->
     _ ->
         NormalizedUtil = lists:foldl(fun({N, I}, L) -> [{N, I / TotalSum} | L] end, [],
             Utilization),
-        disco_util:weighted_select_items(NormalizedUtil, K)
+        weighted_select_items(NormalizedUtil, K)
     end.
+
+-spec weighted_select_items(list(T), non_neg_integer()) -> list(T) | error.
+weighted_select_items(L, K) when length(L) < K ->
+    error;
+weighted_select_items(L, K) ->
+    weighted_select_items(L, K, [], 0).
+
+weighted_select_items(_, 0, Items, _) ->
+    Items;
+weighted_select_items(L, K, Items, Consumed) ->
+    P = random:uniform() * (1 - Consumed),
+    {Item, Weight} = weighted_choose(L, P),
+    Rest = lists:keydelete(Item, 1, L),
+    weighted_select_items(Rest, K - 1, [Item|Items], Consumed + Weight).
+
+weighted_choose([{Node, Weight}|_], P) when Weight > P ->
+    {Node, Weight};
+weighted_choose([{Node, Weight}|[]], _) ->
+    {Node, Weight};
+weighted_choose([{_, Weight}|Rest], P) ->
+    weighted_choose(Rest, P - Weight).
