@@ -919,7 +919,7 @@ estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
                       ets:update_element(gc_blobs, BlobName, {4, {update, []}}),
                       Exclude = SafeRecovered ++ PresentNodes,
                       OtherNodes = [{N, S} || {N, S} <- NodeStats, not lists:member(N, Exclude)],
-                      case disco_util:weighted_select_items(OtherNodes, 1) of
+                      case ddfs_rebalance:weighted_select_from_nodes(OtherNodes, 1) of
                           error  ->
                               lager:warning("Could not replicate ~s.", BlobName),
                               NodeStats;
