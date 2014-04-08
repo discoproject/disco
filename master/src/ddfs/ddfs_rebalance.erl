@@ -4,6 +4,7 @@
          avg_disk_usage/1,
          threshold/0,
          is_balanced/3,
+         weighted_select_from_nodes/2,
          less/4
      ]).
 
@@ -84,3 +85,15 @@ less(B1, DS1, B2, DS2, false) ->
 
 less(B1, _DS1, B2, _DS2, true) ->
     B1 =< B2.
+
+-spec weighted_select_from_nodes(list(T), non_neg_integer()) -> list(T) | error.
+weighted_select_from_nodes(List, K) ->
+    Utilization = [{N, 1 - ddfs_rebalance:utility(Node)} || ({N, _} = Node) <- List],
+    TotalSum = lists:foldl(fun({_, I}, S) -> S + I end, 0, Utilization),
+    case TotalSum of
+    0 -> error;
+    _ ->
+        NormalizedUtil = lists:foldl(fun({N, I}, L) -> [{N, I / TotalSum} | L] end, [],
+            Utilization),
+        disco_util:weighted_select_items(NormalizedUtil, K)
+    end.

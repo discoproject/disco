@@ -325,17 +325,12 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
     NotCandidates = Exclude ++ BlackList ++ Include,
     Primary = [Node || ({N, {Free, _Total}} = Node) <- Nodes,
         Free > ?MIN_FREE_SPACE / 1024, not lists:member(N, NotCandidates)],
-    Utilization = [{N, 1 - ddfs_rebalance:utility(Node)} || ({N, _} = Node) <- Primary],
-    TotalSum = lists:foldl(fun({_, I}, S) -> S + I end, 0, Utilization),
-    case TotalSum of
-        0 -> do_choose_write_nodes(Nodes, K, Include, Exclude,
-                BlackList, false);
-        _ ->
-            NormalizedUtil = lists:foldl(fun({N, I}, L) -> [{N, I / TotalSum} | L] end, [],
-                Utilization),
-            Preferred = disco_util:weighted_select_items(NormalizedUtil, K - length(Include)),
-            WriteNodes = Include ++ lists:sublist(Preferred, K - length(Include)),
-            {ok, WriteNodes}
+    case ddfs_rebalance:weighted_select_from_nodes(Primary, K - length(Include)) of
+        error    ->
+            do_choose_write_nodes(Nodes, K - length(Include), Include,
+                Exclude, BlackList, false);
+        Selected ->
+            {ok, Include ++ Selected}
     end.
 
 -spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
