@@ -6,7 +6,7 @@ disco run wordcount_ddb.WordCount http://discoproject.org/media/text/chekhov.txt
 from disco.core import Job
 from disco.util import kvgroup
 
-from disco.worker.task_io import discodb_stream
+from disco.schemes.scheme_discodb import discodb_stream
 
 class WordCount(Job):
     reduce_output_stream = discodb_stream
