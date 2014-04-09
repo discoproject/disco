@@ -17,11 +17,14 @@ New features
 - A docker file has been added that lets you install Disco in a Docker
   container.
 
-- Disco now supports reading the job inputs and writing the job outputs to HDFS.
-  This feature is still experimental.
-
 - A spec file has been added to make it easy to create an rpm from the a Disco
   tarball.
+
+Experimental
+''''''''''''
+- Disco now supports reading the job inputs from and writing the job outputs to HDFS.
+
+- Disco now supports reading the job inputs from and writing the job outputs to Redis.
 
 Changes
 '''''''
