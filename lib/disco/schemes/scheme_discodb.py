@@ -1,5 +1,6 @@
 from disco import util
 from discodb import DiscoDB, Q
+from disco.worker.task_io import task_output_stream
 
 def Open(url, task=None):
     if task:
@@ -25,3 +26,26 @@ def Open(url, task=None):
 
 def input_stream(fd, size, url, params):
     return Open(url, task=globals().get('Task')), size, url
+
+class DiscoDBOutput(object):
+    def __init__(self, stream, params):
+        from discodb import DiscoDBConstructor
+        self.discodb_constructor = DiscoDBConstructor()
+        self.stream = stream
+        self.params = params
+        self.path = stream.path
+
+    def add(self, key, val):
+        self.discodb_constructor.add(key, val)
+
+    def close(self):
+        def flags():
+            return dict((flag, getattr(self.params, flag))
+                        for flag in ('unique_items', 'disable_compression')
+                        if hasattr(self.params, flag))
+        self.discodb_constructor.finalize(**flags()).dump(self.stream)
+
+def discodb_output(stream, partition, url, params):
+    return DiscoDBOutput(stream, params), 'discodb:{0}'.format(url.split(':', 1)[1])
+
+discodb_stream = (task_output_stream, discodb_output)

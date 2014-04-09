@@ -346,8 +346,7 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
                               tasks   = Tasks,
                               stage_info = SI} = S) ->
     #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
-    Outputs = [(jc_utils:task_info(TaskId, Tasks))#task_info.outputs
-               || TaskId <- Done],
+    Outputs = [jc_utils:task_outputs(TaskId, Tasks) || TaskId <- Done],
     Results = [pipeline_utils:output_urls(O)
                || {_Id, O} <- lists:flatten(Outputs)],
     case Save of
