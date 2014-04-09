@@ -19,6 +19,7 @@ class Query(Job):
             yield k, list(vs)
 
 if __name__ == '__main__':
+    from query_ddb import Query
     job = Query().run(input=sys.argv[2:], params=sys.argv[1])
     for k, vs in result_iterator(job.wait()):
         print('{0}\t{1}'.format(k, sum(int(v) for v in vs)))
