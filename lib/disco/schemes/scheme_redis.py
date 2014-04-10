@@ -32,13 +32,13 @@ class RedisStream(file):
             self.cursor = None
         List = []
         for k in ret:
-            v = self.redis.get(k)
-            List.append((k, v))
+            vs = self.redis.lrange(k, 0, -1)
+            for v in vs:
+                List.append((k, v))
         return List
 
     def add(self, key, value):
-        self.redis.set(key, value)
-
+        self.redis.lpush(key, value)
 
 def input_stream(fd, size, url, params):
     file = RedisStream(url)
