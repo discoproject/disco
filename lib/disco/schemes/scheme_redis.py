@@ -32,13 +32,13 @@ class RedisStream(file):
             self.cursor = None
         List = []
         for k in ret:
-            v = self.redis.get(k)
-            List.append((k, v))
+            vs = self.redis.lrange(k, 0, -1)
+            for v in vs:
+                List.append((k, v))
         return List
 
     def add(self, key, value):
-        self.redis.set(key, value)
-
+        self.redis.lpush(key, value)
 
 def input_stream(fd, size, url, params):
     file = RedisStream(url)
@@ -46,4 +46,33 @@ def input_stream(fd, size, url, params):
 
 def redis_output_stream(stream, partition, url, params):
     file = RedisStream(params['url'])
+    return file, len(file), file.url
+
+class AtomicDict(file):
+    def __init__(self, path, redis_url):
+        _redis_scheme, rest = schemesplit(redis_url)
+        host, port, dbid = rest.split(":")
+        self.redis = redis.StrictRedis(host=host, port=port, db=dbid)
+        self.redis.flushdb()
+        self.cursor = '0'
+        self.url = redis_url
+        from collections import defaultdict
+        self.Dict = defaultdict(list)
+        super(AtomicDict, self).__init__(path, 'w')
+        self.write(redis_url + "\n")
+
+    def add(self, k, v):
+        self.Dict[k].append(v)
+
+    def close(self):
+        for k, v in self.Dict.items():
+            self.redis.lpush(k, *v)
+        super(AtomicDict, self).close()
+
+def redis_inter_stream_out(stream, partition, url, params, redis_server):
+    return AtomicDict(url, redis_server(partition, url, params))
+
+def redis_inter_stream_in(stream, partition, url, params):
+    path = stream.read(1024).strip()
+    file = RedisStream(path)
     return file, len(file), file.url
