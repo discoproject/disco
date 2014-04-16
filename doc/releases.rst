@@ -20,6 +20,8 @@ New features
 - A spec file has been added to make it easy to create an rpm from the a Disco
   tarball.
 
+- Disco now works with Erlang 17.
+
 Experimental
 ''''''''''''
 - Disco now supports reading the job inputs from and writing the job outputs to HDFS.

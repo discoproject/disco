@@ -36,9 +36,9 @@
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -type gc_stats() :: none | gc_run_stats().
 
--record(state, {tags      = gb_trees:empty() :: gb_tree(),
-                tag_cache = false            :: false | gb_set(),
-                cache_refresher              :: pid(),
+-record(state, {tags      = gb_trees:empty()          :: gb_tree(),
+                tag_cache = {false, gb_sets:empty()}  :: {boolean(), gb_set()},
+                cache_refresher                       :: pid(),
 
                 nodes             = []                :: [node_info()],
                 write_blacklist   = []                :: [node()],
@@ -264,7 +264,7 @@ handle_cast({update_gc_stats, Stats}, S) ->
     {noreply, S#state{gc_stats = {Stats, now()}}};
 
 handle_cast({update_tag_cache, TagCache}, S) ->
-    {noreply, S#state{tag_cache = TagCache}};
+    {noreply, S#state{tag_cache = {true, TagCache}}};
 
 handle_cast(refresh_tag_cache, #state{cache_refresher = Refresher} = S) ->
     Refresher ! refresh,
@@ -337,13 +337,15 @@ do_new_blob(Obj, K, Include, Exclude, BlackList, Nodes) ->
 % Tag request: Start a new tag server if one doesn't exist already. Forward
 % the request to the tag server.
 
--spec get_tag_pid(tagname(), gb_tree(), false | gb_set()) ->
+-spec get_tag_pid(tagname(), gb_tree(), {boolean(), gb_set()}) ->
                          {pid(), gb_tree()}.
-get_tag_pid(Tag, Tags, Cache) ->
+get_tag_pid(Tag, Tags, {Valid, Cache}) ->
     case gb_trees:lookup(Tag, Tags) of
         none ->
-            NotFound = (Cache =/= false
-                        andalso not gb_sets:is_element(Tag, Cache)),
+            NotFound = case Valid of
+                true -> not gb_sets:is_element(Tag, Cache);
+                false -> false
+            end,
             {ok, Server} = ddfs_tag:start(Tag, NotFound),
             erlang:monitor(process, Server),
             {Server, gb_trees:insert(Tag, Server, Tags)};
@@ -353,18 +355,22 @@ get_tag_pid(Tag, Tags, Cache) ->
 
 -spec do_tag_request(term(), tagname(), replyto(), state()) ->
                             state().
-do_tag_request(M, Tag, From, #state{tags = Tags, tag_cache = Cache} = S) ->
-    {Pid, TagsN} = get_tag_pid(Tag, Tags, Cache),
+do_tag_request(M, Tag, From, #state{tags = Tags, tag_cache = {Valid, Cache}} = S) ->
+    {Pid, TagsN} = get_tag_pid(Tag, Tags, {Valid, Cache}),
     gen_server:cast(Pid, {M, From}),
-    S#state{tags = TagsN,
-            tag_cache = Cache =/= false andalso gb_sets:add(Tag, Cache)}.
+    case Valid of
+        true -> S#state{tags = TagsN, tag_cache = {true, gb_sets:add(Tag, Cache)}};
+        false -> S#state{tags = TagsN}
+    end.
 
 -spec do_tag_notify(term(), tagname(), state()) -> state().
-do_tag_notify(M, Tag, #state{tags = Tags, tag_cache = Cache} = S) ->
-    {Pid, TagsN} = get_tag_pid(Tag, Tags, Cache),
+do_tag_notify(M, Tag, #state{tags = Tags, tag_cache = {Valid, Cache}} = S) ->
+    {Pid, TagsN} = get_tag_pid(Tag, Tags, {Valid, Cache}),
     gen_server:cast(Pid, {notify, M}),
-    S#state{tags = TagsN,
-            tag_cache = Cache =/= false andalso gb_sets:add(Tag, Cache)}.
+    case Valid of
+        true -> S#state{tags = TagsN, tag_cache = {true, gb_sets:add(Tag, Cache)}};
+        false -> S#state{tags = TagsN}
+    end.
 
 -spec do_update_nodes(nodes_update(), state()) -> state().
 do_update_nodes(NewNodes, #state{nodes = Nodes, tags = Tags} = S) ->
@@ -388,7 +394,7 @@ do_update_nodes(NewNodes, #state{nodes = Nodes, tags = Tags} = S) ->
             S#state{nodes = UpdatedNodes,
                     write_blacklist = WriteBlacklist,
                     read_blacklist = ReadBlacklist,
-                    tag_cache = false,
+                    tag_cache = {false, gb_sets:empty()},
                     tags = gb_trees:empty()};
         true ->
             S#state{write_blacklist = WriteBlacklist,
