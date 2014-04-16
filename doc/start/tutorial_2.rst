@@ -136,6 +136,15 @@ best approach for splitting and importing your largest datasets into DDFS,
 it may prove helpful to remember that you can chunk your data all at once
 *or* bring it in in pieces.
 
+You can also set a limit for the size of the chunks to increase the number of
+the chunks for a fixed size file.  The default maximum chunk size is 64 MB.  You can
+use::
+
+   % ddfs chunk -S 0.1 data:other_sets ./both_sets.csv
+
+This will result in each chunk being smaller than 0.1 * 1MB.  For this small
+file, only one chunk will be created.
+
 3. Write a job using a derived class
 ------------------------------------
 

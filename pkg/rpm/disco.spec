@@ -2,7 +2,7 @@
 %define _unpackaged_files_terminate_build 0
 Summary:  An open-source mapreduce framework.
 Name: disco
-Version: 0.5.0
+Version: 0.5.1
 Release: 1%{?dist}
 License: BSD
 Group: System Environment/Daemon
@@ -127,6 +127,9 @@ if [ "$1" = 0 ]; then
 fi
 
 %changelog
+* Wed Apr 16 2014 Shayan Pooya <shayan@liveve.org> - 0.5.1-1
+- Release version 0.5.1
+
 * Wed Apr 02 2014 Shayan Pooya <shayan@liveve.org> - 0.5.0-1
 - Initial packaging
 - Make python-disco a dependency of node and master subpackages
