@@ -239,6 +239,11 @@ Settings used by DDFS:
                 The amount of time to wait after startup before running GC (in minutes).
                 Default is ``''``, which triggers an internal default of 5 minutes.
 
+        .. envvar:: DDFS_GC_BALANCE_THRESHOLD
+                The distance a node's disk utilization can be from the average
+                disk utilization of the cluster before the node is considered
+                to be over-utilized or under-utilized.  Default is ``0.1``.
+
         .. envvar:: DDFS_PARANOID_DELETE
 
                 Instead of deleting unneeded files, DDFS garbage collector prefixes obsolete files with ``!trash.``, so they can be safely verified/deleted by an external process. For instance, the following command can be used to finally delete the files (assuming that ``DDFS_DATA = "/srv/disco/ddfs"``)::
@@ -265,6 +270,20 @@ The following settings are used by DDFS to determine the number of replicas for 
 
                 The number of replicas of blobs that DDFS should aspire to keep.
                 Default is ``1``.
+
+        .. envvar:: DDFS_SPACE_AWARE
+
+                Whether DDFS should take the amount of free space in the nodes
+                into account when choosing the nodes to write to.  Default is
+                ``1``.
+
+        .. envvar:: DDFS_ABSOLUTE_SPACE
+
+                Only effective in the space-aware mode.
+                If set, the nodes with the higher absolute free space will be
+                given precedence for hosting replicas.  If unset, the nodes with
+                the highest ratio of the free space to the total space will be
+                given precedence for hosting the replicas.
 """
 import os, socket, pwd
 
@@ -317,6 +336,8 @@ class DiscoSettings(Settings):
         'DISCO_TEST_PROFILE':    "''",
         'DISCO_TEST_PURGE':      "'purge'",
 # DDFS
+        'DDFS_SPACE_AWARE':      "'1'",
+        'DDFS_ABSOLUTE_SPACE':   "''",
         'DDFS_ROOT':             "os.path.join(DISCO_ROOT, 'ddfs')",
         'DDFS_DATA':             "DDFS_ROOT",
         'DDFS_PUT_PORT':         "8990",
@@ -328,7 +349,8 @@ class DiscoSettings(Settings):
         'DDFS_TAG_REPLICAS':     "1",
         'DDFS_BLOB_REPLICAS':    "1",
         'DDFS_PARANOID_DELETE':  "''",
-        'DDFS_GC_INITIAL_WAIT':  "''"
+        'DDFS_GC_INITIAL_WAIT':  "''",
+        'DDFS_GC_BALANCE_THRESHOLD': "0.1"
         }
 
     globals = globals()

@@ -3,6 +3,7 @@
 -define(MINUTE, (60 * ?SECOND)).
 -define(HOUR, (60 * ?MINUTE)).
 -define(DAY, (24 * ?HOUR)).
+-define(KB, 1024).
 -define(MB, (1024 * 1024)).
 
 % Maximum length of tag/blob prefix
@@ -84,6 +85,12 @@
 % used to ensure GC makes forward progress.  This can be set to the
 % estimated time to traverse all the volumes on a DDFS node.
 -define(GC_PROGRESS_INTERVAL, (30 * ?MINUTE)).
+
+% A DDFS node is in a balanced state if its disk utilization is more
+% than the average utilization for all nodes minus the threshold and
+% less than the average utilization for all nodes plus the threshold.
+% Utilization is defined as the percentage of its used space
+-define(GC_BALANCE_THRESHOLD, 0.1).
 
 % Number of extra replicas (i.e. lost replicas recovered during GC) to
 % allow before deleting extra replicas.

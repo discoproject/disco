@@ -301,9 +301,7 @@ do_get_readable_nodes(Nodes, ReadBlacklist) ->
     ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
     {ok, gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
--spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
-                                   {ok, [node()]}.
-do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
     % Include is the list of nodes that must be included
     %
     % Node selection algorithm:
@@ -321,7 +319,25 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
             Secondary = Include ++ lists:sublist(Preferred -- (Include ++ Exclude ++ BlackList),
                                                  K - length(Include)),
             {ok, Secondary}
+    end;
+
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
+    NotCandidates = Exclude ++ BlackList ++ Include,
+    Primary = [Node || ({N, {Free, _Total}} = Node) <- Nodes,
+        Free > ?MIN_FREE_SPACE / 1024, not lists:member(N, NotCandidates)],
+    case ddfs_rebalance:weighted_select_from_nodes(Primary, K - length(Include)) of
+        error    ->
+            do_choose_write_nodes(Nodes, K - length(Include), Include,
+                Exclude, BlackList, false);
+        Selected ->
+            {ok, Include ++ Selected}
     end.
+
+-spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
+                                   {ok, [node()]}.
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
+    do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList,
+        disco:has_setting("DDFS_SPACE_AWARE")).
 
 -type new_blob_result() :: too_many_replicas | {ok, [nonempty_string()]}.
 -spec do_new_blob(string()|object_name(), non_neg_integer(), [node()], [node()], [node()], [node_info()]) ->
