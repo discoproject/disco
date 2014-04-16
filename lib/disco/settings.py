@@ -130,6 +130,17 @@ Possible settings for Disco are as follows:
                 Only results explictly saved to DDFS won't be garbage collected.
                 Default is ``100 * 365 * 24 * 60 * 60`` (100 years).  (Note that this setting does not affect data in DDFS.)
 
+        .. envvar:: DISCO_PROFILE
+
+                Whether Disco should start profiling applications and send profiling data to
+                a graphite server.
+
+        .. envvar:: GRAPHITE_HOST
+                If DISCO_PROFILE is set, then some performance data from Disco
+                will be sent to the graphite host.  The default is localhost.
+                We are assuming that the listening port is the default graphite
+                port.
+
         .. envvar:: DISCO_WORKER_MAX_MEM
 
                 How much memory can be used by worker in total. Worker calls `resource.setrlimit(RLIMIT_AS, limit) <http://docs.python.org/library/resource.html#resource.setrlimit>`_ to set the limit when it starts. Can be either a percentage of total available memory or an exact number of bytes. Note that ``setrlimit`` behaves differently on Linux and Mac OS X, see *man setrlimit* for more information. Default is ``80%`` i.e. 80% of the total available memory.
@@ -287,6 +298,9 @@ class DiscoSettings(Settings):
         'DISCO_WWW_ROOT':        "os.path.join(DISCO_MASTER_HOME, 'www')",
 # GC
         'DISCO_GC_AFTER':        "100 * 365 * 24 * 60 * 60",
+#'PROFILE'
+        'DISCO_PROFILE':         "'False'",
+        'GRAPHITE_HOST':         "'localhost'",
 # PROXY
         'DISCO_PROXY_ENABLED':   "''",
         'DISCO_PROXY':           "''",

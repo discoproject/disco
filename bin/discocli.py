@@ -299,7 +299,7 @@ def stageresults(program, jobname):
     from disco.util import iterify
     stagename = program.options.stage
     for result in program.disco.stageresults(jobname, stagename):
-        print('\t'.join('{0}'.format((e,)) for e in iterify(result)).rstrip())
+        print('\t'.join('{0}'.format(e) for e in iterify(result)).rstrip())
 
 stageresults.add_option('-S', '--stage',
                         default='map',
@@ -366,7 +366,7 @@ def results(program, jobname):
     from disco.util import iterify
     status, results = program.disco.results(jobname)
     for result in results:
-        print('\t'.join('{0}'.format((e,)) for e in iterify(result)).rstrip())
+        print('\t'.join('{0}'.format(e) for e in iterify(result)).rstrip())
 
 @Disco.command
 def run(program, jobclass, *inputs):

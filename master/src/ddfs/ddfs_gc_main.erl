@@ -228,10 +228,7 @@
 
 -spec start_link(string(), ets:tab()) -> {ok, pid()} | {error, term()}.
 start_link(Root, DeletedAges) ->
-    case gen_server:start_link(?MODULE, {Root, DeletedAges}, []) of
-        {ok, Pid} -> {ok, Pid};
-        E         -> E
-    end.
+    gen_server:start_link(?MODULE, {Root, DeletedAges}, []).
 
 -spec gc_status(pid(), pid()) -> ok.
 gc_status(Master, From) ->

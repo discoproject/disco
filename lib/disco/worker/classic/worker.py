@@ -230,17 +230,6 @@ class Worker(worker.Worker):
                          'version': '.'.join(str(s) for s in sys.version_info[:2])})
         return defaults
 
-    def get_modules(self, job, **jobargs):
-        from disco.worker.modutil import find_modules
-        from disco.util import iterify
-        def get(key):
-            return self.getitem(key, job, jobargs)
-        return find_modules([obj
-                             for key in self
-                             for obj in iterify(get(key))
-                             if callable(obj)],
-                            exclude=['Task'])
-
     def jobdict(self, job, **jobargs):
         """
         Creates :ref:`jobdict` for the :class:`Worker`.
@@ -281,6 +270,7 @@ class Worker(worker.Worker):
         has_reduce = bool(get('reduce'))
         job_input = get('input', [])
         has_save_results = get('save', False) or get('save_results', False)
+
         if not isiterable(job_input):
             raise DiscoError("Job 'input' is not a list of input locations,"
                              "or a list of such lists: {0}".format(job_input))
@@ -326,6 +316,11 @@ class Worker(worker.Worker):
                 for path, bytes in get(func).items():
                     jobzip.writestr(os.path.join('ext.{0}'.format(func), path), bytes)
         return jobzip
+
+    def should_save_results(self, task, job, jobargs):
+        def get(key):
+            return self.getitem(key, job, jobargs)
+        return get('save_results') and (task.stage == 'map' or get('reduce'))
 
     def run(self, task, job, **jobargs):
         global Task

@@ -5,7 +5,7 @@
 
 from disco import util
 from disco.error import DataError
-from disco.compat import bytes_to_str, UnpicklingError
+from disco.compat import bytes_to_str, str_to_bytes, UnpicklingError
 
 def gzip_reader(fd, size, url, params):
     """Wraps the input in a :class:`gzip.GzipFile` object."""
@@ -96,28 +96,6 @@ def disco_input_stream(stream, size, url, ignore_corrupt = False):
                 if not ignore_corrupt:
                     raise DataError("Corrupted data between bytes {0}-{1}: {2}"
                                     .format(offset - hunk_size, offset, e), url)
-
-class DiscoDBOutput(object):
-    def __init__(self, stream, params):
-        from discodb import DiscoDBConstructor
-        self.discodb_constructor = DiscoDBConstructor()
-        self.stream = stream
-        self.params = params
-        self.path = stream.path
-
-    def add(self, key, val):
-        self.discodb_constructor.add(key, val)
-
-    def close(self):
-        def flags():
-            return dict((flag, getattr(self.params, flag))
-                        for flag in ('unique_items', 'disable_compression')
-                        if hasattr(self.params, flag))
-        self.discodb_constructor.finalize(**flags()).dump(self.stream)
-
-def discodb_output(stream, partition, url, params):
-    from disco.worker.classic.func import DiscoDBOutput
-    return DiscoDBOutput(stream, params), 'discodb:{0}'.format(url.split(':', 1)[1])
 
 def input_stream(stream, size, url, params):
     """
@@ -337,10 +315,23 @@ def re_reader(item_re_str, fd, size, fname, output_tail=False, read_buffer_size=
                           "Some bytes may be missing from input.".format(len(buf), fname))
             break
 
+class DiscoPlainOut(object):
+    def __init__(self, stream):
+        self.stream = stream
+
+    def add(self, k, v):
+        k, v = str(k), str(v)
+        self.stream.write(str_to_bytes("%d %s %d %s\n" % (len(k), k, len(v), v)))
+
+    def close(self):
+        pass
+
+def plain_output_stream(stream, partition, url, params):
+    return DiscoPlainOut(stream)
+
 chain_reader = disco_input_stream
 chain_stream = (task_input_stream, chain_reader)
 default_stream = (task_input_stream, )
-discodb_stream = (task_output_stream, discodb_output)
 gzip_stream = (task_input_stream, gzip_reader)
 gzip_line_stream = (task_input_stream, gzip_line_reader)
 

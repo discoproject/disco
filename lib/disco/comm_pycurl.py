@@ -137,6 +137,10 @@ def upload(urls, source, token, retries=10):
             if not retries:
                 raise CommError("Maximum number of retries reached", url)
             unavailable.append(url)
+        elif status == httplib.TEMPORARY_REDIRECT:
+            new_url = response.getheader('location')
+            for item in upload([new_url], source, token, retries):
+                yield item
         else:
             raise CommError("Upload failed: {0}".format(response.read()), url, status)
 

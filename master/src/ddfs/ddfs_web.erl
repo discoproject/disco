@@ -136,7 +136,7 @@ op('GET', "/ddfs/tag/" ++ TagAttrib, Req) ->
     case Attrib of
         unknown_attribute ->
             Req:respond({404, [], ["Tag attribute not found."]});
-        {user, AttribName} when size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
+        {user, AttribName} when byte_size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
             Req:respond({403, [], ["Attribute name too big."]});
         _ ->
             case ddfs:get_tag(ddfs_master, Tag, Attrib, Token) of
@@ -174,7 +174,7 @@ op('PUT', "/ddfs/tag/" ++ TagAttrib, Req) ->
     case Attrib of
         unknown_attribute ->
             Req:respond({404, [], ["Tag attribute not found."]});
-        {user, AttribName} when size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
+        {user, AttribName} when byte_size(AttribName) > ?MAX_TAG_ATTRIB_NAME_SIZE ->
             Req:respond({403, [], ["Attribute name too big."]});
         _ ->
             Op = fun(Value, Size) ->
@@ -290,7 +290,7 @@ process_payload(Fun, Req) ->
              invalid ->
                  Req:respond({403, [], ["Invalid request body."]});
              Value ->
-                 case Fun(Value, size(BinaryPayload)) of
+                 case Fun(Value, byte_size(BinaryPayload)) of
                      {ok, Dst} -> okjson(Dst, Req);
                      E -> on_error(E, Req)
                  end

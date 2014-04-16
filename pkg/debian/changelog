@@ -1,3 +1,15 @@
+disco (0.5.1) unstable; urgency=low
+
+  * New package for 0.5.1
+
+ -- Shayan Pooya <shayan@liveve.org>  Wed, 16 Apr 2014 22:00:00 -0700
+
+disco (0.5) unstable; urgency=low
+
+  * New package for 0.5
+
+ -- Shayan Pooya <shayan@liveve.org>  Wed, 26 Mar 2014 22:00:00 -0700
+
 disco (0.4.5) unstable; urgency=low
 
   * New package for 0.4.5

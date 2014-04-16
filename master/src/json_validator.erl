@@ -25,7 +25,7 @@ validate(boolean, Payload) when is_boolean(Payload)-> ok;
 validate(float, Payload) when is_float(Payload) -> ok;
 validate(string, Payload) when is_binary(Payload) -> ok;
 validate(Type, Payload) when is_atom(Type) ->
-    {error, {list_to_atom("not_" ++ atom_to_list(Type)), Payload}};
+    {error, {list_to_existing_atom("not_" ++ atom_to_list(Type)), Payload}};
 
 % heterogenous lists
 validate({array, _Types}, Payload) when not is_list(Payload) ->

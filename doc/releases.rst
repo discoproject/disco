@@ -3,6 +3,51 @@
 Release notes
 =============
 
+Disco 0.5.1 (April 16, 2014)
+---------------
+New features
+''''''''''''
+- Disco now uses folsom for monitoring purposes.  Folsom extracts some
+  information from Disco and sends it to a graphite server. The folsom
+  (and related) applications will start only if DISCO_PROFILE is set. This is
+  not set by default.
+  By default, folsom assumes that the localhost is the graphite server.  This
+  can be overriden by using the GRAPHITE_HOST option.
+
+- A docker file has been added that lets you install Disco in a Docker
+  container.
+
+- A spec file has been added to make it easy to create an rpm from the a Disco
+  tarball.
+
+- Disco now works with Erlang 17.
+
+Experimental
+''''''''''''
+- Disco now supports reading the job inputs from and writing the job outputs to HDFS.
+
+- Disco now supports reading the job inputs from and writing the job outputs to Redis.
+
+Changes
+'''''''
+
+- The changes in the mochiweb fork of the Disco project has been merged into
+  upstream and Disco is now using the upstream.
+
+- New options are now passed to the erlang process on the master node that will
+  disable scheduler compaction and spreads the schedulers as much as possible.
+
+- Two options have been added to the ``ddfs chunk`` command to override the chunk
+  size and the maximum record size.
+
+- The save_info field has been added to the :ref:`jobpack <jobpack>`. For now, this
+  field only contains the information needed for saving the outputs of the job
+  into HDFS.
+
+- A couple of examples have been added.  Namely, the naive-bayes and an example
+  for reading huge xml files.  Moreover, the kclustering example has been
+  re-implemented using the Disco pipelines.
+
 Disco 0.5 (February 14, 2014)
 ---------------
 This release is dedicated to the memory of Priya Hattiangdi, Prashanth Mundkur's wife, who has passed away a few days ago. May she rest in peace.

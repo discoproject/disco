@@ -1,5 +1,5 @@
-DISCO_VERSION = 0.5.0
-DISCO_RELEASE = 0.5.0
+DISCO_VERSION = 0.5.1
+DISCO_RELEASE = 0.5.1
 
 # standard make installation variables
 sysconfdir    = /etc
@@ -18,11 +18,11 @@ INSTALL_DATA    = $(INSTALL) -m 644
 INSTALL_TREE    = cp -r
 
 # relative directory paths
-RELBIN = $(bindir)
-RELLIB = $(libdir)/disco
-RELDAT = $(datadir)/disco
-RELCFG = $(sysconfdir)/disco
-RELSRV = $(localstatedir)/disco
+export RELBIN = $(bindir)
+export RELLIB = $(libdir)/disco
+export RELDAT = $(datadir)/disco
+export RELCFG = $(sysconfdir)/disco
+export RELSRV = $(localstatedir)/disco
 
 # installation directories
 export TARGETBIN = $(DESTDIR)$(RELBIN)
@@ -30,6 +30,10 @@ export TARGETLIB = $(DESTDIR)$(RELLIB)
 export TARGETDAT = $(DESTDIR)$(RELDAT)
 export TARGETCFG = $(DESTDIR)$(RELCFG)
 export TARGETSRV = $(DESTDIR)$(RELSRV)
+
+export ABSTARGETLIB = $(RELLIB)
+export ABSTARGETSRV = $(RELSRV)
+export ABSTARGETDAT = $(RELDAT)
 
 # options to python and sphinx for building the lib and docs
 PYTHONENVS = DISCO_VERSION=$(DISCO_VERSION) DISCO_RELEASE=$(DISCO_RELEASE)
@@ -46,7 +50,7 @@ EBIN  = master/ebin
 ESRC  = master/src
 EDEP  = master/deps
 
-DEPS     = mochiweb lager goldrush
+DEPS     = mochiweb lager goldrush folsom bear meck folsomite
 EDEPS    = $(foreach dep,$(DEPS),$(EDEP)/$(dep)/ebin)
 ELIBS    = $(ESRC) $(ESRC)/ddfs
 ESOURCES = $(foreach lib,$(ELIBS),$(wildcard $(lib)/*.erl))
@@ -79,7 +83,7 @@ xref: master
 	@ (cd master && ./rebar xref)
 
 erlangtest:
-	@ (cd master && ./rebar -C eunit.config clean get-deps compile &&\
+	@ (cd master && ./rebar -C eunit.config get-deps compile &&\
 	./rebar -C eunit.config eunit skip_deps=true && cd -)
 
 pythontest:

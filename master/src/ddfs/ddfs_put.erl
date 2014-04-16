@@ -61,19 +61,23 @@ valid_blob({Name, _}) ->
 
 -spec receive_blob(module(), {path(), path()}, url()) -> _.
 receive_blob(Req, {Path, Fname}, Url) ->
-    Dir = filename:join(Path, Fname),
-    case prim_file:read_file_info(Dir) of
-        {error, enoent} ->
-            Tstamp = ddfs_util:timestamp(),
-            Partial = lists:flatten(["!partial-", Tstamp, ".", Fname]),
-            Dst = filename:join(Path, Partial),
-            case prim_file:open(Dst, [write, raw, binary]) of
-                {ok, IO} -> receive_blob(Req, IO, Dst, Url);
-                Error -> error_reply(Req, "Opening file failed", Dst, Error)
-            end;
-        _ ->
-            error_reply(Req, "File exists", Dir, Dir)
-    end.
+    disco_profile:timed_run(
+        fun() ->
+            Dir = filename:join(Path, Fname),
+            case prim_file:read_file_info(Dir) of
+                {error, enoent} ->
+                    Tstamp = ddfs_util:timestamp(),
+                    Partial = lists:flatten(["!partial-", Tstamp, ".", Fname]),
+                    Dst = filename:join(Path, Partial),
+                    case prim_file:open(Dst, [write, raw, binary]) of
+                        {ok, IO} ->
+                            receive_blob(Req, IO, Dst, Url);
+                        Error -> error_reply(Req, "Opening file failed", Dst, Error)
+                    end;
+                _ ->
+                    error_reply(Req, "File exists", Dir, Dir)
+            end
+        end, ?MODULE).
 
 -spec receive_blob(module(), file:io_device(), file:filename(), url()) -> _.
 receive_blob(Req, IO, Dst, Url) ->

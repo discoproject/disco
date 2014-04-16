@@ -13,8 +13,9 @@
 -include("pipeline.hrl").
 -include("job_coordinator.hrl").
 
--define(TASK_SUBMIT_TIMEOUT, 30000).
+-define(TASK_SUBMIT_TIMEOUT, 2000).
 -define(DISCO_SERVER_TIMEOUT, 30000).
+-define(FAILURES_ALLOWED, 15).
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad
@@ -50,7 +51,7 @@ new(JobPack) ->
 
 -spec start_job(pid(), binary()) -> ok | {error, term()}.
 start_job(Starter, JobPack) ->
-    case gen_server:start_link(?MODULE, {Starter, JobPack}, []) of
+    case gen_server:start(?MODULE, {Starter, JobPack}, []) of
         {ok, _Pid} -> ok;
         {error, _E} = E -> E
     end.
@@ -82,6 +83,11 @@ update_nodes(JobCoord, Hosts) ->
 -spec submit_tasks(pid(), submit_mode(), [task_id()]) -> ok.
 submit_tasks(JobCoord, Mode, Tasks) ->
     gen_server:cast(JobCoord, {submit_tasks, Mode, Tasks}).
+
+submit_tasks(_, _, _, 0) ->
+    {stop, "Too many failures"};
+submit_tasks(JobCoord, Mode, Tasks, N) ->
+    gen_server:cast(JobCoord, {submit_tasks, Mode, Tasks, N-1}).
 
 -spec kill_job(term()) -> ok.
 kill_job(Reason) ->
@@ -117,12 +123,8 @@ stage_done(Stage) ->
 
 -spec init({pid(), binary()}) -> gs_init() | {stop, term()}.
 init({Starter, JobPack}) ->
-    % Note: we cannot set trap_exit here, due to an implementation bug
-    % (IMHO) in Erlang.  If we do set it, we will get our terminate
-    % callback called when the inner spawned helper function in new()
-    % above terminates (normally or not).  The bug is that our
-    % terminate should get called _only_ when the helper does _not_
-    % terminate normally.
+    link(Starter),
+    process_flag(trap_exit, true),
     try  {#jobinfo{jobname = Name} = Info, Hosts} = setup_job(JobPack, self()),
          Starter ! {job_started, Name},
          event_server:event(Name, "Created job ~p", [Name], {job_data, Info}),
@@ -155,14 +157,16 @@ handle_cast({start, Inputs}, S) ->
 handle_cast({update_nodes, Hosts}, S) ->
     {noreply, do_update_nodes(Hosts, S)};
 handle_cast({inputs, {error, E}}, S) ->
-    % TODO: log an appropriate job event.
+    lager:warning("fetching inputs failed: ~p", [erlang:get_stacktrace()]),
     {stop, {"fetching inputs failed", E}, S#state{input_pid = none}};
 handle_cast({inputs, {ok, Inputs}}, S) ->
     {noreply, do_use_inputs(Inputs, S)};
 handle_cast({stage_done, Stage}, S) ->
     {noreply, do_stage_done(Stage, S)};
 handle_cast({submit_tasks, Mode, Tasks}, S) ->
-    {noreply, do_submit_tasks(Mode, Tasks, S)};
+    {noreply, do_submit_tasks(Mode, Tasks, S, ?FAILURES_ALLOWED)};
+handle_cast({submit_tasks, Mode, Tasks, NFailuresAllowed}, S) ->
+    {noreply, do_submit_tasks(Mode, Tasks, S, NFailuresAllowed)};
 handle_cast({task_done, TaskId, Host, Results}, S) ->
     {noreply, do_task_done(TaskId, Host, Results, S)};
 handle_cast(pipeline_done, #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
@@ -174,12 +178,15 @@ handle_cast({kill_job, Reason}, S) ->
 
 -spec handle_info(term(), state()) -> gs_noreply() | gs_stop(tuple()).
 handle_info({'EXIT', Pid, Reason}, #state{input_pid = Pid} = S) ->
-    % Note: this callback clause will never get called useless, due to
-    % the trap_exit issue mentioned above.  We leave it in here for
-    % clarity, and in case this issue is fixed.
     lager:warning("stopping due to input_pid (~p) failure: ~p (self ~p)",
                   [Pid, Reason, self()]),
     {stop, {"input_processor exited", Reason}, S#state{input_pid = none}};
+handle_info({'EXIT', _Pid, normal}, S) ->
+    {noreply, S};
+
+handle_info({'EXIT', _Pid, kill_worker}, S) ->
+    {stop, normal, S};
+
 handle_info(M, S) ->
     lager:warning("Ignoring unexpected info event: ~p (self ~p)", [M, self()]),
     {noreply, S}.
@@ -339,8 +346,7 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
                               tasks   = Tasks,
                               stage_info = SI} = S) ->
     #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
-    Outputs = [(jc_utils:task_info(TaskId, Tasks))#task_info.outputs
-               || TaskId <- Done],
+    Outputs = [jc_utils:task_outputs(TaskId, Tasks) || TaskId <- Done],
     Results = [pipeline_utils:output_urls(O)
                || {_Id, O} <- lists:flatten(Outputs)],
     case Save of
@@ -350,20 +356,22 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
             gen_server:cast(self(), pipeline_done),
             S;
         true ->
-            % Save the results into a tag.
-            Tag = list_to_binary(disco:format("disco:results:~s", [JobName])),
-            T = <<"tag://", Tag/binary>>,
-            Op = {put, urls, Results, internal},
-            case ddfs_master:tag_operation(Op, Tag) of
-                {ok, TagReps} ->
-                    lager:info("Job ~s done, results saved to ~p at ~p",
-                               [JobName, T, TagReps]),
-                    event_server:job_done_event(JobName, [T]);
-                E ->
-                    M = "Job ~s failed to save results to ~s: ~p",
-                    MArgs = [JobName, T, E],
-                    event_server:event(JobName, M, MArgs, none)
-            end
+            save_ddfs(JobName, Results)
+    end.
+
+save_ddfs(JobName, Results) ->
+    Tag = list_to_binary(disco:format("disco:results:~s", [JobName])),
+    T = <<"tag://", Tag/binary>>,
+    Op = {put, urls, Results, internal},
+    case ddfs_master:tag_operation(Op, Tag) of
+        {ok, TagReps} ->
+            lager:info("Job ~s done, results saved to ~p at ~p",
+                       [JobName, T, TagReps]),
+            event_server:job_done_event(JobName, [T]);
+        E ->
+            M = "Job ~s failed to save results to ~s: ~p",
+            MArgs = [JobName, T, E],
+            event_server:event(JobName, M, MArgs, none)
     end.
 
 -spec retry_task(host(), term(), task_info(), state()) -> state().
@@ -430,7 +438,7 @@ regenerate_input(_WaiterTInfo, {GenTaskId, _} = _InputId,
     % Backtrack through the task dependency graph and get the runnable
     % tasks from all the tasks that need to be re-run.
     {TaskIdsToRun, S1} = collect_runnable_deps(GenTaskId, FailingHosts, S),
-    do_submit_tasks(re_run, TaskIdsToRun, S1).
+    do_submit_tasks(re_run, TaskIdsToRun, S1, ?FAILURES_ALLOWED).
 
 -spec task_complete(task_id(), host(), [task_output()], state()) -> state().
 task_complete(TaskId, Host, Outputs, #state{tasks      = Tasks,
@@ -454,11 +462,12 @@ task_complete(TaskId, Host, Outputs, #state{tasks      = Tasks,
     end,
     S1 = S#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI),
                  tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks1)},
-    do_submit_tasks(re_run, Awake, S1).
+    do_submit_tasks(re_run, Awake, S1, ?FAILURES_ALLOWED).
 
 -spec do_stage_done(stage_name(), state()) -> state().
 do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname      = JobName,
-                                                  save_results = Save},
+                                                  save_results = Save,
+                                                  save_info = SaveInfo},
                             pipeline   = P,
                             tasks      = Tasks,
                             stage_info = SI} = S) ->
@@ -486,14 +495,16 @@ do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname      = JobName,
                 none ->
                     SaveOutputs =
                         (pipeline_utils:next_stage(P, Next) == done) andalso Save,
-                    start_next_stage(Stage, Next, Grouping, SaveOutputs, S);
+                    start_next_stage(Stage, Next, Grouping, SaveOutputs,
+                        SaveInfo, S);
                 _ ->
                     S
             end
     end.
-start_next_stage(Prev, Stage, Grouping, SaveOutputs,
+start_next_stage(Prev, Stage, Grouping, SaveOutputs, SaveInfo,
                  #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
-    {Tasks, S1} = setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs, S),
+    {Tasks, S1} = setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs,
+        SaveInfo, S),
     case Tasks of
         [] ->
             do_stage_done(Stage, S1);
@@ -502,25 +513,25 @@ start_next_stage(Prev, Stage, Grouping, SaveOutputs,
             Event = {stage_start, Stage, NTasks},
             event_server:event(JobName, "Stage ~s scheduled with ~p tasks",
                                [Stage, NTasks], Event),
-            do_submit_tasks(first_run, Tasks, S1)
+            do_submit_tasks(first_run, Tasks, S1, ?FAILURES_ALLOWED)
     end.
 
 -spec setup_stage_tasks(stage_name(), stage_name(), label_grouping(),
-                        boolean(), state()) -> {[task_id()], state()}.
-setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs, S) ->
+                        boolean(), string(), state()) -> {[task_id()], state()}.
+setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs, SaveInfo, S) ->
     % The outputs of the previous stage are grouped in the specified
     % way, and these grouped outputs form the inputs for the current
     % stage.
     Outputs = stage_outputs(Prev, S),
     GOutputs = pipeline_utils:group_outputs(Grouping, Outputs),
-    make_stage_tasks(Stage, Grouping, SaveOutputs, GOutputs, S, {0, []}).
+    make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, GOutputs, S, {0, []}).
 
-make_stage_tasks(Stage, _Grouping, _SaveOutputs, [],
+make_stage_tasks(Stage, _Grouping, _SaveOutputs, _SaveInfo, [],
                  #state{stage_info = SI} = S, {TaskNum, Tasks}) ->
     StageInfo = #stage_info{start = now(), all = TaskNum},
     SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
     {Tasks, S#state{stage_info = SI1}};
-make_stage_tasks(Stage, Grouping, SaveOutputs, [{G, Inputs}|Rest],
+make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, [{G, Inputs}|Rest],
                  #state{jobinfo = #jobinfo{jobname = JN,
                                            jobenvs = JE,
                                            worker  = W},
@@ -554,21 +565,25 @@ make_stage_tasks(Stage, Grouping, SaveOutputs, [{G, Inputs}|Rest],
                           grouping  = Grouping,
                           job_coord = self(),
                           schedule  = Schedule,
-                          save_outputs = SaveOutputs},
+                          save_outputs = SaveOutputs,
+                          save_info = SaveInfo},
 
     S1 = S#state{next_taskid = NextTaskId + 1,
                  data_map    = DataMap,
                  tasks = jc_utils:add_task_spec(NextTaskId, TaskSpec, Tasks)},
-    make_stage_tasks(Stage, Grouping, SaveOutputs, Rest, S1,
+    make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, Rest, S1,
                      {TaskNum + 1, [NextTaskId | Acc]}).
 
--spec do_submit_tasks(submit_mode(), [task_id()], state()) -> state().
-do_submit_tasks(_Mode, [], S) -> S;
+
+ -spec do_submit_tasks(submit_mode(), [task_id()], state(),
+     non_neg_integer()) -> state().
+do_submit_tasks(_Mode, [], S, _) -> S;
 do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               data_map   = DataMap,
                                               next_runid = RunId,
                                               hosts      = Hosts,
-                                              tasks      = Tasks} = S) ->
+                                              tasks      = Tasks} = S,
+                                      NFailuresAllowed) ->
     #task_info{spec = TaskSpec, failed_hosts = FailedHosts}
         = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage, group = {_L, H}, input = Input} = TaskSpec,
@@ -583,12 +598,19 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                         host   = Host,
                         input  = Inputs,
                         failed_hosts = FailedHosts},
-    % TODO: retry submission on submission failure.  For now, assert
-    % ok.
-    ok = disco_server:new_task({TaskSpec, TaskRun}, ?TASK_SUBMIT_TIMEOUT),
-    SI1 = jc_utils:update_stage_tasks(Stage, TaskId, run, SI),
-    do_submit_tasks(Mode, Rest, S#state{next_runid = RunId + 1,
-                                        stage_info = SI1}).
+    try disco_server:new_task({TaskSpec, TaskRun}, ?TASK_SUBMIT_TIMEOUT) of
+        ok ->
+            SI1 = jc_utils:update_stage_tasks(Stage, TaskId, run, SI),
+            do_submit_tasks(Mode, Rest, S#state{next_runid = RunId + 1,
+                                                stage_info = SI1},
+                                            ?FAILURES_ALLOWED);
+        failed ->
+            lager:info("Task failed, remaining: ~w", [NFailuresAllowed]),
+            submit_tasks(self(), Mode, [TaskId | Rest], NFailuresAllowed)
+        catch _:{timeout, _} ->
+            lager:info("Task timed out, remaining: ~w", [NFailuresAllowed]),
+            submit_tasks(self(), Mode, [TaskId | Rest], NFailuresAllowed)
+    end.
 
 % This returns the list of runnable dependency tasks, and an updated
 % state.

@@ -18,7 +18,7 @@ First, let's modify the :ref:`word count example <tutorial>` to write its output
 .. literalinclude:: ../../examples/util/wordcount_ddb.py
 
 Notice how all we needed to do was change the
-*reduce_output_stream* to :func:`disco.worker.task_io.discodb_stream`,
+*reduce_output_stream* to :func:`disco.schemes.scheme_discodb.discodb_stream`,
 and turn the count into a :class:`str`.
 Remember, DiscoDBs only store byte sequences as keys and values,
 its up to the user to serialize objects; in this case we just use str.

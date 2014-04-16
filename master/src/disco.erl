@@ -73,11 +73,9 @@ slave_node(Host) ->
 
 -spec slave_safe(host()) -> false | node().
 slave_safe(Host) ->
-    try case local_cluster() of
-            false -> list_to_existing_atom(default_slave_name() ++ "@" ++ Host);
-            true  -> list_to_existing_atom(box_slave_name(Host) ++ "@localhost")
-        end
-    catch _:_ -> false
+    case local_cluster() of
+        false -> list_to_existing_atom(default_slave_name() ++ "@" ++ Host);
+        true  -> list_to_existing_atom(box_slave_name(Host) ++ "@localhost")
     end.
 
 -spec slave_for_url(url()) -> false | node().
