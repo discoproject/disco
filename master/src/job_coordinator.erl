@@ -112,13 +112,13 @@ stage_done(Stage) ->
                 next_runid  = 0  :: task_run_id(),
                 input_pid = none :: none | pid(),
                 % cluster membership: [host()]
-                hosts      = gb_sets:empty()  :: gb_set(),
+                hosts      = gb_sets:empty()  :: disco_gbset(host()),
                 % input | task_id() -> task_info().
-                tasks      = gb_trees:empty() :: gb_tree(),
+                tasks      = gb_trees:empty() :: disco_gbtree(task_id(), task_info()),
                 % input_id() -> data_info().
-                data_map   = gb_trees:empty() :: gb_tree(),
+                data_map   = gb_trees:empty() :: disco_gbtree(input_id(), data_info()),
                 % stage_name() -> stage_info().
-                stage_info = gb_trees:empty() :: gb_tree()}).
+                stage_info = gb_trees:empty() :: disco_gbtree(stage_name(), stage_info())}).
 -type state() :: #state{}.
 
 -spec init({pid(), binary()}) -> gs_init() | {stop, term()}.
@@ -614,7 +614,7 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
 
 % This returns the list of runnable dependency tasks, and an updated
 % state.
--spec collect_runnable_deps(task_id(), gb_set(), state())
+-spec collect_runnable_deps(task_id(), disco_gbset(host()), state())
                            -> {[task_id()], state()}.
 collect_runnable_deps(TaskId, FHosts, #state{tasks      = Tasks,
                                              stage_info = SI,

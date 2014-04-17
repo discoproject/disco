@@ -18,13 +18,13 @@
                     depends = []        :: [task_id()],
                     % Failure statistics.
                     failed_count = 0               :: non_neg_integer(),
-                    failed_hosts = gb_sets:empty() :: gb_set()}).
+                    failed_hosts = gb_sets:empty() :: disco_gbset(host())}).
 -type task_info() :: #task_info{}.
 -record(data_info, {source   :: data_input(),
                     % host() -> data_input() ; where additional copies can be found
-                    locations = gb_trees:empty() :: gb_tree(),
+                    locations = gb_trees:empty() :: disco_gbtree(host(), data_input()),
                     % data location host() -> non_neg_integer()
-                    failures  = gb_trees:empty() :: gb_tree()}).
+                    failures  = gb_trees:empty() :: disco_gbtree(host(), non_neg_integer())}).
 -type data_info() :: #data_info{}.
 
 % Maximum number of failures to record for intermediate data before

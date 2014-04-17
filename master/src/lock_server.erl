@@ -2,6 +2,7 @@
 -behaviour(gen_server).
 
 -include("gs_util.hrl").
+-include("common_types.hrl").
 
 -export([start_link/0, lock/3]).
 -export([init/1,
@@ -14,8 +15,8 @@
 -define(PROC_TIMEOUT, 10 * 60 * 1000).
 
 -type lockname() :: nonempty_string().
--record(state, {waiters :: gb_tree(),
-                procs   :: gb_tree()}).
+-record(state, {waiters :: disco_gbtree(lockname(), [lockname()]),
+        procs   :: disco_gbtree(pid(), {pid(), term()})}).
 -type state() :: #state{}.
 
 -spec start_link() -> no_return().

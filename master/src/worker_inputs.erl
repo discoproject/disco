@@ -7,19 +7,18 @@
 -include("disco.hrl").
 -include("pipeline.hrl").
 
--record(state, {
-          % seq_id() -> {input_id(), data_input()}
-          inputs     = gb_trees:empty() :: gb_tree(),
-          % {seq_id(), rep_id()} -> fail_info()
-          input_map  = gb_trees:empty() :: gb_tree(),
-          max_seq_id                    :: seq_id()}).
--type state() :: #state{}.
-
 -record(fail_info, {url       :: url(),
                     last_fail :: erlang:timestamp()}).
 -type fail_info() :: #fail_info{}.
 
--type seq_id() :: non_neg_integer().
+-record(state, {
+          % seq_id() -> {input_id(), data_input()}
+          inputs     = gb_trees:empty() :: disco_gbtree(seq_id(), {input_id(), data_input()}),
+          % {seq_id(), rep_id()} -> fail_info()
+          input_map  = gb_trees:empty() :: disco_gbtree({seq_id(), rep_id()}, fail_info()),
+          max_seq_id                    :: seq_id()}).
+-type state() :: #state{}.
+
 -type rep_id() :: non_neg_integer().
 
 -type replica() :: [rep_id() | url(), ...].
@@ -56,7 +55,7 @@ all(S) ->
     include(all_seq_ids(S), S).
 
 -spec replicas(seq_id(), rep_id(), label(), [{erlang:timestamp(), replica()}],
-               gb_tree()) -> {all | label(), [replica()]}.
+    disco_gbtree({seq_id(), rep_id()}, fail_info())) -> {all | label(), [replica()]}.
 replicas(SeqId, Rid, Label, Replicas, Map) ->
     case gb_trees:lookup({SeqId, Rid}, Map) of
         none ->

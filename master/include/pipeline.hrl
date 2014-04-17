@@ -109,7 +109,7 @@
 % host-allocator.
 -record(task_run, {runid         :: task_run_id(),
                    host          :: url_host(),
-                   failed_hosts  :: gb_set(),
+                   failed_hosts  :: disco_gbset(host()),
                    input         :: [{input_id(), data_input()}]}).
 -type task_run() :: #task_run{}.
 
