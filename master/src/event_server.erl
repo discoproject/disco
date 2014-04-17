@@ -46,9 +46,9 @@
                           Status  :: job_status(),
                           JobInfo :: none | jobinfo(),
                           Results :: [[url()]],
-                          Count   :: dict(),
-                          Ready   :: dict(),
-                          Failed  :: dict()}.
+                          Count   :: stage_dict(),
+                          Ready   :: stage_dict(),
+                          Failed  :: stage_dict()}.
 
 -export_type([event/0, task_info/0, task_msg/0, job_eventinfo/0]).
 
@@ -165,9 +165,12 @@ start_link() ->
     end.
 
 % events dict: jobname -> job_ent()
+-type event_dict() :: disco_dict(jobname(), job_ent()).
 % msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
--record(state, {events = dict:new() :: dict(),
-                msgbuf = dict:new() :: dict(),
+-type job_msg_dict() :: disco_dict(jobname(), {non_neg_integer(), non_neg_integer(), [binary()]}).
+
+-record(state, {events = dict:new() :: event_dict(),
+                msgbuf = dict:new() :: job_msg_dict(),
                 hosts  = []         :: [host()]}).
 -type state() :: #state{}.
 
@@ -235,13 +238,16 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 % State management.
 
+-type stage_dict() :: disco_dict(stage_name(), non_neg_integer()).
+-type stage_result_dict() :: disco_dict(stage_name(), [[url()]]).
+
 -record(job_ent, {job_coord :: pid(),
                   start     :: erlang:timestamp(),
                   job_data    = none :: none | jobinfo(),
-                  task_count         :: dict(), % stage_name() -> count
-                  task_ready         :: dict(), % stage_name() -> count
-                  task_failed        :: dict(), % stage_name() -> count
-                  stage_results      :: dict(), % stage_name() -> results
+                  task_count         :: stage_dict(),
+                  task_ready         :: stage_dict(),
+                  task_failed        :: stage_dict(),
+                  stage_results      :: stage_result_dict(),
                   job_results = none :: none | [url() | [url()]]}).
 -type job_ent() :: #job_ent{}.
 
@@ -281,14 +287,14 @@ job_status(_JE) ->
 
 % Server implemention.
 
--spec do_get_jobs(dict()) -> {ok, [joblist_entry()]}.
+-spec do_get_jobs(event_dict()) -> {ok, [joblist_entry()]}.
 do_get_jobs(Events) ->
     Jobs = dict:fold(fun (Name, #job_ent{start = Start} = JobEnt, Acc) ->
                              [{Name, job_status(JobEnt), Start}|Acc]
                      end, [], Events),
     {ok, Jobs}.
 
--spec do_get_job_msgs(jobname(), string(), integer(), dict()) -> {ok, [binary()]}.
+-spec do_get_job_msgs(jobname(), string(), integer(), job_msg_dict()) -> {ok, [binary()]}.
 do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
     N = if
             N0 > 1000 -> 1000;
@@ -303,7 +309,7 @@ do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
             {ok, json_list(tail_log(JobName, N))}
     end.
 
--spec do_get_results(jobname(), dict())
+-spec do_get_results(jobname(), event_dict())
                     -> invalid_job | {job_status(), pid()}
                            | {ready, pid(), [url() | [url()]]}.
 do_get_results(JobName, Events) ->
@@ -316,7 +322,7 @@ do_get_results(JobName, Events) ->
             {job_status(JE), Pid}
     end.
 
--spec do_get_stage_results(jobname(), stage_name(), dict())
+-spec do_get_stage_results(jobname(), stage_name(), event_dict())
                         -> invalid_job | not_ready
                                | {ok, [[url()]]}.
 do_get_stage_results(JobName, StageName, Events) ->
@@ -330,7 +336,7 @@ do_get_stage_results(JobName, StageName, Events) ->
             end
     end.
 
--spec do_get_jobinfo(jobname(), dict()) -> invalid_job | {ok, job_eventinfo()}.
+-spec do_get_jobinfo(jobname(), event_dict()) -> invalid_job | {ok, job_eventinfo()}.
 do_get_jobinfo(JobName, Events) ->
     case dict:find(JobName, Events) of
         error ->
@@ -450,7 +456,7 @@ json_list([X], L) ->
 json_list([X|R], L) ->
     json_list(R, [<<X/binary, ",">>|L]).
 
--spec unique_key(jobname(), dict()) -> invalid_prefix | {ok, jobname()}.
+-spec unique_key(jobname(), event_dict()) -> invalid_prefix | {ok, jobname()}.
 unique_key(Prefix, Dict) ->
     C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
     if C > 0 ->

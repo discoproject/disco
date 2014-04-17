@@ -197,21 +197,25 @@
 
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -type rr_next() :: object_name().
+
+-type node_map() :: disco_gbtree(node(), {pid(), non_neg_integer()}).
+-type tag_set() :: disco_gbset(tagname()).
+
 -record(state, {
           % dynamic state
           deleted_ages                :: ets:tab(),
           phase    = start            :: phase(),
-          gc_peers = gb_trees:empty() :: gb_tree(),
+          gc_peers = gb_trees:empty() :: node_map(),
 
           last_response_time = now()          :: erlang:timestamp(),
           progress_timer    = undefined       :: 'undefined' | timer:tref(),
           gc_stats          = init_gc_stats() :: gc_run_stats(),
 
           num_pending_reqs  = 0               :: non_neg_integer(),       % build_map/map_wait
-          pending_nodes     = gb_sets:empty() :: gb_set(),                % gc
+          pending_nodes     = gb_sets:empty() :: disco_gbset(node()),     % gc
           rr_reqs           = 0               :: non_neg_integer(),       % rr_blobs
           rr_pid            = undefined       :: 'undefined' | pid(),     % rr_blobs
-          safe_blacklist    = gb_sets:empty() :: gb_set(),                % rr_tags
+          safe_blacklist    = gb_sets:empty() :: tag_set(),  % rr_tags
           nodestats         = []              :: [node_info()],
           overused_nodes    = []              :: [node()],
           underused_nodes   = []              :: [node()],
@@ -630,7 +634,7 @@ schedule_retry(Node) ->
               end),
     ok.
 
--spec start_gc_peers([node()], pid(), erlang:timestamp(), phase()) -> gb_tree().
+-spec start_gc_peers([node()], pid(), erlang:timestamp(), phase()) -> node_map().
 start_gc_peers(Nodes, Self, Now, Phase) ->
     lists:foldl(
       fun(N, Peers) ->
@@ -638,14 +642,14 @@ start_gc_peers(Nodes, Self, Now, Phase) ->
               gb_trees:insert(N, {Pid, 0}, Peers)
       end, gb_trees:empty(), Nodes).
 
--spec find_peer(gb_tree(), node()) -> pid() | 'undefined'.
+-spec find_peer(node_map(), node()) -> pid() | 'undefined'.
 find_peer(Peers, Node) ->
     case gb_trees:lookup(Node, Peers) of
         none -> undefined;
         {value, {Pid, _}} -> Pid
     end.
 
--spec find_node(gb_tree(), pid()) -> {node(), non_neg_integer()} | 'undefined'.
+-spec find_node(node_map(), pid()) -> {node(), non_neg_integer()} | 'undefined'.
 find_node(Peers, Pid) ->
     Iter = gb_trees:iterator(Peers),
     Looper = fun(I, Loop) ->
@@ -657,7 +661,7 @@ find_node(Peers, Pid) ->
            end,
     Looper(Iter, Looper).
 
--spec update_peer(gb_tree(), node(), pid()) -> gb_tree().
+-spec update_peer(node_map(), node(), pid()) -> node_map().
 update_peer(Peers, Node, Pid) ->
     {_OldPid, Failures} = gb_trees:get(Node, Peers),
     gb_trees:enter(Node, {Pid, Failures+1}, Peers).
@@ -671,7 +675,7 @@ resend_pending(Node, Pid) ->
     length(Objects).
 
 
--spec node_broadcast(gb_tree(), protocol_msg()) -> ok.
+-spec node_broadcast(node_map(), protocol_msg()) -> ok.
 node_broadcast(Peers, Msg) ->
     lists:foreach(fun({Pid, _}) ->
                           node_send(Pid, Msg)
@@ -1395,7 +1399,7 @@ update_tag(S, Cnt, T, Retries) ->
     catch _:_ -> update_tag(S, Cnt, T, Retries - 1)
     end.
 
--spec log_blacklist_change(tagname(), gb_set(), gb_set()) -> ok.
+-spec log_blacklist_change(tagname(), tag_set(), tag_set()) -> ok.
 log_blacklist_change(Tag, Old, New) ->
     case gb_sets:size(Old) =:= gb_sets:size(New) of
         true ->
@@ -1434,7 +1438,8 @@ update_tag_body(#state{safe_blacklist = SBL, blacklist = BL, tagk = TagK} = S,
             S#state{safe_blacklist = SBL2}
     end.
 
--spec collect_updates(state(), [[url()]], gb_set()) -> {[blob_update()], gb_set()}.
+-spec collect_updates(state(), [[url()]], tag_set()) ->
+    {[blob_update()], tag_set()}.
 collect_updates(S, BlobSets, SafeBlacklist) ->
     collect(S, BlobSets, {[], SafeBlacklist}).
 collect(_S, [], {_Updates, _SBL} = Result) ->

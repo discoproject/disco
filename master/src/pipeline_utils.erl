@@ -71,7 +71,6 @@ next_stage([_S|Rest], S) -> next_stage(Rest, S).
 
 % utility to create a group -> [dir_spec()] mapping for the dir files
 % in the specified outputs.
--spec dirdict([{task_id(), [task_output()]}]) -> dict().
 dirdict(Outputs) ->
     Dirs = [{{L, H}, {{Tid, Outid}, D}}
             || {Tid, Tout} <- Outputs,

@@ -33,19 +33,20 @@ grouping(G) ->
     throw({error, disco:format("invalid grouping '~p'", [G])}).
 
 % Lookup utilities.
+-type job_dict() :: disco_dict(binary(), term()).
 
--spec dict({struct, [{term(), term()}]}) -> dict().
+-spec dict({struct, [{term(), term()}]}) -> job_dict().
 dict({struct, List}) ->
     dict:from_list(List).
 
--spec find(binary(), dict()) -> term().
+-spec find(binary(), job_dict()) -> term().
 find(Key, Dict) ->
     case dict:find(Key, Dict) of
         {ok, Field} -> Field;
         error -> throw({error, disco:format("jobpack missing key '~s'", [Key])})
     end.
 
--spec find(binary(), dict(), T) -> T.
+-spec find(binary(), job_dict(), T) -> T.
 find(Key, Dict, Default) ->
     case dict:find(Key, Dict) of
         {ok, Field} -> Field;
@@ -61,7 +62,7 @@ jobinfo(JobPack) ->
     VersionInfo = version_info(Version, JobDict),
     {Prefix, fixup_versions(JobInfo, VersionInfo)}.
 
--spec jobdict(jobpack()) -> {non_neg_integer(), dict()}.
+-spec jobdict(jobpack()) -> {non_neg_integer(), job_dict()}.
 jobdict(<<?MAGIC:16/big,
           Version:16/big,
           JobDictOffset:32/big,
@@ -71,7 +72,7 @@ jobdict(<<?MAGIC:16/big,
     <<_:JobDictOffset/bytes, JobDict:JobDictLength/bytes, _/binary>> = JobPack,
     {Version, dict(mochijson2:decode(JobDict))}.
 
--spec core_jobinfo(jobpack(), dict()) -> {jobname(), jobinfo()}.
+-spec core_jobinfo(jobpack(), job_dict()) -> {jobname(), jobinfo()}.
 core_jobinfo(JobPack, JobDict) ->
     Prefix  = find(<<"prefix">>, JobDict),
     SaveResults = find(<<"save_results">>, JobDict, false),
@@ -120,7 +121,7 @@ jobzip(<<?MAGIC:16/big,
                     schedule     = none  :: task_schedule(),
                     inputs       = []    :: [data_input()]}).
 
--spec version_info(non_neg_integer(), dict()) -> #ver1_info{} | #ver2_info{}.
+-spec version_info(non_neg_integer(), job_dict()) -> #ver1_info{} | #ver2_info{}.
 version_info(?VERSION_1, JobDict) ->
     Scheduler = dict(find(<<"scheduler">>, JobDict)),
     #ver1_info{inputs = find(<<"input">>, JobDict),

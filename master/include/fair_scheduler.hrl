@@ -1,7 +1,7 @@
 % Utility types.
 
 -type next_job() :: {ok, pid()} | nojobs.
--type loadstats() :: gb_tree(). % host() -> non_neg_integer() (# running tasks)
+-type loadstats() :: disco_gbtree(host(), non_neg_integer()). % #running tasks
 -type priority() :: float().
 -type node_info() :: {host(), cores(), non_neg_integer()}.
 

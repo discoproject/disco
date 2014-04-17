@@ -13,6 +13,7 @@
          handle_info/2, terminate/2, code_change/3]).
 
 -type replyto() :: {pid(), reference()}.
+-type term_map() :: disco_gbtree(term(), {[replyto()], [[url()]]}).
 
 -record(state, {tag  :: tagname(),
                 data :: none |
@@ -22,10 +23,10 @@
                         {ok, tagcontent()},
                 ddfs_data :: path(),
                 timeout :: non_neg_integer(),
-                delayed   = false :: false | gb_tree(),
+                delayed   = false :: false | term_map(),
                 replicas  = false :: false | [node()],
                 locations = false :: false | [url()],
-                url_cache = false :: false | gb_set()}).
+                url_cache = false :: false | disco_gbset(tagname())}).
 -type state() :: #state{}.
 
 % API messages.
@@ -454,7 +455,7 @@ do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
             S
     end.
 
--spec gc_update_urls(tagid(), [[url()]], gb_tree(), [node()], tagid())
+-spec gc_update_urls(tagid(), [[url()]], term_map(), [node()], tagid())
                     -> [[url()]].
 gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId) ->
     gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId, []).
@@ -576,7 +577,7 @@ read_tagdata(TagID, Locations, Replicas, Failed, _Error) ->
             read_tagdata(TagID, Locations, Replicas, [Chosen|Failed], E)
     end.
 
--spec do_delayed_update([[url()]], [term()], replyto(), gb_tree(), state())
+-spec do_delayed_update([[url()]], [term()], replyto(), term_map(), state())
                        -> state().
 do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
     % We must handle updates with different set of options separately.

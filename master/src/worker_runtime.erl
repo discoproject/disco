@@ -22,9 +22,9 @@
                 save_info    :: string(),
 
                 child_pid       = none             :: none | non_neg_integer(),
-                failed_inputs   = gb_sets:empty()  :: gb_set(), % [seq_id()]
+                failed_inputs   = gb_sets:empty()  :: disco_gbset(seq_id()),
                 remote_outputs  = []               :: [remote_output()],
-                local_labels    = gb_trees:empty() :: gb_tree(),% label -> size
+                local_labels    = gb_trees:empty() :: disco_gbtree(label(), data_size()),
                 output_filename = none             :: none | path(),
                 output_file     = none             :: none | file:io_device()}).
 -type state() :: #state{}.
@@ -294,7 +294,7 @@ format_local_output({L, LocalFile, Size}, #state{jobname = JN, host = Host}) ->
 
 % Convert recorded outputs into pipeline format.
 
--spec local_results(jobname(), host(), path(), gb_tree()) -> dir_spec().
+-spec local_results(jobname(), host(), path(), disco_gbtree(label(), data_size())) -> dir_spec().
 local_results(JobName, Host, FileName, Labels) ->
     UPath = url_path(JobName, Host, FileName),
     Dir = erlang:iolist_to_binary(io_lib:format("dir://~s/~s", [Host, UPath])),
