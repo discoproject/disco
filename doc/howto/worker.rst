@@ -193,7 +193,7 @@ INPUT
    inputs.
 
    The second element is a list of inputs, where each input is a
-   specified as a three-element tuple::
+   specified as a four-element tuple::
 
            input_id, status, label, replicas
 
