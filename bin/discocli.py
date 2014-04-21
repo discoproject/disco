@@ -195,9 +195,9 @@ def job(program, worker, *inputs):
         return data
     def prefix(p):
         return p or os.path.basename(worker).split(".")[0]
-    if not program.options.pipeline
+    if not program.options.pipeline:
         jobversion = JOBPACK_VERSION1
-    else
+    else:
         jobversion = JOBPACK_VERSION2
     jobdict = {'input': program.input(*inputs),
                'worker': worker,
