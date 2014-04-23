@@ -109,7 +109,7 @@
 % Tag attribute names and values have a limited size, and there
 % can be only a limited number of them.
 -define(MAX_TAG_ATTRIB_NAME_SIZE, 1024).
--define(MAX_TAG_ATTRIB_VALUE_SIZE, 1024).
+-define(MAX_TAG_ATTRIB_VALUE_SIZE, 4096).
 -define(MAX_NUM_TAG_ATTRIBS, 1000).
 
 % How long HTTP requests that perform tag updates should wait to
