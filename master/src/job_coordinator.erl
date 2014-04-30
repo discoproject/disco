@@ -495,15 +495,16 @@ do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname      = JobName,
                 none ->
                     SaveOutputs =
                         (pipeline_utils:next_stage(P, Next) == done) andalso Save,
-                    start_next_stage(Stage, Next, Grouping, SaveOutputs,
+                    PrevStageOutputs = stage_outputs(Stage, S),
+                    start_next_stage(PrevStageOutputs, Next, Grouping, SaveOutputs,
                         SaveInfo, S);
                 _ ->
                     S
             end
     end.
-start_next_stage(Prev, Stage, Grouping, SaveOutputs, SaveInfo,
+start_next_stage(PrevStageOutputs, Stage, Grouping, SaveOutputs, SaveInfo,
                  #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
-    {Tasks, S1} = setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs,
+    {Tasks, S1} = setup_stage_tasks(PrevStageOutputs, Stage, Grouping, SaveOutputs,
         SaveInfo, S),
     case Tasks of
         [] ->
@@ -516,14 +517,13 @@ start_next_stage(Prev, Stage, Grouping, SaveOutputs, SaveInfo,
             do_submit_tasks(first_run, Tasks, S1, ?FAILURES_ALLOWED)
     end.
 
--spec setup_stage_tasks(stage_name(), stage_name(), label_grouping(),
+-spec setup_stage_tasks([{task_id(), [task_output()]}], stage_name(), label_grouping(),
                         boolean(), string(), state()) -> {[task_id()], state()}.
-setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs, SaveInfo, S) ->
+setup_stage_tasks(PrevStageOutputs, Stage, Grouping, SaveOutputs, SaveInfo, S) ->
     % The outputs of the previous stage are grouped in the specified
     % way, and these grouped outputs form the inputs for the current
     % stage.
-    Outputs = stage_outputs(Prev, S),
-    GOutputs = pipeline_utils:group_outputs(Grouping, Outputs),
+    GOutputs = pipeline_utils:group_outputs(Grouping, PrevStageOutputs),
     make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, GOutputs, S, {0, []}).
 
 make_stage_tasks(Stage, _Grouping, _SaveOutputs, _SaveInfo, [],
