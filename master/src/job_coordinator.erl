@@ -342,11 +342,8 @@ do_task_done(TaskId, Host, Result, #state{jobinfo = #jobinfo{jobname = JobName},
 
 -spec finish_pipeline(stage_name(), state()) -> state().
 finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
-                                                 save_results = Save},
-                              tasks   = Tasks,
-                              stage_info = SI} = S) ->
-    #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
-    Outputs = [jc_utils:task_outputs(TaskId, Tasks) || TaskId <- Done],
+                                                 save_results = Save}} = S) ->
+    {_, Outputs} = lists:unzip(stage_outputs(Stage, S)),
     Results = [pipeline_utils:output_urls(O)
                || {_Id, O} <- lists:flatten(Outputs)],
     case Save of
