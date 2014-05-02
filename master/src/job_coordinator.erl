@@ -342,11 +342,8 @@ do_task_done(TaskId, Host, Result, #state{jobinfo = #jobinfo{jobname = JobName},
 
 -spec finish_pipeline(stage_name(), state()) -> state().
 finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
-                                                 save_results = Save},
-                              tasks   = Tasks,
-                              stage_info = SI} = S) ->
-    #stage_info{done = Done} = jc_utils:stage_info(Stage, SI),
-    Outputs = [jc_utils:task_outputs(TaskId, Tasks) || TaskId <- Done],
+                                                 save_results = Save}} = S) ->
+    {_, Outputs} = lists:unzip(stage_outputs(Stage, S)),
     Results = [pipeline_utils:output_urls(O)
                || {_Id, O} <- lists:flatten(Outputs)],
     case Save of
@@ -465,9 +462,7 @@ task_complete(TaskId, Host, Outputs, #state{tasks      = Tasks,
     do_submit_tasks(re_run, Awake, S1, ?FAILURES_ALLOWED).
 
 -spec do_stage_done(stage_name(), state()) -> state().
-do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname      = JobName,
-                                                  save_results = Save,
-                                                  save_info = SaveInfo},
+do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
                             pipeline   = P,
                             tasks      = Tasks,
                             stage_info = SI} = S) ->
@@ -493,18 +488,15 @@ do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname      = JobName,
             % we need to start the tasks in the next stage.
             case jc_utils:stage_info_opt(Next, SI) of
                 none ->
-                    SaveOutputs =
-                        (pipeline_utils:next_stage(P, Next) == done) andalso Save,
-                    start_next_stage(Stage, Next, Grouping, SaveOutputs,
-                        SaveInfo, S);
+                    PrevStageOutputs = stage_outputs(Stage, S),
+                    start_next_stage(PrevStageOutputs, Next, Grouping, S);
                 _ ->
                     S
             end
     end.
-start_next_stage(Prev, Stage, Grouping, SaveOutputs, SaveInfo,
+start_next_stage(PrevStageOutputs, Stage, Grouping,
                  #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
-    {Tasks, S1} = setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs,
-        SaveInfo, S),
+    {Tasks, S1} = setup_stage_tasks(PrevStageOutputs, Stage, Grouping, S),
     case Tasks of
         [] ->
             do_stage_done(Stage, S1);
@@ -516,25 +508,27 @@ start_next_stage(Prev, Stage, Grouping, SaveOutputs, SaveInfo,
             do_submit_tasks(first_run, Tasks, S1, ?FAILURES_ALLOWED)
     end.
 
--spec setup_stage_tasks(stage_name(), stage_name(), label_grouping(),
-                        boolean(), string(), state()) -> {[task_id()], state()}.
-setup_stage_tasks(Prev, Stage, Grouping, SaveOutputs, SaveInfo, S) ->
+-spec setup_stage_tasks([{task_id(), [task_output()]}], stage_name(), label_grouping(),
+                        state()) -> {[task_id()], state()}.
+setup_stage_tasks(PrevStageOutputs, Stage, Grouping, S) ->
     % The outputs of the previous stage are grouped in the specified
     % way, and these grouped outputs form the inputs for the current
     % stage.
-    Outputs = stage_outputs(Prev, S),
-    GOutputs = pipeline_utils:group_outputs(Grouping, Outputs),
-    make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, GOutputs, S, {0, []}).
+    GOutputs = pipeline_utils:group_outputs(Grouping, PrevStageOutputs),
+    make_stage_tasks(Stage, Grouping, GOutputs, S, {0, []}).
 
-make_stage_tasks(Stage, _Grouping, _SaveOutputs, _SaveInfo, [],
+make_stage_tasks(Stage, _Grouping, [],
                  #state{stage_info = SI} = S, {TaskNum, Tasks}) ->
     StageInfo = #stage_info{start = now(), all = TaskNum},
     SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
     {Tasks, S#state{stage_info = SI1}};
-make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, [{G, Inputs}|Rest],
+make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                  #state{jobinfo = #jobinfo{jobname = JN,
                                            jobenvs = JE,
+                                           save_info = SaveInfo,
+                                           save_results = Save,
                                            worker  = W},
+                        pipeline   = P,
                         tasks = Tasks,
                         schedule    = Schedule,
                         next_taskid = NextTaskId,
@@ -554,6 +548,8 @@ make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, [{G, Inputs}|Rest],
                         jc_utils:add_input(InputId, DInfo, DM)
                 end, OldDataMap, Inputs),
     {InputIds, _DataInputs} = lists:unzip(Inputs),
+    SaveOutputs =
+        (pipeline_utils:next_stage(P, Stage) == done) andalso Save,
     TaskSpec = #task_spec{jobname = JN,
                           stage   = Stage,
                           taskid  = NextTaskId,
@@ -571,7 +567,7 @@ make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, [{G, Inputs}|Rest],
     S1 = S#state{next_taskid = NextTaskId + 1,
                  data_map    = DataMap,
                  tasks = jc_utils:add_task_spec(NextTaskId, TaskSpec, Tasks)},
-    make_stage_tasks(Stage, Grouping, SaveOutputs, SaveInfo, Rest, S1,
+    make_stage_tasks(Stage, Grouping, Rest, S1,
                      {TaskNum + 1, [NextTaskId | Acc]}).
 
 
