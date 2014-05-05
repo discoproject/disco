@@ -462,10 +462,14 @@ task_complete(TaskId, Host, Outputs, #state{tasks      = Tasks,
     do_submit_tasks(re_run, Awake, S1, ?FAILURES_ALLOWED).
 
 -spec do_stage_done(stage_name(), state()) -> state().
-do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
-                            pipeline   = P,
+do_stage_done(Stage, S) ->
+    maybe_event_stage_done(Stage, S),
+    S1 = mark_stage_finished(Stage, S),
+    do_next_stage(Stage, S1).
+
+maybe_event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
                             tasks      = Tasks,
-                            stage_info = SI} = S) ->
+                            stage_info = SI}) ->
     case Stage of
         ?INPUT ->
             ok;
@@ -479,7 +483,15 @@ do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
             Since = disco:format_time_since(Start),
             event_server:event(JobName, "Stage ~s finished in ~s",
                                [Stage, Since], Event)
-    end,
+    end.
+
+mark_stage_finished(Stage, #state{stage_info = SI} = S) ->
+    StageInfo0 = jc_utils:stage_info(Stage, SI),
+    StageInfo = StageInfo0#stage_info{finished = true},
+    SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
+    S#state{stage_info = SI1}.
+
+do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
     case pipeline_utils:next_stage(P, Stage) of
         done ->
             finish_pipeline(Stage, S);
@@ -494,6 +506,7 @@ do_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
                     S
             end
     end.
+
 start_next_stage(PrevStageOutputs, Stage, Grouping,
                  #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
     {Tasks, S1} = setup_stage_tasks(PrevStageOutputs, Stage, Grouping, S),

@@ -3,8 +3,10 @@
 -include("common_types.hrl").
 -include("disco.hrl").
 -include("pipeline.hrl").
+-include("job_coordinator.hrl").
 
--export([stages/1, next_stage/2, group_outputs/2, pick_local_host/1]).
+-export([stages/1, next_stage/2, group_outputs/2, pick_local_host/1,
+         all_deps_finished/3]).
 -export([locations/1, ranked_locations/1]).
 -export([input_urls/3, output_urls/1]).
 
@@ -46,6 +48,18 @@ next_stage([{_S, _G} = First | _], ?INPUT) -> First;
 next_stage([{S, _G}], S) -> done;
 next_stage([{S, _G}, Next|_], S) -> Next;
 next_stage([_S|Rest], S) -> next_stage(Rest, S).
+
+-spec all_deps_finished(pipeline(), stage_name(),
+                        disco_gbtree(stage_name(), stage_info())) -> boolean().
+all_deps_finished([], _S, _) -> true;
+all_deps_finished([_|_], ?INPUT, _) -> true;
+all_deps_finished([{S, _}|_], S, _) -> true;
+all_deps_finished([{DepS,_}|Rest], S, SI) ->
+    StageInfo = jc_utils:stage_info(DepS, SI),
+    case StageInfo#stage_info.finished of
+        true -> all_deps_finished(Rest, S, SI);
+        false -> false
+    end.
 
 % Dir files are a scalability mechanism to handle large numbers of
 % output labels (and hence output files) from a task.  When output

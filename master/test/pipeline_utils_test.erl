@@ -1,5 +1,9 @@
 -module(pipeline_utils_test).
 
+-include("common_types.hrl").
+-include("disco.hrl").
+-include("job_coordinator.hrl").
+-include("pipeline.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 data_split_test() ->
@@ -46,3 +50,21 @@ data_label_multi_test() ->
     Outputs = [{11, [{10, DataSpec1}, {10, DataSpec2}]}],
     GOutputs = pipeline_utils:group_outputs(group_label, Outputs),
     GOutputs = [{{5,none}, [{{11,10},DataSpec1}, {{11,10},DataSpec2}]}].
+
+
+empty_pipeline_test() ->
+    true = pipeline_utils:all_deps_finished([], <<"stage">>, none).
+
+input_stage_test() ->
+    true = pipeline_utils:all_deps_finished([{a,b}], ?INPUT, none).
+
+done_stage_test() ->
+    true = pipeline_utils:all_deps_finished([{a,b}], a, none).
+
+undone_stage_test() ->
+    M = gb_trees:from_orddict([{a, #stage_info{finished = false}}]),
+    false = pipeline_utils:all_deps_finished([{a,b}], c, M).
+
+dep_done_stage_test() ->
+    M = gb_trees:from_orddict([{a, #stage_info{finished = true}}]),
+    true = pipeline_utils:all_deps_finished([{a,b}], c, M).
