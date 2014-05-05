@@ -3,6 +3,7 @@
 -record(stage_info, {start        :: erlang:timestamp(),
                      all     = 0  :: non_neg_integer(),
                      running = [] :: [task_id()],
+                     finished = false :: boolean(),
                      done    = [] :: [input | task_id()]}).
 -type stage_info() :: #stage_info{}.
 -record(task_info, {spec                :: input | task_spec(),

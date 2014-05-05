@@ -464,7 +464,8 @@ task_complete(TaskId, Host, Outputs, #state{tasks      = Tasks,
 -spec do_stage_done(stage_name(), state()) -> state().
 do_stage_done(Stage, S) ->
     maybe_event_stage_done(Stage, S),
-    do_next_stage(Stage, S).
+    S1 = mark_stage_finished(Stage, S),
+    do_next_stage(Stage, S1).
 
 maybe_event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
                             tasks      = Tasks,
@@ -483,6 +484,12 @@ maybe_event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
             event_server:event(JobName, "Stage ~s finished in ~s",
                                [Stage, Since], Event)
     end.
+
+mark_stage_finished(Stage, #state{stage_info = SI} = S) ->
+    StageInfo0 = jc_utils:stage_info(Stage, SI),
+    StageInfo = StageInfo0#stage_info{finished = true},
+    SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
+    S#state{stage_info = SI1}.
 
 do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
     case pipeline_utils:next_stage(P, Stage) of
