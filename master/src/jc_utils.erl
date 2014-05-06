@@ -11,7 +11,7 @@
          task_inputs/2, task_outputs/2,
          input_info/2, update_input_info/3, add_input/3,
          update_input_failures/2, find_usable_input_hosts/1,
-         collect_stagewise/5, wakeup_waiters/3]).
+         collect_stagewise/5, wakeup_waiters/3, no_tasks_running/2]).
 
 -type stage_map() :: disco_gbtree(stage_name(), stage_info()).
 -type task_map()  :: disco_gbtree(task_id(), task_info()).
@@ -19,8 +19,8 @@
 
 % information about a stage which may not have yet run.
 -spec stage_info_opt(stage_name(), stage_map()) -> none | stage_info().
-stage_info_opt(Stage, Info) ->
-    case gb_trees:lookup(Stage, Info) of
+stage_info_opt(Stage, SI) ->
+    case gb_trees:lookup(Stage, SI) of
         none -> none;
         {value, Info} -> Info
     end.
@@ -47,6 +47,11 @@ mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D} = Info, SI) ->
             done -> {R -- [Id], lists:usort([Id | D])}
         end,
     update_stage(S, Info#stage_info{running = R1, done = D1}, SI).
+
+-spec no_tasks_running(stage_name(), stage_map()) -> boolean().
+no_tasks_running(S, SI) ->
+    #stage_info{running = R} = stage_info(S, SI),
+    length(R) == 0.
 
 % If this is the last pending task in the stage in order for the stage
 % to be done.
