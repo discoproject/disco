@@ -19,8 +19,8 @@
 
 % information about a stage which may not have yet run.
 -spec stage_info_opt(stage_name(), stage_map()) -> none | stage_info().
-stage_info_opt(Stage, Info) ->
-    case gb_trees:lookup(Stage, Info) of
+stage_info_opt(Stage, SI) ->
+    case gb_trees:lookup(Stage, SI) of
         none -> none;
         {value, Info} -> Info
     end.
