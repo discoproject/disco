@@ -29,6 +29,8 @@ while it is executing.  For more on creating and submitting the
 .. note:: The same executable is launched to perform :term:`map`
           and :term:`reduce` tasks.
 
+.. image:: ../images/protocol.png
+
 A worker-initiated synchronous message-based protocol is used for this
 communication.  That is, all communication is initiated by the worker
 by sending a message to Disco, and Disco in turn sends a reply to each
