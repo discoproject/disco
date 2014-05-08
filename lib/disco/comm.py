@@ -51,6 +51,15 @@ def resolveuri(baseuri, uri):
 def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
 
+    # This fixes a problem with Unicode errors in Python 2.7
+    # works in Python 2.6 as well, but not earlier versions
+    try:
+        if data is not None:
+            data = bytearray(data)
+    except NameError:
+        # In Python < 2.6, bytearray doesn't exist
+        pass
+
     try:
         conn = HTTPConnection(str(netloc))
         conn.request(method, '/{0}'.format(path), body=data, headers=headers)
