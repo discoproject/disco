@@ -532,8 +532,13 @@ setup_stage_tasks(PrevStageOutputs, Stage, Grouping, S) ->
 
 make_stage_tasks(Stage, _Grouping, [],
                  #state{stage_info = SI} = S, {TaskNum, Tasks}) ->
-    StageInfo = #stage_info{start = now(), all = TaskNum},
-    SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
+    StageInfo1 = case jc_utils:stage_info_opt(Stage, SI) of
+        none ->
+            #stage_info{start = now(), all = TaskNum};
+        #stage_info{all = All} = StageInfo ->
+            StageInfo#stage_info{all = All + TaskNum}
+    end,
+    SI1 = jc_utils:update_stage(Stage, StageInfo1, SI),
     {Tasks, S#state{stage_info = SI1}};
 make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                  #state{jobinfo = #jobinfo{jobname = JN,
