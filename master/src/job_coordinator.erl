@@ -439,14 +439,23 @@ regenerate_input(_WaiterTInfo, {GenTaskId, _} = _InputId,
 
 -spec task_complete(task_id(), host(), [task_output()], state()) -> state().
 task_complete(TaskId, Host, Outputs, S) ->
-    #state{tasks = Tasks, stage_info = SI} = S1 =
+    #state{tasks = Tasks, pipeline = P, stage_info = SI} = S1 =
         wakeup_waiters(TaskId, Host, Outputs, S),
     #task_info{spec = #task_spec{stage = Stage}} = jc_utils:task_info(TaskId, Tasks),
-    case jc_utils:last_stage_task(Stage, TaskId, SI) of
-        true  -> stage_done(Stage);
+
+    S2 = S1#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)},
+    #state{stage_info = SI1} = S3 = case pipeline_utils:next_stage(P, Stage) of
+        {Next, split} ->
+            {NTasks, STemp} = setup_stage_tasks([{TaskId, Outputs}], Next, split, S2),
+            do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED);
+        _ ->
+            S2
+    end,
+    case jc_utils:last_stage_task(Stage, TaskId, SI) and can_finish(P, Stage, SI1) of
+        true -> stage_done(Stage);
         false -> ok
     end,
-    S1#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)}.
+    S3.
 
 wakeup_waiters(TaskId, Host, Outputs, #state{tasks = Tasks} = S) ->
     #task_info{failed_hosts = FH,
@@ -515,7 +524,14 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
             case jc_utils:stage_info_opt(Next, SI) of
                 none ->
                     PrevStageOutputs = stage_outputs(Stage, S),
-                    start_next_stage(PrevStageOutputs, Next, Grouping, S);
+                    case {Stage, Grouping} of
+                        {?INPUT, _} ->
+                            start_next_stage(PrevStageOutputs, Next, Grouping, S);
+                        {_, split} ->
+                            S;
+                        {_, _} ->
+                            start_next_stage(PrevStageOutputs, Next, Grouping, S)
+                    end;
                 _ ->
                     S
             end
