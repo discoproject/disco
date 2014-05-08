@@ -467,7 +467,19 @@ do_stage_done(Stage, S) ->
     S1 = mark_stage_finished(Stage, S),
     do_next_stage(Stage, S1).
 
-maybe_event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
+maybe_event_stage_done(Stage, #state{pipeline = P, stage_info = SI} = S) ->
+    case can_finish(P, Stage, SI) of
+        true -> event_stage_done(Stage, S);
+        false ->
+            lager:info("Pipeline ~p, StageInfo ~p, Stage ~p", [P, SI, Stage]),
+            ok
+    end.
+
+can_finish(P, Stage, SI) ->
+    pipeline_utils:all_deps_finished(P, Stage, SI) andalso
+    jc_utils:no_tasks_running(Stage, SI).
+
+event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
                             tasks      = Tasks,
                             stage_info = SI}) ->
     case Stage of
@@ -494,7 +506,10 @@ mark_stage_finished(Stage, #state{stage_info = SI} = S) ->
 do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
     case pipeline_utils:next_stage(P, Stage) of
         done ->
-            finish_pipeline(Stage, S);
+            case can_finish(P, Stage, SI) of
+                true -> finish_pipeline(Stage, S);
+                false -> S
+            end;
         {Next, Grouping} ->
             % If this is the first time this stage has finished, then
             % we need to start the tasks in the next stage.
