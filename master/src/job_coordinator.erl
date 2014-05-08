@@ -438,28 +438,27 @@ regenerate_input(_WaiterTInfo, {GenTaskId, _} = _InputId,
     do_submit_tasks(re_run, TaskIdsToRun, S1, ?FAILURES_ALLOWED).
 
 -spec task_complete(task_id(), host(), [task_output()], state()) -> state().
-task_complete(TaskId, Host, Outputs, #state{tasks      = Tasks,
-                                            stage_info = SI} = S) ->
+task_complete(TaskId, Host, Outputs, S) ->
+    #state{tasks = Tasks, stage_info = SI} = S1 =
+        wakeup_waiters(TaskId, Host, Outputs, S),
+    #task_info{spec = #task_spec{stage = Stage}} = jc_utils:task_info(TaskId, Tasks),
+    case jc_utils:last_stage_task(Stage, TaskId, SI) of
+        true  -> stage_done(Stage);
+        false -> ok
+    end,
+    S1#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)}.
+
+wakeup_waiters(TaskId, Host, Outputs, #state{tasks = Tasks} = S) ->
     #task_info{failed_hosts = FH,
-               waiters = Waiters,
-               spec = #task_spec{stage = Stage}}
+               waiters = Waiters}
         = TInfo = jc_utils:task_info(TaskId, Tasks),
     TInfo1 = TInfo#task_info{failed_hosts = gb_sets:delete_any(Host, FH),
                              worker  = none,
                              waiters = [],
                              outputs = Outputs},
-    % Get the runnable set of waiters.
     {Awake, Tasks1} = jc_utils:wakeup_waiters(TaskId, Waiters, Tasks),
-    % Dispatch next stage if this was the last task to finish in this
-    % stage.
-    StageDone = jc_utils:last_stage_task(Stage, TaskId, SI),
-    case StageDone of
-        true  -> stage_done(Stage);
-        false -> ok
-    end,
-    S1 = S#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI),
-                 tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks1)},
-    do_submit_tasks(re_run, Awake, S1, ?FAILURES_ALLOWED).
+    S1 = do_submit_tasks(re_run, Awake, S, ?FAILURES_ALLOWED),
+    S1#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks1)}.
 
 -spec do_stage_done(stage_name(), state()) -> state().
 do_stage_done(Stage, S) ->
