@@ -438,28 +438,36 @@ regenerate_input(_WaiterTInfo, {GenTaskId, _} = _InputId,
     do_submit_tasks(re_run, TaskIdsToRun, S1, ?FAILURES_ALLOWED).
 
 -spec task_complete(task_id(), host(), [task_output()], state()) -> state().
-task_complete(TaskId, Host, Outputs, #state{tasks      = Tasks,
-                                            stage_info = SI} = S) ->
+task_complete(TaskId, Host, Outputs, S) ->
+    #state{tasks = Tasks, pipeline = P, stage_info = SI} = S1 =
+        wakeup_waiters(TaskId, Host, Outputs, S),
+    #task_info{spec = #task_spec{stage = Stage}} = jc_utils:task_info(TaskId, Tasks),
+
+    S2 = S1#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)},
+    #state{stage_info = SI1} = S3 = case pipeline_utils:next_stage(P, Stage) of
+        {Next, split} ->
+            {NTasks, STemp} = setup_stage_tasks([{TaskId, Outputs}], Next, split, S2),
+            do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED);
+        _ ->
+            S2
+    end,
+    case jc_utils:last_stage_task(Stage, TaskId, SI) and can_finish(P, Stage, SI1) of
+        true -> stage_done(Stage);
+        false -> ok
+    end,
+    S3.
+
+wakeup_waiters(TaskId, Host, Outputs, #state{tasks = Tasks} = S) ->
     #task_info{failed_hosts = FH,
-               waiters = Waiters,
-               spec = #task_spec{stage = Stage}}
+               waiters = Waiters}
         = TInfo = jc_utils:task_info(TaskId, Tasks),
     TInfo1 = TInfo#task_info{failed_hosts = gb_sets:delete_any(Host, FH),
                              worker  = none,
                              waiters = [],
                              outputs = Outputs},
-    % Get the runnable set of waiters.
     {Awake, Tasks1} = jc_utils:wakeup_waiters(TaskId, Waiters, Tasks),
-    % Dispatch next stage if this was the last task to finish in this
-    % stage.
-    StageDone = jc_utils:last_stage_task(Stage, TaskId, SI),
-    case StageDone of
-        true  -> stage_done(Stage);
-        false -> ok
-    end,
-    S1 = S#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI),
-                 tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks1)},
-    do_submit_tasks(re_run, Awake, S1, ?FAILURES_ALLOWED).
+    S1 = do_submit_tasks(re_run, Awake, S, ?FAILURES_ALLOWED),
+    S1#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks1)}.
 
 -spec do_stage_done(stage_name(), state()) -> state().
 do_stage_done(Stage, S) ->
@@ -467,7 +475,19 @@ do_stage_done(Stage, S) ->
     S1 = mark_stage_finished(Stage, S),
     do_next_stage(Stage, S1).
 
-maybe_event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
+maybe_event_stage_done(Stage, #state{pipeline = P, stage_info = SI} = S) ->
+    case can_finish(P, Stage, SI) of
+        true -> event_stage_done(Stage, S);
+        false ->
+            lager:info("Pipeline ~p, StageInfo ~p, Stage ~p", [P, SI, Stage]),
+            ok
+    end.
+
+can_finish(P, Stage, SI) ->
+    pipeline_utils:all_deps_finished(P, Stage, SI) andalso
+    jc_utils:no_tasks_running(Stage, SI).
+
+event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
                             tasks      = Tasks,
                             stage_info = SI}) ->
     case Stage of
@@ -494,14 +514,24 @@ mark_stage_finished(Stage, #state{stage_info = SI} = S) ->
 do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
     case pipeline_utils:next_stage(P, Stage) of
         done ->
-            finish_pipeline(Stage, S);
+            case can_finish(P, Stage, SI) of
+                true -> finish_pipeline(Stage, S);
+                false -> S
+            end;
         {Next, Grouping} ->
             % If this is the first time this stage has finished, then
             % we need to start the tasks in the next stage.
             case jc_utils:stage_info_opt(Next, SI) of
                 none ->
                     PrevStageOutputs = stage_outputs(Stage, S),
-                    start_next_stage(PrevStageOutputs, Next, Grouping, S);
+                    case {Stage, Grouping} of
+                        {?INPUT, _} ->
+                            start_next_stage(PrevStageOutputs, Next, Grouping, S);
+                        {_, split} ->
+                            S;
+                        {_, _} ->
+                            start_next_stage(PrevStageOutputs, Next, Grouping, S)
+                    end;
                 _ ->
                     S
             end
@@ -532,8 +562,13 @@ setup_stage_tasks(PrevStageOutputs, Stage, Grouping, S) ->
 
 make_stage_tasks(Stage, _Grouping, [],
                  #state{stage_info = SI} = S, {TaskNum, Tasks}) ->
-    StageInfo = #stage_info{start = now(), all = TaskNum},
-    SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
+    StageInfo1 = case jc_utils:stage_info_opt(Stage, SI) of
+        none ->
+            #stage_info{start = now(), all = TaskNum};
+        #stage_info{all = All} = StageInfo ->
+            StageInfo#stage_info{all = All + TaskNum}
+    end,
+    SI1 = jc_utils:update_stage(Stage, StageInfo1, SI),
     {Tasks, S#state{stage_info = SI1}};
 make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                  #state{jobinfo = #jobinfo{jobname = JN,
