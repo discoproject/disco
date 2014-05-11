@@ -59,6 +59,10 @@ from disco.error import DataError
 from disco.fileutils import DiscoOutput, NonBlockingInput, Wait, AtomicFile
 from disco.comm import open_url
 
+
+# Maximum amount of time a task might take to finish.
+DISCO_WORKER_MAX_TIME = 24 * 60 * 60
+
 class MessageWriter(object):
     def __init__(self, worker):
         self.worker = worker
@@ -327,7 +331,8 @@ class Worker(dict):
                   as the worker module is also generally imported on the client side.
         """
         try:
-            sys.stdin = NonBlockingInput(sys.stdin, timeout=600)
+            sys.stdin = NonBlockingInput(sys.stdin,
+                                         timeout=3 * DISCO_WORKER_MAX_TIME)
             sys.stdout = sys.stderr = MessageWriter(cls)
             cls.send('WORKER', {'pid': os.getpid(), 'version': "1.1"})
             task = cls.get_task()
