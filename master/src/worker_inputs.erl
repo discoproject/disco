@@ -1,6 +1,7 @@
 -module(worker_inputs).
 
--export([init/3, all/1, include/2, exclude/2, fail/3, failed_info/2]).
+-export([init/3, all/1, include/2, exclude/2, fail/3, failed_info/2,
+         is_input_done/1, add_inputs/2]).
 -export_type([state/0, worker_input/0]).
 
 -include("common_types.hrl").
@@ -16,6 +17,7 @@
           inputs     = gb_trees:empty() :: disco_gbtree(seq_id(), {input_id(), data_input()}),
           % {seq_id(), rep_id()} -> fail_info()
           input_map  = gb_trees:empty() :: disco_gbtree({seq_id(), rep_id()}, fail_info()),
+          is_input_done                 :: boolean(),
           max_seq_id                    :: seq_id()}).
 -type state() :: #state{}.
 
@@ -31,6 +33,8 @@ init(Inputs, Grouping, Group) ->
                             || {SeqId, {_Id, DI}} <- SeqInputs]),
     #state{inputs     = gb_trees:from_orddict(SeqInputs),
            input_map  = gb_trees:from_orddict(SeqMap),
+           %TODO only set input as done when we know it is done.
+           is_input_done = true,
            max_seq_id = length(Inputs)}.
 
 -spec init_replicas(seq_id(), data_input(), label_grouping(), group())
@@ -44,6 +48,10 @@ init_replicas(SeqId, DI, Grouping, Group) ->
 include(SeqIds, #state{input_map = Map}) ->
     [{SeqId, L, Reps} || SeqId <- SeqIds,
                          {L, Reps} <- [replicas(SeqId, 0, 0, [], Map)]].
+
+-spec is_input_done(state()) -> boolean().
+is_input_done(#state{is_input_done = Done}) ->
+    Done.
 
 -spec exclude([seq_id()], state()) -> [worker_input()].
 exclude(Exc, S) ->
@@ -78,6 +86,14 @@ fail_one(Key, Now, #state{input_map = Map} = S) ->
         none ->
             S
     end.
+
+-spec add_inputs(done | [{input_id(), data_input()}], state()) -> state().
+add_inputs(done, S) ->
+    S;
+add_inputs(NewInputs, #state{inputs = Inputs} = S) ->
+    InputList = gb_trees:to_list(Inputs),
+    AggInputs = gb_trees:from_orddict(orddict:from_list(NewInputs ++ InputList)),
+    S#state{inputs = AggInputs}.
 
 -spec all_seq_ids(state()) -> [seq_id()].
 all_seq_ids(#state{max_seq_id = MaxSeqId}) ->
