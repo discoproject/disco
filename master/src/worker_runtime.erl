@@ -140,14 +140,14 @@ do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
     disco_worker:event({<<"MSG">>, Msg}, Task, Master),
     {ok, {"OK", <<"ok">>}, S, rate_limit};
 
-do_handle({<<"INPUT">>, <<>>}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:all(Inputs)), S};
+do_handle({<<"INPUT">>, <<>>}, #state{inputs = InputState} = S) ->
+    {ok, produce_inputs(fun worker_inputs:all/1, InputState), S};
 
-do_handle({<<"INPUT">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:include(Iids, Inputs)), S};
+do_handle({<<"INPUT">>, [<<"include">>, Iids]}, #state{inputs = InputState} = S) ->
+    {ok, produce_inputs({fun worker_inputs:include/2, Iids}, InputState), S};
 
-do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:exclude(Iids, Inputs)), S};
+do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = InputState} = S) ->
+    {ok, produce_inputs({fun worker_inputs:exclude/2, Iids}, InputState), S};
 
 do_handle({<<"INPUT_ERR">>, [Iid, Rids]}, #state{inputs = Inputs,
                                                  failed_inputs = Failed} = S) ->
@@ -194,10 +194,33 @@ do_handle({<<"DONE">>, _Body}, #state{task = Task,
     end.
 
 % Input utilities.
--spec input_reply([worker_inputs:worker_input()]) -> worker_msg().
-input_reply(Inputs) ->
-    {"INPUT", [<<"done">>, [[Iid, <<"ok">>, L, Repl]
+-spec input_reply([worker_inputs:worker_input()], boolean()) -> worker_msg().
+input_reply(Inputs, Done) ->
+    Status = case Done of
+        false -> <<"more">>;
+        true  -> <<"done">>
+    end,
+    {"INPUT", [Status, [[Iid, <<"ok">>, L, Repl]
                             || {Iid, L, Repl} <- Inputs]]}.
+
+get_inputs(Function, InputState) ->
+    case Function of
+        {F, I} -> F(I, InputState);
+        F -> F(InputState)
+    end.
+
+produce_inputs(Function, InputState) ->
+    Inputs = get_inputs(Function, InputState),
+    case {worker_inputs:is_input_done(InputState), length(Inputs)} of
+        {false, 0} ->
+            %TODO Disco should block until a new input is availalbe and
+            % then send it to the worker.
+            NewInputState = worker_input:wait_for_input(InputState),
+            Done = worker_inputs:is_input_done(NewInputState),
+            input_reply(get_inputs(Function, NewInputState), Done);
+        {Done, _} ->
+            input_reply(Inputs, Done)
+    end.
 
 % Output utilities.
 
