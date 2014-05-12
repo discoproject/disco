@@ -374,14 +374,14 @@ class Worker(dict):
         return [(id, str(url)) for id, url in replicas]
 
     @classmethod
-    def get_inputs(cls, done=False, exclude=()):
+    def get_inputs(cls, done=False, exclude=[]):
         while not done:
-            done, inputs = cls.send('INPUT')
+            done, inputs = cls.send('INPUT', ['exclude', exclude])
             for id, _status, label, _replicas in inputs:
                 if id not in exclude:
                     label = label if label == 'all' else int(label)
                     yield IDedInput((cls, id, label))
-                    exclude += (id, )
+                    exclude.append(id)
 
     @classmethod
     def labelled_input_map(cls, task, inputs):
