@@ -375,7 +375,7 @@ class Worker(dict):
 
     @classmethod
     def get_inputs(cls, done=False, exclude=[]):
-        while not done:
+        while done != "done":
             done, inputs = cls.send('INPUT', ['exclude', exclude])
             for id, _status, label, _replicas in inputs:
                 if id not in exclude:
