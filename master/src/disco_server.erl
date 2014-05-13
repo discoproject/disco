@@ -445,7 +445,7 @@ do_gc_blacklist(Hosts, S) ->
 -spec start_worker(host(), pid(), task()) -> pid().
 start_worker(H, NM, {#task_spec{jobname = J, stage = S, taskid = TI}, _} = T) ->
     event_server:event(J, "~s:~B assigned to ~s", [S, TI, H], none),
-    spawn_link(fun() -> disco_worker:start_link_remote(H, NM, T) end).
+    spawn_link(disco_worker, start_link_remote, [H, NM, T]).
 
 -spec schedule_next() -> ok.
 schedule_next() ->
