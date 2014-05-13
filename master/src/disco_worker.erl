@@ -43,8 +43,7 @@ start_link_remote(Host, NodeMon, Task) ->
     wait_until_node_ready(NodeMon, Host),
     process_flag(trap_exit, true),
     {Master, Self} = {node(), self()},
-    spawn_link(Node, fun() -> disco_worker:start_link(Self, Master, Task)
-                     end),
+    spawn_link(Node, disco_worker, start_link, [Self, Master, Task]),
     receive
         {'EXIT', _, Reason} -> exit({error, Reason});
         ok      -> ok;

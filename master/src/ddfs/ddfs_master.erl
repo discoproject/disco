@@ -164,7 +164,7 @@ init(_Args) ->
         || Name <- [get_tags, do_get_tags_all, do_get_tags_filter,
             do_get_tags_safe, do_get_tags_gc]],
     spawn_link(fun() -> monitor_diskspace() end),
-    spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
+    spawn_link(ddfs_gc, start_gc, [disco:get_setting("DDFS_DATA")]),
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
     {ok, #state{cache_refresher = Refresher}}.
