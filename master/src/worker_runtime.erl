@@ -1,5 +1,5 @@
 -module(worker_runtime).
--export([init/2, handle/2, get_pid/1]).
+-export([init/2, handle/2, get_pid/1, add_inputs/2]).
 
 -include("common_types.hrl").
 -include("disco.hrl").
@@ -21,6 +21,7 @@
                 save_outputs :: boolean(),
                 save_info    :: string(),
 
+                input_requested = false            :: boolean(),
                 child_pid       = none             :: none | non_neg_integer(),
                 failed_inputs   = gb_sets:empty()  :: disco_gbset(seq_id()),
                 remote_outputs  = []               :: [remote_output()],
@@ -72,6 +73,7 @@ payload_type(_Type) -> none.
 -type output_msg() :: {label(), binary(), data_size()}.
 
 -type do_handle() :: {ok, worker_msg(), state()} | {ok, worker_msg(), state(), rate_limit}
+                   | {ok, noreply, state()}
                    | {error, {fatal, term()}, state()}
                    | {stop, {error | fatal | done, term()}}.
 -type handle() :: do_handle() | {error, {fatal, term()}}.
@@ -140,14 +142,14 @@ do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
     disco_worker:event({<<"MSG">>, Msg}, Task, Master),
     {ok, {"OK", <<"ok">>}, S, rate_limit};
 
-do_handle({<<"INPUT">>, <<>>}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:all(Inputs)), S};
+do_handle({<<"INPUT">>, <<>>}, #state{inputs = InputState} = S) ->
+    produce_inputs(fun worker_inputs:all/1, InputState, S);
 
-do_handle({<<"INPUT">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:include(Iids, Inputs)), S};
+do_handle({<<"INPUT">>, [<<"include">>, Iids]}, #state{inputs = InputState} = S) ->
+    produce_inputs({fun worker_inputs:include/2, Iids}, InputState, S);
 
-do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:exclude(Iids, Inputs)), S};
+do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = InputState} = S) ->
+    produce_inputs({fun worker_inputs:exclude/2, Iids}, InputState, S);
 
 do_handle({<<"INPUT_ERR">>, [Iid, Rids]}, #state{inputs = Inputs,
                                                  failed_inputs = Failed} = S) ->
@@ -194,10 +196,43 @@ do_handle({<<"DONE">>, _Body}, #state{task = Task,
     end.
 
 % Input utilities.
--spec input_reply([worker_inputs:worker_input()]) -> worker_msg().
-input_reply(Inputs) ->
-    {"INPUT", [<<"done">>, [[Iid, <<"ok">>, L, Repl]
+-spec input_reply([worker_inputs:worker_input()], boolean()) -> worker_msg().
+input_reply(Inputs, Done) ->
+    Status = case Done of
+        false -> <<"more">>;
+        true  -> <<"done">>
+    end,
+    {"INPUT", [Status, [[Iid, <<"ok">>, L, Repl]
                             || {Iid, L, Repl} <- Inputs]]}.
+
+get_inputs(Function, InputState) ->
+    case Function of
+        {F, I} -> F(I, InputState);
+        F -> F(InputState)
+    end.
+
+-spec add_inputs(done | [{input_id(), data_input()}], state()) ->
+    {_, state()}.
+add_inputs(Inputs, #state{input_requested = Requested, inputs = InputState}=S) ->
+    InputState1 = worker_inputs:add_inputs(Inputs, InputState),
+    Reply = case Requested of
+        false -> none;
+        true  ->
+            case Inputs of
+                done -> <<"done">>;
+                _    -> <<"more">>
+            end
+    end,
+    {Reply, S#state{input_requested = false, inputs = InputState1}}.
+
+produce_inputs(Function, InputState, S) ->
+    Inputs = get_inputs(Function, InputState),
+    case {worker_inputs:is_input_done(InputState), length(Inputs)} of
+        {false, 0} ->
+            {ok, noreply, S#state{input_requested = true}};
+        {Done, _} ->
+            {ok, input_reply(Inputs, Done), S}
+    end.
 
 % Output utilities.
 

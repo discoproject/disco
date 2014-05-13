@@ -142,10 +142,8 @@ handle_cast({update_nodes, NewNodes},
 
 % Add a new task to the list of running tasks (for the fairness
 % fairy).
-handle_cast({task_started, Node, Worker, Task}, #state{job_coord = JC,
-                                                       running   = Running} = S) ->
+handle_cast({task_started, Node, Worker}, #state{running   = Running} = S) ->
     erlang:monitor(process, Worker),
-    job_coordinator:task_started(JC, Task, Worker),
     NewRunning = gb_trees:insert(Worker, Node, Running),
     {noreply, S#state{running = NewRunning}};
 

@@ -101,9 +101,9 @@ use_inputs(Coord, Inputs) ->
 stage_done(Stage) ->
     gen_server:cast(self(), {stage_done, Stage}).
 
--spec task_started(pid(), task(), pid()) -> ok.
-task_started(Coord, Task, Worker) ->
-    gen_server:cast(Coord, {task_started, Task, Worker}).
+-spec task_started(pid(), task_id(), pid()) -> ok.
+task_started(Coord, TaskId, Worker) ->
+    gen_server:cast(Coord, {task_started, TaskId, Worker}).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -155,7 +155,7 @@ handle_call(_M, _F, S) ->
                  ({task_done, task_id(), host(), [task_output()]}, state()) ->
                          gs_noreply();
                  (pipeline_done, state()) -> gs_noreply();
-                 ({task_started, task(), pid()}, state()) -> gs_noreply();
+                 ({task_started, task_id(), pid()}, state()) -> gs_noreply();
                  ({kill_job, term()}, state()) -> gs_noreply().
 handle_cast({start, Inputs}, S) ->
     {noreply, do_start(Inputs, S)};
@@ -177,8 +177,7 @@ handle_cast({task_done, TaskId, Host, Results}, S) ->
 handle_cast(pipeline_done, #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
     event_server:end_job(JobName),
     {stop, normal, S};
-handle_cast({task_started, {#task_spec{taskid = TaskId}, _}, W},
-            #state{tasks = Tasks} = S) ->
+handle_cast({task_started, TaskId, W}, #state{tasks = Tasks} = S) ->
     TaskInfo = jc_utils:task_info(TaskId, Tasks),
     Tasks1 = jc_utils:update_task_info(TaskId, TaskInfo#task_info{worker=W}, Tasks),
     {noreply, S#state{tasks = Tasks1}};
