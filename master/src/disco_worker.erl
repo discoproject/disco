@@ -79,7 +79,8 @@ init({Master, {#task_spec{job_coord = JobCoord}, #task_run{}} = Task}) ->
     % below.
     erlang:monitor(process, JobCoord),
     % introduce myself to the job_coordinator as the worker
-    job_coordinator:task_started(JobCoord, Task, self()),
+    {#task_spec{taskid = TaskId}, _} = Task,
+    job_coordinator:task_started(JobCoord, TaskId, self()),
     {ok, #state{master = Master,
                 task = Task,
                 port = none,
