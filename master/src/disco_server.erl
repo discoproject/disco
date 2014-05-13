@@ -462,7 +462,7 @@ do_schedule_next(#state{nodes = Nodes, workers = Workers} = S) ->
                 M = gb_trees:get(Node, Nodes),
                 WorkerPid = start_worker(Node, M#dnode.node_mon, Task),
                 UWorkers = gb_trees:insert(WorkerPid, {Node, Task}, Workers),
-                gen_server:cast(JobSchedPid, {task_started, Node, WorkerPid, Task}),
+                gen_server:cast(JobSchedPid, {task_started, Node, WorkerPid}),
 
                 M1 = M#dnode{num_running = M#dnode.num_running + 1},
                 UNodes = gb_trees:update(Node, M1, Nodes),
