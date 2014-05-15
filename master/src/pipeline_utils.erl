@@ -105,6 +105,8 @@ unique_labels(LabelSizes) ->
 
 -spec group_outputs(label_grouping(), [{task_id(), [task_output()]}])
                    -> [grouped_output()].
+group_outputs(_, []) ->
+    [];
 group_outputs(split, Outputs) ->
     % As explained above, each label from a dir file is a separate
     % 'split' output.
