@@ -6,7 +6,7 @@
 -include("job_coordinator.hrl").
 
 -export([stages/1, next_stage/2, group_outputs/2, pick_local_host/1,
-         all_deps_finished/3]).
+         all_deps_finished/3, get_grouping_lists/4]).
 -export([locations/1, ranked_locations/1]).
 -export([input_urls/3, output_urls/1]).
 
@@ -207,3 +207,32 @@ output_urls({data, {_L, _Sz, Reps}}) ->
     [<<U/binary>> || {U, _H} <- Reps];
 output_urls({dir, {_H1, U, _LS}}) ->
     [U].
+
+get_groups([], _, NewGroups, OldGroups) ->
+    {NewGroups, OldGroups};
+
+get_groups([G|Rest], GroupedBeforeDict, NewGroups, OldGroups) ->
+    {GroupId, BeforeGroup} = G,
+    case dict:is_key(GroupId, GroupedBeforeDict) of
+        false ->
+                get_groups(Rest, GroupedBeforeDict, [G|NewGroups], OldGroups);
+        true ->
+            case dict:fetch(GroupId, GroupedBeforeDict) of
+                BeforeGroup ->
+                    % no change in this group! do not send any inputs
+                    get_groups(Rest, GroupedBeforeDict, NewGroups, OldGroups);
+                _ ->
+                    % this group has been updated and should be send to the
+                    % responsible task.
+                    get_groups(Rest, GroupedBeforeDict, NewGroups, [G|OldGroups])
+            end
+    end.
+
+-spec get_grouping_lists(label_grouping(), [task_output()], task_id(), [task_output()]) ->
+    {[grouped_output()], [grouped_output()]}.
+get_grouping_lists(Grouping, PrevStageOutputs, TaskId, Outputs) ->
+    GroupedBeforeThisTask = group_outputs(Grouping, PrevStageOutputs),
+    GroupedBeforeDict = dict:from_list(GroupedBeforeThisTask),
+    PrevStageOutputs1 = [{TaskId, Outputs}|PrevStageOutputs],
+    GroupedAfterThisTask = group_outputs(Grouping, PrevStageOutputs1),
+    get_groups(GroupedAfterThisTask, GroupedBeforeDict, [], []).
