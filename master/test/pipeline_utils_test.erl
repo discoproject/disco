@@ -102,3 +102,9 @@ get_grouping_node2_test() ->
     TaskId = 14,
     {[], L2} = get_grouping_test_group(group_node, TaskId, Output),
     1 = length(L2).
+
+get_grouping_dir_test() ->
+   DirSpec = {dir, {"localhost", <<"dir://data">>, [{9, "out"}]}},
+   Outputs = [{0, DirSpec}],
+   {L1, []} = pipeline_utils:get_grouping_lists(group_all, [], 1, Outputs),
+   1 = length(L1).
