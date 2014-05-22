@@ -609,16 +609,11 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
             % we need to start the tasks in the next stage.
             case jc_utils:stage_info_opt(Next, SI) of
                 none ->
-                    PrevStageOutputs = stage_outputs(Stage, S1),
-                    case {Stage, Grouping} of
-                        {?INPUT, _} ->
-                            start_next_stage(PrevStageOutputs, Next, Grouping,
-                                S1);
-                        {_, split} ->
-                            S1;
-                        {_, _} ->
-                            start_next_stage(PrevStageOutputs, Next, Grouping,
-                                S1)
+                    case Stage of
+                        ?INPUT ->
+                            start_next_stage(stage_outputs(Stage, S1), Next, Grouping, S1);
+                        _      ->
+                            S1
                     end;
                 _ ->
                     S1
