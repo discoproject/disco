@@ -496,6 +496,7 @@ send_outputs_to_consumers(#state{group_map = GroupMap} = S, ModifiedGroups) ->
     TaskList = gb_trees:to_list(GroupMap),
     send_outputs_to_consumers(S, TaskList, ModifiedGroups).
 
+-spec send_outputs_to_consumers(state(), [task_id()], [grouped_output()]) -> state().
 send_outputs_to_consumers(S, _, []) ->
     S;
 
@@ -519,11 +520,13 @@ update_taskspec(#state{tasks = Tasks} = S, TaskId, Fun) ->
         TaskInfo#task_info{spec=Fun(TaskSpec)}, Tasks),
     S#state{tasks = Tasks1}.
 
+-spec add_inputs_to_spec(state(), task_id(), [{input_id(), data_input()}]) -> state().
 add_inputs_to_spec(S, TaskId, NewInputs) ->
+    InputIds = [Id|| {Id,_} <- NewInputs],
     S1 = update_taskspec(S, TaskId,
         fun(TaskSpec) ->
             CurrentInputs = TaskSpec#task_spec.input,
-            TaskSpec#task_spec{input = CurrentInputs ++ NewInputs}
+            TaskSpec#task_spec{input = CurrentInputs ++ InputIds}
         end),
     add_inputs_to_data_map(S1, NewInputs).
 
@@ -533,6 +536,7 @@ mark_task_inputs_done(S, TaskId) ->
             TaskSpec#task_spec{all_inputs = true}
         end).
 
+-spec send_outputs_to_consumer(state(), task_id(), grouped_output()) -> state().
 send_outputs_to_consumer(S, TaskId, {_, Inputs}) ->
     #state{tasks = Tasks} = S1 = add_inputs_to_spec(S, TaskId, Inputs),
     TaskInfo = jc_utils:task_info(TaskId, Tasks),
@@ -737,6 +741,7 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
     make_stage_tasks(Stage, Grouping, Rest, S2,
                      {TaskNum + 1, [NextTaskId | Acc]}).
 
+ -spec add_inputs_to_data_map(state(), [{input_id(), data_input()}]) -> state().
 add_inputs_to_data_map(#state{data_map = OldDataMap} = S, Inputs) ->
     DataMap = lists:foldl(
                 fun({InputId, DataInput}, DM) ->
