@@ -696,6 +696,12 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
     {InputIds, _DataInputs} = lists:unzip(Inputs),
     SaveOutputs =
         (pipeline_utils:next_stage(P, Stage) == done) andalso Save,
+
+    % TODO fix the logic of setting AllInputs
+    AllInputs = case Grouping of
+        split -> true;
+        _     -> false
+    end,
     TaskSpec = #task_spec{jobname = JN,
                           stage   = Stage,
                           taskid  = NextTaskId,
@@ -704,6 +710,7 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                           jobenvs = JE,
                           worker  = W,
                           input   = InputIds,
+                          all_inputs = AllInputs,
                           grouping  = Grouping,
                           job_coord = self(),
                           schedule  = Schedule,

@@ -1,6 +1,6 @@
 -module(worker_inputs).
 
--export([init/3, all/1, include/2, exclude/2, fail/3, failed_info/2,
+-export([init/4, all/1, include/2, exclude/2, fail/3, failed_info/2,
          is_input_done/1, add_inputs/2]).
 -export_type([state/0, worker_input/0]).
 
@@ -28,17 +28,14 @@
 -type replica() :: [rep_id() | url(), ...].
 -type worker_input() :: {seq_id(), label(), [replica()]}.
 
--spec init([{input_id(), data_input()}], label_grouping(), group()) -> state().
-init(Inputs, Grouping, Group) ->
+-spec init([{input_id(), data_input()}], label_grouping(), group(), boolean()) -> state().
+init(Inputs, Grouping, Group, AllInputs) ->
     SeqInputs = disco:enum(Inputs),
     SeqMap = lists:flatten([init_replicas(SeqId, DI, Grouping, Group)
                             || {SeqId, {_Id, DI}} <- SeqInputs]),
     #state{inputs     = gb_trees:from_orddict(SeqInputs),
            input_map  = gb_trees:from_orddict(SeqMap),
-           is_input_done = case Grouping of
-               split -> true;
-               _     -> false
-           end,
+           is_input_done = AllInputs,
            stage_grouping = Grouping,
            stage_group = Group,
            max_seq_id = length(Inputs)}.
