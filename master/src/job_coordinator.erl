@@ -678,6 +678,7 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                         schedule    = Schedule,
                         next_taskid = NextTaskId,
                         group_map   = OldGroupMap,
+                        stage_info = SI,
                         data_map    = OldDataMap} = S,
                  {TaskNum, Acc}) ->
     DataMap = lists:foldl(
@@ -697,10 +698,9 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
     SaveOutputs =
         (pipeline_utils:next_stage(P, Stage) == done) andalso Save,
 
-    % TODO fix the logic of setting AllInputs
     AllInputs = case Grouping of
         split -> true;
-        _     -> false
+        _     -> pipeline_utils:all_deps_finished(P, Stage, SI)
     end,
     TaskSpec = #task_spec{jobname = JN,
                           stage   = Stage,
