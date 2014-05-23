@@ -699,22 +699,9 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                         schedule    = Schedule,
                         next_taskid = NextTaskId,
                         group_map   = OldGroupMap,
-                        stage_info = SI,
-                        data_map    = OldDataMap} = S,
+                        stage_info = SI} = S,
                  {TaskNum, Acc}) ->
-    DataMap = lists:foldl(
-                fun({InputId, DataInput}, DM) ->
-                        DataHosts = pipeline_utils:locations(DataInput),
-                        Locations = lists:sort([{H, DataInput}
-                                                || H <- DataHosts]),
-                        Failures  = lists:sort([{H, 0} || H <- DataHosts]),
-                        DInfo = #data_info{source = DataInput,
-                                           locations =
-                                               gb_trees:from_orddict(Locations),
-                                           failures =
-                                               gb_trees:from_orddict(Failures)},
-                        jc_utils:add_input(InputId, DInfo, DM)
-                end, OldDataMap, Inputs),
+    S1 = add_inputs_to_data_map(S, Inputs),
     {InputIds, _DataInputs} = lists:unzip(Inputs),
     SaveOutputs =
         (pipeline_utils:next_stage(P, Stage) == done) andalso Save,
@@ -743,12 +730,27 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
             false = gb_trees:is_defined(NextTaskId, OldGroupMap),
             gb_trees:enter(NextTaskId, G, OldGroupMap)
     end,
-    S1 = S#state{next_taskid = NextTaskId + 1,
-                 data_map    = DataMap,
+    S2 = S1#state{next_taskid = NextTaskId + 1,
                  group_map   = GroupMap,
                  tasks = jc_utils:add_task_spec(NextTaskId, TaskSpec, Tasks)},
-    make_stage_tasks(Stage, Grouping, Rest, S1,
+    make_stage_tasks(Stage, Grouping, Rest, S2,
                      {TaskNum + 1, [NextTaskId | Acc]}).
+
+add_inputs_to_data_map(#state{data_map = OldDataMap} = S, Inputs) ->
+    DataMap = lists:foldl(
+                fun({InputId, DataInput}, DM) ->
+                        DataHosts = pipeline_utils:locations(DataInput),
+                        Locations = lists:sort([{H, DataInput}
+                                                || H <- DataHosts]),
+                        Failures  = lists:sort([{H, 0} || H <- DataHosts]),
+                        DInfo = #data_info{source = DataInput,
+                                           locations =
+                                               gb_trees:from_orddict(Locations),
+                                           failures =
+                                               gb_trees:from_orddict(Failures)},
+                        jc_utils:add_input(InputId, DInfo, DM)
+                end, OldDataMap, Inputs),
+    S#state{data_map = DataMap}.
 
 
  -spec do_submit_tasks(submit_mode(), [task_id()], state(),
