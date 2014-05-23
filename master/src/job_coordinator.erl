@@ -641,9 +641,9 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
             end
     end.
 
-send_termination_signal(Stage, #state{stage_info = SI, tasks = Tasks} = S) ->
+send_termination_signal(Stage, #state{stage_info = SI} = S) ->
     lists:foldl(fun(TaskId, S1) ->
-                    S2 = mark_task_inputs_done(S1, TaskId),
+                    #state{tasks = Tasks} = S2 = mark_task_inputs_done(S1, TaskId),
                     TaskInfo = jc_utils:task_info(TaskId, Tasks),
                     case TaskInfo#task_info.worker of
                         none ->
