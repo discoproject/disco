@@ -513,17 +513,37 @@ send_outputs_to_consumers(S, TaskList, [({G, _} = GroupedInputs)|Rest]) ->
     S1 = send_outputs_to_consumer(S, TaskId, GroupedInputs),
     send_outputs_to_consumers(S1, Rest).
 
-send_outputs_to_consumer(#state{tasks = Tasks} = S, TaskId, {_, Inputs}) ->
+update_taskspec(#state{tasks = Tasks} = S, TaskId, Fun) ->
+    #task_info{spec = TaskSpec} = TaskInfo = jc_utils:task_info(TaskId, Tasks),
+    Tasks1 = jc_utils:update_task_info(TaskId,
+        TaskInfo#task_info{spec=Fun(TaskSpec)}, Tasks),
+    S#state{tasks = Tasks1}.
+
+add_inputs_to_spec(S, TaskId, NewInputs) ->
+    update_taskspec(S, TaskId,
+        fun(TaskSpec) ->
+            CurrentInputs = TaskSpec#task_spec.input,
+            TaskSpec#task_spec{input = CurrentInputs ++ NewInputs}
+        end).
+
+mark_task_inputs_done(S, TaskId) ->
+    update_taskspec(S, TaskId,
+        fun(TaskSpec) ->
+            TaskSpec#task_spec{all_inputs = true}
+        end).
+
+send_outputs_to_consumer(S, TaskId, {_, Inputs}) ->
+    #state{tasks = Tasks} = S1 = add_inputs_to_spec(S, TaskId, Inputs),
     TaskInfo = jc_utils:task_info(TaskId, Tasks),
     W = TaskInfo#task_info.worker,
     case W of
         none ->
             Tasks1 = jc_utils:update_task_info(TaskId,
                 TaskInfo#task_info{new_input=true}, Tasks),
-            S#state{tasks = Tasks1};
+            S1#state{tasks = Tasks1};
         _    ->
             disco_worker:add_inputs(W, Inputs),
-            S
+            S1
     end.
 
 get_grouping_lists(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId, Outputs) ->
@@ -622,15 +642,16 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
 
 send_termination_signal(Stage, #state{stage_info = SI, tasks = Tasks} = S) ->
     lists:foldl(fun(TaskId, S1) ->
+                    S2 = mark_task_inputs_done(S1, TaskId),
                     TaskInfo = jc_utils:task_info(TaskId, Tasks),
                     case TaskInfo#task_info.worker of
                         none ->
                             Tasks1 = jc_utils:update_task_info(TaskId,
                                 TaskInfo#task_info{end_input=true}, Tasks),
-                            S1#state{tasks = Tasks1};
+                            S2#state{tasks = Tasks1};
                         W ->
                             disco_worker:terminate_inputs(W),
-                            S1
+                            S2
                     end
                 end, S, jc_utils:running_tasks(Stage, SI)).
 
