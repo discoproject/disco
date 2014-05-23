@@ -520,11 +520,12 @@ update_taskspec(#state{tasks = Tasks} = S, TaskId, Fun) ->
     S#state{tasks = Tasks1}.
 
 add_inputs_to_spec(S, TaskId, NewInputs) ->
-    update_taskspec(S, TaskId,
+    S1 = update_taskspec(S, TaskId,
         fun(TaskSpec) ->
             CurrentInputs = TaskSpec#task_spec.input,
             TaskSpec#task_spec{input = CurrentInputs ++ NewInputs}
-        end).
+        end),
+    add_inputs_to_data_map(S1, NewInputs).
 
 mark_task_inputs_done(S, TaskId) ->
     update_taskspec(S, TaskId,
