@@ -75,9 +75,9 @@ validate({opt, Types}, Payload) ->
 
 -spec validate_key({binary(), spec()}, term()) -> ok | {error, tuple()}.
 validate_key({Key, Type}, Payload) ->
-    case proplists:get_value(Key, Payload) of
-        undefined -> {error, {missing_key, Key, Payload}};
-        Value -> validate(Type, Value)
+    case lists:keyfind(Key, 1, Payload) of
+        false -> {error, {missing_key, Key, Payload}};
+        {_, Value} -> validate(Type, Value)
     end.
 
 -spec error_msg(error()) -> iolist().

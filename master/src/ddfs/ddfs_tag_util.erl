@@ -75,7 +75,10 @@ lookup(Key, List) ->
    {_, Value} = lists:keyfind(Key, 1, List),
    Value.
 lookup(Key, Default, List) ->
-    proplists:get_value(Key, List, Default).
+    case lookup(Key, List) of
+        false -> Default;
+        Tuple -> Tuple
+    end.
 
 -spec lookup_tagcontent([{_, _}]) -> tagcontent().
 lookup_tagcontent(L) ->
