@@ -638,7 +638,11 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
                         ?INPUT ->
                             start_next_stage(stage_outputs(Stage, S1), Next, Grouping, S1);
                         _      ->
-                            S1
+                            case pipeline_utils:group_outputs(Grouping,
+                                                              stage_outputs(Stage, S1)) of
+                                [] -> start_next_stage([], Next, Grouping, S1);
+                                _  -> S1
+                            end
                     end;
                 _ ->
                     S1
