@@ -122,7 +122,6 @@ task_started(Coord, TaskId, Worker) ->
                 % input_id() -> data_info().
                 data_map   = gb_trees:empty() :: disco_gbtree(input_id(), data_info()),
                 % stage_name() -> stage_info().
-                group_map   = gb_trees:empty() :: disco_gbtree(task_id(), group()),
                 stage_info = gb_trees:empty() :: disco_gbtree(stage_name(), stage_info())}).
 -type state() :: #state{}.
 
@@ -487,12 +486,15 @@ maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) -
         {Next, Grouping} ->
             {NTasks, STemp} = make_stage_tasks(Next, Grouping, NewGroups, S, {0, []}),
             STemp1 = do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED),
-            send_outputs_to_consumers(STemp1, ModifiedGroups);
+            send_outputs_to_consumers(STemp1, ModifiedGroups, Next, none);
         done ->
             S
     end.
 
-send_outputs_to_consumers(#state{group_map = GroupMap} = S, ModifiedGroups) ->
+% the last argument is only added to avoid conflicts with
+% send_outputs_to_consumers/3
+send_outputs_to_consumers(#state{stage_info = SI} = S, ModifiedGroups, Stage, none) ->
+    #stage_info{group_map = GroupMap} = jc_utils:stage_info(Stage, SI),
     TaskList = gb_trees:to_list(GroupMap),
     send_outputs_to_consumers(S, TaskList, ModifiedGroups).
 
@@ -512,7 +514,7 @@ send_outputs_to_consumers(S, TaskList, [({G, _} = GroupedInputs)|Rest]) ->
                 end
     end, none, TaskList),
     S1 = send_outputs_to_consumer(S, TaskId, GroupedInputs),
-    send_outputs_to_consumers(S1, Rest).
+    send_outputs_to_consumers(S1, TaskList, Rest).
 
 update_taskspec(#state{tasks = Tasks} = S, TaskId, Fun) ->
     #task_info{spec = TaskSpec} = TaskInfo = jc_utils:task_info(TaskId, Tasks),
@@ -707,7 +709,6 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                         tasks = Tasks,
                         schedule    = Schedule,
                         next_taskid = NextTaskId,
-                        group_map   = OldGroupMap,
                         stage_info = SI} = S,
                  {TaskNum, Acc}) ->
     S1 = add_inputs_to_data_map(S, Inputs),
@@ -733,14 +734,22 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
                           schedule  = Schedule,
                           save_outputs = SaveOutputs,
                           save_info = SaveInfo},
+
+    #stage_info{group_map = OldGroupMap} = StageInfo =
+    case jc_utils:stage_info_opt(Stage, SI) of
+        none         -> #stage_info{start = now()};
+        StageInfoTmp -> StageInfoTmp
+    end,
     GroupMap = case Grouping of
         split -> OldGroupMap;
         _ ->
             false = gb_trees:is_defined(NextTaskId, OldGroupMap),
             gb_trees:enter(NextTaskId, G, OldGroupMap)
     end,
+    StageInfo1 = StageInfo#stage_info{group_map = GroupMap},
+
     S2 = S1#state{next_taskid = NextTaskId + 1,
-                 group_map   = GroupMap,
+                  stage_info = jc_utils:update_stage(Stage, StageInfo1, SI),
                  tasks = jc_utils:add_task_spec(NextTaskId, TaskSpec, Tasks)},
     make_stage_tasks(Stage, Grouping, Rest, S2,
                      {TaskNum + 1, [NextTaskId | Acc]}).

@@ -4,6 +4,7 @@
                      all     = 0  :: non_neg_integer(),
                      running = [] :: [task_id()],
                      finished = false :: boolean(),
+                     group_map = gb_trees:empty() :: disco_gbtree(task_id(), group()),
                      done    = [] :: [input | task_id()]}).
 -type stage_info() :: #stage_info{}.
 -record(task_info, {spec                :: input | task_spec(),
