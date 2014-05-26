@@ -475,6 +475,8 @@ task_complete(TaskId, Host, Outputs, S) ->
     S2 = S1#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)},
     #state{stage_info = SI1} = S3 =
         maybe_submit_tasks(S2, Stage, NewGroups, ModifiedGroups),
+    % The following should be SI (not SI1) because the jc_util function expects
+    % the task not to be in the done list yet.
     case jc_utils:last_stage_task(Stage, TaskId, SI) and can_finish(P, Stage, SI1) of
         true -> stage_done(Stage);
         false -> ok
