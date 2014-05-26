@@ -634,20 +634,15 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
             S1 = send_termination_signal(Next, S),
             % If this is the first time this stage has finished, then
             % we need to start the tasks in the next stage.
-            case jc_utils:stage_info_opt(Next, SI) of
-                none ->
-                    case Stage of
-                        ?INPUT ->
-                            start_next_stage(stage_outputs(Stage, S1), Next, Grouping, S1);
-                        _      ->
-                            case pipeline_utils:group_outputs(Grouping,
-                                                              stage_outputs(Stage, S1)) of
-                                [] -> start_next_stage([], Next, Grouping, S1);
-                                _  -> S1
-                            end
-                    end;
-                _ ->
-                    S1
+            case Stage of
+                ?INPUT ->
+                    start_next_stage(stage_outputs(Stage, S1), Next, Grouping, S1);
+                _      ->
+                    case pipeline_utils:group_outputs(Grouping,
+                                                      stage_outputs(Stage, S1)) of
+                        [] -> start_next_stage([], Next, Grouping, S1);
+                        _  -> S1
+                    end
             end
     end.
 
