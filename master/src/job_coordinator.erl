@@ -530,7 +530,10 @@ add_inputs_to_spec(S, TaskId, NewInputs) ->
     S1 = update_taskspec(S, TaskId,
         fun(TaskSpec) ->
             CurrentInputs = TaskSpec#task_spec.input,
-            TaskSpec#task_spec{input = CurrentInputs ++ InputIds}
+            Set1 = gb_sets:from_list(CurrentInputs),
+            Set2 = gb_sets:from_list(InputIds),
+            UnionSet = gb_sets:union(Set1, Set2),
+            TaskSpec#task_spec{input = gb_sets:to_list(UnionSet)}
         end),
     add_inputs_to_data_map(S1, NewInputs).
 
