@@ -68,3 +68,43 @@ undone_stage_test() ->
 dep_done_stage_test() ->
     M = gb_trees:from_orddict([{a, #stage_info{finished = true}}]),
     true = pipeline_utils:all_deps_finished([{a,b}], c, M).
+
+get_grouping_test_group(Grouping, TaskId, NewOutput) ->
+    DataSpec1 = {data, {5, 600, [{"out1", "node1"}]}},
+    DataSpec2 = {data, {5, 700, [{"out2", "node2"}]}},
+    Outputs = [{11, [{10, DataSpec1}, {10, DataSpec2}]}],
+    pipeline_utils:get_grouping_lists(Grouping, Outputs, TaskId, NewOutput).
+
+get_grouping_node_label_test() ->
+    DataSpec3 = {data, {5, 800, [{"out3", "node3"}]}},
+    Output = [{13, DataSpec3}],
+    TaskId = 14,
+    {L1, []} = get_grouping_test_group(group_node_label, TaskId, Output),
+    L1 = [{{5,"node3"}, [{{TaskId,13},DataSpec3}]}].
+
+get_grouping_all_test() ->
+    DataSpec3 = {data, {5, 800, [{"out3", "node3"}]}},
+    Output = [{13, DataSpec3}],
+    TaskId = 14,
+    {[], L2} = get_grouping_test_group(group_all, TaskId, Output),
+    1 = length(L2).
+
+get_grouping_node1_test() ->
+    DataSpec3 = {data, {5, 800, [{"out3", "node3"}]}},
+    Output = [{13, DataSpec3}],
+    TaskId = 14,
+    {L1, []} = get_grouping_test_group(group_node, TaskId, Output),
+    L1 = [{{0,"node3"}, [{{TaskId,13},DataSpec3}]}].
+
+get_grouping_node2_test() ->
+    DataSpec3 = {data, {5, 800, [{"out3", "node1"}]}},
+    Output = [{13, DataSpec3}],
+    TaskId = 14,
+    {[], L2} = get_grouping_test_group(group_node, TaskId, Output),
+    1 = length(L2).
+
+get_grouping_dir_test() ->
+   DirSpec = {dir, {"localhost", <<"dir://data">>, [{9, "out"}]}},
+   Outputs = [{0, DirSpec}],
+   {L1, []} = pipeline_utils:get_grouping_lists(group_all, [], 1, Outputs),
+   1 = length(L1).

@@ -453,18 +453,21 @@ task_complete(TaskId, Host, Outputs, S) ->
     #task_info{spec = #task_spec{stage = Stage}} = jc_utils:task_info(TaskId, Tasks),
 
     S2 = S1#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)},
-    #state{stage_info = SI1} = S3 = case pipeline_utils:next_stage(P, Stage) of
-        {Next, split} ->
-            {NTasks, STemp} = setup_stage_tasks([{TaskId, Outputs}], Next, split, S2),
-            do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED);
-        _ ->
-            S2
-    end,
+    #state{stage_info = SI1} = S3 = maybe_submit_tasks(S2, Stage, TaskId, Outputs),
     case jc_utils:last_stage_task(Stage, TaskId, SI) and can_finish(P, Stage, SI1) of
         true -> stage_done(Stage);
         false -> ok
     end,
     S3.
+
+maybe_submit_tasks(#state{pipeline = P} = S, Stage, TaskId, Outputs) ->
+    case pipeline_utils:next_stage(P, Stage) of
+        {Next, split} ->
+            {NTasks, STemp} = setup_stage_tasks([{TaskId, Outputs}], Next, split, S),
+            do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED);
+        _ ->
+            S
+    end.
 
 wakeup_waiters(TaskId, Host, Outputs, #state{tasks = Tasks} = S) ->
     #task_info{failed_hosts = FH,
