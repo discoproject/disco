@@ -97,6 +97,7 @@
                     worker    :: binary(),
                     schedule  :: task_schedule(),
                     input     :: [input_id()],
+                    all_inputs:: boolean(),
                     save_outputs :: boolean(),
                     save_info :: string()}).
 -type task_spec() :: #task_spec{}.

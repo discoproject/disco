@@ -1,6 +1,6 @@
 -module(worker_inputs).
 
--export([init/3, all/1, include/2, exclude/2, fail/3, failed_info/2,
+-export([init/4, all/1, include/2, exclude/2, fail/3, failed_info/2,
          is_input_done/1, add_inputs/2]).
 -export_type([state/0, worker_input/0]).
 
@@ -18,6 +18,8 @@
           % {seq_id(), rep_id()} -> fail_info()
           input_map  = gb_trees:empty() :: disco_gbtree({seq_id(), rep_id()}, fail_info()),
           is_input_done                 :: boolean(),
+          stage_grouping                :: label_grouping(),
+          stage_group                   :: group(),
           max_seq_id                    :: seq_id()}).
 -type state() :: #state{}.
 
@@ -26,15 +28,16 @@
 -type replica() :: [rep_id() | url(), ...].
 -type worker_input() :: {seq_id(), label(), [replica()]}.
 
--spec init([{input_id(), data_input()}], label_grouping(), group()) -> state().
-init(Inputs, Grouping, Group) ->
+-spec init([{input_id(), data_input()}], label_grouping(), group(), boolean()) -> state().
+init(Inputs, Grouping, Group, AllInputs) ->
     SeqInputs = disco:enum(Inputs),
     SeqMap = lists:flatten([init_replicas(SeqId, DI, Grouping, Group)
                             || {SeqId, {_Id, DI}} <- SeqInputs]),
     #state{inputs     = gb_trees:from_orddict(SeqInputs),
            input_map  = gb_trees:from_orddict(SeqMap),
-           %TODO only set input as done when we know it is done.
-           is_input_done = true,
+           is_input_done = AllInputs,
+           stage_grouping = Grouping,
+           stage_group = Group,
            max_seq_id = length(Inputs)}.
 
 -spec init_replicas(seq_id(), data_input(), label_grouping(), group())
@@ -89,11 +92,38 @@ fail_one(Key, Now, #state{input_map = Map} = S) ->
 
 -spec add_inputs(done | [{input_id(), data_input()}], state()) -> state().
 add_inputs(done, S) ->
+    S#state{is_input_done = true};
+add_inputs([], S) ->
     S;
-add_inputs(NewInputs, #state{inputs = Inputs} = S) ->
-    InputList = gb_trees:to_list(Inputs),
-    AggInputs = gb_trees:from_orddict(orddict:from_list(NewInputs ++ InputList)),
-    S#state{inputs = AggInputs}.
+
+%TODO This function can be made much faster.
+add_inputs([NewInput|Rest], #state{inputs = Inputs,
+                                   max_seq_id = MaxSeqId,
+                                   stage_grouping = Grouping,
+                                   stage_group = Group,
+                                   input_map = Map} = S) ->
+    Contains = lists:foldl(fun({_, Inp}, T) ->
+                               case T of
+                                   true -> true;
+                                   false ->
+                                       case Inp of
+                                           NewInput -> true;
+                                           _        -> false
+                                       end
+                               end
+                           end, false, gb_trees:to_list(Inputs)),
+   case Contains of
+       true ->
+           add_inputs(Rest, S);
+       false ->
+        {_Id, DI} = NewInput,
+        Map1 = lists:foldl(fun({K, V}, IMap) -> gb_trees:enter(K, V, IMap) end,
+                           Map, init_replicas(MaxSeqId, DI, Grouping, Group)),
+        add_inputs(Rest,
+            S#state{inputs = gb_trees:enter(MaxSeqId, NewInput, Inputs),
+                    max_seq_id = MaxSeqId + 1,
+                    input_map = Map1})
+    end.
 
 -spec all_seq_ids(state()) -> [seq_id()].
 all_seq_ids(#state{max_seq_id = MaxSeqId}) ->

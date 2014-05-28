@@ -11,7 +11,8 @@
          task_inputs/2, task_outputs/2,
          input_info/2, update_input_info/3, add_input/3,
          update_input_failures/2, find_usable_input_hosts/1,
-         collect_stagewise/5, wakeup_waiters/3, no_tasks_running/2]).
+         collect_stagewise/5, wakeup_waiters/3, no_tasks_running/2,
+         running_tasks/2, new_task_permitted_for_stage/3]).
 
 -type stage_map() :: disco_gbtree(stage_name(), stage_info()).
 -type task_map()  :: disco_gbtree(task_id(), task_info()).
@@ -48,10 +49,22 @@ mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D} = Info, SI) ->
         end,
     update_stage(S, Info#stage_info{running = R1, done = D1}, SI).
 
+-spec new_task_permitted_for_stage(pipeline(), stage_name(), stage_map()) -> boolean().
+new_task_permitted_for_stage(P, Stage, SI) ->
+    pipeline_utils:all_deps_finished(P, Stage, SI).
+
 -spec no_tasks_running(stage_name(), stage_map()) -> boolean().
 no_tasks_running(S, SI) ->
     #stage_info{running = R} = stage_info(S, SI),
     length(R) == 0.
+
+-spec running_tasks(stage_name(), stage_map()) -> [task_id()].
+running_tasks(S, SI) ->
+    case stage_info_opt(S, SI) of
+        none -> [];
+        StageInfo ->
+            StageInfo#stage_info.running
+    end.
 
 % If this is the last pending task in the stage in order for the stage
 % to be done.
