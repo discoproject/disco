@@ -374,12 +374,13 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
         false ->
             lager:info("Job ~s done, results: ~p", [JobName, Results]),
             event_server:job_done_event(JobName, Results),
-            gen_server:cast(self(), pipeline_done),
-            S;
+            gen_server:cast(self(), pipeline_done);
         true ->
             save_ddfs(JobName, Results)
-    end.
+    end,
+    S.
 
+-spec save_ddfs(jobname(), [[url()]]) -> ok.
 save_ddfs(JobName, Results) ->
     Tag = list_to_binary(disco:format("disco:results:~s", [JobName])),
     T = <<"tag://", Tag/binary>>,
@@ -480,6 +481,7 @@ task_complete(TaskId, Host, Outputs, S) ->
     end,
     S3.
 
+-spec maybe_start_pending(state()) -> state().
 maybe_start_pending(#state{pending = AllPending} = S) ->
     lists:foldl(
         fun({TaskId, Mode}, S1) ->
@@ -492,6 +494,7 @@ maybe_start_pending(#state{pending = AllPending} = S) ->
             end
         end, S, AllPending).
 
+-spec maybe_submit_tasks(state(), stage_name(), [grouped_output()], [grouped_output()]) -> state().
 maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) ->
     case pipeline_utils:next_stage(P, Stage) of
         {Next, Grouping} ->
@@ -546,6 +549,7 @@ add_inputs_to_spec(S, TaskId, NewInputs) ->
         end),
     add_inputs_to_data_map(S1, NewInputs).
 
+-spec mark_task_inputs_done(state(), task_id()) -> state().
 mark_task_inputs_done(S, TaskId) ->
     update_taskspec(S, TaskId,
         fun(TaskSpec) ->
@@ -567,6 +571,8 @@ send_outputs_to_consumer(S, TaskId, {_, Inputs}) ->
             S1
     end.
 
+-spec get_grouping_lists(state(), stage_name(), task_id(), [task_output()]) ->
+                                  {[grouped_output()], [grouped_output()]}.
 get_grouping_lists(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId, Outputs) ->
     case pipeline_utils:next_stage(P, Stage) of
         done ->
@@ -632,12 +638,14 @@ event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
                                [Stage, Since], Event)
     end.
 
+-spec mark_stage_finished(stage_name(), state()) -> state().
 mark_stage_finished(Stage, #state{stage_info = SI} = S) ->
     StageInfo0 = jc_utils:stage_info(Stage, SI),
     StageInfo = StageInfo0#stage_info{finished = true},
     SI1 = jc_utils:update_stage(Stage, StageInfo, SI),
     S#state{stage_info = SI1}.
 
+-spec do_next_stage(stage_name(), state()) -> state().
 do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
     case pipeline_utils:next_stage(P, Stage) of
         done ->
@@ -661,6 +669,7 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
             end
     end.
 
+-spec send_term_signal_to_task(task_id(), state()) -> state().
 send_term_signal_to_task(TaskId, S) ->
     #state{tasks = Tasks} = S1 = mark_task_inputs_done(S, TaskId),
     TaskInfo = jc_utils:task_info(TaskId, Tasks),
@@ -674,7 +683,7 @@ send_term_signal_to_task(TaskId, S) ->
             S1
     end.
 
-
+-spec send_termination_signal(stage_name(), state()) -> state().
 send_termination_signal(Stage, #state{stage_info = SI, pending = Pending} = S) ->
     S2 = lists:foldl(fun(TaskId, S1) ->
                     send_term_signal_to_task(TaskId, S1)
@@ -688,6 +697,8 @@ send_termination_signal(Stage, #state{stage_info = SI, pending = Pending} = S) -
                     end
                 end, S2, Pending).
 
+-spec start_next_stage([{task_id(), [task_output()]}], stage_name(),
+                       label_grouping(), state()) -> state().
 start_next_stage(PrevStageOutputs, Stage, Grouping,
                  #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
     {Tasks, S1} = setup_stage_tasks(PrevStageOutputs, Stage, Grouping, S),
@@ -711,6 +722,9 @@ setup_stage_tasks(PrevStageOutputs, Stage, Grouping, S) ->
     GOutputs = pipeline_utils:group_outputs(Grouping, PrevStageOutputs),
     make_stage_tasks(Stage, Grouping, GOutputs, S, {0, []}).
 
+-spec make_stage_tasks(stage_name(), label_grouping(),
+                       [grouped_output()], state(),
+                       {non_neg_integer(), [task_id()]}) -> {[task_id()], state()}.
 make_stage_tasks(Stage, _Grouping, [],
                  #state{stage_info = SI} = S, {TaskNum, Tasks}) ->
     StageInfo1 = case jc_utils:stage_info_opt(Stage, SI) of

@@ -17,7 +17,7 @@ class ReduceJob(TestJob):
             yield item, 'mmm'
 
 class MergeReduceJob(ReduceJob):
-    merge_partitions = True
+    pass
 
 class MapReduceJob(MapJob, ReduceJob):
     pass
