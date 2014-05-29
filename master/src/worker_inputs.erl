@@ -13,9 +13,7 @@
 -type fail_info() :: #fail_info{}.
 
 -record(state, {
-          % seq_id() -> {input_id(), data_input()}
           inputs     = gb_trees:empty() :: disco_gbtree(seq_id(), {input_id(), data_input()}),
-          % {seq_id(), rep_id()} -> fail_info()
           input_map  = gb_trees:empty() :: disco_gbtree({seq_id(), rep_id()}, fail_info()),
           is_input_done                 :: boolean(),
           stage_grouping                :: label_grouping(),
