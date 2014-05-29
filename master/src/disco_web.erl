@@ -98,7 +98,7 @@ getop("jobevents", {Query, Name}) ->
             false  -> "";
             {_, F} -> string:to_lower(F)
         end,
-    {ok, Ev} = event_server:get_job_msgs(Name, string:to_lower(Q), Num),
+    {ok, Ev} = event_server:get_job_msgs(Name, Q, Num),
     {raw, Ev};
 
 getop("nodeinfo", _Query) ->
