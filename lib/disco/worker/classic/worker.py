@@ -132,11 +132,6 @@ class Worker(worker.Worker):
 
                           .. versionadded:: 0.2
 
-    :type  merge_partitions: bool
-    :param merge_partitions: whether or not to merge partitioned inputs during reduce.
-
-                             Default is ``False``.
-
     :type  partition: :func:`disco.worker.classic.func.partition`
     :param partition: decides how the map output is distributed to reduce.
 
@@ -211,7 +206,6 @@ class Worker(worker.Worker):
                                                disco_output_stream),
                          'map_shuffle': None,
                          'combiner': None,
-                         'merge_partitions': False, # XXX: maybe deprecated
                          'partition': default_partition,
                          'partitions': 1,
                          'reduce': None,
@@ -291,9 +285,6 @@ class Worker(worker.Worker):
                                  for id, url, size in read_index(dir))
         else:
             # no map, without partitions can only have 1 reduce
-            nr_reduces = 1
-
-        if get('merge_partitions'):
             nr_reduces = 1
 
         jobdict = super(Worker, self).jobdict(job, **jobargs)
@@ -391,7 +382,7 @@ class Worker(worker.Worker):
         from disco.util import inputlist, ispartitioned, shuffled
         inputs = [[url for rid, url in i.replicas] for i in self.get_inputs()]
         label = None
-        if ispartitioned(inputs) and not self['merge_partitions']:
+        if ispartitioned(inputs):
             label = task.group_label
         return self.sort(SerialInput(shuffled(inputlist(inputs, label=label)),
                                      task=task,
