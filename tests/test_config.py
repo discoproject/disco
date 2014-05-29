@@ -49,6 +49,7 @@ class ConfigTestCase(TestCase):
             self.disco.config = self.config[:1]
             time.sleep(5)
             self.disco.config = self.config
+            time.sleep(3)
             self.checkAnswers(self.job, input)
 
     def test_missing_node(self):
