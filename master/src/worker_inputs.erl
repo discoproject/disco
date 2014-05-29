@@ -1,6 +1,6 @@
 -module(worker_inputs).
 
--export([init/4, all/1, include/2, exclude/2, fail/3, failed_info/2,
+-export([init/4, all/1, include/2, exclude/2, fail/3,
          is_input_done/1, add_inputs/2]).
 -export_type([state/0, worker_input/0]).
 
@@ -128,10 +128,3 @@ add_inputs([NewInput|Rest], #state{inputs = Inputs,
 -spec all_seq_ids(state()) -> [seq_id()].
 all_seq_ids(#state{max_seq_id = MaxSeqId}) ->
     lists:seq(0, MaxSeqId - 1).
-
--spec failed_info([seq_id()], state()) -> [{input_id(), [host()]}].
-failed_info(SeqIds, #state{inputs = Inputs}) ->
-    [make_info(gb_trees:get(SeqId, Inputs))
-     || SeqId <- SeqIds, gb_trees:is_defined(SeqId, Inputs)].
-
-make_info({Iid, DI}) -> {Iid, pipeline_utils:locations(DI)}.
