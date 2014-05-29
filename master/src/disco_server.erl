@@ -30,8 +30,8 @@
 -type dnode() :: #dnode{}.
 
 -record(state, {workers = gb_trees:empty() :: disco_gbtree(pid(), {host(), task()}),
-        nodes   = gb_trees:empty() :: disco_gbtree(host(), dnode()),
-        purged  = gb_trees:empty() :: disco_gbtree(binary(), erlang:timestamp()),
+                nodes   = gb_trees:empty() :: disco_gbtree(host(), dnode()),
+                purged  = gb_trees:empty() :: disco_gbtree(binary(), erlang:timestamp()),
                 jobpack_queue :: pid(),
 
                 % The below are only used in cluster-in-a-box mode.

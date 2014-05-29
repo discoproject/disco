@@ -115,14 +115,10 @@ task_started(Coord, TaskId, Worker) ->
                 next_taskid = 0  :: task_id(),
                 next_runid  = 0  :: task_run_id(),
                 input_pid = none :: none | pid(),
-                % cluster membership: [host()]
                 hosts      = gb_sets:empty()  :: disco_gbset(host()),
-                % input | task_id() -> task_info().
                 tasks      = gb_trees:empty() :: disco_gbtree(task_id(), task_info()),
-                % input_id() -> data_info().
                 data_map   = gb_trees:empty() :: disco_gbtree(input_id(), data_info()),
                 pending    = []               :: [{task_id(), submit_mode()}],
-                % stage_name() -> stage_info().
                 stage_info = gb_trees:empty() :: disco_gbtree(stage_name(), stage_info())}).
 -type state() :: #state{}.
 
