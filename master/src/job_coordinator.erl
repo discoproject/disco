@@ -374,11 +374,11 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
         false ->
             lager:info("Job ~s done, results: ~p", [JobName, Results]),
             event_server:job_done_event(JobName, Results),
-            gen_server:cast(self(), pipeline_done),
-            S;
+            gen_server:cast(self(), pipeline_done);
         true ->
             save_ddfs(JobName, Results)
-    end.
+    end,
+    S.
 
 save_ddfs(JobName, Results) ->
     Tag = list_to_binary(disco:format("disco:results:~s", [JobName])),
