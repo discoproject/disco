@@ -32,8 +32,12 @@ gc_node_init(Master, Now, Phase, Mode) ->
     %        in_use :: 'false' | 'true'}
     _ = ets:new(tag, [named_table, set, private]),
     _ = ets:new(blob, [named_table, set, private]),
-    traverse(Now, Root, VolNames, blob),
-    traverse(Now, Root, VolNames, tag),
+    disco_profile:timed_run(
+        fun() -> traverse(Now, Root, VolNames, blob) end,
+        ddfs_traverse_blobs),
+    disco_profile:timed_run(
+        fun() -> traverse(Now, Root, VolNames, tag) end,
+        ddfs_traverse_tags),
     error_logger:info_msg("GC: found ~p blob, ~p tag candidates on ~p",
                           [ets:info(blob, size), ets:info(tag, size), node()]),
     % Now, dispatch to the phase that is running on the master.
