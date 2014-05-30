@@ -101,6 +101,8 @@ idle(Timeout) ->
 start_gc_wait(Pid, Interval) ->
     Start = now(),
     receive
+        {'EXIT', Pid, shutdown} ->
+            lager:info("GC terminated.");
         {'EXIT', Pid, Reason} ->
             lager:error("GC: exited with ~p", [Reason]);
         {'EXIT', Other, Reason} ->
