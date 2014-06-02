@@ -135,11 +135,9 @@ update_config_table(HostInfo, Blacklist, GCBlacklist) ->
 
 -spec get_full_config() -> config().
 get_full_config() ->
-    case file:read_file(disco:get_setting("DISCO_MASTER_CONFIG")) of
-        {ok, Json} ->
-            ok;
-        {error, enoent} ->
-            Json = "[]"
+    Json = case file:read_file(disco:get_setting("DISCO_MASTER_CONFIG")) of
+        {ok, Data}      -> Data;
+        {error, enoent} -> "[]"
     end,
     % Backward compatibility for older configs, updated whenever a new
     % field gets added to the config.
