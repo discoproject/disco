@@ -608,6 +608,7 @@ do_stage_done(Stage, S) ->
     S2 = do_next_stage(Stage, S1),
     maybe_start_pending(S2).
 
+-spec maybe_event_stage_done(stage_name(), state()) -> ok.
 maybe_event_stage_done(Stage, #state{pipeline = P, stage_info = SI} = S) ->
     case can_finish(P, Stage, SI) of
         true -> event_stage_done(Stage, S);
@@ -616,10 +617,12 @@ maybe_event_stage_done(Stage, #state{pipeline = P, stage_info = SI} = S) ->
             ok
     end.
 
+-spec can_finish(pipeline(), stage_name(), disco_gbtree(stage_name(), stage_info())) -> boolean().
 can_finish(P, Stage, SI) ->
     pipeline_utils:all_deps_finished(P, Stage, SI) andalso
     jc_utils:no_tasks_running(Stage, SI).
 
+-spec event_stage_done(stage_name(), state()) -> ok.
 event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
                             tasks      = Tasks,
                             stage_info = SI}) ->
@@ -790,7 +793,7 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
     make_stage_tasks(Stage, Grouping, Rest, S2,
                      {TaskNum + 1, [NextTaskId | Acc]}).
 
- -spec add_inputs_to_data_map(state(), [{input_id(), data_input()}]) -> state().
+-spec add_inputs_to_data_map(state(), [{input_id(), data_input()}]) -> state().
 add_inputs_to_data_map(#state{data_map = OldDataMap} = S, Inputs) ->
     DataMap = lists:foldl(
                 fun({InputId, DataInput}, DM) ->
@@ -808,8 +811,7 @@ add_inputs_to_data_map(#state{data_map = OldDataMap} = S, Inputs) ->
     S#state{data_map = DataMap}.
 
 
- -spec do_submit_tasks(submit_mode(), [task_id()], state(),
-     non_neg_integer()) -> state().
+-spec do_submit_tasks(submit_mode(), [task_id()], state(), non_neg_integer()) -> state().
 do_submit_tasks(_Mode, [], S, _) -> S;
 do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               pipeline   = P,
@@ -827,6 +829,7 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
             do_submit_tasks_in(Mode, [TaskId|Rest], S1, NFailuresAllowed)
     end.
 
+-spec do_submit_tasks_in(submit_mode(), [task_id()], state(), non_neg_integer()) -> state().
 do_submit_tasks_in(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               data_map   = DataMap,
                                               next_runid = RunId,
