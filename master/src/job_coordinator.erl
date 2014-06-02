@@ -858,10 +858,12 @@ do_submit_tasks_in(Mode, [TaskId | Rest], #state{stage_info = SI,
                                             ?FAILURES_ALLOWED);
         failed ->
             lager:info("Task failed, remaining: ~w", [NFailuresAllowed]),
-            submit_tasks(self(), Mode, [TaskId | Rest], NFailuresAllowed)
+            ok = submit_tasks(self(), Mode, [TaskId | Rest], NFailuresAllowed),
+            S
         catch _:{timeout, _} ->
             lager:info("Task timed out, remaining: ~w", [NFailuresAllowed]),
-            submit_tasks(self(), Mode, [TaskId | Rest], NFailuresAllowed)
+            ok = submit_tasks(self(), Mode, [TaskId | Rest], NFailuresAllowed),
+            S
     end.
 
 % This returns the list of runnable dependency tasks, and an updated
