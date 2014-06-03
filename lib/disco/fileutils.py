@@ -157,6 +157,10 @@ class DiscoZipFile(ZipFile, object):
         self.buffer.seek(0)
         return self.buffer.read()
 
+def raise_if_empty(read_bytes):
+    if read_bytes == '':
+        raise IOError("could not read from ready file")
+
 class NonBlockingInput(object):
     def __init__(self, file, timeout=600):
         from fcntl import fcntl, F_GETFL, F_SETFL
@@ -174,14 +178,18 @@ class NonBlockingInput(object):
     def t_read(self, nbytes, spent=0, bytes=''):
         while True:
             spent += self.select(spent)
-            bytes += bytes_to_str(os.read(self.fd, nbytes - len(bytes)))
+            read_bytes = os.read(self.fd, nbytes - len(bytes))
+            raise_if_empty(read_bytes)
+            bytes += bytes_to_str(read_bytes)
             if nbytes <= len(bytes):
                 return spent, bytes
 
     def t_read_until(self, delim, spent=0, bytes=''):
         while not bytes.endswith(delim):
             spent += self.select(spent)
-            bytes += bytes_to_str(os.read(self.fd, 1))
+            read_bytes = os.read(self.fd, 1)
+            raise_if_empty(read_bytes)
+            bytes += bytes_to_str(read_bytes)
         return spent, bytes
 
 class AtomicFile(file):
