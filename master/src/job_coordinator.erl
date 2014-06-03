@@ -403,7 +403,7 @@ retry_task(Host, _Error,
                                         stage   = Stage},
                       failed_count = FailedCnt,
                       failed_hosts = FH} = TInfo,
-           #state{tasks = Tasks, hosts = Cluster} = S) ->
+           #state{tasks = Tasks, hosts = Cluster, pending = Pending} = S) ->
     {ok, MaxFail} = application:get_env(max_failure_rate),
     FC = FailedCnt + 1,
     case FC > MaxFail of
@@ -439,7 +439,8 @@ retry_task(Host, _Error,
                 end,
             TInfo1 = TInfo#task_info{failed_count = FC,
                                      failed_hosts = Blacklist},
-            S#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks)}
+            S#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks),
+                    pending = [{TaskId, re_run}|Pending]}
     end.
 
 -spec do_kill_job(term(), state()) -> ok.
