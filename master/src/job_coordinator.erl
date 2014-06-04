@@ -439,6 +439,7 @@ retry_task(Host, _Error,
                 end,
             TInfo1 = TInfo#task_info{failed_count = FC,
                                      failed_hosts = Blacklist},
+            event_server:pending_event(JobName, Stage, add),
             S#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks),
                     pending = gb_sets:add_element({TaskId, re_run}, Pending)}
     end.
@@ -798,18 +799,21 @@ do_submit_tasks(_Mode, [], S, _) -> S;
 do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               pipeline   = P,
                                               pending    = Pending,
+                                              jobinfo = #jobinfo{jobname = JobName},
                                               tasks      = Tasks} = S,
                                       NFailuresAllowed) ->
     #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage} = TaskSpec,
     case jc_utils:new_task_permitted_for_stage(P, Stage, SI) of
         false ->
+            event_server:pending_event(JobName, Stage, add),
             do_submit_tasks(Mode, Rest,
                             S#state{pending = gb_sets:add_element({TaskId, Mode}, Pending)},
                             NFailuresAllowed);
         true ->
             NewPending = case gb_sets:is_element({TaskId, Mode}, Pending) of
                 true ->
+                    event_server:pending_event(JobName, Stage, remove),
                     gb_sets:del_element({TaskId, Mode}, Pending);
                 false -> Pending
             end,
