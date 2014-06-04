@@ -490,7 +490,7 @@ maybe_start_pending(#state{pending = Pending} = S) ->
             #state{tasks = Tasks, pipeline = P, stage_info = SI} = S1,
             #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
             #task_spec{stage = Stage} = TaskSpec,
-            case jc_utils:new_task_permitted_for_stage(P, Stage, SI) of
+            case jc_utils:can_run_task(P, Stage, SI) of
                 true  -> do_submit_tasks(Mode, [TaskId], S1, ?FAILURES_ALLOWED);
                 false -> S1
             end
@@ -804,7 +804,7 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                       NFailuresAllowed) ->
     #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage} = TaskSpec,
-    case jc_utils:new_task_permitted_for_stage(P, Stage, SI) of
+    case jc_utils:can_run_task(P, Stage, SI) of
         false ->
             event_server:pending_event(JobName, Stage, add),
             do_submit_tasks(Mode, Rest,
