@@ -501,26 +501,18 @@ maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) -
         {Next, Grouping} ->
             {NTasks, STemp} = make_stage_tasks(Next, Grouping, NewGroups, S, {0, []}),
             STemp1 = do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED),
-            send_outputs_to_consumers(STemp1, ModifiedGroups, Next, none);
+            send_outputs_to_consumers(STemp1, ModifiedGroups, Next);
         done ->
             S
     end.
 
-% the last argument is only added to avoid conflicts with
-% send_outputs_to_consumers/3
-send_outputs_to_consumers(#state{stage_info = SI} = S, ModifiedGroups, Stage, none) ->
+-spec send_outputs_to_consumers(state(), [grouped_output()], stage_name()) -> state().
+send_outputs_to_consumers(#state{stage_info = SI} = S, ModifiedGroups, Stage) ->
     #stage_info{group_map = GroupMap} = jc_utils:stage_info(Stage, SI),
-    send_outputs_to_consumers(S, GroupMap, ModifiedGroups).
-
--spec send_outputs_to_consumers(state(), disco_gbtree(group(), task_id()),
-                                [grouped_output()]) -> state().
-send_outputs_to_consumers(S, _, []) ->
-    S;
-
-send_outputs_to_consumers(S, GroupMap, [({G, _} = GroupedInputs)|Rest]) ->
-    TaskId = gb_trees:get(G, GroupMap),
-    S1 = send_outputs_to_consumer(S, TaskId, GroupedInputs),
-    send_outputs_to_consumers(S1, GroupMap, Rest).
+    lists:foldl(fun({G, _} = GroupedInputs, S1) ->
+                TaskId = gb_trees:get(G, GroupMap),
+                send_outputs_to_consumer(S1, TaskId, GroupedInputs)
+        end, S, ModifiedGroups).
 
 update_taskspec(#state{tasks = Tasks} = S, TaskId, Fun) ->
     #task_info{spec = TaskSpec} = TaskInfo = jc_utils:task_info(TaskId, Tasks),
