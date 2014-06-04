@@ -118,7 +118,7 @@ task_started(Coord, TaskId, Worker) ->
                 hosts      = gb_sets:empty()  :: disco_gbset(host()),
                 tasks      = gb_trees:empty() :: disco_gbtree(task_id(), task_info()),
                 data_map   = gb_trees:empty() :: disco_gbtree(input_id(), data_info()),
-                pending    = []               :: [{task_id(), submit_mode()}],
+                pending    = gb_sets:empty()  :: disco_gbset({task_id(), submit_mode()}),
                 stage_info = gb_trees:empty() :: disco_gbtree(stage_name(), stage_info())}).
 -type state() :: #state{}.
 
@@ -440,7 +440,7 @@ retry_task(Host, _Error,
             TInfo1 = TInfo#task_info{failed_count = FC,
                                      failed_hosts = Blacklist},
             S#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks),
-                    pending = [{TaskId, re_run}|Pending]}
+                    pending = gb_sets:add_element({TaskId, re_run}, Pending)}
     end.
 
 -spec do_kill_job(term(), state()) -> ok.
@@ -483,8 +483,8 @@ task_complete(TaskId, Host, Outputs, S) ->
     S3.
 
 -spec maybe_start_pending(state()) -> state().
-maybe_start_pending(#state{pending = AllPending} = S) ->
-    lists:foldl(
+maybe_start_pending(#state{pending = Pending} = S) ->
+    gb_sets:fold(
         fun({TaskId, Mode}, S1) ->
             #state{tasks = Tasks, pipeline = P, stage_info = SI} = S1,
             #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
@@ -493,7 +493,7 @@ maybe_start_pending(#state{pending = AllPending} = S) ->
                 true  -> do_submit_tasks(Mode, [TaskId], S1, ?FAILURES_ALLOWED);
                 false -> S1
             end
-        end, S, AllPending).
+        end, S, Pending).
 
 -spec maybe_submit_tasks(state(), stage_name(), [grouped_output()], [grouped_output()]) -> state().
 maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) ->
@@ -675,7 +675,7 @@ send_termination_signal(Stage, #state{stage_info = SI, pending = Pending} = S) -
     S2 = lists:foldl(fun(TaskId, S1) ->
                     send_term_signal_to_task(TaskId, S1)
                 end, S, jc_utils:running_tasks(Stage, SI)),
-    lists:foldl(fun({TaskId, _Mod}, #state{tasks = Tasks} = S3) ->
+    gb_sets:fold(fun({TaskId, _Mod}, #state{tasks = Tasks} = S3) ->
                     #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
                     #task_spec{stage = TaskStage} = TaskSpec,
                     case TaskStage of
@@ -804,10 +804,16 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
     #task_spec{stage = Stage} = TaskSpec,
     case jc_utils:new_task_permitted_for_stage(P, Stage, SI) of
         false ->
-            do_submit_tasks(Mode, Rest, S#state{pending = [{TaskId,
-                            Mode}|Pending]}, NFailuresAllowed);
+            do_submit_tasks(Mode, Rest,
+                            S#state{pending = gb_sets:add_element({TaskId, Mode}, Pending)},
+                            NFailuresAllowed);
         true ->
-            S1 = S#state{pending = Pending -- [{TaskId, Mode}]},
+            NewPending = case gb_sets:is_element({TaskId, Mode}, Pending) of
+                true ->
+                    gb_sets:del_element({TaskId, Mode}, Pending);
+                false -> Pending
+            end,
+            S1 = S#state{pending = NewPending},
             do_submit_tasks_in(Mode, [TaskId|Rest], S1, NFailuresAllowed)
     end.
 
