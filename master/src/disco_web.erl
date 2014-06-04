@@ -278,7 +278,7 @@ dfind(Key, Dict, Default) ->
 
 -spec render_jobinfo(event_server:job_eventinfo(), {[host()], [stage_name()]})
                     -> term().
-render_jobinfo({Start, Status0, JobInfo, Results, Count, Ready, Fail},
+render_jobinfo({Start, Status0, JobInfo, Results, Count, Pending, Ready, Fail},
                {Hosts, Stages}) ->
     Run = lists:foldl(fun(S, D) -> dict:update_counter(S, 1, D) end,
                       dict:new(),
@@ -296,9 +296,11 @@ render_jobinfo({Start, Status0, JobInfo, Results, Count, Ready, Fail},
                 Inputs = lists:flatten([pipeline_utils:input_urls(Input, split, {0, " "})
                                         || {_Id, Input} <- I]),
                 {list_to_binary(atom_to_list(Status0)),
-                 [[S, max(dfind(S, Count, 0) - (R + D), 0), R, D, dfind(S, Fail, 0)]
+                 [[S, max(dfind(S, Count, 0) - (R + D + Pend), 0), Pend, R, D, dfind(S, Fail, 0)]
                   || {S, _} <- P,
-                     R <- [dfind(S, Run, 0)], D <- [dfind(S, Ready, 0)]],
+                      R <- [dfind(S, Run, 0)],
+                      Pend <- [dfind(S, Pending, 0)],
+                      D <- [dfind(S, Ready, 0)]],
                  lists:flatten([Urls || {_L, Urls} <- Inputs]),
                  W, O}
         end,
