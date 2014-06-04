@@ -510,26 +510,17 @@ maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) -
 % send_outputs_to_consumers/3
 send_outputs_to_consumers(#state{stage_info = SI} = S, ModifiedGroups, Stage, none) ->
     #stage_info{group_map = GroupMap} = jc_utils:stage_info(Stage, SI),
-    TaskList = gb_trees:to_list(GroupMap),
-    send_outputs_to_consumers(S, TaskList, ModifiedGroups).
+    send_outputs_to_consumers(S, GroupMap, ModifiedGroups).
 
--spec send_outputs_to_consumers(state(), [task_id()], [grouped_output()]) -> state().
+-spec send_outputs_to_consumers(state(), disco_gbtree(group(), task_id()),
+                                [grouped_output()]) -> state().
 send_outputs_to_consumers(S, _, []) ->
     S;
 
-send_outputs_to_consumers(S, TaskList, [({G, _} = GroupedInputs)|Rest]) ->
-    TaskId = lists:foldl(fun({ThisId, ThisG}, Id) ->
-                case Id of
-                    none ->
-                        case ThisG of
-                            G -> ThisId;
-                            _ -> none
-                        end;
-                    _ -> Id
-                end
-    end, none, TaskList),
+send_outputs_to_consumers(S, GroupMap, [({G, _} = GroupedInputs)|Rest]) ->
+    TaskId = gb_trees:get(G, GroupMap),
     S1 = send_outputs_to_consumer(S, TaskId, GroupedInputs),
-    send_outputs_to_consumers(S1, TaskList, Rest).
+    send_outputs_to_consumers(S1, GroupMap, Rest).
 
 update_taskspec(#state{tasks = Tasks} = S, TaskId, Fun) ->
     #task_info{spec = TaskSpec} = TaskInfo = jc_utils:task_info(TaskId, Tasks),
@@ -783,8 +774,8 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
     GroupMap = case Grouping of
         split -> OldGroupMap;
         _ ->
-            false = gb_trees:is_defined(NextTaskId, OldGroupMap),
-            gb_trees:enter(NextTaskId, G, OldGroupMap)
+            false = gb_trees:is_defined(G, OldGroupMap),
+            gb_trees:enter(G, NextTaskId, OldGroupMap)
     end,
     StageInfo1 = StageInfo#stage_info{group_map = GroupMap},
 
