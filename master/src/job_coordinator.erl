@@ -501,35 +501,18 @@ maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) -
         {Next, Grouping} ->
             {NTasks, STemp} = make_stage_tasks(Next, Grouping, NewGroups, S, {0, []}),
             STemp1 = do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED),
-            send_outputs_to_consumers(STemp1, ModifiedGroups, Next, none);
+            send_outputs_to_consumers(STemp1, ModifiedGroups, Next);
         done ->
             S
     end.
 
-% the last argument is only added to avoid conflicts with
-% send_outputs_to_consumers/3
-send_outputs_to_consumers(#state{stage_info = SI} = S, ModifiedGroups, Stage, none) ->
+-spec send_outputs_to_consumers(state(), [grouped_output()], stage_name()) -> state().
+send_outputs_to_consumers(#state{stage_info = SI} = S, ModifiedGroups, Stage) ->
     #stage_info{group_map = GroupMap} = jc_utils:stage_info(Stage, SI),
-    TaskList = gb_trees:to_list(GroupMap),
-    send_outputs_to_consumers(S, TaskList, ModifiedGroups).
-
--spec send_outputs_to_consumers(state(), [task_id()], [grouped_output()]) -> state().
-send_outputs_to_consumers(S, _, []) ->
-    S;
-
-send_outputs_to_consumers(S, TaskList, [({G, _} = GroupedInputs)|Rest]) ->
-    TaskId = lists:foldl(fun({ThisId, ThisG}, Id) ->
-                case Id of
-                    none ->
-                        case ThisG of
-                            G -> ThisId;
-                            _ -> none
-                        end;
-                    _ -> Id
-                end
-    end, none, TaskList),
-    S1 = send_outputs_to_consumer(S, TaskId, GroupedInputs),
-    send_outputs_to_consumers(S1, TaskList, Rest).
+    lists:foldl(fun({G, _} = GroupedInputs, S1) ->
+                TaskId = gb_trees:get(G, GroupMap),
+                send_outputs_to_consumer(S1, TaskId, GroupedInputs)
+        end, S, ModifiedGroups).
 
 update_taskspec(#state{tasks = Tasks} = S, TaskId, Fun) ->
     #task_info{spec = TaskSpec} = TaskInfo = jc_utils:task_info(TaskId, Tasks),
@@ -782,9 +765,7 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
     end,
     GroupMap = case Grouping of
         split -> OldGroupMap;
-        _ ->
-            false = gb_trees:is_defined(NextTaskId, OldGroupMap),
-            gb_trees:enter(NextTaskId, G, OldGroupMap)
+        _     -> gb_trees:insert(G, NextTaskId, OldGroupMap)
     end,
     StageInfo1 = StageInfo#stage_info{group_map = GroupMap},
 
