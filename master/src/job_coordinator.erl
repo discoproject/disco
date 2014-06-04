@@ -765,9 +765,7 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
     end,
     GroupMap = case Grouping of
         split -> OldGroupMap;
-        _ ->
-            false = gb_trees:is_defined(G, OldGroupMap),
-            gb_trees:enter(G, NextTaskId, OldGroupMap)
+        _     -> gb_trees:insert(G, NextTaskId, OldGroupMap)
     end,
     StageInfo1 = StageInfo#stage_info{group_map = GroupMap},
 
