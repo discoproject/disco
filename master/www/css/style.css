@@ -197,8 +197,8 @@ input {
 /* Job Detail */
 
 .job .infobox {
-    width: 20em;
-    height: 16em;
+    width: 25em;
+    height: 22em;
     border: 1px solid #666;
     float: left;
     margin: 10px;
@@ -213,7 +213,7 @@ input {
 
 .job .infobox > .body {
     padding: 5px;
-    height: 13.3em;
+    height: 18em;
     overflow: auto;
 }
 

@@ -355,11 +355,11 @@ do_get_jobinfo(JobName, Events) ->
         error ->
             invalid_job;
         {ok, #job_ent{start = Start, job_data = JobNfo, job_results = Results,
-                      task_count = Count, task_ready = Ready,
-                      task_failed = Failed} = JE} ->
+                      task_count = Count, task_pending = Pending,
+                      task_ready = Ready, task_failed = Failed} = JE} ->
             {ok, {Start, job_status(JE), JobNfo,
                   case Results of none -> []; _ -> Results end,
-                  Count, Ready, Failed}}
+                  Count, Pending, Ready, Failed}}
     end.
 
 -spec do_add_job_event(host(), jobname(), binary(), event(), state()) -> state().
