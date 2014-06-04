@@ -499,7 +499,7 @@ maybe_start_pending(#state{pending = Pending} = S) ->
 -spec maybe_submit_tasks(state(), stage_name(), [grouped_output()], [grouped_output()]) -> state().
 maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) ->
     case pipeline_utils:next_stage(P, Stage) of
-        {Next, Grouping} ->
+        {Next, Grouping, _} ->
             {NTasks, STemp} = make_stage_tasks(Next, Grouping, NewGroups, S, {0, []}),
             STemp1 = do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED),
             send_outputs_to_consumers(STemp1, ModifiedGroups, Next);
@@ -563,7 +563,7 @@ get_grouping_lists(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId, Out
         done ->
             % there is no tasks in the next stage to be started.
             {[], []};
-        {_, Grouping} ->
+        {_, Grouping, _} ->
             case jc_utils:stage_info_opt(Stage, SI) of
                 none ->
                     PrevStageOutputs = [{TaskId, Outputs}],
@@ -641,7 +641,7 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
                 true -> finish_pipeline(Stage, S);
                 false -> S
             end;
-        {Next, Grouping} ->
+        {Next, Grouping, _} ->
             S1 = send_termination_signal(Next, S),
             % If this is the first time this stage has finished, then
             % we need to start the tasks in the next stage.

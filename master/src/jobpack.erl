@@ -185,7 +185,7 @@ validate_prefix(Prefix) ->
 
 -spec validate_pipeline(list()) -> pipeline().
 validate_pipeline(P) ->
-    Spec = {hom_array, {array, [string, string]}},
+    Spec = {hom_array, {array, [string, string, boolean]}},
     case json_validator:validate(Spec, P) of
         {error, E} ->
             Msg = disco:format("Invalid job pipeline: ~s",
@@ -199,7 +199,7 @@ validate_pipeline(P) ->
                 true  -> throw({error, repeated_pipeline_stages});
                 false -> ok
             end,
-            [{S, grouping(G)} || [S | [G | _]] <- P]
+            [{S, grouping(G), Concurrent} || [S | [G | [Concurrent]]] <- P]
     end.
 
 -spec validate_inputs(list()) -> [data_input()].
@@ -377,21 +377,23 @@ input_replicas1(Reps) when is_list(Reps) ->
 pipeline1(false, false, _NR) ->
     [];
 pipeline1(false, true, 1) ->
-    [{?REDUCE, group_all}];
+    [{?REDUCE, group_all, false}];
 pipeline1(false, true, _NR) ->
     % This is used to support reduce-only jobs with partitioned
     % inputs from dir:// files.
-    [{?REDUCE, group_label}, {?REDUCE_SHUFFLE, group_node}];
+    [{?REDUCE, group_label, false}, {?REDUCE_SHUFFLE, group_node, false}];
 pipeline1(true, false, _NR) ->
-    [{?MAP, split}, {?MAP_SHUFFLE, group_node}];
+    [{?MAP, split, false}, {?MAP_SHUFFLE, group_node, false}];
 pipeline1(true, true, 1) ->
-    [{?MAP, split}, {?MAP_SHUFFLE, group_node}, {?REDUCE, group_all}];
+    [{?MAP, split, false},
+     {?MAP_SHUFFLE, group_node, false},
+     {?REDUCE, group_all, false}];
 pipeline1(true, true, _NR) ->
     % This was used to support a pre-determined number of partitions
     % in map output, which determined the number of reduces.  However,
     % we now determine the number of reduces dynamically.
-    [{?MAP, split}, {?MAP_SHUFFLE, group_node},
-     {?REDUCE, group_label}, {?REDUCE_SHUFFLE, group_node}].
+    [{?MAP, split, false}, {?MAP_SHUFFLE, group_node, false},
+     {?REDUCE, group_label, false}, {?REDUCE_SHUFFLE, group_node, false}].
 
 -spec schedule_option1(#ver1_info{}) -> task_schedule().
 schedule_option1(#ver1_info{force_local = Local, force_remote = Remote}) ->

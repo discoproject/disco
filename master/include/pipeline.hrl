@@ -26,7 +26,7 @@
         % stages).
         group_all.
 
--type stage() :: {stage_name(), label_grouping()}.
+-type stage() :: {stage_name(), label_grouping(), boolean()}.
 -type pipeline() :: [stage()].
 -type group() :: {label(), url_host()}.
 

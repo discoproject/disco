@@ -170,7 +170,7 @@ class Worker(worker.Worker):
             if s.name in stages:
                 raise DiscoError("Repeated stage {0}".format(s.name))
             stages.add(s.name)
-            pipeline.append((s.name, g))
+            pipeline.append((s.name, g, False))
 
         from disco.util import isiterable, inputlist
         job_input = get('input', [])
