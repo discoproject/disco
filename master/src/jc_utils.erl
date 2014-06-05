@@ -5,6 +5,13 @@
 -include("pipeline.hrl").
 -include("job_coordinator.hrl").
 
+% This constant control the number of tasks that can be started from the
+% following concurrent stages.  The lower this value, the higher the degree of
+% concurrency, but the higher the potential for job deadlock.  The constant 1 is
+% the minimum value that guarantees there will be no deadlock if the number of
+% workers does not decrease.
+-define(MIN_RATION_OF_FIRST_ACTIVE_TO_REST, 2).
+
 -export([stage_info_opt/2, stage_info/2, last_stage_task/3,
          update_stage/3, update_stage_tasks/4,
          task_info/2, update_task_info/3, task_spec/2, add_task_spec/3,
@@ -40,37 +47,40 @@ update_stage(Stage, Info, SI) ->
                 -> stage_map().
 update_stage_tasks(S, Id, Op, SI) ->
     mod_stage_tasks(S, Id, Op, stage_info(S, SI), SI).
-mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D} = Info, SI) ->
-    {R1, D1} =
+mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D, n_running = NR} = Info, SI) ->
+    {R1, D1, NR1} =
         case Op of
-            run  -> {lists:usort([Id | R]), D};
-            stop -> {R -- [Id], D};
-            done -> {R -- [Id], lists:usort([Id | D])}
+            run  -> {lists:usort([Id | R]), D, NR + 1};
+            stop -> {R -- [Id], D, NR - 1};
+            done -> {R -- [Id], lists:usort([Id | D]), NR - 1}
         end,
-    update_stage(S, Info#stage_info{running = R1, done = D1}, SI).
+    update_stage(S, Info#stage_info{running = R1, done = D1, n_running = NR1}, SI).
 
 -spec can_run_task(pipeline(), stage_name(), stage_map()) -> boolean().
 can_run_task(P, S, SI) ->
-    can_run_task(P, S, SI, true).
+    can_run_task(P, S, SI, true, 0).
 % the fourth argument shows whether all of the dependencies have finished so
 % far.  It will determine whether the task can run or not for sequential stages.
-can_run_task([], _S, _, _) -> true;
-can_run_task([_|_], ?INPUT, _, _) -> true;
-can_run_task([{S, _, false}|_], S, _, DepsFinished) -> DepsFinished;
-% if the stage is concurrent, its tasks can start even if it has unfinished
-% dependencies.
-can_run_task([{S, _, true}|_], S, _, _) -> true;
-can_run_task([{DepS,_, _}|Rest], S, SI, DepsFinished) ->
-    StageInfo = jc_utils:stage_info(DepS, SI),
-    case StageInfo#stage_info.finished of
-        true  -> can_run_task(Rest, S, SI, DepsFinished);
-        false -> can_run_task(Rest, S, SI, false)
+% the fifth argument shows the total number of tasks running in the previous
+% stages.
+can_run_task([], _S, _, _, _) -> true;
+can_run_task([_|_], ?INPUT, _, _, _) -> true;
+can_run_task([{S, _, _}|_], S, _, true, _) -> true;
+can_run_task([{S, _, false}|_], S, _, false, _) -> false;
+can_run_task([{S, _, true}|_], S, SI, false, DepsNRTasks) ->
+    #stage_info{n_running = NR} = jc_utils:stage_info(S, SI),
+    ?MIN_RATION_OF_FIRST_ACTIVE_TO_REST * NR < DepsNRTasks;
+can_run_task([{DepS,_, _}|Rest], S, SI, DepsFinished, DepsNRTasks) ->
+    #stage_info{finished = Finished, n_running = NR} = jc_utils:stage_info(DepS, SI),
+    case Finished of
+        true  -> can_run_task(Rest, S, SI, DepsFinished, DepsNRTasks);
+        false -> can_run_task(Rest, S, SI, false, DepsNRTasks + NR)
     end.
 
 -spec no_tasks_running(stage_name(), stage_map()) -> boolean().
 no_tasks_running(S, SI) ->
-    #stage_info{running = R} = stage_info(S, SI),
-    length(R) == 0.
+    #stage_info{n_running = NR} = stage_info(S, SI),
+    NR == 0.
 
 -spec running_tasks(stage_name(), stage_map()) -> [task_id()].
 running_tasks(S, SI) ->
