@@ -164,13 +164,20 @@ class Worker(worker.Worker):
         def get(key, default=None):
             return self.getitem(key, job, jobargs, default)
         stages, pipeline = set(), []
-        for g, s in get('pipeline', []):
+        for stage in get('pipeline', []):
+            if len(stage) == 2:
+                g, s = stage
+                concurrent = False
+            elif len(stage) == 3:
+                g, s, concurrent = stage
+            else:
+                raise DiscoError("Bad Stage {0}".format(stage))
             if g not in self.group_ops:
                 raise DiscoError("Unknown grouping {0}".format(g))
             if s.name in stages:
                 raise DiscoError("Repeated stage {0}".format(s.name))
             stages.add(s.name)
-            pipeline.append((s.name, g, False))
+            pipeline.append((s.name, g, concurrent))
 
         from disco.util import isiterable, inputlist
         job_input = get('input', [])
