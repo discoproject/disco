@@ -3,6 +3,7 @@
 -record(stage_info, {start        :: erlang:timestamp(),
                      all     = 0  :: non_neg_integer(),
                      running = [] :: [task_id()],
+                     n_running = 0:: non_neg_integer(),
                      finished = false :: boolean(),
                      group_map = gb_trees:empty() :: disco_gbtree(group(), task_id()),
                      done    = [] :: [input | task_id()]}).

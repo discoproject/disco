@@ -40,14 +40,14 @@ update_stage(Stage, Info, SI) ->
                 -> stage_map().
 update_stage_tasks(S, Id, Op, SI) ->
     mod_stage_tasks(S, Id, Op, stage_info(S, SI), SI).
-mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D} = Info, SI) ->
-    {R1, D1} =
+mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D, n_running = NR} = Info, SI) ->
+    {R1, D1, NR1} =
         case Op of
-            run  -> {lists:usort([Id | R]), D};
-            stop -> {R -- [Id], D};
-            done -> {R -- [Id], lists:usort([Id | D])}
+            run  -> {lists:usort([Id | R]), D, NR + 1};
+            stop -> {R -- [Id], D, NR - 1};
+            done -> {R -- [Id], lists:usort([Id | D]), NR - 1}
         end,
-    update_stage(S, Info#stage_info{running = R1, done = D1}, SI).
+    update_stage(S, Info#stage_info{running = R1, done = D1, n_running = NR1}, SI).
 
 -spec can_run_task(pipeline(), stage_name(), stage_map()) -> boolean().
 can_run_task(P, S, SI) ->
@@ -69,8 +69,8 @@ can_run_task([{DepS,_, _}|Rest], S, SI, DepsFinished) ->
 
 -spec no_tasks_running(stage_name(), stage_map()) -> boolean().
 no_tasks_running(S, SI) ->
-    #stage_info{running = R} = stage_info(S, SI),
-    length(R) == 0.
+    #stage_info{n_running = NR} = stage_info(S, SI),
+    NR == 0.
 
 -spec running_tasks(stage_name(), stage_map()) -> [task_id()].
 running_tasks(S, SI) ->
