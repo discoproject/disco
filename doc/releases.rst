@@ -3,6 +3,23 @@
 Release notes
 =============
 
+Disco 0.5.2 (TBD)
+---------------
+New features
+''''''''''''
+- Ddfs can now distribute the blobs according to the amount of space available on the nodes.
+
+- Disco now supports concurrent stages.  That means, a stage can start before
+  all of the tasks of the previous stages have finished.  This option can be
+  enabled for pipeline jobs.
+
+- A Disco worker is available in `golang <http://github.com/discoproject/goworker>`.
+  This worker only supports map-reduce jobs at the moment.
+
+Deprecated
+''''''''''
+- The deprecated merge_partitions option has been removed.
+
 Disco 0.5.1 (April 16, 2014)
 ---------------
 New features
