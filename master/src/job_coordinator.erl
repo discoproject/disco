@@ -490,7 +490,7 @@ maybe_start_pending(#state{pending = Pending} = S) ->
             #state{tasks = Tasks, pipeline = P, stage_info = SI} = S1,
             #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
             #task_spec{stage = Stage} = TaskSpec,
-            case jc_utils:new_task_permitted_for_stage(P, Stage, SI) of
+            case jc_utils:can_run_task(P, Stage, SI) of
                 true  -> do_submit_tasks(Mode, [TaskId], S1, ?FAILURES_ALLOWED);
                 false -> S1
             end
@@ -499,7 +499,7 @@ maybe_start_pending(#state{pending = Pending} = S) ->
 -spec maybe_submit_tasks(state(), stage_name(), [grouped_output()], [grouped_output()]) -> state().
 maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) ->
     case pipeline_utils:next_stage(P, Stage) of
-        {Next, Grouping} ->
+        {Next, Grouping, _} ->
             {NTasks, STemp} = make_stage_tasks(Next, Grouping, NewGroups, S, {0, []}),
             STemp1 = do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED),
             send_outputs_to_consumers(STemp1, ModifiedGroups, Next);
@@ -563,7 +563,7 @@ get_grouping_lists(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId, Out
         done ->
             % there is no tasks in the next stage to be started.
             {[], []};
-        {_, Grouping} ->
+        {_, Grouping, _} ->
             case jc_utils:stage_info_opt(Stage, SI) of
                 none ->
                     PrevStageOutputs = [{TaskId, Outputs}],
@@ -641,7 +641,7 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
                 true -> finish_pipeline(Stage, S);
                 false -> S
             end;
-        {Next, Grouping} ->
+        {Next, Grouping, _} ->
             S1 = send_termination_signal(Next, S),
             % If this is the first time this stage has finished, then
             % we need to start the tasks in the next stage.
@@ -804,7 +804,7 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                       NFailuresAllowed) ->
     #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage} = TaskSpec,
-    case jc_utils:new_task_permitted_for_stage(P, Stage, SI) of
+    case jc_utils:can_run_task(P, Stage, SI) of
         false ->
             event_server:pending_event(JobName, Stage, add),
             do_submit_tasks(Mode, Rest,

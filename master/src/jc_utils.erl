@@ -12,7 +12,7 @@
          input_info/2, update_input_info/3, add_input/3,
          update_input_failures/2, find_usable_input_hosts/1,
          collect_stagewise/5, wakeup_waiters/3, no_tasks_running/2,
-         running_tasks/2, new_task_permitted_for_stage/3]).
+         running_tasks/2, can_run_task/3]).
 
 -type stage_map() :: disco_gbtree(stage_name(), stage_info()).
 -type task_map()  :: disco_gbtree(task_id(), task_info()).
@@ -49,9 +49,23 @@ mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D} = Info, SI) ->
         end,
     update_stage(S, Info#stage_info{running = R1, done = D1}, SI).
 
--spec new_task_permitted_for_stage(pipeline(), stage_name(), stage_map()) -> boolean().
-new_task_permitted_for_stage(P, Stage, SI) ->
-    pipeline_utils:all_deps_finished(P, Stage, SI).
+-spec can_run_task(pipeline(), stage_name(), stage_map()) -> boolean().
+can_run_task(P, S, SI) ->
+    can_run_task(P, S, SI, true).
+% the fourth argument shows whether all of the dependencies have finished so
+% far.  It will determine whether the task can run or not for sequential stages.
+can_run_task([], _S, _, _) -> true;
+can_run_task([_|_], ?INPUT, _, _) -> true;
+can_run_task([{S, _, false}|_], S, _, DepsFinished) -> DepsFinished;
+% if the stage is concurrent, its tasks can start even if it has unfinished
+% dependencies.
+can_run_task([{S, _, true}|_], S, _, _) -> true;
+can_run_task([{DepS,_, _}|Rest], S, SI, DepsFinished) ->
+    StageInfo = jc_utils:stage_info(DepS, SI),
+    case StageInfo#stage_info.finished of
+        true  -> can_run_task(Rest, S, SI, DepsFinished);
+        false -> can_run_task(Rest, S, SI, false)
+    end.
 
 -spec no_tasks_running(stage_name(), stage_map()) -> boolean().
 no_tasks_running(S, SI) ->

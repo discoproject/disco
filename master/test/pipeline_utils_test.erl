@@ -56,18 +56,18 @@ empty_pipeline_test() ->
     true = pipeline_utils:all_deps_finished([], <<"stage">>, none).
 
 input_stage_test() ->
-    true = pipeline_utils:all_deps_finished([{a,b}], ?INPUT, none).
+    true = pipeline_utils:all_deps_finished([{a,b, false}], ?INPUT, none).
 
 done_stage_test() ->
-    true = pipeline_utils:all_deps_finished([{a,b}], a, none).
+    true = pipeline_utils:all_deps_finished([{a,b, false}], a, none).
 
 undone_stage_test() ->
     M = gb_trees:from_orddict([{a, #stage_info{finished = false}}]),
-    false = pipeline_utils:all_deps_finished([{a,b}], c, M).
+    false = pipeline_utils:all_deps_finished([{a,b, false}], c, M).
 
 dep_done_stage_test() ->
     M = gb_trees:from_orddict([{a, #stage_info{finished = true}}]),
-    true = pipeline_utils:all_deps_finished([{a,b}], c, M).
+    true = pipeline_utils:all_deps_finished([{a,b, false}], c, M).
 
 get_grouping_test_group(Grouping, TaskId, NewOutput) ->
     DataSpec1 = {data, {5, 600, [{"out1", "node1"}]}},

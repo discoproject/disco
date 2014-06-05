@@ -13,7 +13,7 @@
 % Pipeline utilities.
 
 -spec stages(pipeline()) -> [stage_name()].
-stages(Pipeline) -> [Stage || {Stage, _G} <- Pipeline].
+stages(Pipeline) -> [Stage || {Stage, _G, _} <- Pipeline].
 
 -spec locations(data_input()) -> [host()].
 locations({data, {_Label, _Size, Replicas}}) ->
@@ -44,17 +44,17 @@ pick_local_host(Replicas) ->
 
 -spec next_stage(pipeline(), stage_name()) -> stage() | done.
 next_stage([], _S) -> done;
-next_stage([{_S, _G} = First | _], ?INPUT) -> First;
-next_stage([{S, _G}], S) -> done;
-next_stage([{S, _G}, Next|_], S) -> Next;
+next_stage([{_S, _G, _} = First | _], ?INPUT) -> First;
+next_stage([{S, _G, _}], S) -> done;
+next_stage([{S, _G, _}, Next|_], S) -> Next;
 next_stage([_S|Rest], S) -> next_stage(Rest, S).
 
 -spec all_deps_finished(pipeline(), stage_name(),
                         disco_gbtree(stage_name(), stage_info())) -> boolean().
 all_deps_finished([], _S, _) -> true;
 all_deps_finished([_|_], ?INPUT, _) -> true;
-all_deps_finished([{S, _}|_], S, _) -> true;
-all_deps_finished([{DepS,_}|Rest], S, SI) ->
+all_deps_finished([{S, _, _}|_], S, _) -> true;
+all_deps_finished([{DepS,_, _}|Rest], S, SI) ->
     StageInfo = jc_utils:stage_info(DepS, SI),
     case StageInfo#stage_info.finished of
         true -> all_deps_finished(Rest, S, SI);
