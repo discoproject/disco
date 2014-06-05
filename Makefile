@@ -1,5 +1,5 @@
-DISCO_VERSION = 0.5.1
-DISCO_RELEASE = 0.5.1
+DISCO_VERSION = 0.5.2
+DISCO_RELEASE = 0.5.2
 
 # standard make installation variables
 sysconfdir    = /etc
