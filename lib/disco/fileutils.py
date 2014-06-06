@@ -13,8 +13,6 @@ MAX_RECORD_SIZE = 1 * MB
 HUNK_SIZE       = 1 * MB
 CHUNK_SIZE      = 64 * MB
 
-# chunk size seems to be ~ half what it should be
-
 class Chunker(object):
     """
     chunks contain hunks
@@ -29,7 +27,7 @@ class Chunker(object):
     in the worst case for a chunk:
       sizeof(chunk) = C - 1
       a new hunk is added with size ((H - 1) + (R - 1)) * S
-      sizoof(chunk) = C - 1 + ((H - 1) + (R - 1)) * S + len(header)
+      sizeof(chunk) = C - 1 + ((H - 1) + (R - 1)) * S + len(header)
     """
     def __init__(self, chunk_size=CHUNK_SIZE, max_record_size=MAX_RECORD_SIZE):
         self.chunk_size = chunk_size
