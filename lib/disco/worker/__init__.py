@@ -72,6 +72,9 @@ class MessageWriter(object):
         if string:
             self.worker.send('MSG', force_utf8(string))
 
+    def isatty(self):
+        return False
+
     def flush(self):
         pass
 
