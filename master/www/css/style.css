@@ -312,6 +312,10 @@ input {
     min-height: 10em;
 }
 
+.editable {
+    min-width: 100px;
+}
+
 .config_table td {
     padding-left: 5px;
     padding-right: 5px;
