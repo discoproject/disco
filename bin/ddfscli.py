@@ -117,6 +117,16 @@ def chunk(program, tag, *urls):
     """Usage: tag [url ...]
 
     Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
+    For chunking a file in the current directory, a './' must be prepended to the
+    file name.  Otherwise, ddfs chunk assumes it is a tag name.
+    The character '-' can be used to specify that input can be read from stdin
+    for example:
+        cat chekhov.txt | ddfs chunk chekhov -
+    is the same as:
+        ddfs chunk chekhov ./chekhov.txt
+
+    and both of them chunk the chekhov.txt file from the local directory into
+    ddfs.
     """
     from itertools import chain
     from disco.util import reify
