@@ -4,7 +4,7 @@ Release notes
 =============
 
 Disco 0.5.2 (TBD)
----------------
+-----------------
 New features
 ''''''''''''
 - Ddfs can now distribute the blobs according to the amount of space available on the nodes.
@@ -21,7 +21,7 @@ Deprecated
 - The deprecated merge_partitions option has been removed.
 
 Disco 0.5.1 (April 16, 2014)
----------------
+----------------------------
 New features
 ''''''''''''
 - Disco now uses folsom for monitoring purposes.  Folsom extracts some
@@ -66,7 +66,7 @@ Changes
   re-implemented using the Disco pipelines.
 
 Disco 0.5 (February 14, 2014)
----------------
+-----------------------------
 This release is dedicated to the memory of Priya Hattiangdi, Prashanth Mundkur's wife, who has passed away a few days ago. May she rest in peace.
 
 New features
