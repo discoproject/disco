@@ -340,12 +340,16 @@ class ClassicFile(object):
         self.fds = []
         for stream in streams:
             maybe_params = (params,) if util.argcount(stream) == 4 else ()
-            fd = stream(fd, size, url, *maybe_params)
-            if isinstance(fd, tuple):
-                if len(fd) == 3:
-                    fd, size, url = fd
-                else:
-                    fd, url = fd
+            if url == '-':
+                import sys
+                fd = sys.stdin
+            else:
+                fd = stream(fd, size, url, *maybe_params)
+                if isinstance(fd, tuple):
+                    if len(fd) == 3:
+                        fd, size, url = fd
+                    else:
+                        fd, url = fd
             self.fds.append(fd)
 
     def __iter__(self):
