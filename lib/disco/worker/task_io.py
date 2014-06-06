@@ -1,6 +1,7 @@
 """
-:mod:`disco.worker.task_io` --- I/O Utility functions for Disco tasks
+:mod:`disco.worker.task_io` -- I/O Utility functions for Disco tasks
 =====================================================================
+
 """
 
 from disco import util

@@ -51,7 +51,7 @@ class Worker(worker.Worker):
 
                      .. deprecated:: 0.4
                                 *map_init* has not been needed ever since
-                                :func:`InputStreams <disco.worker.task_io.InputStream>`
+                                :class:`disco.worker.task_io.InputStream`s
                                 were introduced.
                                 Use *map_input_stream* and/or *map_reader* instead.
 
@@ -103,7 +103,7 @@ class Worker(worker.Worker):
 
                         .. deprecated:: 0.4
                                 *reduce_init* has not been needed ever since
-                                :func:`InputStreams <disco.worker.task_io.InputStream>`
+                                :class:`disco.worker.task_io.InputStream`s
                                 were introduced.
                                 Use *reduce_input_stream* and/or *reduce_reader* instead.
 
