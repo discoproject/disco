@@ -933,7 +933,7 @@ estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
                       OtherNodes = [{N, S} || {N, S} <- NodeStats, not lists:member(N, Exclude)],
                       case ddfs_rebalance:weighted_select_from_nodes(OtherNodes, 1) of
                           error  ->
-                              lager:warning("Could not replicate ~s.", BlobName),
+                              lager:warning("Could not replicate ~s.", [BlobName]),
                               NodeStats;
                           [Node] ->
                               {Node, {Free, Used}} = lists:keyfind(Node, 1,
