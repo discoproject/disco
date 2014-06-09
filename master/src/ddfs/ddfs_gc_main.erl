@@ -451,9 +451,13 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                  {_, _} = find_unstable_nodes(NewNS), % print the current stats.
                  FutureNS = estimate_rr_blobs(S#state{nodestats = NewNS}),
                  {NewUnderused , NewOverused} = find_unstable_nodes(FutureNS),
-                 ok = case NewOverused of
-                     [] -> ok;
-                     _  -> rebalance(NewOverused, BL, FutureNS)
+                 ok = case disco:has_setting("DDFS_SPACE_AWARE") of
+                     false -> ok;
+                     true  ->
+                         case NewOverused of
+                             [] -> ok;
+                             _  -> rebalance(NewOverused, BL, FutureNS)
+                         end
                  end,
 
                  lager:info("GC: entering rr_blobs phase"),
@@ -872,11 +876,15 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     {UnderusedNodes, OverusedNodes} = find_unstable_nodes(NodeStats),
     Utilization = [{N, ddfs_rebalance:utility(Node)} || {N, _} = Node <- NodeStats,
         lists:member(N, OverusedNodes)],
-    SortedUtilization = [N || {N, _} <- lists:reverse(lists:keysort(2, Utilization))],
-    MostOverused = case SortedUtilization of
-                       [] -> undefined;
-                       [N | _] -> N
-                   end,
+    MostOverused = case disco:has_setting("DDFS_SPACE_AWARE") of
+        false -> undefined;
+        true  ->
+            SortedUtilization = [N || {N, _} <- lists:reverse(lists:keysort(2, Utilization))],
+            case SortedUtilization of
+                [] -> undefined;
+                [N | _] -> N
+            end
+    end,
 
     lager:info("GC: entering gc phase"),
     OverusedPeer = find_peer(Peers, MostOverused),
