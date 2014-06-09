@@ -1290,6 +1290,8 @@ try_put_blob(#state{rr_pid = RR, gc_peers = Peers}, BlobName, OkNodes, BL) ->
             RealPutUrl = ddfs_util:cluster_url(PutUrl, put),
             RR ! {put_blob, BlobName, SrcPeer, SrcNode, RealPutUrl},
             pending;
+        {ok, []} ->
+            {error, "not enough replicas."};
         E ->
             {error, E}
     end.
