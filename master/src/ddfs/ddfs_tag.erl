@@ -304,7 +304,8 @@ handle_call(_, _, S) -> {reply, ok, S}.
 
 -spec handle_info(timeout, state()) -> gs_noreply_t() | gs_stop(normal);
                  ({reference(), term()}, state()) -> gs_noreply().
-handle_info(timeout, S) ->
+handle_info(timeout, #state{tag = TagName} = S) ->
+    lager:info("tag ~p times out.", [TagName]),
     handle_cast({die, none}, S);
 % handle late replies to "catch gen_server:call"
 handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
@@ -312,7 +313,9 @@ handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
 
 % callback stubs
 -spec terminate(term(), state()) -> ok.
-terminate(_Reason, _State) -> ok.
+terminate(Reason, #state{tag = TagName}) ->
+    lager:info("tag ~p dies with reason ~p.", [TagName, Reason]),
+    ok.
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
@@ -740,6 +743,7 @@ put_commit(TagID, TagVol) ->
 
 -spec do_delete(replyto(), state()) -> state().
 do_delete(ReplyTo, #state{tag = Tag} = S) ->
+    lager:info("scheduling deletion of tag ~p.", [Tag]),
     case add_to_deleted(Tag) of
         {ok, _} ->
             gen_server:reply(ReplyTo, ok),
