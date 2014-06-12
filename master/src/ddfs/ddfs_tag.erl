@@ -643,10 +643,11 @@ do_put({_, Token},
             TagID = TagContent#tagcontent.id,
             case put_distribute({TagID, NewTagData}) of
                 {ok, DestNodes, DestUrls} ->
-                    if TagData =:= {missing, deleted} ->
+                    case TagData of
+                        {missing, _} ->
                             {ok, _} = remove_from_deleted([TagName]),
                             ok;
-                       true -> ok
+                        _            -> ok
                     end,
                     _ = send_replies(ReplyTo, {ok, DestUrls}),
                     S#state{data = {ok, TagContent},
