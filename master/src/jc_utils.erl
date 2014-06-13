@@ -19,7 +19,7 @@
          input_info/2, update_input_info/3, add_input/3,
          update_input_failures/2, find_usable_input_hosts/1,
          collect_stagewise/5, wakeup_waiters/3, no_tasks_running/2,
-         running_tasks/2, can_run_task/3]).
+         running_tasks/2, can_run_task/4]).
 
 -type stage_map() :: disco_gbtree(stage_name(), stage_info()).
 -type task_map()  :: disco_gbtree(task_id(), task_info()).
@@ -56,25 +56,29 @@ mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D, n_running = NR} = 
         end,
     update_stage(S, Info#stage_info{running = R1, done = D1, n_running = NR1}, SI).
 
--spec can_run_task(pipeline(), stage_name(), stage_map()) -> boolean().
-can_run_task(P, S, SI) ->
-    can_run_task(P, S, SI, true, 0).
-% the fourth argument shows whether all of the dependencies have finished so
+-spec can_run_task(pipeline(), stage_name(), stage_map(), task_schedule()) -> boolean().
+can_run_task(P, S, SI, #task_schedule{max_cores = Max}) ->
+    can_run_task(P, S, SI, true, 0, Max).
+% the fifth argument shows whether all of the dependencies have finished so
 % far.  It will determine whether the task can run or not for sequential stages.
-% the fifth argument shows the total number of tasks running in the previous
+% the sixth argument shows the total number of tasks running in the previous
 % stages.
-can_run_task([], _S, _, _, _) -> true;
-can_run_task([_|_], ?INPUT, _, _, _) -> true;
-can_run_task([{S, _, _}|_], S, _, true, _) -> true;
-can_run_task([{S, _, false}|_], S, _, false, _) -> false;
-can_run_task([{S, _, true}|_], S, SI, false, DepsNRTasks) ->
+can_run_task([_|_], ?INPUT, _, _, _, _) -> true;
+can_run_task(_, _, _, _, NR, Max) when NR >= Max -> false;
+can_run_task([], _S, _, _, _, _) -> true;
+can_run_task([{S, _, _}|_], S, SI, true, DepsNRTasks, Max) ->
     #stage_info{n_running = NR} = jc_utils:stage_info(S, SI),
-    ?MIN_RATION_OF_FIRST_ACTIVE_TO_REST * NR < DepsNRTasks;
-can_run_task([{DepS,_, _}|Rest], S, SI, DepsFinished, DepsNRTasks) ->
+    NR + DepsNRTasks < Max;
+can_run_task([{S, _, false}|_], S, _, false, _, _) -> false;
+can_run_task([{S, _, true}|_], S, SI, false, DepsNRTasks, Max) ->
+    #stage_info{n_running = NR} = jc_utils:stage_info(S, SI),
+    ?MIN_RATION_OF_FIRST_ACTIVE_TO_REST * NR < DepsNRTasks andalso
+    NR + DepsNRTasks < Max;
+can_run_task([{DepS,_, _}|Rest], S, SI, DepsFinished, DepsNRTasks, Max) ->
     #stage_info{finished = Finished, n_running = NR} = jc_utils:stage_info(DepS, SI),
     case Finished of
-        true  -> can_run_task(Rest, S, SI, DepsFinished, DepsNRTasks);
-        false -> can_run_task(Rest, S, SI, false, DepsNRTasks + NR)
+        true  -> can_run_task(Rest, S, SI, DepsFinished, DepsNRTasks, Max);
+        false -> can_run_task(Rest, S, SI, false, DepsNRTasks + NR, Max)
     end.
 
 -spec no_tasks_running(stage_name(), stage_map()) -> boolean().

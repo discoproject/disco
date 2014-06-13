@@ -484,11 +484,11 @@ task_complete(TaskId, Host, Outputs, S) ->
 -spec maybe_start_pending(state()) -> state().
 maybe_start_pending(#state{pending = Pending} = S) ->
     gb_sets:fold(
-        fun({TaskId, Mode}, S1) ->
+        fun({TaskId, Mode}, #state{schedule = Schedule} = S1) ->
             #state{tasks = Tasks, pipeline = P, stage_info = SI} = S1,
             #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
             #task_spec{stage = Stage} = TaskSpec,
-            case jc_utils:can_run_task(P, Stage, SI) of
+            case jc_utils:can_run_task(P, Stage, SI, Schedule) of
                 true  -> do_submit_tasks(Mode, [TaskId], S1, ?FAILURES_ALLOWED);
                 false -> S1
             end
@@ -798,11 +798,12 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               pipeline   = P,
                                               pending    = Pending,
                                               jobinfo = #jobinfo{jobname = JobName},
+                                              schedule = Schedule,
                                               tasks      = Tasks} = S,
                                       NFailuresAllowed) ->
     #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage} = TaskSpec,
-    case jc_utils:can_run_task(P, Stage, SI) of
+    case jc_utils:can_run_task(P, Stage, SI, Schedule) of
         false ->
             event_server:pending_event(JobName, Stage, add),
             do_submit_tasks(Mode, Rest,
