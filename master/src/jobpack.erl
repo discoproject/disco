@@ -117,9 +117,9 @@ jobzip(<<?MAGIC:16/big,
                     nr_reduce :: non_neg_integer(),
                     map    :: boolean(),
                     reduce :: boolean()}).
--record(ver2_info, {pipeline     = []    :: pipeline(),
-                    schedule     = none  :: task_schedule(),
-                    inputs       = []    :: [data_input()]}).
+-record(ver2_info, {pipeline     = []                :: pipeline(),
+                    schedule     = #task_schedule{}  :: task_schedule(),
+                    inputs       = []                :: [data_input()]}).
 
 -spec version_info(non_neg_integer(), job_dict()) -> #ver1_info{} | #ver2_info{}.
 version_info(?VERSION_1, JobDict) ->
@@ -134,7 +134,7 @@ version_info(?VERSION_1, JobDict) ->
 version_info(?VERSION_2, JobDict) ->
     Pipeline = find(<<"pipeline">>, JobDict),
     Inputs   = find(<<"inputs">>, JobDict),
-    #ver2_info{schedule = none,  % No scheduling options supported for now.
+    #ver2_info{schedule = #task_schedule{},
                pipeline = validate_pipeline(Pipeline),
                inputs   = validate_inputs(Inputs)};
 version_info(V, _JobDict) ->
@@ -399,6 +399,6 @@ pipeline1(true, true, _NR) ->
 schedule_option1(#ver1_info{force_local = Local, force_remote = Remote}) ->
     schedule_option1(Local, Remote).
 % Prefer Local if both Local and Remote are set.
-schedule_option1(true, _) -> local;
-schedule_option1(_, true) -> remote;
-schedule_option1(_, _)    -> none.
+schedule_option1(true, _) -> #task_schedule{locality = local};
+schedule_option1(_, true) -> #task_schedule{locality = remote};
+schedule_option1(_, _)    -> #task_schedule{}.

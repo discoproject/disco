@@ -84,8 +84,10 @@
 % the next stage.
 -type grouped_output() :: {group(), [{input_id(), data_input()}]}.
 
+-record(task_schedule, {locality = none :: local | remote | none}).
+-type task_schedule() :: #task_schedule{}.
+
 % The static specification of a task.
--type task_schedule() :: local | remote | none.
 -record(task_spec, {jobname   :: jobname(),
                     stage     :: stage_name(),
                     taskid    :: task_id(),
