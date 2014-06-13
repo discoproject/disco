@@ -479,7 +479,7 @@ task_complete(TaskId, Host, Outputs, S) ->
         true -> stage_done(Stage);
         false -> ok
     end,
-    S3.
+    maybe_start_pending(S3).
 
 -spec maybe_start_pending(state()) -> state().
 maybe_start_pending(#state{pending = Pending} = S) ->
