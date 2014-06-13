@@ -18,6 +18,7 @@
 -define(VERSION_2, 16#0002).
 -define(HEADER_SIZE, 128).
 -define(COPY_BUFFER_SIZE, 1048576).
+-define(DEFAULT_MAX_CORE, 1 bsl 31).
 
 -type jobpack() :: binary().
 
@@ -128,13 +129,15 @@ version_info(?VERSION_1, JobDict) ->
                map    = find(<<"map?">>, JobDict, false),
                reduce = find(<<"reduce?">>, JobDict, false),
                nr_reduce = find(<<"nr_reduces">>, JobDict),
-               max_cores = find(<<"max_cores">>, Scheduler, 1 bsl 31),
+               max_cores = find(<<"max_cores">>, Scheduler, ?DEFAULT_MAX_CORE),
                force_local  = find(<<"force_local">>, Scheduler, false),
                force_remote = find(<<"force_remote">>, Scheduler, false)};
 version_info(?VERSION_2, JobDict) ->
     Pipeline = find(<<"pipeline">>, JobDict),
     Inputs   = find(<<"inputs">>, JobDict),
-    #ver2_info{schedule = #task_schedule{},
+    Scheduler = dict(find(<<"scheduler">>, JobDict)),
+    Max = find(<<"max_cores">>, Scheduler, ?DEFAULT_MAX_CORE),
+    #ver2_info{schedule = #task_schedule{max_cores = Max},
                pipeline = validate_pipeline(Pipeline),
                inputs   = validate_inputs(Inputs)};
 version_info(V, _JobDict) ->
@@ -396,8 +399,9 @@ pipeline1(true, true, _NR) ->
      {?REDUCE, group_label, false}, {?REDUCE_SHUFFLE, group_node, false}].
 
 -spec schedule_option1(#ver1_info{}) -> task_schedule().
-schedule_option1(#ver1_info{force_local = Local, force_remote = Remote}) ->
-    schedule_option1(Local, Remote).
+schedule_option1(#ver1_info{force_local = Local, force_remote = Remote, max_cores = Max}) ->
+    S = schedule_option1(Local, Remote),
+    S#task_schedule{max_cores = Max}.
 % Prefer Local if both Local and Remote are set.
 schedule_option1(true, _) -> #task_schedule{locality = local};
 schedule_option1(_, true) -> #task_schedule{locality = remote};

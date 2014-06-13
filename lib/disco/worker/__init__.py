@@ -195,6 +195,7 @@ class Worker(dict):
         return {'prefix': self.getitem('name', job, jobargs),
                 'save_results': self.getitem('save_results', job, jobargs, False),
                 'save_info': self.getitem('save_info', job, jobargs, "ddfs"),
+                'scheduler': self.getitem('scheduler', job, jobargs, {}),
                 'owner': self.getitem('owner', job, jobargs,
                                       job.settings['DISCO_JOB_OWNER'])}
 

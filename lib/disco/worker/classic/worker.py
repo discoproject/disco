@@ -249,9 +249,6 @@ class Worker(worker.Worker):
         :type  scheduler: dict
         :param scheduler: directly sets :attr:`jobdict.scheduler`.
 
-                          .. deprecated:: 0.5
-                                  *scheduler* params are now ignored.
-
         Uses :meth:`getitem` to resolve the values of parameters.
 
         :return: the :term:`job dict`.
@@ -293,8 +290,7 @@ class Worker(worker.Worker):
                         'map?': has_map,
                         'reduce?': has_reduce,
                         'nr_reduces': nr_reduces,
-                        'save_results': has_save_results,
-                        'scheduler': get('scheduler', {})})
+                        'save_results': has_save_results})
         return jobdict
 
     def jobzip(self, job, **jobargs):
