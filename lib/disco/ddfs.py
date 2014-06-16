@@ -385,6 +385,7 @@ class DDFS(object):
                     for url in self._upload(urls, source, to_master=False, **kwargs)]
         except CommError as e:
             scheme, (host, port), path = urlsplit(e.url)
+            source.seek(0)  # source will be read again; seek to the beginning
             return self._push((source, target),
                               replicas=replicas,
                               forceon=forceon,
