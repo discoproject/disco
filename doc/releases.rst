@@ -16,6 +16,10 @@ New features
 - A Disco worker is available in `golang <http://github.com/discoproject/goworker>`.
   This worker only supports map-reduce jobs at the moment.
 
+- The scheduler dictionary can now be sent as part of the job_dict in both the
+  classic and the pipeline workers. The max_core option in this dictionary will
+  limit the number of tasks from a job that can run.
+
 Deprecated
 ''''''''''
 - The deprecated merge_partitions option has been removed.

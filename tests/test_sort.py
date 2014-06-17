@@ -7,6 +7,7 @@ from disco.compat import bytes_to_str, str_to_bytes
 alphanum = list(string.ascii_letters) + list(map(str, range(10)))
 
 class SortJob(TestJob):
+    scheduler = {'max_cores': 6}
     sort = True
 
     @staticmethod
