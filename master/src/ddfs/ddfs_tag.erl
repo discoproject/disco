@@ -304,8 +304,7 @@ handle_call(_, _, S) -> {reply, ok, S}.
 
 -spec handle_info(timeout, state()) -> gs_noreply_t() | gs_stop(normal);
                  ({reference(), term()}, state()) -> gs_noreply().
-handle_info(timeout, #state{tag = TagName} = S) ->
-    lager:info("tag ~p times out.", [TagName]),
+handle_info(timeout, S) ->
     handle_cast({die, none}, S);
 % handle late replies to "catch gen_server:call"
 handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
@@ -313,6 +312,7 @@ handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
 
 % callback stubs
 -spec terminate(term(), state()) -> ok.
+terminate(normal, _) -> ok;
 terminate(Reason, #state{tag = TagName}) ->
     lager:info("tag ~p dies with reason ~p.", [TagName, Reason]),
     ok.
