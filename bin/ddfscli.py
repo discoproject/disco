@@ -82,7 +82,7 @@ def cat(program, *urls):
         for replica in replicas:
             try:
                 return download(proxy_url(urlresolve(replica, master=program.ddfs.master),
-                                          to_master=False))
+                                          to_master=False), sleep=9)
             except Exception as e:
                 sys.stderr.write("{0}\n".format(e))
         if not ignore_missing:
