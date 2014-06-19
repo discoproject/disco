@@ -856,7 +856,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
                       [] ->
                           Entry = {BlobName, [], [], noupdate, undefined, norebalance, []},
                           ets:insert(gc_blobs, Entry);
-                      [{_, _, _, _, _, _}] ->
+                      [{_, _, _, _, _, _, _}] ->
                           true
                   end;
              ({{BlobName, Node}, false}, _) ->
