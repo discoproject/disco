@@ -16,9 +16,9 @@ Some of the :program:`ddfs` utilities also work with data stored in Disco's temp
    The documentation assumes that the executable ``$DISCO_HOME/bin/ddfs`` is on your system path.
    If it is not on your path, you can add it::
 
-        ln -s $DISCO_HOME/bin/ddfs /usr/local/bin
+        ln -s $DISCO_HOME/bin/ddfs /usr/bin
 
-   If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
+   If ``/usr/bin`` is not in your ``$PATH``, use an appropriate replacement.
    Doing so allows you to simply call :command:`ddfs`, instead of specifying the complete path.
 
 Run :command:`ddfs help` for information on using the command line utility.

@@ -3,7 +3,7 @@ DISCO_RELEASE = 0.5.2
 
 # standard make installation variables
 sysconfdir    = /etc
-prefix        = /usr/local
+prefix        = /usr
 exec_prefix   = $(prefix)
 localstatedir = $(prefix)/var
 datarootdir   = $(prefix)/share
