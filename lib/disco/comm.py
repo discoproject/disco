@@ -80,13 +80,13 @@ def request(method, url, data=None, headers={}, sleep=0):
         raise CommError(response.read(), url, status)
     return response
 
-def download(url, method='GET', data=None, offset=(), token=None):
+def download(url, method='GET', data=None, offset=(), token=None, sleep=0):
     headers = range_header(offset)
     headers.update(auth_header(token))
     return request(method if data is None else 'POST',
                    url,
                    data=data,
-                   headers=headers).read()
+                   headers=headers, sleep=sleep).read()
 
 def upload(urls, source, token=None, **kwargs):
     data = FileSource(source).read()
