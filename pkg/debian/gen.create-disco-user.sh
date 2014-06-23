@@ -24,6 +24,12 @@ case "\$1" in
         fi
         usermod -c "Disco" -d ${RELSRV} -g disco disco
         chown disco:disco ${RELSRV}
+        su disco --command="""
+            ssh-keygen -N '' -f ${RELSRV}/.ssh/id_dsa
+            cat ${RELSRV}/.ssh/id_dsa.pub >> ${RELSRV}/.ssh/authorized_keys
+            echo -n \"localhost \" > ${RELSRV}/.ssh/known_hosts
+            cat /etc/ssh/ssh_host_rsa_key.pub >> ${RELSRV}/.ssh/known_hosts
+        """
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

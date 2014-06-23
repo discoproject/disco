@@ -16,9 +16,9 @@ The new startup script makes it even easier to get up and running with a Disco c
    The documentation assumes that the executable ``$DISCO_HOME/bin/disco`` is on your system path.
    If it is not on your path, you can add it::
 
-        ln -s $DISCO_HOME/bin/disco /usr/local/bin
+        ln -s $DISCO_HOME/bin/disco /usr/bin
 
-   If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
+   If ``/usr/bin`` is not in your ``$PATH``, use an appropriate replacement.
    Doing so allows you to simply call :program:`disco`, instead of specifying the complete path.
 
 Run :command:`disco help` for information on using the command line utility.

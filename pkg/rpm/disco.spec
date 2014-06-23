@@ -61,7 +61,7 @@ This package contains the disco command-line tools ddfs and disco
 
 %prep
 %setup -n disco
-%define prefix /usr/local
+%define prefix /usr
 
 %build
 %{__make}
