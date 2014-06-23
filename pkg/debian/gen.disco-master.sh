@@ -17,25 +17,25 @@ cat << EOF
 [ -x ${RELBIN}/disco ] || exit 5
 
 running() {
-    [ -z "\$(${RELBIN}/disco status | grep stopped)" ]
+    [ -z "\$(su - disco --command='${RELBIN}/disco status' | grep stopped)" ]
     errcode=\$?
     return \$errcode
 }
 
 start_server() {
-        ${RELBIN}/disco start
+        su - disco --command="${RELBIN}/disco start"
         errcode=\$?
 	return \$errcode
 }
 
 stop_server() {
-        ${RELBIN}/disco stop
+        su - disco --command="${RELBIN}/disco stop"
         errcode=\$?
 	return \$errcode
 }
 
 restart_server() {
-        ${RELBIN}/disco restart
+        su - disco --command="${RELBIN}/disco restart"
         errcode=\$?
         return \$errcode
 }
