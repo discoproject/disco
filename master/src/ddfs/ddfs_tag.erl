@@ -765,6 +765,7 @@ add_to_deleted(Tag) ->
     deleted_op({update, Urls, internal, [nodup]}, ?TAG_UPDATE_TIMEOUT).
 
 -spec remove_from_deleted([tagname()]) -> _.
+remove_from_deleted([<<"+deleted">>]) -> {ok, will_deadlock};
 remove_from_deleted(Tags) ->
     deleted_op({delete_tagnames, Tags}, ?NODEOP_TIMEOUT).
 
