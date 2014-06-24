@@ -255,6 +255,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 -record(job_ent, {job_coord :: pid(),
                   start     :: erlang:timestamp(),
                   job_data    = none :: none | jobinfo(),
+                  task_count_inc     :: disco_dict(stage_name(), boolean()),
                   task_count         :: stage_dict(),
                   task_pending       :: stage_dict(),
                   task_ready         :: stage_dict(),
@@ -269,6 +270,7 @@ new_job_ent(JobCoord, Stages) ->
     StageResults = dict:new(),
     #job_ent{job_coord = JobCoord,
              start     = now(),
+             task_count_inc= dict:from_list([{S, true} || S <- Stages]),
              task_count    = InitCounts,
              task_pending  = InitCounts,
              task_ready    = InitCounts,
@@ -278,10 +280,15 @@ new_job_ent(JobCoord, Stages) ->
 -spec update_job_ent(job_ent(), event()) -> job_ent().
 update_job_ent(JE, {job_data, JobData}) ->
     JE#job_ent{job_data = JobData};
-update_job_ent(#job_ent{task_count = TaskCount} = JE, {stage_start, Stage, Tasks}) ->
-    JE#job_ent{task_count = dict:store(Stage, Tasks, TaskCount)};
-update_job_ent(#job_ent{task_count = TaskCount} = JE, {task_start, Stage}) ->
-    JE#job_ent{task_count = dict:update_counter(Stage, 1, TaskCount)};
+update_job_ent(#job_ent{task_count = TaskCount, task_count_inc = Inc} = JE,
+               {stage_start, Stage, Tasks}) ->
+    JE#job_ent{task_count = dict:store(Stage, Tasks, TaskCount),
+               task_count_inc = dict:store(Stage, false, Inc)};
+update_job_ent(#job_ent{task_count = TaskCount, task_count_inc = Inc} = JE, {task_start, Stage}) ->
+    case dict:fetch(Stage, Inc) of
+        true  -> JE#job_ent{task_count = dict:update_counter(Stage, 1, TaskCount)};
+        false -> JE
+    end;
 update_job_ent(#job_ent{task_pending = TaskPending} = JE, {task_pending, Stage}) ->
     JE#job_ent{task_pending= dict:update_counter(Stage, 1, TaskPending)};
 update_job_ent(#job_ent{task_pending = TaskPending} = JE, {task_un_pending, Stage}) ->
