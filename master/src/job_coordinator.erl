@@ -641,8 +641,6 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
             end;
         {Next, Grouping, _} ->
             S1 = send_termination_signal(Next, S),
-            % If this is the first time this stage has finished, then
-            % we need to start the tasks in the next stage.
             case Stage of
                 ?INPUT ->
                     start_next_stage(stage_outputs(Stage, S1), Next, Grouping, S1);
