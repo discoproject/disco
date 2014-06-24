@@ -3,7 +3,7 @@
 Release notes
 =============
 
-Disco 0.5.2 (TBD)
+Disco 0.5.2 (June 24, 2014)
 -----------------
 New features
 ''''''''''''
@@ -19,6 +19,8 @@ New features
 - The scheduler dictionary can now be sent as part of the job_dict in both the
   classic and the pipeline workers. The max_core option in this dictionary will
   limit the number of tasks from a job that can run.
+
+- By default, Disco is now installed in /usr instead of /usr/local.
 
 Deprecated
 ''''''''''
