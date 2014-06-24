@@ -30,7 +30,7 @@ def canonizetag(tag):
                 return canonizetag(tag)
         elif tag.startswith('tag://'):
             return tag
-        elif '://' not in tag and '/' not in tag:
+        elif '://' not in tag and '/' not in tag and tag != '-':
             return 'tag://{0}'.format(tag)
     raise InvalidTag("Invalid tag: {0}".format(tag))
 

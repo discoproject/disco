@@ -133,22 +133,23 @@ parse_row([NodeSpecB, InstancesB]) ->
 update_config_table(HostInfo, Blacklist, GCBlacklist) ->
     disco_server:update_config_table(HostInfo, Blacklist, GCBlacklist).
 
+add_setting_if_missing(Key, Value, Settings) ->
+    case proplists:is_defined(Key, Settings) of
+        true  -> Settings;
+        false -> [{Key, Value}|Settings]
+    end.
+
 -spec get_full_config() -> config().
 get_full_config() ->
-    case file:read_file(disco:get_setting("DISCO_MASTER_CONFIG")) of
-        {ok, Json} ->
-            ok;
-        {error, enoent} ->
-            Json = "[]"
+    Json = case file:read_file(disco:get_setting("DISCO_MASTER_CONFIG")) of
+        {ok, Data}      -> Data;
+        {error, enoent} -> "[]"
     end,
     % Backward compatibility for older configs, updated whenever a new
     % field gets added to the config.
     case mochijson2:decode(Json) of
         {struct, Body} ->
-            case proplists:is_defined(<<"gc_blacklist">>, Body) of
-                true -> Body;
-                false -> [{<<"gc_blacklist">>, []}] ++ Body
-            end;
+            add_setting_if_missing(<<"gc_blacklist">>, [], Body);
         L when is_list(L) -> [{<<"hosts">>, L},
                               {<<"blacklist">>, []},
                               {<<"gc_blacklist">>, []}]

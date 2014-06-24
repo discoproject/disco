@@ -12,12 +12,14 @@
 -include("ddfs.hrl").
 -include("ddfs_tag.hrl").
 
+-type tag_map() :: disco_gbtree(binary(), {erlang:timestamp(), volume_name()}).
+
 -record(state, {nodename :: host(),
                 root :: path(),
                 vols :: [volume()],
                 putq :: http_queue:q(),
                 getq :: http_queue:q(),
-                tags :: gb_tree(),
+                tags :: tag_map(),
                 scanner :: pid()}).
 -type state() :: #state{}.
 
@@ -34,6 +36,8 @@ start_link(Config, NodeMon) ->
                     disco_profile:start_apps();
                 true -> ok
             end,
+            disco_profile:new_histogram(ddfs_traverse_blobs),
+            disco_profile:new_histogram(ddfs_traverse_tags),
             disco_profile:new_histogram(ddfs_put);
         {error, {already_started, _Server}} ->
             error_logger:info_msg("~p already started on ~p", [?MODULE, node()]),
@@ -168,7 +172,7 @@ handle_call({put_tag_commit, Tag, TagVol}, _, S) ->
 
 -type casts() :: rescan_tags
                | {update_vols, [volume()]}
-               | {update_tags, gb_tree()}.
+               | {update_tags, tag_map()}.
 -spec handle_cast(casts(), state()) -> gs_noreply().
 handle_cast(rescan_tags, #state{scanner = Scanner} = S) ->
     Scanner ! rescan,
@@ -364,7 +368,7 @@ find_vols(Root) ->
             Error
     end.
 
--spec find_tags(path(), [volume()]) -> {ok, gb_tree()}.
+-spec find_tags(path(), [volume()]) -> {ok, tag_map()}.
 find_tags(Root, Vols) ->
     {ok,
      lists:foldl(fun({_Space, VolName}, Tags) ->
@@ -374,7 +378,7 @@ find_tags(Root, Vols) ->
                                               end, Tags)
                  end, gb_trees:empty(), Vols)}.
 
--spec parse_tag(nonempty_string(), volume_name(), gb_tree()) -> gb_tree().
+-spec parse_tag(nonempty_string(), volume_name(), tag_map()) -> tag_map().
 parse_tag("!" ++ _, _, Tags) -> Tags;
 parse_tag(Tag, VolName, Tags) ->
     {TagName, Time} = ddfs_util:unpack_objname(Tag),

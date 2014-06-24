@@ -15,6 +15,7 @@ a {
 
 input {
     border: 1px solid #aaa;
+    border-radius: 5px;
 }
 
 #ft {
@@ -65,6 +66,7 @@ input {
     border: 1px solid #666;
     float: left;
     margin: 10px;
+    border-radius: 5px;
 }
 
 .blacklisted {
@@ -77,6 +79,7 @@ input {
     padding-left: 5px;
     font-weight: bold;
     border-bottom: 1px solid black;
+    border-radius: 4px;
 }
 
 .nodebox .disconnected {
@@ -95,6 +98,7 @@ input {
     border: 1px solid #000;
     display: inline-block;
     margin: 1px;
+    border-radius: 3px;
 }
 
 .nodebox .status .busy {
@@ -147,6 +151,7 @@ input {
     text-align: center;
     margin-right: 10px;
     padding-bottom: 10px;
+    border-radius: 5px;
 }
 
 #joblist input {
@@ -173,6 +178,7 @@ input {
     border: 1px solid #000;
     margin-right: 5px;
     float: left;
+    border-radius: 5px;
 }
 
 #joblist .job .active {
@@ -191,11 +197,12 @@ input {
 /* Job Detail */
 
 .job .infobox {
-    width: 20em;
-    height: 16em;
+    width: 25em;
+    height: 22em;
     border: 1px solid #666;
     float: left;
     margin: 10px;
+    border-radius: 5px;
 }
 
 .job .infobox > .title {
@@ -206,7 +213,7 @@ input {
 
 .job .infobox > .body {
     padding: 5px;
-    height: 13.3em;
+    height: 18em;
     overflow: auto;
 }
 
@@ -221,6 +228,7 @@ input {
 .job .infobox table {
     width: 100%;
     background: #eee;
+    border-radius: 5px;
 }
 
 .job .infobox .redundant {
@@ -304,6 +312,10 @@ input {
     min-height: 10em;
 }
 
+.editable {
+    min-width: 100px;
+}
+
 .config_table td {
     padding-left: 5px;
     padding-right: 5px;
@@ -344,6 +356,7 @@ h3 {
 
 table td input {
     background: #eee;
+    border-radius: 5px;
 }
 
 #gcinfo {

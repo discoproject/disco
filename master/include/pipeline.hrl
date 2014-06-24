@@ -26,7 +26,7 @@
         % stages).
         group_all.
 
--type stage() :: {stage_name(), label_grouping()}.
+-type stage() :: {stage_name(), label_grouping(), boolean()}.
 -type pipeline() :: [stage()].
 -type group() :: {label(), url_host()}.
 
@@ -84,8 +84,11 @@
 % the next stage.
 -type grouped_output() :: {group(), [{input_id(), data_input()}]}.
 
+-record(task_schedule, {locality = none :: local | remote | none,
+                        max_cores       :: non_neg_integer()}).
+-type task_schedule() :: #task_schedule{}.
+
 % The static specification of a task.
--type task_schedule() :: local | remote | none.
 -record(task_spec, {jobname   :: jobname(),
                     stage     :: stage_name(),
                     taskid    :: task_id(),
@@ -97,6 +100,7 @@
                     worker    :: binary(),
                     schedule  :: task_schedule(),
                     input     :: [input_id()],
+                    all_inputs:: boolean(),
                     save_outputs :: boolean(),
                     save_info :: string()}).
 -type task_spec() :: #task_spec{}.
@@ -109,7 +113,7 @@
 % host-allocator.
 -record(task_run, {runid         :: task_run_id(),
                    host          :: url_host(),
-                   failed_hosts  :: gb_set(),
+                   failed_hosts  :: disco_gbset(host()),
                    input         :: [{input_id(), data_input()}]}).
 -type task_run() :: #task_run{}.
 

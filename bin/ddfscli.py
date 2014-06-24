@@ -16,9 +16,9 @@ Some of the :program:`ddfs` utilities also work with data stored in Disco's temp
    The documentation assumes that the executable ``$DISCO_HOME/bin/ddfs`` is on your system path.
    If it is not on your path, you can add it::
 
-        ln -s $DISCO_HOME/bin/ddfs /usr/local/bin
+        ln -s $DISCO_HOME/bin/ddfs /usr/bin
 
-   If ``/usr/local/bin`` is not in your ``$PATH``, use an appropriate replacement.
+   If ``/usr/bin`` is not in your ``$PATH``, use an appropriate replacement.
    Doing so allows you to simply call :command:`ddfs`, instead of specifying the complete path.
 
 Run :command:`ddfs help` for information on using the command line utility.
@@ -82,7 +82,7 @@ def cat(program, *urls):
         for replica in replicas:
             try:
                 return download(proxy_url(urlresolve(replica, master=program.ddfs.master),
-                                          to_master=False))
+                                          to_master=False), sleep=9)
             except Exception as e:
                 sys.stderr.write("{0}\n".format(e))
         if not ignore_missing:
@@ -117,6 +117,16 @@ def chunk(program, tag, *urls):
     """Usage: tag [url ...]
 
     Chunks the contents of the urls, pushes the chunks to ddfs and tags them.
+    For chunking a file in the current directory, a './' must be prepended to the
+    file name.  Otherwise, ddfs chunk assumes it is a tag name.
+    The character '-' can be used to specify that input can be read from stdin
+    for example:
+        cat chekhov.txt | ddfs chunk chekhov -
+    is the same as:
+        ddfs chunk chekhov ./chekhov.txt
+
+    and both of them chunk the chekhov.txt file from the local directory into
+    ddfs.
     """
     from itertools import chain
     from disco.util import reify

@@ -147,23 +147,18 @@ The :term:`job dict` is a :term:`JSON` dictionary.
 
     .. attribute:: jobdict.scheduler
 
-       Dictionary of options for the job scheduler.  The following
-       were the allowed keys; however, all are now ignored as of
-       release 0.5:
+      * *max_cores* - use at most this many cores (applies
+        to both map and reduce).  Default is ``2**31``.
 
-                  * *max_cores* - use at most this many cores (applies
-                    to both map and reduce).  Default is ``2**31``.
+      * *force_local* - always run task on the node where
+        input data is located; never use HTTP to access
+        data remotely.
 
-                  * *force_local* - always run task on the node where
-                    input data is located; never use HTTP to access
-                    data remotely.
+      * *force_remote* - never run task on the node where
+        input data is located; always use HTTP to access
+        data remotely.
 
-                  * *force_remote* - never run task on the node where
-                    input data is located; always use HTTP to access
-                    data remotely.
-
-       .. versionadded:: 0.2.4
-       .. deprecated:: 0.5
+       .. versionadded:: 0.5.2
 
 
 .. _jobenvs:

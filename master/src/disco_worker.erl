@@ -10,6 +10,8 @@
          terminate/2,
          code_change/3,
          jobhome/1,
+         add_inputs/2,
+         terminate_inputs/1,
          event/3]).
 
 -include("common_types.hrl").
@@ -43,8 +45,7 @@ start_link_remote(Host, NodeMon, Task) ->
     wait_until_node_ready(NodeMon, Host),
     process_flag(trap_exit, true),
     {Master, Self} = {node(), self()},
-    spawn_link(Node, fun() -> disco_worker:start_link(Self, Master, Task)
-                     end),
+    spawn_link(Node, disco_worker, start_link, [Self, Master, Task]),
     receive
         {'EXIT', _, Reason} -> exit({error, Reason});
         ok      -> ok;
@@ -79,6 +80,9 @@ init({Master, {#task_spec{job_coord = JobCoord}, #task_run{}} = Task}) ->
     % job_coordinator, which should be noticed by the monitor
     % below.
     erlang:monitor(process, JobCoord),
+    % introduce myself to the job_coordinator as the worker
+    {#task_spec{taskid = TaskId}, _} = Task,
+    job_coordinator:task_started(JobCoord, TaskId, self()),
     {ok, #state{master = Master,
                 task = Task,
                 port = none,
@@ -89,7 +93,25 @@ init({Master, {#task_spec{job_coord = JobCoord}, #task_run{}} = Task}) ->
                 runtime = worker_runtime:init(Task, Master),
                 throttle = worker_throttle:init()}}.
 
--spec handle_cast(start | work, state()) -> gs_noreply().
+-spec add_inputs(pid(), [{input_id(), data_input()}]) -> ok.
+add_inputs(Worker, Inputs) ->
+    gen_server:cast(Worker, {input, Inputs}).
+
+-spec terminate_inputs(pid()) -> ok.
+terminate_inputs(Worker) ->
+    gen_server:cast(Worker, {input, done}).
+
+-spec handle_cast(start | work, state()) -> gs_noreply();
+                 ({input, [{input_id(), data_input()}]}, state()) -> gs_noreply().
+handle_cast({input, Inputs}, #state{runtime = Runtime} = S) ->
+    {Reply, Runtime1} = worker_runtime:add_inputs(Inputs, Runtime),
+    case Reply of
+        none ->
+            {noreply, S#state{runtime = Runtime1}};
+        _ ->
+            update(S#state{runtime = Runtime1})
+    end;
+
 handle_cast(start, #state{task = Task, master = Master} = State) ->
     {#task_spec{jobname = JobName}, #task_run{}} = Task,
     Fun = fun() -> make_jobhome(JobName, Master) end,
@@ -210,6 +232,10 @@ update(#state{task = Task,
             proto_log(Task, from, "~p", [Request]),
             S1 = S#state{buffer = Buffer, parser = PState},
             try case worker_runtime:handle(Request, RT) of
+                    {ok, noreply, RState} ->
+                        % The following should be S (not S1) because disco did not
+                        % consume the stuff the worker sent to it.
+                        {noreply, S#state{runtime = RState}};
                     {ok, Reply, RState} ->
                         WS ! {Reply, 0},
                         update(S1#state{runtime = RState});

@@ -5,100 +5,150 @@
 -include("pipeline.hrl").
 -include("job_coordinator.hrl").
 
+% This constant control the number of tasks that can be started from the
+% following concurrent stages.  The lower this value, the higher the degree of
+% concurrency, but the higher the potential for job deadlock.  The constant 1 is
+% the minimum value that guarantees there will be no deadlock if the number of
+% workers does not decrease.
+-define(MIN_RATION_OF_FIRST_ACTIVE_TO_REST, 2).
+
 -export([stage_info_opt/2, stage_info/2, last_stage_task/3,
          update_stage/3, update_stage_tasks/4,
          task_info/2, update_task_info/3, task_spec/2, add_task_spec/3,
          task_inputs/2, task_outputs/2,
          input_info/2, update_input_info/3, add_input/3,
          update_input_failures/2, find_usable_input_hosts/1,
-         collect_stagewise/5, wakeup_waiters/3]).
+         collect_stagewise/5, wakeup_waiters/3, no_tasks_running/2,
+         running_tasks/2, can_run_task/4]).
+
+-type stage_map() :: disco_gbtree(stage_name(), stage_info()).
+-type task_map()  :: disco_gbtree(task_id(), task_info()).
+-type input_map() :: disco_gbtree(input_id(), data_info()).
 
 % information about a stage which may not have yet run.
--spec stage_info_opt(stage_name(), gb_tree()) -> none | stage_info().
-stage_info_opt(Stage, Info) ->
-    case gb_trees:lookup(Stage, Info) of
+-spec stage_info_opt(stage_name(), stage_map()) -> none | stage_info().
+stage_info_opt(Stage, SI) ->
+    case gb_trees:lookup(Stage, SI) of
         none -> none;
         {value, Info} -> Info
     end.
 
 % information about a stage which the caller guarantees exists.
--spec stage_info(stage_name(), gb_tree()) -> stage_info().
+-spec stage_info(stage_name(), stage_map()) -> stage_info().
 stage_info(Stage, SI) ->
     gb_trees:get(Stage, SI).
 
--spec update_stage(stage_name(), stage_info(), gb_tree()) -> gb_tree().
+-spec update_stage(stage_name(), stage_info(), stage_map()) -> stage_map().
 update_stage(Stage, Info, SI) ->
     gb_trees:enter(Stage, Info, SI).
 
 -type task_op() :: run | stop | done.
--spec update_stage_tasks(stage_name(), task_id(), task_op(), gb_tree())
-                        -> gb_tree().
+-spec update_stage_tasks(stage_name(), task_id(), task_op(), stage_map())
+                -> stage_map().
 update_stage_tasks(S, Id, Op, SI) ->
     mod_stage_tasks(S, Id, Op, stage_info(S, SI), SI).
-mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D} = Info, SI) ->
-    {R1, D1} =
+mod_stage_tasks(S, Id, Op, #stage_info{running = R, done = D, n_running = NR} = Info, SI) ->
+    {R1, D1, NR1} =
         case Op of
-            run  -> {lists:usort([Id | R]), D};
-            stop -> {R -- [Id], D};
-            done -> {R -- [Id], lists:usort([Id | D])}
+            run  -> {lists:usort([Id | R]), D, NR + 1};
+            stop -> {R -- [Id], D, NR - 1};
+            done -> {R -- [Id], lists:usort([Id | D]), NR - 1}
         end,
-    update_stage(S, Info#stage_info{running = R1, done = D1}, SI).
+    update_stage(S, Info#stage_info{running = R1, done = D1, n_running = NR1}, SI).
+
+-spec can_run_task(pipeline(), stage_name(), stage_map(), task_schedule()) -> boolean().
+can_run_task(P, S, SI, #task_schedule{max_cores = Max}) ->
+    can_run_task(P, S, SI, true, 0, Max).
+% the fifth argument shows whether all of the dependencies have finished so
+% far.  It will determine whether the task can run or not for sequential stages.
+% the sixth argument shows the total number of tasks running in the previous
+% stages.
+can_run_task([_|_], ?INPUT, _, _, _, _) -> true;
+can_run_task(_, _, _, _, NR, Max) when NR >= Max -> false;
+can_run_task([], _S, _, _, _, _) -> true;
+can_run_task([{S, _, _}|_], S, SI, true, DepsNRTasks, Max) ->
+    #stage_info{n_running = NR} = jc_utils:stage_info(S, SI),
+    NR + DepsNRTasks < Max;
+can_run_task([{S, _, false}|_], S, _, false, _, _) -> false;
+can_run_task([{S, _, true}|_], S, SI, false, DepsNRTasks, Max) ->
+    #stage_info{n_running = NR} = jc_utils:stage_info(S, SI),
+    ?MIN_RATION_OF_FIRST_ACTIVE_TO_REST * NR < DepsNRTasks andalso
+    NR + DepsNRTasks < Max;
+can_run_task([{DepS,_, _}|Rest], S, SI, DepsFinished, DepsNRTasks, Max) ->
+    #stage_info{finished = Finished, n_running = NR} = jc_utils:stage_info(DepS, SI),
+    case Finished of
+        true  -> can_run_task(Rest, S, SI, DepsFinished, DepsNRTasks, Max);
+        false -> can_run_task(Rest, S, SI, false, DepsNRTasks + NR, Max)
+    end.
+
+-spec no_tasks_running(stage_name(), stage_map()) -> boolean().
+no_tasks_running(S, SI) ->
+    #stage_info{n_running = NR} = stage_info(S, SI),
+    NR == 0.
+
+-spec running_tasks(stage_name(), stage_map()) -> [task_id()].
+running_tasks(S, SI) ->
+    case stage_info_opt(S, SI) of
+        none -> [];
+        StageInfo ->
+            StageInfo#stage_info.running
+    end.
 
 % If this is the last pending task in the stage in order for the stage
 % to be done.
--spec last_stage_task(stage_name(), task_id(), gb_tree()) -> boolean().
+-spec last_stage_task(stage_name(), task_id(), stage_map()) -> boolean().
 last_stage_task(Stage, TaskId, SI) ->
     #stage_info{done = Done, all = All} = stage_info(Stage, SI),
     ((length(Done) + 1 =:= All) and (not lists:member(TaskId, Done))).
 
--spec is_running(task_id(), gb_tree(), gb_tree()) -> boolean().
+-spec is_running(task_id(), task_map(), stage_map()) -> boolean().
 is_running(TaskId, Tasks, SI) ->
     #task_info{spec = #task_spec{taskid = TaskId, stage = Stage}}
         = task_info(TaskId, Tasks),
     #stage_info{done = Done} = stage_info(Stage, SI),
     lists:member(TaskId, Done).
 
--spec is_waiting(task_id(), gb_tree()) -> boolean().
+-spec is_waiting(task_id(), task_map()) -> boolean().
 is_waiting(TaskId, Tasks) ->
     #task_info{depends = Depends} = task_info(TaskId, Tasks),
     Depends =/= [].
 
--spec task_info(input | task_id(), gb_tree()) -> task_info().
+-spec task_info(input | task_id(), task_map()) -> task_info().
 task_info(TaskId, Tasks) ->
     gb_trees:get(TaskId, Tasks).
 
--spec task_spec(input, gb_tree()) -> input;
-               (task_id(), gb_tree()) -> task_spec().
+-spec task_spec(input, input_map()) -> input;
+            (task_id(), task_map()) -> task_spec().
 task_spec(TaskId, Tasks) ->
     (task_info(TaskId, Tasks))#task_info.spec.
 
--spec task_outputs(input | task_id(), gb_tree()) -> [task_output()].
+-spec task_outputs(input | task_id(), task_map()) -> [task_output()].
 task_outputs(TaskId, Tasks) ->
     (task_info(TaskId, Tasks))#task_info.outputs.
 
 % This should only be called for new tasks.
--spec add_task_spec(task_id(), task_spec(), gb_tree()) -> gb_tree().
+-spec add_task_spec(task_id(), task_spec(), task_map()) -> task_map().
 add_task_spec(TaskId, TaskSpec, Tasks) ->
     gb_trees:enter(TaskId, #task_info{spec = TaskSpec}, Tasks).
 
--spec update_task_info(task_id(), task_info(), gb_tree()) -> gb_tree().
+-spec update_task_info(task_id(), task_info(), task_map()) -> task_map().
 update_task_info(TaskId, TInfo, Tasks) ->
     gb_trees:enter(TaskId, TInfo, Tasks).
 
 % Input utilities.
--spec add_input(input_id(), data_info(), gb_tree()) -> gb_tree().
+-spec add_input(input_id(), data_info(), input_map()) -> input_map().
 add_input(InputId, DInfo, DataMap) ->
     gb_trees:enter(InputId, DInfo, DataMap).
 
--spec input_info(input_id(), gb_tree()) -> data_info().
+-spec input_info(input_id(), input_map()) -> data_info().
 input_info(InputId, DataMap) ->
     gb_trees:get(InputId, DataMap).
 
--spec update_input_info(input_id(), data_info(), gb_tree()) -> gb_tree().
+-spec update_input_info(input_id(), data_info(), input_map()) -> input_map().
 update_input_info(InputId, DInfo, DataMap) ->
     gb_trees:enter(InputId, DInfo, DataMap).
 
--spec task_inputs([input_id()], gb_tree()) -> [{input_id(), data_input()}].
+-spec task_inputs([input_id()], input_map()) -> [{input_id(), data_input()}].
 task_inputs(InputIds, DataMap) ->
     [{Id, (gb_trees:get(Id, DataMap))#data_info.source} || Id <- InputIds].
 
@@ -129,7 +179,7 @@ find_usable_input_hosts(#data_info{failures = Failures}) ->
 % Input regeneration and task re-run utilities.
 
 % Find the inputs that are local to the specified list of hosts.
--spec local_inputs([input_id()], gb_set(), gb_tree()) -> [input_id()].
+-spec local_inputs([input_id()], disco_gbset(host()), input_map()) -> [input_id()].
 local_inputs(InputIds, Hosts, DataMap) ->
     local_inputs(InputIds, Hosts, DataMap, []).
 local_inputs([], _Hosts, _DataMap, Acc) ->
@@ -193,8 +243,8 @@ local_inputs([Id | Rest], Hosts, DataMap, Acc) ->
 % already waiting or running, we don't recurse to its input generating
 % tasks.
 
--spec collect_stagewise(task_id(), gb_tree(), gb_tree(), gb_tree(), gb_set())
-                       -> {gb_set(), gb_tree()}.
+-spec collect_stagewise(task_id(), task_map(), stage_map(), input_map(), disco_gbset(host()))
+                    -> {disco_gbset(host()), task_map()}.
 collect_stagewise(TaskId, Tasks, SI, DataMap, FHosts) ->
     collect_stagewise(gb_sets:from_list([TaskId]),  % Cur stage
                       gb_sets:empty(),              % Prev stage
@@ -269,8 +319,8 @@ collect_task(TaskId, CurStage, PrevStage, Frontier, Tasks, SI, DataMap, FHosts) 
 % This removes the completed task as a dependency from a set of
 % waiters, and returns the set of tasks that are now runnable since
 % they have no more dependencies, and the updated task set.
--spec wakeup_waiters(task_id(), [task_id()], gb_tree())
-                    -> {[task_id()], gb_tree()}.
+-spec wakeup_waiters(task_id(), [task_id()], task_map())
+                    -> {[task_id()], task_map()}.
 wakeup_waiters(TaskId, Waiters, Tasks) ->
     lists:foldl(
       fun(WId, {Runnable, Tsks}) ->

@@ -51,7 +51,7 @@ class Worker(worker.Worker):
 
                      .. deprecated:: 0.4
                                 *map_init* has not been needed ever since
-                                :func:`InputStreams <disco.worker.task_io.InputStream>`
+                                :class:`disco.worker.task_io.InputStream`s
                                 were introduced.
                                 Use *map_input_stream* and/or *map_reader* instead.
 
@@ -103,7 +103,7 @@ class Worker(worker.Worker):
 
                         .. deprecated:: 0.4
                                 *reduce_init* has not been needed ever since
-                                :func:`InputStreams <disco.worker.task_io.InputStream>`
+                                :class:`disco.worker.task_io.InputStream`s
                                 were introduced.
                                 Use *reduce_input_stream* and/or *reduce_reader* instead.
 
@@ -131,11 +131,6 @@ class Worker(worker.Worker):
                           Default is :func:`disco.worker.task_io.chain_reader`.
 
                           .. versionadded:: 0.2
-
-    :type  merge_partitions: bool
-    :param merge_partitions: whether or not to merge partitioned inputs during reduce.
-
-                             Default is ``False``.
 
     :type  partition: :func:`disco.worker.classic.func.partition`
     :param partition: decides how the map output is distributed to reduce.
@@ -211,7 +206,6 @@ class Worker(worker.Worker):
                                                disco_output_stream),
                          'map_shuffle': None,
                          'combiner': None,
-                         'merge_partitions': False, # XXX: maybe deprecated
                          'partition': default_partition,
                          'partitions': 1,
                          'reduce': None,
@@ -255,9 +249,6 @@ class Worker(worker.Worker):
         :type  scheduler: dict
         :param scheduler: directly sets :attr:`jobdict.scheduler`.
 
-                          .. deprecated:: 0.5
-                                  *scheduler* params are now ignored.
-
         Uses :meth:`getitem` to resolve the values of parameters.
 
         :return: the :term:`job dict`.
@@ -293,17 +284,13 @@ class Worker(worker.Worker):
             # no map, without partitions can only have 1 reduce
             nr_reduces = 1
 
-        if get('merge_partitions'):
-            nr_reduces = 1
-
         jobdict = super(Worker, self).jobdict(job, **jobargs)
         jobdict.update({'input': input,
                         'worker': self.bin,
                         'map?': has_map,
                         'reduce?': has_reduce,
                         'nr_reduces': nr_reduces,
-                        'save_results': has_save_results,
-                        'scheduler': get('scheduler', {})})
+                        'save_results': has_save_results})
         return jobdict
 
     def jobzip(self, job, **jobargs):
@@ -391,7 +378,7 @@ class Worker(worker.Worker):
         from disco.util import inputlist, ispartitioned, shuffled
         inputs = [[url for rid, url in i.replicas] for i in self.get_inputs()]
         label = None
-        if ispartitioned(inputs) and not self['merge_partitions']:
+        if ispartitioned(inputs):
             label = task.group_label
         return self.sort(SerialInput(shuffled(inputlist(inputs, label=label)),
                                      task=task,

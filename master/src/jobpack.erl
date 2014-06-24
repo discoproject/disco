@@ -18,6 +18,7 @@
 -define(VERSION_2, 16#0002).
 -define(HEADER_SIZE, 128).
 -define(COPY_BUFFER_SIZE, 1048576).
+-define(DEFAULT_MAX_CORE, 1 bsl 31).
 
 -type jobpack() :: binary().
 
@@ -33,19 +34,20 @@ grouping(G) ->
     throw({error, disco:format("invalid grouping '~p'", [G])}).
 
 % Lookup utilities.
+-type job_dict() :: disco_dict(binary(), term()).
 
--spec dict({struct, [{term(), term()}]}) -> dict().
+-spec dict({struct, [{term(), term()}]}) -> job_dict().
 dict({struct, List}) ->
     dict:from_list(List).
 
--spec find(binary(), dict()) -> term().
+-spec find(binary(), job_dict()) -> term().
 find(Key, Dict) ->
     case dict:find(Key, Dict) of
         {ok, Field} -> Field;
         error -> throw({error, disco:format("jobpack missing key '~s'", [Key])})
     end.
 
--spec find(binary(), dict(), T) -> T.
+-spec find(binary(), job_dict(), T) -> T.
 find(Key, Dict, Default) ->
     case dict:find(Key, Dict) of
         {ok, Field} -> Field;
@@ -61,7 +63,7 @@ jobinfo(JobPack) ->
     VersionInfo = version_info(Version, JobDict),
     {Prefix, fixup_versions(JobInfo, VersionInfo)}.
 
--spec jobdict(jobpack()) -> {non_neg_integer(), dict()}.
+-spec jobdict(jobpack()) -> {non_neg_integer(), job_dict()}.
 jobdict(<<?MAGIC:16/big,
           Version:16/big,
           JobDictOffset:32/big,
@@ -71,7 +73,7 @@ jobdict(<<?MAGIC:16/big,
     <<_:JobDictOffset/bytes, JobDict:JobDictLength/bytes, _/binary>> = JobPack,
     {Version, dict(mochijson2:decode(JobDict))}.
 
--spec core_jobinfo(jobpack(), dict()) -> {jobname(), jobinfo()}.
+-spec core_jobinfo(jobpack(), job_dict()) -> {jobname(), jobinfo()}.
 core_jobinfo(JobPack, JobDict) ->
     Prefix  = find(<<"prefix">>, JobDict),
     SaveResults = find(<<"save_results">>, JobDict, false),
@@ -116,24 +118,26 @@ jobzip(<<?MAGIC:16/big,
                     nr_reduce :: non_neg_integer(),
                     map    :: boolean(),
                     reduce :: boolean()}).
--record(ver2_info, {pipeline     = []    :: pipeline(),
-                    schedule     = none  :: task_schedule(),
-                    inputs       = []    :: [data_input()]}).
+-record(ver2_info, {pipeline     = []                :: pipeline(),
+                    schedule     = #task_schedule{}  :: task_schedule(),
+                    inputs       = []                :: [data_input()]}).
 
--spec version_info(non_neg_integer(), dict()) -> #ver1_info{} | #ver2_info{}.
+-spec version_info(non_neg_integer(), job_dict()) -> #ver1_info{} | #ver2_info{}.
 version_info(?VERSION_1, JobDict) ->
     Scheduler = dict(find(<<"scheduler">>, JobDict)),
     #ver1_info{inputs = find(<<"input">>, JobDict),
                map    = find(<<"map?">>, JobDict, false),
                reduce = find(<<"reduce?">>, JobDict, false),
                nr_reduce = find(<<"nr_reduces">>, JobDict),
-               max_cores = find(<<"max_cores">>, Scheduler, 1 bsl 31),
+               max_cores = find(<<"max_cores">>, Scheduler, ?DEFAULT_MAX_CORE),
                force_local  = find(<<"force_local">>, Scheduler, false),
                force_remote = find(<<"force_remote">>, Scheduler, false)};
 version_info(?VERSION_2, JobDict) ->
     Pipeline = find(<<"pipeline">>, JobDict),
     Inputs   = find(<<"inputs">>, JobDict),
-    #ver2_info{schedule = none,  % No scheduling options supported for now.
+    Scheduler = dict(find(<<"scheduler">>, JobDict)),
+    Max = find(<<"max_cores">>, Scheduler, ?DEFAULT_MAX_CORE),
+    #ver2_info{schedule = #task_schedule{max_cores = Max},
                pipeline = validate_pipeline(Pipeline),
                inputs   = validate_inputs(Inputs)};
 version_info(V, _JobDict) ->
@@ -184,7 +188,7 @@ validate_prefix(Prefix) ->
 
 -spec validate_pipeline(list()) -> pipeline().
 validate_pipeline(P) ->
-    Spec = {hom_array, {array, [string, string]}},
+    Spec = {hom_array, {array, [string, string, boolean]}},
     case json_validator:validate(Spec, P) of
         {error, E} ->
             Msg = disco:format("Invalid job pipeline: ~s",
@@ -198,7 +202,7 @@ validate_pipeline(P) ->
                 true  -> throw({error, repeated_pipeline_stages});
                 false -> ok
             end,
-            [{S, grouping(G)} || [S | [G | _]] <- P]
+            [{S, grouping(G), Concurrent} || [S | [G | [Concurrent]]] <- P]
     end.
 
 -spec validate_inputs(list()) -> [data_input()].
@@ -376,26 +380,29 @@ input_replicas1(Reps) when is_list(Reps) ->
 pipeline1(false, false, _NR) ->
     [];
 pipeline1(false, true, 1) ->
-    [{?REDUCE, group_all}];
+    [{?REDUCE, group_all, false}];
 pipeline1(false, true, _NR) ->
     % This is used to support reduce-only jobs with partitioned
     % inputs from dir:// files.
-    [{?REDUCE, group_label}, {?REDUCE_SHUFFLE, group_node}];
+    [{?REDUCE, group_label, false}, {?REDUCE_SHUFFLE, group_node, false}];
 pipeline1(true, false, _NR) ->
-    [{?MAP, split}, {?MAP_SHUFFLE, group_node}];
+    [{?MAP, split, false}, {?MAP_SHUFFLE, group_node, false}];
 pipeline1(true, true, 1) ->
-    [{?MAP, split}, {?MAP_SHUFFLE, group_node}, {?REDUCE, group_all}];
+    [{?MAP, split, false},
+     {?MAP_SHUFFLE, group_node, false},
+     {?REDUCE, group_all, false}];
 pipeline1(true, true, _NR) ->
     % This was used to support a pre-determined number of partitions
     % in map output, which determined the number of reduces.  However,
     % we now determine the number of reduces dynamically.
-    [{?MAP, split}, {?MAP_SHUFFLE, group_node},
-     {?REDUCE, group_label}, {?REDUCE_SHUFFLE, group_node}].
+    [{?MAP, split, false}, {?MAP_SHUFFLE, group_node, false},
+     {?REDUCE, group_label, false}, {?REDUCE_SHUFFLE, group_node, false}].
 
 -spec schedule_option1(#ver1_info{}) -> task_schedule().
-schedule_option1(#ver1_info{force_local = Local, force_remote = Remote}) ->
-    schedule_option1(Local, Remote).
+schedule_option1(#ver1_info{force_local = Local, force_remote = Remote, max_cores = Max}) ->
+    S = schedule_option1(Local, Remote),
+    S#task_schedule{max_cores = Max}.
 % Prefer Local if both Local and Remote are set.
-schedule_option1(true, _) -> local;
-schedule_option1(_, true) -> remote;
-schedule_option1(_, _)    -> none.
+schedule_option1(true, _) -> #task_schedule{locality = local};
+schedule_option1(_, true) -> #task_schedule{locality = remote};
+schedule_option1(_, _)    -> #task_schedule{}.

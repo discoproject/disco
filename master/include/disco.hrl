@@ -15,7 +15,8 @@
 % types used for local-cluster mode
 
 %                          {NextPort, {host() -> {GetPort, PutPort}}}.
--type port_map() :: none | {non_neg_integer(), gb_tree()}.
+-type port_map() :: none |
+                {non_neg_integer(), disco_gbtree(host(), {non_neg_integer(), non_neg_integer()})}.
 
 -record(node_ports, {get_port :: non_neg_integer(),
                      put_port :: non_neg_integer()}).

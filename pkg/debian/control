@@ -1,10 +1,10 @@
 Source: disco
 Section: admin
 Priority: extra
-Maintainer: Prashanth Mundkur <prashanth.mundkur@nokia.com>
-Build-Depends: debhelper (>= 7), erlang-dev (>= 1:14.a-dfsg1), python-all-dev (>= 2.6), libcmph-dev (>= 0.9), python3-all-dev (>= 3.2)
+Maintainer: Shayan Pooya <shayan@liveve.org>
+Build-Depends: debhelper (>= 7), erlang-dev (>= 1:14.a-dfsg1), python3 (>= 3.2)
 Standards-Version: 3.9.3
-X-Python-Version: >= 2.6
+X-Python-Version: >= 2.7
 X-Python3-Version: >= 3.2
 Vcs-Browser: https://github.com/discoproject/disco
 Vcs-Git: git://github.com/discoproject/disco.git
@@ -31,7 +31,7 @@ Description: Disco node
 Package: python-disco
 Architecture: all
 Section: python
-Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.6)
+Depends: ${misc:Depends}, ${python:Depends}, python (>= 2.7)
 Recommends: python-pycurl
 Description: Disco client
  This is Disco client for Python2.
@@ -42,10 +42,3 @@ Section: python
 Depends: ${misc:Depends}, ${python3:Depends}, python3 (>= 3.2)
 Description: Disco client
  This is Disco client for Python3.
-
-Package: python-discodb
-Architecture: any
-Section: python
-Depends: ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}, python (>= 2.6), libcmph0 (>= 0.9)
-Description: DiscoDB
- This is DiscoDB.

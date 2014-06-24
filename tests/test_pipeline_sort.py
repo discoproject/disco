@@ -19,6 +19,7 @@ def Reduce(interface, state, label, inp):
         out.add((base64.decodestring(k)), len(list(vs)))
 
 class SortJob(TestPipe):
+    scheduler = {'max_cores': 7}
     pipeline = [("split", Stage("Map", process=Map)),
                 ("group_label", Stage("Reduce", process=Reduce, combine=True, sort=True))]
 

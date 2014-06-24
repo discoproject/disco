@@ -369,4 +369,4 @@ def disk_sort(worker, input, filename, sort_buffer_size='10%'):
         worker.send('MSG', ("Finished sorting"))
     fd = open_local(filename)
     for k, v in sort_reader(fd, fd.url):
-        yield k, bytes_to_str(decode(str_to_bytes(pickle_loads(v))))
+        yield k, pickle_loads(decode(v))

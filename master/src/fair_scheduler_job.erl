@@ -95,14 +95,17 @@ schedule(Mode, Job, Jobs, AvailableNodes) ->
 %% ===================================================================
 %% gen_server callbacks
 
+-type pid_map() :: disco_gbtree(pid(), host()).
+% url_host() -> {#queued, #run, [task()]}
+-type task_map() :: disco_gbtree(url_host(), {non_neg_integer(),
+                                              non_neg_integer(), [task()]}).
+-type host_set() :: disco_gbset(url_host()).
+
 -record(state, {job_name    :: jobname(),
                 job_coord   :: pid(),
-                % url_host() -> {#queued, #run, [task()]}
-                host_queue = gb_trees:empty() :: gb_tree(),
-                % pid() -> host()
-                running    = gb_trees:empty() :: gb_tree(),
-                % [host()]
-                cluster    = gb_sets:empty() :: gb_set()}).
+                host_queue = gb_trees:empty() :: task_map(),
+                running    = gb_trees:empty() :: pid_map(),
+                cluster    = gb_sets:empty() :: host_set()}).
 -type state() :: #state{}.
 
 -spec init({jobname(), pid()}) -> gs_init() | {stop, normal}.
@@ -139,7 +142,7 @@ handle_cast({update_nodes, NewNodes},
 
 % Add a new task to the list of running tasks (for the fairness
 % fairy).
-handle_cast({task_started, Node, Worker}, #state{running = Running} = S) ->
+handle_cast({task_started, Node, Worker}, #state{running   = Running} = S) ->
     erlang:monitor(process, Worker),
     NewRunning = gb_trees:insert(Worker, Node, Running),
     {noreply, S#state{running = NewRunning}};
@@ -219,7 +222,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% ===================================================================
 %% Internal utilities.
--spec get_default(node(), gb_tree(), T) -> T.
+-spec get_default(node(), disco_gbtree(node(), T), T) -> T.
 get_default(Key, Tree, Default) ->
     case gb_trees:lookup(Key, Tree) of
         none -> Default;
@@ -241,7 +244,7 @@ all_empty_nodes([Job|Jobs], AvailableNodes) ->
             all_empty_nodes(Jobs, AvailableNodes)
     end.
 
--spec schedule_local(gb_tree(), [node()]) -> {schedule_result(), gb_tree()}.
+-spec schedule_local(task_map(), [node()]) -> {schedule_result(), task_map()}.
 schedule_local(Tasks, AvailableNodes) ->
     % Does the job have any local tasks to be run on AvailableNodes?
     case datalocal_nodes(Tasks, AvailableNodes) of
@@ -267,8 +270,8 @@ schedule_local(Tasks, AvailableNodes) ->
             {{run, Node, Task}, gb_trees:update(Node, {N - 1, C, R}, Tasks)}
     end.
 
--spec pop_and_switch_node(gb_tree(), [none|host()], [host()])
-                         -> {schedule_result(), gb_tree()}.
+-spec pop_and_switch_node(task_map(), [none|host()], [host()])
+                         -> {schedule_result(), task_map()}.
 pop_and_switch_node(Tasks, _, []) -> {nonodes, Tasks};
 pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
     case pop_busiest_node(Tasks, Nodes) of
@@ -290,7 +293,7 @@ pop_and_switch_node(Tasks, Nodes, AvailableNodes) ->
 
 % pop_busiest_node defines the policy for choosing the next task from a chosen
 % set of Nodes. Pick the task from the longest list.
--spec pop_busiest_node(gb_tree(), [host()]) -> {schedule_result(), gb_tree()}.
+-spec pop_busiest_node(task_map(), [host()]) -> {schedule_result(), task_map()}.
 pop_busiest_node(Tasks, []) -> {nonodes, Tasks};
 pop_busiest_node(Tasks, Nodes) ->
     {{N, C, [Task|R]}, MaxNode} = lists:max([{gb_trees:get(Node, Tasks), Node}
@@ -314,7 +317,7 @@ choose_host({#task_spec{}, #task_run{host = Host}}, AvailableHosts) ->
     end.
 
 % Pop the first task in Nodes that can be run
--spec pop_suitable(gb_tree(), [host()], [host()]) -> {schedule_result(), gb_tree()}.
+-spec pop_suitable(task_map(), [host()], [host()]) -> {schedule_result(), task_map()}.
 pop_suitable(Tasks, Nodes, AvailableNodes) ->
     case find_suitable([], none, Nodes, Tasks, AvailableNodes) of
         false -> {nonodes, Tasks};
@@ -326,7 +329,7 @@ pop_suitable(Tasks, Nodes, AvailableNodes) ->
 
 % Find first task from any node in Nodes that can be run,
 % i.e. choose_node() =/= false
--spec find_suitable([task()], none|host(), [host()], gb_tree(), [host()]) ->
+-spec find_suitable([task()], none|host(), [host()], task_map(), [host()]) ->
     {ok, task(), host(), host()} | false.
 find_suitable([], _, [], _, _) -> false;
 find_suitable([], _, [Node|R], Tasks, AvailableNodes) ->
@@ -339,16 +342,16 @@ find_suitable([T|R], Node, RestNodes, Tasks, AvailableNodes) ->
     end.
 
 % return nodes that don't have any local tasks assigned to them
--spec empty_nodes(gb_tree(), [host()]) -> [host()].
+-spec empty_nodes(task_map(), [host()]) -> [host()].
 empty_nodes(Tasks, AvailableNodes) ->
     filter_nodes(Tasks, AvailableNodes, false).
 
 % return nodes that have at least one local task assigned to them
--spec datalocal_nodes(gb_tree(), [host()]) -> [host()].
+-spec datalocal_nodes(task_map(), [host()]) -> [host()].
 datalocal_nodes(Tasks, AvailableNodes) ->
     filter_nodes(Tasks, AvailableNodes, true).
 
--spec filter_nodes(gb_tree(), [host()], boolean()) -> [host()].
+-spec filter_nodes(task_map(), [host()], boolean()) -> [host()].
 filter_nodes(Tasks, AvailableNodes, Local) ->
     [Node || Node <- AvailableNodes,
              case gb_trees:lookup(Node, Tasks) of
@@ -360,7 +363,7 @@ filter_nodes(Tasks, AvailableNodes, Local) ->
 %% ===================================================================
 %% Host assignment for a new runnable task.
 
--spec assign_task(pid(), task(), loadstats(), gb_tree(), gb_set()) -> gb_tree().
+-spec assign_task(pid(), task(), loadstats(), task_map(), host_set()) -> task_map().
 assign_task(JC, {#task_spec{taskid = TaskId}, #task_run{host = Host}} = T,
             _LoadStats, HQ, Cluster)
   when Host =/= none ->
@@ -404,7 +407,7 @@ assign_task(JC, {TS, #task_run{failed_hosts = Blacklist, input = Inputs} = TR} =
             gb_trees:enter(Host, {N + 1, Count + 1, [T|Tasks]}, HQ)
     end.
 
--spec best_host(gb_set(), [{input_id(), data_input()}]) -> url_host().
+-spec best_host(host_set(), [{input_id(), data_input()}]) -> url_host().
 best_host(HostCandidates, Inputs) ->
     ByLocality = lists:flatten([pipeline_utils:ranked_locations(I)
                                 || {_Id, I} <- Inputs]),
@@ -418,7 +421,7 @@ best_host(HostCandidates, Inputs) ->
 
 % The cluster topology might have changed, with new hosts appearing or
 % existing ones removed.
--spec reassign_tasks(pid(), gb_tree(), loadstats(), gb_set()) -> gb_tree().
+-spec reassign_tasks(pid(), task_map(), loadstats(), host_set()) -> task_map().
 reassign_tasks(JC, HQ, LoadStats, Cluster) ->
     {OHQ, NHQ} =
         lists:foldl(

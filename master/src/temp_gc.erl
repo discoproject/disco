@@ -55,7 +55,7 @@ ddfs_delete(Tag) ->
 get_purged() ->
     disco_server:get_purged(get(master)).
 
--spec process_dir(path(), [path()], gb_set(), gb_set()) -> ok.
+-spec process_dir(path(), [path()], disco_gbset(binary()), disco_gbset(jobname())) -> ok.
 process_dir(_DataRoot, [], _Purged, _Active) -> ok;
 process_dir(DataRoot, [Dir|R], Purged, Active) ->
     Path = filename:join(DataRoot, Dir),
@@ -64,7 +64,7 @@ process_dir(DataRoot, [Dir|R], Purged, Active) ->
          || Job <- Jobs, ifdead(Job, Active)],
     process_dir(DataRoot, R, Purged, Active).
 
--spec ifdead(jobname(), gb_set()) -> boolean().
+-spec ifdead(jobname(), disco_gbset(jobname())) -> boolean().
 ifdead(Job, Active) ->
     not gb_sets:is_member(Job, Active).
 
@@ -79,7 +79,7 @@ purge_job(Job, JobPath) ->
     _ = os:cmd("rm -Rf " ++ JobPath),
     ok.
 
--spec process_job(path(), gb_set()) -> ok.
+-spec process_job(path(), disco_gbset(binary())) -> ok.
 process_job(JobPath, Purged) ->
     case prim_file:read_file_info(JobPath) of
         {ok, #file_info{type = directory, mtime = TStamp}} ->

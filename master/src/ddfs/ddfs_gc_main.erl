@@ -195,22 +195,31 @@
 
 -define(NODE_RETRY_WAIT, 30000).
 
+-type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -type rr_next() :: object_name().
+
+-type node_map() :: disco_gbtree(node(), {pid(), non_neg_integer()}).
+-type tag_set() :: disco_gbset(tagname()).
+
 -record(state, {
           % dynamic state
           deleted_ages                :: ets:tab(),
           phase    = start            :: phase(),
-          gc_peers = gb_trees:empty() :: gb_tree(),
+          gc_peers = gb_trees:empty() :: node_map(),
 
           last_response_time = now()          :: erlang:timestamp(),
           progress_timer    = undefined       :: 'undefined' | timer:tref(),
           gc_stats          = init_gc_stats() :: gc_run_stats(),
 
           num_pending_reqs  = 0               :: non_neg_integer(),       % build_map/map_wait
-          pending_nodes     = gb_sets:empty() :: gb_set(),                % gc
+          pending_nodes     = gb_sets:empty() :: disco_gbset(node()),     % gc
           rr_reqs           = 0               :: non_neg_integer(),       % rr_blobs
           rr_pid            = undefined       :: 'undefined' | pid(),     % rr_blobs
-          safe_blacklist    = gb_sets:empty() :: gb_set(),                % rr_tags
+          safe_blacklist    = gb_sets:empty() :: tag_set(),  % rr_tags
+          nodestats         = []              :: [node_info()],
+          overused_nodes    = []              :: [node()],
+          underused_nodes   = []              :: [node()],
+          most_overused_node = undefined      :: 'undefined' | node(),
 
           % static state
           tags              = []      :: [object_name()],
@@ -342,9 +351,13 @@ handle_cast(start, #state{phase = start} = S) ->
 
 handle_cast({retry_node, Node},
             #state{phase = Phase, gc_peers = GCPeers,
-                   num_pending_reqs = NumPendingReqs} = S) ->
+                   num_pending_reqs = NumPendingReqs, most_overused_node = Overused} = S) ->
     lager:info("GC: retrying connection to ~p (in phase ~p)", [Node, Phase]),
-    Pid = ddfs_gc_node:start_gc_node(Node, self(), now(), Phase),
+    Mode = case Node of
+                Overused -> overused;
+                _ ->        normal
+           end,
+    Pid = ddfs_gc_node:start_gc_node(Node, self(), now(), Phase, Mode),
     Peers = update_peer(GCPeers, Node, Pid),
     case Phase of
         P when P =:= build_map; P =:= map_wait ->
@@ -407,15 +420,23 @@ handle_cast({build_map, []}, #state{phase = build_map} = S) ->
          end,
     {noreply, S1};
 
-handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
+handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
                                                gc_stats = Stats,
                                                pending_nodes = Pending,
                                                deleted_ages = DeletedAges,
                                                rr_reqs = RReqs,
-                                               tags = Tags} = S) ->
-    print_gc_stats(Node, NodeStats),
-    NewStats = add_gc_stats(Stats, NodeStats),
+                                               nodestats = NS,
+                                               tags = Tags,
+                                               blacklist = BL} = S) ->
+    print_gc_stats(Node, GCNodeStats),
+    NewStats = add_gc_stats(Stats, GCNodeStats),
     NewPending = gb_sets:delete(Node, Pending),
+    NewNS = case lists:member(Node, BL) of
+                true ->
+                    NS;
+                false ->
+                    update_nodestats(Node, GCNodeStats, NS)
+            end,
     S1 = case gb_sets:size(NewPending) of
              0 ->
                  % This was the last node we were waiting for to
@@ -427,6 +448,17 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  % Update stats.
                  print_gc_stats(all, NewStats),
                  ddfs_master:update_gc_stats(NewStats),
+                 {_, _} = find_unstable_nodes(NewNS), % print the current stats.
+                 FutureNS = estimate_rr_blobs(S#state{nodestats = NewNS}),
+                 {NewUnderused , NewOverused} = find_unstable_nodes(FutureNS),
+                 ok = case disco:has_setting("DDFS_SPACE_AWARE") of
+                     false -> ok;
+                     true  ->
+                         case NewOverused of
+                             [] -> ok;
+                             _  -> rebalance(NewOverused, BL, FutureNS)
+                         end
+                 end,
 
                  lager:info("GC: entering rr_blobs phase"),
                  % Start the replicator process which will
@@ -435,10 +467,14 @@ handle_cast({gc_done, Node, NodeStats}, #state{phase = gc,
                  Sr = S#state{rr_pid = start_replicator(self())},
                  Start = ets:first(gc_blobs),
                  Reqs = rereplicate_blob(Sr, Start),
-                 Sr#state{phase = rr_blobs, rr_reqs = RReqs + Reqs};
+                 Sr#state{phase = rr_blobs,
+                          rr_reqs = RReqs + Reqs,
+                          nodestats = FutureNS,
+                          underused_nodes = NewUnderused,
+                          overused_nodes = NewOverused};
              Remaining ->
                  lager:info("GC: ~p nodes pending in gc", [Remaining]),
-                 S
+                 S#state{nodestats = NewNS}
          end,
     {noreply, S1#state{pending_nodes = NewPending,
                        gc_stats = NewStats,
@@ -482,9 +518,22 @@ handle_cast({rr_tags, [], Count}, #state{phase = rr_tags, gc_peers = Peers,
 
 -type check_blob_result_msg() :: {check_blob_result, local_object(),
                                   check_blob_result()}.
--spec handle_info(check_blob_result_msg() | check_progress
+-spec handle_info({diskinfo, node(), diskinfo()}
+                  | check_blob_result_msg() | check_progress
                   | {'EXIT', pid(), term()} | {reference(), term()},
                   state()) -> gs_noreply() | gs_stop(shutdown).
+
+handle_info({diskinfo, Node, {Free, Used}},
+            #state{nodestats = NodeStats, blacklist = BL} = S) ->
+    lager:info("GC: disk information for ~p (free: ~p bytes, used: ~p bytes)",
+               [Node, Free, Used]),
+    case lists:member(Node, BL) of
+        true ->
+            {noreply, S};
+        false ->
+            {noreply, S#state{nodestats = lists:keystore(Node, 1, NodeStats,
+                                                         {Node, {Free, Used}})}}
+    end;
 
 handle_info({check_blob_result, LocalObj, Status},
             #state{phase = Phase, num_pending_reqs = NumPendingReqs} = S)
@@ -589,22 +638,22 @@ schedule_retry(Node) ->
               end),
     ok.
 
--spec start_gc_peers([node()], pid(), erlang:timestamp(), phase()) -> gb_tree().
+-spec start_gc_peers([node()], pid(), erlang:timestamp(), phase()) -> node_map().
 start_gc_peers(Nodes, Self, Now, Phase) ->
     lists:foldl(
       fun(N, Peers) ->
-              Pid = ddfs_gc_node:start_gc_node(N, Self, Now, Phase),
+              Pid = ddfs_gc_node:start_gc_node(N, Self, Now, Phase, normal),
               gb_trees:insert(N, {Pid, 0}, Peers)
       end, gb_trees:empty(), Nodes).
 
--spec find_peer(gb_tree(), node()) -> pid() | 'undefined'.
+-spec find_peer(node_map(), node()) -> pid() | 'undefined'.
 find_peer(Peers, Node) ->
     case gb_trees:lookup(Node, Peers) of
         none -> undefined;
         {value, {Pid, _}} -> Pid
     end.
 
--spec find_node(gb_tree(), pid()) -> {node(), non_neg_integer()} | 'undefined'.
+-spec find_node(node_map(), pid()) -> {node(), non_neg_integer()} | 'undefined'.
 find_node(Peers, Pid) ->
     Iter = gb_trees:iterator(Peers),
     Looper = fun(I, Loop) ->
@@ -616,7 +665,7 @@ find_node(Peers, Pid) ->
            end,
     Looper(Iter, Looper).
 
--spec update_peer(gb_tree(), node(), pid()) -> gb_tree().
+-spec update_peer(node_map(), node(), pid()) -> node_map().
 update_peer(Peers, Node, Pid) ->
     {_OldPid, Failures} = gb_trees:get(Node, Peers),
     gb_trees:enter(Node, {Pid, Failures+1}, Peers).
@@ -630,7 +679,7 @@ resend_pending(Node, Pid) ->
     length(Objects).
 
 
--spec node_broadcast(gb_tree(), protocol_msg()) -> ok.
+-spec node_broadcast(node_map(), protocol_msg()) -> ok.
 node_broadcast(Peers, Msg) ->
     lists:foreach(fun({Pid, _}) ->
                           node_send(Pid, Msg)
@@ -762,54 +811,193 @@ check_blob_result(LocalObj, Status) ->
 %% gc phase and replica recovery
 
 -spec start_gc_phase(state()) -> state().
-start_gc_phase(#state{gc_peers = Peers} = S) ->
+start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     % We are done with building the in-use map.  Now, we need to
     % collect the nodes that host a replica of each known in-use blob,
     % and also add the nodes that host any recovered replicas.  We
     % store this in a new ETS, gc_blobs, which will store for each
-    % blob, (a) the known locations, (b) any recovered locations,
-    % and (c) for each blob, any new replicated locations.
+    % blob,
+    % (1) key: the blob name,
+    % (2) the known locations,
+    % (3) Recovered locations,
+    % (4) New replica locations,
+    % (5) Size of the blob in kilobytes
+    % (6) rebalance | norebalance
+    % (7) nodes that do not host the blob, but received a request about it
 
     % gc_blobs: {Key :: object_name(),
     %            Present :: [object_location()],
     %            Recovered :: [object_location()],
-    %            Update :: rep_update()}
+    %            Update :: rep_update(),
+    %            Size :: 'undefined' | non_neg_integer(),
+    %            Rebalance :: rebalance(),
+    %            Update_missing :: [node()]}
     _ = ets:new(gc_blobs, [named_table, set, private]),
 
     _ = ets:foldl(
           % There is no clause for the 'pending' status, so that we
           % can assert if we start gc with any still-pending entries.
-          fun({{BlobName, Node}, {true, Vol}}, _) ->
+          fun({{BlobName, Node}, {true, Vol, Size}}, _) ->
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {BlobName, [{Node, Vol}], [], noupdate},
+                          SizeKB = trunc(Size / ?KB),
+                          Entry = {BlobName, [{Node, Vol}], [],
+                                   noupdate, SizeKB, norebalance, []},
                           ets:insert(gc_blobs, Entry);
-                      [{_, Present, _, _}] ->
+                      [{_, Present, _, _, _, _, _}] ->
                           Acc = [{Node, Vol} | Present],
                           ets:update_element(gc_blobs, BlobName, {2, Acc})
                   end;
-             ({{BlobName, _Node}, Status}, _)
-                when Status =:= missing; Status =:= false ->
+             ({{BlobName, _Node}, missing}, _) ->
                   % Create an entry for missing blobs.  This allows
                   % us to recover them from other nodes if present
                   % (e.g. after hostname changes).
                   case ets:lookup(gc_blobs, BlobName) of
                       [] ->
-                          Entry = {BlobName, [], [], noupdate},
+                          Entry = {BlobName, [], [], noupdate, undefined, norebalance, []},
                           ets:insert(gc_blobs, Entry);
-                      [{_, _, _, _}] ->
+                      [{_, _, _, _, _, _, _}] ->
                           true
+                  end;
+             ({{BlobName, Node}, false}, _) ->
+                  % Save node in the list of locations to be deleted
+                  % from tags containing references to this blob.
+                  case ets:lookup(gc_blobs, BlobName) of
+                      [] ->
+                          Entry = {BlobName, [], [], noupdate,
+                                   undefined, norebalance, [Node]},
+                          ets:insert(gc_blobs, Entry);
+                      [{_, _, _, _, _, _, Delete}] ->
+                          ets:update_element(gc_blobs, BlobName, {7, [Node | Delete]})
                   end
           end, true, gc_blob_map),
     ets:delete(gc_blob_map),
 
+    {UnderusedNodes, OverusedNodes} = find_unstable_nodes(NodeStats),
+    Utilization = [{N, ddfs_rebalance:utility(Node)} || {N, _} = Node <- NodeStats,
+        lists:member(N, OverusedNodes)],
+    MostOverused = case disco:has_setting("DDFS_SPACE_AWARE") of
+        false -> undefined;
+        true  ->
+            SortedUtilization = [N || {N, _} <- lists:reverse(lists:keysort(2, Utilization))],
+            case SortedUtilization of
+                [] -> undefined;
+                [N | _] -> N
+            end
+    end,
+
     lager:info("GC: entering gc phase"),
-    node_broadcast(Peers, start_gc),
+    OverusedPeer = find_peer(Peers, MostOverused),
+    NewPeers = case OverusedPeer of
+                   undefined ->
+                       Peers;
+                   _ ->
+                       node_send(OverusedPeer, {start_gc, overused}),
+                       gb_trees:delete(MostOverused, Peers)
+               end,
+    node_broadcast(NewPeers, {start_gc, normal}),
     % Update the last_response_time to indicate forward progress.
     S#state{num_pending_reqs  = 0,
             pending_nodes = gb_sets:from_list(gb_trees:keys(Peers)),
             phase = gc,
-            last_response_time = now()}.
+            last_response_time = now(),
+            overused_nodes = OverusedNodes,
+            underused_nodes = UnderusedNodes,
+            most_overused_node = MostOverused}.
+
+-spec update_nodestats(node(), gc_run_stats(), [node_info()]) -> [node_info()].
+update_nodestats(Node, {Tags, Blobs}, NodeStats) ->
+    {_, {_, DelTag}} = Tags,
+    {_, {_, DelBlob}} = Blobs,
+    {_, {Free, Used}} = lists:keyfind(Node, 1, NodeStats),
+    Deleted = trunc((DelTag + DelBlob) / ?KB),
+    lists:keystore(Node, 1, NodeStats, {Node, {Free + Deleted, Used - Deleted}}).
+
+-spec estimate_rr_blobs(state()) -> [node_info()].
+estimate_rr_blobs(#state{blacklist = BL, nodestats = NS, blobk = BlobK}) ->
+    ets:foldl(
+      fun({BlobName, Present, Recovered, _, Size, _, _}, NodeStats) ->
+              PresentNodes = [N || {N, _V} <- Present],
+              SafePresent = find_usable(BL, PresentNodes),
+              SafeRecovered = [N || {N, _V} <- Recovered, not lists:member(N, BL)],
+              case {length(SafePresent), length(SafeRecovered)} of
+                  {NumPresent, NumRecovered}
+                    when NumPresent + NumRecovered >= BlobK ->
+                      NodeStats;
+                  {0, 0}
+                    when Present =:= [], Recovered =:= [] ->
+                      NodeStats;
+                  {_NumPresent, _NumRecovered} ->
+                      ets:update_element(gc_blobs, BlobName, {4, {update, []}}),
+                      Exclude = SafeRecovered ++ PresentNodes,
+                      OtherNodes = [{N, S} || {N, S} <- NodeStats, not lists:member(N, Exclude)],
+                      case ddfs_rebalance:weighted_select_from_nodes(OtherNodes, 1) of
+                          error  ->
+                              lager:warning("Could not replicate ~s.", [BlobName]),
+                              NodeStats;
+                          [Node] ->
+                              {Node, {Free, Used}} = lists:keyfind(Node, 1,
+                                  NodeStats),
+                              case Size of
+                                  undefined -> NodeStats;
+                                  _ -> lists:keyreplace(Node, 1, NodeStats,
+                                          {Node, {Free - Size, Used + Size}})
+                              end
+                      end
+              end
+      end, NS, gc_blobs).
+
+-spec rebalance([node()], [node()], [node_info()]) -> ok.
+rebalance(Overused, BL, NodeStats) ->
+    % [{Node, {Total disk space, Bytes to replicate}}]
+    RebalanceStats = [{N, {F + U, 0}} || {N, {F, U}} <- NodeStats,
+                                         lists:member(N, Overused)],
+    Threshold = ddfs_rebalance:threshold(),
+    ets:foldl(
+      fun({BlobName, Present, Recovered, Update, Size, _, _}, Stats) ->
+              PresentNodes = [N || {N, _V} <- Present],
+              SafePresent = find_usable(BL, PresentNodes),
+              SafeRecovered = [N || {N, _V} <- Recovered, not lists:member(N, BL)],
+              OverusedPresent = [N || N <- SafePresent ++ SafeRecovered,
+                                      lists:member(N, Overused)],
+              case {Update, length(OverusedPresent)} of
+                  {noupdate, NumPresent}
+                    when NumPresent > 0 ->
+                      % The blob is present on an over-utilized node and not already
+                      % marked for rereplication due to insuffcient number of replicas.
+                      % Possibly mark the blob for replication to balance the cluster.
+                      PresentStats = [{N, S} || {N, S} <- Stats,
+                                                lists:member(N, OverusedPresent)],
+                      [{N, {DiskSpace, Balanced}} | _] =
+                          lists:sort(
+
+                            fun({_, {DS1, B1}}, {_, {DS2, B2}}) ->
+                                    ddfs_rebalance:less(B1, DS1, B2, DS2)
+                            end, PresentStats),
+                          case ddfs_rebalance:is_balanced(Balanced, DiskSpace, Threshold) of
+                          true ->
+                              % The node has passed the threshold for how much of
+                              % its diskspace that can be selected to replicate 
+                              % for balancing.
+                              Stats;
+                          false ->
+                              % The blob is present on an over-utilized node which
+                              % has not passed the rebalancing threshold. Mark the
+                              % blob for replication to balance the cluster and
+                              % update the stats.
+                              case Size of
+                                  undefined -> Stats;
+                                  _ ->
+                                      ets:update_element(gc_blobs, BlobName, {6, rebalance}),
+                                      lists:keyreplace(N, 1, Stats,
+                                                       {N, {DiskSpace, Balanced + Size}})
+                              end
+                      end;
+                  {_, _} ->
+                      Stats
+              end
+      end, RebalanceStats, gc_blobs),
+  ok.
 
 -spec check_is_orphan(state(), object_type(), object_name(), node(), volume_name())
                      -> {ok, boolean() | unknown}.
@@ -829,8 +1017,8 @@ check_is_orphan(_S, tag, Tag, _Node, _Vol) ->
             % This is a current or newer incarnation.
             {ok, false}
     end;
-check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
-                blob, BlobName, Node, Vol) ->
+check_is_orphan(#state{blobk = BlobK, blacklist = BlackList,
+                most_overused_node = MostOverused}, blob, BlobName, Node, Vol) ->
     MaxReps = BlobK + ?NUM_EXTRA_REPLICAS,
     % The gc mark/in-use protocol is resumable, but the node loses its
     % in-use knowledge when it goes down.  On reconnect, it might
@@ -843,19 +1031,20 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
             % have been newly created.  Mark it as unknown, but the
             % node will not delete it if it is recent.
             {ok, unknown};
-        [{_, Present, Recovered, _}] ->
+        [{_, Present, Recovered, _, _, _, _}] ->
             PresentNodes = [N || {N, _V} <- Present],
             case {lists:member(Node, PresentNodes),
-                  lists:member({Node, Vol}, Recovered)} of
-                {true, _} ->
+                  lists:member({Node, Vol}, Recovered),
+                  Node =:= MostOverused} of
+                {true, _, false} ->
                     % Re-check of an already marked blob.
                     {ok, false};
-                {_, true} ->
+                {_, true, false} ->
                     % Re-check of an already recovered blob.
                     {ok, false};
                 % Use a fast path for the normal case when there is no
                 % blacklist.
-                {false, false}
+                {false, false, false}
                   when BlackList =:= [],
                        length(Present) + length(Recovered) > MaxReps ->
                     % This is a newly recovered replica, but we have
@@ -864,7 +1053,7 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
                     lager:info("GC: discarding replica of ~p on ~p/~p",
                                [BlobName, Node, Vol]),
                     {ok, true};
-                {false, false}
+                {false, false, false}
                   when BlackList =:= [] ->
                     % This is a usable, newly-recovered, lost replica;
                     % record the volume for later use.
@@ -873,7 +1062,7 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
                     NewRecovered = [{Node, Vol} | Recovered],
                     ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
                     {ok, false};
-                {false, false} ->
+                {false, false, false} ->
                     {RepNodes, _RepVols} = lists:unzip(Recovered),
                     Usable = find_usable(BlackList, lists:usort(RepNodes ++ PresentNodes)),
                     case length(Usable) > MaxReps of
@@ -883,6 +1072,25 @@ check_is_orphan(#state{blobk = BlobK, blacklist = BlackList},
                             % Note that Node could belong to the blacklist; we
                             % still record the replica so that we can use it for
                             % re-replication if needed.
+                            lager:info("GC: recovering replica of ~p from ~p/~p",
+                                       [BlobName, Node, Vol]),
+                            NewRecovered = [{Node, Vol} | Recovered],
+                            ets:update_element(gc_blobs, BlobName, {3, NewRecovered}),
+                            {ok, false}
+                    end;
+                {IsPresent, IsRecovered, true} ->
+                    {RepNodes, _RepVols} = lists:unzip(Recovered),
+                    Usable = find_usable(BlackList, lists:usort(RepNodes ++ PresentNodes)),
+                    case {IsPresent orelse IsRecovered, length(Usable) > BlobK} of
+                        {_, true} ->
+                            % This blob can be deleted since it has more than BlobK
+                            % replicas and is located on the most over-utilized node.
+                            lager:info("GC: discarding replica of ~p on ~p/~p",
+                                       [BlobName, Node, Vol]),
+                            {ok, true};
+                        {true, false} ->
+                            {ok, false};
+                        {false, false} ->
                             lager:info("GC: recovering replica of ~p from ~p/~p",
                                        [BlobName, Node, Vol]),
                             NewRecovered = [{Node, Vol} | Recovered],
@@ -1009,8 +1217,8 @@ rereplicate_blob(_S, '$end_of_table' = End) ->
     gen_server:cast(self(), {rr_blob, End}),
     0;
 rereplicate_blob(S, BlobName) ->
-    [{_, Present, Recovered, _}] = ets:lookup(gc_blobs, BlobName),
-    {FinalReps, Reqs} = rereplicate_blob(S, BlobName, Present, Recovered, S#state.blobk),
+    [{_, Present, Recovered, _, _, Rebalance, _}] = ets:lookup(gc_blobs, BlobName),
+    {FinalReps, Reqs} = rereplicate_blob(S, BlobName, Present, Recovered, Rebalance, S#state.blobk),
     ets:update_element(gc_blobs, BlobName, {4, FinalReps}),
     Next = ets:next(gc_blobs, BlobName),
     gen_server:cast(self(), {rr_blob, Next}),
@@ -1019,30 +1227,30 @@ rereplicate_blob(S, BlobName) ->
 % RR1) Re-replicate blobs that don't have enough replicas
 
 -spec rereplicate_blob(state(), object_name(), [object_location()],
-                       [object_location()], non_neg_integer())
+                       [object_location()], rebalance(), non_neg_integer())
                       -> {rep_result(), non_neg_integer()}.
 rereplicate_blob(#state{blacklist = BL} = S,
-                 BlobName, Present, Recovered, Blobk) ->
+                 BlobName, Present, Recovered, Rebalance, Blobk) ->
     PresentNodes = [N || {N, _V} <- Present],
     SafePresent = find_usable(BL, PresentNodes),
     SafeRecovered = [{N, V} || {N, V} <- Recovered, not lists:member(N, BL)],
-    case {length(SafePresent), length(SafeRecovered)} of
-        {NumPresent, NumRecovered}
+    case {length(SafePresent), length(SafeRecovered), Rebalance} of
+        {NumPresent, NumRecovered, norebalance}
           when NumRecovered =:= 0, NumPresent >= Blobk ->
             % No need for replication or blob update.
             {noupdate, 0};
-        {NumPresent, NumRecovered}
+        {NumPresent, NumRecovered, norebalance}
           when NumRecovered > 0, NumPresent + NumRecovered >= Blobk ->
             % No need for new replication; containing tags need updating to
             % recover lost blob replicas.
             {{update, []}, 0};
-        {0, 0}
+        {0, 0, _}
           when Present =:= [], Recovered =:= [] ->
             % We have no good copies from which to generate new replicas;
             % we have no option but to live with the current information.
             lager:warning("GC: all replicas missing for ~p!!!", [BlobName]),
             {noupdate, 0};
-        {NumPresent, NumRecovered} ->
+        {NumPresent, NumRecovered, _} ->
             % Extra replicas are needed; we generate one new replica at a
             % time, in a single-shot way. We use any available replicas as
             % sources, including those from blacklisted nodes.
@@ -1082,6 +1290,8 @@ try_put_blob(#state{rr_pid = RR, gc_peers = Peers}, BlobName, OkNodes, BL) ->
             RealPutUrl = ddfs_util:cluster_url(PutUrl, put),
             RR ! {put_blob, BlobName, SrcPeer, SrcNode, RealPutUrl},
             pending;
+        {ok, []} ->
+            {error, "not enough replicas."};
         E ->
             {error, E}
     end.
@@ -1091,7 +1301,7 @@ try_put_blob(#state{rr_pid = RR, gc_peers = Peers}, BlobName, OkNodes, BL) ->
 update_replicas(_S, BlobName, NewUrls) ->
     % An update can only arrive for a blob that was marked for replication
     % (see rereplicate_blob/5).
-    [{_, _P, _R, {update, Urls}}] = ets:lookup(gc_blobs, BlobName),
+    [{_, _P, _R, {update, Urls}, _, _, _}] = ets:lookup(gc_blobs, BlobName),
     Update = {update, NewUrls ++ Urls},
     _ = ets:update_element(gc_blobs, BlobName, {4, Update}),
     ok.
@@ -1199,7 +1409,7 @@ update_tag(S, Cnt, T, Retries) ->
     catch _:_ -> update_tag(S, Cnt, T, Retries - 1)
     end.
 
--spec log_blacklist_change(tagname(), gb_set(), gb_set()) -> ok.
+-spec log_blacklist_change(tagname(), tag_set(), tag_set()) -> ok.
 log_blacklist_change(Tag, Old, New) ->
     case gb_sets:size(Old) =:= gb_sets:size(New) of
         true ->
@@ -1238,7 +1448,8 @@ update_tag_body(#state{safe_blacklist = SBL, blacklist = BL, tagk = TagK} = S,
             S#state{safe_blacklist = SBL2}
     end.
 
--spec collect_updates(state(), [[url()]], gb_set()) -> {[blob_update()], gb_set()}.
+-spec collect_updates(state(), [[url()]], tag_set()) ->
+    {[blob_update()], tag_set()}.
 collect_updates(S, BlobSets, SafeBlacklist) ->
     collect(S, BlobSets, {[], SafeBlacklist}).
 collect(_S, [], {_Updates, _SBL} = Result) ->
@@ -1255,11 +1466,12 @@ collect(#state{blacklist = BL, blobk = BlobK} = S,
             % Any referenced nodes are not safe to be removed from DDFS.
             NewSBL = gb_sets:subtract(SBL, gb_sets:from_list(Nodes)),
 
+            Remove = removable_locations(BlobSet),
             NewLocations = usable_locations(S, BlobName) -- BlobSet,
             BListed = find_unusable(BL, Nodes),
             Usable  = find_usable(BL, Nodes),
             CanFilter = [] =/= BListed andalso length(Usable) >= BlobK,
-            case {NewLocations, CanFilter} of
+            case {NewLocations ++ Remove, CanFilter} of
                 {[], false} ->
                     % Blacklist filtering is not needed, and there are
                     % no updates.
@@ -1272,9 +1484,24 @@ collect(#state{blacklist = BL, blobk = BlobK} = S,
                     collect(S, Rest, {[Update | Updates], NewSBL});
                 {[_|_], _} ->
                     % There are new usable locations for the blobset.
-                    Update = {BlobName, NewLocations},
+                    Update = {BlobName, {NewLocations, Remove}},
                     collect(S, Rest, {[Update | Updates], NewSBL})
             end
+    end.
+
+-spec removable_locations([url()]) -> [url()].
+removable_locations(BlobSet) ->
+    [{BlobName, _} | _] = Locations = [ddfs_url(Url) || Url <- BlobSet],
+    case ets:lookup(gc_blobs, BlobName) of
+        [] ->
+            % New blob added after GC/RR started.
+            [];
+        [{_, _, _, _, _, _, []}] ->
+            % No locations need to be removed
+            [];
+        [{_, _, _, _, _, _, UpdateMissing}] ->
+            Remove = [{B, N} || {B, N} <- Locations, lists:member(N, UpdateMissing)],
+            [Url || Url <- BlobSet, lists:member(ddfs_url(Url), Remove)]
     end.
 
 -spec usable_locations(state(), object_name()) -> [url()].
@@ -1283,9 +1510,9 @@ usable_locations(S, BlobName) ->
         [] ->
             % New blob added after GC/RR started.
             [];
-        [{_, P, R, noupdate}] ->
+        [{_, P, R, noupdate, _, _, _}] ->
             usable_locations(S, BlobName, P ++ R, []);
-        [{_, P, R, {update, NewUrls}}] ->
+        [{_, P, R, {update, NewUrls}, _, _, _}] ->
             usable_locations(S, BlobName, P ++ R, NewUrls)
     end.
 
@@ -1300,3 +1527,23 @@ usable_locations(#state{blacklist = BL, root = Root},
 url(N, V, Blob, Root) ->
     {ok, _Local, Url} = ddfs_util:hashdir(Blob, disco:host(N), "blob", Root, V),
     Url.
+
+find_unstable_nodes(NS) ->
+    DiskUsage = ddfs_rebalance:avg_disk_usage(NS),
+    UnderUsed = find_unstable_nodes(underused, NS, DiskUsage),
+    OverUsed = find_unstable_nodes(overused, NS, DiskUsage),
+    lager:info("GC: average disk utilization: ~p, "
+               "over utilized nodes: ~p, "
+               "under utilized nodes: ~p",
+               [DiskUsage, length(OverUsed), length(UnderUsed)]),
+    {UnderUsed, OverUsed}.
+
+-spec find_unstable_nodes(underused | overused, [node_info()], non_neg_integer())
+                         -> [node()].
+find_unstable_nodes(underused, NodeStats, AvgUsage) ->
+    Threshold = ddfs_rebalance:threshold(),
+    [N || {N, _} = Node <- NodeStats, ddfs_rebalance:utility(Node) < AvgUsage - Threshold];
+
+find_unstable_nodes(overused, NodeStats, AvgUsage) ->
+    Threshold = ddfs_rebalance:threshold(),
+    [N || {N, _} = Node <- NodeStats, ddfs_rebalance:utility(Node) > AvgUsage + Threshold].

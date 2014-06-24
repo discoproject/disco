@@ -3,15 +3,17 @@
 -include("common_types.hrl").
 -include("disco.hrl").
 -include("pipeline.hrl").
+-include("job_coordinator.hrl").
 
--export([stages/1, next_stage/2, group_outputs/2, pick_local_host/1]).
+-export([stages/1, next_stage/2, group_outputs/2, pick_local_host/1,
+         all_deps_finished/3, get_grouping_lists/4]).
 -export([locations/1, ranked_locations/1]).
 -export([input_urls/3, output_urls/1]).
 
 % Pipeline utilities.
 
 -spec stages(pipeline()) -> [stage_name()].
-stages(Pipeline) -> [Stage || {Stage, _G} <- Pipeline].
+stages(Pipeline) -> [Stage || {Stage, _G, _} <- Pipeline].
 
 -spec locations(data_input()) -> [host()].
 locations({data, {_Label, _Size, Replicas}}) ->
@@ -42,10 +44,22 @@ pick_local_host(Replicas) ->
 
 -spec next_stage(pipeline(), stage_name()) -> stage() | done.
 next_stage([], _S) -> done;
-next_stage([{_S, _G} = First | _], ?INPUT) -> First;
-next_stage([{S, _G}], S) -> done;
-next_stage([{S, _G}, Next|_], S) -> Next;
+next_stage([{_S, _G, _} = First | _], ?INPUT) -> First;
+next_stage([{S, _G, _}], S) -> done;
+next_stage([{S, _G, _}, Next|_], S) -> Next;
 next_stage([_S|Rest], S) -> next_stage(Rest, S).
+
+-spec all_deps_finished(pipeline(), stage_name(),
+                        disco_gbtree(stage_name(), stage_info())) -> boolean().
+all_deps_finished([], _S, _) -> true;
+all_deps_finished([_|_], ?INPUT, _) -> true;
+all_deps_finished([{S, _, _}|_], S, _) -> true;
+all_deps_finished([{DepS,_, _}|Rest], S, SI) ->
+    StageInfo = jc_utils:stage_info(DepS, SI),
+    case StageInfo#stage_info.finished of
+        true -> all_deps_finished(Rest, S, SI);
+        false -> false
+    end.
 
 % Dir files are a scalability mechanism to handle large numbers of
 % output labels (and hence output files) from a task.  When output
@@ -71,7 +85,6 @@ next_stage([_S|Rest], S) -> next_stage(Rest, S).
 
 % utility to create a group -> [dir_spec()] mapping for the dir files
 % in the specified outputs.
--spec dirdict([{task_id(), [task_output()]}]) -> dict().
 dirdict(Outputs) ->
     Dirs = [{{L, H}, {{Tid, Outid}, D}}
             || {Tid, Tout} <- Outputs,
@@ -92,6 +105,8 @@ unique_labels(LabelSizes) ->
 
 -spec group_outputs(label_grouping(), [{task_id(), [task_output()]}])
                    -> [grouped_output()].
+group_outputs(_, []) ->
+    [];
 group_outputs(split, Outputs) ->
     % As explained above, each label from a dir file is a separate
     % 'split' output.
@@ -194,3 +209,32 @@ output_urls({data, {_L, _Sz, Reps}}) ->
     [<<U/binary>> || {U, _H} <- Reps];
 output_urls({dir, {_H1, U, _LS}}) ->
     [U].
+
+get_groups([], _, NewGroups, OldGroups) ->
+    {NewGroups, OldGroups};
+
+get_groups([G|Rest], GroupedBeforeDict, NewGroups, OldGroups) ->
+    {GroupId, BeforeGroup} = G,
+    case dict:is_key(GroupId, GroupedBeforeDict) of
+        false ->
+                get_groups(Rest, GroupedBeforeDict, [G|NewGroups], OldGroups);
+        true ->
+            case dict:fetch(GroupId, GroupedBeforeDict) of
+                BeforeGroup ->
+                    % no change in this group! do not send any inputs
+                    get_groups(Rest, GroupedBeforeDict, NewGroups, OldGroups);
+                _ ->
+                    % this group has been updated and should be send to the
+                    % responsible task.
+                    get_groups(Rest, GroupedBeforeDict, NewGroups, [G|OldGroups])
+            end
+    end.
+
+-spec get_grouping_lists(label_grouping(), [task_output()], task_id(), [task_output()]) ->
+    {[grouped_output()], [grouped_output()]}.
+get_grouping_lists(Grouping, PrevStageOutputs, TaskId, Outputs) ->
+    GroupedBeforeThisTask = group_outputs(Grouping, PrevStageOutputs),
+    GroupedBeforeDict = dict:from_list(GroupedBeforeThisTask),
+    PrevStageOutputs1 = [{TaskId, Outputs}|PrevStageOutputs],
+    GroupedAfterThisTask = group_outputs(Grouping, PrevStageOutputs1),
+    get_groups(GroupedAfterThisTask, GroupedBeforeDict, [], []).

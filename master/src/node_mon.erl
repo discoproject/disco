@@ -124,11 +124,11 @@ is_master(Host) ->
 start_temp_gc(Host, Node, DiscoRoot) ->
     DataRoot = filename:join(DiscoRoot, Host),
     Master = node(),
-    spawn_link(Node, fun() -> temp_gc:start_link(Master, DataRoot) end).
+    spawn_link(Node, temp_gc, start_link, [Master, DataRoot]).
 
 -spec start_lock_server(node()) -> pid().
 start_lock_server(Node) ->
-    spawn_link(Node, fun lock_server:start_link/0).
+    spawn_link(Node, lock_server, start_link, []).
 
 -spec start_ddfs_node(host(), node(), path(), node_ports(),
                       {boolean(), boolean()}) -> pid().
@@ -141,4 +141,4 @@ start_ddfs_node(Host, Node, DiscoRoot,
             {get_port, GetPort}, {put_port, PutPort},
             {get_enabled, GetEnabled}, {put_enabled, PutEnabled}],
     NodeMon = self(),
-    spawn_link(Node, fun() -> ddfs_node:start_link(Args, NodeMon) end).
+    spawn_link(Node, ddfs_node, start_link, [Args, NodeMon]).

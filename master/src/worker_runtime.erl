@@ -1,5 +1,5 @@
 -module(worker_runtime).
--export([init/2, handle/2, get_pid/1]).
+-export([init/2, handle/2, get_pid/1, add_inputs/2]).
 
 -include("common_types.hrl").
 -include("disco.hrl").
@@ -21,10 +21,11 @@
                 save_outputs :: boolean(),
                 save_info    :: string(),
 
+                input_requested = false            :: boolean(),
                 child_pid       = none             :: none | non_neg_integer(),
-                failed_inputs   = gb_sets:empty()  :: gb_set(), % [seq_id()]
+                failed_inputs   = gb_sets:empty()  :: disco_gbset(seq_id()),
                 remote_outputs  = []               :: [remote_output()],
-                local_labels    = gb_trees:empty() :: gb_tree(),% label -> size
+                local_labels    = gb_trees:empty() :: disco_gbtree(label(), data_size()),
                 output_filename = none             :: none | path(),
                 output_file     = none             :: none | file:io_device()}).
 -type state() :: #state{}.
@@ -33,13 +34,14 @@
 
 -spec init(task(), node()) -> state().
 init({#task_spec{jobname = JN, grouping = Grouping, group = Group,
+                 all_inputs = AllInputs,
                  save_outputs = Save, save_info = SaveInfo},
       #task_run{input = Inputs}} = Task, Master) ->
     #state{jobname = JN,
            task    = Task,
            master  = Master,
            host    = disco:host(node()),
-           inputs  = worker_inputs:init(Inputs, Grouping, Group),
+           inputs  = worker_inputs:init(Inputs, Grouping, Group, AllInputs),
            start_time   = now(),
            save_outputs = Save,
            save_info = SaveInfo}.
@@ -72,6 +74,7 @@ payload_type(_Type) -> none.
 -type output_msg() :: {label(), binary(), data_size()}.
 
 -type do_handle() :: {ok, worker_msg(), state()} | {ok, worker_msg(), state(), rate_limit}
+                   | {ok, noreply, state()}
                    | {error, {fatal, term()}, state()}
                    | {stop, {error | fatal | done, term()}}.
 -type handle() :: do_handle() | {error, {fatal, term()}}.
@@ -140,14 +143,14 @@ do_handle({<<"MSG">>, Msg}, #state{task = Task, master = Master} = S) ->
     disco_worker:event({<<"MSG">>, Msg}, Task, Master),
     {ok, {"OK", <<"ok">>}, S, rate_limit};
 
-do_handle({<<"INPUT">>, <<>>}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:all(Inputs)), S};
+do_handle({<<"INPUT">>, <<>>}, #state{inputs = InputState} = S) ->
+    produce_inputs(fun worker_inputs:all/1, InputState, S);
 
-do_handle({<<"INPUT">>, [<<"include">>, Iids]}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:include(Iids, Inputs)), S};
+do_handle({<<"INPUT">>, [<<"include">>, Iids]}, #state{inputs = InputState} = S) ->
+    produce_inputs({fun worker_inputs:include/2, Iids}, InputState, S);
 
-do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = Inputs} = S) ->
-    {ok, input_reply(worker_inputs:exclude(Iids, Inputs)), S};
+do_handle({<<"INPUT">>, [<<"exclude">>, Iids]}, #state{inputs = InputState} = S) ->
+    produce_inputs({fun worker_inputs:exclude/2, Iids}, InputState, S);
 
 do_handle({<<"INPUT_ERR">>, [Iid, Rids]}, #state{inputs = Inputs,
                                                  failed_inputs = Failed} = S) ->
@@ -194,10 +197,43 @@ do_handle({<<"DONE">>, _Body}, #state{task = Task,
     end.
 
 % Input utilities.
--spec input_reply([worker_inputs:worker_input()]) -> worker_msg().
-input_reply(Inputs) ->
-    {"INPUT", [<<"done">>, [[Iid, <<"ok">>, L, Repl]
+-spec input_reply([worker_inputs:worker_input()], boolean()) -> worker_msg().
+input_reply(Inputs, Done) ->
+    Status = case Done of
+        false -> <<"more">>;
+        true  -> <<"done">>
+    end,
+    {"INPUT", [Status, [[Iid, <<"ok">>, L, Repl]
                             || {Iid, L, Repl} <- Inputs]]}.
+
+get_inputs(Function, InputState) ->
+    case Function of
+        {F, I} -> F(I, InputState);
+        F -> F(InputState)
+    end.
+
+-spec add_inputs(done | [{input_id(), data_input()}], state()) ->
+    {_, state()}.
+add_inputs(Inputs, #state{input_requested = Requested, inputs = InputState}=S) ->
+    InputState1 = worker_inputs:add_inputs(Inputs, InputState),
+    Reply = case Requested of
+        false -> none;
+        true  ->
+            case Inputs of
+                done -> <<"done">>;
+                _    -> <<"more">>
+            end
+    end,
+    {Reply, S#state{input_requested = false, inputs = InputState1}}.
+
+produce_inputs(Function, InputState, S) ->
+    Inputs = get_inputs(Function, InputState),
+    case {worker_inputs:is_input_done(InputState), length(Inputs)} of
+        {false, 0} ->
+            {ok, noreply, S#state{input_requested = true}};
+        {Done, _} ->
+            {ok, input_reply(Inputs, Done), S}
+    end.
 
 % Output utilities.
 
@@ -294,7 +330,7 @@ format_local_output({L, LocalFile, Size}, #state{jobname = JN, host = Host}) ->
 
 % Convert recorded outputs into pipeline format.
 
--spec local_results(jobname(), host(), path(), gb_tree()) -> dir_spec().
+-spec local_results(jobname(), host(), path(), disco_gbtree(label(), data_size())) -> dir_spec().
 local_results(JobName, Host, FileName, Labels) ->
     UPath = url_path(JobName, Host, FileName),
     Dir = erlang:iolist_to_binary(io_lib:format("dir://~s/~s", [Host, UPath])),

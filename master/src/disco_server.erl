@@ -29,9 +29,9 @@
                 stats_crashed :: non_neg_integer()}).
 -type dnode() :: #dnode{}.
 
--record(state, {workers = gb_trees:empty() :: gb_tree(), % pid()    -> {host(), task()}
-                nodes   = gb_trees:empty() :: gb_tree(), % host()   -> dnode()
-                purged  = gb_trees:empty() :: gb_tree(), % binary() -> timestamp()
+-record(state, {workers = gb_trees:empty() :: disco_gbtree(pid(), {host(), task()}),
+                nodes   = gb_trees:empty() :: disco_gbtree(host(), dnode()),
+                purged  = gb_trees:empty() :: disco_gbtree(binary(), erlang:timestamp()),
                 jobpack_queue :: pid(),
 
                 % The below are only used in cluster-in-a-box mode.
@@ -312,7 +312,7 @@ allow_read(#dnode{}) ->
 -spec allow_task(dnode()) -> boolean().
 allow_task(#dnode{} = N) -> allow_write(N).
 
--spec update_nodes(gb_tree()) -> ok.
+-spec update_nodes(disco_gbtree(host(), dnode())) -> ok.
 update_nodes(Nodes) ->
     WhiteNodes = [{H, S, R}
                   || #dnode{host = H, slots = S, num_running = R}
@@ -445,7 +445,7 @@ do_gc_blacklist(Hosts, S) ->
 -spec start_worker(host(), pid(), task()) -> pid().
 start_worker(H, NM, {#task_spec{jobname = J, stage = S, taskid = TI}, _} = T) ->
     event_server:event(J, "~s:~B assigned to ~s", [S, TI, H], none),
-    spawn_link(fun() -> disco_worker:start_link_remote(H, NM, T) end).
+    spawn_link(disco_worker, start_link_remote, [H, NM, T]).
 
 -spec schedule_next() -> ok.
 schedule_next() ->

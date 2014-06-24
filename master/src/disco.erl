@@ -6,7 +6,7 @@
 -export([jobhome/1, jobhome/2, joburl/2, joburl_to_localpath/1]).
 -export([data_root/1, data_path/2, ddfs_root/2]).
 -export([local_cluster/0, preferred_host/1, disco_url_path/1, dir_to_url/1]).
--export([enum/1, hexhash/1, oob_name/1, debug_flags/1]).
+-export([enum/1, enum/2, hexhash/1, oob_name/1, debug_flags/1]).
 -export([format/2, format_time/1, format_time/4, format_time_since/1]).
 -export([make_dir/1, ensure_dir/1, is_file/1, is_dir/1]).
 
@@ -183,7 +183,12 @@ preferred_host(Url) ->
 
 -spec enum([T]) -> [{non_neg_integer(), T}].
 enum(List) ->
-    lists:zip(lists:seq(0, length(List) - 1), List).
+    enum(List, 0).
+
+-spec enum([T], non_neg_integer()) -> [{non_neg_integer(), T}].
+enum(List, Start) ->
+    lists:zip(lists:seq(Start, Start + length(List) - 1), List).
+
 
 -spec format(nonempty_string(), [term()]) -> nonempty_string().
 format(Format, Args) ->

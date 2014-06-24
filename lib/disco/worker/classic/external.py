@@ -170,9 +170,7 @@ used
    }
 
 Each line must have the first seven bytes as defined above, and the
-line must end with a newline character. The *msg()* function above is
-subject to the same limits as the standard :func:`disco_worker.msg`
-message function.
+line must end with a newline character.
 
 Parameters
 ''''''''''

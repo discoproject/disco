@@ -28,7 +28,9 @@
 
 -type prioq_item() :: {priority(), pid(), jobname()}.
 -type prioq() :: [prioq_item()].
--type state() :: {gb_tree(), prioq(), cores()}.
+-type job_map() :: disco_gbtree(pid(), job()).
+-type state() :: {job_map(), prioq(), cores()}.
+
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -85,7 +87,7 @@ handle_cast({new_job, JobPid, JobName}, {Jobs, PrioQ, NC}) ->
                          gs_reply([{jobname(), priority()}]);
                  (dbg_state_msg(), from(), state()) -> gs_reply(state());
                  (next_job_msg(), from(), state()) -> gs_reply(next_job());
-                 (priv_get_jobs, from(), state()) -> gs_reply(gb_tree()).
+                 (priv_get_jobs, from(), state()) -> gs_reply(job_map()).
 
 % Return current priorities for the ui
 handle_call(current_priorities, _, {_, PrioQ, _} = S) ->
@@ -130,8 +132,8 @@ dropwhile([{_, JobPid, _} = E|R], H, NotJobs) ->
 % the job actually starts a new task (1 / NumCores increase in its share)
 % which might not be always true. Fairness fairy will eventually fix the
 % bias.
--spec bias_priority(job(), prioq(), gb_tree(), non_neg_integer())
-                   -> {gb_tree(), prioq()}.
+-spec bias_priority(job(), prioq(), job_map(), non_neg_integer())
+                   -> {job_map(), prioq()}.
 bias_priority(#job{name = N, pid = JobPid, bias = OldBias, prio = OldPrio} = Job,
               PrioQ, Jobs, NumCores) ->
     Bias = OldBias + 1 / NumCores,

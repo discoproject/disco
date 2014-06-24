@@ -11,7 +11,7 @@
 % Event logging.
 -export([event/4, event/5, event/6,
          task_event/2, task_event/3, task_event/4, task_event/5,
-         job_done_event/2]).
+         job_done_event/2, pending_event/3]).
 % Server.
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -26,6 +26,7 @@
 -define(EVENT_BUFFER_TIMEOUT, 2000).
 
 -type event() :: {job_data, jobinfo()}
+               | {task_pending, stage_name()}
                | {task_ready, stage_name()}
                | {task_failed, stage_name()}
                | {stage_start, stage_name(), integer()}
@@ -46,9 +47,10 @@
                           Status  :: job_status(),
                           JobInfo :: none | jobinfo(),
                           Results :: [[url()]],
-                          Count   :: dict(),
-                          Ready   :: dict(),
-                          Failed  :: dict()}.
+                          Count   :: stage_dict(),
+                          Pending :: stage_dict(),
+                          Ready   :: stage_dict(),
+                          Failed  :: stage_dict()}.
 
 -export_type([event/0, task_info/0, task_msg/0, job_eventinfo/0]).
 
@@ -165,9 +167,12 @@ start_link() ->
     end.
 
 % events dict: jobname -> job_ent()
+-type event_dict() :: disco_dict(jobname(), job_ent()).
 % msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
--record(state, {events = dict:new() :: dict(),
-                msgbuf = dict:new() :: dict(),
+-type job_msg_dict() :: disco_dict(jobname(), {non_neg_integer(), non_neg_integer(), [binary()]}).
+
+-record(state, {events = dict:new() :: event_dict(),
+                msgbuf = dict:new() :: job_msg_dict(),
                 hosts  = []         :: [host()]}).
 -type state() :: #state{}.
 
@@ -220,7 +225,16 @@ handle_cast({job_done, JobName}, S) ->
 handle_cast({clean_job, JobName}, S) ->
     #state{events = Events} = S1 = do_job_done(JobName, S),
     delete_jobdir(JobName),
-    {noreply, S1#state{events = dict:erase(JobName, Events)}}.
+    {noreply, S1#state{events = dict:erase(JobName, Events)}};
+handle_cast({pending_event, JobName, Event}, #state{events = Events} = S) ->
+    {ok, JE} = dict:find(JobName, Events),
+    EventsN = dict:store(JobName, update_job_ent(JE, Event), Events),
+    {noreply, S#state{events = EventsN}};
+
+handle_cast({task_start, JobName, Event}, #state{events = Events} = S) ->
+    {ok, JE} = dict:find(JobName, Events),
+    EventsN = dict:store(JobName, update_job_ent(JE, Event), Events),
+    {noreply, S#state{events = EventsN}}.
 
 -spec handle_info(term(), state()) -> gs_noreply().
 handle_info(Msg, State) ->
@@ -235,13 +249,18 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 % State management.
 
+-type stage_dict() :: disco_dict(stage_name(), non_neg_integer()).
+-type stage_result_dict() :: disco_dict(stage_name(), [[url()]]).
+
 -record(job_ent, {job_coord :: pid(),
                   start     :: erlang:timestamp(),
                   job_data    = none :: none | jobinfo(),
-                  task_count         :: dict(), % stage_name() -> count
-                  task_ready         :: dict(), % stage_name() -> count
-                  task_failed        :: dict(), % stage_name() -> count
-                  stage_results      :: dict(), % stage_name() -> results
+                  task_count_inc     :: disco_dict(stage_name(), boolean()),
+                  task_count         :: stage_dict(),
+                  task_pending       :: stage_dict(),
+                  task_ready         :: stage_dict(),
+                  task_failed        :: stage_dict(),
+                  stage_results      :: stage_result_dict(),
                   job_results = none :: none | [url() | [url()]]}).
 -type job_ent() :: #job_ent{}.
 
@@ -251,7 +270,9 @@ new_job_ent(JobCoord, Stages) ->
     StageResults = dict:new(),
     #job_ent{job_coord = JobCoord,
              start     = now(),
+             task_count_inc= dict:from_list([{S, true} || S <- Stages]),
              task_count    = InitCounts,
+             task_pending  = InitCounts,
              task_ready    = InitCounts,
              task_failed   = InitCounts,
              stage_results = StageResults}.
@@ -259,8 +280,19 @@ new_job_ent(JobCoord, Stages) ->
 -spec update_job_ent(job_ent(), event()) -> job_ent().
 update_job_ent(JE, {job_data, JobData}) ->
     JE#job_ent{job_data = JobData};
-update_job_ent(#job_ent{task_count = TaskCount} = JE, {stage_start, Stage, Tasks}) ->
-    JE#job_ent{task_count = dict:store(Stage, Tasks, TaskCount)};
+update_job_ent(#job_ent{task_count = TaskCount, task_count_inc = Inc} = JE,
+               {stage_start, Stage, Tasks}) ->
+    JE#job_ent{task_count = dict:store(Stage, Tasks, TaskCount),
+               task_count_inc = dict:store(Stage, false, Inc)};
+update_job_ent(#job_ent{task_count = TaskCount, task_count_inc = Inc} = JE, {task_start, Stage}) ->
+    case dict:fetch(Stage, Inc) of
+        true  -> JE#job_ent{task_count = dict:update_counter(Stage, 1, TaskCount)};
+        false -> JE
+    end;
+update_job_ent(#job_ent{task_pending = TaskPending} = JE, {task_pending, Stage}) ->
+    JE#job_ent{task_pending= dict:update_counter(Stage, 1, TaskPending)};
+update_job_ent(#job_ent{task_pending = TaskPending} = JE, {task_un_pending, Stage}) ->
+    JE#job_ent{task_pending= dict:update_counter(Stage, -1, TaskPending)};
 update_job_ent(#job_ent{task_ready = TaskReady} = JE, {task_ready, Stage}) ->
     JE#job_ent{task_ready = dict:update_counter(Stage, 1, TaskReady)};
 update_job_ent(#job_ent{task_failed = TaskFailed} = JE, {task_failed, Stage}) ->
@@ -281,14 +313,14 @@ job_status(_JE) ->
 
 % Server implemention.
 
--spec do_get_jobs(dict()) -> {ok, [joblist_entry()]}.
+-spec do_get_jobs(event_dict()) -> {ok, [joblist_entry()]}.
 do_get_jobs(Events) ->
     Jobs = dict:fold(fun (Name, #job_ent{start = Start} = JobEnt, Acc) ->
                              [{Name, job_status(JobEnt), Start}|Acc]
                      end, [], Events),
     {ok, Jobs}.
 
--spec do_get_job_msgs(jobname(), string(), integer(), dict()) -> {ok, [binary()]}.
+-spec do_get_job_msgs(jobname(), string(), integer(), job_msg_dict()) -> {ok, [binary()]}.
 do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
     N = if
             N0 > 1000 -> 1000;
@@ -303,7 +335,7 @@ do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
             {ok, json_list(tail_log(JobName, N))}
     end.
 
--spec do_get_results(jobname(), dict())
+-spec do_get_results(jobname(), event_dict())
                     -> invalid_job | {job_status(), pid()}
                            | {ready, pid(), [url() | [url()]]}.
 do_get_results(JobName, Events) ->
@@ -316,7 +348,7 @@ do_get_results(JobName, Events) ->
             {job_status(JE), Pid}
     end.
 
--spec do_get_stage_results(jobname(), stage_name(), dict())
+-spec do_get_stage_results(jobname(), stage_name(), event_dict())
                         -> invalid_job | not_ready
                                | {ok, [[url()]]}.
 do_get_stage_results(JobName, StageName, Events) ->
@@ -330,17 +362,17 @@ do_get_stage_results(JobName, StageName, Events) ->
             end
     end.
 
--spec do_get_jobinfo(jobname(), dict()) -> invalid_job | {ok, job_eventinfo()}.
+-spec do_get_jobinfo(jobname(), event_dict()) -> invalid_job | {ok, job_eventinfo()}.
 do_get_jobinfo(JobName, Events) ->
     case dict:find(JobName, Events) of
         error ->
             invalid_job;
         {ok, #job_ent{start = Start, job_data = JobNfo, job_results = Results,
-                      task_count = Count, task_ready = Ready,
-                      task_failed = Failed} = JE} ->
+                      task_count = Count, task_pending = Pending,
+                      task_ready = Ready, task_failed = Failed} = JE} ->
             {ok, {Start, job_status(JE), JobNfo,
                   case Results of none -> []; _ -> Results end,
-                  Count, Ready, Failed}}
+                  Count, Pending, Ready, Failed}}
     end.
 
 -spec do_add_job_event(host(), jobname(), binary(), event(), state()) -> state().
@@ -381,6 +413,14 @@ add_event(Host0, JobName, Msg, Event,
             S#state{events = EventsN, msgbuf = MsgBufN}
     end.
 
+-spec pending_event(jobname(), stage_name(), add|remove) -> ok.
+pending_event(JobName, Stage, add) ->
+    gen_server:cast(?MODULE, {pending_event, JobName, {task_pending, Stage}});
+
+pending_event(JobName, Stage, remove) ->
+    gen_server:cast(?MODULE, {pending_event, JobName, {task_un_pending, Stage}}),
+    gen_server:cast(?MODULE, {task_start, JobName, {task_start, Stage}}).
+
 -spec do_job_done(jobname(), state()) -> state().
 do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->
     case ets:lookup(event_files, JobName) of
@@ -414,7 +454,7 @@ job_event_handler(JobName, Hosts, JobCoordinator) ->
     {ok, File} = file:open(event_log(JobName), [append, raw]),
     gen_server:call(?MODULE, {job_initialized, JobName, self()}),
     gen_server:reply(JobCoordinator, {ok, JobName, Hosts}),
-    {ok, _} = timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
+    erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
     job_event_handler_do(File, [], 0).
 
 job_event_handler_do(File, Buf, BufSize) when BufSize > ?EVENT_BUFFER_SIZE ->
@@ -426,7 +466,7 @@ job_event_handler_do(File, Buf, BufSize) ->
             job_event_handler_do(File, [Line|Buf], BufSize + 1);
         flush ->
             flush_buffer(File, Buf),
-            {ok, _} = timer:send_after(?EVENT_BUFFER_TIMEOUT, flush),
+            erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
             job_event_handler_do(File, [], 0);
         done ->
             flush_buffer(File, Buf),
@@ -450,7 +490,7 @@ json_list([X], L) ->
 json_list([X|R], L) ->
     json_list(R, [<<X/binary, ",">>|L]).
 
--spec unique_key(jobname(), dict()) -> invalid_prefix | {ok, jobname()}.
+-spec unique_key(jobname(), event_dict()) -> invalid_prefix | {ok, jobname()}.
 unique_key(Prefix, Dict) ->
     C = string:chr(Prefix, $/) + string:chr(Prefix, $.),
     if C > 0 ->

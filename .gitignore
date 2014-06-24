@@ -11,6 +11,7 @@
 *.eunit
 *.ropeproject
 *~
+*.swp
 master/deps
 master/ebin
 doc/.build/

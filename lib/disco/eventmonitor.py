@@ -171,7 +171,7 @@ class EventMonitor(object):
 
     @property
     def status(self):
-        return ("Status: [{0[0]}] {0[1]} waiting, {0[2]} running, {0[3]} done, {0[4]} failed"
+        return ("Status: [{0[0]}] {0[1]} pending, {0[2]} waiting, {0[3]} running, {0[4]} done, {0[5]} failed"
                 .format(tuple(self.stats)))
 
     def log_events(self):

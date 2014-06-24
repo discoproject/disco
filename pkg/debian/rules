@@ -18,7 +18,6 @@ override_dh_auto_install:
 	$(D_MAKE) install-node     DESTDIR=$(PKGDIR)/disco-node
 	for python in $(PYTHON2); do \
 		$(D_MAKE) install-core    DESTDIR=$(PKGDIR)/python-disco   PYTHON=$$python; \
-		$(D_MAKE) install-discodb DESTDIR=$(PKGDIR)/python-discodb PYTHON=$$python; \
 	done
 	for python in $(PYTHON3); do \
 		$(D_MAKE) install-core    DESTDIR=$(PKGDIR)/python3-disco  PYTHON=$$python; \

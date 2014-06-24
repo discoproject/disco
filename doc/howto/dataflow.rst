@@ -26,10 +26,9 @@ either reading partitioned input or writing partitioned output.
 The overall data flow in a classic Disco job is controlled by four
 :class:`disco.worker.classic.worker.Worker` parameters.  The presence
 of ``map`` and ``reduce``, determine the overall structure of the job
-(i.e. whether its `mapreduce`, `map-only`, or `reduce-only`).  The
+(i.e. whether it is `mapreduce`, `map-only`, or `reduce-only`).  The
 ``partitions`` parameter determines whether or not the map output is
-partitioned, and the number of partitions.  The ``merge_partitions``
-parameter determines whether partitioned input to reduce is merged.
+partitioned, and the number of partitions.
 
 Map Flows
 ---------
@@ -108,14 +107,4 @@ For non-partitioned input, there can only ever be 1 reduce task:
 
 The situation is slightly more complicated for partitioned input, as
 there is a choice to be made whether or not to merge the partitions,
-so that all results are handled by a single reduce:
-
-.. _merge_partitioned_reduce_flow:
-
-Merge Partitioned Reduce
-''''''''''''''''''''''''
-
-.. figure:: ../images/dataflow/merge_partitioned_reduce_flow.png
-
-The above extends simply to the normal, distributed reduce, in which
-there are ``N`` reduces for ``N`` partitions.
+so that all results are handled by a single reduce.

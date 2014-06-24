@@ -13,8 +13,6 @@ MAX_RECORD_SIZE = 1 * MB
 HUNK_SIZE       = 1 * MB
 CHUNK_SIZE      = 64 * MB
 
-# chunk size seems to be ~ half what it should be
-
 class Chunker(object):
     """
     chunks contain hunks
@@ -29,7 +27,7 @@ class Chunker(object):
     in the worst case for a chunk:
       sizeof(chunk) = C - 1
       a new hunk is added with size ((H - 1) + (R - 1)) * S
-      sizoof(chunk) = C - 1 + ((H - 1) + (R - 1)) * S + len(header)
+      sizeof(chunk) = C - 1 + ((H - 1) + (R - 1)) * S + len(header)
     """
     def __init__(self, chunk_size=CHUNK_SIZE, max_record_size=MAX_RECORD_SIZE):
         self.chunk_size = chunk_size
@@ -157,6 +155,10 @@ class DiscoZipFile(ZipFile, object):
         self.buffer.seek(0)
         return self.buffer.read()
 
+def raise_if_empty(read_bytes):
+    if read_bytes == '':
+        raise IOError("could not read from ready file")
+
 class NonBlockingInput(object):
     def __init__(self, file, timeout=600):
         from fcntl import fcntl, F_GETFL, F_SETFL
@@ -174,14 +176,18 @@ class NonBlockingInput(object):
     def t_read(self, nbytes, spent=0, bytes=''):
         while True:
             spent += self.select(spent)
-            bytes += bytes_to_str(os.read(self.fd, nbytes - len(bytes)))
+            read_bytes = os.read(self.fd, nbytes - len(bytes))
+            raise_if_empty(read_bytes)
+            bytes += bytes_to_str(read_bytes)
             if nbytes <= len(bytes):
                 return spent, bytes
 
     def t_read_until(self, delim, spent=0, bytes=''):
         while not bytes.endswith(delim):
             spent += self.select(spent)
-            bytes += bytes_to_str(os.read(self.fd, 1))
+            read_bytes = os.read(self.fd, 1)
+            raise_if_empty(read_bytes)
+            bytes += bytes_to_str(read_bytes)
         return spent, bytes
 
 class AtomicFile(file):

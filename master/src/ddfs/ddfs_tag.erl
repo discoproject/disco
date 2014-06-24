@@ -13,6 +13,7 @@
          handle_info/2, terminate/2, code_change/3]).
 
 -type replyto() :: {pid(), reference()}.
+-type term_map() :: disco_gbtree(term(), {[replyto()], [[url()]]}).
 
 -record(state, {tag  :: tagname(),
                 data :: none |
@@ -22,10 +23,10 @@
                         {ok, tagcontent()},
                 ddfs_data :: path(),
                 timeout :: non_neg_integer(),
-                delayed   = false :: false | gb_tree(),
+                delayed   = false :: false | term_map(),
                 replicas  = false :: false | [node()],
                 locations = false :: false | [url()],
-                url_cache = false :: false | gb_set()}).
+                url_cache = false :: false | disco_gbset(tagname())}).
 -type state() :: #state{}.
 
 % API messages.
@@ -311,7 +312,10 @@ handle_info({Ref, _Msg}, S) when is_reference(Ref) ->
 
 % callback stubs
 -spec terminate(term(), state()) -> ok.
-terminate(_Reason, _State) -> ok.
+terminate(normal, _) -> ok;
+terminate(Reason, #state{tag = TagName}) ->
+    lager:info("tag ~p dies with reason ~p.", [TagName, Reason]),
+    ok.
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
@@ -454,7 +458,7 @@ do_gc_rr_update(#state{tag = TagName, data = {ok, D} = Tag} = S,
             S
     end.
 
--spec gc_update_urls(tagid(), [[url()]], gb_tree(), [node()], tagid())
+-spec gc_update_urls(tagid(), [[url()]], term_map(), [node()], tagid())
                     -> [[url()]].
 gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId) ->
     gc_update_urls(Id, OldUrls, Map, Blacklist, UpdateId, []).
@@ -487,11 +491,11 @@ gc_update_urls(Id, [[Url|_] = BlobSet | Rest], Map, Blacklist, UpdateId, Acc) ->
                     % The tag was modified after the filter safety
                     % check was done; skip the update.
                     gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [BlobSet|Acc]);
-                {value, NewUrls_} ->
+                {value, {NewUrls_, Remove}} ->
                     % Ensure that new locations use the same scheme as
                     % the existing locations.
                     NewUrls = rewrite_scheme(Url, NewUrls_),
-                    NewBlobSet = lists:usort(NewUrls ++ BlobSet),
+                    NewBlobSet = lists:usort(NewUrls ++ BlobSet -- Remove),
                     gc_update_urls(Id, Rest, Map, Blacklist, UpdateId, [NewBlobSet|Acc])
             end
     end.
@@ -576,7 +580,7 @@ read_tagdata(TagID, Locations, Replicas, Failed, _Error) ->
             read_tagdata(TagID, Locations, Replicas, [Chosen|Failed], E)
     end.
 
--spec do_delayed_update([[url()]], [term()], replyto(), gb_tree(), state())
+-spec do_delayed_update([[url()]], [term()], replyto(), term_map(), state())
                        -> state().
 do_delayed_update(Urls, Opt, ReplyTo, Buffer, S) ->
     % We must handle updates with different set of options separately.
@@ -639,10 +643,11 @@ do_put({_, Token},
             TagID = TagContent#tagcontent.id,
             case put_distribute({TagID, NewTagData}) of
                 {ok, DestNodes, DestUrls} ->
-                    if TagData =:= {missing, deleted} ->
+                    case TagData of
+                        {missing, _} ->
                             {ok, _} = remove_from_deleted([TagName]),
                             ok;
-                       true -> ok
+                        _            -> ok
                     end,
                     _ = send_replies(ReplyTo, {ok, DestUrls}),
                     S#state{data = {ok, TagContent},
@@ -739,6 +744,7 @@ put_commit(TagID, TagVol) ->
 
 -spec do_delete(replyto(), state()) -> state().
 do_delete(ReplyTo, #state{tag = Tag} = S) ->
+    lager:info("scheduling deletion of tag ~p.", [Tag]),
     case add_to_deleted(Tag) of
         {ok, _} ->
             gen_server:reply(ReplyTo, ok),
@@ -759,6 +765,7 @@ add_to_deleted(Tag) ->
     deleted_op({update, Urls, internal, [nodup]}, ?TAG_UPDATE_TIMEOUT).
 
 -spec remove_from_deleted([tagname()]) -> _.
+remove_from_deleted([<<"+deleted">>]) -> {ok, will_deadlock};
 remove_from_deleted(Tags) ->
     deleted_op({delete_tagnames, Tags}, ?NODEOP_TIMEOUT).
 

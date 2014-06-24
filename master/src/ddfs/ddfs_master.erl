@@ -36,15 +36,15 @@
 -type node_info() :: {node(), {non_neg_integer(), non_neg_integer()}}.
 -type gc_stats() :: none | gc_run_stats().
 
--record(state, {tags      = gb_trees:empty()          :: gb_tree(),
-                tag_cache = {false, gb_sets:empty()}  :: {boolean(), gb_set()},
+-record(state, {tags      = gb_trees:empty()          :: disco_gbtree(tagname(),pid()),
+                tag_cache = {false, gb_sets:empty()}  :: {boolean(), disco_gbset(tagname())},
                 cache_refresher                       :: pid(),
 
                 nodes             = []                :: [node_info()],
                 write_blacklist   = []                :: [node()],
                 read_blacklist    = []                :: [node()],
                 gc_blacklist      = []                :: [node()],
-                safe_gc_blacklist = gb_sets:empty()   :: gb_set(),
+                safe_gc_blacklist = gb_sets:empty()   :: disco_gbset(tagname()),
                 gc_stats          = none              :: none | {gc_stats(), erlang:timestamp()}}).
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
@@ -130,7 +130,7 @@ new_blob(Master, Obj, K, Include, Exclude) ->
 safe_gc_blacklist() ->
     gen_server:call(?MODULE, safe_gc_blacklist).
 
--spec safe_gc_blacklist(gb_set()) -> ok.
+-spec safe_gc_blacklist(disco_gbset(tagname())) -> ok.
 safe_gc_blacklist(SafeGCBlacklist) ->
     gen_server:cast(?MODULE, {safe_gc_blacklist, SafeGCBlacklist}).
 
@@ -143,11 +143,11 @@ update_gc_stats(Stats) ->
 update_nodes(DDFSNodes) ->
     gen_server:cast(?MODULE, {update_nodes, DDFSNodes}).
 
--spec update_nodestats(gb_tree()) -> ok.
+-spec update_nodestats(disco_gbtree(tagname(),pid())) -> ok.
 update_nodestats(NewNodes) ->
     gen_server:cast(?MODULE, {update_nodestats, NewNodes}).
 
--spec update_tag_cache(gb_set()) -> ok.
+-spec update_tag_cache(disco_gbset(tagname())) -> ok.
 update_tag_cache(TagCache) ->
     gen_server:cast(?MODULE, {update_tag_cache, TagCache}).
 
@@ -164,7 +164,7 @@ init(_Args) ->
         || Name <- [get_tags, do_get_tags_all, do_get_tags_filter,
             do_get_tags_safe, do_get_tags_gc]],
     spawn_link(fun() -> monitor_diskspace() end),
-    spawn_link(fun() -> ddfs_gc:start_gc(disco:get_setting("DDFS_DATA")) end),
+    spawn_link(ddfs_gc, start_gc, [disco:get_setting("DDFS_DATA")]),
     Refresher = spawn_link(fun() -> refresh_tag_cache_proc() end),
     put(put_port, disco:get_setting("DDFS_PUT_PORT")),
     {ok, #state{cache_refresher = Refresher}}.
@@ -240,12 +240,12 @@ handle_call(safe_gc_blacklist, _From, #state{safe_gc_blacklist = SBL} = S) ->
 
 -spec handle_cast({tag_notify, ddfs_tag:cast_msg(), tagname()}
                   | {gc_blacklist, [node()]}
-                  | {safe_gc_blacklist, gb_set()}
+                  | {safe_gc_blacklist, disco_gbset(tagname())}
                   | {update_gc_stats, gc_stats()}
-                  | {update_tag_cache, gb_set()}
+                  | {update_tag_cache, disco_gbset(tagname())}
                   | refresh_tag_cache
                   | {update_nodes, nodes_update()}
-                  | {update_nodestats, gb_tree()},
+                  | {update_nodestats, disco_gbtree(tagname(),pid())},
                   state()) -> gs_noreply().
 handle_cast({tag_notify, M, Tag}, S) ->
     {noreply, do_tag_notify(M, Tag, S)};
@@ -301,9 +301,7 @@ do_get_readable_nodes(Nodes, ReadBlacklist) ->
     ReadableNodeSet = gb_sets:subtract(NodeSet, BlackSet),
     {ok, gb_sets:to_list(ReadableNodeSet), gb_sets:size(BlackSet)}.
 
--spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
-                                   {ok, [node()]}.
-do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, false) ->
     % Include is the list of nodes that must be included
     %
     % Node selection algorithm:
@@ -321,7 +319,25 @@ do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
             Secondary = Include ++ lists:sublist(Preferred -- (Include ++ Exclude ++ BlackList),
                                                  K - length(Include)),
             {ok, Secondary}
+    end;
+
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList, true) ->
+    NotCandidates = Exclude ++ BlackList ++ Include,
+    Primary = [Node || ({N, {Free, _Total}} = Node) <- Nodes,
+        Free > ?MIN_FREE_SPACE / 1024, not lists:member(N, NotCandidates)],
+    case ddfs_rebalance:weighted_select_from_nodes(Primary, K - length(Include)) of
+        error    ->
+            do_choose_write_nodes(Nodes, K - length(Include), Include,
+                Exclude, BlackList, false);
+        Selected ->
+            {ok, Include ++ Selected}
     end.
+
+-spec do_choose_write_nodes([node_info()], non_neg_integer(), [node()], [node()], [node()]) ->
+                                   {ok, [node()]}.
+do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList) ->
+    do_choose_write_nodes(Nodes, K, Include, Exclude, BlackList,
+        disco:has_setting("DDFS_SPACE_AWARE")).
 
 -type new_blob_result() :: too_many_replicas | {ok, [nonempty_string()]}.
 -spec do_new_blob(string()|object_name(), non_neg_integer(), [node()], [node()], [node()], [node_info()]) ->
@@ -337,8 +353,9 @@ do_new_blob(Obj, K, Include, Exclude, BlackList, Nodes) ->
 % Tag request: Start a new tag server if one doesn't exist already. Forward
 % the request to the tag server.
 
--spec get_tag_pid(tagname(), gb_tree(), {boolean(), gb_set()}) ->
-                         {pid(), gb_tree()}.
+-spec get_tag_pid(tagname(), disco_gbtree(tagname(),pid()), {boolean(),
+                  disco_gbset(tagname())}) ->
+    {pid(), disco_gbtree(tagname(), pid())}.
 get_tag_pid(Tag, Tags, {Valid, Cache}) ->
     case gb_trees:lookup(Tag, Tags) of
         none ->
@@ -401,7 +418,7 @@ do_update_nodes(NewNodes, #state{nodes = Nodes, tags = Tags} = S) ->
                     read_blacklist = ReadBlacklist}
     end.
 
--spec do_update_nodestats(gb_tree(), state()) -> state().
+-spec do_update_nodestats(disco_gbtree(tagname(),pid()), state()) -> state().
 do_update_nodestats(NewNodes, #state{nodes = Nodes} = S) ->
     UpdatedNodes = [case gb_trees:lookup(Node, NewNodes) of
                         none ->

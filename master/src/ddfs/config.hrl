@@ -3,6 +3,7 @@
 -define(MINUTE, (60 * ?SECOND)).
 -define(HOUR, (60 * ?MINUTE)).
 -define(DAY, (24 * ?HOUR)).
+-define(KB, 1024).
 -define(MB, (1024 * 1024)).
 
 % Maximum length of tag/blob prefix
@@ -85,6 +86,12 @@
 % estimated time to traverse all the volumes on a DDFS node.
 -define(GC_PROGRESS_INTERVAL, (30 * ?MINUTE)).
 
+% A DDFS node is in a balanced state if its disk utilization is more
+% than the average utilization for all nodes minus the threshold and
+% less than the average utilization for all nodes plus the threshold.
+% Utilization is defined as the percentage of its used space
+-define(GC_BALANCE_THRESHOLD, 0.1).
+
 % Number of extra replicas (i.e. lost replicas recovered during GC) to
 % allow before deleting extra replicas.
 -define(NUM_EXTRA_REPLICAS, 1).
@@ -102,7 +109,7 @@
 % Tag attribute names and values have a limited size, and there
 % can be only a limited number of them.
 -define(MAX_TAG_ATTRIB_NAME_SIZE, 1024).
--define(MAX_TAG_ATTRIB_VALUE_SIZE, 1024).
+-define(MAX_TAG_ATTRIB_VALUE_SIZE, 4096).
 -define(MAX_NUM_TAG_ATTRIBS, 1000).
 
 % How long HTTP requests that perform tag updates should wait to

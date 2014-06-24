@@ -13,7 +13,7 @@ http_put(SrcPath, DstUrl, Timeout) ->
         spawn(fun() ->
             process_flag(trap_exit, true),
             S = self(),
-            spawn_link(fun() -> http_client:http_put_conn(SrcPath, DstUrl, S) end),
+            spawn_link(http_client, http_put_conn, [SrcPath, DstUrl, S]),
             receive
                 {'EXIT', _, _} = E -> P ! {S, ddfs_util, {error, E}}, ok;
                 E -> P ! {S, ddfs_util, E}, ok

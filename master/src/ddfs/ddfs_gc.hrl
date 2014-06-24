@@ -1,11 +1,13 @@
 -type local_object() :: {object_name(), node()}.
 -type phase() :: 'start' | 'build_map' | 'map_wait' | 'gc'
                | 'rr_blobs' | 'rr_blobs_wait' | 'rr_tags'.
--type protocol_msg() :: {'check_blob', object_name()} | 'start_gc' | 'end_rr'.
+-type mode() :: 'normal' | 'overused'.
+-type protocol_msg() :: {'check_blob', object_name()} | {'start_gc', mode()} | 'end_rr'.
 
--type blob_update() :: {object_name(), 'filter' | [url()]}.
+-type blob_update() :: {object_name(), 'filter' | {[url()], [url()]}}.
 
--type check_blob_result() :: 'false' | {'true', volume_name()}.
+% {In use, Volume, Size}
+-type check_blob_result() :: 'false' | {'true', volume_name(), non_neg_integer()}.
 
 % GC statistics
 
