@@ -229,8 +229,12 @@ handle_cast({clean_job, JobName}, S) ->
 handle_cast({pending_event, JobName, Event}, #state{events = Events} = S) ->
     {ok, JE} = dict:find(JobName, Events),
     EventsN = dict:store(JobName, update_job_ent(JE, Event), Events),
-    {noreply, S#state{events = EventsN}}.
+    {noreply, S#state{events = EventsN}};
 
+handle_cast({task_start, JobName, Event}, #state{events = Events} = S) ->
+    {ok, JE} = dict:find(JobName, Events),
+    EventsN = dict:store(JobName, update_job_ent(JE, Event), Events),
+    {noreply, S#state{events = EventsN}}.
 
 -spec handle_info(term(), state()) -> gs_noreply().
 handle_info(Msg, State) ->
@@ -276,6 +280,8 @@ update_job_ent(JE, {job_data, JobData}) ->
     JE#job_ent{job_data = JobData};
 update_job_ent(#job_ent{task_count = TaskCount} = JE, {stage_start, Stage, Tasks}) ->
     JE#job_ent{task_count = dict:store(Stage, Tasks, TaskCount)};
+update_job_ent(#job_ent{task_count = TaskCount} = JE, {task_start, Stage}) ->
+    JE#job_ent{task_count = dict:update_counter(Stage, 1, TaskCount)};
 update_job_ent(#job_ent{task_pending = TaskPending} = JE, {task_pending, Stage}) ->
     JE#job_ent{task_pending= dict:update_counter(Stage, 1, TaskPending)};
 update_job_ent(#job_ent{task_pending = TaskPending} = JE, {task_un_pending, Stage}) ->
@@ -405,7 +411,8 @@ pending_event(JobName, Stage, add) ->
     gen_server:cast(?MODULE, {pending_event, JobName, {task_pending, Stage}});
 
 pending_event(JobName, Stage, remove) ->
-    gen_server:cast(?MODULE, {pending_event, JobName, {task_un_pending, Stage}}).
+    gen_server:cast(?MODULE, {pending_event, JobName, {task_un_pending, Stage}}),
+    gen_server:cast(?MODULE, {task_start, JobName, {task_start, Stage}}).
 
 -spec do_job_done(jobname(), state()) -> state().
 do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->

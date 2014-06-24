@@ -296,7 +296,7 @@ render_jobinfo({Start, Status0, JobInfo, Results, Count, Pending, Ready, Fail},
                 Inputs = lists:flatten([pipeline_utils:input_urls(Input, split, {0, " "})
                                         || {_Id, Input} <- I]),
                 {list_to_binary(atom_to_list(Status0)),
-                 [[S, max(dfind(S, Count, 0) - (R + D + Pend), 0), Pend, R, D, dfind(S, Fail, 0)]
+                 [[S, max(dfind(S, Count, 0) - (R + D), 0), Pend, R, D, dfind(S, Fail, 0)]
                   || {S, _, _} <- P,
                       R <- [dfind(S, Run, 0)],
                       Pend <- [dfind(S, Pending, 0)],
