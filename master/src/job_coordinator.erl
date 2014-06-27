@@ -191,6 +191,10 @@ handle_info({'EXIT', _Pid, normal}, S) ->
 handle_info({'EXIT', _Pid, kill_worker}, S) ->
     {stop, normal, S};
 
+handle_info({'DOWN', _Ref, process, Pid, _Reason}, S) ->
+    lager:warning("Monitored process ~p goes down, stopping (self ~p).", [Pid, self()]),
+    {stop, normal, S};
+
 handle_info(M, S) ->
     lager:warning("Ignoring unexpected info event: ~p (self ~p)", [M, self()]),
     {noreply, S}.
@@ -220,6 +224,7 @@ setup_job(JobPack, JobCoord) ->
                   {ok, File}      -> File;
                   {error, _M} = T -> throw(T)
               end,
+    erlang:monitor(process, whereis(disco_server)),
     case disco_server:new_job(JobName, JobCoord, 30000) of
         ok -> ok;
         {error, _E} = T1 -> throw(T1)
