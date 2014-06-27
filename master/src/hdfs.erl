@@ -8,14 +8,19 @@ get_data_node_link(NameNode, HdfsPath, User) ->
     Loc = lists:keyfind("location", 1, L),
     element(2, Loc).
 
--spec save_to_hdfs(string(), string(), string(), string()) -> ok.
+-spec save_to_hdfs(string(), string(), string(), string()) ->
+    {ok, binary()} | error.
 save_to_hdfs(NameNode, HdfsPath, User, LocalPath) ->
     DataNodeUrl = get_data_node_link(NameNode, HdfsPath, User),
     Self = self(),
     spawn_link(http_client, http_put_conn, [LocalPath, DataNodeUrl, Self]),
     receive S ->
-            error_logger:info_msg("Hdfs operation done: ~p~n", [S]),
-            S
+            case S of
+                {ok, _} -> {ok, DataNodeUrl};
+                _       ->
+                    error_logger:info_msg("Hdfs operation failed: ~p~n", [S]),
+                    error
+            end
     end.
 
 -spec get_compliant_name(string()) -> string().
