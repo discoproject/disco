@@ -382,10 +382,7 @@ save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
             case Locals of
                 {ok, L} ->
                         case lists:prefix("hdfs", SaveInfo) of
-                            true  -> save_hdfs(JN, L, SaveInfo, TaskId, 0),
-                                save_locals(L, NReplicas, Master, JN, TaskId,
-                                    RunId, []);
-
+                            true  -> save_hdfs(JN, L, SaveInfo, TaskId, 0, []);
                             false -> save_locals(L, NReplicas, Master, JN, TaskId, RunId, [])
                         end;
                 {error, _} = E1 -> E1
@@ -394,18 +391,25 @@ save_locals_to_dfs(JN, FileName, Master, Task, SaveInfo) ->
             E2
     end.
 
-save_hdfs(_JobName, [], _SaveInfo, _, _) ->
-    ok;
+-spec save_hdfs(jobname(), [{label(), url(), data_size()}], string(), task_id(),
+                non_neg_integer(), [remote_output()]) ->
+                         {ok, [remote_output()]} | {error, term()}.
+save_hdfs(_JobName, [], _SaveInfo, _, _, Acc) ->
+    {ok, Acc};
 
-save_hdfs(JobName, [{_L, Loc, _Sz} = _H | Rest], SaveInfo, TaskId, Index) ->
+save_hdfs(JobName, [{L, Loc, Sz} = _H | Rest], SaveInfo, TaskId, Index, Acc) ->
     ["hdfs", NameNode, User, HdfsDir] = string:tokens(SaveInfo, [$,]),
     LocalPath = disco:joburl_to_localpath(Loc),
     Name = HdfsDir ++ hdfs:get_compliant_name(JobName) ++
         "/" ++ integer_to_list(TaskId) ++
         "_" ++ integer_to_list(Index),
 
-    hdfs:save_to_hdfs(NameNode, Name, User, LocalPath),
-    save_hdfs(JobName, Rest, SaveInfo, TaskId, Index + 1).
+    case hdfs:save_to_hdfs(NameNode, Name, User, LocalPath) of
+        {ok, HdfsLoc} ->
+            save_hdfs(JobName, Rest, SaveInfo, TaskId, Index + 1, [{L, Sz, [HdfsLoc]}|Acc]);
+        error ->
+            {error, save_failed}
+    end.
 
 -spec parse_index(binary()) -> [{label(), url(), data_size()}].
 parse_index(Index) ->
