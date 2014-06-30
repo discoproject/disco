@@ -371,6 +371,7 @@ do_task_done(TaskId, Host, Result, #state{jobinfo = #jobinfo{jobname = JobName},
 
 -spec finish_pipeline(stage_name(), state()) -> state().
 finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
+                                                 save_info    = SaveInfo,
                                                  save_results = Save}} = S) ->
     {_, Outputs} = lists:unzip(stage_outputs(Stage, S)),
     Results = [pipeline_utils:output_urls(O)
@@ -381,7 +382,13 @@ finish_pipeline(Stage, #state{jobinfo = #jobinfo{jobname      = JobName,
             event_server:job_done_event(JobName, Results),
             gen_server:cast(self(), pipeline_done);
         true ->
-            save_ddfs(JobName, Results)
+            case lists:prefix("hdfs", SaveInfo) of
+                true ->
+                    lager:info("Job ~s done, results saved to hdfs.", [JobName]),
+                    event_server:job_done_event(JobName, [Results]);
+                false ->
+                    save_ddfs(JobName, Results)
+            end
     end,
     S.
 
