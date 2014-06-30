@@ -99,17 +99,21 @@ handle_call(dbg_get_state, _, S) ->
 handle_call({next_job, _}, _, {{0, _}, _, _} = S) ->
     {reply, nojobs, S};
 
-handle_call({next_job, NotJobs}, _, {{N, _}, _, _} = S)
-  when length(NotJobs) >= N ->
-    {reply, nojobs, S};
-
 % NotJobs lists all jobs that got 'none' reply from the
 % fair_scheduler_job task scheduler. We want to skip them.
+
+% There might be some job pids in the NotJobs list that are not in the priority
+% queue (like the jobs that just finished). Therefore we cannot compare the size
+% of the priority queue with the length of NotJobs.
 handle_call({next_job, NotJobs}, _, {Jobs, PrioQ, NC}) ->
-    {NextJob, RPrioQ} = dropwhile(PrioQ, [], NotJobs),
-    {UJobs, UPrioQ} = bias_priority(gb_trees:get(NextJob, Jobs),
-                                    RPrioQ, Jobs, NC),
-    {reply, {ok, NextJob}, {UJobs, UPrioQ, NC}};
+    case dropwhile(PrioQ, [], NotJobs) of
+        none ->
+            {reply, nojobs, {Jobs, PrioQ, NC}};
+        {NextJob, RPrioQ} ->
+            {UJobs, UPrioQ} = bias_priority(gb_trees:get(NextJob, Jobs),
+                                            RPrioQ, Jobs, NC),
+            {reply, {ok, NextJob}, {UJobs, UPrioQ, NC}}
+    end;
 
 handle_call(priv_get_jobs, _, {Jobs, _, _} = S) ->
     {reply, {ok, Jobs}, S}.
@@ -121,6 +125,10 @@ handle_info({'DOWN', _, _, JobPid, _}, {Jobs, PrioQ, NC}) ->
     {noreply, {gb_trees:delete(JobPid, Jobs),
                lists:keydelete(JobPid, 2, PrioQ), NC}}.
 
+% The list of the jobs has been exhausted but all of the jobs are in NotJobs
+% list
+dropwhile([], _, _) ->
+    none;
 dropwhile([{_, JobPid, _} = E|R], H, NotJobs) ->
     case lists:member(JobPid, NotJobs) of
         false -> {JobPid, lists:reverse(H) ++ R};
