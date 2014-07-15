@@ -373,7 +373,7 @@ find_tags(Root, Vols) ->
     {ok,
      lists:foldl(fun({_Space, VolName}, Tags) ->
                          ddfs_util:fold_files(filename:join([Root, VolName, "tag"]),
-                                              fun(Tag, _, Tags1) ->
+                                              fun(Tag, _, _, Tags1) ->
                                                       parse_tag(Tag, VolName, Tags1)
                                               end, Tags)
                  end, gb_trees:empty(), Vols)}.
