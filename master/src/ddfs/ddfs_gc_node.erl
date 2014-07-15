@@ -70,10 +70,10 @@ traverse(Now, Root, VolNames, Type) ->
     lists:foreach(
       fun(VolName) ->
               DDFSDir = filename:join([Root, VolName, Mode]),
-              Handler = fun(Obj, Size, Dir, _Ok) ->
+              Handler = fun(Obj, Size, Dir) ->
                                 handle_file(Obj, Size, Dir, VolName, Type, Now)
                         end,
-              ddfs_util:fold_files(DDFSDir, Handler, ok)
+              ddfs_util:foreach_file(DDFSDir, Handler)
       end, VolNames).
 
 -spec handle_file(path(), non_neg_integer(), path(),
