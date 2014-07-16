@@ -226,7 +226,7 @@ class Master(clx.server.Server):
 
         for option, value in [('+scl', 'false'), ('+stbt', 's')]:
             if isErlOptionAvailable(option, value):
-                SchedulerOptions += [option, value]
+                SchedulerOptions += [option, value] + ["-env", option, value]
 
         ret = (settings['DISCO_ERLANG'].split() +
                 lager_config(settings['DISCO_LOG_DIR']) +
