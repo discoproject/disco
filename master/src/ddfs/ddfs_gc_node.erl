@@ -30,8 +30,8 @@ gc_node_init(Master, Now, Phase, Mode) ->
     %        Vol    :: volume_name(),
     %        Size   :: non_neg_integer(),
     %        in_use :: 'false' | 'true'}
-    _ = ets:new(tag, [named_table, set, private]),
-    _ = ets:new(blob, [named_table, set, private]),
+    _ = ets:new(tag, [named_table, set, public, {write_concurrency,true}]),
+    _ = ets:new(blob, [named_table, set, public, {write_concurrency,true}]),
     disco_profile:timed_run(
         fun() -> traverse(Now, Root, VolNames, blob) end,
         ddfs_traverse_blobs),
@@ -67,7 +67,7 @@ gc_node(Master, _Now, Root, Phase, _Mode)
 -spec traverse(erlang:timestamp(), path(), [volume_name()], object_type()) -> 'ok'.
 traverse(Now, Root, VolNames, Type) ->
     Mode = case Type of tag -> "tag"; blob -> "blob" end,
-    lists:foreach(
+    plists:foreach(
       fun(VolName) ->
               DDFSDir = filename:join([Root, VolName, Mode]),
               Handler = fun(Obj, Size, Dir) ->
