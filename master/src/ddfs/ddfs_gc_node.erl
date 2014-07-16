@@ -20,7 +20,6 @@ gc_node_init(Master, Now, Phase, Mode) ->
     register(?MODULE, self()),
     % All phases of GC/RR require that we build a snapshot of our
     % node-local DDFS content across all volumes.
-    process_flag(priority, low),
     {Vols, Root} = ddfs_node:get_vols(),
     {_, VolNames} = lists:unzip(Vols),
 
