@@ -82,13 +82,24 @@ wait(Host, Node) ->
             lager:info("Unexpected message to node_mon for ~p: ~p", [Node, E])
     end.
 
+add_options_if_available([], Acc) -> Acc;
+add_options_if_available([OptionName|Rest], Acc) ->
+    Acc1 = case os:getenv(OptionName) of
+        false ->
+            Acc;
+        OptionValue ->
+            Acc ++ io_lib:format(" ~s ~s ", [OptionName, OptionValue])
+    end,
+    add_options_if_available(Rest, Acc1).
+
 slave_env() ->
     Home = disco:get_setting("DISCO_MASTER_HOME"),
-    lists:flatten([?SLAVE_ARGS,
+    SchedulerOptions = add_options_if_available(["+scl"], []),
+    lists:flatten([?SLAVE_ARGS, SchedulerOptions,
                    [io_lib:format(" -pa ~s/ebin/~s", [Home, Dir])
                     || Dir <- [""]],
                    [io_lib:format(" -pa ~s/deps/~s/ebin", [Home, Dir])
-                    || Dir <- ["mochiweb", "lager"] ++ disco_profile:get_app_names()],
+                    || Dir <- ["mochiweb", "lager", "plists"] ++ disco_profile:get_app_names()],
                    [io_lib:format(" -env ~s '~s'", [S, disco:get_setting(S)])
                     || S <- disco:settings()]]).
 

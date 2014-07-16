@@ -20,7 +20,6 @@ gc_node_init(Master, Now, Phase, Mode) ->
     register(?MODULE, self()),
     % All phases of GC/RR require that we build a snapshot of our
     % node-local DDFS content across all volumes.
-    process_flag(priority, low),
     {Vols, Root} = ddfs_node:get_vols(),
     {_, VolNames} = lists:unzip(Vols),
 
@@ -30,8 +29,8 @@ gc_node_init(Master, Now, Phase, Mode) ->
     %        Vol    :: volume_name(),
     %        Size   :: non_neg_integer(),
     %        in_use :: 'false' | 'true'}
-    _ = ets:new(tag, [named_table, set, private]),
-    _ = ets:new(blob, [named_table, set, private]),
+    _ = ets:new(tag, [named_table, set, public, {write_concurrency,true}]),
+    _ = ets:new(blob, [named_table, set, public, {write_concurrency,true}]),
     disco_profile:timed_run(
         fun() -> traverse(Now, Root, VolNames, blob) end,
         ddfs_traverse_blobs),
@@ -67,13 +66,13 @@ gc_node(Master, _Now, Root, Phase, _Mode)
 -spec traverse(erlang:timestamp(), path(), [volume_name()], object_type()) -> 'ok'.
 traverse(Now, Root, VolNames, Type) ->
     Mode = case Type of tag -> "tag"; blob -> "blob" end,
-    lists:foreach(
+    plists:foreach(
       fun(VolName) ->
               DDFSDir = filename:join([Root, VolName, Mode]),
-              Handler = fun(Obj, Size, Dir, _Ok) ->
+              Handler = fun(Obj, Size, Dir) ->
                                 handle_file(Obj, Size, Dir, VolName, Type, Now)
                         end,
-              ddfs_util:fold_files(DDFSDir, Handler, ok)
+              ddfs_util:foreach_file(DDFSDir, Handler)
       end, VolNames).
 
 -spec handle_file(path(), non_neg_integer(), path(),
@@ -113,8 +112,9 @@ check_server(Master, Root) ->
 check_blob(ObjName) ->
     case ets:update_element(blob, ObjName, {4, true}) of
         false -> false;
-        true  -> {true, ets:lookup_element(blob, ObjName, 2),
-                  ets:lookup_element(blob, ObjName, 3)}
+        true  ->
+            Elem = lists:nth(1, ets:lookup(blob, ObjName)),
+            {true, element(2, Elem), element(3, Elem)}
     end.
 
 % Perform GC

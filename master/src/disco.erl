@@ -5,7 +5,7 @@
 -export([slave_name/1, slave_node/1, slave_safe/1, slave_for_url/1]).
 -export([jobhome/1, jobhome/2, joburl/2, joburl_to_localpath/1]).
 -export([data_root/1, data_path/2, ddfs_root/2]).
--export([local_cluster/0, preferred_host/1, disco_url_path/1, dir_to_url/1]).
+-export([local_cluster/0, preferred_host/1, dir_to_url/1]).
 -export([enum/1, enum/2, hexhash/1, oob_name/1, debug_flags/1]).
 -export([format/2, format_time/1, format_time/4, format_time_since/1]).
 -export([make_dir/1, ensure_dir/1, is_file/1, is_dir/1]).
@@ -158,12 +158,6 @@ local_cluster() ->
         false -> false;
         _     -> true
     end.
-
--spec disco_url_path(file:filename()) -> [path()].
-disco_url_path(Url) ->
-    Opts = [{capture, all_but_first, list}],
-    {match, [Path]} = re:run(Url, ".*?://.*?/disco/(.*)", Opts),
-    Path.
 
 -spec dir_to_url(url()) -> url().
 dir_to_url(<<"dir://", _/binary>> = Dir) ->
