@@ -7,7 +7,8 @@
 -export([new_job/3, end_job/1, clean_job/1]).
 % Retrieval.
 -export([get_jobs/0, get_jobs/1, get_jobinfo/1, get_job_msgs/3,
-         get_stage_results/2, get_results/1]).
+         get_stage_results/2, get_results/1, get_job_event_handler/1]).
+
 % Event logging.
 -export([event/4, event/5, event/6,
          task_event/2, task_event/3, task_event/4, task_event/5,
@@ -68,6 +69,10 @@ get_jobs(Master) ->
 -spec get_jobinfo(jobname()) -> invalid_job | {ok, job_eventinfo()}.
 get_jobinfo(JobName) ->
     gen_server:call(?MODULE, {get_jobinfo, JobName}).
+
+-spec get_job_event_handler(jobname()) -> invalid_job | pid().
+get_job_event_handler(JobName) ->
+    gen_server:call(?MODULE, {get_job_event_handler, JobName}).
 
 -spec get_job_msgs(jobname(), string(), integer()) -> {ok, [binary()]}.
 get_job_msgs(JobName, Q, N) ->
@@ -176,6 +181,8 @@ handle_call({new_job, JobPrefix, Pid, Stages}, From,
     end;
 handle_call(get_jobs, _F, #state{events = Events} = S) ->
     {reply, do_get_jobs(Events), S};
+handle_call({get_job_event_handler, JobName}, _F, #state{events = Events} = S) ->
+    {reply, do_get_job_event_handler(JobName, Events), S};
 handle_call({get_job_msgs, JobName, Query, N}, _F, #state{msgbuf = MB} = S) ->
     {reply, do_get_job_msgs(JobName, Query, N, MB), S};
 handle_call({get_results, JobName}, _F, #state{events = Events} = S) ->
@@ -250,6 +257,15 @@ do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
             {ok, json_list(lists:sublist(MsgLst, N))};
         error ->
             {ok, json_list(tail_log(JobName, N))}
+    end.
+
+-spec do_get_job_event_handler(jobname(), event_dict()) -> invalid_job | pid().
+do_get_job_event_handler(JobName, Events) ->
+    case dict:find(JobName, Events) of
+        error ->
+            invalid_job;
+        {ok, JE} ->
+            JE
     end.
 
 -spec do_get_results(jobname(), event_dict())
