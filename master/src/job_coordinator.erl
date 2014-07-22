@@ -1,7 +1,7 @@
 -module(job_coordinator).
 -behaviour(gen_server).
 
--export([new/1, task_done/2, update_nodes/2, task_started/3]).
+-export([new/1, task_done/2, update_nodes/2, task_started/3, kill_job/2]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -13,9 +13,7 @@
 -include("pipeline.hrl").
 -include("job_coordinator.hrl").
 
--define(TASK_SUBMIT_TIMEOUT, 2000).
 -define(DISCO_SERVER_TIMEOUT, 30000).
--define(FAILURES_ALLOWED, 15).
 
 % In theory we could keep the HTTP connection pending until the job
 % finishes but in practice long-living HTTP connections are a bad
@@ -84,14 +82,13 @@ update_nodes(JobCoord, Hosts) ->
 submit_tasks(JobCoord, Mode, Tasks) ->
     gen_server:cast(JobCoord, {submit_tasks, Mode, Tasks}).
 
-submit_tasks(_, _, _, 0) ->
-    {stop, "Too many failures"};
-submit_tasks(JobCoord, Mode, Tasks, N) ->
-    gen_server:cast(JobCoord, {submit_tasks, Mode, Tasks, N-1}).
+-spec kill_job(term(), pid()) -> ok.
+kill_job(Reason, JC) ->
+    gen_server:cast(JC, {kill_job, Reason}).
 
 -spec kill_job(term()) -> ok.
 kill_job(Reason) ->
-    gen_server:cast(self(), {kill_job, Reason}).
+    kill_job(Reason, self()).
 
 -spec use_inputs(pid(), {ok, [task_output()]} | {error, term()}) -> ok.
 use_inputs(Coord, Inputs) ->
@@ -166,9 +163,7 @@ handle_cast({inputs, {ok, Inputs}}, S) ->
 handle_cast({stage_done, Stage}, S) ->
     {noreply, do_stage_done(Stage, S)};
 handle_cast({submit_tasks, Mode, Tasks}, S) ->
-    {noreply, do_submit_tasks(Mode, Tasks, S, ?FAILURES_ALLOWED)};
-handle_cast({submit_tasks, Mode, Tasks, NFailuresAllowed}, S) ->
-    {noreply, do_submit_tasks(Mode, Tasks, S, NFailuresAllowed)};
+    {noreply, do_submit_tasks(Mode, Tasks, S)};
 handle_cast({task_done, TaskId, Host, Results}, S) ->
     {noreply, do_task_done(TaskId, Host, Results, S)};
 handle_cast(pipeline_done, #state{jobinfo = #jobinfo{jobname = JobName}} = S) ->
@@ -472,7 +467,7 @@ regenerate_input(_WaiterTInfo, {GenTaskId, _} = _InputId,
     % Backtrack through the task dependency graph and get the runnable
     % tasks from all the tasks that need to be re-run.
     {TaskIdsToRun, S1} = collect_runnable_deps(GenTaskId, FailingHosts, S),
-    do_submit_tasks(re_run, TaskIdsToRun, S1, ?FAILURES_ALLOWED).
+    do_submit_tasks(re_run, TaskIdsToRun, S1).
 
 -spec task_complete(task_id(), host(), [task_output()], state()) -> state().
 task_complete(TaskId, Host, Outputs, S) ->
@@ -501,7 +496,7 @@ maybe_start_pending(#state{pending = Pending} = S) ->
             #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
             #task_spec{stage = Stage} = TaskSpec,
             case jc_utils:can_run_task(P, Stage, SI, Schedule) of
-                true  -> do_submit_tasks(Mode, [TaskId], S1, ?FAILURES_ALLOWED);
+                true  -> do_submit_tasks(Mode, [TaskId], S1);
                 false -> S1
             end
         end, S, Pending).
@@ -511,7 +506,7 @@ maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) -
     case pipeline_utils:next_stage(P, Stage) of
         {Next, Grouping, _} ->
             {NTasks, STemp} = make_stage_tasks(Next, Grouping, NewGroups, S, {0, []}),
-            STemp1 = do_submit_tasks(first_run, NTasks, STemp, ?FAILURES_ALLOWED),
+            STemp1 = do_submit_tasks(first_run, NTasks, STemp),
             send_outputs_to_consumers(STemp1, ModifiedGroups, Next);
         done ->
             S
@@ -593,7 +588,7 @@ wakeup_waiters(TaskId, Host, Outputs, #state{tasks = Tasks} = S) ->
                              waiters = [],
                              outputs = Outputs},
     {Awake, Tasks1} = jc_utils:wakeup_waiters(TaskId, Waiters, Tasks),
-    S1 = do_submit_tasks(re_run, Awake, S, ?FAILURES_ALLOWED),
+    S1 = do_submit_tasks(re_run, Awake, S),
     S1#state{tasks = jc_utils:update_task_info(TaskId, TInfo1, Tasks1)}.
 
 -spec do_stage_done(stage_name(), state()) -> state().
@@ -706,7 +701,7 @@ start_next_stage(PrevStageOutputs, Stage, Grouping,
             Event = {stage_start, Stage, NTasks},
             event_server:event(JobName, "Stage ~s scheduled with ~p tasks",
                                [Stage, NTasks], Event),
-            do_submit_tasks(first_run, Tasks, S1, ?FAILURES_ALLOWED)
+            do_submit_tasks(first_run, Tasks, S1)
     end.
 
 -spec setup_stage_tasks([{task_id(), [task_output()]}], stage_name(), label_grouping(),
@@ -802,23 +797,21 @@ add_inputs_to_data_map(#state{data_map = OldDataMap} = S, Inputs) ->
     S#state{data_map = DataMap}.
 
 
--spec do_submit_tasks(submit_mode(), [task_id()], state(), non_neg_integer()) -> state().
-do_submit_tasks(_Mode, [], S, _) -> S;
+-spec do_submit_tasks(submit_mode(), [task_id()], state()) -> state().
+do_submit_tasks(_Mode, [], S) -> S;
 do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               pipeline   = P,
                                               pending    = Pending,
                                               jobinfo = #jobinfo{jobname = JobName},
                                               schedule = Schedule,
-                                              tasks      = Tasks} = S,
-                                      NFailuresAllowed) ->
+                                              tasks      = Tasks} = S) ->
     #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage} = TaskSpec,
     case jc_utils:can_run_task(P, Stage, SI, Schedule) of
         false ->
             event_server:pending_event(JobName, Stage, add),
             do_submit_tasks(Mode, Rest,
-                            S#state{pending = gb_sets:add_element({TaskId, Mode}, Pending)},
-                            NFailuresAllowed);
+                            S#state{pending = gb_sets:add_element({TaskId, Mode}, Pending)});
         true ->
             NewPending = case gb_sets:is_element({TaskId, Mode}, Pending) of
                 true ->
@@ -827,16 +820,15 @@ do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                 false -> Pending
             end,
             S1 = S#state{pending = NewPending},
-            do_submit_tasks_in(Mode, [TaskId|Rest], S1, NFailuresAllowed)
+            do_submit_tasks_in(Mode, [TaskId|Rest], S1)
     end.
 
--spec do_submit_tasks_in(submit_mode(), [task_id()], state(), non_neg_integer()) -> state().
+-spec do_submit_tasks_in(submit_mode(), [task_id()], state()) -> state().
 do_submit_tasks_in(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               data_map   = DataMap,
                                               next_runid = RunId,
                                               hosts      = Hosts,
-                                              tasks      = Tasks} = S,
-                                      NFailuresAllowed) ->
+                                              tasks      = Tasks} = S) ->
     #task_info{spec = TaskSpec, failed_hosts = FailedHosts}
         = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage, group = {_L, H}, input = Input} = TaskSpec,
@@ -851,21 +843,13 @@ do_submit_tasks_in(Mode, [TaskId | Rest], #state{stage_info = SI,
                         host   = Host,
                         input  = Inputs,
                         failed_hosts = FailedHosts},
-    try disco_server:new_task({TaskSpec, TaskRun}, ?TASK_SUBMIT_TIMEOUT) of
-        ok ->
-            SI1 = jc_utils:update_stage_tasks(Stage, TaskId, run, SI),
-            do_submit_tasks(Mode, Rest, S#state{next_runid = RunId + 1,
-                                                stage_info = SI1},
-                                            ?FAILURES_ALLOWED);
-        failed ->
-            lager:info("Task failed, remaining: ~w", [NFailuresAllowed]),
-            ok = submit_tasks(self(), Mode, [TaskId | Rest], NFailuresAllowed),
-            S
-        catch _:{timeout, _} ->
-            lager:info("Task timed out, remaining: ~w", [NFailuresAllowed]),
-            ok = submit_tasks(self(), Mode, [TaskId | Rest], NFailuresAllowed),
-            S
-    end.
+    % There is no back pressure from disco_server on the job_coordinator, so we
+    % will have to trust that the job_coordinator is not going to cause
+    % problems for the disco_server (if there are too many tasks, we have
+    % to use max_cores to limit the pressure on disco_server).
+    disco_server:new_task({TaskSpec, TaskRun}),
+    SI1 = jc_utils:update_stage_tasks(Stage, TaskId, run, SI),
+    do_submit_tasks(Mode, Rest, S#state{next_runid = RunId+1, stage_info=SI1}).
 
 % This returns the list of runnable dependency tasks, and an updated
 % state.
