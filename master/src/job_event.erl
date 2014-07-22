@@ -7,6 +7,8 @@
 -export([start_link/3, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-export([task_event/3, task_event/4, task_event/5]).
+
 -include("gs_util.hrl").
 -include("event.hrl").
 
@@ -16,6 +18,10 @@
 
 -type stage_dict() :: disco_dict(stage_name(), non_neg_integer()).
 -type stage_result_dict() :: disco_dict(stage_name(), [[url()]]).
+-type task_event_info() :: {jobname(), stage_name(), task_id()}.
+-type task_msg() :: {binary(), term()} | string().
+
+-export_type([task_event_info/0, task_msg/0]).
 
 -record(state, {job_coord :: pid(),
                 nmsgs                :: non_neg_integer(),
@@ -80,6 +86,43 @@ purge(JEHandler) ->
 -spec get_stage_results(pid(), stage_name()) ->  not_ready | {ok, [[url()]]}.
 get_stage_results(JEHandler, StageName) ->
     gen_server:call(JEHandler, {get_stage_results, StageName}).
+
+
+-spec task_event(pid(), task_event_info(), task_msg()) -> ok.
+task_event(JEHandler, Task, Msg) ->
+    task_event(JEHandler, Task, Msg, none).
+
+-spec task_event(pid(), task_event_info(), task_msg(), event()) -> ok.
+task_event(JEHandler, Task, Msg, Event) ->
+    task_event(JEHandler, Task, Msg, Event, "master").
+
+-spec task_event(pid(), task_event_info(), task_msg(), event(), host()) -> ok.
+task_event(JEHandler, {_JN, Stage, TaskId}, {Type, Message}, Event, Host) ->
+    event(JEHandler, Host,
+          "~s: [~s:~B] " ++ msg_format(Message),
+          [Type, Stage, TaskId, Message],
+          Event);
+task_event(JEHandler, Task, Message, Event, Host) ->
+    task_event(JEHandler, Task, {<<"SYS">>, Message}, Event, Host).
+
+-spec msg_format(term()) -> nonempty_string().
+msg_format(Msg) when is_atom(Msg) or is_binary(Msg) or is_list(Msg) ->
+    "~s";
+msg_format(_Msg) ->
+    "~w".
+
+-spec event(pid(), host(), nonempty_string(), list(), event()) -> ok.
+event(JEHandler, Host, MsgFormat, Args, Event) ->
+    RawMsg = disco:format(MsgFormat, Args),
+    Json = try mochijson2:encode(list_to_binary(RawMsg))
+           catch _:_ ->
+                   Hex = ["WARNING: Binary message data: ",
+                          [io_lib:format("\\x~2.16.0b",[N]) || N <- RawMsg]],
+                   mochijson2:encode(list_to_binary(Hex))
+           end,
+    Msg = list_to_binary(Json),
+    gen_server:cast(JEHandler, {add_event, Host, Msg, Event}).
+
 
 -spec init({pid(), jobname(), [stage_name()]}) -> gs_init().
 init({JC, JobName, Stages}) ->

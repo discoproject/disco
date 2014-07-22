@@ -11,7 +11,6 @@
 
 % Event logging.
 -export([event/4, event/5, event/6,
-         task_event/2, task_event/3, task_event/4, task_event/5,
          job_done_event/2, pending_event/3]).
 % Server.
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -22,17 +21,13 @@
 -include("gs_util.hrl").
 -include("event.hrl").
 
--type task_info() :: {jobname(), stage_name(), task_id()}.
-
--type task_msg() :: {binary(), term()} | string().
-
 -type joblist_entry() :: {JobName :: jobname(),
                           job_status(),
                           StartTime :: erlang:timestamp()}.
 
 -type stage_dict() :: disco_dict(stage_name(), non_neg_integer()).
 
--export_type([event/0, task_info/0, task_msg/0, job_eventinfo/0]).
+-export_type([event/0, job_eventinfo/0]).
 
 % Cluster configuration.
 
@@ -112,33 +107,6 @@ event(EventServer, Host, JobName, MsgFormat, Args, Event) ->
 -spec job_done_event(jobname(), [url()|[url()]]) -> ok.
 job_done_event(JobName, Results) ->
     gen_server:cast(?MODULE, {job_done_event, JobName, Results}).
-
--spec task_event(task_info(), task_msg()) -> ok.
-task_event(Task, Msg) ->
-    task_event(Task, Msg, none).
-
--spec task_event(task_info(), task_msg(), none | event()) -> ok.
-task_event(Task, Msg, Event) ->
-    task_event(Task, Msg, Event, "master").
-
--spec task_event(task_info(), task_msg(), none | event(), host()) -> ok.
-task_event(Task, Msg, Event, Host) ->
-    task_event(Task, Msg, Event, Host, ?MODULE).
-
--spec task_event(task_info(), task_msg(), none | event(), host(), server()) -> ok.
-task_event({JN, Stage, TaskId}, {Type, Message}, Event, Host, EventServer) ->
-    event(EventServer, Host, JN,
-          "~s: [~s:~B] " ++ msg_format(Message),
-          [Type, Stage, TaskId, Message],
-          Event);
-task_event(Task, Message, Event, Host, EventServer) ->
-    task_event(Task, {<<"SYS">>, Message}, Event, Host, EventServer).
-
--spec msg_format(term()) -> nonempty_string().
-msg_format(Msg) when is_atom(Msg) or is_binary(Msg) or is_list(Msg) ->
-    "~s";
-msg_format(_Msg) ->
-    "~w".
 
 % Server.
 
