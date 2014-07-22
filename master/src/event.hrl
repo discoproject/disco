@@ -2,7 +2,8 @@
 -include("disco.hrl").
 -include("pipeline.hrl").
 
--type event() :: {job_data, jobinfo()}
+-type event() :: none
+               | {job_data, jobinfo()}
                | {task_pending, stage_name()}
                | {task_ready, stage_name()}
                | {task_failed, stage_name()}

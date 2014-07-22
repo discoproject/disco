@@ -17,12 +17,10 @@
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
+-export([json_list/1]).
+
 -include("gs_util.hrl").
 -include("event.hrl").
-
--define(EVENT_PAGE_SIZE, 100).
--define(EVENT_BUFFER_SIZE, 1000).
--define(EVENT_BUFFER_TIMEOUT, 2000).
 
 -type task_info() :: {jobname(), stage_name(), task_id()}.
 
@@ -153,46 +151,36 @@ start_link() ->
     end.
 
 -type event_dict() :: disco_dict(jobname(), pid()).
-% msgbuf dict: jobname -> { <nmsgs>, <list-length>, [<msg>] }
--type job_msg_dict() :: disco_dict(jobname(), {non_neg_integer(), non_neg_integer(), [binary()]}).
 
 -record(state, {events = dict:new() :: event_dict(),
-                msgbuf = dict:new() :: job_msg_dict(),
                 hosts  = []         :: [host()]}).
 -type state() :: #state{}.
 
 -spec init(_) -> gs_init().
 init(_Args) ->
-    _ = ets:new(event_files, [named_table]),
     {ok, #state{}}.
 
 -spec handle_call(term(), from(), state()) -> gs_reply(term()) | gs_noreply().
 
-handle_call({new_job, JobPrefix, Pid, Stages}, From,
-            #state{events = Events0, msgbuf = MsgBuf0, hosts = Hosts} = S) ->
+handle_call({new_job, JobPrefix, Pid, Stages}, _From,
+            #state{events = Events0, hosts = Hosts} = S) ->
     case unique_key(JobPrefix, Events0) of
         invalid_prefix ->
             {reply, {error, invalid_prefix}, S};
         {ok, JobName} ->
-            Events = dict:store(JobName, job_event:start_link(Pid, Stages), Events0),
-            MsgBuf = dict:store(JobName, {0, 0, []}, MsgBuf0),
-            spawn(fun() -> job_event_handler(JobName, Hosts, From) end),
-            {noreply, S#state{events = Events, msgbuf = MsgBuf}}
+            Events = dict:store(JobName, job_event:start_link(Pid, JobName, Stages), Events0),
+            {reply, {ok, JobName, Hosts}, S#state{events = Events}}
     end;
 handle_call(get_jobs, _F, #state{events = Events} = S) ->
     {reply, do_get_jobs(Events), S};
 handle_call({get_job_event_handler, JobName}, _F, #state{events = Events} = S) ->
     {reply, do_get_job_event_handler(JobName, Events), S};
-handle_call({get_job_msgs, JobName, Query, N}, _F, #state{msgbuf = MB} = S) ->
-    {reply, do_get_job_msgs(JobName, Query, N, MB), S};
+handle_call({get_job_msgs, JobName, Query, N}, _F, #state{events = Events} = S) ->
+    {reply, do_get_job_msgs(JobName, Query, N, Events), S};
 handle_call({get_results, JobName}, _F, #state{events = Events} = S) ->
     {reply, do_get_results(JobName, Events), S};
 handle_call({get_stage_results, JobName, StageName}, _F, #state{events = Events} = S) ->
     {reply, do_get_stage_results(JobName, StageName, Events), S};
-handle_call({job_initialized, JobName, JobEventHandler}, _F, S) ->
-    ets:insert(event_files, {JobName, JobEventHandler}),
-    S1 = add_event("master", JobName, <<"\"New job initialized!\"">>, none, S),
-    {reply, ok, S1};
 handle_call({get_jobinfo, JobName}, _F, #state{events = Events} = S) ->
     {reply, do_get_jobinfo(JobName, Events), S}.
 
@@ -212,7 +200,13 @@ handle_cast({job_done, JobName}, S) ->
 handle_cast({clean_job, JobName}, S) ->
     #state{events = Events} = S1 = do_job_done(JobName, S),
     delete_jobdir(JobName),
-    {noreply, S1#state{events = dict:erase(JobName, Events)}};
+    S2 = case dict:find(JobName, Events) of
+        error -> S1;
+        {ok, JE} ->
+            job_event:purge(JE),
+            S1#state{events = dict:erase(JobName, Events)}
+    end,
+    {noreply, S2#state{events = dict:erase(JobName, Events)}};
 handle_cast({pending_event, JobName, Event}, #state{events = Events} = S) ->
     {ok, JE} = dict:find(JobName, Events),
     job_event:update(JE, Event),
@@ -244,20 +238,17 @@ do_get_jobs(Events) ->
                      end, [], Events),
     {ok, Jobs}.
 
--spec do_get_job_msgs(jobname(), string(), integer(), job_msg_dict()) -> {ok, [binary()]}.
-do_get_job_msgs(JobName, Query, N0, MsgBuf) ->
-    N = if
-            N0 > 1000 -> 1000;
-            true -> N0
-        end,
-    case dict:find(JobName, MsgBuf) of
-        _ when Query =/= "" ->
-            {ok, json_list(grep_log(JobName, Query, N))};
-        {ok, {_NMsg, _ListLength, MsgLst}} ->
-            {ok, json_list(lists:sublist(MsgLst, N))};
+-spec do_get_job_msgs(jobname(), string(), integer(), event_dict()) -> {ok, [binary()]}.
+do_get_job_msgs(JobName, [], N0, Events) ->
+    N = min(N0, 1000),
+    case dict:find(JobName, Events) of
+        {ok, JE} ->
+            {ok, job_event:get_msgs(JE, N)};
         error ->
             {ok, json_list(tail_log(JobName, N))}
-    end.
+    end;
+do_get_job_msgs(JobName, Query, N0, _Events) ->
+    {ok, json_list(grep_log(JobName, Query, min(N0, 1000)))}.
 
 -spec do_get_job_event_handler(jobname(), event_dict()) -> invalid_job | pid().
 do_get_job_event_handler(JobName, Events) ->
@@ -299,42 +290,16 @@ do_get_jobinfo(JobName, Events) ->
     end.
 
 -spec do_add_job_event(host(), jobname(), binary(), event(), state()) -> state().
-do_add_job_event(Host, JobName, Msg, Event, #state{msgbuf = MsgBuf} = S) ->
-    case dict:is_key(JobName, MsgBuf) of
+do_add_job_event(Host, JobName, Msg, Event, #state{events = Events} = S) ->
+    case dict:is_key(JobName, Events) of
         true -> add_event(Host, JobName, Msg, Event, S);
         false -> S
     end.
 
-add_event(Host0, JobName, Msg, Event,
-          #state{events = Events, msgbuf = MsgBuf} = S) ->
-    {ok, {NMsg, LstLen0, MsgLst0}} = dict:find(JobName, MsgBuf),
-    Time = disco_util:format_timestamp(now()),
-    Host = list_to_binary(Host0),
-    Line = <<"[\"",
-        Time/binary, "\",\"",
-        Host/binary, "\",",
-        Msg/binary, "]", 10>>,
-
-    [{_, EventProc}] = ets:lookup(event_files, JobName),
-    EventProc ! {event, Line},
-
-    if
-        LstLen0 + 1 > ?EVENT_PAGE_SIZE * 2 ->
-            MsgLst = lists:sublist([Line|MsgLst0], ?EVENT_PAGE_SIZE),
-            LstLen = ?EVENT_PAGE_SIZE;
-        true ->
-            MsgLst = [Line|MsgLst0],
-            LstLen = LstLen0 + 1
-    end,
-    MsgBufN = dict:store(JobName, {NMsg + 1, LstLen, MsgLst}, MsgBuf),
-    if
-        Event =:= none ->
-            S#state{events = Events, msgbuf = MsgBufN};
-        true ->
-            {ok, JE} = dict:find(JobName, Events),
-            job_event:update(JE, Event),
-            S#state{msgbuf = MsgBufN}
-    end.
+add_event(Host, JobName, Msg, Event, #state{events = Events} = S) ->
+  {ok, JE} = dict:find(JobName, Events),
+  job_event:add_event(JE, Host, Msg, Event),
+  S.
 
 -spec pending_event(jobname(), stage_name(), add|remove) -> ok.
 pending_event(JobName, Stage, add) ->
@@ -345,17 +310,12 @@ pending_event(JobName, Stage, remove) ->
     gen_server:cast(?MODULE, {task_start, JobName, {task_start, Stage}}).
 
 -spec do_job_done(jobname(), state()) -> state().
-do_job_done(JobName, #state{msgbuf = MsgBuf} = S) ->
-    case ets:lookup(event_files, JobName) of
-        [] ->
-            ok;
-        [{_, EventProc}] ->
-            EventProc ! done,
-            ets:delete(event_files, JobName)
-    end,
-    case dict:find(JobName, MsgBuf) of
+do_job_done(JobName, #state{events = Events} = S) ->
+    case dict:find(JobName, Events) of
         error -> S;
-        {ok, _} -> S#state{msgbuf = dict:erase(JobName, MsgBuf)}
+        {ok, JE} ->
+            job_event:done(JE),
+            S
     end.
 
 -spec do_job_done_event(jobname(), [url() | [url()]], state()) -> state().
@@ -370,39 +330,6 @@ do_job_done_event(JobName, Results, #state{events = Events} = S) ->
         error ->
             S
     end.
-
-% Flush events from memory to file using a per-job process.
-
-job_event_handler(JobName, Hosts, JobCoordinator) ->
-    {ok, _JobHome} = disco:make_dir(disco:jobhome(JobName)),
-    {ok, File} = file:open(event_log(JobName), [append, raw]),
-    gen_server:call(?MODULE, {job_initialized, JobName, self()}),
-    gen_server:reply(JobCoordinator, {ok, JobName, Hosts}),
-    erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
-    job_event_handler_do(File, [], 0).
-
-job_event_handler_do(File, Buf, BufSize) when BufSize > ?EVENT_BUFFER_SIZE ->
-    flush_buffer(File, Buf),
-    job_event_handler_do(File, [], 0);
-job_event_handler_do(File, Buf, BufSize) ->
-    receive
-        {event, Line} ->
-            job_event_handler_do(File, [Line|Buf], BufSize + 1);
-        flush ->
-            flush_buffer(File, Buf),
-            erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
-            job_event_handler_do(File, [], 0);
-        done ->
-            flush_buffer(File, Buf),
-            file:close(File);
-        E ->
-            lager:warning("Unknown job_event msg ~p", [E]),
-            file:close(File)
-    end.
-
-flush_buffer(_, []) -> ok;
-flush_buffer(File, Buf) ->
-    ok = file:write(File, lists:reverse(Buf)).
 
 % Misc utilities
 

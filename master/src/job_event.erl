@@ -2,19 +2,30 @@
 -behaviour(gen_server).
 
 -export([update/2, get_status/1, get_start/1, get_info/1, get_results/1,
-        get_stage_results/2]).
+        get_stage_results/2, add_event/4, done/1, purge/1, get_msgs/2]).
 
--export([start_link/2, init/1, handle_call/3, handle_cast/2, handle_info/2,
+-export([start_link/3, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
 -include("gs_util.hrl").
 -include("event.hrl").
 
+-define(EVENT_PAGE_SIZE, 100).
+-define(EVENT_BUFFER_SIZE, 1000).
+-define(EVENT_BUFFER_TIMEOUT, 2000).
+
 -type stage_dict() :: disco_dict(stage_name(), non_neg_integer()).
 -type stage_result_dict() :: disco_dict(stage_name(), [[url()]]).
 
 -record(state, {job_coord :: pid(),
-                  start     :: erlang:timestamp(),
+                nmsgs                :: non_neg_integer(),
+                msg_list_len         :: non_neg_integer(),
+                msgs                 :: [binary()],
+                job_name             :: jobname(),
+                event_file           :: file:fd(),
+                dirty_events         :: [binary()],
+                n_dirty              :: non_neg_integer(),
+                  start              :: erlang:timestamp(),
                   job_data    = none :: none | jobinfo(),
                   task_count_inc     :: disco_dict(stage_name(), boolean()),
                   task_count         :: stage_dict(),
@@ -25,17 +36,28 @@
                   job_results = none :: none | [url() | [url()]]}).
 -type state() :: #state{}.
 
--spec start_link(pid(), [stage_name()]) -> pid().
-start_link(JC, Stages) ->
-    {ok, Server} = gen_server:start_link(?MODULE, {JC, Stages}, []),
+-spec start_link(pid(), jobname(), [stage_name()]) -> pid().
+start_link(JC, JobName, Stages) ->
+    {ok, Server} = gen_server:start_link(?MODULE, {JC, JobName, Stages}, []),
     Server.
 
--spec init({pid(), [stage_name()]}) -> gs_init().
-init({JC, Stages}) ->
+-spec init({pid(), jobname(), [stage_name()]}) -> gs_init().
+init({JC, JobName, Stages}) ->
     InitCounts = dict:from_list([{S, 0} || S <- Stages]),
     StageResults = dict:new(),
+    {ok, _JobHome} = disco:make_dir(disco:jobhome(JobName)),
+    {ok, File} = file:open(event_log(JobName), [append, raw]),
+    add_event(self(), "master", <<"\"New job initialized!\"">>, none),
+    erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
     S = #state{job_coord = JC,
+             job_name = JobName,
+             event_file = File,
+             nmsgs = 0,
+             msg_list_len = 0,
+             msgs = [],
              start     = now(),
+             dirty_events = [],
+             n_dirty = 0,
              task_count_inc= dict:from_list([{S, true} || S <- Stages]),
              task_count    = InitCounts,
              task_pending  = InitCounts,
@@ -58,15 +80,30 @@ handle_call(get_results, _From, S) ->
     {reply, do_get_results(S), S};
 
 handle_call({get_stage_results, StageName}, _From, S) ->
-    {reply, do_get_stage_results(S, StageName), S}.
+    {reply, do_get_stage_results(S, StageName), S};
 
--spec handle_cast(term(), state()) -> gs_noreply().
+handle_call({get_msgs, N}, _From, S) ->
+    {reply, do_get_msgs(N, S), S}.
+
+-spec handle_cast(update, state()) -> gs_noreply();
+                 ({add_event, host(), binary(), event()}, state()) -> gs_noreply().
+handle_cast({add_event, Host, Msg, Event}, S) ->
+    {noreply, do_add_event(Host, Msg, Event, S)};
+
 handle_cast({update, Event}, S) ->
-    {noreply, do_update(S, Event)}.
+    {noreply, do_update(S, Event)};
 
--spec handle_info(term(), state()) -> gs_noreply().
-handle_info(_Msg, S) ->
-    {noreply, S}.
+handle_cast(done, S) ->
+    {noreply, do_done(S)};
+
+handle_cast(purge, S) ->
+    {stop, normal, do_done(S)}.
+
+-spec handle_info(flush, state()) -> gs_noreply().
+handle_info(flush, #state{event_file = File, dirty_events = DirtyBuf} = S) ->
+    erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
+    do_flush(File, DirtyBuf),
+    {noreply, S#state{dirty_events = [], n_dirty = 0}}.
 
 -spec terminate(term(), state()) -> ok.
 terminate(_Reason, _S) -> ok.
@@ -80,6 +117,14 @@ code_change(_Old, S, _E) -> {ok, S}.
 -spec update(pid(), event()) -> ok.
 update(JEHandler, Event) ->
     gen_server:cast(JEHandler, {update, Event}).
+
+-spec get_msgs(pid(), integer()) -> [binary()].
+get_msgs(JEHandler, N) ->
+    gen_server:call(JEHandler, {get_msgs, N}).
+
+-spec add_event(pid(), host(), binary(), event()) -> ok.
+add_event(JEHandler, Host, Msg, Event) ->
+    gen_server:cast(JEHandler, {add_event, Host, Msg, Event}).
 
 -spec get_status(pid()) -> job_status().
 get_status(JEHandler) ->
@@ -97,6 +142,14 @@ get_info(JEHandler) ->
 get_results(JEHandler) ->
     gen_server:call(JEHandler, get_results).
 
+-spec done(pid()) -> ok.
+done(JEHandler) ->
+    gen_server:cast(JEHandler, done).
+
+-spec purge(pid()) -> ok.
+purge(JEHandler) ->
+    gen_server:cast(JEHandler, purge).
+
 -spec get_stage_results(pid(), stage_name()) ->  not_ready | {ok, [[url()]]}.
 get_stage_results(JEHandler, StageName) ->
     gen_server:call(JEHandler, {get_stage_results, StageName}).
@@ -105,6 +158,7 @@ get_stage_results(JEHandler, StageName) ->
 % Private API
 
 -spec do_update(state(), event()) -> state().
+do_update(JE, none) -> JE;
 do_update(JE, {job_data, JobData}) ->
     JE#state{job_data = JobData};
 do_update(#state{task_count = TaskCount, task_count_inc = Inc} = JE,
@@ -128,6 +182,36 @@ do_update(#state{stage_results = Results} = JE, {stage_ready, S, R}) ->
     JE#state{stage_results = dict:store(S, R, Results)};
 do_update(JE, {ready, Results}) ->
     JE#state{job_results = Results}.
+
+do_add_event(Host0, Msg, Event,
+             #state{
+                msgs = MsgLst0, nmsgs = NMsg, msg_list_len = LstLen0
+            } = S) ->
+    Time = disco_util:format_timestamp(now()),
+    Host = list_to_binary(Host0),
+    Line = <<"[\"",
+        Time/binary, "\",\"",
+        Host/binary, "\",",
+        Msg/binary, "]", 10>>,
+    if
+        LstLen0 + 1 > ?EVENT_PAGE_SIZE * 2 ->
+            MsgLst = lists:sublist([Line|MsgLst0], ?EVENT_PAGE_SIZE),
+            LstLen = ?EVENT_PAGE_SIZE;
+        true ->
+            MsgLst = [Line|MsgLst0],
+            LstLen = LstLen0 + 1
+    end,
+    S1 = do_update(S, Event),
+    S2 = dirty_append(Line, S1),
+    S2#state{nmsgs = NMsg + 1, msg_list_len = LstLen, msgs = MsgLst}.
+
+
+dirty_append(Line, #state{event_file = File, dirty_events = DirtyEvents,
+                          n_dirty = NDirty} = S) when NDirty > ?EVENT_BUFFER_SIZE ->
+    do_flush(File, [Line|DirtyEvents]),
+    S#state{n_dirty = 0, dirty_events = []};
+dirty_append(Line, #state{dirty_events = DirtyEvents, n_dirty = NDirty} = S) ->
+    S#state{n_dirty = NDirty + 1, dirty_events = [Line|DirtyEvents]}.
 
 -spec do_get_status(state()) -> job_status().
 do_get_status(#state{job_coord = Pid, job_results = none}) ->
@@ -165,9 +249,25 @@ do_get_results(S) ->
             {do_get_status(S), Pid}
     end.
 
+-spec do_get_msgs(non_neg_integer(), state()) -> [binary()].
+do_get_msgs(N, #state{msgs = MsgLst}) ->
+    event_handler:json_list(lists:sublist(MsgLst, N)).
+
 -spec do_get_stage_results(state(), stage_name()) -> not_ready | {ok, [[url()]]}.
 do_get_stage_results(#state{stage_results = PR}, StageName) ->
     case dict:find(StageName, PR) of
         error -> not_ready;
         {ok, _Res} = Ret -> Ret
     end.
+
+-spec do_done(state()) -> state().
+do_done(#state{event_file = File, dirty_events = DirtyBuf} = S) ->
+    do_flush(File, DirtyBuf),
+    S#state{dirty_events = [], n_dirty = 0}.
+
+event_log(JobName) ->
+    filename:join(disco:jobhome(JobName), "events").
+
+do_flush(_, []) -> ok;
+do_flush(File, Buf) ->
+    ok = file:write(File, lists:reverse(Buf)).
