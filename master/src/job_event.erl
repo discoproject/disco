@@ -288,7 +288,7 @@ do_get_results(S) ->
 
 -spec do_get_msgs(non_neg_integer(), state()) -> [binary()].
 do_get_msgs(N, #state{msgs = MsgLst}) ->
-    event_handler:json_list(lists:sublist(MsgLst, N)).
+    event_server:json_list(lists:sublist(MsgLst, N)).
 
 -spec do_get_stage_results(state(), stage_name()) -> not_ready | {ok, [[url()]]}.
 do_get_stage_results(#state{stage_results = PR}, StageName) ->
