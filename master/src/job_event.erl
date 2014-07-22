@@ -25,21 +25,61 @@
                 event_file           :: file:fd(),
                 dirty_events         :: [binary()],
                 n_dirty              :: non_neg_integer(),
-                  start              :: erlang:timestamp(),
-                  job_data    = none :: none | jobinfo(),
-                  task_count_inc     :: disco_dict(stage_name(), boolean()),
-                  task_count         :: stage_dict(),
-                  task_pending       :: stage_dict(),
-                  task_ready         :: stage_dict(),
-                  task_failed        :: stage_dict(),
-                  stage_results      :: stage_result_dict(),
-                  job_results = none :: none | [url() | [url()]]}).
+                start                :: erlang:timestamp(),
+                job_data = none      :: none | jobinfo(),
+                task_count_inc       :: disco_dict(stage_name(), boolean()),
+                task_count           :: stage_dict(),
+                task_pending         :: stage_dict(),
+                task_ready           :: stage_dict(),
+                task_failed          :: stage_dict(),
+                stage_results        :: stage_result_dict(),
+                job_results = none   :: none | [url() | [url()]]}).
 -type state() :: #state{}.
 
 -spec start_link(pid(), jobname(), [stage_name()]) -> pid().
 start_link(JC, JobName, Stages) ->
     {ok, Server} = gen_server:start_link(?MODULE, {JC, JobName, Stages}, []),
     Server.
+
+-spec update(pid(), event()) -> ok.
+update(JEHandler, Event) ->
+    gen_server:cast(JEHandler, {update, Event}).
+
+-spec get_msgs(pid(), integer()) -> [binary()].
+get_msgs(JEHandler, N) ->
+    gen_server:call(JEHandler, {get_msgs, N}).
+
+-spec add_event(pid(), host(), binary(), event()) -> ok.
+add_event(JEHandler, Host, Msg, Event) ->
+    gen_server:cast(JEHandler, {add_event, Host, Msg, Event}).
+
+-spec get_status(pid()) -> job_status().
+get_status(JEHandler) ->
+    gen_server:call(JEHandler, get_status).
+
+-spec get_start(pid()) -> erlang:timestamp().
+get_start(JEHandler) ->
+    gen_server:call(JEHandler, get_start).
+
+-spec get_info(pid()) -> job_eventinfo().
+get_info(JEHandler) ->
+    gen_server:call(JEHandler, get_info).
+
+-spec get_results(pid()) -> job_status().
+get_results(JEHandler) ->
+    gen_server:call(JEHandler, get_results).
+
+-spec done(pid()) -> ok.
+done(JEHandler) ->
+    gen_server:cast(JEHandler, done).
+
+-spec purge(pid()) -> ok.
+purge(JEHandler) ->
+    gen_server:cast(JEHandler, purge).
+
+-spec get_stage_results(pid(), stage_name()) ->  not_ready | {ok, [[url()]]}.
+get_stage_results(JEHandler, StageName) ->
+    gen_server:call(JEHandler, {get_stage_results, StageName}).
 
 -spec init({pid(), jobname(), [stage_name()]}) -> gs_init().
 init({JC, JobName, Stages}) ->
@@ -110,52 +150,6 @@ terminate(_Reason, _S) -> ok.
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_Old, S, _E) -> {ok, S}.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Public API
-
--spec update(pid(), event()) -> ok.
-update(JEHandler, Event) ->
-    gen_server:cast(JEHandler, {update, Event}).
-
--spec get_msgs(pid(), integer()) -> [binary()].
-get_msgs(JEHandler, N) ->
-    gen_server:call(JEHandler, {get_msgs, N}).
-
--spec add_event(pid(), host(), binary(), event()) -> ok.
-add_event(JEHandler, Host, Msg, Event) ->
-    gen_server:cast(JEHandler, {add_event, Host, Msg, Event}).
-
--spec get_status(pid()) -> job_status().
-get_status(JEHandler) ->
-    gen_server:call(JEHandler, get_status).
-
--spec get_start(pid()) -> erlang:timestamp().
-get_start(JEHandler) ->
-    gen_server:call(JEHandler, get_start).
-
--spec get_info(pid()) -> job_eventinfo().
-get_info(JEHandler) ->
-    gen_server:call(JEHandler, get_info).
-
--spec get_results(pid()) -> job_status().
-get_results(JEHandler) ->
-    gen_server:call(JEHandler, get_results).
-
--spec done(pid()) -> ok.
-done(JEHandler) ->
-    gen_server:cast(JEHandler, done).
-
--spec purge(pid()) -> ok.
-purge(JEHandler) ->
-    gen_server:cast(JEHandler, purge).
-
--spec get_stage_results(pid(), stage_name()) ->  not_ready | {ok, [[url()]]}.
-get_stage_results(JEHandler, StageName) ->
-    gen_server:call(JEHandler, {get_stage_results, StageName}).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Private API
 
 -spec do_update(state(), event()) -> state().
 do_update(JE, none) -> JE;
