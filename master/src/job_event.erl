@@ -9,6 +9,7 @@
          terminate/2, code_change/3]).
 
 -export([task_event/3, task_event/4, task_event/5]).
+-export([event/5]).
 
 -include("gs_util.hrl").
 -include("event.hrl").
