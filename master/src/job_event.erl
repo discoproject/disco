@@ -2,7 +2,8 @@
 -behaviour(gen_server).
 
 -export([update/2, get_status/1, get_start/1, get_info/1, get_results/1,
-        get_stage_results/2, add_event/4, done/1, purge/1, get_msgs/2]).
+        get_stage_results/2, add_event/4, done/1, purge/1, get_msgs/2,
+        pending_event/3]).
 
 -export([start_link/3, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -58,6 +59,13 @@ get_msgs(JEHandler, N) ->
 -spec add_event(pid(), host(), binary(), event()) -> ok.
 add_event(JEHandler, Host, Msg, Event) ->
     gen_server:cast(JEHandler, {add_event, Host, Msg, Event}).
+
+-spec pending_event(pid(), stage_name(), add|remove) -> ok.
+pending_event(JEHandler, Stage, add) ->
+    update(JEHandler, {task_pending, Stage});
+pending_event(JEHandler, Stage, remove) ->
+    update(JEHandler, {task_un_pending, Stage}),
+    update(JEHandler, {task_start, Stage}).
 
 -spec get_status(pid()) -> job_status().
 get_status(JEHandler) ->

@@ -10,8 +10,7 @@
          get_stage_results/2, get_results/1, get_job_event_handler/1]).
 
 % Event logging.
--export([event/4, event/5, event/6,
-         job_done_event/2, pending_event/3]).
+-export([event/4, event/5, event/6, job_done_event/2]).
 % Server.
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -174,16 +173,7 @@ handle_cast({clean_job, JobName}, S) ->
             job_event:purge(JE),
             S1#state{events = dict:erase(JobName, Events)}
     end,
-    {noreply, S2#state{events = dict:erase(JobName, Events)}};
-handle_cast({pending_event, JobName, Event}, #state{events = Events} = S) ->
-    {ok, JE} = dict:find(JobName, Events),
-    job_event:update(JE, Event),
-    {noreply, S};
-
-handle_cast({task_start, JobName, Event}, #state{events = Events} = S) ->
-    {ok, JE} = dict:find(JobName, Events),
-    job_event:update(JE, Event),
-    {noreply, S#state{events = Events}}.
+    {noreply, S2#state{events = dict:erase(JobName, Events)}}.
 
 -spec handle_info(term(), state()) -> gs_noreply().
 handle_info(Msg, State) ->
@@ -268,14 +258,6 @@ add_event(Host, JobName, Msg, Event, #state{events = Events} = S) ->
   {ok, JE} = dict:find(JobName, Events),
   job_event:add_event(JE, Host, Msg, Event),
   S.
-
--spec pending_event(jobname(), stage_name(), add|remove) -> ok.
-pending_event(JobName, Stage, add) ->
-    gen_server:cast(?MODULE, {pending_event, JobName, {task_pending, Stage}});
-
-pending_event(JobName, Stage, remove) ->
-    gen_server:cast(?MODULE, {pending_event, JobName, {task_un_pending, Stage}}),
-    gen_server:cast(?MODULE, {task_start, JobName, {task_start, Stage}}).
 
 -spec do_job_done(jobname(), state()) -> state().
 do_job_done(JobName, #state{events = Events} = S) ->

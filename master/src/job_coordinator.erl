@@ -809,20 +809,20 @@ do_submit_tasks(_Mode, [], S) -> S;
 do_submit_tasks(Mode, [TaskId | Rest], #state{stage_info = SI,
                                               pipeline   = P,
                                               pending    = Pending,
-                                              jobinfo = #jobinfo{jobname = JobName},
                                               schedule = Schedule,
+                                              jehandler = JEHandler,
                                               tasks      = Tasks} = S) ->
     #task_info{spec = TaskSpec} = jc_utils:task_info(TaskId, Tasks),
     #task_spec{stage = Stage} = TaskSpec,
     case jc_utils:can_run_task(P, Stage, SI, Schedule) of
         false ->
-            event_server:pending_event(JobName, Stage, add),
+            job_event:pending_event(JEHandler, Stage, add),
             do_submit_tasks(Mode, Rest,
                             S#state{pending = gb_sets:add_element({TaskId, Mode}, Pending)});
         true ->
             NewPending = case gb_sets:is_element({TaskId, Mode}, Pending) of
                 true ->
-                    event_server:pending_event(JobName, Stage, remove),
+                    job_event:pending_event(JEHandler, Stage, remove),
                     gb_sets:del_element({TaskId, Mode}, Pending);
                 false -> Pending
             end,

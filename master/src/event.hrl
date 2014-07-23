@@ -4,7 +4,9 @@
 
 -type event() :: none
                | {job_data, jobinfo()}
+               | {task_start, stage_name()}
                | {task_pending, stage_name()}
+               | {task_un_pending, stage_name()}
                | {task_ready, stage_name()}
                | {task_failed, stage_name()}
                | {stage_start, stage_name(), integer()}
