@@ -28,7 +28,7 @@
                 msg_list_len         :: non_neg_integer(),
                 msgs                 :: [binary()],
                 job_name             :: jobname(),
-                event_file           :: file:fd(),
+                event_file           :: none | file:fd(),
                 dirty_events         :: [binary()],
                 n_dirty              :: non_neg_integer(),
                 start                :: erlang:timestamp(),
@@ -183,6 +183,9 @@ handle_cast(purge, S) ->
     {stop, normal, do_done(S)}.
 
 -spec handle_info(flush, state()) -> gs_noreply().
+handle_info(flush, #state{event_file = none, dirty_events = DirtyBuf} = S) ->
+    DirtyBuf = [],
+    {noreply, S};
 handle_info(flush, #state{event_file = File, dirty_events = DirtyBuf} = S) ->
     erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
     do_flush(File, DirtyBuf),
@@ -298,13 +301,17 @@ do_get_stage_results(#state{stage_results = PR}, StageName) ->
     end.
 
 -spec do_done(state()) -> state().
+do_done(#state{event_file = none} = S) ->
+    S#state{dirty_events = [], n_dirty = 0, event_file = none};
 do_done(#state{event_file = File, dirty_events = DirtyBuf} = S) ->
     do_flush(File, DirtyBuf),
-    S#state{dirty_events = [], n_dirty = 0}.
+    ok = file:close(File),
+    S#state{dirty_events = [], n_dirty = 0, event_file = none}.
 
 event_log(JobName) ->
     filename:join(disco:jobhome(JobName), "events").
 
 do_flush(_, []) -> ok;
+do_flush(none, _) -> ok; % if the file is closed, just drop the events.
 do_flush(File, Buf) ->
     ok = file:write(File, lists:reverse(Buf)).
