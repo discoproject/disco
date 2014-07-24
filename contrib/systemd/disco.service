@@ -1,0 +1,10 @@
+[Unit]
+Description=Disco - Massive Data Minimal Code
+
+[Service]
+# User is optional depending on your installation
+#User=disco
+ExecStart=/usr/bin/disco nodaemon
+
+[Install]
+WantedBy=multi-user.target

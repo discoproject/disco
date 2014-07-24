@@ -224,6 +224,9 @@ class Master(clx.server.Server):
         SchedulerOptions = ['+K', 'true',
                 '+P', '10000000']
 
+        if settings.get("SYSTEMD_ENABLED"):
+            SchedulerOptions.append("-noshell")
+
         for option, value in [('+scl', 'false'), ('+stbt', 's')]:
             if isErlOptionAvailable(option, value):
                 SchedulerOptions += [option, value] + ["-env", option, value]
