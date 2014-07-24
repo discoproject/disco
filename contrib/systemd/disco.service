@@ -3,7 +3,8 @@ Description=Disco - Massive Data Minimal Code
 
 [Service]
 # User is optional depending on your installation
-#User=disco
+# User=disco
+Environment="SYSTEMD_ENABLED=True"
 ExecStart=/usr/bin/disco nodaemon
 
 [Install]
