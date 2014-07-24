@@ -314,10 +314,10 @@ jobhome(JobName) ->
 warning(Msg, #state{master = Master, task = Task}) ->
     event({<<"WARNING">>, iolist_to_binary(Msg)}, Task, Master).
 
--spec event(event_server:task_msg(), task(), node()) -> ok.
-event(M, {#task_spec{jobname = J, taskid = T, stage = S}, _}, Master) ->
+-spec event(job_event:task_msg(), task(), node()) -> ok.
+event(M, {#task_spec{jehandler = JEHandler, jobname = J, taskid = T, stage = S}, _}, _Master) ->
     Host = disco:host(node()),
-    event_server:task_event({J, S, T}, M, none, Host, {event_server, Master}).
+    job_event:task_event(JEHandler, {J, S, T}, M, none, Host).
 
 exit_on_error(S) ->
     exit_on_error(error, S).

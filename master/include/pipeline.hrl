@@ -90,6 +90,7 @@
 
 % The static specification of a task.
 -record(task_spec, {jobname   :: jobname(),
+                    jehandler :: pid(),
                     stage     :: stage_name(),
                     taskid    :: task_id(),
                     tasknum   :: integer(),
