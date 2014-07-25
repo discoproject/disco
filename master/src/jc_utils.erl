@@ -12,7 +12,7 @@
 % workers does not decrease.
 -define(MIN_RATION_OF_FIRST_ACTIVE_TO_REST, 2).
 
--export([stage_info_opt/2, stage_info/2, last_stage_task/3,
+-export([stage_info_opt/2, stage_info/2, last_stage_task/2,
          update_stage/3, update_stage_tasks/4,
          task_info/2, update_task_info/3, task_spec/2, add_task_spec/3,
          task_inputs/2, task_outputs/2,
@@ -96,10 +96,10 @@ running_tasks(S, SI) ->
 
 % If this is the last pending task in the stage in order for the stage
 % to be done.
--spec last_stage_task(stage_name(), task_id(), stage_map()) -> boolean().
-last_stage_task(Stage, TaskId, SI) ->
+-spec last_stage_task(stage_name(), stage_map()) -> boolean().
+last_stage_task(Stage, SI) ->
     #stage_info{done = Done, all = All} = stage_info(Stage, SI),
-    ((length(Done) + 1 =:= All) and (not lists:member(TaskId, Done))).
+    length(Done) =:= All.
 
 -spec is_running(task_id(), task_map(), stage_map()) -> boolean().
 is_running(TaskId, Tasks, SI) ->
