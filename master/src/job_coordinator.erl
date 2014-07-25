@@ -485,7 +485,7 @@ task_complete(TaskId, Host, Outputs, S) ->
     S2 = S1#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)},
     #state{stage_info = SI1} = S3 =
         maybe_submit_tasks(S2, Stage, NewGroups, ModifiedGroups),
-    case jc_utils:last_stage_task(Stage, SI1) and can_finish(P, Stage, SI1) of
+    case can_finish(P, Stage, SI1) of
         true -> stage_done(Stage);
         false -> ok
     end,
@@ -612,8 +612,9 @@ maybe_event_stage_done(Stage, #state{pipeline = P, stage_info = SI} = S) ->
 
 -spec can_finish(pipeline(), stage_name(), disco_gbtree(stage_name(), stage_info())) -> boolean().
 can_finish(P, Stage, SI) ->
+    jc_utils:no_tasks_running(Stage, SI) andalso
     pipeline_utils:all_deps_finished(P, Stage, SI) andalso
-    jc_utils:no_tasks_running(Stage, SI).
+    jc_utils:last_stage_task(Stage, SI).
 
 -spec event_stage_done(stage_name(), state()) -> ok.
 event_stage_done(Stage, #state{jobinfo    = #jobinfo{jobname = JobName},
