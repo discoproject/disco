@@ -499,17 +499,6 @@ maybe_start_pending(#state{pending = Pending} = S) ->
             end
         end, S, Pending).
 
--spec maybe_submit_tasks(state(), stage_name(), [grouped_output()], [grouped_output()]) -> state().
-maybe_submit_tasks(#state{pipeline = P} = S, Stage, NewGroups, ModifiedGroups) ->
-    case pipeline_utils:next_stage(P, Stage) of
-        {Next, Grouping, _} ->
-            {NTasks, STemp} = make_stage_tasks(Next, Grouping, NewGroups, S, {0, []}),
-            STemp1 = do_submit_tasks(first_run, NTasks, STemp),
-            send_outputs_to_consumers(STemp1, ModifiedGroups, Next);
-        done ->
-            S
-    end.
-
 -spec send_outputs_to_consumers(state(), [grouped_output()], stage_name()) -> state().
 send_outputs_to_consumers(#state{stage_info = SI} = S, ModifiedGroups, Stage) ->
     #stage_info{group_map = GroupMap} = jc_utils:stage_info(Stage, SI),
@@ -565,7 +554,9 @@ submit_concurrent_tasks(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId
         done ->
             % there is no tasks in the next stage to be started.
             S#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)};
-        {_, Grouping, _} ->
+        {_, _, false} ->
+            S#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)};
+        {Next, Grouping, true} ->
             case jc_utils:stage_info_opt(Stage, SI) of
                 none ->
                     PrevStageOutputs = [{TaskId, Outputs}],
@@ -579,7 +570,9 @@ submit_concurrent_tasks(#state{stage_info = SI, pipeline = P} = S, Stage, TaskId
                                                           TaskId, Outputs)
             end,
             S1 = S#state{stage_info = jc_utils:update_stage_tasks(Stage, TaskId, done, SI)},
-            maybe_submit_tasks(S1, Stage, NewGroups, ModifiedGroups)
+            {NTasks, S2} = make_stage_tasks(Next, Grouping, NewGroups, S1, {0, []}),
+            S3 = do_submit_tasks(first_run, NTasks, S2),
+            send_outputs_to_consumers(S3, ModifiedGroups, Next)
     end.
 
 wakeup_waiters(TaskId, Host, Outputs, #state{tasks = Tasks} = S) ->
@@ -650,17 +643,13 @@ do_next_stage(Stage, #state{pipeline = P, stage_info = SI} = S) ->
                 true -> finish_pipeline(Stage, S);
                 false -> S
             end;
-        {Next, Grouping, _} ->
+        {Next, Grouping, false} ->
+            start_next_stage(stage_outputs(Stage, S), Next, Grouping, S);
+        {Next, Grouping, true} ->
             S1 = send_termination_signal(Next, S),
-            case Stage of
-                ?INPUT ->
-                    start_next_stage(stage_outputs(Stage, S1), Next, Grouping, S1);
-                _      ->
-                    case pipeline_utils:group_outputs(Grouping,
-                                                      stage_outputs(Stage, S1)) of
-                        [] -> start_next_stage([], Next, Grouping, S1);
-                        _  -> S1
-                    end
+            case pipeline_utils:group_outputs(Grouping, stage_outputs(Stage, S1)) of
+                [] -> start_next_stage([], Next, Grouping, S1);
+                _  -> S1
             end
     end.
 
