@@ -385,7 +385,10 @@ class DDFS(object):
                     for url in self._upload(urls, source, to_master=False, **kwargs)]
         except CommError as e:
             scheme, (host, port), path = urlsplit(e.url)
-            source.seek(0)  # source will be read again; seek to the beginning
+            if hasattr(source, "seek"):
+                source.seek(0)  # source will be read again; seek to the beginning
+            else:
+                print("{0} is not seekable, retrying".format(source))
             return self._push((source, target),
                               replicas=replicas,
                               forceon=forceon,

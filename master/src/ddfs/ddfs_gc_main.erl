@@ -672,7 +672,7 @@ update_peer(Peers, Node, Pid) ->
 
 -spec resend_pending(node(), pid()) -> non_neg_integer().
 resend_pending(Node, Pid) ->
-    Objects = lists:flatten(ets:lookup(gc_blob_map, {{'$1', Node}, pending})),
+    Objects = ets:match(gc_blob_map, {{'$1', Node}, pending}),
     lists:foreach(fun([ObjName]) ->
                           node_send(Pid, {check_blob, ObjName})
                   end, Objects),
