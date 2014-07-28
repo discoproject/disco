@@ -3,6 +3,20 @@
 Release notes
 =============
 
+Disco 0.5.3 (TBD)
+-----------------
+New features
+''''''''''''
+- There is now one event handler process for the events of each job. This
+  resolves one of the bottlenecks in the disco master.
+
+- plists is added as a new disco dependency for simple parallel list operations.
+  The only use of this dependency at the moment is traversing the ddfs volumes
+  in parallel in the build_map phase of GC.
+
+- Job coordinator minimizes the amount of per-task work to avoid
+  becoming a bottleneck for jobs with large number of tasks.
+
 Disco 0.5.2 (June 24, 2014)
 -----------------
 New features
