@@ -3,7 +3,7 @@
 % the impl module, which needs to define the state() type.
 
 -type gs_init()      :: {ok, state()}.
--type gs_reply(T)    :: {reply, (T), state()}.
+-type gs_reply(T)    :: {reply, (T), state()} | {reply, (T), state(), infinity|hibernate}.
 -type gs_noreply()   :: {noreply, state()}.
 -type gs_noreply_t() :: {noreply, state(), non_neg_integer()}.
 -type gs_stop(T)     :: {stop, (T), state()}.

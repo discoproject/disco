@@ -26,6 +26,7 @@
 -export_type([task_event_info/0, task_msg/0]).
 
 -record(state, {job_coord :: pid(),
+                timeout = infinity   :: hibernate | infinity,
                 nmsgs                :: non_neg_integer(),
                 msg_list_len         :: non_neg_integer(),
                 msgs                 :: [binary()],
@@ -160,22 +161,22 @@ init({JC, JobName, Stages}) ->
 
 -spec handle_call(term(), from(), state()) -> gs_reply(term()) | gs_noreply().
 handle_call(get_status, _From, S) ->
-    {reply, do_get_status(S), S};
+    {reply, do_get_status(S), S, S#state.timeout};
 
 handle_call(get_start, _From, S) ->
-    {reply, do_get_start(S), S};
+    {reply, do_get_start(S), S, S#state.timeout};
 
 handle_call(get_info, _From, S) ->
-    {reply, do_get_info(S), S};
+    {reply, do_get_info(S), S, S#state.timeout};
 
 handle_call(get_results, _From, S) ->
-    {reply, do_get_results(S), S};
+    {reply, do_get_results(S), S, S#state.timeout};
 
 handle_call({get_stage_results, StageName}, _From, S) ->
-    {reply, do_get_stage_results(S, StageName), S};
+    {reply, do_get_stage_results(S, StageName), S, S#state.timeout};
 
 handle_call({get_msgs, N}, _From, S) ->
-    {reply, do_get_msgs(N, S), S}.
+    {reply, do_get_msgs(N, S), S, S#state.timeout}.
 
 -spec handle_cast(update, state()) -> gs_noreply();
                  ({add_event, host(), binary(), event()}, state()) -> gs_noreply().
@@ -186,14 +187,16 @@ handle_cast({update, Event}, S) ->
     {noreply, do_update(S, Event)};
 
 handle_cast(done, S) ->
-    {noreply, do_done(S)};
+    {noreply, do_done(S), hibernate};
 
 handle_cast(purge, S) ->
     {stop, normal, do_done(S)}.
 
 -spec handle_info(flush, state()) -> gs_noreply().
-handle_info(flush, #state{event_file = none, dirty_events = DirtyBuf} = S) ->
-    DirtyBuf = [],
+handle_info(flush, #state{event_file = none, dirty_events = [], job_name = JN} = S) ->
+    lager:info("job ~p has events not written to disk.", [JN]),
+    {noreply, S};
+handle_info(flush, #state{event_file = none} = S) ->
     {noreply, S};
 handle_info(flush, #state{event_file = File, dirty_events = DirtyBuf} = S) ->
     erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
@@ -315,7 +318,8 @@ do_done(#state{event_file = none} = S) ->
 do_done(#state{event_file = File, dirty_events = DirtyBuf} = S) ->
     do_flush(File, DirtyBuf),
     ok = file:close(File),
-    S#state{dirty_events = [], n_dirty = 0, event_file = none}.
+    S#state{dirty_events = [], n_dirty = 0, event_file = none,
+            timeout = hibernate}.
 
 event_log(JobName) ->
     filename:join(disco:jobhome(JobName), "events").

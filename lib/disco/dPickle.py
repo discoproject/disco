@@ -26,18 +26,30 @@ if sys.version_info[0] == 3:
 else:
     cls = pickle.Pickler
 
-class Pickler(cls):
-    dispatch = cls.dispatch.copy()
+if sys.version_info[0:2] == (2,6):
+    class Pickler(cls):
+        dispatch = cls.dispatch.copy()
 
-    def save_func(self, func):
-        if is_std(getmodule(func)) or func.__module__.startswith('disco.'):
-            self.save_global(func)
-        else:
-            packed = marshal.dumps((func.__code__, func.__defaults__))
-            self.save_reduce(unfunc, (packed,), obj=func)
-    dispatch[types.FunctionType] = save_func
+        def save_func(self, func):
+            if is_std(getmodule(func)) or func.__module__.startswith('disco.'):
+                self.save_global(func)
+            else:
+                packed = marshal.dumps((func.__code__, func.__defaults__))
+                self.save_reduce(unfunc, (packed,), obj=func)
+        dispatch[types.FunctionType] = save_func
 
-    def save_partial(self, partial):
-        packed = dumps((partial.func, partial.args, partial.keywords or {}))
-        self.save_reduce(unpartial, (packed,), obj=partial)
-    dispatch[functools.partial] = save_partial
+        def save_partial(self, partial):
+            packed = dumps((partial.func, partial.args, partial.keywords or {}))
+            self.save_reduce(unpartial, (packed,), obj=partial)
+        dispatch[functools.partial] = save_partial
+else:
+    class Pickler(cls):
+        dispatch = cls.dispatch.copy()
+
+        def save_func(self, func):
+            if is_std(getmodule(func)) or func.__module__.startswith('disco.'):
+                self.save_global(func)
+            else:
+                packed = marshal.dumps((func.__code__, func.__defaults__))
+                self.save_reduce(unfunc, (packed,), obj=func)
+        dispatch[types.FunctionType] = save_func
