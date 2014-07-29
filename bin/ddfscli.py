@@ -302,9 +302,7 @@ def push(program, tag, *files):
     tarballs = program.options.tarballs
     forceon= [] if not program.options.forceon else [program.options.forceon]
 
-    blobs = [] if tarballs else [file for file in files
-                                 if os.path.isfile(file)]
-
+    blobs = []
     for file in files:
         if tarballs:
             for name, buf, size in program.ddfs.tarblobs(file,
@@ -312,6 +310,8 @@ def push(program, tag, *files):
                                                          exclude=program.options.exclude):
                 print("extracted {0}".format(name))
                 blobs += [(buf, name)]
+        elif os.path.isfile(file):
+            blobs += [file]
         elif os.path.isdir(file):
             if program.options.recursive:
                 blobs += [os.path.join(path, blob)
@@ -319,6 +319,9 @@ def push(program, tag, *files):
                           for blob in blobs]
             else:
                 print("{0} is a directory (not pushing).".format(file))
+        else:
+            raise Exception("{0}: No such file or directory".format(file))
+
     print("pushing...")
     program.ddfs.push(tag, blobs, replicas=replicas, forceon=forceon)
 
