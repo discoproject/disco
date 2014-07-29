@@ -326,7 +326,7 @@ class DiscoSettings(Settings):
         'DISCO_PROFILE':         "'False'",
         'GRAPHITE_HOST':         "'localhost'",
 # OTHER
-        'SYSTEMD_ENABLED':       "'False'",
+        'SYSTEMD_ENABLED':       "False",
 # PROXY
         'DISCO_PROXY_ENABLED':   "''",
         'DISCO_PROXY':           "''",
