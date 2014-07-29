@@ -126,8 +126,8 @@ def init(input_iter, params):
     """
 
 def default_partition(key, nr_partitions, params):
-    """Returns ``hash(key) % nr_partitions``."""
-    return hash(key) % nr_partitions
+    from hashlib import md5
+    return int(md5(str(key)).hexdigest(), 16) % nr_partitions
 
 def make_range_partition(min_val, max_val):
     """
