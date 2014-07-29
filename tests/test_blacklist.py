@@ -6,6 +6,7 @@ from disco.compat import bytes_to_str
 N = 4
 
 class BlacklistJob(TestJob):
+    scheduler = {'max_cores': 1}
     def map_input_stream(stream, size, url, params):
         scheme, (host, port), test_server = urlsplit(url)
         # test that scheduler observed the blacklist
