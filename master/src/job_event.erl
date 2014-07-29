@@ -193,10 +193,10 @@ handle_cast(purge, S) ->
     {stop, normal, do_done(S)}.
 
 -spec handle_info(flush, state()) -> gs_noreply().
-handle_info(flush, #state{event_file = none, dirty_events = [], job_name = JN} = S) ->
-    lager:info("job ~p has events not written to disk.", [JN]),
+handle_info(flush, #state{event_file = none, dirty_events = []} = S) ->
     {noreply, S};
-handle_info(flush, #state{event_file = none} = S) ->
+handle_info(flush, #state{event_file = none, job_name = JN} = S) ->
+    lager:info("job ~p has events not written to disk.", [JN]),
     {noreply, S};
 handle_info(flush, #state{event_file = File, dirty_events = DirtyBuf} = S) ->
     erlang:send_after(?EVENT_BUFFER_TIMEOUT, self(), flush),
