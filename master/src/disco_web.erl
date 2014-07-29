@@ -16,21 +16,26 @@ op('POST', "/disco/job/" ++ _, Req) ->
     if BodySize > ?MAX_JOB_PACKET ->
             Req:respond({413, [], ["Job packet too large"]});
     true ->
-            Body = Req:recv_body(?MAX_JOB_PACKET),
-            Reply =
-                try
-                    {ok, JobName} = job_coordinator:new(Body),
-                    [<<"ok">>, list_to_binary(JobName)]
-                catch Err ->
-                        ErrorString = disco:format("Job failed to start: ~p", [Err]),
-                        lager:warning("Job failed to start:~p", [Err]),
-                        [<<"error">>, list_to_binary(ErrorString)];
-                      K:E ->
-                        ErrorString = disco:format("Job failed to start: ~p:~p", [K, E]),
-                        lager:warning("Job failed to start: ~p:~p", [K, E]),
-                        [<<"error">>, list_to_binary(ErrorString)]
-                end,
-            reply({ok, Reply}, Req)
+        case application:get_env(accept_new_jobs) of
+            {ok, 0} ->
+                Req:respond({403, [], ["No new jobs should be submitted to this cluster."]});
+            _ ->
+                Body = Req:recv_body(?MAX_JOB_PACKET),
+                Reply =
+                    try
+                        {ok, JobName} = job_coordinator:new(Body),
+                        [<<"ok">>, list_to_binary(JobName)]
+                    catch Err ->
+                            ErrorString = disco:format("Job failed to start: ~p", [Err]),
+                            lager:warning("Job failed to start:~p", [Err]),
+                            [<<"error">>, list_to_binary(ErrorString)];
+                          K:E ->
+                            ErrorString = disco:format("Job failed to start: ~p:~p", [K, E]),
+                            lager:warning("Job failed to start: ~p:~p", [K, E]),
+                            [<<"error">>, list_to_binary(ErrorString)]
+                    end,
+                reply({ok, Reply}, Req)
+        end
     end;
 
 op('POST', "/disco/ctrl/" ++ Op, Req) ->
@@ -141,7 +146,7 @@ getop("get_gc_blacklist", _Query) ->
     {ok, [list_to_binary(disco:host(N)) || N <- Nodes]};
 
 getop("get_settings", _Query) ->
-    L = [max_failure_rate],
+    L = [max_failure_rate, accept_new_jobs],
     {ok, {struct, lists:filter(fun(X) -> is_tuple(X) end,
                                lists:map(
                                  fun(S) ->
@@ -265,6 +270,10 @@ job_file(Name, File) ->
 
 update_setting(<<"max_failure_rate">>, Val, App) ->
     ok = application:set_env(App, max_failure_rate,
+                             list_to_integer(binary_to_list(Val)));
+
+update_setting(<<"accept_new_jobs">>, Val, App) ->
+    ok = application:set_env(App, accept_new_jobs,
                              list_to_integer(binary_to_list(Val)));
 
 update_setting(Key, Val, _) ->
