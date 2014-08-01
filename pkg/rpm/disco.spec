@@ -10,7 +10,6 @@ URL: http://www.discoproject.org
 Source0: disco.tar.gz
 BuildRoot: %{_tmppath}/disco-%{version}-root
 Vendor: Disco Authors
-Packager: Shayan Pooya <shayan@liveve.org>
 
 %description
 Disco is a lightweight, open-source framework for distributed computing based
@@ -26,7 +25,7 @@ Summary: Disco Master
 Group: System Environment/Daemon
 Requires: erlang
 Requires: python-%{name} == %{version}-%{release}
-BuildRequires: erlang
+BuildRequires: erlang git
 
 %description master
 This package contains the required files to run the disco master
@@ -36,7 +35,7 @@ Summary: Disco Node
 Group: System Environment/Daemon
 Requires: erlang
 Requires: python-%{name} == %{version}-%{release}
-BuildRequires: erlang
+BuildRequires: erlang git
 
 %description node
 This package contains the required files to run the disco node
@@ -64,7 +63,7 @@ This package contains the disco command-line tools ddfs and disco
 %define prefix /usr
 
 %build
-%{__make}
+%{__make} fedpkg
 
 %install
 %{__make} install DESTDIR=$RPM_BUILD_ROOT
@@ -127,10 +126,14 @@ if [ "$1" = 0 ]; then
 fi
 
 %changelog
+* Fri Aug 01 2014 Tait Clarridge <tait@clarridge.ca> - 0.5.3-1
+- Removing packager for submission to Fedora and EPEL
+- Added fedpkg make target to skip downloading in the Fedora Build System
+
 * Fri Aug 01 2014 Shayan Pooya <shayan@liveve.org> - 0.5.3-1
 - Release version 0.5.3
 
-* Wed Jun 05 2014 Shayan Pooya <shayan@liveve.org> - 0.5.2-1
+* Thu Jun 05 2014 Shayan Pooya <shayan@liveve.org> - 0.5.2-1
 - Release version 0.5.2
 
 * Wed Apr 16 2014 Shayan Pooya <shayan@liveve.org> - 0.5.1-1

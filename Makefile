@@ -61,7 +61,9 @@ EPLT  = .dialyzer_plt
 	contrib \
 	dep dep-clean \
 	debian debian-clean \
-	doc doc-clean doc-test
+	doc doc-clean doc-test \
+	fedpkg
+
 .PHONY: install uninstall \
 	install-core \
 	install-discodb \
@@ -160,6 +162,9 @@ dialyzer-clean:
 
 typer: $(EPLT)
 	$(TYPER) --plt $(EPLT) -r $(ESRC)
+
+fedpkg:
+	@ (cd master && ./rebar compile)
 
 $(EPLT):
 	$(DIALYZER) --build_plt --output_plt $(EPLT) \
