@@ -400,8 +400,7 @@ def classic_iterator(urls,
     :param notifier: called when the task opens a url.
     """
     from disco.worker import Input
-    from disco.worker.classic.worker import Worker
-    worker = Worker(map_reader=reader, map_input_stream=input_stream)
+    from disco.worker.task_io import ClassicFile
     settings = DiscoSettings(DISCO_MASTER=ddfs) if ddfs else DiscoSettings()
     for input in util.inputlist(urls, settings=settings):
         if isinstance(input, basestring):
@@ -411,7 +410,14 @@ def classic_iterator(urls,
         else:
             dest = [proxy_url(i, to_master=False) for i in input]
         notifier(dest)
-        for record in Input(dest, open=worker.opener('map', 'in', params)):
+
+        def open(url):
+            streams = [s for s in input_stream]
+            if reader:
+                streams += [reader]
+            return ClassicFile(url, streams, params)
+
+        for record in Input(dest, open=open):
             yield record
 
 def result_iterator(*args, **kwargs):
