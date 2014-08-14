@@ -424,14 +424,14 @@ def xcat(program, *urls):
     the blobs reachable from the tags will be printed after any non-tag url[s].
     """
     from itertools import chain
-    from disco.core import classic_iterator
+    from disco.core import result_iterator
     from disco.util import iterify, reify
 
     tags, urls = program.separate_tags(*program.input(*urls))
     stream = reify(program.options.stream)
     reader = program.options.reader
     reader = reify('disco.worker.task_io.chain_reader' if reader is None else reader)
-    for record in classic_iterator(chain(urls, program.blobs(*tags)),
+    for record in result_iterator(chain(urls, program.blobs(*tags)),
                                    input_stream=stream,
                                    reader=reader):
         print('\t'.join('{0}'.format(e) for e in iterify(record)).rstrip())

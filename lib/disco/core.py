@@ -380,14 +380,14 @@ class Disco(object):
         kwargs['ddfs'] = self.master
         return result_iterator(*args, **kwargs)
 
-def classic_iterator(urls,
+def result_iterator(urls,
                      reader=task_io.chain_reader,
                      input_stream=(func.map_input_stream, ),
                      notifier=func.notifier,
                      params=None,
                      ddfs=None):
     """
-    An iterator over records as seen by the classic map interface.
+    An iterator over records stored in either disco or ddfs.
 
     :type  reader: :func:`disco.worker.task_io.input_stream`
     :param reader: shortcut for the last input stream applied.
@@ -418,10 +418,6 @@ def classic_iterator(urls,
 
         for record in Input(dest, open=open):
             yield record
-
-def result_iterator(*args, **kwargs):
-    """Backwards compatible alias for :func:`classic_iterator`"""
-    return classic_iterator(*args, **kwargs)
 
 class Stats(object):
     def __init__(self, prof_data):
