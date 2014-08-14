@@ -399,7 +399,7 @@ def classic_iterator(urls,
     :param notifier: called when the task opens a url.
     """
     from disco.worker import Input
-    from disco.worker.task_io import ClassicFile
+    from disco.worker.task_io import StreamCombiner
     settings = DiscoSettings(DISCO_MASTER=ddfs) if ddfs else DiscoSettings()
     for input in util.inputlist(urls, settings=settings):
         if isinstance(input, basestring):
@@ -414,7 +414,7 @@ def classic_iterator(urls,
             streams = [s for s in input_stream]
             if reader:
                 streams += [reader]
-            return ClassicFile(url, streams, params)
+            return StreamCombiner(url, streams, params)
 
         for record in Input(dest, open=open):
             yield record

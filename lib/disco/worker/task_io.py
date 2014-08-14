@@ -336,7 +336,7 @@ default_stream = (task_input_stream, )
 gzip_stream = (task_input_stream, gzip_reader)
 gzip_line_stream = (task_input_stream, gzip_line_reader)
 
-class ClassicFile(object):
+class StreamCombiner(object):
     def __init__(self, url, streams, params, fd=None, size=None):
         self.fds = []
         for stream in streams:
