@@ -40,7 +40,8 @@ The first item in the value is the euclidean distance between the node and the
 average and the second item is the cluster id.
 """
 
-from disco.core import Disco, Params, result_iterator
+from disco.core import Disco, result_iterator
+from disco.worker.classic.worker import Params
 from disco.worker.task_io import chain_reader
 from optparse import OptionParser
 from os import getenv

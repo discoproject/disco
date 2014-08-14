@@ -16,7 +16,6 @@ from disco.job import Job
 from disco.settings import DiscoSettings
 from disco.util import proxy_url
 from disco.worker import task_io
-from disco.worker.classic.worker import Params # backwards compatibility XXX: deprecate
 from disco.compat import basestring
 
 class Continue(Exception):
