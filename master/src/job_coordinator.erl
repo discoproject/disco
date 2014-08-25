@@ -424,7 +424,8 @@ retry_task(Host, _Error,
                              " At most ~B failures are allowed.",
                              [Stage, TaskId, FC, MaxFail]),
             job_event:task_event(JEHandler, {JobName, Stage, TaskId}, {<<"ERROR">>, M}),
-            kill_job(M);
+            kill_job(M),
+            S;
         false ->
             JobCoord = self(),
             _ = spawn_link(
