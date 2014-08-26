@@ -40,7 +40,8 @@ For me, it prints something like the following:
 """
 
 from disco.worker.task_io import chain_reader
-from disco.core import Job, result_iterator, Params
+from disco.core import Job, result_iterator
+from disco.worker.classic.worker import Params
 from optparse import OptionParser
 
 def estimate_map(e, params):

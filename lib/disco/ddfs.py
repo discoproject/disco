@@ -132,7 +132,7 @@ class DDFS(object):
         Chunks the contents of `urls`,
         pushes the chunks to ddfs and tags them with `tag`.
         """
-        from disco.core import classic_iterator
+        from disco.core import result_iterator
 
         if 'reader' not in kwargs:
             kwargs['reader'] = None
@@ -140,7 +140,7 @@ class DDFS(object):
         def chunk_iter(replicas):
             chunker = Chunker(chunk_size=chunk_size,
                     max_record_size=max_record_size)
-            return chunker.chunks(classic_iterator([replicas], **kwargs))
+            return chunker.chunks(result_iterator([replicas], **kwargs))
 
         def chunk_name(replicas, n):
             url = listify(replicas)[0]

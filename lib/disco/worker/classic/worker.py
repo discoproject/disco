@@ -422,7 +422,7 @@ class Worker(worker.Worker):
         else:
             streams = self['{0}_output_stream'.format(mode)]
         def open(url):
-            return ClassicFile(url, streams, params)
+            return StreamCombiner(url, streams, params)
         return open
 
 
