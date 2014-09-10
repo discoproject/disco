@@ -8,6 +8,8 @@
 -export([new_blob/5, tags/2, get_tag/4, update_tag/5, update_tag_delayed/5,
          replace_tag/5, delete/3, delete_attrib/4]).
 
+-define(MAX_BLOB_NAME, 200).
+
 % dummy
 -type state() :: none.
 
@@ -15,7 +17,11 @@
               -> invalid_name | too_many_replicas | {ok, [string()]} | _.
 new_blob(Server, Blob, Replicas, Include, Exclude) ->
     validate(Blob, fun() ->
-                       Obj = lists:flatten([Blob, "$", ddfs_util:timestamp()]),
+                       ShortBlob = case length(Blob) > ?MAX_BLOB_NAME of
+                           false -> Blob;
+                           true -> disco:large_hexhash(Blob)
+                       end,
+                       Obj = lists:flatten([ShortBlob, "$", ddfs_util:timestamp()]),
                        ddfs_master:new_blob(Server, Obj, Replicas, Include, Exclude)
                    end).
 
