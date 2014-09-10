@@ -6,7 +6,7 @@
 -export([jobhome/1, jobhome/2, joburl/2, joburl_to_localpath/1]).
 -export([data_root/1, data_path/2, ddfs_root/2]).
 -export([local_cluster/0, preferred_host/1, dir_to_url/1]).
--export([enum/1, enum/2, hexhash/1, oob_name/1, debug_flags/1]).
+-export([enum/1, enum/2, hexhash/1, large_hexhash/1, oob_name/1, debug_flags/1]).
 -export([format/2, format_time/1, format_time/4, format_time_since/1]).
 -export([make_dir/1, ensure_dir/1, is_file/1, is_dir/1]).
 
@@ -106,6 +106,12 @@ hexhash(Path) when is_list(Path) ->
 hexhash(Path) ->
     <<Hash:8, _/binary>> = erlang:md5(Path),
     lists:flatten(io_lib:format("~2.16.0b", [Hash])).
+
+
+-spec large_hexhash(nonempty_string()) -> nonempty_string().
+large_hexhash(Path) ->
+    <<Hash:128>> = erlang:md5(Path),
+    lists:flatten(io_lib:format("~32.16.0b", [Hash])).
 
 -spec jobhome(jobname()) -> path().
 jobhome(JobName) ->
