@@ -22,3 +22,7 @@ and then backported into the master branch.
 
 Build Status: [Travis-CI](http://travis-ci.org/discoproject/disco) :: ![Travis-CI](https://secure.travis-ci.org/discoproject/disco.png)
 
+Disco integrates with a lot of different tools. The following screenshot,
+for example, shows using ipython notebook to write a Disco job and using
+matplotlib to plot the results:
+![ipython example](https://raw.githubusercontent.com/discoproject/disco/ipython/examples/ipython/ipython.png)
