@@ -3,7 +3,7 @@
 Release notes
 =============
 
-Disco 0.5.3 (TBD)
+Disco 0.5.3 (August 5, 2014)
 -----------------
 New features
 ''''''''''''
