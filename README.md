@@ -25,4 +25,4 @@ Build Status: [Travis-CI](http://travis-ci.org/discoproject/disco) :: ![Travis-C
 Disco integrates with a lot of different tools. The following screenshot,
 for example, shows using ipython notebook to write a Disco job and using
 matplotlib to plot the results:
-![ipython example](https://raw.githubusercontent.com/discoproject/disco/ipython/examples/ipython/ipython.png)
+![ipython example](https://raw.githubusercontent.com/discoproject/disco/develop/examples/ipython/ipython.png)
