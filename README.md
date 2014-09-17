@@ -26,3 +26,5 @@ Disco integrates with a lot of different tools. The following screenshot,
 for example, shows using ipython notebook to write a Disco job and using
 matplotlib to plot the results:
 ![ipython example](https://raw.githubusercontent.com/discoproject/disco/develop/examples/ipython/ipython.png)
+
+To learn more about the Disco Ecosystem see [Disco Integrations](https://github.com/discoproject/disco/wiki/Disco-Integration-With-Other-Softwares). For some other resources, check out the [Talks on Disco](https://github.com/discoproject/disco/wiki/Talks-about-Disco).
