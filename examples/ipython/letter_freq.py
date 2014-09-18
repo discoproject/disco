@@ -1,8 +1,3 @@
-%matplotlib inline
-import scipy
-from matplotlib import pylab
-from disco.core import Job, result_iterator
-
 def map(line, params):
     for char in line.lower():
         if char >= 'a' and char <= 'z':
@@ -10,13 +5,19 @@ def map(line, params):
 
 def reduce(iter, params):
     from disco.util import kvgroup
-    for word, counts in kvgroup(sorted(iter)):
-        yield word, sum(counts)
+    for char, counts in kvgroup(sorted(iter)):
+        yield char, sum(counts)
 
+# run the disco job
+from disco.core import Job, result_iterator
 job = Job().run(input=["http://en.wikipedia.org/wiki/MapReduce"], map=map, reduce=reduce)
 
+# plot the results with matplotlib
+#%matplotlib inline
 xs, ys = zip(*result_iterator(job.wait()))
-x = scipy.arange(len(items))
+import scipy
+from matplotlib import pylab
+x = scipy.arange(len(xs))
 y = scipy.array(ys)
 f = pylab.figure()
 ax = f.add_axes([0, 0, 3, 1])
