@@ -1,4 +1,5 @@
 #!/bin/sh
+# This is a helper script that will be used to create the disco image.
 
 if [ $# -ne 1 ]
 then

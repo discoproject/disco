@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# This is the main script for setting up the cluster. The user should run this script
+# on the local machine which is authorized to use google cloud
+
 if [ $# -ne 1 ]
 then
     echo "Usage: ./setup.sh n_slaves"

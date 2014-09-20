@@ -1,4 +1,7 @@
 #!/bin/sh
+# Run this script only after you are done with the cluster and want to discard
+# the whole cluster. It will delete all of the traces of the cluster created by
+# setup.sh
 
 if [ $# -ne 1 ]
 then
