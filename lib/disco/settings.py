@@ -376,8 +376,14 @@ class DiscoSettings(Settings):
         for name in self.must_exist:
             self.safedir(name)
         config = self['DISCO_MASTER_CONFIG']
+        try:
+            import multiprocessing
+            nCpus = multiprocessing.cpu_count()
+        except:
+            nCpus = 1
+
         if not os.path.exists(config):
-            open(config, 'w').write('[["localhost","1"]]')
+            open(config, 'w').write('[["localhost","{}"]]'.format(nCpus))
 
 def job_owner():
     return "%s@%s" % (pwd.getpwuid(os.getuid()).pw_name,
