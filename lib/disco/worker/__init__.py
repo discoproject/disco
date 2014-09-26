@@ -313,12 +313,8 @@ class Worker(dict):
         self.getitem(task.stage, job, jobargs)(task, job, **jobargs)
 
     def end(self, task, job, **jobargs):
-        if self.should_save_results(task, job, jobargs):
-            self.save_outputs(task.jobname, master=task.master)
-            self.send('MSG', "Results saved to DDFS")
-        else:
-            self.send_outputs()
-            self.send('MSG', "Results sent to master")
+        self.send_outputs()
+        self.send('MSG', "Results sent to master")
 
     @classmethod
     def main(cls):
@@ -425,14 +421,6 @@ class Worker(dict):
     def get_task(cls):
         from disco.task import Task
         return Task(**dict((str(k), v) for k, v in cls.send('TASK').items()))
-
-    def save_outputs(self, jobname, master=None):
-        from disco.ddfs import DDFS
-        def paths():
-            for output in self.outputs.values():
-                output.file.close()
-                yield output.path
-        self.send('OUTPUT', [0, "tag://" + DDFS(master).save(jobname, paths()), 0])
 
     def send_outputs(self):
         for output in self.outputs.values():

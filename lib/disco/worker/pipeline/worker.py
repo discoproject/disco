@@ -194,12 +194,6 @@ class Worker(worker.Worker):
                         'inputs' : pipe_input})
         return jobdict
 
-    def should_save_results(self, task, job, jobargs):
-        """
-        The outputs of the last stage are already saved.
-        """
-        return False
-
     def run(self, task, job, **jobargs):
         # Entry point into the executing pipeline worker task.  This
         # initializes the task environment, sets up the current stage,
