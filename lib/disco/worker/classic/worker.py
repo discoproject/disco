@@ -305,9 +305,7 @@ class Worker(worker.Worker):
         return jobzip
 
     def should_save_results(self, task, job, jobargs):
-        def get(key):
-            return self.getitem(key, job, jobargs)
-        return get('save_results') and (task.stage == 'map' or get('reduce'))
+        return False
 
     def run(self, task, job, **jobargs):
         global Task
