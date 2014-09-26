@@ -6,7 +6,7 @@ from disco.compat import str_to_bytes
 
 class SaveMapJob(TestJob):
     partitions = None
-    save = True
+    save_results = True
 
     # This method needs to yield the same key type as SaveJob2:map,
     # since both maps are consumed by SaveJob1:reduce.  However,
@@ -17,7 +17,7 @@ class SaveMapJob(TestJob):
 
 class SaveJob1(SaveMapJob):
     partitions = 3
-    save = False
+    save_results = False
 
     @staticmethod
     def reduce(iter, params):
@@ -26,7 +26,7 @@ class SaveJob1(SaveMapJob):
 
 class SaveJob2(SaveJob1):
     partitions = 1
-    save = True
+    save_results = True
     sort = True
     map_reader = staticmethod(chain_reader)
 
