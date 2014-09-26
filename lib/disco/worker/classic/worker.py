@@ -304,9 +304,6 @@ class Worker(worker.Worker):
                     jobzip.writestr(os.path.join('ext.{0}'.format(func), path), bytes)
         return jobzip
 
-    def should_save_results(self, task, job, jobargs):
-        return False
-
     def run(self, task, job, **jobargs):
         global Task
         Task = task
