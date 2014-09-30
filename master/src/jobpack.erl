@@ -117,6 +117,7 @@ jobzip(<<?MAGIC:16/big,
                     max_cores :: cores(),
                     nr_reduce :: non_neg_integer(),
                     map    :: boolean(),
+                    reduce_shuffle :: boolean(),
                     reduce :: boolean()}).
 -record(ver2_info, {pipeline     = []                :: pipeline(),
                     schedule     = #task_schedule{}  :: task_schedule(),
@@ -128,6 +129,7 @@ version_info(?VERSION_1, JobDict) ->
     #ver1_info{inputs = find(<<"input">>, JobDict),
                map    = find(<<"map?">>, JobDict, false),
                reduce = find(<<"reduce?">>, JobDict, false),
+               reduce_shuffle = find(<<"reduce_shuffle?">>, JobDict, false),
                nr_reduce = find(<<"nr_reduces">>, JobDict),
                max_cores = find(<<"max_cores">>, Scheduler, ?DEFAULT_MAX_CORE),
                force_local  = find(<<"force_local">>, Scheduler, false),
@@ -339,12 +341,12 @@ tempname(JobHome) ->
 
 -spec job_from_ver1(#ver1_info{}) -> {[data_input()],
                                       pipeline() | unsupported_job}.
-job_from_ver1(#ver1_info{inputs = JI, map = M, reduce = R, nr_reduce = NR}) ->
-    job_from_ver1(JI, M, R, NR).
+job_from_ver1(#ver1_info{inputs = JI, map = M, reduce = R, nr_reduce = NR, reduce_shuffle = RS}) ->
+    job_from_ver1(JI, M, R, RS, NR).
 
-job_from_ver1(JobInputs, Map, Reduce, Nr_reduce) ->
+job_from_ver1(JobInputs, Map, Reduce, RS, Nr_reduce) ->
     Inputs = task_inputs1(JobInputs),
-    Pipeline = pipeline1(Map, Reduce, Nr_reduce),
+    Pipeline = pipeline1(Map, Reduce, RS, Nr_reduce),
     {Inputs, Pipeline}.
 
 % Parse job input urls into pipeline format.
@@ -375,28 +377,28 @@ input_replicas1(Reps) when is_list(Reps) ->
     % Replica set
     [{R, disco:preferred_host(R)} || R <- Reps].
 
--spec pipeline1(boolean(), boolean(), non_neg_integer())
+-spec pipeline1(boolean(), boolean(), boolean(), non_neg_integer())
               -> pipeline() | unsupported_job.
-pipeline1(false, false, _NR) ->
+pipeline1(false, false, _RS, _NR) ->
     [];
-pipeline1(false, true, 1) ->
+pipeline1(false, true, _RS, 1) ->
     [{?REDUCE, group_all, false}];
-pipeline1(false, true, _NR) ->
-    % This is used to support reduce-only jobs with partitioned
-    % inputs from dir:// files.
+pipeline1(false, true, true, _NR) ->
     [{?REDUCE, group_label, false}, {?REDUCE_SHUFFLE, group_node, false}];
-pipeline1(true, false, _NR) ->
+pipeline1(false, true, false, _NR) ->
+    [{?REDUCE, group_label, false}];
+pipeline1(true, false, _RS, _NR) ->
     [{?MAP, split, false}, {?MAP_SHUFFLE, group_node, false}];
-pipeline1(true, true, 1) ->
+pipeline1(true, true, _RS, 1) ->
     [{?MAP, split, false},
      {?MAP_SHUFFLE, group_node, false},
      {?REDUCE, group_all, false}];
-pipeline1(true, true, _NR) ->
-    % This was used to support a pre-determined number of partitions
-    % in map output, which determined the number of reduces.  However,
-    % we now determine the number of reduces dynamically.
+pipeline1(true, true, true, _NR) ->
     [{?MAP, split, false}, {?MAP_SHUFFLE, group_node, false},
-     {?REDUCE, group_label, false}, {?REDUCE_SHUFFLE, group_node, false}].
+     {?REDUCE, group_label, false}, {?REDUCE_SHUFFLE, group_node, false}];
+pipeline1(true, true, false, _NR) ->
+    [{?MAP, split, false}, {?MAP_SHUFFLE, group_node, false},
+     {?REDUCE, group_label, false}].
 
 -spec schedule_option1(#ver1_info{}) -> task_schedule().
 schedule_option1(#ver1_info{force_local = Local, force_remote = Remote, max_cores = Max}) ->
