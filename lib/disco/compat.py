@@ -42,6 +42,10 @@ if sys.version_info[0] == 3:
                 .format(sort_buffer_size, filename), True)
     integer_types = (int)
 
+    from hashlib import md5
+    def persistent_hash(input):
+        return int(md5(str_to_bytes(input)).hexdigest(), 16)
+
 else:
 
     basestring = basestring
@@ -81,5 +85,7 @@ else:
         return (["sort", "-z", "-t", '\xff', "-k", "1,1", "-T", ".",
                  "-S", sort_buffer_size,
                  "-o", filename, filename], False)
+
+    persistent_hash = hash
 
     integer_types = (int, long)
