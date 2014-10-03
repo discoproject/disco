@@ -39,7 +39,7 @@ $ cat input
 10 1 4 1
 
 $ cat input | ddfs chunk pages -
-$ python page_rank.py --iterations 10 page
+$ python page_rank.py --iterations 10 pages
 
 
 The results are:

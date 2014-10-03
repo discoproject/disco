@@ -7,7 +7,7 @@ This module defines the interfaces for the job functions,
 some default values, as well as otherwise useful functions.
 """
 import re
-from disco.compat import pickle_loads, pickle_dumps, bytes_to_str, str_to_bytes, sort_cmd
+from disco.compat import pickle_loads, pickle_dumps, bytes_to_str, str_to_bytes, sort_cmd, persistent_hash
 from disco.error import DataError
 from disco.worker.task_io import *
 
@@ -126,8 +126,7 @@ def init(input_iter, params):
     """
 
 def default_partition(key, nr_partitions, params):
-    from hashlib import md5
-    return int(md5(str(key)).hexdigest(), 16) % nr_partitions
+    return persistent_hash(key) % nr_partitions
 
 def make_range_partition(min_val, max_val):
     """
