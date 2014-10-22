@@ -306,6 +306,7 @@ def push(program, tag, *files):
     for file in files:
         if tarballs:
             for name, buf, size in program.ddfs.tarblobs(file,
+                                                         compress=program.options.compress,
                                                          include=program.options.include,
                                                          exclude=program.options.exclude):
                 print("extracted {0}".format(name))
