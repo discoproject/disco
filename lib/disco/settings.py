@@ -390,7 +390,7 @@ def job_owner():
                       socket.gethostname())
 
 def guess_erlang():
-    if os.uname()[0] == 'Darwin':
+    if os.uname()[0] == 'Darwin' and int(os.uname()[2].split('.')[0]) < 14:
         return '/usr/libexec/StartupItemContext erl'
     return 'erl'
 
