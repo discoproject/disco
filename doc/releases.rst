@@ -3,6 +3,15 @@
 Release notes
 =============
 
+Disco 0.5.4 (October 27, 2014)
+-----------------
+New features
+''''''''''''
+- A lot of new examples including ipython, page rank, and travelling salesman problem.
+- Add a deployment script to get a cluster ready in Google Cloud in a couple of minutes.
+- Fixes to let Disco run on OSX Yosemite.
+- And a lot of bug fixes and performance improvements
+
 Disco 0.5.3 (August 5, 2014)
 -----------------
 New features
