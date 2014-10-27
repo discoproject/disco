@@ -36,4 +36,6 @@ do
 done
 gcloud compute instances create $NODES --image discoimage --zone $ZONE
 
+echo "Waiting for the cluster to boot up..."
+sleep 20
 gcloud compute ssh discomaster --zone $ZONE --command "disco start"
