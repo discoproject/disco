@@ -22,7 +22,7 @@ gcloud compute firewall-rules create http --description "Disco HTTP Access" --al
 gcloud compute copy-files node_setup.sh discoinstance: --zone $ZONE || exit 2
 
 echo "Installing disco on the instance"
-gcloud compute ssh discoinstance --zone $ZONE --command "./node_setup.sh $N_SLAVES"
+gcloud compute ssh discoinstance --zone $ZONE --command "./node_setup.sh"
 gcloud compute instances delete discoinstance --quiet --zone $ZONE --keep-disks boot
 
 echo "Creating the disco image"

@@ -1,29 +1,14 @@
 #!/bin/sh
 # This is a helper script that will be used to create the disco image.
 
-if [ $# -ne 1 ]
-then
-    echo "Usage: ./node_setup.sh n_slaves"
-    exit 1
-fi
-N_SLAVES=$1
 SECRET_COOKIE=disco_secret
 
 # Set up ssh
 ssh-keygen -t rsa -N '' -f ~/.ssh/id_rsa
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 
-NODES="discomaster "
-for i in $(seq $N_SLAVES)
-do
-    NODES=$(echo $NODES "disconode"$i)
-done
+sudo sh -c "echo 'StrictHostKeyChecking no' >> /etc/ssh/ssh_config"
 
-for node in $NODES
-do
-    echo -n $node " ssh-rsa " >> ~/.ssh/known_hosts
-    ssh-keyscan discoinstance | awk '{print $3}' >> ~/.ssh/known_hosts
-done
 
 # Install dependencies
 sudo apt-get update
