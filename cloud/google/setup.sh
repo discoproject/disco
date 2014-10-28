@@ -34,7 +34,7 @@ for i in $(seq $N_SLAVES)
 do
     NODES=$(echo $NODES "disconode"$i)
 done
-gcloud compute instances create $NODES --image discoimage --zone $ZONE
+gcloud compute instances create $NODES --image discoimage --machine-type f1-micro --zone $ZONE
 
 echo "Waiting for the cluster to boot up..."
 sleep 20

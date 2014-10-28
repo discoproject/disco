@@ -2,7 +2,7 @@
 %define _unpackaged_files_terminate_build 0
 Summary:  An open-source mapreduce framework.
 Name: disco
-Version: 0.5.3
+Version: 0.5.4
 Release: 1%{?dist}
 License: BSD
 Group: System Environment/Daemon
@@ -127,6 +127,10 @@ if [ "$1" = 0 ]; then
 fi
 
 %changelog
+
+* Fri Aug 01 2014 Shayan Pooya <shayan@liveve.org> - 0.5.4-1
+- Release version 0.5.4
+
 * Fri Aug 01 2014 Shayan Pooya <shayan@liveve.org> - 0.5.3-1
 - Release version 0.5.3
 
