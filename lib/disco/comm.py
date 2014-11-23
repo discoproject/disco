@@ -58,8 +58,8 @@ def request(method, url, data=None, headers={}, sleep=0):
         status = response.status
         errmsg = response.reason
     except httplib.HTTPException as e:
-        status = None
         errmsg = str(e) or repr(e)
+        raise CommError(errmsg, url, None)
     except (httplib.socket.error, socket.error) as e:
         status = None
         errmsg = e if isinstance(e, basestring) else str(e) or repr(e)
