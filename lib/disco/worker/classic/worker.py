@@ -309,6 +309,7 @@ class Worker(worker.Worker):
     def run(self, task, job, **jobargs):
         global Task
         Task = task
+        worker.active_task = task
         for key in self:
             self[key] = self.getitem(key, job, jobargs)
         assert self['version'] == '{0[0]}.{0[1]}'.format(sys.version_info[:2]), "Python version mismatch"
