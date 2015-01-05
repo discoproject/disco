@@ -16,7 +16,6 @@ class ExternalTestCase(TestCase):
         return 'test_{0}\n'.format(path)
 
     def setUp(self):
-        super(ExternalTestCase, self).setUp()
         if uname()[0] == 'Darwin':
             self.skipTest('Cannot build static test_external on OS X')
         else:
@@ -29,6 +28,7 @@ class ExternalTestCase(TestCase):
                         path.join(home, 'tests', 'test_external.c'),
                         '-l', 'Judy'],
                        stderr=STDOUT)
+        super(ExternalTestCase, self).setUp()
 
     def test_extmap(self):
         def reduce(iter, params):
