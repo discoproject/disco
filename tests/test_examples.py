@@ -11,8 +11,6 @@ from chain import FirstJob, ChainJob
 from chunk import LineChunker
 from grep import Grep
 from wordcount import WordCount
-from wordcount_ddb import WordCount as WordCountDDB
-from query_ddb import Query
 
 chekhov = 'http://discoproject.org/media/text/chekhov.txt'
 
@@ -31,6 +29,8 @@ class ExamplesTestCase(TestCase):
 
     def test_discodb(self):
         if self.settings['DISCO_TEST_DISCODB']:
+            from wordcount_ddb import WordCount as WordCountDDB
+            from query_ddb import Query
             a, b = WordCountDDB(), Query()
             b.params = 'discover'
             self.job = JobChain({a: [chekhov], b: a})
