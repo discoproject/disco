@@ -8,5 +8,6 @@ def open(url, task=None):
     return comm.open_url(http_url)
 
 def input_stream(fd, size, url, params):
-    file = open(url, task=globals().get('Task'))
+    import disco.worker
+    file = open(url, task=disco.worker.active_task)
     return file, len(file), file.url

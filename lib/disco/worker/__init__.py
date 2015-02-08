@@ -52,7 +52,7 @@ a :term:`job` using a standard :class:`Worker`:
 #. (node) worker requests the :class:`disco.task.Task` from the master
 #. (node) worker runs the :term:`task` and reports the output to the master
 """
-import os, sys, time, traceback
+import os, sys, time, traceback, random
 
 from disco.compat import basestring, force_utf8
 from disco.error import DataError
@@ -62,6 +62,11 @@ from disco.comm import open_url
 
 # Maximum amount of time a task might take to finish.
 DISCO_WORKER_MAX_TIME = 24 * 60 * 60
+
+# Use active_task as a global variable.
+# I will set this when a task is running, and then access it from utilities that
+# need task data like ddfs directory, etc.
+active_task = None
 
 class MessageWriter(object):
     def __init__(self, worker):
@@ -480,14 +485,30 @@ class IDedInput(tuple):
 class ReplicaIter(object):
     def __init__(self, input):
         self.input, self.used = input, set()
+        self.checked_local = False
 
     def __iter__(self):
         return self
 
     def next(self):
+        from disco.util import urlsplit
         replicas = dict(self.input.replicas)
-        repl_ids = set(replicas) - self.used
-        for repl_id in repl_ids:
+        repl_ids = list(set(replicas) - self.used)
+        if not self.checked_local and active_task: # Try to favor opening a local file
+            self.checked_local = True
+            for repl_id in repl_ids:
+                replica = replicas[repl_id]
+                scheme, netloc, rest = urlsplit(replica,
+                                                localhost=active_task.host,
+                                                ddfs_data=active_task.ddfs_data,
+                                                disco_data=active_task.disco_data)
+                if scheme == 'file':
+                    self.used.add(repl_id)
+                    if os.path.exists(rest): # file might not exist due to replica rebalancing
+                        return replica
+                    repl_ids.remove(repl_id)
+        if repl_ids:
+            repl_id = random.choice(repl_ids)
             self.used.add(repl_id)
             return replicas[repl_id]
         self.input.unavailable(self.used)

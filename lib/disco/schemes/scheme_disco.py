@@ -16,5 +16,6 @@ def input_stream(fd, size, url, params):
     """
     Opens the path on host locally if it is local, otherwise over http.
     """
-    file = open(url, task=globals().get('Task'))
+    import disco.worker
+    file = open(url, task=disco.worker.active_task)
     return file, len(file), file.url

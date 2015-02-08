@@ -198,6 +198,7 @@ class Worker(worker.Worker):
         # Entry point into the executing pipeline worker task.  This
         # initializes the task environment, sets up the current stage,
         # and then executes it.
+        worker.active_task = task
         for key in self:
             self[key] = self.getitem(key, job, jobargs)
         sys_version = '{0[0]}.{0[1]}'.format(sys.version_info[:2])

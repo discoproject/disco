@@ -25,7 +25,8 @@ def Open(url, task=None):
     return discodb
 
 def input_stream(fd, size, url, params):
-    return Open(url, task=globals().get('Task')), size, url
+    import disco.worker
+    return Open(url, task=disco.worker.active_task), size, url
 
 class DiscoDBOutput(object):
     def __init__(self, stream, params):
