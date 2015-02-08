@@ -24,10 +24,12 @@ RUN chown disco -R /home/disco/.ssh
 ## install disco
 RUN git clone https://github.com/discoproject/disco.git /disco
 RUN cd /disco &&  make install
+RUN cd /disco/lib && python setup.py install
 RUN chown -R disco /usr/var/disco
 
 ## configure the supervisor which will start ssh & docker
 ADD supervisor.conf /etc/supervisor/conf.d/disco.conf
+RUN sed -i 's/without-password/yes/g' /etc/ssh/sshd_config
 
 EXPOSE 22
 EXPOSE 8990
