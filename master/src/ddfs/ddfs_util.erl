@@ -262,7 +262,8 @@ start_web(Port, Func, Name) ->
     Ret = mochiweb_http:start([{name, Name},
                                {max, ?HTTP_MAX_CONNS},
                                {loop, Func},
-                               {port, Port}]),
+                               {port, Port},
+                               {recbuf,undefined}]),
     case Ret of
         {ok, _Pid} -> error_logger:info_msg("Started ~p at ~p on port ~p",
                                             [Name, node(), Port]);
