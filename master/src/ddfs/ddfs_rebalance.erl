@@ -35,13 +35,9 @@ avg_disk_usage(NodeStats, false) ->
             fun({_N, {Free, Used}}, {SFree, SmUsed}) ->
                     {SFree + Free, SmUsed + Used}
             end, {0, 0}, NodeStats),
-    NumNodes = length(NodeStats),
-    case NumNodes of
+    case SumFree + SumUsed of
         0 -> 0;
-        _ -> case SumFree + SumUsed of
-                0 -> 0;
-                _ -> SumUsed / (NumNodes * (SumFree + SumUsed))
-            end
+        _ -> SumUsed / (SumFree + SumUsed)
     end;
 
 avg_disk_usage(NodeStats, true) ->
