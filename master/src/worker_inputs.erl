@@ -81,8 +81,8 @@ fail(SeqId, Rids, S) ->
 
 fail_one(Key, Now, #state{input_map = Map} = S) ->
     case gb_trees:lookup(Key, Map) of
-        {value, F} ->
-            Map1 = gb_trees:update(Key, F#fail_info{last_fail = Now}, Map),
+        {value, {L, F}} ->
+            Map1 = gb_trees:update(Key, {L, F#fail_info{last_fail = Now}}, Map),
             S#state{input_map = Map1};
         none ->
             S
