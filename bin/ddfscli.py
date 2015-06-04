@@ -195,12 +195,66 @@ def df(program, *args):
     """
     raise NotImplementedError("API does not yet support this operation")
 
-def du(program, *args):
-    """Usage: <undefined>
+@DDFS.add_prefix_mode
+@DDFS.command
+def du(program, *tags):
+    """Usage: [tag ...]
 
     Display the disk usage statistics for a tag.
+    This will run a job on the cluster, getting the file on disk
+    for each of the blobs in the supplied tags.
+
+    eg. to get the size in bytes for the tag `chekhov`
+        ddfs du chekov
+
+    eg. to get the size in human readable form
+        ddfs du chekov -H
+
+    eg. to increase the amount of cores the job uses
+        ddfs du chekov -n 200
+
+    eg. to increase the number of partitions (if there are a lot of files)
+        ddfs du chekov -P 100
     """
-    raise NotImplementedError("API does not yet support this operation")
+    from disco.ddfs import FileSizeJob
+    from disco.core import result_iterator
+    from disco.fileutils import human_readable_size
+    for tag in program.prefix_mode(*tags):
+        job_name = '_ddfs_du_{0}'.format(tag.replace(':', '_'))
+        scheduler = {
+            'force_local': True,
+            'max_cores': 50
+        }
+        partitions = 10
+        if program.options.cores:
+            scheduler['max_cores'] = int(program.options.cores)
+        if program.options.partitions:
+            partitions = int(program.options.partitions)
+        try:
+            job = FileSizeJob(
+                name=job_name, master=program.options.master).run(
+                input=[b for b in program.ddfs.blobs(tag)],
+                scheduler=scheduler,
+                partitions=partitions)
+            f_total = 0
+            for _, f_size in result_iterator(job.wait()):
+                f_total += f_size
+            if program.options.humanreadable:
+                f_total = human_readable_size(f_total)
+            print("{0}: {1}".format(tag, f_total))
+            job.purge()
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc(15))
+            print ("Error: {0}".format(e))
+
+du.add_option('-H', '--humanreadable',
+              action='store_true',
+              help='make the output human readable')
+du.add_option('-n', '--cores',
+              help='number of cores to operate on')
+du.add_option('-P', '--partitions',
+              help='number of partitions for the job')
 
 @DDFS.command
 def exists(program, tag):
