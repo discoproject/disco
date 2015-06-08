@@ -525,7 +525,7 @@ handle_cast({rr_tags, [], Count}, #state{phase = rr_tags, gc_peers = Peers,
 
 handle_info({diskinfo, Node, {Free, Used}},
             #state{nodestats = NodeStats, blacklist = BL} = S) ->
-    lager:info("GC: disk information for ~p (free: ~p bytes, used: ~p bytes)",
+    lager:info("GC: disk information for ~p (free: ~p kilobytes, used: ~p kilobytes)",
                [Node, Free, Used]),
     case lists:member(Node, BL) of
         true ->
@@ -974,7 +974,7 @@ rebalance(Overused, BL, NodeStats) ->
                             fun({_, {DS1, B1}}, {_, {DS2, B2}}) ->
                                     ddfs_rebalance:less(B1, DS1, B2, DS2)
                             end, PresentStats),
-                          case ddfs_rebalance:is_balanced(Balanced, DiskSpace, Threshold) of
+                          case ddfs_rebalance:is_balanced(Balanced, Threshold, DiskSpace) of
                           true ->
                               % The node has passed the threshold for how much of
                               % its diskspace that can be selected to replicate 

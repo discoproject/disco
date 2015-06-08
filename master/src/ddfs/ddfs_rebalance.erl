@@ -35,13 +35,9 @@ avg_disk_usage(NodeStats, false) ->
             fun({_N, {Free, Used}}, {SFree, SmUsed}) ->
                     {SFree + Free, SmUsed + Used}
             end, {0, 0}, NodeStats),
-    NumNodes = length(NodeStats),
-    case NumNodes of
+    case SumFree + SumUsed of
         0 -> 0;
-        _ -> case SumFree + SumUsed of
-                0 -> 0;
-                _ -> SumUsed / (NumNodes * (SumFree + SumUsed))
-            end
+        _ -> SumUsed / (SumFree + SumUsed)
     end;
 
 avg_disk_usage(NodeStats, true) ->
@@ -64,7 +60,7 @@ threshold() ->
         false -> ?GC_BALANCE_THRESHOLD
     end.
 
--spec is_balanced(non_neg_integer(), non_neg_integer(), float()) -> true | false.
+-spec is_balanced(non_neg_integer(), float(), non_neg_integer()) -> true | false.
 is_balanced(Balanced, Threshold, DiskSpace) ->
     is_balanced(Balanced, Threshold, DiskSpace, disco:has_setting("DDFS_ABSOLUTE_SPACE")).
 
