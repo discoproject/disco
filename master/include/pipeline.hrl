@@ -102,6 +102,7 @@
                     schedule  :: task_schedule(),
                     input     :: [input_id()],
                     all_inputs:: boolean(),
+                    nice      :: integer(),
                     save_outputs :: boolean(),
                     save_info :: string()}).
 -type task_spec() :: #task_spec{}.
@@ -136,6 +137,7 @@
                   inputs = []   :: [task_output()],
                   pipeline = [] :: pipeline(),
                   schedule      :: task_schedule(),
+                  nice = 19     :: integer(),
                   save_results = false :: boolean(),
                   save_info     :: string()}).
 -type jobinfo() :: #jobinfo{}.

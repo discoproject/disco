@@ -128,10 +128,10 @@ handle_cast(start, #state{task = Task, master = Master} = State) ->
             {stop, {shutdown, {error, E}}, State}
     end;
 handle_cast(work, #state{task = T, port = none} = State) ->
-    {#task_spec{jobname = JobName, worker = W, jobenvs = JE}, #task_run{}} = T,
+    {#task_spec{jobname = JobName, nice = Nice, worker = W, jobenvs = JE}, #task_run{}} = T,
     JobHome = jobhome(JobName),
     Worker = filename:join(JobHome, binary_to_list(W)),
-    Command = "nice -n 19 " ++ Worker,
+    Command = "nice -n " ++ integer_to_list(Nice) ++ " " ++ Worker,
     JobEnvs = [{S, false} || S <- disco:settings()] ++ JE,
     Options = [{cd, JobHome},
                stream,
