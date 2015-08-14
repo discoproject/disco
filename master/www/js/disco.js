@@ -13,7 +13,8 @@ $(document).ready(function(){
 function format_size(num){
     units = ['KB', 'MB', 'GB', 'TB'];
     for (i = 0; i < units.length; i++) {
-        if (num < 1024)
+        // Don't use 1024 here otherwise (1023).toPrecision(3) becomes 1.02e+3
+        if (num < 1000)
             return num.toPrecision(3) + units[i];
         num /= 1024;
     }
