@@ -297,7 +297,7 @@ unique_key(Prefix, Dict) ->
     if C > 0 ->
         invalid_prefix;
     true ->
-        {MegaSecs, Secs, MicroSecs} = now(),
+        {MegaSecs, Secs, MicroSecs} = erlang:timestamp(),
         Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
         case dict:is_key(Key, Dict) of
             false -> {ok, Key};

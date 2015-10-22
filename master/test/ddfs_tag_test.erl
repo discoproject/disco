@@ -10,9 +10,6 @@ safe_binary() ->
 token() ->
     oneof([null, safe_binary()]).
 
-tokentype() ->
-    oneof([read, write]).
-
 user_attr() ->
     list({safe_binary(), safe_binary()}).
 
