@@ -13,8 +13,8 @@
 -type disco_gbset(K) :: gb_sets:set(K).
 -type disco_queue(K) :: queue:queue(K).
 -else.
--type disco_dict(_K,_V) :: dict().
--type disco_gbtree(_K,_V) :: gb_tree().
--type disco_gbset(_K) :: gb_set().
--type disco_queue(_K) :: queue().
+-type disco_dict(_K,_V) :: dict:dict().
+-type disco_gbtree(_K,_V) :: gb_tree:gb_tree().
+-type disco_gbset(_K) :: gb_set:gb_set().
+-type disco_queue(_K) :: queue:queue().
 -endif.

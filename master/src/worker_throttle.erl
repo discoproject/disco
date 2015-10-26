@@ -4,7 +4,8 @@
 -define(MAX_EVENTS_PER_SECOND, 5).
 -define(MICROSECONDS_IN_SECOND, 1000000).
 
--opaque state() :: queue:queue().
+%% XXX opaque confuses Dialyzer because the opaque declaration expects to find some structure declaration in its right hand side, not another opaque term
+-type state() :: queue:queue().
 -type throttle() :: {ok, non_neg_integer(), state()} | {error, term()}.
 
 -export_type([state/0]).
