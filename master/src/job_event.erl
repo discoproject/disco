@@ -148,7 +148,7 @@ init({JC, JobName, Stages}) ->
              nmsgs = 0,
              msg_list_len = 0,
              msgs = [],
-             start     = now(),
+             start     = erlang:timestamp(),
              dirty_events = [],
              n_dirty = 0,
              task_count_inc= dict:from_list([{S, true} || S <- Stages]),
@@ -239,7 +239,7 @@ do_add_event(Host0, Msg, Event,
              #state{
                 msgs = MsgLst0, nmsgs = NMsg, msg_list_len = LstLen0
             } = S) ->
-    Time = disco_util:format_timestamp(now()),
+    Time = disco_util:format_timestamp(erlang:timestamp()),
     Host = list_to_binary(Host0),
     Line = <<"[\"",
         Time/binary, "\",\"",

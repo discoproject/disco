@@ -261,7 +261,7 @@ handle_cast({safe_gc_blacklist, SafeBlacklist}, #state{gc_blacklist = BL} = S) -
     {noreply, S#state{safe_gc_blacklist = SBL}};
 
 handle_cast({update_gc_stats, Stats}, S) ->
-    {noreply, S#state{gc_stats = {Stats, now()}}};
+    {noreply, S#state{gc_stats = {Stats, erlang:timestamp()}}};
 
 handle_cast({update_tag_cache, TagCache}, S) ->
     {noreply, S#state{tag_cache = {true, TagCache}}};

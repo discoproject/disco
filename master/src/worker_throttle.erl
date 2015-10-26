@@ -4,7 +4,8 @@
 -define(MAX_EVENTS_PER_SECOND, 5).
 -define(MICROSECONDS_IN_SECOND, 1000000).
 
--opaque state() :: queue().
+%% XXX opaque confuses Dialyzer because the opaque declaration expects to find some structure declaration in its right hand side, not another opaque term
+-type state() :: queue:queue().
 -type throttle() :: {ok, non_neg_integer(), state()} | {error, term()}.
 
 -export_type([state/0]).
@@ -15,7 +16,7 @@ init() ->
 
 -spec handle(state()) -> throttle().
 handle(Q) ->
-    Now = now(),
+    Now = erlang:timestamp(),
     Q1 = queue:in(Now, Q),
     Diff = timer:now_diff(Now, queue:get(Q1)),
     if Diff > ?MICROSECONDS_IN_SECOND ->
@@ -25,7 +26,7 @@ handle(Q) ->
         throttle(Q1, queue:len(Q1))
     end.
 
--spec throttle(queue(), non_neg_integer()) -> throttle().
+-spec throttle(queue:queue(), non_neg_integer()) -> throttle().
 throttle(_Q, N) when N >= ?MAX_EVENTS_PER_SECOND * 2 ->
     {error, ["Worker is behaving badly: Sent ",
              integer_to_list(N), " events in a second, ignoring replies."]};
