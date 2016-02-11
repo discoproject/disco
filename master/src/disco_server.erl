@@ -16,7 +16,7 @@
 -include("disco.hrl").
 -include("pipeline.hrl").
 
--type connection_status() :: undefined | {up | down, erlang:timestamp()}.
+-type connection_status() :: undefined | {up | down, disco_util:timestamp()}.
 
 -record(dnode, {host :: host(),
                 node_mon :: pid(),
@@ -31,7 +31,7 @@
 
 -record(state, {workers = gb_trees:empty() :: disco_gbtree(pid(), {host(), task()}),
                 nodes   = gb_trees:empty() :: disco_gbtree(host(), dnode()),
-                purged  = gb_trees:empty() :: disco_gbtree(binary(), erlang:timestamp()),
+                purged  = gb_trees:empty() :: disco_gbtree(binary(), disco_util:timestamp()),
                 jobpack_queue :: pid(),
 
                 % The below are only used in cluster-in-a-box mode.
@@ -353,10 +353,10 @@ do_connection_status(Node, Status, #state{nodes = Nodes} = S) ->
     UpdatedNodes =
         case gb_trees:lookup(Node, Nodes) of
             {value, N} when Status =:= up ->
-                N1 = N#dnode{connection_status = {up, now()}},
+                N1 = N#dnode{connection_status = {up, disco_util:timestamp()}},
                 gb_trees:update(Node, N1, Nodes);
             {value, N} when Status =:= down ->
-                N1 = N#dnode{connection_status = {down, now()}},
+                N1 = N#dnode{connection_status = {down, disco_util:timestamp()}},
                 gb_trees:update(Node, N1, Nodes);
             _ -> Nodes
         end,
@@ -409,7 +409,7 @@ do_update_config_table(Config, Blacklist, GCBlacklist,
                               {#dnode{host = Host,
                                       node_mon = node_mon:start_link(Host, NodePorts),
                                       manual_blacklist = lists:member(Host, Blacklist),
-                                      connection_status = {down, now()},
+                                      connection_status = {down, disco_util:timestamp()},
                                       slots = Slots,
                                       num_running = 0,
                                       stats_ok = 0,
@@ -487,7 +487,7 @@ do_purge_job(JobName, #state{purged = Purged} = S) ->
             true ->
                 Purged;
             false ->
-                gb_trees:insert(Key, now(), Purged)
+                gb_trees:insert(Key, disco_util:timestamp(), Purged)
         end,
     S#state{purged = NPurged}.
 
@@ -557,7 +557,7 @@ do_get_nodeinfo(#state{nodes = Nodes}) ->
 
 -spec do_get_purged(state()) -> {{ok, [binary()]}, state()}.
 do_get_purged(#state{purged = Purged} = S) ->
-    Now = now(),
+    Now = disco_util:timestamp(),
     NPurgedList =
         [{Job, TStamp} || {Job, TStamp} <- gb_trees:to_list(Purged),
                           timer:now_diff(Now, TStamp) < ?PURGE_TIMEOUT * 1000],

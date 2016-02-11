@@ -17,7 +17,7 @@
                 master       :: node(),
                 host         :: host(),
                 inputs       :: worker_inputs:state(),
-                start_time   :: erlang:timestamp(),
+                start_time   :: disco_util:timestamp(),
                 save_outputs :: boolean(),
                 save_info    :: string(),
 
@@ -42,7 +42,7 @@ init({#task_spec{jobname = JN, grouping = Grouping, group = Group,
            master  = Master,
            host    = disco:host(node()),
            inputs  = worker_inputs:init(Inputs, Grouping, Group, AllInputs),
-           start_time   = now(),
+           start_time   = disco_util:timestamp(),
            save_outputs = Save,
            save_info = SaveInfo}.
 
@@ -258,7 +258,7 @@ url_path(JobName, Host, LocalFile) ->
 
 -spec local_results_filename(task()) -> path().
 local_results_filename({#task_spec{stage = S, taskid = TaskId}, #task_run{}}) ->
-    TimeStamp = timer:now_diff(now(), {0,0,0}),
+    TimeStamp = timer:now_diff(disco_util:timestamp(), {0,0,0}),
     FileName = io_lib:format("~s-~B-~B.results", [S, TaskId, TimeStamp]),
     filename:join(".disco", FileName).
 
@@ -438,7 +438,7 @@ save_locals([{L, Loc, Sz} = _H | Rest], K, M, JN, TaskId, RunId, Acc) ->
     BlobBase = disco:format("~s:~p:~p:~s",
                             [JN, TaskId, RunId, filename:basename(LocalPath)]),
     BlobName = list_to_binary(ddfs_util:make_valid_name(BlobBase)),
-    Blob = ddfs_util:pack_objname(BlobName, now()),
+    Blob = ddfs_util:pack_objname(BlobName, disco_util:timestamp()),
     % TODO: Optimize new_blob to handle hints so that local blob
     % copies can be created.
     case ddfs_save(M, Blob, LocalPath, K, ?MAX_SAVE_ATTEMPTS, {[], []}) of

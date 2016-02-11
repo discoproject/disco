@@ -103,7 +103,7 @@ decode_tagcontent(TagData) ->
 
 -spec update_tagcontent(tagname(), tagcontent()) -> tagcontent().
 update_tagcontent(TagName, Tag) ->
-    Tag#tagcontent{id = ddfs_util:pack_objname(TagName, now()),
+    Tag#tagcontent{id = ddfs_util:pack_objname(TagName, disco_util:timestamp()),
                    last_modified = ddfs_util:format_timestamp()}.
 
 -spec update_tagcontent(tagname(), attrib(), _, _, token()) ->

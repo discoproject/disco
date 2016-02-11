@@ -45,7 +45,7 @@
                 read_blacklist    = []                :: [node()],
                 gc_blacklist      = []                :: [node()],
                 safe_gc_blacklist = gb_sets:empty()   :: disco_gbset(tagname()),
-                gc_stats          = none              :: none | {gc_stats(), erlang:timestamp()}}).
+                gc_stats          = none              :: none | {gc_stats(), disco_util:timestamp()}}).
 -type state() :: #state{}.
 -type replyto() :: {pid(), reference()}.
 
@@ -90,7 +90,7 @@ gc_blacklist() ->
 gc_blacklist(Nodes) ->
     gen_server:cast(?MODULE, {gc_blacklist, Nodes}).
 
--spec gc_stats() -> {ok, none | {gc_stats(), erlang:timestamp()}} | {error, term()}.
+-spec gc_stats() -> {ok, none | {gc_stats(), disco_util:timestamp()}} | {error, term()}.
 gc_stats() ->
     gen_server:call(?MODULE, gc_stats).
 
@@ -181,7 +181,7 @@ init(_Args) ->
                  (gc_blacklist, from(), state()) ->
                          gs_reply({ok, [node()]});
                  (gc_stats, from(), state()) ->
-                         gs_reply({ok, gc_stats(), erlang:timestamp()});
+                         gs_reply({ok, gc_stats(), disco_util:timestamp()});
                  (choose_write_nodes_msg(), from(), state()) ->
                          gs_reply({ok, [node()]});
                  (new_blob_msg(), from(), state()) ->
@@ -261,7 +261,7 @@ handle_cast({safe_gc_blacklist, SafeBlacklist}, #state{gc_blacklist = BL} = S) -
     {noreply, S#state{safe_gc_blacklist = SBL}};
 
 handle_cast({update_gc_stats, Stats}, S) ->
-    {noreply, S#state{gc_stats = {Stats, now()}}};
+    {noreply, S#state{gc_stats = {Stats, disco_util:timestamp()}}};
 
 handle_cast({update_tag_cache, TagCache}, S) ->
     {noreply, S#state{tag_cache = {true, TagCache}}};
