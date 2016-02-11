@@ -47,22 +47,22 @@ startswith(B, Prefix) ->
     Head =:= Prefix.
 
 -spec timestamp() -> string().
-timestamp() -> timestamp(now()).
+timestamp() -> timestamp(disco_util:timestamp()).
 
--spec timestamp(erlang:timestamp()) -> string().
+-spec timestamp(disco_util:timestamp()) -> string().
 timestamp({X0, X1, X2}) ->
     lists:flatten([to_hex(X0), $-, to_hex(X1), $-, to_hex(X2)]).
 
--spec timestamp_to_time(nonempty_string()) -> erlang:timestamp().
+-spec timestamp_to_time(nonempty_string()) -> disco_util:timestamp().
 timestamp_to_time(T) ->
     list_to_tuple([erlang:list_to_integer(X, 16)
                    || X <- string:tokens(lists:flatten(T), "-")]).
 
--spec pack_objname(tagname(), erlang:timestamp()) -> tagid().
+-spec pack_objname(tagname(), disco_util:timestamp()) -> tagid().
 pack_objname(Name, T) ->
     list_to_binary([Name, "$", timestamp(T)]).
 
--spec unpack_objname(tagid() | string()) -> {binary(), erlang:timestamp()}.
+-spec unpack_objname(tagid() | string()) -> {binary(), disco_util:timestamp()}.
 unpack_objname(Obj) when is_binary(Obj) ->
     unpack_objname(binary_to_list(Obj));
 unpack_objname(Obj) ->
@@ -88,7 +88,7 @@ ensure_dir(Dir) ->
 
 -spec format_timestamp() -> binary().
 format_timestamp() ->
-    {Date, Time} = calendar:now_to_local_time(now()),
+    {Date, Time} = calendar:now_to_local_time(disco_util:timestamp()),
     DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
     TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
     list_to_binary([DateStr, TimeStr]).

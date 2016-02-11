@@ -22,7 +22,7 @@
 
 -type joblist_entry() :: {JobName :: jobname(),
                           job_status(),
-                          StartTime :: erlang:timestamp()}.
+                          StartTime :: disco_util:timestamp()}.
 
 -type stage_dict() :: disco_dict(stage_name(), non_neg_integer()).
 
@@ -297,7 +297,7 @@ unique_key(Prefix, Dict) ->
     if C > 0 ->
         invalid_prefix;
     true ->
-        {MegaSecs, Secs, MicroSecs} = now(),
+        {MegaSecs, Secs, MicroSecs} = disco_util:timestamp(),
         Key = disco:format("~s@~.16b:~.16b:~.16b", [Prefix, MegaSecs, Secs, MicroSecs]),
         case dict:is_key(Key, Dict) of
             false -> {ok, Key};

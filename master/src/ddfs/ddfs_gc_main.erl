@@ -207,7 +207,7 @@
           phase    = start            :: phase(),
           gc_peers = gb_trees:empty() :: node_map(),
 
-          last_response_time = now()          :: erlang:timestamp(),
+          last_response_time = disco_util:timestamp()          :: disco_util:timestamp(),
           progress_timer    = undefined       :: 'undefined' | timer:tref(),
           gc_stats          = init_gc_stats() :: gc_run_stats(),
 
@@ -290,7 +290,7 @@ init({Root, DeletedAges}) ->
     % gc_blob_map: {Key :: {object_name(), node()},
     %               State :: 'pending' | 'missing' | check_blob_result()}
     % gc_tag_map:  {Key :: tagname(),
-    %               Id  :: erlang:timestamp()}
+    %               Id  :: disco_util:timestamp()}
     _ = ets:new(gc_blob_map, [named_table, set, private]),
     _ = ets:new(gc_tag_map, [named_table, set, private]),
 
@@ -303,7 +303,7 @@ init({Root, DeletedAges}) ->
 -spec handle_call(is_orphan_msg(), from(), state()) -> gs_reply(boolean() | unknown);
                  (dbg_state_msg(), from(), state()) -> gs_reply(state()).
 handle_call({is_orphan, Type, ObjName, Node, Vol}, _, S) ->
-    S1 = S#state{last_response_time = now()},
+    S1 = S#state{last_response_time = disco_util:timestamp()},
     {reply, check_is_orphan(S, Type, ObjName, Node, Vol), S1};
 
 handle_call(dbg_get_state, _, S) ->
@@ -331,7 +331,7 @@ handle_cast(start, #state{phase = start} = S) ->
     case get_all_tags() of
         {ok, Tags, OkNodes} ->
             Phase = build_map,
-            Peers = start_gc_peers(OkNodes, self(), now(), Phase),
+            Peers = start_gc_peers(OkNodes, self(), disco_util:timestamp(), Phase),
             % We iterate over the tags by messaging ourselves, so that
             % we keep processing our message queue, which would
             % otherwise fill up when we process very large numbers of
@@ -357,7 +357,7 @@ handle_cast({retry_node, Node},
                 Overused -> overused;
                 _ ->        normal
            end,
-    Pid = ddfs_gc_node:start_gc_node(Node, self(), now(), Phase, Mode),
+    Pid = ddfs_gc_node:start_gc_node(Node, self(), disco_util:timestamp(), Phase, Mode),
     Peers = update_peer(GCPeers, Node, Pid),
     case Phase of
         P when P =:= build_map; P =:= map_wait ->
@@ -414,7 +414,7 @@ handle_cast({build_map, []}, #state{phase = build_map} = S) ->
                  {ok, ProgressTimer} =
                      timer:send_after(?GC_PROGRESS_INTERVAL, check_progress),
                  S#state{phase = map_wait,
-                         last_response_time = now(),
+                         last_response_time = disco_util:timestamp(),
                          progress_timer = ProgressTimer,
                          num_pending_reqs = Pending}
          end,
@@ -478,7 +478,7 @@ handle_cast({gc_done, Node, GCNodeStats}, #state{phase = gc,
          end,
     {noreply, S1#state{pending_nodes = NewPending,
                        gc_stats = NewStats,
-                       last_response_time = now()}};
+                       last_response_time = disco_util:timestamp()}};
 
 handle_cast({rr_blob, '$end_of_table'},
             #state{phase = rr_blobs, rr_pid = RR, rr_reqs = RReqs} = S) ->
@@ -550,13 +550,13 @@ handle_info({check_blob_result, LocalObj, Status},
                  start_gc_phase(S);
              _ ->
                  S#state{num_pending_reqs = Pending,
-                         last_response_time = now()}
+                         last_response_time = disco_util:timestamp()}
          end,
     {noreply, S1};
 
 handle_info(check_progress, #state{phase = Phase, last_response_time = LRT} = S)
   when Phase =:= build_map; Phase =:= map_wait; Phase =:= gc ->
-    Since = timer:now_diff(now(), LRT),
+    Since = timer:now_diff(disco_util:timestamp(), LRT),
     case Since < ?GC_PROGRESS_INTERVAL of
         true ->
             % We have been making forward progress, restart the
@@ -638,7 +638,7 @@ schedule_retry(Node) ->
               end),
     ok.
 
--spec start_gc_peers([node()], pid(), erlang:timestamp(), phase()) -> node_map().
+-spec start_gc_peers([node()], pid(), disco_util:timestamp(), phase()) -> node_map().
 start_gc_peers(Nodes, Self, Now, Phase) ->
     lists:foldl(
       fun(N, Peers) ->
@@ -900,7 +900,7 @@ start_gc_phase(#state{gc_peers = Peers, nodestats = NodeStats} = S) ->
     S#state{num_pending_reqs  = 0,
             pending_nodes = gb_sets:from_list(gb_trees:keys(Peers)),
             phase = gc,
-            last_response_time = now(),
+            last_response_time = disco_util:timestamp(),
             overused_nodes = OverusedNodes,
             underused_nodes = UnderusedNodes,
             most_overused_node = MostOverused}.
@@ -977,7 +977,7 @@ rebalance(Overused, BL, NodeStats) ->
                           case ddfs_rebalance:is_balanced(Balanced, Threshold, DiskSpace) of
                           true ->
                               % The node has passed the threshold for how much of
-                              % its diskspace that can be selected to replicate 
+                              % its diskspace that can be selected to replicate
                               % for balancing.
                               Stats;
                           false ->
@@ -1146,7 +1146,7 @@ obj_stats(Type, {{KeptF, KeptB}, {DelF, DelB}}) ->
 -spec process_deleted([object_name()], ets:tab()) -> ok.
 process_deleted(Tags, Ages) ->
     lager:info("GC: Pruning +deleted"),
-    Now = now(),
+    Now = disco_util:timestamp(),
 
     % Let's start with the current list of deleted tags
     {ok, Deleted} = ddfs_master:tag_operation(get_tagnames,

@@ -34,7 +34,7 @@
                 event_file           :: none | file:fd(),
                 dirty_events         :: [binary()],
                 n_dirty              :: non_neg_integer(),
-                start                :: erlang:timestamp(),
+                start                :: disco_util:timestamp(),
                 job_data = none      :: none | jobinfo(),
                 task_count_inc       :: disco_dict(stage_name(), boolean()),
                 task_count           :: stage_dict(),
@@ -73,7 +73,7 @@ pending_event(JEHandler, Stage, remove) ->
 get_status(JEHandler) ->
     gen_server:call(JEHandler, get_status).
 
--spec get_start(pid()) -> erlang:timestamp().
+-spec get_start(pid()) -> disco_util:timestamp().
 get_start(JEHandler) ->
     gen_server:call(JEHandler, get_start).
 
@@ -148,7 +148,7 @@ init({JC, JobName, Stages}) ->
              nmsgs = 0,
              msg_list_len = 0,
              msgs = [],
-             start     = now(),
+             start     = disco_util:timestamp(),
              dirty_events = [],
              n_dirty = 0,
              task_count_inc= dict:from_list([{S, true} || S <- Stages]),
@@ -239,7 +239,7 @@ do_add_event(Host0, Msg, Event,
              #state{
                 msgs = MsgLst0, nmsgs = NMsg, msg_list_len = LstLen0
             } = S) ->
-    Time = disco_util:format_timestamp(now()),
+    Time = disco_util:format_timestamp(disco_util:timestamp()),
     Host = list_to_binary(Host0),
     Line = <<"[\"",
         Time/binary, "\",\"",
@@ -274,7 +274,7 @@ do_get_status(#state{job_coord = Pid, job_results = none}) ->
 do_get_status(_S) ->
     ready.
 
--spec do_get_start(state()) -> erlang:timestamp().
+-spec do_get_start(state()) -> disco_util:timestamp().
 do_get_start(#state{start = Start}) ->
     Start.
 

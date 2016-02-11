@@ -714,7 +714,7 @@ make_stage_tasks(Stage, _Grouping, [],
                  #state{stage_info = SI} = S, {TaskNum, Tasks}) ->
     StageInfo1 = case jc_utils:stage_info_opt(Stage, SI) of
         none ->
-            #stage_info{start = now(), all = TaskNum};
+            #stage_info{start = disco_util:timestamp(), all = TaskNum};
         #stage_info{all = All} = StageInfo ->
             StageInfo#stage_info{all = All + TaskNum}
     end,
@@ -760,7 +760,7 @@ make_stage_tasks(Stage, Grouping, [{G, Inputs}|Rest],
 
     #stage_info{group_map = OldGroupMap} = StageInfo =
     case jc_utils:stage_info_opt(Stage, SI) of
-        none         -> #stage_info{start = now()};
+        none         -> #stage_info{start = disco_util:timestamp()};
         StageInfoTmp -> StageInfoTmp
     end,
     GroupMap = case Grouping of

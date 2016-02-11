@@ -1,6 +1,16 @@
 -module(disco_util).
 -export([choose_random/1, choose_random/2, groupby/2,
-         format_timestamp/1]).
+         format_timestamp/1, timestamp/0]).
+
+-ifdef(time_correction).
+-spec timestamp() -> erlang:timestamp().
+timestamp() ->
+    erlang:timestamp().
+-else.
+-spec timestamp() -> erlang:timestamp().
+timestamp() ->
+    now().
+-endif.
 
 -spec format_timestamp(erlang:timestamp()) -> binary().
 format_timestamp(TimeStamp) ->
