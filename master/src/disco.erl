@@ -209,7 +209,7 @@ format_time(Ms, Second, Minute, Hour) ->
 
 -spec format_time_since(erlang:timestamp()) -> nonempty_string().
 format_time_since(Time) ->
-    format_time(timer:now_diff(now(), Time)).
+    format_time(timer:now_diff(erlang:timestamp(), Time)).
 
 -spec make_dir(file:filename()) -> {ok, file:filename()} | {error, _}.
 make_dir(Dir) ->

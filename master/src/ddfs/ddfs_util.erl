@@ -47,7 +47,7 @@ startswith(B, Prefix) ->
     Head =:= Prefix.
 
 -spec timestamp() -> string().
-timestamp() -> timestamp(now()).
+timestamp() -> timestamp(erlang:timestamp()).
 
 -spec timestamp(erlang:timestamp()) -> string().
 timestamp({X0, X1, X2}) ->
@@ -88,7 +88,7 @@ ensure_dir(Dir) ->
 
 -spec format_timestamp() -> binary().
 format_timestamp() ->
-    {Date, Time} = calendar:now_to_local_time(now()),
+    {Date, Time} = calendar:now_to_local_time(erlang:timestamp()),
     DateStr = io_lib:fwrite("~w/~.2.0w/~.2.0w ", tuple_to_list(Date)),
     TimeStr = io_lib:fwrite("~.2.0w:~.2.0w:~.2.0w", tuple_to_list(Time)),
     list_to_binary([DateStr, TimeStr]).

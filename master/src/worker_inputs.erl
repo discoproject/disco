@@ -76,7 +76,7 @@ replicas(SeqId, Rid, Label, Replicas, Map) ->
 
 -spec fail(seq_id(), [rep_id()], state()) -> state().
 fail(SeqId, Rids, S) ->
-    Now = now(),
+    Now = erlang:timestamp(),
     lists:foldl(fun(Rid, S1) -> fail_one({SeqId, Rid}, Now, S1) end, S, Rids).
 
 fail_one(Key, Now, #state{input_map = Map} = S) ->
