@@ -49,15 +49,15 @@ start_gc(Root) ->
 
 -spec initial_wait(timeout()) -> ok.
 initial_wait(InitialWait) ->
-    Start = now(),
+    Start = disco_util:timestamp(),
     receive
         {From, _Req} ->
             From ! {ok, init_wait},
-            Wait = timer:now_diff(now(), Start) div 1000,
+            Wait = timer:now_diff(disco_util:timestamp(), Start) div 1000,
             initial_wait(InitialWait - Wait);
         Other ->
             lager:error("GC: got unexpected msg ~p", [Other]),
-            Wait = timer:now_diff(now(), Start) div 1000,
+            Wait = timer:now_diff(disco_util:timestamp(), Start) div 1000,
             initial_wait(InitialWait - Wait)
     after InitialWait ->
             ok
@@ -65,12 +65,12 @@ initial_wait(InitialWait) ->
 
 -spec start_gc(string(), ets:tab(), non_neg_integer()) -> no_return().
 start_gc(Root, DeletedAges, GCMaxDuration) ->
-    Start = now(),
+    Start = disco_util:timestamp(),
     case ddfs_gc_main:start_link(Root, DeletedAges) of
         {ok, Gc} ->
             start_gc_wait(Gc, GCMaxDuration),
             % timer:now_diff() returns microseconds.
-            Wait = timer:now_diff(now(), Start) div 1000,
+            Wait = timer:now_diff(disco_util:timestamp(), Start) div 1000,
             % Wait until the next scheduled gc run slot.
             Idle = ?GC_INTERVAL - (Wait rem ?GC_INTERVAL),
             idle(Idle);
@@ -82,16 +82,16 @@ start_gc(Root, DeletedAges, GCMaxDuration) ->
 
 -spec idle(timeout()) -> ok.
 idle(Timeout) ->
-    Start = now(),
+    Start = disco_util:timestamp(),
     receive
         {From, status} ->
             From ! {ok, not_running},
-            Wait = Timeout - timer:now_diff(now(), Start) div 1000,
+            Wait = Timeout - timer:now_diff(disco_util:timestamp(), Start) div 1000,
             idle(Wait);
         {From, start} ->
             From ! ok;
         _Other ->
-            Wait = Timeout - timer:now_diff(now(), Start) div 1000,
+            Wait = Timeout - timer:now_diff(disco_util:timestamp(), Start) div 1000,
             idle(Wait)
     after Timeout ->
             ok
@@ -99,7 +99,7 @@ idle(Timeout) ->
 
 -spec start_gc_wait(pid(), timeout()) -> ok.
 start_gc_wait(Pid, Interval) ->
-    Start = now(),
+    Start = disco_util:timestamp(),
     receive
         {'EXIT', Pid, shutdown} ->
             lager:info("GC terminated.");
@@ -107,16 +107,16 @@ start_gc_wait(Pid, Interval) ->
             lager:error("GC: exited with ~p", [Reason]);
         {'EXIT', Other, Reason} ->
             lager:error("GC: got unexpected exit of ~p: ~p", [Other, Reason]),
-            start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000));
+            start_gc_wait(Pid, Interval - (timer:now_diff(disco_util:timestamp(), Start) div 1000));
         {From, status} when is_pid(From) ->
             ddfs_gc_main:gc_status(Pid, From),
-            start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000));
+            start_gc_wait(Pid, Interval - (timer:now_diff(disco_util:timestamp(), Start) div 1000));
         {From, start} when is_pid(From) ->
             From ! ok,
-            start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000));
+            start_gc_wait(Pid, Interval - (timer:now_diff(disco_util:timestamp(), Start) div 1000));
         Other ->
             lager:error("GC: got unexpected msg ~p", [Other]),
-            start_gc_wait(Pid, Interval - (timer:now_diff(now(), Start) div 1000))
+            start_gc_wait(Pid, Interval - (timer:now_diff(disco_util:timestamp(), Start) div 1000))
     after Interval ->
             lager:error("GC: completion timed out"),
             exit(Pid, force_timeout)

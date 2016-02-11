@@ -4,7 +4,11 @@
 -define(MAX_EVENTS_PER_SECOND, 5).
 -define(MICROSECONDS_IN_SECOND, 1000000).
 
--opaque state() :: queue().
+-ifdef(namespaced_types).
+-type state() :: queue:queue().
+-else.
+-type state() :: queue().
+-endif.
 -type throttle() :: {ok, non_neg_integer(), state()} | {error, term()}.
 
 -export_type([state/0]).
@@ -15,7 +19,7 @@ init() ->
 
 -spec handle(state()) -> throttle().
 handle(Q) ->
-    Now = now(),
+    Now = disco_util:timestamp(),
     Q1 = queue:in(Now, Q),
     Diff = timer:now_diff(Now, queue:get(Q1)),
     if Diff > ?MICROSECONDS_IN_SECOND ->
@@ -25,7 +29,11 @@ handle(Q) ->
         throttle(Q1, queue:len(Q1))
     end.
 
+-ifdef(namespaced_types).
+-spec throttle(queue:queue(), non_neg_integer()) -> throttle().
+-else.
 -spec throttle(queue(), non_neg_integer()) -> throttle().
+-endif.
 throttle(_Q, N) when N >= ?MAX_EVENTS_PER_SECOND * 2 ->
     {error, ["Worker is behaving badly: Sent ",
              integer_to_list(N), " events in a second, ignoring replies."]};

@@ -331,7 +331,7 @@ copy_bytes(Src, Dst, Left) ->
     copy_bytes(Src, Dst, Left - byte_size(Buf)).
 
 tempname(JobHome) ->
-    {MegaSecs, Secs, MicroSecs} = now(),
+    {MegaSecs, Secs, MicroSecs} = disco_util:timestamp(),
     filename:join(JobHome, disco:format("jobfile@~.16b:~.16b:~.16b",
                                         [MegaSecs, Secs, MicroSecs])).
 
