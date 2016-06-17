@@ -15,8 +15,14 @@ try:
 except ImportError:
     nocurl = True
 
+# Dictionary of connection class by scheme.
+# The default will be HTTPConnection so we only need to define
+# the other cases (in other words "https" when using httplib).
+connection_class_scheme = {}
+
 if nocurl:
     HTTPConnection = httplib.HTTPConnection
+    connection_class_scheme['https'] = httplib.HTTPSConnection
 else:
     from disco import comm_pycurl
     from disco.comm_pycurl import HTTPConnection
@@ -52,7 +58,8 @@ def request(method, url, data=None, headers={}, sleep=0):
     scheme, netloc, path = urlsplit(urlresolve(url))
 
     try:
-        conn = HTTPConnection(str(netloc))
+        conn_class = connection_class_scheme.get(scheme, HTTPConnection)
+        conn = conn_class(str(netloc))
         conn.request(method, '/{0}'.format(path), body=data, headers=headers)
         response = conn.getresponse()
         status = response.status
