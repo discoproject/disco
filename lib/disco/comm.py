@@ -21,6 +21,7 @@ except ImportError:
 connection_class_scheme = {}
 
 if nocurl:
+    HTTPConnection = httplib.HTTPConnection
     connection_class_scheme['https'] = httplib.HTTPSConnection
 else:
     from disco import comm_pycurl
