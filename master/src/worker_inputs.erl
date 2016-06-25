@@ -9,7 +9,7 @@
 -include("pipeline.hrl").
 
 -record(fail_info, {url       :: url(),
-                    last_fail :: erlang:timestamp()}).
+                    last_fail :: disco_util:timestamp()}).
 -type fail_info() :: #fail_info{}.
 
 -record(state, {
@@ -63,7 +63,7 @@ exclude(Exc, S) ->
 all(S) ->
     include(all_seq_ids(S), S).
 
--spec replicas(seq_id(), rep_id(), label(), [{erlang:timestamp(), replica()}],
+-spec replicas(seq_id(), rep_id(), label(), [{disco_util:timestamp(), replica()}],
     disco_gbtree({seq_id(), rep_id()}, fail_info())) -> {all | label(), [replica()]}.
 replicas(SeqId, Rid, Label, Replicas, Map) ->
     case gb_trees:lookup({SeqId, Rid}, Map) of
@@ -76,7 +76,7 @@ replicas(SeqId, Rid, Label, Replicas, Map) ->
 
 -spec fail(seq_id(), [rep_id()], state()) -> state().
 fail(SeqId, Rids, S) ->
-    Now = now(),
+    Now = disco_util:timestamp(),
     lists:foldl(fun(Rid, S1) -> fail_one({SeqId, Rid}, Now, S1) end, S, Rids).
 
 fail_one(Key, Now, #state{input_map = Map} = S) ->
