@@ -2,7 +2,9 @@ import os
 from datetime import datetime
 
 from disco.test import TestCase
-from disco.util import flatten, iterify, urlsplit
+from disco.util import flatten, iterify, urlsplit, urlresolve
+from socket import gethostname
+from disco.error import DiscoError
 
 def function(x):
     return x + 0
@@ -41,3 +43,11 @@ class UtilTestCase(TestCase):
                           ('tag', ('host', ''), 'tag'))
         self.assertEquals(urlsplit('tag://host:port/tag', ''),
                           ('tag', ('host', 'port'), 'tag'))
+
+    def test_urlresolve(self):
+        url = 'tag://0'
+        hostname = gethostname()
+        self.assertEquals(urlresolve(url, master=None),
+                          'http://{}:8989/ddfs/tag/0'.format(hostname))
+        self.assertRaises(DiscoError,
+                          lambda: urlresolve(url, master='disco-master'))

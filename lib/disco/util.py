@@ -7,6 +7,7 @@ internally.
 """
 import os, sys, time
 import functools, gzip
+from urlparse import urlparse
 
 from disco.compat import BytesIO, basestring, bytes_to_str, str_to_bytes
 from disco.compat import pickle_loads, pickle_dumps, sort_cmd
@@ -179,6 +180,19 @@ def urlsplit(url, localhost=None, disco_port=None, **kwargs):
                 locstr = '{0}:{1}'.format(host, disco_port)
     return scheme, netloc.parse(locstr), path
 
+def assert_url(url, master=None):
+    err = """url netloc/scheme: '{}' \nDiscoSettings()['DISCO_MASTER'] = {}
+    os.environ['DISCO_MASTER'] = '{}'"""
+    try:
+        assert urlparse(url).scheme
+        assert urlparse(url).netloc
+    except Exception as e:
+        raise DiscoError(err.format(url,
+            e.message,
+            DiscoSettings()['DISCO_MASTER'] or 'None',
+            master))
+    return url
+
 def urlresolve(url, master=None):
     def _master(host_port):
         host, port = host_port
@@ -189,9 +203,11 @@ def urlresolve(url, master=None):
         return 'http://{0}:{1}'.format(host, port)
     scheme, netloc, path = urlsplit(url)
     if scheme == 'dir':
-        return urlresolve('{0}/{1}'.format(_master(netloc), path))
+        return assert_url(urlresolve('{0}/{1}'.format(_master(netloc), path)),
+            master=master)
     if scheme == 'tag':
-        return urlresolve('{0}/ddfs/tag/{1}'.format(_master(netloc), path))
+        return assert_url(urlresolve('{0}/ddfs/tag/{1}'.format(_master(netloc), path)),
+            master=master)
     return '{0}://{1}/{2}'.format(scheme, netloc, path)
 
 def urltoken(url):
