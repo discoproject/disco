@@ -12,8 +12,10 @@ See also: :ref:`DDFS`.
 import os, re, random, json
 from disco.compat import StringIO, BytesIO, urlencode, basestring, bytes_to_str
 from disco.comm import upload, download, open_remote
+from disco.core import Job
 from disco.error import CommError
 from disco.fileutils import Chunker, CHUNK_SIZE, MAX_RECORD_SIZE
+from disco.schemes.scheme_raw import input_stream
 from disco.settings import DiscoSettings
 from disco.util import isiterable, iterify, listify, partition
 from disco.util import urljoin, urlsplit, urlresolve, urltoken, proxy_url
@@ -430,3 +432,32 @@ class DDFS(object):
                 for url in iterify(urls)]
         url = urls[0]
         return upload(urls, source, token=self._token(url, token, 'PUT'), **kwargs)
+
+
+class FileSizeJob(Job):
+    map_input_stream = (input_stream,)
+
+    @staticmethod
+    def map_reader(fd, size, url, parameters):
+        yield url
+
+    def map(self, row, params):
+        import os
+        global Task
+        ddfs_root = '/'.join(Task.ddfs_data.split('/')[:-1])
+        if Task.host not in row:
+            print("Local file not found")
+        else:
+            f_path = row.replace('disco://{0}'.format(Task.host), ddfs_root)
+            f_size = 0
+            try:
+                f_size = os.path.getsize(f_path)
+            except OSError:
+                pass
+            finally:
+                yield f_path, f_size
+
+    def reduce(self, rows_iter, out, params):
+        from disco.util import kvgroup
+        for f_name, f_size in kvgroup(rows_iter):
+            out.add(f_name, sum(f_size))
