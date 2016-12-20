@@ -76,11 +76,13 @@ jobdict(<<?MAGIC:16/big,
 -spec core_jobinfo(jobpack(), job_dict()) -> {jobname(), jobinfo()}.
 core_jobinfo(JobPack, JobDict) ->
     Prefix  = find(<<"prefix">>, JobDict),
+    Nice    = find(<<"nice">>, JobDict, 19),
     SaveResults = find(<<"save_results">>, JobDict, false),
     SaveInfo = find(<<"save_info">>, JobDict, "ddfs"),
     JobInfo = #jobinfo{jobenvs = jobenvs(JobPack),
                        worker  = find(<<"worker">>, JobDict),
                        owner   = find(<<"owner">>, JobDict),
+                       nice    = validate_nice(Nice),
                        save_info = validate_save_info(SaveInfo),
                        save_results = validate_save_results(SaveResults)},
     {validate_prefix(Prefix), JobInfo}.
@@ -218,6 +220,29 @@ validate_inputs(Inputs) ->
         _I ->
             [{data, {L, Sz, [{U, disco:preferred_host(U)} || U <- Urls]}}
              || [L, Sz, Urls] <- Inputs]
+    end.
+
+-spec validate_nice(term()) -> integer().
+validate_nice(S) ->
+    case json_validator:validate(integer, S) of
+        {error, E} ->
+            lager:warning("Invalid nice in jobpack: ~s",
+                          json_validator:error_msg(E)),
+            throw({error, invalid_job_nice});
+        _ ->
+            case S > 19 of
+                true ->
+                    lager:warning("Invalid nice in jobpack: ~s is too high", S),
+                    throw({error, invalid_job_nice});
+                false ->
+                     case S < -20 of
+                         true ->
+                             lager:warning("Invalid nice in jobpack: ~s is too low", S),
+                             throw({error, invalid_job_nice});
+                         false ->
+                             S
+                     end
+            end
     end.
 
 -spec validate_save_info(binary() | list()) -> string().

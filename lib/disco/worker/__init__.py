@@ -104,6 +104,11 @@ class Worker(dict):
 
     The :class:`Worker` base class defines the following parameters:
 
+    :type  nice: int
+    :param nice: niceness of the job (default 19).
+		 Niceness values range from -20 (most favorable to the process) to 19 (least favorable to the process).
+		 Values lower than 0 need root.
+
     :type  save_results: bool
     :param save_results: whether or not to save the output to :ref:`DDFS`.
 
@@ -148,6 +153,7 @@ class Worker(dict):
         :return: dict of default values for the :class:`Worker`.
         """
         return {'save_results': False,
+		'nice': 19,
                 'profile': False,
                 'required_files': {},
                 'required_modules': None}
@@ -198,6 +204,7 @@ class Worker(dict):
         :return: :ref:`jobdict` dict.
         """
         return {'prefix': self.getitem('name', job, jobargs),
+		'nice': self.getitem('nice', job, jobargs, 19),
                 'save_results': self.getitem('save_results', job, jobargs, False),
                 'save_info': self.getitem('save_info', job, jobargs, "ddfs"),
                 'scheduler': self.getitem('scheduler', job, jobargs, {}),

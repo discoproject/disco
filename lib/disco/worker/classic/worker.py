@@ -261,6 +261,7 @@ class Worker(worker.Worker):
         has_reduce = bool(get('reduce'))
         reduce_shuffle = bool(get('reduce_shuffle'))
         job_input = get('input', [])
+	nice = get('nice', 19)
         has_save_results = get('save', False) or get('save_results', False)
 
         if not isiterable(job_input):
@@ -292,6 +293,7 @@ class Worker(worker.Worker):
                         'reduce?': has_reduce,
                         'reduce_shuffle?': reduce_shuffle,
                         'nr_reduces': nr_reduces,
+			'nice': nice,
                         'save_results': has_save_results})
         return jobdict
 
