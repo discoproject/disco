@@ -13,6 +13,9 @@ MAX_RECORD_SIZE = 1 * MB
 HUNK_SIZE       = 1 * MB
 CHUNK_SIZE      = 64 * MB
 
+OS_SEPS         = os.sep + (os.altsep or '')
+
+
 class Chunker(object):
     """
     chunks contain hunks
@@ -137,7 +140,7 @@ class DiscoZipFile(ZipFile, object):
     def writepath(self, pathname, exclude=()):
         for file in files(pathname):
             name, ext = os.path.splitext(file)
-            if ext not in exclude:
+            if ext not in exclude and file.lstrip(OS_SEPS) not in self.NameToInfo:
                 self.write(file, file)
 
     def writemodule(self, module, arcname=None):

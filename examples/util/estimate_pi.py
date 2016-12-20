@@ -15,4 +15,4 @@ if __name__ == '__main__':
     tot = 0
     for k, v in result_iterator(job.wait()):
         tot += v
-    print (4.0 * tot) / COUNT
+    print ((4.0 * tot) / COUNT)
