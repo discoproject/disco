@@ -368,6 +368,24 @@ def results(program, jobname):
     for result in results:
         print('\t'.join('{0}'.format(e) for e in iterify(result)).rstrip())
 
+@Disco.job_command
+def results_get(program, jobname):
+    """Usage: jobname
+    
+    Print out the data of a completed job.
+    `disco jobs | xargs -IJOB_ID disco results_get JOB_ID`
+    """
+    status, results = program.disco.results(jobname)
+    if sys.version_info[0] == 2:
+        binary_type = str
+    elif sys.version_info[0] == 3:
+        binary_type = bytes
+    if status == 'ready':
+        for line in program.disco.result_iterator(results):
+            if isinstance(line, binary_type):
+                line = line.decode('utf-8')
+            print(line)
+
 @Disco.command
 def run(program, jobclass, *inputs):
     """Usage: jobclass [input ...]
