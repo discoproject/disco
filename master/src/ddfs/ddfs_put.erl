@@ -10,6 +10,7 @@
 
 % maximum file size: 1T
 -define(MAX_RECV_BODY, (1024*1024*1024*1024)).
+-define(RECV_CHUNK, (8192)).
 
 -spec start(non_neg_integer()) -> {ok, pid()} | {error, term()}.
 start(Port) ->
@@ -109,13 +110,13 @@ receive_blob(Req, IO, Dst, Url) ->
 
 -spec receive_body(module(), file:io_device()) -> _.
 receive_body(Req, IO) ->
-    R0 = (catch Req:stream_body(?MAX_RECV_BODY,
+    R0 = (catch Req:stream_body(?RECV_CHUNK,
                                 fun ({BufLen, Buf}, BodyLen) ->
                                         case file:write(IO, Buf) of
                                             ok -> BodyLen + BufLen;
                                             {error, _E} = Err -> throw(Err)
                                         end
-                                end, 0)),
+                                end, 0,?MAX_RECV_BODY)),
     case R0 of
         % R == <<>> or undefined if body is empty
         R when is_integer(R); R =:= <<>>; R =:= undefined ->
