@@ -239,8 +239,6 @@ class Worker(dict):
         jobzip = DiscoZipFile()
         jobzip.writepath(os.path.dirname(clxpath), exclude=('.pyc', '__pycache__'))
         jobzip.writepath(os.path.dirname(discopath), exclude=('.pyc', '__pycache__'))
-        jobzip.writesource(job)
-        jobzip.writesource(self)
         # Then, add any user-specified required files.
         from disco.util import iskv
         def get(key):
