@@ -1,0 +1,10 @@
+/var/log/disco/*.log {
+    weekly
+    missingok
+    rotate 12
+    size 1M
+    compress
+    delaycompress
+    ifempty
+    create 644 disco disco
+}
