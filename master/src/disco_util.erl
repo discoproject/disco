@@ -31,7 +31,7 @@ groupby(N, [H|_] = List, Groups) ->
 
 -spec choose_random([T,...]) -> T.
 choose_random(L) ->
-    lists:nth(random:uniform(length(L)), L).
+    lists:nth(rand:uniform(length(L)), L).
 
 -spec choose_random(list(T), non_neg_integer()) -> list(T).
 choose_random(L, N) ->
