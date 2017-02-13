@@ -32,6 +32,10 @@ class netloc(tuple):
     def port(self):
         return self[1]
 
+    @property
+    def host_port(self):
+        return self[0], self[1]
+
     def __nonzero__(host_port):
         return bool(host_port[0])
 
@@ -169,7 +173,7 @@ def urlsplit(url, localhost=None, disco_port=None, **kwargs):
             path, locstr = locstr, ''
     else:
         disco_port = disco_port or str(DiscoSettings()['DISCO_PORT'])
-        host, port = netloc.parse(locstr)
+        host, port = netloc.parse(locstr).host_port
         if scheme == 'disco' or port == disco_port:
             if localhost == True or locstr == localhost:
                 scheme = 'file'
