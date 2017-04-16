@@ -12,6 +12,7 @@ RUN adduser --system disco --shell /bin/sh
 # setup ssh
 RUN echo root:disco | chpasswd
 RUN mkdir -p /var/run/sshd
+RUN chmod 0600 /var/run/sshd
 
 ## passwordless login for docker 
 RUN mkdir -p /home/disco/.ssh
