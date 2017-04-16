@@ -56,6 +56,7 @@ if '.disco-home' in os.listdir('.'):
     sys.path.append('lib')
 
 from disco.cli import OptionParser, Program
+from disco import JOBPACK_VERSION1, JOBPACK_VERSION2
 
 class Disco(Program):
     pass
@@ -194,6 +195,10 @@ def job(program, worker, *inputs):
         return data
     def prefix(p):
         return p or os.path.basename(worker).split(".")[0]
+    if not program.options.pipeline:
+        jobversion = JOBPACK_VERSION1
+    else:
+        jobversion = JOBPACK_VERSION2
     jobdict = {'input': program.input(*inputs),
                'worker': worker,
                'map?': program.options.has_map,
@@ -201,11 +206,12 @@ def job(program, worker, *inputs):
                'nr_reduces': program.options.nr_reduces,
                'prefix': prefix(program.options.prefix),
                'scheduler': program.scheduler,
-               'owner': program.options.owner or program.settings['DISCO_JOB_OWNER']}
+               'owner': program.options.owner or program.settings['DISCO_JOB_OWNER'],
+               'pipeline': program.options.pipeline}
     jobenvs = dict(program.options.env)
     jobzip  = jobzip(worker, *program.options.files)
     jobdata = jobdata(program.options.data)
-    jobpack = JobPack(jobdict, jobenvs, jobzip.dumps(), jobdata)
+    jobpack = JobPack(jobversion, jobdict, jobenvs, jobzip.dumps(), jobdata)
     if program.options.verbose:
         print("jobdict:")
         print("\n".join("\t{0[0]}\t{0[1]}".format(item) for item in jobdict.items()))
@@ -256,6 +262,11 @@ job.add_option('-d', '--data',
 job.add_option('-D', '--dump-jobpack',
                action='store_true',
                help='dump the jobpack without submitting it to the master')
+job.add_option('-P', '--pipeline',
+               action='append',
+               default=[],
+               nargs=2,
+               help='specify the pipeline steps')
 
 @Disco.job_command
 def jobdict(program, jobname):
