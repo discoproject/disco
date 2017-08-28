@@ -7,7 +7,6 @@ internally.
 """
 import os, sys, time
 import functools, gzip
-from urlparse import urlparse
 
 from disco.compat import BytesIO, basestring, bytes_to_str, str_to_bytes
 from disco.compat import pickle_loads, pickle_dumps, sort_cmd

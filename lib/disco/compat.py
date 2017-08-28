@@ -32,6 +32,7 @@ if sys.version_info[0] == 3:
 
     import socketserver as socket_server
     from urllib.parse import urlencode
+    from urllib.parse import urlparse
     import http.client as httplib
     import http.server as http_server
 
@@ -76,6 +77,7 @@ else:
 
     import SocketServer as socket_server
     from urllib import urlencode
+    from urlparse import urlparse
     import httplib as httplib
     import BaseHTTPServer as http_server
 
