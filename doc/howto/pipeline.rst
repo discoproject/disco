@@ -129,12 +129,12 @@ terminology, can involve a lot of network traffic.  It would be nice
 to optimize the network transfers involved.  Indeed, that is precisely
 what the remaining grouping operations will let us do.
 
-.. _group_label_node:
+.. _group_node_label:
 
-Group_label_node
+Group_node_label
 ''''''''''''''''
 
-The ``group_label_node`` operation is essentially the ``group_label``
+The ``group_node_label`` operation is essentially the ``group_label``
 operation, but performed on every cluster node.
 
 .. figure:: ../images/dataflow/group_node_label.png
