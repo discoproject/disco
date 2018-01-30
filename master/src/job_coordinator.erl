@@ -433,7 +433,7 @@ retry_task(Host, _Error,
                           Sleep =
                               lists:min([FC * ?FAILED_MIN_PAUSE,
                                          ?FAILED_MAX_PAUSE])
-                              + random:uniform(?FAILED_PAUSE_RANDOMIZE),
+                              + rand:uniform(?FAILED_PAUSE_RANDOMIZE),
                           M = "Task ~s:~B failed on ~p, ~Bth failures so far."
                               " Sleeping ~B seconds before retrying.",
                           MArgs = [Stage, TaskId, Host, FC, round(Sleep / 1000)],
