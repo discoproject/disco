@@ -300,7 +300,7 @@ do_use_inputs(Inputs, #state{jobinfo = JobInfo} = S) ->
                                     #task_info{spec = input,
                                                outputs = Inputs}}]),
     % Mark the 'input' stage as done, and send notification.
-    InputStage = #stage_info{all = 1, done = [input]},
+    InputStage = #stage_info{start = disco_util:timestamp(), all = 1, done = [input]},
     SI = gb_trees:from_orddict([{?INPUT, InputStage}]),
     stage_done(?INPUT),
     S#state{jobinfo    = JobInfo#jobinfo{inputs = Inputs},

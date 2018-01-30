@@ -128,14 +128,14 @@
 -define(REDUCE_SHUFFLE, <<"reduce_shuffle">>).
 
 % The submitted pipeline jobpack.
--record(jobinfo, {jobname       :: jobname(),
-                  jobfile       :: path(),
+-record(jobinfo, {jobname = null :: null | jobname(),
+                  jobfile = null :: null | path(),
                   jobenvs = []  :: [{nonempty_string(), string()}],
                   owner         :: binary(),
                   worker        :: binary(),
                   inputs = []   :: [task_output()],
                   pipeline = [] :: pipeline(),
-                  schedule      :: task_schedule(),
+                  schedule = null :: null | task_schedule(),
                   save_results = false :: boolean(),
                   save_info     :: string()}).
 -type jobinfo() :: #jobinfo{}.

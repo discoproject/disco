@@ -405,6 +405,8 @@ schedule_option1(#ver1_info{force_local = Local, force_remote = Remote, max_core
     S = schedule_option1(Local, Remote),
     S#task_schedule{max_cores = Max}.
 % Prefer Local if both Local and Remote are set.
-schedule_option1(true, _) -> #task_schedule{locality = local};
-schedule_option1(_, true) -> #task_schedule{locality = remote};
-schedule_option1(_, _)    -> #task_schedule{}.
+schedule_option1(true, _) -> #task_schedule{locality = local,
+											max_cores = ?DEFAULT_MAX_CORE};
+schedule_option1(_, true) -> #task_schedule{locality = remote,
+											max_cores = ?DEFAULT_MAX_CORE};
+schedule_option1(_, _)    -> #task_schedule{max_cores = ?DEFAULT_MAX_CORE}.
