@@ -9,8 +9,8 @@
 
 -type attrib() :: 'urls' | 'read_token' | 'write_token' | {'user', binary()}.
 
--record(tagcontent, {id :: tagid(),
-                     last_modified :: binary(),
+-record(tagcontent, {id = null :: null | tagid(),
+                     last_modified = null :: null | binary(),
                      read_token = null :: token(),
                      write_token = null :: token(),
                      urls = [] :: [[binary()]],
